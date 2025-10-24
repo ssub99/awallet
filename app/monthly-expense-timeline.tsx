@@ -700,17 +700,10 @@ export default function MonthlyExpenseTimelineScreen() {
               {categoryExpenses.map((item, index) => (
                 <View key={item.category}>
                   <View style={[styles.categoryItemStatus, { backgroundColor: colors.staticWhite }]}>
-                    <View style={styles.categoryInfo}>
+                    <View style={styles.categorySection}>
                       <Text style={[styles.categoryName, { color: colors.text }]}>
                         {CATEGORY_EMOJIS[item.category] || '📝'} {item.category}
                       </Text>
-                      {item.memo && (
-                        <Text style={[styles.categoryMemo, { color: colors.textAlt }]}>
-                          {item.memo}
-                        </Text>
-                      )}
-                    </View>
-                    <View style={styles.categoryStats}>
                       <Text style={[styles.categoryStatsText, { color: colors.text }]}>
                         {categoryFilter === 'recurring' 
                           ? `${item.amount.toLocaleString()}원`
@@ -1068,24 +1061,18 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     marginHorizontal: 16,
   },
-  categoryInfo: {
-    flex: 1,
+  categorySection: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 4,
   },
   categoryName: {
     fontSize: 16,
     fontFamily: 'Pretendard',
     fontWeight: '700',
     lineHeight: 24,
-    marginBottom: 4,
-  },
-  categoryMemo: {
-    fontSize: 14,
-    fontFamily: 'Pretendard',
-    fontWeight: '400',
-    lineHeight: 21,
-  },
-  categoryStats: {
-    alignItems: 'flex-end',
+    flex: 1,
   },
   categoryStatsText: {
     fontSize: 16,

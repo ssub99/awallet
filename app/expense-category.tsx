@@ -36,7 +36,13 @@ export default function ExpenseCategoryScreen() {
   
   // 화면 진입 시에만 로그 출력
   useEffect(() => {
-
+    console.log('🔍 [카테고리 선택] 파라미터 확인:', {
+      selectedDate: params.selectedDate,
+      calendarYear: params.calendarYear,
+      calendarMonth: params.calendarMonth,
+      mode: params.mode,
+      selectedCategory: params.selectedCategory
+    });
   }, []);
   
   // 수정 모드인지 확인 (소비 기록 상세에서 온 경우)
@@ -56,12 +62,20 @@ export default function ExpenseCategoryScreen() {
         router.back();
       } else if (isChallengeMode) {
         // 챌린지 모드: 챌린지 생성 화면으로 이동 (카테고리 전달)
+        console.log('🔍 [카테고리 선택] 챌린지 생성으로 전달할 파라미터:', {
+          category: selectedCategory,
+          selectedDate: params.selectedDate,
+          calendarYear: params.calendarYear,
+          calendarMonth: params.calendarMonth
+        });
 
         router.push({
           pathname: '/challenge-create',
           params: { 
             category: selectedCategory,
-            selectedDate: params.selectedDate
+            selectedDate: params.selectedDate,
+            calendarYear: params.calendarYear,
+            calendarMonth: params.calendarMonth
           },
         });
       } else {

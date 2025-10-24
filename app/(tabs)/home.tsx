@@ -13,7 +13,7 @@ import { Colors, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { createSheetEvent } from '@/utils/create-sheet-event';
-import { isDateInCustomMonth } from '@/utils/custom-month';
+import { getCustomMonthInfo, isDateInCustomMonth } from '@/utils/custom-month';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useIsFocused } from '@react-navigation/native';
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
@@ -63,10 +63,9 @@ export default function HomeScreen() {
   const [selectedDate, setSelectedDate] = useState<string>(getTodayLocalDate());
   
   // Shared year/month state for both TopNavigation and Calendar
-  // 항상 오늘 날짜로 초기화
-  const currentDate = new Date();
-  const [currentYear, setCurrentYear] = useState<number>(currentDate.getFullYear());
-  const [currentMonth, setCurrentMonth] = useState<number>(currentDate.getMonth() + 1); // 1-12
+  // 초기값은 임시로 설정하고, useFocusEffect에서 올바른 값으로 설정
+  const [currentYear, setCurrentYear] = useState<number>(new Date().getFullYear());
+  const [currentMonth, setCurrentMonth] = useState<number>(new Date().getMonth() + 1); // 1-12
   
   // 앱 시작 시 저장된 설정 불러오기 및 params 처리
   useEffect(() => {
@@ -131,10 +130,17 @@ export default function HomeScreen() {
   }, [periodType, isLoadingSettings]);
   
   // Reset to today's date (and switch to month view if in year view)
-  const resetToToday = () => {
+  const resetToToday = async () => {
     const today = new Date();
-    setCurrentYear(today.getFullYear());
-    setCurrentMonth(today.getMonth() + 1);
+    
+    // Load month start day to calculate correct custom month
+    const monthStart = await loadMonthStartDay();
+    
+    // Get custom month info for today's date
+    const customMonthInfo = getCustomMonthInfo(today, monthStart);
+    
+    setCurrentYear(customMonthInfo.year);
+    setCurrentMonth(customMonthInfo.month);
     
     // 로컬 시간 기준으로 날짜 문자열 생성 (UTC 대신)
     const year = today.getFullYear();
@@ -156,7 +162,9 @@ export default function HomeScreen() {
   useEffect(() => {
     const unsubscribe = navigation.addListener('tabDoubleTap' as any, (e: any) => {
       if (e.data?.routeName === 'home') {
-        resetToToday();
+        resetToToday().catch((error) => {
+          console.error('Error resetting to today:', error);
+        });
       }
     });
     
@@ -235,6 +243,7 @@ export default function HomeScreen() {
   // State로 관리
   const [calendarData, setCalendarData] = useState<Record<string, DayData>>(initialCalendarData);
 
+
   // AsyncStorage에서 calendarData와 monthStartDay 불러오기 (화면 포커스 시마다)
   useFocusEffect(
     useCallback(() => {
@@ -252,9 +261,12 @@ export default function HomeScreen() {
           // Load month start day
           const monthStart = await loadMonthStartDay();
           setMonthStartDay(monthStart);
+          
+          // 현재 날짜가 속하는 올바른 커스텀 월로 설정 (제거됨)
+          // await resetToToday();
 
         } catch (error) {
-
+          console.error('월 시작일 변경 감지 중 오류:', error);
         }
       };
       
@@ -591,6 +603,22 @@ export default function HomeScreen() {
           <Pressable 
             style={[styles.option, { backgroundColor: colors.fill }]}
             onPress={() => {
+              // 사용자가 선택한 날짜를 기준으로 챌린지 생성
+              // selectedDate는 "2025-10-24" 형식이므로 "2025.10.24" 형식으로 변환
+              const challengeDate = selectedDate.replace(/-/g, '.');
+              
+              // 선택한 날짜에서 년/월 추출
+              const [selectedYear, selectedMonth] = selectedDate.split('-').map(Number);
+              
+              console.log('🔍 [홈 화면] 챌린지 도전으로 전달할 파라미터:', {
+                mode: 'challenge',
+                selectedDate: challengeDate,
+                calendarYear: selectedYear.toString(),      // ✅ 선택한 날짜의 년도
+                calendarMonth: selectedMonth.toString(),    // ✅ 선택한 날짜의 월
+                originalSelectedDate: selectedDate,
+                extractedYear: selectedYear,
+                extractedMonth: selectedMonth
+              });
 
               setIsCreateSheetVisible(false);
               setTimeout(() => {
@@ -598,9 +626,9 @@ export default function HomeScreen() {
                   pathname: '/expense-category',
                   params: { 
                     mode: 'challenge',
-                    selectedDate: selectedDate,
-                    calendarYear: currentYear.toString(),
-                    calendarMonth: currentMonth.toString()
+                    selectedDate: challengeDate,
+                    calendarYear: selectedYear.toString(),      // ✅ 선택한 날짜의 년도
+                    calendarMonth: selectedMonth.toString()      // ✅ 선택한 날짜의 월
                   }
                 });
               }, 350);

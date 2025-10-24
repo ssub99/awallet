@@ -10,6 +10,7 @@ import { Icon } from '@/components/ui/icon';
 import { ThemeColors } from '@/constants/theme-colors';
 import { Typography } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { getCustomMonthInfo } from '@/utils/custom-month';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
@@ -27,6 +28,110 @@ export default function MonthStartDayScreen() {
   const [initialDay, setInitialDay] = useState(1); // 원래 값 저장
   const scrollRef = useRef<ScrollView>(null);
   const [viewportHeight, setViewportHeight] = useState(0);
+
+  // 챌린지 재생성 로직
+  const regenerateChallengesForNewMonthStart = async (newMonthStartDay: number) => {
+    try {
+      console.log('🔄 챌린지 재생성 시작:', { newMonthStartDay });
+      
+      // 기존 챌린지 데이터 로드
+      const storedChallengeData = await AsyncStorage.getItem('challengeData');
+      const existingChallenges = storedChallengeData ? JSON.parse(storedChallengeData) : [];
+      console.log('📋 기존 챌린지 개수:', existingChallenges.length);
+      
+      // 기존 챌린지가 없으면 재생성하지 않음
+      if (existingChallenges.length === 0) {
+        console.log('📝 기존 챌린지 데이터 없음 - 재생성 건너뜀');
+        return;
+      }
+      
+      // 기존 챌린지들을 카테고리별로 그룹화
+      const challengeGroups = new Map<string, any[]>();
+      
+      existingChallenges.forEach((challenge: any) => {
+        if (!challengeGroups.has(challenge.category)) {
+          challengeGroups.set(challenge.category, []);
+        }
+        challengeGroups.get(challenge.category)!.push(challenge);
+      });
+      
+      // 새로운 챌린지들 생성
+      const newChallenges: any[] = [];
+      const today = new Date();
+      
+      // 오늘 날짜가 속하는 커스텀 월 정보 계산
+      const customMonthInfo = getCustomMonthInfo(today, newMonthStartDay);
+      const baseYear = customMonthInfo.year;
+      const baseMonth = customMonthInfo.month;
+      
+      console.log('📅 기준 커스텀 월:', { baseYear, baseMonth, today: today.toISOString().split('T')[0] });
+      
+      for (const [category, challenges] of challengeGroups) {
+        // 해당 카테고리의 첫 번째 챌린지에서 목표 금액과 반복 개월 수 가져오기
+        const firstChallenge = challenges[0];
+        const targetAmount = firstChallenge.targetAmount;
+        const recurringMonths = challenges.length;
+        
+        console.log(`🔄 ${category} 챌린지 재생성:`, {
+          targetAmount,
+          recurringMonths,
+          newMonthStartDay,
+          baseYear,
+          baseMonth
+        });
+        
+        // 새로운 recurringId 생성
+        const newRecurringId = `${today.getTime()}_${Math.random().toString(36).substr(2, 9)}`;
+        
+        // 오늘 날짜가 속하는 커스텀 월을 기준으로 챌린지들 생성
+        for (let i = 0; i < recurringMonths; i++) {
+          // 기준 커스텀 월 + i의 월 시작일 계산
+          const currentMonthStart = new Date(baseYear, baseMonth - 1 + i, newMonthStartDay);
+          const challengeStartYear = currentMonthStart.getFullYear();
+          const challengeStartMonth = currentMonthStart.getMonth() + 1;
+          const challengeStartDay = currentMonthStart.getDate();
+          
+          // 다음 월의 시작일 전날이 종료일
+          const nextMonthStart = new Date(baseYear, baseMonth - 1 + i + 1, newMonthStartDay);
+          const challengeEndDate = new Date(nextMonthStart.getTime() - 24 * 60 * 60 * 1000);
+          const challengeEndYear = challengeEndDate.getFullYear();
+          const challengeEndMonth = challengeEndDate.getMonth() + 1;
+          const challengeEndDay = challengeEndDate.getDate();
+          
+          const challengeStartDate = `${challengeStartYear}.${String(challengeStartMonth).padStart(2, '0')}.${String(challengeStartDay).padStart(2, '0')}`;
+          const challengeEndDateStr = `${challengeEndYear}.${String(challengeEndMonth).padStart(2, '0')}.${String(challengeEndDay).padStart(2, '0')}`;
+          
+          const newChallenge = {
+            id: i === 0 ? newRecurringId : `${today.getTime()}_${i}_${Math.random().toString(36).substr(2, 9)}`,
+            category: category,
+            startDate: challengeStartDate,
+            endDate: challengeEndDateStr,
+            targetAmount: targetAmount,
+            createdAt: today.getTime(),
+            recurringId: newRecurringId,
+          };
+          
+          newChallenges.push(newChallenge);
+          
+          console.log(`✅ ${category} 챌린지 ${i + 1} 생성:`, {
+            startDate: challengeStartDate,
+            endDate: challengeEndDateStr
+          });
+        }
+      }
+      
+      // 새로운 챌린지들 저장
+      await AsyncStorage.setItem('challengeData', JSON.stringify(newChallenges));
+      
+      console.log('🎉 챌린지 재생성 완료:', {
+        기존개수: existingChallenges.length,
+        새개수: newChallenges.length
+      });
+      
+    } catch (error) {
+      console.error('❌ 챌린지 재생성 중 오류:', error);
+    }
+  };
 
   // Load saved month start day
   useEffect(() => {
@@ -70,8 +175,11 @@ export default function MonthStartDayScreen() {
         try {
           await AsyncStorage.setItem('monthStartDay', `${selectedDay}일`);
           console.log('✅ 월 시작일 저장 (자동):', selectedDay);
+          
+          // 월 시작일이 변경되었을 때만 챌린지 재생성
+          await regenerateChallengesForNewMonthStart(selectedDay);
         } catch (error) {
-
+          console.error('❌ 월 시작일 저장 중 오류:', error);
         }
       }
     });
@@ -89,12 +197,16 @@ export default function MonthStartDayScreen() {
     if (selectedDay !== initialDay) {
       try {
         await AsyncStorage.setItem('monthStartDay', `${selectedDay}일`);
-
+        console.log('✅ 월 시작일 저장:', selectedDay);
+        
+        // 월 시작일이 변경되었을 때만 챌린지 재생성
+        await regenerateChallengesForNewMonthStart(selectedDay);
+        
       } catch (error) {
-
+        console.error('❌ 월 시작일 저장 중 오류:', error);
       }
     } else {
-
+      console.log('📝 월 시작일 변경 없음');
     }
     
     router.back();

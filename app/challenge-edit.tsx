@@ -536,25 +536,21 @@ export default function ChallengeEditScreen() {
               반복 설정
             </Text>
             <Pressable onPress={showDisabledToast}>
-              <View style={[styles.recurringCard, { backgroundColor: colors.staticWhite }]}>
-                <View style={styles.recurringContent}>
-                  <View style={styles.recurringHeader}>
-                    <View style={styles.recurringLabelContainer}>
-                      <Text style={[styles.recurringLabel, { color: colors.text }]}>
-                        챌린지 반복 여부
-                      </Text>
-                    </View>
+              <View style={[styles.card, { backgroundColor: colors.staticWhite }]}>
+                <View style={styles.recurringSection}>
+                  <View style={styles.recurringTitleRow}>
+                    <Text style={[styles.switchLabel, { color: colors.text }]}>
+                      챌린지 반복 여부
+                    </Text>
                     <Switch
                       value={isRecurringChallenge}
                       onValueChange={() => {}}
                       disabled={true}
                     />
                   </View>
-                  <View style={styles.recurringDescription}>
-                    <Text style={[styles.recurringDescriptionText, { color: colors.textAssistive }]}>
-                      동일한 챌린지를 설정한 기간 동안 지속합니다.
-                    </Text>
-                  </View>
+                  <Text style={[styles.recurringCaption, { color: colors.textAssistive }]}>
+                    동일한 챌린지를 설정한 기간 동안 지속합니다.
+                  </Text>
                 </View>
               </View>
             </Pressable>
@@ -727,31 +723,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  recurringCard: {
-    borderRadius: 16,
+  recurringSection: {
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
-  recurringContent: {
-    gap: 0,
-  },
-  recurringHeader: {
+  recurringTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    height: 32,
+    marginBottom: 0,
   },
-  recurringLabelContainer: {
-    flex: 1,
-  },
-  recurringLabel: {
+  switchLabel: {
     ...Typography.body1.l.regular,
   },
-  recurringDescription: {
-    marginTop: 0,
-  },
-  recurringDescriptionText: {
+  recurringCaption: {
     ...Typography.body2.r.regular,
+    marginTop: 0,
   },
   monthPickerRow: {
     flexDirection: 'row',

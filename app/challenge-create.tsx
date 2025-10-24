@@ -14,6 +14,7 @@ import { EXPENSE_CATEGORIES } from '@/constants/categories';
 import { Colors, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
+import { getCustomMonthInfo } from '@/utils/custom-month';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
@@ -38,40 +39,58 @@ export default function ChallengeCreateScreen() {
   const params = useLocalSearchParams<{ 
     category?: string;
     selectedDate?: string;
+    calendarYear?: string;
+    calendarMonth?: string;
   }>();
-
-  // 실제 현재 날짜 (개발자 모드 오버라이드와 분리)
-  const realCurrentDate = {
-    getFullYear: () => 2025,
-    getMonth: () => 9, // 10월 (0부터 시작)
-    getDate: () => 21,
-    getTime: () => new Date(2025, 9, 21).getTime()
-  };
 
   // Form state
   // 캘린더에서 선택한 날짜의 일자 저장
   const selectedDay = params.selectedDate 
     ? new Date(params.selectedDate).getDate()
-    : realCurrentDate.getDate();
+    : new Date().getDate();
+
+  // 🔍 파라미터 로그
+  console.log('🔍 [챌린지 생성] 파라미터 확인:', {
+    selectedDate: params.selectedDate,
+    calendarYear: params.calendarYear,
+    calendarMonth: params.calendarMonth,
+    category: params.category
+  });
 
   // Form state
   const [startYear, setStartYear] = useState<number>(() => {
+    // 현재 캘린더의 년도를 기본값으로 사용
+    if (params.calendarYear) {
+      return parseInt(params.calendarYear);
+    }
     if (params.selectedDate) {
       return new Date(params.selectedDate).getFullYear();
     }
-    return realCurrentDate.getFullYear();
+    return new Date().getFullYear();
   });
   
   const [startMonth, setStartMonth] = useState<number>(() => {
+    // 현재 캘린더의 월을 기본값으로 사용
+    if (params.calendarMonth) {
+      return parseInt(params.calendarMonth);
+    }
     if (params.selectedDate) {
       return new Date(params.selectedDate).getMonth() + 1; // 1-based
     }
-    return realCurrentDate.getMonth() + 1;
+    return new Date().getMonth() + 1;
   });
+
+  // 현재 캘린더의 년/월을 기준으로 날짜 설정
+  const realCurrentDate = useMemo(() => ({
+    getFullYear: () => startYear,
+    getMonth: () => startMonth - 1, // 0부터 시작하므로 -1
+    getDate: () => selectedDay,
+    getTime: () => new Date(startYear, startMonth - 1, selectedDay).getTime()
+  }), [startYear, startMonth, selectedDay]);
   
   const [targetAmount, setTargetAmount] = useState<string>('');
   const [isRecurring, setIsRecurring] = useState<boolean>(false);
-  const [recurringMonths, setRecurringMonths] = useState<number>(1);
+  const [recurringMonths, setRecurringMonths] = useState<number>(2);
   const [showYearMonthPicker, setShowYearMonthPicker] = useState<boolean>(false);
   const [showRecurringMonthsPicker, setShowRecurringMonthsPicker] = useState<boolean>(false);
   const [monthStartDay, setMonthStartDay] = useState<number>(1);
@@ -158,23 +177,35 @@ export default function ChallengeCreateScreen() {
       const challenges: ChallengeData[] = storedData ? JSON.parse(storedData) : [];
 
       // recurringId 생성 (부모 챌린지의 ID)
-      const recurringId = `${realCurrentDate.getTime()}_${Math.random().toString(36).substr(2, 9)}`;
+      const recurringId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
       // 반복 개월 수만큼 챌린지 생성
       const newChallenges: ChallengeData[] = [];
       
+      // 사용자가 선택한 날짜가 속하는 커스텀 월 계산
+      const selectedDateObj = new Date(params.selectedDate?.replace(/\./g, '-') || '');
+      const customMonthInfo = getCustomMonthInfo(selectedDateObj, monthStartDay);
+      const baseYear = customMonthInfo.year;
+      const baseMonth = customMonthInfo.month;
+      
+      console.log('🔍 [챌린지 생성] 커스텀 월 계산:', {
+        selectedDate: params.selectedDate,
+        selectedDateObj: selectedDateObj.toISOString().split('T')[0],
+        monthStartDay,
+        customMonthInfo,
+        baseYear,
+        baseMonth
+      });
+      
       for (let i = 0; i < monthsToCreate; i++) {
-        // 각 월의 시작일과 종료일 계산 (월 시작일 기준)
-        const [startYear, startMonth] = startDate.split('.').map(Number);
-        
-        // 현재 월 + i의 월 시작일 계산
-        const currentMonthStart = new Date(startYear, startMonth - 1 + i, monthStartDay);
+        // 커스텀 월 + i의 월 시작일 계산
+        const currentMonthStart = new Date(baseYear, baseMonth - 1 + i, monthStartDay);
         const challengeStartYear = currentMonthStart.getFullYear();
         const challengeStartMonth = currentMonthStart.getMonth() + 1;
         const challengeStartDay = currentMonthStart.getDate();
         
         // 다음 월의 시작일 전날이 종료일
-        const nextMonthStart = new Date(startYear, startMonth + i, monthStartDay);
+        const nextMonthStart = new Date(baseYear, baseMonth + i, monthStartDay);
         const challengeEndDate = new Date(nextMonthStart.getTime() - 24 * 60 * 60 * 1000);
         const challengeEndYear = challengeEndDate.getFullYear();
         const challengeEndMonth = challengeEndDate.getMonth() + 1;
@@ -184,12 +215,12 @@ export default function ChallengeCreateScreen() {
         const challengeEndDateStr = `${challengeEndYear}.${String(challengeEndMonth).padStart(2, '0')}.${String(challengeEndDay).padStart(2, '0')}`;
 
         const challengeData: ChallengeData = {
-          id: i === 0 ? recurringId : `${realCurrentDate.getTime()}_${i}_${Math.random().toString(36).substr(2, 9)}`,
+          id: i === 0 ? recurringId : `${Date.now()}_${i}_${Math.random().toString(36).substr(2, 9)}`,
           category: params.category,
           startDate: challengeStartDate,
           endDate: challengeEndDateStr,
           targetAmount: targetAmountNum,
-          createdAt: realCurrentDate.getTime(),
+          createdAt: Date.now(),
           recurringId: recurringId, // 모든 챌린지가 같은 recurringId 공유
         };
         
@@ -205,17 +236,24 @@ export default function ChallengeCreateScreen() {
 
       console.log('📋 [챌린지 생성] 생성된 챌린지 목록:', newChallenges.map(c => `${c.startDate}~${c.endDate}`).join(', '));
       
-      // 챌린지 현황으로 이동
+      // 챌린지 현황으로 이동 (첫 번째 챌린지의 시작일이 속하는 년/월로 이동)
+      const firstChallenge = newChallenges[0];
+      const [startYear, startMonth] = firstChallenge.startDate.split('.').map(Number);
+      
+      console.log('🔍 [챌린지 생성] 이동할 년/월:', {
+        firstChallengeStartDate: firstChallenge.startDate,
+        startYear,
+        startMonth
+      });
 
       router.back();
       
       setTimeout(() => {
-
         router.replace({
           pathname: '/monthly-expense-timeline',
           params: {
-            year: realCurrentDate.getFullYear().toString(),
-            month: (realCurrentDate.getMonth() + 1).toString(),
+            year: startYear.toString(),
+            month: startMonth.toString(),
             tab: 'challenge'
           },
         });
@@ -252,12 +290,26 @@ export default function ChallengeCreateScreen() {
               카테고리 <Text style={{ color: '#EF5252' }}>*</Text>
             </Text>
             <Pressable onPress={() => {
-
+              // 사용자가 선택한 년/월/일 정보를 카테고리 선택 화면으로 전달
+              // selectedDay는 사용자가 선택한 날짜의 일자이므로 그대로 사용
+              const selectedDateStr = `${startYear}.${String(startMonth).padStart(2, '0')}.${String(selectedDay).padStart(2, '0')}`;
+              
+              console.log('🔍 [챌린지 생성] 카테고리 선택으로 전달할 파라미터:', {
+                mode: 'challenge',
+                selectedDate: selectedDateStr,
+                calendarYear: startYear.toString(),
+                calendarMonth: startMonth.toString(),
+                selectedCategory: params.category,
+                selectedDay: selectedDay
+              });
+              
               router.push({
                 pathname: '/expense-category',
                 params: { 
                   mode: 'challenge',
-                  selectedDate: params.selectedDate,
+                  selectedDate: selectedDateStr,
+                  calendarYear: startYear.toString(),
+                  calendarMonth: startMonth.toString(),
                   selectedCategory: params.category
                 }
               });
@@ -317,14 +369,12 @@ export default function ChallengeCreateScreen() {
             <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
               반복 설정
             </Text>
-            <View style={[styles.recurringCard, { backgroundColor: colors.staticWhite }]}>
-              <View style={styles.recurringContent}>
-                <View style={styles.recurringHeader}>
-                  <View style={styles.recurringLabelContainer}>
-                    <Text style={[styles.recurringLabel, { color: colors.text }]}>
-                      챌린지 반복 여부
-                    </Text>
-                  </View>
+            <View style={[styles.card, { backgroundColor: colors.staticWhite }]}>
+              <View style={styles.recurringSection}>
+                <View style={styles.recurringTitleRow}>
+                  <Text style={[styles.switchLabel, { color: colors.text }]}>
+                    챌린지 반복 여부
+                  </Text>
                   <Switch
                     value={isRecurring}
                     onValueChange={(value) => {
@@ -333,11 +383,9 @@ export default function ChallengeCreateScreen() {
                     }}
                   />
                 </View>
-                <View style={styles.recurringDescription}>
-                  <Text style={[styles.recurringDescriptionText, { color: colors.textAssistive }]}>
-                    동일한 챌린지를 설정한 기간 동안 지속합니다.
-                  </Text>
-                </View>
+                <Text style={[styles.recurringCaption, { color: colors.textAssistive }]}>
+                  동일한 챌린지를 설정한 기간 동안 지속합니다.
+                </Text>
               </View>
             </View>
           </View>
@@ -408,7 +456,6 @@ export default function ChallengeCreateScreen() {
           onClose={() => setShowRecurringMonthsPicker(false)}
           title="반복할 개월 수"
           dayOptions={[
-            { label: '1개월', value: 1 },
             { label: '2개월', value: 2 },
             { label: '3개월', value: 3 },
             { label: '4개월', value: 4 },
@@ -475,31 +522,22 @@ const styles = StyleSheet.create({
   yearMonthText: {
     ...Typography.body1.l.regular,
   },
-  recurringCard: {
-    borderRadius: 16,
+  recurringSection: {
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
-  recurringContent: {
-    gap: 0,
-  },
-  recurringHeader: {
+  recurringTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    height: 32,
+    marginBottom: 0,
   },
-  recurringLabelContainer: {
-    flex: 1,
-  },
-  recurringLabel: {
+  switchLabel: {
     ...Typography.body1.l.regular,
   },
-  recurringDescription: {
-    marginTop: 0,
-  },
-  recurringDescriptionText: {
+  recurringCaption: {
     ...Typography.body2.r.regular,
+    marginTop: 0,
   },
   monthPickerRow: {
     flexDirection: 'row',

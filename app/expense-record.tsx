@@ -2023,30 +2023,26 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             </Text>
             <View style={[styles.card, { backgroundColor: colors.staticWhite }]}>
               {/* 정기 지출 여부 */}
-              <View style={styles.switchRow}>
-                <View style={styles.switchInfo}>
+              <View style={styles.recurringSection}>
+                <View style={styles.recurringTitleRow}>
                   <Text style={[styles.switchLabel, { color: colors.text }]}>
                     정기 지출 여부
                   </Text>
-                  <Text style={[styles.switchDescription, { color: colors.textAssistive }]}>
-                    현재 월 기준 1년간 매달 같은 날에 기록합니다.
-                  </Text>
-                </View>
-                <Switch
-                  value={isRecurring}
-                  onValueChange={(value) => {
+                  <Switch
+                    value={isRecurring}
+                    onValueChange={(value) => {
 
-                    // 원래 정기 기록으로 생성된 데이터는 스위치 비활성화
-                    if (mode === 'edit' && editData?.isRecurring) {
+                      // 원래 정기 기록으로 생성된 데이터는 스위치 비활성화
+                      if (mode === 'edit' && editData?.isRecurring) {
 
-                      setRecurringToastMessage('정기 지출로 생성된 내역은 해제할 수 없습니다.');
-                      setShowRecurringToast(true);
-                      return;
-                    }
+                        setRecurringToastMessage('정기 지출로 생성된 내역은 해제할 수 없습니다.');
+                        setShowRecurringToast(true);
+                        return;
+                      }
 
-                    setIsRecurring(value);
-                    if (!value) {
-                      // 정기 지출 OFF 시 관련 상태 초기화
+                      setIsRecurring(value);
+                      if (!value) {
+                        // 정기 지출 OFF 시 관련 상태 초기화
                       setIsAmountSplit(false);
                       setRecurringMonths(2);
                     } else {
@@ -2060,6 +2056,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                   }}
                   disabled={mode === 'edit' && editData?.isRecurring}
                 />
+                </View>
+                <Text style={[styles.recurringCaption, { color: colors.textAssistive }]}>
+                  현재 월 기준 1년간 매달 같은 날에 기록합니다.
+                </Text>
               </View>
 
               {/* Divider */}
@@ -2149,49 +2149,59 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
         {/* 정기 기록 수정 시 기간 표기 및 수정 옵션 */}
         {mode === 'edit' && isRecurring && (
-          <View style={[styles.regularityEditOptions, { backgroundColor: '#ededed' }]}>
-            <View style={styles.regularityEditHeader}>
-              <Text style={[styles.regularityPeriodText, { color: colors.text }]}>
-                기간 : {(() => {
-                  if (editData?.isRecurring && editData?.recurringId) {
-                    // 정기기록의 실제 원본 시작일 사용
-                    const originalStartDate = new Date(Number(editData.recurringId));
-                    const originalStartDateStr = `${originalStartDate.getFullYear()}.${String(originalStartDate.getMonth() + 1).padStart(2, '0')}.${String(originalStartDate.getDate()).padStart(2, '0')}`;
-                    
-                    debugLog('🔍 [기간표시] 정기기록 원본 시작일 계산:', {
-                      recurringId: editData.recurringId,
-                      originalStartDate: originalStartDate.toISOString(),
-                      originalStartDateStr,
-                      recurringMonths,
-                      editDataDate: editData.date
-                    });
-                    
-                    return getRecurringPeriod(originalStartDateStr, recurringMonths);
-                  } else {
-                    // 신규 생성 시에는 현재 선택된 날짜 사용
-                    debugLog('🔍 [기간표시] 신규 생성 - 현재 날짜 사용:', {
-                      currentDate: date,
-                      recurringMonths
-                    });
-                    return getRecurringPeriod(date, recurringMonths);
-                  }
-                })()}
-              </Text>
-              <View style={styles.regularityEditRadioGroup}>
-                <View style={styles.regularityEditRadio}>
-                  <Radio
-                    checked={editOption === 'all'}
-                    onPress={() => setEditOption('all')}
-                    label="전체 수정"
-                  />
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
+              정기 기록 수정 옵션
+            </Text>
+            <View style={[styles.card, { backgroundColor: colors.staticWhite }]}>
+              <View style={styles.recurringSection}>
+                <View style={styles.recurringTitleRow}>
+                  <Text style={[styles.switchLabel, { color: colors.text }]}>
+                    기간 : {(() => {
+                      if (editData?.isRecurring && editData?.recurringId) {
+                        // 정기기록의 실제 원본 시작일 사용
+                        const originalStartDate = new Date(Number(editData.recurringId));
+                        const originalStartDateStr = `${originalStartDate.getFullYear()}.${String(originalStartDate.getMonth() + 1).padStart(2, '0')}.${String(originalStartDate.getDate()).padStart(2, '0')}`;
+                        
+                        debugLog('🔍 [기간표시] 정기기록 원본 시작일 계산:', {
+                          recurringId: editData.recurringId,
+                          originalStartDate: originalStartDate.toISOString(),
+                          originalStartDateStr,
+                          recurringMonths,
+                          editDataDate: editData.date
+                        });
+                        
+                        return getRecurringPeriod(originalStartDateStr, recurringMonths);
+                      } else {
+                        // 신규 생성 시에는 현재 선택된 날짜 사용
+                        debugLog('🔍 [기간표시] 신규 생성 - 현재 날짜 사용:', {
+                          currentDate: date,
+                          recurringMonths
+                        });
+                        return getRecurringPeriod(date, recurringMonths);
+                      }
+                    })()}
+                  </Text>
+                  <View style={styles.regularityEditRadioGroup}>
+                    <View style={styles.regularityEditRadio}>
+                      <Radio
+                        checked={editOption === 'all'}
+                        onPress={() => setEditOption('all')}
+                        label="전체 수정"
+                      />
+                    </View>
+                    <View style={styles.regularityEditRadio}>
+                      <Radio
+                        checked={editOption === 'today'}
+                        onPress={() => setEditOption('today')}
+                        label="오늘만 수정"
+                      />
+                    </View>
+                  </View>
                 </View>
-                <View style={styles.regularityEditRadio}>
-                  <Radio
-                    checked={editOption === 'today'}
-                    onPress={() => setEditOption('today')}
-                    label="오늘만 수정"
-                  />
-                </View>
+                <Text style={[styles.recurringCaption, { color: colors.textAssistive }]}>
+                  전체 수정: 모든 정기 기록이 변경됩니다. 오늘만 수정: 현재 기록만 변경됩니다.
+                </Text>
               </View>
             </View>
           </View>
@@ -2568,22 +2578,22 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
   },
-  switchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  recurringSection: {
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
-  switchInfo: {
-    flex: 1,
-    gap: 4,
+  recurringTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 0,
   },
   switchLabel: {
     ...Typography.body1.l.regular,
   },
-  switchDescription: {
+  recurringCaption: {
     ...Typography.body2.r.regular,
+    marginTop: 0,
   },
   divider: {
     height: 1,
