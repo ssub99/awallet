@@ -227,3 +227,5 @@ const styles = StyleSheet.create({
   },
 });
 
+YearView.displayName = 'YearView';
+

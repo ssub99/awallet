@@ -618,7 +618,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             debugLog('🗑️ [전체수정] 삭제할 기록 발견:', {
               dateKey,
               relatedRecordsCount: relatedRecords.length,
-              records: relatedRecords.map(r => ({ date: r.date, amount: r.amount }))
+              records: relatedRecords.map((r: any) => ({ date: r.date, amount: r.amount }))
             });
 
             // 관련 기록들 삭제 (완전 삭제)
@@ -2375,7 +2375,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         <Text style={[styles.weekendConfirmText, { color: colors.textNeutral }]}>
           지정하신 날짜가 주말에 해당 됩니다.{'\n'}
           선택하신 옵션에 따라{'\n'}
-          '{weekendOption === 'friday' ? '금주 금요일 기록' : weekendOption === 'monday' ? '차주 월요일 기록' : '관계없이 주말 기록'}'에 기록됩니다.{'\n'}
+          {`'${weekendOption === 'friday' ? '금주 금요일 기록' : weekendOption === 'monday' ? '차주 월요일 기록' : '관계없이 주말 기록'}'에 기록됩니다.`}{'\n'}
           진행하시겠어요?
         </Text>
       </ModalPopup>

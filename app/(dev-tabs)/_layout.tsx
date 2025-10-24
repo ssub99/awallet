@@ -8,7 +8,6 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export default function DevTabLayout() {
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
 
   return (
     <Tabs

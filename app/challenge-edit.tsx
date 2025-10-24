@@ -536,7 +536,7 @@ export default function ChallengeEditScreen() {
               반복 설정
             </Text>
             <Pressable onPress={showDisabledToast}>
-              <View style={[styles.card, { backgroundColor: colors.staticWhite }]}>
+              <View style={[styles.disabledCard, { backgroundColor: colors.staticWhite }]}>
                 <View style={styles.recurringSection}>
                   <View style={styles.recurringTitleRow}>
                     <Text style={[styles.switchLabel, { color: colors.text }]}>
