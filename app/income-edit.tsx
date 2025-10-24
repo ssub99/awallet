@@ -1,7 +1,7 @@
 /**
- * Income Record Screen
+ * Income Edit Screen
  * 
- * Screen for recording income/deposit transactions.
+ * Screen for editing income/deposit transactions.
  */
 
 import { TopNavigation } from '@/components/navigation/top-navigation';
@@ -30,44 +30,42 @@ function getDayOfWeekLabel(year: number, month: number, day: number): string {
   return weekdays[date.getDay()];
 }
 
-export default function IncomeRecordScreen() {
+interface IncomeRecordData {
+  type: 'income';
+  amount: number;
+  category: string;
+  memo?: string;
+  timestamp: number;
+}
+
+export default function IncomeEditScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ 
-    selectedDate?: string;
+    recordData?: string;
+    dateKey?: string;
+    recordIndex?: string;
     calendarYear?: string;
     calendarMonth?: string;
   }>();
 
-  // 디버깅용 로그
+  // Parse record data from params
+  const recordData: IncomeRecordData | null = params.recordData ? JSON.parse(params.recordData) : null;
+  const dateKey = params.dateKey || '';
+  const recordIndex = params.recordIndex ? parseInt(params.recordIndex) : 0;
 
-  // Form state
-  const today = new Date();
-  const formattedToday = `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, '0')}.${String(today.getDate()).padStart(2, '0')}`;
-  
-  // 선택된 날짜가 있으면 해당 날짜를 사용, 없으면 오늘 날짜 사용
-  const getInitialDate = () => {
-    if (params.selectedDate) {
+  // Form state - Initialize with existing data
+  const [amount, setAmount] = useState<string>(recordData ? recordData.amount.toLocaleString() : '');
+  const [date, setDate] = useState<string>(() => {
+    if (dateKey) {
       // "2025-01-15" 형식을 "2025.01.15" 형식으로 변환
-      const convertedDate = params.selectedDate.replace(/-/g, '.');
-
-      return convertedDate;
+      return dateKey.replace(/-/g, '.');
     }
-
-    return formattedToday;
-  };
-  
-  const [amount, setAmount] = useState<string>('');
-  
-  // 금액 입력 시 처리하는 함수 (Input 컴포넌트에서 이미 포맷팅됨)
-  const handleAmountChange = (text: string) => {
-    // Input 컴포넌트에서 이미 콤마 포맷팅이 적용되어 있으므로 그대로 사용
-    setAmount(text);
-  };
-  const [date, setDate] = useState<string>(getInitialDate());
-  const [memo, setMemo] = useState<string>('');
+    return '';
+  });
+  const [memo, setMemo] = useState<string>(recordData?.memo || '');
   const [monthStartDay, setMonthStartDay] = useState(1);
 
   // Date picker state
@@ -83,8 +81,9 @@ export default function IncomeRecordScreen() {
     loadMonthStart();
   }, []);
 
-  // Alert state
+  // Alert states
   const [showAmountAlert, setShowAmountAlert] = useState<boolean>(false);
+  const [showDeleteAlert, setShowDeleteAlert] = useState<boolean>(false);
 
   // Scroll reference
   const scrollViewRef = useRef<ScrollView>(null);
@@ -115,6 +114,12 @@ export default function IncomeRecordScreen() {
       keyboardWillHide.remove();
     };
   }, []);
+
+  // 금액 입력 시 처리하는 함수 (Input 컴포넌트에서 이미 포맷팅됨)
+  const handleAmountChange = (text: string) => {
+    // Input 컴포넌트에서 이미 콤마 포맷팅이 적용되어 있으므로 그대로 사용
+    setAmount(text);
+  };
 
   const handleDatePress = () => {
     // 키패드가 열려있으면 닫기
@@ -154,48 +159,55 @@ export default function IncomeRecordScreen() {
     }, 350);
   };
 
-  const handleConfirm = async () => {
+  const handleUpdate = async () => {
     // 필수값 검증
     if (!amount || amount === '0' || amount.trim() === '') {
       setShowAmountAlert(true);
       return;
     }
     
-    // 입금 기록 데이터 준비
-    const incomeRecord = {
-      amount: parseFloat(amount.replace(/,/g, '')),
-      date,
-      memo,
-    };
-    
-    // AsyncStorage에서 기존 calendarData 가져오기
     try {
       const storedData = await AsyncStorage.getItem('calendarData');
       const calendarData = storedData ? JSON.parse(storedData) : {};
       
       // 날짜 형식 변환 (2025.10.18 → 2025-10-18)
-      const dateKey = date.replace(/\./g, '-');
+      const newDateKey = date.replace(/\./g, '-');
+      const oldDateKey = dateKey;
       
-      // 기존 데이터가 있으면 업데이트, 없으면 새로 생성
-      if (!calendarData[dateKey]) {
-        calendarData[dateKey] = {
+      // 기존 기록의 금액
+      const oldAmount = recordData?.amount || 0;
+      const newAmount = parseFloat(amount.replace(/,/g, ''));
+      
+      // 기존 날짜에서 총 입금 금액 차감
+      if (calendarData[oldDateKey]) {
+        calendarData[oldDateKey].totalIncome = Math.max(0, (calendarData[oldDateKey].totalIncome || 0) - oldAmount);
+        
+        // 기존 기록 제거
+        if (calendarData[oldDateKey].records && calendarData[oldDateKey].records[recordIndex]) {
+          calendarData[oldDateKey].records.splice(recordIndex, 1);
+        }
+      }
+      
+      // 새 날짜에 데이터 추가
+      if (!calendarData[newDateKey]) {
+        calendarData[newDateKey] = {
           totalExpense: 0,
           totalIncome: 0,
           records: [],
         };
       }
       
-      // 총 입금 금액 합산 (홈 화면용)
-      calendarData[dateKey].totalIncome = (calendarData[dateKey].totalIncome || 0) + incomeRecord.amount;
+      // 총 입금 금액 추가
+      calendarData[newDateKey].totalIncome = (calendarData[newDateKey].totalIncome || 0) + newAmount;
       
-      // 건별 기록 추가 (타임라인용)
-      calendarData[dateKey].records = calendarData[dateKey].records || [];
-      calendarData[dateKey].records.push({
+      // 건별 기록 추가
+      calendarData[newDateKey].records = calendarData[newDateKey].records || [];
+      calendarData[newDateKey].records.push({
         type: 'income',
-        amount: incomeRecord.amount,
+        amount: newAmount,
         category: '💰 입금',
-        memo: incomeRecord.memo,
-        timestamp: new Date().getTime(), // 기록 순서 보장
+        memo: memo,
+        timestamp: new Date().getTime(), // 새로운 timestamp로 업데이트
       });
       
       // AsyncStorage에 저장
@@ -203,7 +215,7 @@ export default function IncomeRecordScreen() {
       
       // 🔧 수정: 실제 저장된 날짜가 속한 커스텀 월로 이동
       // 날짜 문자열을 로컬 타임존으로 파싱
-      const [yearNum, monthNum, dayNum] = dateKey.split('-').map(Number);
+      const [yearNum, monthNum, dayNum] = newDateKey.split('-').map(Number);
       const savedDate = new Date(yearNum, monthNum - 1, dayNum);
       
       // 월 시작일 로드
@@ -213,22 +225,11 @@ export default function IncomeRecordScreen() {
       const customMonthInfo = getCustomMonthInfo(savedDate, currentMonthStartDay);
       const targetYear = customMonthInfo.year;
       const targetMonth = customMonthInfo.month;
-      
-      console.log('🏠 [입금 이동] 실제 날짜가 속한 커스텀 월 계산:', {
-        savedDate: dateKey,
-        monthStartDay: currentMonthStartDay,
-        targetYear,
-        targetMonth,
-        customMonthRange: {
-          start: customMonthInfo.startDate.toISOString().split('T')[0],
-          end: customMonthInfo.endDate.toISOString().split('T')[0]
-        }
-      });
-      
-      const [, , day] = dateKey.split('-').map(Number);
 
-      // Stack 정리: 입금 기록 제거하고 홈으로
-      router.back(); // income-record 제거
+      const [, , day] = newDateKey.split('-').map(Number);
+      
+      // Stack 정리: 수정 화면 제거하고 홈으로
+      router.back(); // income-edit 제거
       
       // params를 전달하기 위해 replace 사용
       setTimeout(() => {
@@ -238,11 +239,74 @@ export default function IncomeRecordScreen() {
             targetYear: targetYear.toString(),
             targetMonth: targetMonth.toString(),
             targetDay: day.toString(),
-            targetDate: dateKey,
+            targetDate: newDateKey,
             periodType: 'month',
           },
         });
       }, 100);
+    } catch (error) {
+
+    }
+  };
+
+  const handleDelete = async () => {
+    try {
+      const storedData = await AsyncStorage.getItem('calendarData');
+      const calendarData = storedData ? JSON.parse(storedData) : {};
+      
+      // 기존 기록의 금액
+      const oldAmount = recordData?.amount || 0;
+      
+      // 기존 날짜에서 총 입금 금액 차감
+      if (calendarData[dateKey]) {
+        calendarData[dateKey].totalIncome = Math.max(0, (calendarData[dateKey].totalIncome || 0) - oldAmount);
+        
+        // 기존 기록 제거
+        if (calendarData[dateKey].records && calendarData[dateKey].records[recordIndex]) {
+          calendarData[dateKey].records.splice(recordIndex, 1);
+        }
+      }
+      
+      // AsyncStorage에 저장
+      await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
+      
+      // 타임라인에서 왔으면 타임라인으로, 아니면 홈으로 이동
+      if (params.calendarYear && params.calendarMonth) {
+        // 타임라인으로 복귀
+
+        router.back();
+        
+        setTimeout(() => {
+          router.replace({
+            pathname: '/monthly-expense-timeline',
+            params: {
+              year: params.calendarYear,
+              month: params.calendarMonth,
+              tab: 'timeline'
+            },
+          });
+        }, 100);
+      } else {
+        // 홈으로 이동
+        const today = new Date();
+        const currentMonthStartDay = await loadMonthStartDay();
+        const customMonthInfo = getCustomMonthInfo(today, currentMonthStartDay);
+        const targetYear = customMonthInfo.year;
+        const targetMonth = customMonthInfo.month;
+
+        router.back();
+        
+        setTimeout(() => {
+          router.replace({
+            pathname: '/(tabs)/home',
+            params: {
+              targetYear: targetYear.toString(),
+              targetMonth: targetMonth.toString(),
+              periodType: 'month',
+            },
+          });
+        }, 100);
+      }
     } catch (error) {
 
     }
@@ -258,7 +322,7 @@ export default function IncomeRecordScreen() {
       
       <TopNavigation
         type="sub"
-        title="입금 기록"
+        title="입금 내역 수정"
         showLeftIcon
         onLeftIconPress={handleBack}
       />
@@ -274,92 +338,99 @@ export default function IncomeRecordScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-            {/* 날짜 */}
-            <View style={styles.section}>
+          {/* 날짜 */}
+          <View style={styles.section}>
+            <View style={styles.dateHeader}>
               <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
                 날짜 <Text style={{ color: '#EF5252' }}>*</Text>
               </Text>
-              <Pressable onPress={handleDatePress}>
-                <View style={[styles.card, { backgroundColor: colors.staticWhite }]}>
-                  <View style={styles.dateRow}>
-                    <Icon name="calendarMonth" variant="line" size={24} color={colors.text} />
-                    <Text style={[styles.dateText, { color: colors.text }]}>
-                      {(() => {
-                        if (!date) return '';
-                        const [year, month, day] = date.split('.').map(d => parseInt(d, 10));
-                        const dayOfWeek = getDayOfWeekLabel(year, month, day);
-                        return `${date}(${dayOfWeek})`;
-                      })()}
-                    </Text>
-                  </View>
-                </View>
+              <Pressable onPress={() => setShowDeleteAlert(true)}>
+                <Text style={[styles.deleteButton, { color: colors.textAssistive }]}>
+                  삭제
+                </Text>
               </Pressable>
             </View>
+            <Pressable onPress={handleDatePress}>
+              <View style={[styles.card, { backgroundColor: colors.staticWhite }]}>
+                <View style={styles.dateRow}>
+                  <Icon name="calendarMonth" variant="line" size={24} color={colors.text} />
+                  <Text style={[styles.dateText, { color: colors.text }]}>
+                    {(() => {
+                      if (!date) return '';
+                      const [year, month, day] = date.split('.').map(d => parseInt(d, 10));
+                      const dayOfWeek = getDayOfWeekLabel(year, month, day);
+                      return `${date}(${dayOfWeek})`;
+                    })()}
+                  </Text>
+                </View>
+              </View>
+            </Pressable>
+          </View>
 
-            {/* 금액 */}
-            <View 
-              style={styles.section}
-              onLayout={(event) => {
-                const layout = event.nativeEvent.layout;
-                setAmountSectionY(layout.y);
+          {/* 금액 */}
+          <View 
+            style={styles.section}
+            onLayout={(event) => {
+              const layout = event.nativeEvent.layout;
+              setAmountSectionY(layout.y);
+            }}
+          >
+            <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
+              금액 <Text style={{ color: '#EF5252' }}>*</Text>
+            </Text>
+            <Input
+              variant="line"
+              inputType="number"
+              unit="원"
+              value={amount}
+              onChangeText={handleAmountChange}
+              keyboardType="numeric"
+              placeholder="0"
+              textAlign="right"
+              
+            />
+          </View>
+
+          {/* 메모 */}
+          <View 
+            style={styles.section}
+            onLayout={(event) => {
+              const layout = event.nativeEvent.layout;
+              setMemoSectionY(layout.y);
+            }}
+          >
+            <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
+              메모
+            </Text>
+            <Input
+              variant="area"
+              inputType="text"
+              value={memo}
+              onChangeText={(text) => {
+                if (text.length <= 20) {
+                  setMemo(text);
+                }
               }}
-            >
-              <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
-                금액 <Text style={{ color: '#EF5252' }}>*</Text>
-              </Text>
-              <Input
-                variant="line"
-                inputType="number"
-                unit="원"
-                value={amount}
-                onChangeText={handleAmountChange}
-                keyboardType="numeric"
-                placeholder="0"
-                textAlign="right"
-                
-              />
-            </View>
+              placeholder="메모를 입력해 주세요.(최대 20자)"
+              maxLength={20}
+              onFocus={handleMemoFocus}
+            />
+          </View>
+        </ScrollView>
+      </View>
 
-            {/* 메모 */}
-            <View 
-              style={styles.section}
-              onLayout={(event) => {
-                const layout = event.nativeEvent.layout;
-                setMemoSectionY(layout.y);
-              }}
-            >
-              <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
-                메모
-              </Text>
-              <Input
-                variant="area"
-                inputType="text"
-                value={memo}
-                onChangeText={(text) => {
-                  if (text.length <= 20) {
-                    setMemo(text);
-                  }
-                }}
-                placeholder="메모를 입력해 주세요.(최대 20자)"
-                maxLength={20}
-                onFocus={handleMemoFocus}
-              />
-            </View>
-          </ScrollView>
-        </View>
-
-        {/* 하단 고정 버튼 */}
-        <View style={[
-          styles.bottomButtonContainer, 
-          { 
-            backgroundColor: colors.staticWhite,
-            paddingBottom: 16 + insets.bottom 
-          }
-        ]}>
-          <Button onPress={handleConfirm}>
-            확인
-          </Button>
-        </View>
+      {/* 하단 고정 버튼 */}
+      <View style={[
+        styles.bottomButtonContainer, 
+        { 
+          backgroundColor: colors.staticWhite,
+          paddingBottom: 16 + insets.bottom 
+        }
+      ]}>
+        <Button onPress={handleUpdate}>
+          저장
+        </Button>
+      </View>
 
       {/* 날짜 선택 바텀시트 */}
       {showDatePicker && (
@@ -401,6 +472,19 @@ export default function IncomeRecordScreen() {
           금액을 입력해 주세요.
         </Text>
       </ModalPopup>
+
+      {/* 삭제 확인 얼럿 */}
+      <ModalPopup
+        visible={showDeleteAlert}
+        onConfirm={handleDelete}
+        onCancel={() => setShowDeleteAlert(false)}
+        confirmText="확인"
+        cancelText="취소"
+      >
+        <Text style={[styles.alertText, { color: colors.text }]}>
+          입금 내역을 삭제하시겠습니까?
+        </Text>
+      </ModalPopup>
     </SafeAreaView>
   );
 }
@@ -425,6 +509,15 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     ...Typography.body1.l.bold,
+  },
+  dateHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  deleteButton: {
+    ...Typography.body1.l.regular,
+    textDecorationLine: 'underline',
   },
   card: {
     borderRadius: 12,
@@ -467,4 +560,3 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
-

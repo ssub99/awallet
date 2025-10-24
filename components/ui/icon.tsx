@@ -168,7 +168,6 @@ function getIconComponent(name: IconName, variant: IconVariant) {
       return iconComponents.solid[name as SolidIconName];
     }
     // Fallback to line if solid not available
-    console.warn(`Icon "${name}" does not have a solid variant. Using line variant.`);
     return iconComponents.line[name];
   }
   
@@ -195,8 +194,10 @@ export function Icon({
   const IconComponent = getIconComponent(name, variant);
   const iconColor = color ?? defaultColor;
 
+  const IconElement = IconComponent as any;
+  
   return (
-    <IconComponent
+    <IconElement
       width={size}
       height={size}
       color={iconColor}

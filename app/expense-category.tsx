@@ -6,6 +6,7 @@
 
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Icon } from '@/components/ui/icon';
+import { EXPENSE_CATEGORIES } from '@/constants/categories';
 import { Colors, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -14,38 +15,20 @@ import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-// 카테고리 목록 (Figma 순서대로)
-const EXPENSE_CATEGORIES = [
-  { emoji: '🍚', label: '식비' },
-  { emoji: '🛵', label: '배달음식' },
-  { emoji: '☕️', label: '카페/편의점/간식' },
-  { emoji: '🚊', label: '교통비' },
-  { emoji: '🏠', label: '주거비' },
-  { emoji: '📎', label: '공과금' },
-  { emoji: '☎️', label: '통신비' },
-  { emoji: '🛍️', label: '쇼핑' },
-  { emoji: '💇🏻‍♂️', label: '미용' },
-  { emoji: '💪', label: '운동/헬스' },
-  { emoji: '📌', label: '구독 서비스' },
-  { emoji: '🎬', label: '영화' },
-  { emoji: '👨🏻‍💻', label: '취미' },
-  { emoji: '🧳', label: '여행' },
-  { emoji: '🍺', label: '모임/술' },
-  { emoji: '🎁', label: '경조사/선물' },
-  { emoji: '🚘', label: '차량' },
-  { emoji: '🏦', label: '대출/이자' },
-  { emoji: '🔖', label: '보험' },
-  { emoji: '💵', label: '적금' },
-  { emoji: '📈', label: '투자' },
-  { emoji: '⚖️', label: '세금' },
-  { emoji: '📝', label: '기타' },
-];
-
 export default function ExpenseCategoryScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
   const router = useRouter();
-  const params = useLocalSearchParams<{ selectedCategory?: string; fromEdit?: string; recordId?: string; dateKey?: string }>();
+  const params = useLocalSearchParams<{ 
+    selectedCategory?: string; 
+    fromEdit?: string; 
+    recordId?: string; 
+    dateKey?: string; 
+    selectedDate?: string; 
+    mode?: string;
+    calendarYear?: string;
+    calendarMonth?: string;
+  }>();
   
   const [selectedCategory, setSelectedCategory] = useState<string>(
     params.selectedCategory || ''
@@ -53,34 +36,49 @@ export default function ExpenseCategoryScreen() {
   
   // 화면 진입 시에만 로그 출력
   useEffect(() => {
-    console.log('📍 [화면] 카테고리 선택');
+
   }, []);
   
   // 수정 모드인지 확인 (소비 기록 상세에서 온 경우)
   const isEditMode = params.fromEdit === 'true';
+  
+  // 챌린지 모드인지 확인
+  const isChallengeMode = params.mode === 'challenge';
 
   const handleConfirm = async () => {
-    console.log('🔍 [카테고리 선택] handleConfirm 호출');
-    console.log('🔍 [카테고리 선택] selectedCategory:', selectedCategory);
-    console.log('🔍 [카테고리 선택] isEditMode:', isEditMode);
-    
+
     if (selectedCategory) {
       if (isEditMode) {
         // 수정 모드: 임시 저장소에 선택된 카테고리 저장하고 이전 화면으로 돌아가기
-        console.log('✅ [카테고리 선택] AsyncStorage에 저장:', selectedCategory);
+
         await AsyncStorage.setItem('selectedCategory', selectedCategory);
-        console.log('✅ [카테고리 선택] 이전 화면으로 돌아가기');
+
         router.back();
+      } else if (isChallengeMode) {
+        // 챌린지 모드: 챌린지 생성 화면으로 이동 (카테고리 전달)
+
+        router.push({
+          pathname: '/challenge-create',
+          params: { 
+            category: selectedCategory,
+            selectedDate: params.selectedDate
+          },
+        });
       } else {
-        // 신규 등록 모드: 소비 기록 상세 화면으로 이동 (카테고리 전달)
-        console.log('✅ [카테고리 선택] 신규 등록 모드 - expense-record로 이동');
+        // 신규 등록 모드: 소비 기록 상세 화면으로 이동 (카테고리와 선택된 날짜 전달)
+
         router.push({
           pathname: '/expense-record',
-          params: { category: selectedCategory },
+          params: { 
+            category: selectedCategory,
+            selectedDate: params.selectedDate,
+            calendarYear: params.calendarYear,
+            calendarMonth: params.calendarMonth
+          },
         });
       }
     } else {
-      console.log('❌ [카테고리 선택] selectedCategory가 없음');
+
     }
   };
 
@@ -116,7 +114,7 @@ export default function ExpenseCategoryScreen() {
                 <Pressable
                   style={styles.categoryItem}
                   onPress={() => {
-                    console.log('🔍 [카테고리 선택] 카테고리 클릭:', category.label);
+
                     setSelectedCategory(category.label);
                   }}
                   accessibilityRole="button"
@@ -184,6 +182,7 @@ const styles = StyleSheet.create({
     fontSize: 21,
     lineHeight: 31.5,
     width: 21,
+    textAlign: 'center',
   },
   categoryLabel: {
     ...Typography.body1.l.regular,

@@ -75,8 +75,8 @@ export function Button({
   };
 
   // Get button styles based on variant, type, size, and state
-  const buttonStyle = getButtonStyle(colors, variant, type, size, disabled);
-  const textStyle = getTextStyle(colors, variant, type, size, disabled);
+  const buttonStyle = getButtonStyle(colors as any, variant, type, size, disabled);
+  const textStyle = getTextStyle(colors as any, variant, type, size, disabled);
 
   return (
     <Pressable

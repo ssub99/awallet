@@ -58,17 +58,10 @@ export function Switch({
   }, [value, togglePosition]);
 
   const handlePress = () => {
-    console.log('🔍 [Switch Component] handlePress 호출됨:', { 
-      disabled, 
-      value, 
-      hasOnValueChange: !!onValueChange 
-    });
     
     if (onValueChange) {
-      console.log('🔍 [Switch Component] onValueChange 호출 중...');
       onValueChange(!value);
     } else {
-      console.log('🔍 [Switch Component] onValueChange가 없음');
     }
   };
 
@@ -82,6 +75,7 @@ export function Switch({
   return (
     <Pressable
       onPress={handlePress}
+      disabled={disabled}
       style={[
         styles.container,
         { backgroundColor: trackColor },

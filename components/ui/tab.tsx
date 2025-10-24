@@ -7,7 +7,7 @@
 
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, ViewStyle } from 'react-native';
 
 export interface TabOption {
   label: string;
@@ -34,6 +34,11 @@ export interface TabProps {
    * Container style
    */
   style?: ViewStyle;
+  
+  /**
+   * Enable horizontal scrolling for many tabs
+   */
+  scrollable?: boolean;
 }
 
 /**
@@ -44,6 +49,7 @@ export function Tab({
   value,
   onValueChange,
   style,
+  scrollable = false,
 }: TabProps) {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
@@ -58,17 +64,19 @@ export function Tab({
     <>
       {options.map((option) => {
         const isActive = value === option.value;
+        const tabItemStyle = scrollable ? styles.scrollableTabItem : styles.tabItem;
+        const tabContentStyle = scrollable ? styles.scrollableTabContent : styles.tabContent;
         
         return (
           <Pressable
             key={option.value}
             onPress={() => handleTabPress(option.value)}
-            style={styles.tabItem}
+            style={tabItemStyle}
             accessibilityRole="tab"
             accessibilityState={{ selected: isActive }}
             accessibilityLabel={option.label}
           >
-            <View style={styles.tabContent}>
+            <View style={tabContentStyle}>
               <Text
                 style={[
                   styles.tabText,
@@ -101,9 +109,20 @@ export function Tab({
     <View style={[styles.container, style]}>
       {/* Tab Menu with horizontal padding */}
       <View style={styles.menuWrapper}>
-        <View style={styles.tabsContainer}>
-          {renderTabs()}
-        </View>
+        {scrollable ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.scrollableTabsContainer}
+            style={styles.scrollView}
+          >
+            {renderTabs()}
+          </ScrollView>
+        ) : (
+          <View style={styles.tabsContainer}>
+            {renderTabs()}
+          </View>
+        )}
       </View>
       
       {/* Bottom Divider - Full Width */}
@@ -123,15 +142,35 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     height: 56,
   },
-  tabItem: {
-    flex: 1, // Equal width distribution
+  scrollView: {
+    height: 56,
   },
+  scrollableTabsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 0,
+    flexGrow: 0,
+  },
+  tabItem: {
+    flex: 1,
+  },
+  scrollableTabItem: {
+    height: 56,
+  },
+  // Common content styles
   tabContent: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
-    paddingHorizontal: 8, // Text padding (8px)
+    paddingHorizontal: 8,
+  },
+  scrollableTabContent: {
+    height: 56,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+    paddingHorizontal: 8,
   },
   tabText: {
     fontSize: 16,
@@ -145,7 +184,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 3,
-    // Full width - ignores text padding
   },
   divider: {
     height: 1,

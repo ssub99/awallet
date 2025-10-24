@@ -47,24 +47,6 @@ export default function TabLayout() {
         }}
       />
       
-      {/* Design System Tabs - visible in development only */}
-      <Tabs.Screen
-        name="components"
-        options={{
-          title: 'Components',
-          href: __DEV__ ? undefined : null,
-          tabBarIcon: ({ color }) => <Icon name="search" variant="line" size={28} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="icons"
-        options={{
-          title: 'Icons',
-          href: __DEV__ ? undefined : null,
-          tabBarIcon: ({ color }) => <Icon name="info" variant="line" size={28} color={color} />,
-        }}
-      />
-      
       {/* Hidden tabs - still accessible but not in bottom navigation */}
       <Tabs.Screen
         name="index"

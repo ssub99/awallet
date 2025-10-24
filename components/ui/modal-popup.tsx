@@ -32,7 +32,12 @@ export interface ModalPopupProps {
   /**
    * Modal content (flexible via children)
    */
-  children: ReactNode;
+  children?: ReactNode;
+  
+  /**
+   * Simple message text (alternative to children)
+   */
+  message?: string;
   
   /**
    * Confirm button text
@@ -72,6 +77,7 @@ export function ModalPopup({
   visible,
   title,
   children,
+  message,
   confirmText = '확인',
   onConfirm,
   cancelText,
@@ -160,6 +166,8 @@ export function ModalPopup({
       transparent
       animationType="none"
       onRequestClose={onCancel}
+      presentationStyle="overFullScreen"
+      statusBarTranslucent={true}
     >
       {/* Dim Backdrop */}
       <Animated.View
@@ -194,9 +202,15 @@ export function ModalPopup({
             </Text>
           )}
 
-          {/* Content (Flexible via children) */}
+          {/* Content (Flexible via children or message) */}
           <View style={[styles.content, !title && styles.contentNoTitle]}>
-            {children}
+            {message ? (
+              <Text style={[styles.message, { color: colors.text }]}>
+                {message}
+              </Text>
+            ) : (
+              children
+            )}
           </View>
 
           {/* Buttons */}
@@ -244,13 +258,15 @@ export function ModalPopup({
 const styles = StyleSheet.create({
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    zIndex: 99999,
   },
   container: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 16,
+    zIndex: 100000,
   },
   modal: {
     width: 343,
@@ -267,6 +283,11 @@ const styles = StyleSheet.create({
   },
   contentNoTitle: {
     marginBottom: 24,
+  },
+  message: {
+    ...Typography.body1.l.regular,
+    textAlign: 'center',
+    lineHeight: 24,
   },
   buttons: {
     flexDirection: 'row',

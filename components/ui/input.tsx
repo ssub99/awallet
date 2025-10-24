@@ -167,11 +167,11 @@ export function Input({
     // If empty, return empty string
     if (!numbers) return '';
     
-    // Remove leading zeros except for single zero
-    const cleanNumber = numbers.replace(/^0+/, '') || '0';
+    // Convert to number and back to string to remove leading zeros
+    const num = parseInt(numbers, 10);
     
-    // Add commas
-    return cleanNumber.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    // Add commas using toLocaleString
+    return num.toLocaleString();
   };
 
   const handleChangeText = (text: string) => {
@@ -241,7 +241,7 @@ export function Input({
                   style={[
                     styles.input,
                     { color: hasValue ? textColor : placeholderColor },
-                    textInputProps.style,
+                    (textInputProps as any).style,
                   ]}
                 >
                   {hasValue ? value : finalPlaceholder}
@@ -255,7 +255,7 @@ export function Input({
                     { color: textColor },
                     inputType === 'number' && styles.inputNumber,
                     variant === 'area' && styles.inputArea,
-                    textInputProps.style,
+                    (textInputProps as any).style,
                   ]}
                   value={value}
                   onChangeText={handleChangeText}
@@ -279,7 +279,7 @@ export function Input({
                   }}
                   multiline={variant === 'area'}
                   textAlignVertical={variant === 'area' ? 'top' : 'center'}
-                  keyboardType={inputType === 'number' ? 'numeric' : 'default'}
+                  keyboardType={inputType === 'number' ? 'number-pad' : 'default'}
                   accessibilityLabel={finalPlaceholder}
                   accessibilityState={{ disabled }}
                 />

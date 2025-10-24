@@ -275,6 +275,7 @@ const styles = StyleSheet.create({
   backdrop: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    zIndex: 1000,
   },
   sheetContainer: {
     position: 'absolute',
@@ -284,6 +285,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     overflow: 'hidden',
+    zIndex: 1001,
   },
   sheet: {
     borderTopLeftRadius: 16,

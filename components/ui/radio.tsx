@@ -21,9 +21,9 @@ export interface RadioProps {
   onPress?: () => void;
   
   /**
-   * Label text (optional)
+   * Label text (optional) or false to hide label
    */
-  label?: string;
+  label?: string | false;
   
   /**
    * Disabled state
@@ -65,7 +65,7 @@ export function Radio({
   const outerBackgroundColor = disabled
     ? 'rgba(144, 146, 158, 0.12)' // Figma disabled background
     : checked
-    ? 'rgba(144, 146, 158, 0.12)' // Figma checked background
+    ? colors.staticWhite // 흰색 배경
     : colors.staticWhite;
 
   const innerColor = disabled
@@ -83,7 +83,7 @@ export function Radio({
       style={[styles.container, style]}
       accessibilityRole="radio"
       accessibilityState={{ checked, disabled }}
-      accessibilityLabel={label}
+      accessibilityLabel={typeof label === 'string' ? label : undefined}
     >
       {/* Radio Circle */}
       <View
@@ -107,7 +107,7 @@ export function Radio({
       </View>
 
       {/* Label */}
-      {label && (
+      {typeof label === 'string' && (
         <Text style={[styles.label, { color: labelColor }]}>
           {label}
         </Text>
@@ -135,10 +135,10 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   label: {
-    fontSize: 16,
+    fontSize: 14,
     fontFamily: 'Pretendard',
-    fontWeight: '400',
-    lineHeight: 24,
+    fontWeight: '500',
+    lineHeight: 21,
     marginLeft: 8,
   },
 });

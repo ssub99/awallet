@@ -25,6 +25,9 @@ import { Switch } from '@/components/ui/switch';
 import { Toast } from '@/components/ui/toast';
 import { Colors, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { loadMonthStartDay } from '@/hooks/use-month-start';
+import { triggerChallengeNotifications } from '@/utils/challenge-utils';
+import { getCustomMonthInfo } from '@/utils/custom-month';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -56,7 +59,7 @@ function getDayOfWeekLabel(year: number, month: number, day: number): string {
  */
 const debugLog = (message: string, data?: any) => {
   if (__DEV__) {
-    console.log(message, data);
+
   }
 };
 
@@ -201,7 +204,7 @@ const shouldDelete = (
         debugLog('🔍 [삭제필터] 날짜 비교:', {
           recordDate: record.date,
           recordDateStr,
-          recordDate: recordDate.toISOString(),
+          recordDateISO: recordDate.toISOString(),
           baseYear,
           baseMonth,
           editDate: editDate.toISOString(),
@@ -225,7 +228,8 @@ const DATE_FORMAT = 'YYYY-MM-DD';
 function getRecurringPeriod(startDate: string, months: number): string {
   const [year, month, day] = startDate.split('.').map(Number);
   const start = new Date(year, month - 1, day);
-  const end = new Date(year, month - 1 + months, day);
+  // ✅ 수정: months - 1을 빼서 정확한 개월 수 계산
+  const end = new Date(year, month - 1 + months - 1, day);
   
   const startStr = `${String(start.getFullYear()).slice(-2)}/${String(start.getMonth() + 1).padStart(2, '0')}`;
   const endStr = `${String(end.getFullYear()).slice(-2)}/${String(end.getMonth() + 1).padStart(2, '0')}`;
@@ -238,13 +242,27 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ category?: string }>();
+  const params = useLocalSearchParams<{ 
+    category?: string; 
+    selectedDate?: string;
+    calendarYear?: string;
+    calendarMonth?: string;
+  }>();
   const scrollViewRef = useRef<ScrollView>(null);
-  
-  
+
   // Form state
   const today = new Date();
   const formattedToday = `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, '0')}.${String(today.getDate()).padStart(2, '0')}`;
+  
+  // 선택된 날짜가 있으면 해당 날짜를 사용, 없으면 오늘 날짜 사용
+  const getInitialDate = () => {
+    if (params.selectedDate) {
+
+      // "2025-01-15" 형식을 "2025.01.15" 형식으로 변환
+      return params.selectedDate.replace(/-/g, '.');
+    }
+    return formattedToday;
+  };
   
   const [category, setCategory] = useState<string>(params.category || '');
   
@@ -254,20 +272,12 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   }, [category]);
   const [amount, setAmount] = useState<string>('');
   
-  // 금액 입력 시 소수점 제거하는 함수
+  // 금액 입력 시 처리하는 함수 (Input 컴포넌트에서 이미 포맷팅됨)
   const handleAmountChange = (text: string) => {
-    // 숫자만 추출 (콤마는 제거 후 다시 추가)
-    const numbersOnly = text.replace(/[^0-9]/g, '');
-    
-    // 숫자가 있으면 콤마 포맷팅 적용
-    if (numbersOnly) {
-      const formattedAmount = Number(numbersOnly).toLocaleString();
-      setAmount(formattedAmount);
-    } else {
-      setAmount('');
-    }
+    // Input 컴포넌트에서 이미 콤마 포맷팅이 적용되어 있으므로 그대로 사용
+    setAmount(text);
   };
-  const [date, setDate] = useState<string>(formattedToday);
+  const [date, setDate] = useState<string>(getInitialDate());
   
   // date state 변경 감지
   useEffect(() => {
@@ -279,14 +289,23 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   const [isAmountSplit, setIsAmountSplit] = useState<boolean>(false); // 금액 분할하기
   const [weekendOption, setWeekendOption] = useState<'weekend' | 'friday' | 'monday'>('weekend');
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
+  const [monthStartDay, setMonthStartDay] = useState(1);
   const [showDayPicker, setShowDayPicker] = useState<boolean>(false);
   const [tempSelectedDate, setTempSelectedDate] = useState<string>(date.replace(/\./g, '-'));
   const [selectedDay, setSelectedDay] = useState<number>(() => {
-    // 수정 모드이고 editData가 있으면 해당 날짜의 일자 사용, 아니면 오늘 일자 사용
+    // 수정 모드이고 editData가 있으면 해당 날짜의 일자 사용
     if (mode === 'edit' && editData?.date) {
       const editDate = new Date(editData.date);
       return editDate.getDate();
     }
+    
+    // 캘린더에서 선택한 날짜가 있으면 해당 날짜의 일자 사용
+    if (params.selectedDate) {
+      const selectedDateObj = new Date(params.selectedDate);
+      return selectedDateObj.getDate();
+    }
+    
+    // 기본값은 오늘 일자
     return new Date().getDate();
   });
   const [showAmountAlert, setShowAmountAlert] = useState<boolean>(false);
@@ -319,21 +338,23 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   // Keyboard height tracking
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   
-  // Memo section position tracking
+  // Section/Input position tracking
+  // Remove amount auto-scroll states per request
   const [memoSectionY, setMemoSectionY] = useState(0);
+  
+  // 월 시작일 로드
+  useEffect(() => {
+    const loadMonthStart = async () => {
+      const startDay = await loadMonthStartDay();
+      setMonthStartDay(startDay);
+    };
+    loadMonthStart();
+  }, []);
   
   // Edit mode: Initialize with edit data
   useEffect(() => {
     if (mode === 'edit' && editData) {
-      console.log('🔍 [Edit Mode] 초기 데이터 설정:', editData);
-      console.log('🔍 [Edit Mode] 정기 지출 여부:', editData.isRecurring);
-      console.log('🔍 [Edit Mode] 금액 분할 설정:', {
-        isAmountSplit: editData.isAmountSplit,
-        originalAmountSplit: editData.originalAmountSplit,
-        isRecurring: editData.isRecurring,
-        amount: editData.amount,
-        recurringMonths: editData.recurringMonths
-      });
+
       setCategory(editData.category || '');
       // 금액에 콤마 포맷팅 적용
       const initialAmount = editData.amount?.toString() || '';
@@ -345,16 +366,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       // 날짜 형식을 점(.) 구분자로 통일
       const editDate = editData.date || formattedToday;
       const normalizedDate = editDate.replace(/-/g, '.');
-      console.log('🔍 [Edit Mode] 날짜 설정:', {
-        editDataDate: editData.date,
-        editDate,
-        normalizedDate,
-        formattedToday,
-        currentDateState: date
-      });
+
       setDate(normalizedDate);
-      console.log('🔍 [Edit Mode] setDate 호출 완료:', normalizedDate);
-      
+
       // selectedDay도 함께 업데이트
       if (editData.date) {
         const editDateObj = new Date(editData.date);
@@ -363,30 +377,14 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         const month = editDateObj.getMonth() + 1;
         const dayOfWeek = editDateObj.getDay();
         const dayOfWeekLabel = getDayOfWeekLabel(year, month, day);
-        
-        console.log('🔍 [Edit Mode] selectedDay 설정:', {
-          editDataDate: editData.date,
-          day,
-          year,
-          month,
-          dayOfWeek,
-          dayOfWeekLabel,
-          currentSelectedDay: selectedDay
-        });
+
         setSelectedDay(day);
       }
       setMemo(editData.memo || '');
       setIsRecurring(editData.isRecurring || false);
       // 정기 기록 개월수 설정 (정기 기록이든 분할 기록이든 모두 설정)
       let finalRecurringMonths = editData.recurringMonths || 2;
-      
-      console.log('🔍 [Edit Mode] 개월수 데이터 로딩:', {
-        editDataRecurringMonths: editData.recurringMonths,
-        isRecurring: editData.isRecurring,
-        isAmountSplit: editData.isAmountSplit,
-        originalAmountSplit: editData.originalAmountSplit,
-        finalRecurringMonths
-      });
+
       setRecurringMonths(finalRecurringMonths);
       
       // recurringMonths가 없는 경우, recurringId로 관련 기록들을 찾아서 개월수 추론
@@ -408,15 +406,11 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             });
             
             if (relatedRecordsCount > 0) {
-              console.log('🔍 [Edit Mode] recurringId로 개월수 추론:', {
-                recurringId: editData.recurringId,
-                relatedRecordsCount,
-                finalRecurringMonths: relatedRecordsCount
-              });
+
               setRecurringMonths(relatedRecordsCount);
             }
           } catch (error) {
-            console.log('🔍 [Edit Mode] 개월수 추론 실패:', error);
+
           }
         };
         
@@ -440,17 +434,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           // 현재 금액이 월별 분할 금액처럼 보이는지 확인
           const isLikelySplit = months > 1 && currentAmount > 0;
           amountSplitValue = isLikelySplit;
-          console.log('🔍 [Edit Mode] 금액 기반 분할 판단:', {
-            currentAmount,
-            months,
-            isLikelySplit
-          });
+
         }
       } else {
         amountSplitValue = editData.isAmountSplit === true;
       }
       setIsAmountSplit(amountSplitValue);
-      console.log('🔍 [Edit Mode] 최종 금액 분할 설정:', amountSplitValue);
+
       setWeekendOption(editData.weekendOption || 'weekend');
       
       // Parse date for day selection
@@ -483,32 +473,29 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     };
   }, []);
 
-
   // Update category when returning from category selection screen
   useFocusEffect(
     useCallback(() => {
       const updateCategory = async () => {
-        console.log('🔍 [expense-record] useFocusEffect 실행');
-        
+
         // AsyncStorage에서 선택된 카테고리 확인 (카테고리 선택 화면에서 돌아온 경우)
         try {
-          console.log('🔍 [expense-record] AsyncStorage에서 selectedCategory 확인');
+
           const selectedCategoryFromStorage = await AsyncStorage.getItem('selectedCategory');
-          console.log('🔍 [expense-record] AsyncStorage 결과:', selectedCategoryFromStorage);
-          
+
           if (selectedCategoryFromStorage) {
-            console.log('✅ [expense-record] AsyncStorage에서 카테고리 로드:', selectedCategoryFromStorage);
+
             setCategory(selectedCategoryFromStorage);
             // 사용 후 AsyncStorage에서 제거
             await AsyncStorage.removeItem('selectedCategory');
-            console.log('✅ [expense-record] AsyncStorage에서 selectedCategory 제거 완료');
+
           } else if (params.category) {
             // URL 파라미터에서 카테고리 설정 (초기 로드 시)
-            console.log('✅ [expense-record] URL 파라미터에서 카테고리 설정:', params.category);
+
             setCategory(params.category);
           }
         } catch (error) {
-          console.error('❌ [expense-record] AsyncStorage 읽기 실패:', error);
+
           // 에러 발생 시 URL 파라미터 사용
           if (params.category) {
             setCategory(params.category);
@@ -545,8 +532,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     monthlyAmount: number,
     expenseAmount: number
   ) => {
-    console.log('🔄 [전체 수정] 정기 기록 전체 수정 시작');
-    
+
     // 1. 최초 생성 날짜 찾기 (삭제 전에 찾아야 함)
     const recurringId = editData.recurringId;
     let originalDate = actualDateKey;
@@ -569,8 +555,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         }
       });
     }
-    console.log('🔍 [전체 수정] 최초 생성 날짜:', originalDate);
-    
+
     // 2. 기존 정기 기록들 모두 삭제
     if (recurringId) {
       Object.keys(calendarData).forEach(dateKey => {
@@ -580,8 +565,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           );
           
           if (relatedRecords.length > 0) {
-            console.log('🗑️ [전체 수정] 관련 기록 삭제:', dateKey, relatedRecords.length, '개');
-            
+
             // 관련 기록들 삭제
             calendarData[dateKey].records = calendarData[dateKey].records.filter(
               (r: any) => r.recurringId !== recurringId
@@ -638,20 +622,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       // 수정한 날짜에서 일자 추출
       const currentDateFormatted = actualDateKey.replace(/-/g, '.');
       const [currentYear, currentMonth, newDay] = currentDateFormatted.split('.').map(Number);
-      
-      console.log('🔍 [전체 수정] 미래 기록 생성 시작:', { 
-        originalDate, 
-        originalYear, 
-        originalMonth, 
-        originalDay,
-        newDay,
-        recurringMonths 
-      });
-      
+
       // 시작 인덱스: 0부터 시작 (최초 생성 날짜부터 전체 재생성)
       let startIndex = 0;
-      console.log('🔍 [전체 수정] 시작 인덱스:', { startIndex, recurringMonths });
-      
+
       for (let i = startIndex; i < recurringMonths; i++) {
         let futureMonth = originalMonth + i;
         let futureYear = originalYear;
@@ -695,10 +669,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         calendarData[futureDateKey].records.push(futureRecord);
         calendarData[futureDateKey].totalExpense = (calendarData[futureDateKey].totalExpense || 0) + futureMonthlyAmount;
       }
-      console.log('✅ [전체 수정] 미래 기록 생성 완료:', recurringMonths - 1, '개월');
+
     }
-    
-    console.log('✅ [전체 수정] 정기 기록 전체 수정 완료');
+
   };
 
   // 정기 기록 오늘만 수정 (부모/자식 관계 유지)
@@ -709,7 +682,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     actualDateKey: string, 
     monthlyAmount: number
   ) => {
-    console.log('📝 [오늘만 수정] 정기 기록 단일 수정 시작');
+
     console.log('🔍 [오늘만 수정] 입력 파라미터:', {
       originalDateKey: editData.date ? editData.date.replace(/\./g, '-') : actualDateKey,
       actualDateKey,
@@ -726,8 +699,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     
     if (isDateChanged) {
       // 날짜가 변경된 경우: 기존 데이터 삭제 후 새로 생성 (관계 유지)
-      console.log('📅 [오늘만 수정] 날짜 변경됨:', originalDateKey, '→', actualDateKey);
-      
+
       // 기존 위치에서 기록 삭제
       if (calendarData[originalDateKey] && calendarData[originalDateKey].records) {
         const originalRecordIndex = calendarData[originalDateKey].records.findIndex(
@@ -756,39 +728,20 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       const finalAmount = (editData.isAmountSplit && editData.originalAmountSplit) 
         ? editData.amount  // 분할 기록은 기존 금액 유지
         : monthlyAmount;    // 일반 기록은 새 금액 사용
-        
-      console.log('🔍 [오늘만 수정] 금액 계산:', {
-        editDataIsAmountSplit: editData.isAmountSplit,
-        editDataOriginalAmountSplit: editData.originalAmountSplit,
-        editDataAmount: editData.amount,
-        monthlyAmount,
-        finalAmount,
-        isSplitRecord: editData.isAmountSplit && editData.originalAmountSplit
-      });
-        
+
       const updatedRecord = {
         ...newRecord,
         recurringId: editData.recurringId, // 기존 recurringId 유지
         timestamp: editData.timestamp, // 기존 timestamp 유지
         amount: finalAmount, // 분할 기록 수정 시 기존 금액 사용
       };
-      
-      console.log('🔍 [오늘만 수정] 업데이트된 기록:', {
-        recurringId: updatedRecord.recurringId,
-        timestamp: updatedRecord.timestamp,
-        amount: updatedRecord.amount,
-        isRecurring: updatedRecord.isRecurring,
-        isAmountSplit: updatedRecord.isAmountSplit,
-        originalAmountSplit: updatedRecord.originalAmountSplit
-      });
-      
+
       calendarData[actualDateKey].records.push(updatedRecord);
       calendarData[actualDateKey].totalExpense = (calendarData[actualDateKey].totalExpense || 0) + finalAmount;
       
     } else {
       // 날짜가 변경되지 않은 경우: 기존 데이터 업데이트 (관계 유지)
-      console.log('📝 [오늘만 수정] 날짜 미변경 - 데이터 업데이트');
-      
+
       if (calendarData[actualDateKey] && calendarData[actualDateKey].records) {
         const recordIndex = calendarData[actualDateKey].records.findIndex(
           (r: any) => r.timestamp === editData.timestamp
@@ -807,16 +760,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           const finalAmount = (editData.isAmountSplit && editData.originalAmountSplit) 
             ? oldRecord.amount  // 분할 기록은 기존 금액 유지
             : monthlyAmount;    // 일반 기록은 새 금액 사용
-            
-          console.log('🔍 [오늘만 수정] 날짜 미변경 - 금액 계산:', {
-            editDataIsAmountSplit: editData.isAmountSplit,
-            editDataOriginalAmountSplit: editData.originalAmountSplit,
-            oldRecordAmount: oldRecord.amount,
-            monthlyAmount,
-            finalAmount,
-            isSplitRecord: editData.isAmountSplit && editData.originalAmountSplit
-          });
-            
+
           calendarData[actualDateKey].records[recordIndex] = {
             ...oldRecord,
             amount: finalAmount,
@@ -825,28 +769,18 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             weekendOption: newRecord.weekendOption,
             // recurringId와 timestamp는 유지
           };
-          
-          console.log('🔍 [오늘만 수정] 날짜 미변경 - 업데이트된 기록:', {
-            recurringId: calendarData[actualDateKey].records[recordIndex].recurringId,
-            timestamp: calendarData[actualDateKey].records[recordIndex].timestamp,
-            amount: calendarData[actualDateKey].records[recordIndex].amount,
-            isRecurring: calendarData[actualDateKey].records[recordIndex].isRecurring,
-            isAmountSplit: calendarData[actualDateKey].records[recordIndex].isAmountSplit,
-            originalAmountSplit: calendarData[actualDateKey].records[recordIndex].originalAmountSplit
-          });
-          
+
           // 총액에 새 금액 추가
           calendarData[actualDateKey].totalExpense = (calendarData[actualDateKey].totalExpense || 0) + finalAmount;
         }
       }
     }
-    
-    console.log('✅ [오늘만 수정] 정기 기록 단일 수정 완료');
+
   };
 
   const handleCategoryPress = () => {
-    // 정기 기록 수정 시 카테고리 변경 불가
-    if (mode === 'edit' && isRecurring) {
+    // 원래 정기 기록으로 생성된 데이터는 카테고리 변경 불가
+    if (mode === 'edit' && editData?.isRecurring) {
       setCategoryToastMessage('변경할 수 없습니다. 새로 생성해 주세요.');
       setShowCategoryToast(true);
       return;
@@ -885,6 +819,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     setShowDatePicker(false);
   };
 
+  // amount auto-scroll removed per request
+  
+  // amount auto-scroll removed per request
 
   const handleMemoFocus = () => {
     // 메모 섹션 위치로 스크롤 (하단 버튼 제외)
@@ -917,15 +854,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     const originalDate = editData.date ? editData.date.replace(/-/g, '.') : '';
     
     // 날짜 변경 감지를 위한 디버깅 로그
-    console.log('🔍 [hasChanges] 날짜 비교:', {
-      currentDate,
-      originalDate,
-      editDataDate: editData.date,
-      dateChanged: currentDate !== originalDate,
-      currentDateType: typeof currentDate,
-      originalDateType: typeof originalDate
-    });
-    
+
     // 변경사항 확인
     const categoryChanged = category !== editData.category;
     const amountChanged = currentAmount !== originalAmount;
@@ -986,14 +915,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   };
   
   const saveExpenseRecord = async () => {
-    console.log('💾 [저장] saveExpenseRecord 함수 실행 - mode:', mode);
+
     try {
       const storedData = await AsyncStorage.getItem('calendarData');
       const calendarData = storedData ? JSON.parse(storedData) : {};
       
       const expenseAmount = parseFloat(amount.replace(/,/g, ''));
-      console.log('📊 [저장] 파싱된 금액:', expenseAmount);
-      
+
       // 1. 실제 저장될 날짜 계산 (주말 옵션 적용)
       let actualDate = date;
       
@@ -1005,28 +933,16 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       const dateObj = new Date(year, month, day);
       const dayOfWeek = dateObj.getDay();
       const isWeekendDay = dayOfWeek === 0 || dayOfWeek === 6;
-      
-      console.log('📅 [저장] 날짜 체크:', { 
-        date, 
-        year, 
-        month: month + 1, 
-        day, 
-        dayOfWeek, 
-        isWeekendDay, 
-        isRecurring, 
-        weekendOption 
-      });
-      
+
       if (isRecurring && isWeekendDay && weekendOption !== 'weekend') {
         actualDate = getAdjustedWeekendDate(date, weekendOption);
-        console.log('📅 [저장] 주말 날짜 조정:', date, '→', actualDate);
+
       } else if (isRecurring && isWeekendDay && weekendOption === 'weekend') {
-        console.log('📅 [저장] 관계없이 주말 기록 옵션 → 날짜 조정 안 함:', date);
+
       }
       
       const actualDateKey = actualDate.replace(/\./g, '-');
-      console.log('📅 [저장] 실제 저장 날짜:', actualDateKey);
-      
+
       // 2. 날짜에 데이터 구조 생성
       if (!calendarData[actualDateKey]) {
         calendarData[actualDateKey] = {
@@ -1046,24 +962,14 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           ? editData.recurringId 
           : newTimestamp.toString())
         : undefined;
-        
-      console.log('🔍 [저장] timestamp와 recurringId 설정:', {
-        mode,
-        editOption,
-        editDataTimestamp: editData?.timestamp,
-        editDataRecurringId: editData?.recurringId,
-        newTimestamp,
-        recurringId,
-        isTodayOnlyEdit: mode === 'edit' && editData && editOption === 'today'
-      });
-      
+
       // 정기 지출 시 월별 금액 계산
       let monthlyAmount: number;
       if (isRecurring && isAmountSplit) {
         // 수정 모드이고 분할 기록인 경우: 기존 금액 그대로 사용 (재분할 방지)
         if (mode === 'edit' && editData?.isRecurring && editData?.isAmountSplit) {
           monthlyAmount = parseFloat(amount.replace(/,/g, ''));
-          console.log('🔍 [저장] 분할 기록 수정 - 기존 금액 사용:', monthlyAmount);
+
         } else {
           // 생성 모드: 분할 계산
           const baseAmount = Math.floor(expenseAmount / recurringMonths);  // 소수점 제거하여 정수로 계산
@@ -1073,9 +979,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       } else {
         monthlyAmount = expenseAmount;
       }
-      
-      console.log('🔍 [저장] 저장할 카테고리:', category);
-      
+
       const newRecord = {
         type: 'expense' as const,
         amount: monthlyAmount,
@@ -1092,13 +996,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         splitMonths: isRecurring && isAmountSplit ? recurringMonths : undefined, // 분할 개월 수 저장
         originalAmountSplit: isRecurring ? isAmountSplit : undefined, // 최초 생성 시 금액 분할 설정 저장
       };
-      
-      console.log('🔍 [저장] newRecord 생성:', {
-        isRecurring,
-        isAmountSplit,
-        originalAmountSplit: newRecord.originalAmountSplit
-      });
-      
+
       if (mode === 'edit' && editData) {
         // Edit mode: 정기 기록 수정 정책에 따른 처리
         if (editData.isRecurring) {
@@ -1112,76 +1010,83 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             const singleUpdateAmount = (editData.isAmountSplit && editData.originalAmountSplit) 
               ? editData.amount  // 분할 기록은 기존 금액 사용
               : monthlyAmount;    // 일반 기록은 새 금액 사용
-              
-            console.log('🔍 [저장] 오늘만 수정 - singleUpdateAmount 계산:', {
-              editDataIsAmountSplit: editData.isAmountSplit,
-              editDataOriginalAmountSplit: editData.originalAmountSplit,
-              editDataAmount: editData.amount,
-              monthlyAmount,
-              singleUpdateAmount,
-              isSplitRecord: editData.isAmountSplit && editData.originalAmountSplit
-            });
-            
+
             await handleRecurringSingleUpdate(calendarData, editData, newRecord, actualDateKey, singleUpdateAmount);
           }
         } else {
           // 일반 기록 수정 (기존 로직)
           const originalDateKey = editData.date ? editData.date.replace(/\./g, '-') : actualDateKey;
-          
-          // 날짜가 변경된 경우 기존 위치에서 삭제
-          if (originalDateKey !== actualDateKey) {
-            console.log('📅 [수정] 날짜 변경됨:', originalDateKey, '→', actualDateKey);
+
+          // 기존 위치에서 기록 삭제 (날짜 변경 여부와 상관없이)
+          if (calendarData[originalDateKey] && calendarData[originalDateKey].records) {
+            // actualRecordIndex가 있으면 직접 사용, 없으면 timestamp로 찾기
+            let originalRecordIndex = -1;
             
-            // 기존 위치에서 기록 삭제
-            if (calendarData[originalDateKey] && calendarData[originalDateKey].records) {
-              const originalRecordIndex = calendarData[originalDateKey].records.findIndex(
+            if (editData.actualRecordIndex !== undefined && editData.actualRecordIndex !== null) {
+              // actualRecordIndex 사용 (타임라인에서 전달받은 정확한 인덱스)
+              originalRecordIndex = editData.actualRecordIndex;
+
+            } else {
+              // timestamp로 찾기 (legacy 호환)
+              originalRecordIndex = calendarData[originalDateKey].records.findIndex(
                 (r: any) => r.timestamp === editData.timestamp
               );
-              if (originalRecordIndex !== -1) {
-                const originalRecord = calendarData[originalDateKey].records[originalRecordIndex];
-                calendarData[originalDateKey].records.splice(originalRecordIndex, 1);
-                
-                // 기존 날짜의 총액에서 차감
-                if (originalRecord.type === 'expense') {
-                  calendarData[originalDateKey].totalExpense = Math.max(0, 
-                    (calendarData[originalDateKey].totalExpense || 0) - (originalRecord.amount || 0)
-                  );
-                } else if (originalRecord.type === 'income') {
-                  calendarData[originalDateKey].totalIncome = Math.max(0, 
-                    (calendarData[originalDateKey].totalIncome || 0) - (originalRecord.amount || 0)
-                  );
-                }
-                
-                // 빈 날짜 데이터 정리
-                if (calendarData[originalDateKey].records.length === 0) {
-                  delete calendarData[originalDateKey];
-                }
-                
-                console.log('🗑️ [수정] 기존 위치에서 기록 삭제 완료:', originalDateKey);
+
+            }
+            
+            if (originalRecordIndex !== -1 && originalRecordIndex < calendarData[originalDateKey].records.length) {
+              const originalRecord = calendarData[originalDateKey].records[originalRecordIndex];
+
+              calendarData[originalDateKey].records.splice(originalRecordIndex, 1);
+              
+              // 기존 날짜의 총액에서 차감
+              if (originalRecord.type === 'expense') {
+                calendarData[originalDateKey].totalExpense = Math.max(0, 
+                  (calendarData[originalDateKey].totalExpense || 0) - (originalRecord.amount || 0)
+                );
+              } else if (originalRecord.type === 'income') {
+                calendarData[originalDateKey].totalIncome = Math.max(0, 
+                  (calendarData[originalDateKey].totalIncome || 0) - (originalRecord.amount || 0)
+                );
               }
+              
+              // 빈 날짜 데이터 정리
+              if (calendarData[originalDateKey].records.length === 0) {
+                delete calendarData[originalDateKey];
+              }
+
+            } else {
+
             }
           }
           
-          // 새 위치에 기록 추가
+          // 새 위치에 기록 추가 (날짜 데이터가 없으면 초기화)
+          if (!calendarData[actualDateKey]) {
+            calendarData[actualDateKey] = {
+              totalExpense: 0,
+              totalIncome: 0,
+              records: [],
+            };
+
+          }
+          
           calendarData[actualDateKey].records.push({
             ...newRecord,
             timestamp: editData.timestamp, // Keep original timestamp
           });
           calendarData[actualDateKey].totalExpense = (calendarData[actualDateKey].totalExpense || 0) + monthlyAmount;
-          console.log('✅ [수정] 새 위치에 기록 추가 완료:', actualDateKey);
+
         }
       } else {
         // Create mode: Add new record
         calendarData[actualDateKey].records.push(newRecord);
         calendarData[actualDateKey].totalExpense = (calendarData[actualDateKey].totalExpense || 0) + monthlyAmount;
-        console.log('✅ [저장] 새 기록 추가 완료:', actualDateKey);
+
       }
-      console.log('📌 [저장] recurringId:', recurringId);
-      
+
       // 4. 정기 지출인 경우 다음 달들에도 기록 생성 (생성 모드에서만)
       if (isRecurring && mode !== 'edit') {
-        console.log('🔁 [저장] 정기 지출 처리 시작:', recurringMonths, '개월');
-        
+
       // 정기 지출 시 월별 금액 계산 (미래 기록용)
       let futureMonthlyAmount: number;
       if (isAmountSplit) {
@@ -1247,13 +1152,19 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           
           calendarData[futureDateKey].totalExpense = (calendarData[futureDateKey].totalExpense || 0) + futureMonthlyAmount;
         }
-        console.log('✅ [저장] 정기 지출', recurringMonths - 1, '개월 생성 완료');
+
       }
-      
-      
+
       // 6. AsyncStorage에 저장
       await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
-      console.log('✅ [저장] AsyncStorage 저장 완료');
+
+      // 6-1. 챌린지 알림 트리거 (비동기이지만 대기하지 않음)
+      if (category) {
+        const recordDateObj = new Date(actualDateKey);
+        triggerChallengeNotifications(category, recordDateObj).catch(error => {
+
+        });
+      }
       
       // 7. 홈으로 이동
       // 오늘만 수정 모드에서는 원래 날짜로 이동, 전체 수정 모드에서는 최초 생성 날짜로 이동
@@ -1266,16 +1177,39 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       } else if (mode === 'edit' && editData && editOption === 'all') {
         // 전체 수정: 최초 생성 날짜로 이동
         targetDateKey = actualDateKey;
-        console.log('🏠 [이동] 전체 수정 - 최초 생성 날짜로 이동:', targetDateKey);
+
       } else {
         // 생성 모드: 생성된 날짜로 이동
         targetDateKey = actualDateKey;
-        console.log('🏠 [이동] 생성 모드 - 생성된 날짜로 이동:', targetDateKey);
+
       }
       
-      const [targetYear, targetMonth, targetDay] = targetDateKey.split('-').map(Number);
-      console.log('🏠 [이동] 홈 화면으로 이동:', { targetYear, targetMonth, targetDay });
+      // 🔧 수정: 실제 저장된 날짜가 속한 커스텀 월로 이동
+      // 날짜 문자열을 로컬 타임존으로 파싱
+      const [yearNum, monthNum, dayNum] = targetDateKey.split('-').map(Number);
+      const savedDate = new Date(yearNum, monthNum - 1, dayNum);
       
+      // 월 시작일 로드
+      const currentMonthStartDay = await loadMonthStartDay();
+      
+      // 실제 날짜가 속한 커스텀 월 계산
+      const customMonthInfo = getCustomMonthInfo(savedDate, currentMonthStartDay);
+      const targetYear = customMonthInfo.year;
+      const targetMonth = customMonthInfo.month;
+      
+      console.log('🏠 [이동] 실제 날짜가 속한 커스텀 월 계산:', {
+        savedDate: targetDateKey,
+        monthStartDay: currentMonthStartDay,
+        targetYear,
+        targetMonth,
+        customMonthRange: {
+          start: customMonthInfo.startDate.toISOString().split('T')[0],
+          end: customMonthInfo.endDate.toISOString().split('T')[0]
+        }
+      });
+      
+      const [, , targetDay] = targetDateKey.split('-').map(Number);
+
       // Stack 정리: 카테고리, 소비기록 모두 제거하고 홈으로
       router.back(); // expense-record 제거
       router.back(); // expense-category 제거
@@ -1294,7 +1228,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         });
       }, 100);
     } catch (error) {
-      console.error('❌ [에러] 저장 실패:', error);
+
     }
   };
   
@@ -1337,22 +1271,19 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
   const handleDeleteConfirm = async () => {
     if (mode !== 'edit' || !editData) {
-      console.error('❌ [삭제] 편집 모드가 아니거나 편집 데이터가 없습니다.');
+
       return;
     }
 
     try {
-      console.log('🗑️ [삭제] 삭제 시작:', editData);
-      
+
       const storedData = await AsyncStorage.getItem('calendarData');
       const calendarData = storedData ? JSON.parse(storedData) : {};
       
       // 삭제할 기록의 날짜 키 생성
       const recordDate = editData.date || date;
       const dateKey = recordDate.replace(/\./g, '-');
-      
-      console.log('🗑️ [삭제] 삭제할 날짜 키:', dateKey);
-      
+
       if (calendarData[dateKey] && calendarData[dateKey].records) {
         // 해당 날짜의 기록들에서 삭제할 기록 찾기
         const recordIndex = calendarData[dateKey].records.findIndex(
@@ -1361,8 +1292,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         
         if (recordIndex !== -1) {
           const recordToDelete = calendarData[dateKey].records[recordIndex];
-          console.log('🗑️ [삭제] 삭제할 기록:', recordToDelete);
-          
+
           // 기록 삭제
           calendarData[dateKey].records.splice(recordIndex, 1);
           
@@ -1379,8 +1309,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           
           // 정기 지출인 경우 관련된 모든 기록 삭제
           if (recordToDelete.isRecurring && recordToDelete.recurringId) {
-            console.log('🗑️ [삭제] 정기 지출 관련 기록들 삭제 시작:', recordToDelete.recurringId);
-            
+
             // 모든 날짜에서 같은 recurringId를 가진 기록들 찾아서 삭제
             Object.keys(calendarData).forEach(key => {
               if (calendarData[key].records) {
@@ -1389,8 +1318,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 );
                 
                 if (relatedRecords.length > 0) {
-                  console.log('🗑️ [삭제] 관련 기록 발견:', key, relatedRecords.length, '개');
-                  
+
                   // 관련 기록들 삭제
                   calendarData[key].records = calendarData[key].records.filter(
                     (r: any) => r.recurringId !== recordToDelete.recurringId
@@ -1416,7 +1344,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           // 빈 날짜 데이터 정리
           if (calendarData[dateKey].records.length === 0) {
             delete calendarData[dateKey];
-            console.log('🗑️ [삭제] 빈 날짜 데이터 정리:', dateKey);
+
           }
           
           // AsyncStorage에 저장
@@ -1427,41 +1355,61 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           setShowDeleteConfirm(false);
           setShowRecurringDeleteConfirm(false);
           
-          // 홈으로 이동
-          const [targetYear, targetMonth, targetDay] = dateKey.split('-').map(Number);
-          debugLog('🏠 [이동] 홈 화면으로 이동:', { targetYear, targetMonth, targetDay });
-          
-          // Stack 정리: 소비기록 화면 제거
-          router.back();
-          
-          // 홈으로 이동
-          setTimeout(() => {
-            router.replace({
-              pathname: '/(tabs)/home',
-              params: {
-                targetYear: targetYear.toString(),
-                targetMonth: targetMonth.toString(),
-                targetDay: targetDay.toString(),
-                targetDate: dateKey,
-                periodType: 'month',
-              },
+          // 타임라인에서 왔으면 타임라인으로, 아니면 홈으로 이동
+          if (params.calendarYear && params.calendarMonth) {
+            // 타임라인으로 복귀
+            debugLog('📊 [이동] 타임라인 화면으로 이동:', { 
+              year: params.calendarYear, 
+              month: params.calendarMonth 
             });
-          }, NAVIGATION_DELAY);
+            
+            router.back();
+            
+            setTimeout(() => {
+              router.replace({
+                pathname: '/monthly-expense-timeline',
+                params: {
+                  year: params.calendarYear,
+                  month: params.calendarMonth,
+                  tab: 'timeline'
+                },
+              });
+            }, NAVIGATION_DELAY);
+          } else {
+            // 홈으로 이동
+            const [targetYear, targetMonth, targetDay] = dateKey.split('-').map(Number);
+            debugLog('🏠 [이동] 홈 화면으로 이동:', { targetYear, targetMonth, targetDay });
+            
+            router.back();
+            
+            setTimeout(() => {
+              router.replace({
+                pathname: '/(tabs)/home',
+                params: {
+                  targetYear: targetYear.toString(),
+                  targetMonth: targetMonth.toString(),
+                  targetDay: targetDay.toString(),
+                  targetDate: dateKey,
+                  periodType: 'month',
+                },
+              });
+            }, NAVIGATION_DELAY);
+          }
         } else {
-          console.error('❌ [삭제] 삭제할 기록을 찾을 수 없습니다.');
+
         }
       } else {
-        console.error('❌ [삭제] 해당 날짜의 데이터를 찾을 수 없습니다.');
+
       }
     } catch (error) {
-      console.error('❌ [삭제] 삭제 실패:', error);
+
     }
   };
 
   // 정기 기록 삭제 옵션별 처리
   const handleRecurringDeleteWithOption = async () => {
     if (mode !== 'edit' || !editData || !editData.isRecurring) {
-      console.error('❌ [정기삭제] 편집 모드가 아니거나 정기 기록이 아닙니다.');
+
       return;
     }
 
@@ -1473,7 +1421,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       
       const recurringId = editData.recurringId;
       if (!recurringId) {
-        console.error('❌ [정기삭제] recurringId가 없습니다.');
+
         return;
       }
 
@@ -1489,7 +1437,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             (r: any) => r.recurringId === recurringId
           );
           
-          relatedRecords.forEach(record => {
+          relatedRecords.forEach((record: any) => {
             const currentDate = new Date();
             
             // 편집하려는 날짜의 일(day) 정보 추출
@@ -1542,30 +1490,50 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       // 모달 닫기
       setShowRecurringDeleteOptions(false);
       
-      // 홈으로 이동
-      const recordDate = editData.date || date;
-      const dateKey = formatDateKey(recordDate);
-      const [targetYear, targetMonth, targetDay] = dateKey.split('-').map(Number);
-      
-      // Stack 정리: 소비기록 화면 제거
-      router.back();
-      
-      // 홈으로 이동
-      setTimeout(() => {
-        router.replace({
-          pathname: '/(tabs)/home',
-          params: {
-            targetYear: targetYear.toString(),
-            targetMonth: targetMonth.toString(),
-            targetDay: targetDay.toString(),
-            targetDate: dateKey,
-            periodType: 'month',
-          },
+      // 타임라인에서 왔으면 타임라인으로, 아니면 홈으로 이동
+      if (params.calendarYear && params.calendarMonth) {
+        // 타임라인으로 복귀
+        debugLog('📊 [이동] 타임라인 화면으로 이동:', { 
+          year: params.calendarYear, 
+          month: params.calendarMonth 
         });
-      }, NAVIGATION_DELAY);
+        
+        router.back();
+        
+        setTimeout(() => {
+          router.replace({
+            pathname: '/monthly-expense-timeline',
+            params: {
+              year: params.calendarYear,
+              month: params.calendarMonth,
+              tab: 'timeline'
+            },
+          });
+        }, NAVIGATION_DELAY);
+      } else {
+        // 홈으로 이동
+        const recordDate = editData.date || date;
+        const dateKey = formatDateKey(recordDate);
+        const [targetYear, targetMonth, targetDay] = dateKey.split('-').map(Number);
+        
+        router.back();
+        
+        setTimeout(() => {
+          router.replace({
+            pathname: '/(tabs)/home',
+            params: {
+              targetYear: targetYear.toString(),
+              targetMonth: targetMonth.toString(),
+              targetDay: targetDay.toString(),
+              targetDate: dateKey,
+              periodType: 'month',
+            },
+          });
+        }, NAVIGATION_DELAY);
+      }
       
     } catch (error) {
-      console.error('❌ [정기삭제] 삭제 실패:', error);
+
     }
   };
 
@@ -1800,7 +1768,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                         </Text>
                       </View>
                     </View>
-                    
+
                     <View style={styles.expenseInfoRight}>
                       <View style={styles.expenseInfoTop}>
                         <Text 
@@ -1833,7 +1801,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 placeholder="카테고리 선택"
                 showRightArrow={true}
                 buttonMode={true}
-                disabled={mode === 'edit' && isRecurring}
+                disabled={mode === 'edit' && editData?.isRecurring}
                 onPress={handleCategoryPress}
                 style={styles.categoryInput}
               />
@@ -1847,7 +1815,21 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 </Text>
                 {isRecurring && (
                   <Text style={[styles.currentYearMonth, { color: colors.textAssistive }]}>
-                    현재 년월 : {new Date().getFullYear()}/{String(new Date().getMonth() + 1).padStart(2, '0')}
+                    {mode === 'edit' && editData?.isRecurring && editData?.recurringId ? (
+                      // 수정 모드: 최초 생성년월 표시 (recurringId는 timestamp)
+                      (() => {
+                        const originalDate = new Date(Number(editData.recurringId));
+                        const originalYear = originalDate.getFullYear();
+                        const originalMonth = String(originalDate.getMonth() + 1).padStart(2, '0');
+                        return `최초 생성년월 : ${originalYear}/${originalMonth}`;
+                      })()
+                    ) : (
+                      // 생성 모드: 선택한 날짜의 년월 표시
+                      (() => {
+                        const [selectedYear, selectedMonth] = date.split('.').map(Number);
+                        return `선택한 생성년월 : ${selectedYear}/${String(selectedMonth).padStart(2, '0')}`;
+                      })()
+                    )}
                   </Text>
                 )}
               </View>
@@ -1868,17 +1850,26 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                     >
                       <Text style={[styles.dayPickerText, { color: colors.textAssistive }]}>
                         {(() => {
+                          // 정기 지출 수정 모드: 실제 저장된 날짜 기준으로 요일 표시
+                          if (mode === 'edit' && editData?.isRecurring && date) {
+                            const [year, month, day] = date.split('.').map(Number);
+                            const dateObj = new Date(year, month - 1, day);
+                            const actualDayOfWeek = dateObj.getDay();
+                            const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
+                            const actualDayOfWeekLabel = weekdays[actualDayOfWeek];
+
+                            return `${day}일(${actualDayOfWeekLabel})`;
+                          }
+                          
+                          // 일반 모드: selectedDay 기준으로 요일 계산
                           const today = new Date();
                           const year = today.getFullYear();
                           const month = today.getMonth() + 1;
                           
-                          // 실제 날짜의 요일 계산 (현재 년월 기준)
                           const dateObj = new Date(year, month - 1, selectedDay);
                           const actualDayOfWeek = dateObj.getDay();
                           const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
                           const actualDayOfWeekLabel = weekdays[actualDayOfWeek];
-                          
-                          // 일자 선택 피커 요일 표시
                           
                           return `${selectedDay}일(${actualDayOfWeekLabel})`;
                         })()}
@@ -1914,7 +1905,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             </View>
 
             {/* 금액 */}
-            <View style={styles.section}>
+            <View 
+              style={styles.section}
+            >
               <View style={styles.sectionHeader}>
                 <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
                   금액 <Text style={{ color: '#EF5252' }}>*</Text>
@@ -1944,9 +1937,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 <View style={styles.recurringAmountRow}>
                   {/* 기간 설정 */}
                   <Selectbox
-                    variant="line"
-                    type={mode === 'edit' && editData?.isRecurring ? "disabled" : "default"}
-                    size="48_regular"
                     disabled={mode === 'edit' && editData?.isRecurring}
                     options={[
                       { label: '2개월', value: '2' },
@@ -1961,20 +1951,14 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                     onPress={() => {
                       // 정기 기록 수정 모드에서는 개월수 변경 불가
                       const isDisabled = mode === 'edit' && editData?.isRecurring;
-                      console.log('🔍 [개월수 클릭] disabled 상태 체크:', {
-                        mode,
-                        editDataIsRecurring: editData?.isRecurring,
-                        isDisabled,
-                        editData: editData
-                      });
-                      
+
                       if (isDisabled) {
-                        console.log('🚫 [개월수 클릭] disabled 상태 - 토스트 표시');
+
                         setRecurringToastMessage('변경할 수 없습니다. 새로 생성해 주세요.');
                         setShowRecurringToast(true);
                         return;
                       }
-                      console.log('✅ [개월수 클릭] 정상 처리 - 피커 열기');
+
                       Keyboard.dismiss();
                       setShowPeriodNativePicker(true);
                     }}
@@ -2000,22 +1984,14 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                     onPress={() => {
                       // 정기 기록 수정 모드에서는 금액 변경 불가 (정기 기록과 분할 기록 모두)
                       const isDisabled = mode === 'edit' && editData?.isRecurring;
-                      console.log('🔍 [금액 필드 클릭] disabled 상태 체크:', {
-                        mode,
-                        editDataIsRecurring: editData?.isRecurring,
-                        isAmountSplit: editData?.isAmountSplit,
-                        originalAmountSplit: editData?.originalAmountSplit,
-                        isDisabled,
-                        editData: editData
-                      });
-                      
+
                       if (isDisabled) {
-                        console.log('🚫 [금액 필드 클릭] disabled 상태 - 토스트 표시');
+
                         setRecurringToastMessage('변경할 수 없습니다. 새로 생성해 주세요.');
                         setShowRecurringToast(true);
                         return;
                       }
-                      console.log('✅ [금액 필드 클릭] 정상 처리');
+
                     }}
                     style={styles.splitAmountInput}
                   />
@@ -2024,6 +2000,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               
               {/* 메인 금액 입력 필드 (정기 지출 OFF일 때만 표시) */}
               {!isRecurring && (
+                <View>
                 <Input
                   variant="line"
                   inputType="number"
@@ -2033,7 +2010,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                   keyboardType="numeric"
                   placeholder="0"
                   textAlign="right"
+                  
                 />
+                </View>
               )}
             </View>
 
@@ -2056,30 +2035,30 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 <Switch
                   value={isRecurring}
                   onValueChange={(value) => {
-                    console.log('🔍 [Switch] onValueChange 호출됨:', { 
-                      mode, 
-                      isRecurring, 
-                      value, 
-                      editData: !!editData 
-                    });
-                    
-                    // 정기 기록 수정 모드에서는 스위치 비활성화
-                    if (mode === 'edit' && isRecurring) {
-                      console.log('🔍 [Switch] 정기 기록 수정 모드 - 토스트 표시');
+
+                    // 원래 정기 기록으로 생성된 데이터는 스위치 비활성화
+                    if (mode === 'edit' && editData?.isRecurring) {
+
                       setRecurringToastMessage('정기 지출로 생성된 내역은 해제할 수 없습니다.');
                       setShowRecurringToast(true);
                       return;
                     }
-                    
-                    console.log('🔍 [Switch] 정상 처리 - 상태 변경');
+
                     setIsRecurring(value);
                     if (!value) {
                       // 정기 지출 OFF 시 관련 상태 초기화
                       setIsAmountSplit(false);
                       setRecurringMonths(2);
+                    } else {
+                      // 정기 지출 ON 시 선택한 날짜의 일자로 selectedDay 설정
+                      if (params.selectedDate) {
+                        const selectedDateObj = new Date(params.selectedDate);
+                        setSelectedDay(selectedDateObj.getDate());
+                        console.log('🔍 [Switch] 정기 지출 ON - selectedDay 설정:', selectedDateObj.getDate());
+                      }
                     }
                   }}
-                  disabled={mode === 'edit' && isRecurring}
+                  disabled={mode === 'edit' && editData?.isRecurring}
                 />
               </View>
 
@@ -2097,37 +2076,49 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               </Text>
               <View style={[styles.card, { backgroundColor: colors.staticWhite }]}>
                 {/* 관계없이 주말 기록 */}
-                <View style={styles.radioRow}>
+                <Pressable 
+                  style={styles.radioRow}
+                  onPress={() => setWeekendOption('weekend')}
+                >
+                  <Text style={styles.weekendOptionText}>관계없이 주말 기록</Text>
                   <Radio
                     checked={weekendOption === 'weekend'}
                     onPress={() => setWeekendOption('weekend')}
-                    label="관계없이 주말 기록"
+                    label={false}
                   />
-                </View>
+                </Pressable>
 
                 {/* Divider */}
                 <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
                 {/* 금주 금요일 기록 */}
-                <View style={styles.radioRow}>
+                <Pressable 
+                  style={styles.radioRow}
+                  onPress={() => setWeekendOption('friday')}
+                >
+                  <Text style={styles.weekendOptionText}>금주 금요일 기록</Text>
                   <Radio
                     checked={weekendOption === 'friday'}
                     onPress={() => setWeekendOption('friday')}
-                    label="금주 금요일 기록"
+                    label={false}
                   />
-                </View>
+                </Pressable>
 
                 {/* Divider */}
                 <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
                 {/* 차주 월요일 기록 */}
-                <View style={styles.radioRow}>
+                <Pressable 
+                  style={styles.radioRow}
+                  onPress={() => setWeekendOption('monday')}
+                >
+                  <Text style={styles.weekendOptionText}>차주 월요일 기록</Text>
                   <Radio
                     checked={weekendOption === 'monday'}
                     onPress={() => setWeekendOption('monday')}
-                    label="차주 월요일 기록"
+                    label={false}
                   />
-                </View>
+                </Pressable>
               </View>
             </View>
           )}
@@ -2215,11 +2206,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           }
         ]}>
           <Button onPress={handleConfirm}>
-            확인
+            {mode === 'edit' ? '저장' : '확인'}
           </Button>
         </View>
-
-
 
       {/* 날짜 선택 바텀시트 */}
       {showDatePicker && (
@@ -2235,6 +2224,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           onDayPress={(dateString) => {
             setTempSelectedDate(dateString);
           }}
+          monthStartDay={monthStartDay}
         />
           
           <View style={styles.dateButtonArea}>
@@ -2487,17 +2477,26 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         title="일자 선택"
         dayOptions={Array.from({ length: 31 }, (_, i) => {
           const day = i + 1;
-          const today = new Date();
-          const year = today.getFullYear();
-          const month = today.getMonth() + 1;
           
-          // 실제 날짜의 요일 계산 (현재 년월 기준)
+          // 수정 모드: 실제 저장된 데이터의 년월 기준으로 요일 계산
+          let year, month;
+          if (mode === 'edit' && editData?.date) {
+            const normalizedDate = editData.date.replace(/-/g, '.');
+            const [editYear, editMonth] = normalizedDate.split('.').map(Number);
+            year = editYear;
+            month = editMonth;
+          } else {
+            // 생성 모드: 현재 년월 기준
+            const today = new Date();
+            year = today.getFullYear();
+            month = today.getMonth() + 1;
+          }
+          
+          // 해당 년월의 날짜로 요일 계산
           const dateObj = new Date(year, month - 1, day);
           const actualDayOfWeek = dateObj.getDay();
           const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
           const actualDayOfWeekLabel = weekdays[actualDayOfWeek];
-          
-          // 일자 선택 피커 요일 계산
           
           return {
             label: `${day}일(${actualDayOfWeekLabel})`,
@@ -2508,15 +2507,15 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         onDayChange={(day) => {
           setSelectedDay(day);
           // 선택한 일자로 날짜 업데이트
-          // 수정 모드에서는 현재 수정 중인 년월을 기준으로 일자만 변경
+          // 오늘만 수정 모드: 실제 저장된 날짜의 년월 기준으로 일자만 변경
           let year, month;
           if (mode === 'edit' && editData?.date) {
-            // 수정 모드: 현재 수정 중인 년월 사용
-            // editData.date는 "2025-11-20" 형식이므로 점(.)으로 split
+            // 수정 모드: 실제 저장된 날짜의 년월 사용 (주말 조정 반영된 날짜)
             const normalizedDate = editData.date.replace(/-/g, '.');
             const [editYear, editMonth] = normalizedDate.split('.').map(Number);
             year = editYear;
             month = editMonth;
+
           } else {
             // 생성 모드: 현재 년월 사용
             const today = new Date();
@@ -2525,6 +2524,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           }
           const actualDay = getActualDayForMonth(year, month, day);
           const newDate = `${year}.${String(month).padStart(2, '0')}.${String(actualDay).padStart(2, '0')}`;
+
           setDate(newDate);
         }}
       />
@@ -2592,6 +2592,16 @@ const styles = StyleSheet.create({
   radioRow: {
     paddingHorizontal: 16,
     paddingVertical: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  weekendOptionText: {
+    fontSize: 16,
+    fontFamily: 'Pretendard',
+    fontWeight: '400',
+    lineHeight: 24,
+    color: '#222222',
   },
   amountInput: {
     flex: 1,
@@ -2692,6 +2702,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
+  recurringAmountContainer: {
+    gap: 12,
+  },
   periodSelectRow: {
     marginTop: 12,
   },
@@ -2714,10 +2727,10 @@ const styles = StyleSheet.create({
   },
   splitAmountInput: {
     flex: 1,
+    minWidth: 200,
   },
-  picker: {
+  recurringAmountInput: {
     width: '100%',
-    height: 200,
   },
   splitAmountContainer: {
     marginTop: 12,
@@ -2764,11 +2777,6 @@ const styles = StyleSheet.create({
     ...Typography.body1.l.regular,
   },
   // 소비 정보 카드 스타일
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
   deleteText: {
     ...Typography.body1.l.regular,
     textDecorationLine: 'underline',

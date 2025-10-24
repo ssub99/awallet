@@ -11,7 +11,9 @@ import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
 import { MonthData, YearView, YearViewRef } from '@/components/ui/year-view';
 import { Colors, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { createSheetEvent } from '@/utils/create-sheet-event';
+import { isDateInCustomMonth } from '@/utils/custom-month';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useIsFocused } from '@react-navigation/native';
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
@@ -25,12 +27,8 @@ export default function HomeScreen() {
   const navigation = useNavigation();
   const isFocused = useIsFocused();
   const router = useRouter();
-  
-  // 화면 진입 시에만 로그 출력
-  useEffect(() => {
-    console.log('📍 [화면] 홈');
-  }, []);
-  
+  const [monthStartDay, setMonthStartDay] = useState(1);
+
   // 소비 기록 완료 후 전달된 params 받기
   const params = useLocalSearchParams<{
     targetYear?: string;
@@ -114,7 +112,7 @@ export default function HomeScreen() {
           setSelectedDate(getTodayLocalDate());
         }
       } catch (error) {
-        console.error('Failed to load settings:', error);
+
       } finally {
         setIsLoadingSettings(false);
       }
@@ -127,7 +125,7 @@ export default function HomeScreen() {
   useEffect(() => {
     if (!isLoadingSettings) {
       AsyncStorage.setItem('lastViewType', periodType).catch((error) => {
-        console.error('Failed to save lastViewType:', error);
+
       });
     }
   }, [periodType, isLoadingSettings]);
@@ -237,31 +235,36 @@ export default function HomeScreen() {
   // State로 관리
   const [calendarData, setCalendarData] = useState<Record<string, DayData>>(initialCalendarData);
 
-  // AsyncStorage에서 calendarData 불러오기 (화면 포커스 시마다)
+  // AsyncStorage에서 calendarData와 monthStartDay 불러오기 (화면 포커스 시마다)
   useFocusEffect(
     useCallback(() => {
-      const loadCalendarData = async () => {
+      const loadData = async () => {
         try {
+          // Load calendar data
           const storedData = await AsyncStorage.getItem('calendarData');
           if (storedData) {
             const parsedData = JSON.parse(storedData);
-            // 저장된 데이터만 사용 (샘플 데이터 병합 안 함)
             setCalendarData(parsedData);
           } else {
-            // 저장된 데이터가 없으면 빈 상태
             setCalendarData({});
           }
+          
+          // Load month start day
+          const monthStart = await loadMonthStartDay();
+          setMonthStartDay(monthStart);
+
         } catch (error) {
-          console.error('calendarData 로드 실패:', error);
+
         }
       };
       
-      loadCalendarData();
+      loadData();
     }, [])
   );
 
-  // Calculate year data from calendar data
+  // Calculate year data from calendar data (based on custom month start day)
   const yearData: MonthData[] = useMemo(() => {
+    
     // 각 월별로 데이터 집계
     const monthlyTotals: Record<number, { income: number; expense: number }> = {};
     
@@ -270,21 +273,29 @@ export default function HomeScreen() {
       monthlyTotals[m] = { income: 0, expense: 0 };
     }
     
-    // calendarData에서 월별로 합산
+    // calendarData에서 커스텀 월별로 합산
     Object.entries(calendarData).forEach(([dateString, data]: [string, any]) => {
-      const date = new Date(dateString);
-      const year = date.getFullYear();
-      const month = date.getMonth() + 1; // 0-11 → 1-12
+      // 날짜 문자열을 로컬 타임존으로 파싱
+      const [yearStr, monthStr, dayStr] = dateString.split('-');
+      const date = new Date(parseInt(yearStr), parseInt(monthStr) - 1, parseInt(dayStr));
       
-      // 현재 년도의 데이터만 집계
-      if (year === currentYear) {
-        monthlyTotals[month].income += data.totalIncome || 0;
-        monthlyTotals[month].expense += data.totalExpense || 0;
+      // Check each month to see if this date belongs to it
+      for (let m = 1; m <= 12; m++) {
+        if (isDateInCustomMonth(date, currentYear, m, monthStartDay)) {
+          monthlyTotals[m].income += data.totalIncome || 0;
+          monthlyTotals[m].expense += data.totalExpense || 0;
+          
+          // 샘플 로그 (처음 3개 날짜만)
+          if (Object.keys(calendarData).indexOf(dateString) < 3) {
+
+          }
+          break; // Date belongs to only one month
+        }
       }
     });
     
     // MonthData 배열로 변환
-    return Array.from({ length: 12 }, (_, i) => {
+    const result = Array.from({ length: 12 }, (_, i) => {
       const month = i + 1;
       return {
         month,
@@ -292,32 +303,76 @@ export default function HomeScreen() {
         expense: monthlyTotals[month].expense,
       };
     });
-  }, [currentYear, calendarData]);
+    
+    
+    return result;
+  }, [currentYear, calendarData, monthStartDay]);
 
-  // Calculate monthly financial data from calendar data
+  // Calculate monthly financial data from calendar data (based on custom month start day)
   const financialData = useMemo(() => {
+    
+    // 월 범위 계산
+    const { startDate, endDate } = (() => {
+      if (monthStartDay === 1) {
+        return {
+          startDate: new Date(currentYear, currentMonth - 1, 1),
+          endDate: new Date(currentYear, currentMonth, 0)
+        };
+      }
+      
+      const start = new Date(currentYear, currentMonth - 1, monthStartDay);
+      let endYear = currentYear;
+      let endMonth = currentMonth + 1;
+      if (endMonth > 12) {
+        endMonth = 1;
+        endYear += 1;
+      }
+      const end = new Date(endYear, endMonth - 1, monthStartDay - 1);
+      
+      return { startDate: start, endDate: end };
+    })();
+    
+    // 로컬 시간 기준으로 날짜 문자열 생성
+    const formatLocalDate = (date: Date) => {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    };
+    
+    
     let totalIncome = 0;
     let totalExpense = 0;
+    let includedDates: string[] = [];
+    let excludedDates: string[] = [];
 
-    // 현재 년월의 데이터만 필터링 및 합산
+    // 현재 커스텀 년월의 데이터만 필터링 및 합산
     Object.entries(calendarData).forEach(([dateString, data]: [string, any]) => {
-      const date = new Date(dateString);
-      const year = date.getFullYear();
-      const month = date.getMonth() + 1; // 0-11 → 1-12
+      // 날짜 문자열을 로컬 타임존으로 파싱
+      const [yearStr, monthStr, dayStr] = dateString.split('-');
+      const date = new Date(parseInt(yearStr), parseInt(monthStr) - 1, parseInt(dayStr));
 
-      // 현재 보고 있는 년월과 일치하는 경우만 합산
-      if (year === currentYear && month === currentMonth) {
+      // Check if this date belongs to current custom month
+      const isIncluded = isDateInCustomMonth(date, currentYear, currentMonth, monthStartDay);
+      
+      if (isIncluded) {
         totalIncome += data.totalIncome || 0;
         totalExpense += data.totalExpense || 0;
+        includedDates.push(dateString);
+      } else {
+        if (excludedDates.length < 3) {
+          excludedDates.push(dateString);
+        }
       }
     });
+
 
     return {
       income: totalIncome,
       expense: totalExpense,
       balance: totalIncome - totalExpense,
     };
-  }, [currentYear, currentMonth, calendarData]);
+  }, [currentYear, currentMonth, calendarData, monthStartDay]);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
@@ -394,14 +449,27 @@ export default function HomeScreen() {
               </View>
 
               {/* Challenge Card */}
-              <View style={[styles.card, { backgroundColor: colors.staticWhite }]}>
+              <Pressable 
+                style={[styles.card, { backgroundColor: colors.staticWhite }]}
+                onPress={() => {
+                  // 챌린지 현황으로 이동
+                  router.push({
+                    pathname: '/monthly-expense-timeline',
+                    params: {
+                      year: currentYear.toString(),
+                      month: currentMonth.toString(),
+                      tab: 'challenge'
+                    }
+                  });
+                }}
+              >
                 <Text style={[styles.cardLabel, { color: colors.textNeutral }]}>
                   챌린지 진행현황
                 </Text>
-                <Pressable style={styles.challengeIcon}>
+                <View style={styles.challengeIcon}>
                   <Icon name="arrowRight" variant="solid" size={24} color={colors.textAssistive} />
-                </Pressable>
-              </View>
+                </View>
+              </Pressable>
             </View>
           </View>
 
@@ -418,16 +486,14 @@ export default function HomeScreen() {
                 
                 isNavigating.current = true;
                 
-                // 해당 날짜의 년/월 추출
-                const date = new Date(dateString);
-                const year = date.getFullYear();
-                const month = date.getMonth() + 1;
-                
+                // 🔧 수정: 날짜 문자열이 아닌 현재 보고 있는 캘린더의 년/월 사용
+                // 월 시작일이 20일이면 9월 캘린더에 10월 날짜가 표시될 수 있음
+
                 router.push({
                   pathname: '/monthly-expense-timeline',
                   params: {
-                    year: year.toString(),
-                    month: month.toString(),
+                    year: currentYear.toString(),
+                    month: currentMonth.toString(),
                     selectedDate: dateString,
                   },
                 });
@@ -438,6 +504,7 @@ export default function HomeScreen() {
                 }, 500);
               } else {
                 // 새로운 날짜 선택
+
                 setSelectedDate(dateString);
               }
             }}
@@ -445,6 +512,7 @@ export default function HomeScreen() {
             showTitle={false}
             initialYear={currentYear}
             initialMonth={currentMonth}
+            monthStartDay={monthStartDay}
             onMonthChange={(year, month) => {
               // Update shared year/month state when calendar changes
               setCurrentYear(year);
@@ -477,9 +545,17 @@ export default function HomeScreen() {
           <Pressable 
             style={[styles.option, { backgroundColor: colors.fill }]}
             onPress={() => {
+
               setIsCreateSheetVisible(false);
               setTimeout(() => {
-                router.push('/income-record');
+                router.push({
+                  pathname: '/income-record',
+                  params: { 
+                    selectedDate: selectedDate,
+                    calendarYear: currentYear.toString(),
+                    calendarMonth: currentMonth.toString()
+                  }
+                });
               }, 350);
             }}
           >
@@ -492,9 +568,17 @@ export default function HomeScreen() {
           <Pressable 
             style={[styles.option, { backgroundColor: colors.fill }]}
             onPress={() => {
+
               setIsCreateSheetVisible(false);
               setTimeout(() => {
-                router.push('/expense-category');
+                router.push({
+                  pathname: '/expense-category',
+                  params: { 
+                    selectedDate: selectedDate,
+                    calendarYear: currentYear.toString(),
+                    calendarMonth: currentMonth.toString()
+                  }
+                });
               }, 350); // 바텀시트 닫는 애니메이션 후
             }}
           >
@@ -507,9 +591,19 @@ export default function HomeScreen() {
           <Pressable 
             style={[styles.option, { backgroundColor: colors.fill }]}
             onPress={() => {
+
               setIsCreateSheetVisible(false);
-              // TODO: 챌린지 도전 화면으로 이동
-              // router.push('/challenge-create');
+              setTimeout(() => {
+                router.push({
+                  pathname: '/expense-category',
+                  params: { 
+                    mode: 'challenge',
+                    selectedDate: selectedDate,
+                    calendarYear: currentYear.toString(),
+                    calendarMonth: currentMonth.toString()
+                  }
+                });
+              }, 350);
             }}
           >
             <Text style={[styles.optionText, { color: colors.text }]}>

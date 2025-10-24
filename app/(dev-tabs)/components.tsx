@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { CalendarDaySelect } from '@/components/ui/calendar-day-select';
 import { CalendarMain } from '@/components/ui/calendar-main';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Chip } from '@/components/ui/chip';
 import { Input } from '@/components/ui/input';
 import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
 import { ModalPopup } from '@/components/ui/modal-popup';
@@ -21,18 +22,23 @@ import { Tab } from '@/components/ui/tab';
 import { Tag } from '@/components/ui/tag';
 import { Colors, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { cancelAllNotifications, getScheduledNotifications, sendTestNotification } from '@/utils/notification-scheduler';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-type ComponentTab = 'buttons' | 'inputs' | 'selectboxs' | 'radios' | 'checkboxes' | 'switches' | 'modals' | 'bottomsheets' | 'tags' | 'calendars' | 'tabs' | 'topnav';
+type ComponentTab = 'test' | 'buttons' | 'inputs' | 'selectboxs' | 'radios' | 'checkboxes' | 'switches' | 'modals' | 'bottomsheets' | 'tags' | 'calendars' | 'tabs' | 'topnav';
 
 export default function ComponentsScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
-  const [activeTab, setActiveTab] = useState<ComponentTab>('buttons');
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState<ComponentTab>('test');
 
   const tabs = [
+    { label: 'Test', value: 'test' as ComponentTab },
     { label: 'Buttons', value: 'buttons' as ComponentTab },
     { label: 'Inputs', value: 'inputs' as ComponentTab },
     { label: 'Selectboxs', value: 'selectboxs' as ComponentTab },
@@ -54,8 +60,13 @@ export default function ComponentsScreen() {
       <View style={[styles.innerContainer, { backgroundColor: colors.background }]}>
         {/* Top Navigation */}
         <TopNavigation
-          type="main"
-          title="Components"
+          type="sub"
+          title="테스트 환경"
+          showLeftIcon
+          onLeftIconPress={() => {
+
+            router.back();
+          }}
         />
 
         {/* Tab Navigation */}
@@ -64,11 +75,13 @@ export default function ComponentsScreen() {
             options={tabs}
             value={activeTab}
             onValueChange={(value) => setActiveTab(value as ComponentTab)}
+            scrollable
           />
         </View>
 
         {/* Content */}
         <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
+          {activeTab === 'test' && <TestContent colors={colors} />}
           {activeTab === 'buttons' && <ButtonsContent colors={colors} />}
           {activeTab === 'inputs' && <InputsContent colors={colors} />}
           {activeTab === 'selectboxs' && <SelectboxsContent colors={colors} />}
@@ -84,6 +97,344 @@ export default function ComponentsScreen() {
         </ScrollView>
       </View>
     </SafeAreaView>
+  );
+}
+
+/**
+ * Test Content
+ */
+function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.dark }) {
+  const [devMode, setDevMode] = useState(false);
+
+  // 원본 Date 생성자 저장
+  const OriginalDate = Date;
+  
+  // 실제 현재 날짜
+  const realCurrentDate = {
+    getFullYear: () => 2025,
+    getMonth: () => 9, // 10월 (0부터 시작)
+    getDate: () => 22,
+    getTime: () => new OriginalDate(2025, 9, 22).getTime()
+  };
+
+  // 테스트용 날짜 설정 함수
+  const setTestDate = (year: number, month: number, day: number) => {
+    if (__DEV__) {
+
+      const testDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+      console.log('🧪 [테스트] 날짜 설정:', testDate.toISOString().split('T')[0]);
+      
+      // Date.now() 오버라이드
+      const originalNow = Date.now;
+      Date.now = () => testDate.getTime();
+      
+      // new Date() 오버라이드
+      const OriginalDate = Date;
+      (Date as any) = class extends OriginalDate {
+        constructor(...args: any[]) {
+          if (args.length === 0) {
+            super(testDate);
+          } else {
+            // @ts-ignore
+            super(...args);
+          }
+        }
+      };
+      
+      // 전역에 복원 함수 저장
+      (window as any).restoreDate = () => {
+        Date.now = originalNow;
+        (Date as any) = OriginalDate;
+
+      };
+    }
+  };
+
+  // 날짜 복원 함수
+  const restoreDate = () => {
+    if ((window as any).restoreDate) {
+      (window as any).restoreDate();
+    }
+  };
+
+  return (
+    <>
+      <SectionHeader title="🧪 개발자 도구" colors={colors} />
+      
+      {/* Developer Mode Section - Wrapped in gray box */}
+      <View style={[styles.devModeContainer, { backgroundColor: colors.fill }]}>
+        {/* Developer Mode Toggle */}
+        <View style={styles.devModeSwitchRow}>
+          <Text style={[styles.switchLabel, { color: colors.text }]}>
+            개발자 모드
+          </Text>
+          <Switch value={devMode} onValueChange={setDevMode} />
+        </View>
+      </View>
+
+      {/* Date Adjustment (if dev mode enabled) */}
+      {devMode && (
+        <>
+          <SectionHeader title="📅 날짜 조정" colors={colors} />
+          
+          <View style={styles.section}>
+            {/* 첫 번째 행 */}
+            <View style={styles.dateButtonRow}>
+              <Pressable
+                style={[styles.dateButton, { backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border }]}
+                onPress={() => {
+                  const year = realCurrentDate.getFullYear();
+                  const month = realCurrentDate.getMonth() + 1;
+                  const day = realCurrentDate.getDate();
+                  setTestDate(year, month, day);
+                }}
+              >
+                <Text style={[styles.dateButtonText, { color: colors.text }]}>현재</Text>
+                <Text style={[styles.dateButtonSubText, { color: colors.textAssistive }]}>
+                  {realCurrentDate.getFullYear()}.{String(realCurrentDate.getMonth() + 1).padStart(2, '0')}
+                </Text>
+              </Pressable>
+              
+              <Pressable
+                style={[styles.dateButton, { backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border }]}
+                onPress={() => {
+                  const futureDate = new Date(realCurrentDate.getFullYear(), realCurrentDate.getMonth() + 2, realCurrentDate.getDate());
+                  setTestDate(futureDate.getFullYear(), futureDate.getMonth() + 1, futureDate.getDate());
+                }}
+              >
+                <Text style={[styles.dateButtonText, { color: colors.text }]}>2개월후</Text>
+                <Text style={[styles.dateButtonSubText, { color: colors.textAssistive }]}>
+                  {(() => {
+                    const futureDate = new Date(realCurrentDate.getFullYear(), realCurrentDate.getMonth() + 2, realCurrentDate.getDate());
+                    return `${futureDate.getFullYear()}.${String(futureDate.getMonth() + 1).padStart(2, '0')}`;
+                  })()}
+                </Text>
+              </Pressable>
+            </View>
+
+            {/* 두 번째 행 */}
+            <View style={styles.dateButtonRow}>
+              <Pressable
+                style={[styles.dateButton, { backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border }]}
+                onPress={() => {
+                  const futureDate = new Date(realCurrentDate.getFullYear(), realCurrentDate.getMonth() + 5, realCurrentDate.getDate());
+                  setTestDate(futureDate.getFullYear(), futureDate.getMonth() + 1, futureDate.getDate());
+                }}
+              >
+                <Text style={[styles.dateButtonText, { color: colors.text }]}>5개월후</Text>
+                <Text style={[styles.dateButtonSubText, { color: colors.textAssistive }]}>
+                  {(() => {
+                    const futureDate = new Date(realCurrentDate.getFullYear(), realCurrentDate.getMonth() + 5, realCurrentDate.getDate());
+                    return `${futureDate.getFullYear()}.${String(futureDate.getMonth() + 1).padStart(2, '0')}`;
+                  })()}
+                </Text>
+              </Pressable>
+              
+              <Pressable
+                style={[styles.dateButton, { backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border }]}
+                onPress={() => {
+                  const futureDate = new Date(realCurrentDate.getFullYear(), realCurrentDate.getMonth() + 7, realCurrentDate.getDate());
+                  setTestDate(futureDate.getFullYear(), futureDate.getMonth() + 1, futureDate.getDate());
+                }}
+              >
+                <Text style={[styles.dateButtonText, { color: colors.text }]}>7개월후</Text>
+                <Text style={[styles.dateButtonSubText, { color: colors.textAssistive }]}>
+                  {(() => {
+                    const futureDate = new Date(realCurrentDate.getFullYear(), realCurrentDate.getMonth() + 7, realCurrentDate.getDate());
+                    return `${futureDate.getFullYear()}.${String(futureDate.getMonth() + 1).padStart(2, '0')}`;
+                  })()}
+                </Text>
+              </Pressable>
+            </View>
+
+            {/* 세 번째 행 */}
+            <View style={styles.dateButtonRow}>
+              <Pressable
+                style={[styles.dateButton, { backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border }]}
+                onPress={() => {
+                  const futureDate = new Date(realCurrentDate.getFullYear(), realCurrentDate.getMonth() + 8, realCurrentDate.getDate());
+                  setTestDate(futureDate.getFullYear(), futureDate.getMonth() + 1, futureDate.getDate());
+                }}
+              >
+                <Text style={[styles.dateButtonText, { color: colors.text }]}>8개월후</Text>
+                <Text style={[styles.dateButtonSubText, { color: colors.textAssistive }]}>
+                  {(() => {
+                    const futureDate = new Date(realCurrentDate.getFullYear(), realCurrentDate.getMonth() + 8, realCurrentDate.getDate());
+                    return `${futureDate.getFullYear()}.${String(futureDate.getMonth() + 1).padStart(2, '0')}`;
+                  })()}
+                </Text>
+              </Pressable>
+              
+              <Pressable
+                style={[styles.dateButton, { backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border }]}
+                onPress={() => {
+                  const futureDate = new Date(realCurrentDate.getFullYear(), realCurrentDate.getMonth() + 9, realCurrentDate.getDate());
+                  setTestDate(futureDate.getFullYear(), futureDate.getMonth() + 1, futureDate.getDate());
+                }}
+              >
+                <Text style={[styles.dateButtonText, { color: colors.text }]}>9개월후</Text>
+                <Text style={[styles.dateButtonSubText, { color: colors.textAssistive }]}>
+                  {(() => {
+                    const futureDate = new Date(realCurrentDate.getFullYear(), realCurrentDate.getMonth() + 9, realCurrentDate.getDate());
+                    return `${futureDate.getFullYear()}.${String(futureDate.getMonth() + 1).padStart(2, '0')}`;
+                  })()}
+                </Text>
+              </Pressable>
+            </View>
+
+            {/* 복원 버튼 */}
+            <Pressable
+              style={[styles.restoreButton, { backgroundColor: colors.statusNegative }]}
+              onPress={restoreDate}
+            >
+              <Text style={[styles.restoreButtonText, { color: colors.staticWhite }]}>
+                🔄 날짜 복원
+              </Text>
+            </Pressable>
+          </View>
+
+          <SectionHeader title="🗑️ 데이터 관리" colors={colors} />
+          
+          <View style={styles.section}>
+            <Pressable
+              style={[styles.deleteButton, { backgroundColor: colors.background, borderWidth: 2, borderColor: colors.statusNegative }]}
+              onPress={async () => {
+                try {
+                  await AsyncStorage.removeItem('calendarData');
+
+                  alert('캘린더 데이터가 삭제되었습니다.');
+                } catch (error) {
+
+                  alert('데이터 삭제 중 오류가 발생했습니다.');
+                }
+              }}
+            >
+              <Text style={[styles.deleteButtonText, { color: colors.statusNegative }]}>
+                🗑️ 캘린더 데이터 삭제
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={[styles.deleteButton, { backgroundColor: colors.background, borderWidth: 2, borderColor: colors.statusNegative }]}
+              onPress={async () => {
+                try {
+                  await AsyncStorage.removeItem('challengeData');
+
+                  alert('챌린지 데이터가 삭제되었습니다.');
+                } catch (error) {
+
+                  alert('데이터 삭제 중 오류가 발생했습니다.');
+                }
+              }}
+            >
+              <Text style={[styles.deleteButtonText, { color: colors.statusNegative }]}>
+                🗑️ 챌린지 데이터 삭제
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={[styles.deleteButton, { backgroundColor: colors.background, borderWidth: 2, borderColor: '#ff9800' }]}
+              onPress={async () => {
+                try {
+                  await AsyncStorage.removeItem('hasRequestedNotificationPermission');
+
+                  alert('알림 권한 요청 기록이 삭제되었습니다.\n앱을 재시작하면 다시 권한을 요청합니다.');
+                } catch (error) {
+
+                  alert('알림 권한 리셋 중 오류가 발생했습니다.');
+                }
+              }}
+            >
+              <Text style={[styles.deleteButtonText, { color: '#ff9800' }]}>
+                🔄 알림 권한 리셋
+              </Text>
+            </Pressable>
+          </View>
+        </>
+      )}
+
+      <SectionHeader title="🧪 알림 테스트" colors={colors} />
+      
+      {/* Notification Test Buttons */}
+      <View style={styles.section}>
+        <Pressable
+          style={[styles.testButton, { backgroundColor: colors.fill }]}
+          onPress={() => sendTestNotification('expense')}
+        >
+          <Text style={[styles.testButtonText, { color: colors.text }]}>
+            📝 소비 기록 유도 (2초 후)
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={[styles.testButton, { backgroundColor: colors.fill }]}
+          onPress={() => sendTestNotification('progress')}
+        >
+          <Text style={[styles.testButtonText, { color: colors.text }]}>
+            📊 챌린지 현황 (2초 후)
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={[styles.testButton, { backgroundColor: colors.fill }]}
+          onPress={() => sendTestNotification('success')}
+        >
+          <Text style={[styles.testButtonText, { color: colors.text }]}>
+            🎉 챌린지 성공 (2초 후)
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={[styles.testButton, { backgroundColor: colors.fill }]}
+          onPress={() => sendTestNotification('failure')}
+        >
+          <Text style={[styles.testButtonText, { color: colors.text }]}>
+            ⚠️ 챌린지 실패 (2초 후)
+          </Text>
+        </Pressable>
+      </View>
+
+      <SectionHeader title="📋 알림 관리" colors={colors} />
+      
+      <View style={styles.section}>
+        <View style={styles.testButtonRow}>
+          <Pressable
+            style={[styles.testButtonSmall, { backgroundColor: colors.primary }]}
+            onPress={async () => {
+              const scheduled = await getScheduledNotifications();
+              alert(`예약된 알림: ${scheduled.length}개`);
+            }}
+          >
+            <Text style={[styles.testButtonSmallText, { color: colors.staticWhite }]}>
+              📋 예약 목록
+            </Text>
+          </Pressable>
+
+          <Pressable
+            style={[styles.testButtonSmall, { backgroundColor: colors.statusNegative }]}
+            onPress={async () => {
+              await cancelAllNotifications();
+              alert('모든 예약 알림 취소됨');
+            }}
+          >
+            <Text style={[styles.testButtonSmallText, { color: colors.staticWhite }]}>
+              🗑️ 전체 취소
+            </Text>
+          </Pressable>
+        </View>
+      </View>
+
+      <SectionHeader title="ℹ️ 안내" colors={colors} />
+      
+      <View style={[styles.infoBox, { backgroundColor: colors.fillAlt }]}>
+        <Text style={[styles.infoText, { color: colors.textNeutral }]}>
+          • 알림 설정이 ON이고 권한이 허용된 경우에만 알림이 발송됩니다.{'\n'}
+          • 버튼 클릭 후 2초 뒤에 알림이 표시됩니다.{'\n'}
+          • 백그라운드로 전환하면 실제 푸시 알림을 받을 수 있습니다.{'\n'}
+          • 마이페이지에서 알림 설정을 확인하세요.
+        </Text>
+      </View>
+    </>
   );
 }
 
@@ -825,7 +1176,7 @@ function TopNavContent({ colors }: { colors: typeof Colors.light | typeof Colors
   const getCurrentDate = () => {
     const now = new Date();
     const year = now.getFullYear();
-    const month = (now.getMonth() + 1).toString().padStart(2, '0'); // getMonth() returns 0-11
+    const month = now.getMonth() + 1; // getMonth() returns 0-11, so +1 for 1-12
     return { year, month };
   };
   
@@ -833,18 +1184,18 @@ function TopNavContent({ colors }: { colors: typeof Colors.light | typeof Colors
   const [selectedMonth, setSelectedMonth] = useState(currentDate.month);
 
   const monthOptions = [
-    { label: '1월', value: '01' },
-    { label: '2월', value: '02' },
-    { label: '3월', value: '03' },
-    { label: '4월', value: '04' },
-    { label: '5월', value: '05' },
-    { label: '6월', value: '06' },
-    { label: '7월', value: '07' },
-    { label: '8월', value: '08' },
-    { label: '9월', value: '09' },
-    { label: '10월', value: '10' },
-    { label: '11월', value: '11' },
-    { label: '12월', value: '12' },
+    { label: '1월', value: 1 },
+    { label: '2월', value: 2 },
+    { label: '3월', value: 3 },
+    { label: '4월', value: 4 },
+    { label: '5월', value: 5 },
+    { label: '6월', value: 6 },
+    { label: '7월', value: 7 },
+    { label: '8월', value: 8 },
+    { label: '9월', value: 9 },
+    { label: '10월', value: 10 },
+    { label: '11월', value: 11 },
+    { label: '12월', value: 12 },
   ];
 
   return (
@@ -862,7 +1213,7 @@ function TopNavContent({ colors }: { colors: typeof Colors.light | typeof Colors
         type="main"
         title="메뉴명"
         showDay
-        dateText={`${currentDate.year}/${selectedMonth}`}
+        dateText={`${currentDate.year}/${selectedMonth.toString().padStart(2, '0')}`}
         showDropdownArrow
         monthOptions={monthOptions}
         selectedMonth={selectedMonth}
@@ -972,7 +1323,7 @@ function BottomsheetsContent({ colors }: { colors: typeof Colors.light | typeof 
         title="기록/챌린지"
         confirmText="확인"
         onConfirm={() => {
-          console.log('확인 클릭');
+
           setShowWithConfirm(false);
         }}
         onClose={() => setShowWithConfirm(false)}
@@ -1055,13 +1406,13 @@ function TagsContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
 
       {/* Tag - Active */}
       <SectionHeader title="Tag - Active" colors={colors} />
-      <Tag label="텍스트" active />
+      <Tag label="텍스트" />
 
       {/* Interactive Single Selection */}
       <SectionHeader title="Interactive - Single Selection" colors={colors} />
       <View style={styles.tagRow}>
         {['전체', '입금', '출금', '저축'].map((tag) => (
-          <Tag
+          <Chip
             key={tag}
             label={tag}
             active={selectedTag === tag}
@@ -1093,34 +1444,34 @@ function CalendarsContent({ colors }: { colors: typeof Colors.light | typeof Col
   const [selectedDate, setSelectedDate] = useState('2025-10-16');
 
   // Sample data - 입금/소비 금액
-  const sampleData: Record<string, { income: number; expense: number }> = {
-    '2025-10-01': { income: 0, expense: 12800 },
-    '2025-10-02': { income: 0, expense: 12800 },
-    '2025-10-03': { income: 5000000, expense: 12800 },
-    '2025-10-04': { income: 0, expense: 12800 },
-    '2025-10-05': { income: 0, expense: 12800 },
-    '2025-10-06': { income: 0, expense: 12800 },
-    '2025-10-07': { income: 0, expense: 12800 },
-    '2025-10-08': { income: 0, expense: 12800 },
-    '2025-10-09': { income: 0, expense: 12800 },
-    '2025-10-10': { income: 5000000, expense: 12800 },
-    '2025-10-11': { income: 0, expense: 12800 },
-    '2025-10-12': { income: 0, expense: 12800 },
-    '2025-10-13': { income: 0, expense: 12800 },
-    '2025-10-14': { income: 0, expense: 12800 },
-    '2025-10-15': { income: 0, expense: 12800 },
-    '2025-10-16': { income: 0, expense: 12800 },
-    '2025-10-17': { income: 5000000, expense: 12800 },
-    '2025-10-18': { income: 0, expense: 12800 },
-    '2025-10-19': { income: 0, expense: 12800 },
-    '2025-10-20': { income: 0, expense: 12800 },
-    '2025-10-21': { income: 0, expense: 12800 },
-    '2025-10-22': { income: 0, expense: 12800 },
-    '2025-10-23': { income: 0, expense: 12800 },
-    '2025-10-24': { income: 5000000, expense: 12800 },
-    '2025-10-25': { income: 0, expense: 12800 },
-    '2025-10-26': { income: 0, expense: 12800 },
-    '2025-10-27': { income: 0, expense: 12800 },
+  const sampleData: Record<string, { totalIncome?: number; totalExpense?: number }> = {
+    '2025-10-01': { totalIncome: 0, totalExpense: 12800 },
+    '2025-10-02': { totalIncome: 0, totalExpense: 12800 },
+    '2025-10-03': { totalIncome: 5000000, totalExpense: 12800 },
+    '2025-10-04': { totalIncome: 0, totalExpense: 12800 },
+    '2025-10-05': { totalIncome: 0, totalExpense: 12800 },
+    '2025-10-06': { totalIncome: 0, totalExpense: 12800 },
+    '2025-10-07': { totalIncome: 0, totalExpense: 12800 },
+    '2025-10-08': { totalIncome: 0, totalExpense: 12800 },
+    '2025-10-09': { totalIncome: 0, totalExpense: 12800 },
+    '2025-10-10': { totalIncome: 5000000, totalExpense: 12800 },
+    '2025-10-11': { totalIncome: 0, totalExpense: 12800 },
+    '2025-10-12': { totalIncome: 0, totalExpense: 12800 },
+    '2025-10-13': { totalIncome: 0, totalExpense: 12800 },
+    '2025-10-14': { totalIncome: 0, totalExpense: 12800 },
+    '2025-10-15': { totalIncome: 0, totalExpense: 12800 },
+    '2025-10-16': { totalIncome: 0, totalExpense: 12800 },
+    '2025-10-17': { totalIncome: 5000000, totalExpense: 12800 },
+    '2025-10-18': { totalIncome: 0, totalExpense: 12800 },
+    '2025-10-19': { totalIncome: 0, totalExpense: 12800 },
+    '2025-10-20': { totalIncome: 0, totalExpense: 12800 },
+    '2025-10-21': { totalIncome: 0, totalExpense: 12800 },
+    '2025-10-22': { totalIncome: 0, totalExpense: 12800 },
+    '2025-10-23': { totalIncome: 0, totalExpense: 12800 },
+    '2025-10-24': { totalIncome: 5000000, totalExpense: 12800 },
+    '2025-10-25': { totalIncome: 0, totalExpense: 12800 },
+    '2025-10-26': { totalIncome: 0, totalExpense: 12800 },
+    '2025-10-27': { totalIncome: 0, totalExpense: 12800 },
   };
 
   return (
@@ -1133,7 +1484,7 @@ function CalendarsContent({ colors }: { colors: typeof Colors.light | typeof Col
           onDayPress={(dateString) => setSelectedDate(dateString)}
           dayData={sampleData}
           onMonthChange={(year, month) => {
-            console.log('Month changed:', year, month);
+
           }}
         />
       </View>
@@ -1155,7 +1506,7 @@ function CalendarsContent({ colors }: { colors: typeof Colors.light | typeof Col
                 입금
               </Text>
               <Text style={[Typography.body2.r.bold, { color: '#058943' }]}>
-                {sampleData[selectedDate].income?.toLocaleString() || 0}원
+                {sampleData[selectedDate].totalIncome?.toLocaleString() || 0}원
               </Text>
             </View>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
@@ -1163,7 +1514,7 @@ function CalendarsContent({ colors }: { colors: typeof Colors.light | typeof Col
                 소비
               </Text>
               <Text style={[Typography.body2.r.bold, { color: '#ef2a2a' }]}>
-                {sampleData[selectedDate].expense?.toLocaleString() || 0}원
+                {sampleData[selectedDate].totalExpense?.toLocaleString() || 0}원
               </Text>
             </View>
           </>
@@ -1179,7 +1530,7 @@ function CalendarsContent({ colors }: { colors: typeof Colors.light | typeof Col
           selectedDate={selectedDate}
           onDayPress={(dateString) => setSelectedDate(dateString)}
           onMonthChange={(year, month) => {
-            console.log('Month changed:', year, month);
+
           }}
         />
       </View>
@@ -1323,6 +1674,7 @@ function TabsContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
         options={sixTabs}
         value={sixTab}
         onValueChange={setSixTab}
+        scrollable
       />
       <View style={[styles.tabPreview, { backgroundColor: colors.fill }]}>
         <Text style={[Typography.body2.r.regular, { color: colors.text }]}>
@@ -1335,6 +1687,7 @@ function TabsContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
         options={sevenTabs}
         value={sevenTab}
         onValueChange={setSevenTab}
+        scrollable
       />
       <View style={[styles.tabPreview, { backgroundColor: colors.fill }]}>
         <Text style={[Typography.body2.r.regular, { color: colors.text }]}>
@@ -1347,6 +1700,7 @@ function TabsContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
         options={eightTabs}
         value={eightTab}
         onValueChange={setEightTab}
+        scrollable
       />
       <View style={[styles.tabPreview, { backgroundColor: colors.fill }]}>
         <Text style={[Typography.body2.r.regular, { color: colors.text }]}>
@@ -1446,6 +1800,101 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     gap: 12,
     marginTop: 12,
+  },
+  // Test Section
+  section: {
+    gap: 8,
+  },
+  testButton: {
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginBottom: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  testButtonText: {
+    ...Typography.body2.r.medium,
+  },
+  testButtonRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  testButtonSmall: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  testButtonSmallText: {
+    ...Typography.body2.r.bold,
+    fontSize: 12,
+  },
+  infoBox: {
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 8,
+  },
+  infoText: {
+    ...Typography.body2.r.regular,
+    lineHeight: 21,
+  },
+  switchLabel: {
+    ...Typography.body1.l.regular,
+  },
+  // Developer Mode Container
+  devModeContainer: {
+    padding: 16,
+    borderRadius: 12,
+  },
+  devModeSwitchRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  // Date Adjustment
+  dateButtonRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 8,
+  },
+  dateButton: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+    minHeight: 48,
+    justifyContent: 'center',
+  },
+  dateButtonText: {
+    ...Typography.body2.r.bold,
+    fontSize: 12,
+    marginBottom: 2,
+  },
+  dateButtonSubText: {
+    ...Typography.detail.r.regular,
+    fontSize: 10,
+  },
+  restoreButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  restoreButtonText: {
+    ...Typography.body2.r.bold,
+    fontSize: 12,
+  },
+  deleteButton: {
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  deleteButtonText: {
+    ...Typography.body2.r.bold,
   },
   specItem: {
     flexDirection: 'row',

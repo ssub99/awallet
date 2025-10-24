@@ -10,6 +10,7 @@ import { Icon, IconName, IconVariant } from '@/components/ui/icon';
 import { AllIcons, IconCategories, IconSizes, getIconMetadata } from '@/constants/icons';
 import { Colors, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,6 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 export default function IconDemoScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const router = useRouter();
   
   const [selectedVariant, setSelectedVariant] = useState<IconVariant>('line');
   const [selectedSize, setSelectedSize] = useState<number>(IconSizes.regular);
@@ -29,8 +31,13 @@ export default function IconDemoScreen() {
       <View style={[styles.innerContainer, { backgroundColor: colors.background }]}>
         {/* Top Navigation */}
         <TopNavigation
-          type="main"
-          title="Icons"
+          type="sub"
+          title="테스트 환경"
+          showLeftIcon
+          onLeftIconPress={() => {
+
+            router.back();
+          }}
         />
         
         <ScrollView 

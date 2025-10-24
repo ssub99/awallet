@@ -8,6 +8,7 @@
 import { Icon } from '@/components/ui/icon';
 import { Colors, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useWeekStart } from '@/hooks/use-week-start';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Dimensions, LayoutAnimation, Platform, Pressable, ScrollView, StyleSheet, Text, UIManager, View, ViewStyle } from 'react-native';
 
@@ -23,8 +24,6 @@ const NAV_BAR_HEIGHT = 50;
 const DAY_HEADER_HEIGHT = 40;
 const DAY_CELLS_AREA_HEIGHT = 288; // 6주 기준 고정 (48px × 6)
 
-const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
-
 export interface CalendarDaySelectProps {
   currentYear?: number;
   currentMonth?: number;
@@ -33,6 +32,7 @@ export interface CalendarDaySelectProps {
   onMonthChange?: (year: number, month: number) => void;
   style?: ViewStyle;
   hideNavBar?: boolean;
+  monthStartDay?: number; // 월 시작일 (1-31)
 }
 
 /**
@@ -50,48 +50,62 @@ function getFirstDayOfWeek(year: number, month: number): number {
 }
 
 /**
- * Generate calendar grid for a month
+ * Generate calendar grid for a custom month (based on monthStartDay)
  */
-function generateMonthGrid(year: number, month: number): Array<{ date: string; day: number; isCurrentMonth: boolean }> {
-  const daysInMonth = getDaysInMonth(year, month);
-  const firstDayOfWeek = getFirstDayOfWeek(year, month);
-  
+function generateMonthGrid(
+  year: number,
+  month: number,
+  adjustFirstDayOfWeek: (jsDay: number) => number,
+  monthStartDay: number = 1
+): Array<{ date: string; day: number; isCurrentMonth: boolean }> {
   const grid: Array<{ date: string; day: number; isCurrentMonth: boolean }> = [];
   
-  // Previous month days
-  const prevMonth = month === 1 ? 12 : month - 1;
-  const prevYear = month === 1 ? year - 1 : year;
-  const daysInPrevMonth = getDaysInMonth(prevYear, prevMonth);
+  // monthStartDay 기준으로 시작일과 종료일 계산
+  // 예: monthStartDay=21이면, 10월 21일 ~ 11월 20일이 "10월"
+  const startDate = new Date(year, month - 1, monthStartDay);
+  const endDate = new Date(year, month, monthStartDay - 1);
   
-  for (let i = firstDayOfWeek - 1; i >= 0; i--) {
-    const day = daysInPrevMonth - i;
-    grid.push({
-      date: `${prevYear}-${String(prevMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
-      day,
-      isCurrentMonth: false,
-    });
+  // 첫 날의 요일 확인
+  const jsFirstDay = startDate.getDay();
+  const firstDayOfWeek = adjustFirstDayOfWeek(jsFirstDay);
+  
+  // 이전 월 날짜들로 첫 주 채우기
+  if (firstDayOfWeek > 0) {
+    for (let i = firstDayOfWeek - 1; i >= 0; i--) {
+      const prevDate = new Date(startDate);
+      prevDate.setDate(prevDate.getDate() - (i + 1));
+      grid.push({
+        date: `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}-${String(prevDate.getDate()).padStart(2, '0')}`,
+        day: prevDate.getDate(),
+        isCurrentMonth: false,
+      });
+    }
   }
   
-  // Current month days
-  for (let day = 1; day <= daysInMonth; day++) {
+  // 현재 커스텀 월의 날짜들
+  const currentDate = new Date(startDate);
+  while (currentDate <= endDate) {
     grid.push({
-      date: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
-      day,
+      date: `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`,
+      day: currentDate.getDate(),
       isCurrentMonth: true,
     });
+    currentDate.setDate(currentDate.getDate() + 1);
   }
   
-  // Next month days (fill to complete weeks)
+  // 다음 월 날짜들로 마지막 주 채우기
   const remainingCells = grid.length % 7 === 0 ? 0 : 7 - (grid.length % 7);
-  const nextMonth = month === 12 ? 1 : month + 1;
-  const nextYear = month === 12 ? year + 1 : year;
-  
-  for (let day = 1; day <= remainingCells; day++) {
-    grid.push({
-      date: `${nextYear}-${String(nextMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
-      day,
-      isCurrentMonth: false,
-    });
+  if (remainingCells > 0) {
+    const nextDate = new Date(endDate);
+    nextDate.setDate(nextDate.getDate() + 1);
+    for (let i = 0; i < remainingCells; i++) {
+      grid.push({
+        date: `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}-${String(nextDate.getDate()).padStart(2, '0')}`,
+        day: nextDate.getDate(),
+        isCurrentMonth: false,
+      });
+      nextDate.setDate(nextDate.getDate() + 1);
+    }
   }
   
   return grid;
@@ -108,9 +122,11 @@ export function CalendarDaySelect({
   onMonthChange,
   style,
   hideNavBar = false,
+  monthStartDay = 1,
 }: CalendarDaySelectProps) {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const { weekdays, adjustFirstDayOfWeek } = useWeekStart();
 
   // Current month state (use props if provided, otherwise use internal state)
   const getTodayLocalDate = () => {
@@ -124,6 +140,11 @@ export function CalendarDaySelect({
   const initialDate = selectedDate ? new Date(selectedDate) : new Date();
   const [internalYear, setInternalYear] = useState(initialDate.getFullYear());
   const [internalMonth, setInternalMonth] = useState(initialDate.getMonth() + 1);
+  
+  // 변수 선언을 useEffect 앞으로 이동
+  const currentYear = propYear !== undefined ? propYear : internalYear;
+  const currentMonth = propMonth !== undefined ? propMonth : internalMonth;
+  const [scrollInitialized, setScrollInitialized] = useState(false);
   
   // selectedDate가 변경될 때 내부 상태 업데이트
   useEffect(() => {
@@ -162,9 +183,6 @@ export function CalendarDaySelect({
     }
   }, [selectedDate, propYear, propMonth, currentYear, currentMonth, scrollInitialized]);
   
-  const currentYear = propYear !== undefined ? propYear : internalYear;
-  const currentMonth = propMonth !== undefined ? propMonth : internalMonth;
-  
   // Animation lock to prevent rapid swipes
   const [isAnimating, setIsAnimating] = useState(false);
 
@@ -187,18 +205,17 @@ export function CalendarDaySelect({
       }
       
       grids.push({
-        grid: generateMonthGrid(targetYear, targetMonth),
+        grid: generateMonthGrid(targetYear, targetMonth, adjustFirstDayOfWeek, monthStartDay),
         year: targetYear,
         month: targetMonth,
       });
     }
     
     return grids;
-  }, [currentYear, currentMonth]);
+  }, [currentYear, currentMonth, adjustFirstDayOfWeek, monthStartDay]);
   
   // ScrollView ref and initialization
   const scrollViewRef = useRef<ScrollView>(null);
-  const [scrollInitialized, setScrollInitialized] = useState(false);
   
   // Initialize scroll to center (index 3)
   useEffect(() => {
@@ -396,7 +413,7 @@ export function CalendarDaySelect({
 
       {/* Day Headers (Fixed) */}
       <View style={[styles.weekdayHeader, { backgroundColor: colors.fillStrong }]}>
-        {WEEKDAYS.map((day) => (
+        {weekdays.map((day) => (
           <View key={day} style={[styles.weekdayCell, { width: DAY_CELL_WIDTH }]}>
             <Text style={[styles.weekdayText, { color: colors.textNeutral }]}>
               {day}
