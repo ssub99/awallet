@@ -1,0 +1,1456 @@
+/**
+ * Components Demo Page
+ * 
+ * Main components showcase page with tab navigation.
+ * Demonstrates all UI components in a single organized view.
+ */
+
+import { TopNavigation } from '@/components/navigation/top-navigation';
+import { Button } from '@/components/ui/button';
+import { CalendarDaySelect } from '@/components/ui/calendar-day-select';
+import { CalendarMain } from '@/components/ui/calendar-main';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
+import { ModalPopup } from '@/components/ui/modal-popup';
+import { Radio } from '@/components/ui/radio';
+import { RadioGroup } from '@/components/ui/radio-group';
+import { Selectbox } from '@/components/ui/selectbox';
+import { Switch } from '@/components/ui/switch';
+import { Tab } from '@/components/ui/tab';
+import { Tag } from '@/components/ui/tag';
+import { Colors, Typography } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useState } from 'react';
+import { ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+type ComponentTab = 'buttons' | 'inputs' | 'selectboxs' | 'radios' | 'checkboxes' | 'switches' | 'modals' | 'bottomsheets' | 'tags' | 'calendars' | 'tabs' | 'topnav';
+
+export default function ComponentsScreen() {
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const [activeTab, setActiveTab] = useState<ComponentTab>('buttons');
+
+  const tabs = [
+    { label: 'Buttons', value: 'buttons' as ComponentTab },
+    { label: 'Inputs', value: 'inputs' as ComponentTab },
+    { label: 'Selectboxs', value: 'selectboxs' as ComponentTab },
+    { label: 'Radios', value: 'radios' as ComponentTab },
+    { label: 'Checkboxes', value: 'checkboxes' as ComponentTab },
+    { label: 'Switches', value: 'switches' as ComponentTab },
+    { label: 'Modals', value: 'modals' as ComponentTab },
+    { label: 'Bottomsheets', value: 'bottomsheets' as ComponentTab },
+    { label: 'Tags', value: 'tags' as ComponentTab },
+    { label: 'Calendars', value: 'calendars' as ComponentTab },
+    { label: 'Tabs', value: 'tabs' as ComponentTab },
+    { label: 'TopNav', value: 'topnav' as ComponentTab },
+  ];
+
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: '#fff' }]}>
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      
+      <View style={[styles.innerContainer, { backgroundColor: colors.background }]}>
+        {/* Top Navigation */}
+        <TopNavigation
+          type="main"
+          title="Components"
+        />
+
+        {/* Tab Navigation */}
+        <View style={styles.tabWrapper}>
+          <Tab
+            options={tabs}
+            value={activeTab}
+            onValueChange={(value) => setActiveTab(value as ComponentTab)}
+          />
+        </View>
+
+        {/* Content */}
+        <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
+          {activeTab === 'buttons' && <ButtonsContent colors={colors} />}
+          {activeTab === 'inputs' && <InputsContent colors={colors} />}
+          {activeTab === 'selectboxs' && <SelectboxsContent colors={colors} />}
+          {activeTab === 'radios' && <RadiosContent colors={colors} />}
+          {activeTab === 'checkboxes' && <CheckboxesContent colors={colors} />}
+          {activeTab === 'switches' && <SwitchesContent colors={colors} />}
+          {activeTab === 'modals' && <ModalsContent colors={colors} />}
+          {activeTab === 'bottomsheets' && <BottomsheetsContent colors={colors} />}
+          {activeTab === 'tags' && <TagsContent colors={colors} />}
+          {activeTab === 'calendars' && <CalendarsContent colors={colors} />}
+          {activeTab === 'tabs' && <TabsContent colors={colors} />}
+          {activeTab === 'topnav' && <TopNavContent colors={colors} />}
+        </ScrollView>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+/**
+ * Buttons Content
+ */
+function ButtonsContent({ colors }: { colors: typeof Colors.light | typeof Colors.dark }) {
+  return (
+    <>
+      {/* Primary Buttons - Solid */}
+      <SectionHeader title="Primary - Solid" colors={colors} />
+      <View style={styles.buttonRow}>
+        <Button variant="primary" type="solid" size="large" onPress={() => {}}>
+          Large
+        </Button>
+        <Button variant="primary" type="solid" size="small" onPress={() => {}}>
+          Small
+        </Button>
+      </View>
+      <View style={styles.buttonRow}>
+        <Button variant="primary" type="solid" size="large" onPress={() => {}} disabled>
+          Disabled
+        </Button>
+        <Button variant="primary" type="solid" size="small" onPress={() => {}} disabled>
+          Disabled
+        </Button>
+      </View>
+
+      {/* Primary Buttons - Line */}
+      <SectionHeader title="Primary - Line" colors={colors} />
+      <View style={styles.buttonRow}>
+        <Button variant="primary" type="line" size="large" onPress={() => {}}>
+          Large
+        </Button>
+        <Button variant="primary" type="line" size="small" onPress={() => {}}>
+          Small
+        </Button>
+      </View>
+      <View style={styles.buttonRow}>
+        <Button variant="primary" type="line" size="large" onPress={() => {}} disabled>
+          Disabled
+        </Button>
+        <Button variant="primary" type="line" size="small" onPress={() => {}} disabled>
+          Disabled
+        </Button>
+      </View>
+
+      {/* Negative Buttons - Solid */}
+      <SectionHeader title="Negative - Solid" colors={colors} />
+      <View style={styles.buttonRow}>
+        <Button variant="negative" type="solid" size="large" onPress={() => {}}>
+          Large
+        </Button>
+        <Button variant="negative" type="solid" size="small" onPress={() => {}}>
+          Small
+        </Button>
+      </View>
+      <View style={styles.buttonRow}>
+        <Button variant="negative" type="solid" size="large" onPress={() => {}} disabled>
+          Disabled
+        </Button>
+        <Button variant="negative" type="solid" size="small" onPress={() => {}} disabled>
+          Disabled
+        </Button>
+      </View>
+
+      {/* Negative Buttons - Line */}
+      <SectionHeader title="Negative - Line" colors={colors} />
+      <View style={styles.buttonRow}>
+        <Button variant="negative" type="line" size="large" onPress={() => {}}>
+          Large
+        </Button>
+        <Button variant="negative" type="line" size="small" onPress={() => {}}>
+          Small
+        </Button>
+      </View>
+      <View style={styles.buttonRow}>
+        <Button variant="negative" type="line" size="large" onPress={() => {}} disabled>
+          Disabled
+        </Button>
+        <Button variant="negative" type="line" size="small" onPress={() => {}} disabled>
+          Disabled
+        </Button>
+      </View>
+
+      {/* Assistive Buttons - Solid */}
+      <SectionHeader title="Assistive - Solid" colors={colors} />
+      <View style={styles.buttonRow}>
+        <Button variant="assistive" type="solid" size="large" onPress={() => {}}>
+          Large
+        </Button>
+        <Button variant="assistive" type="solid" size="small" onPress={() => {}}>
+          Small
+        </Button>
+      </View>
+      <View style={styles.buttonRow}>
+        <Button variant="assistive" type="solid" size="large" onPress={() => {}} disabled>
+          Disabled
+        </Button>
+        <Button variant="assistive" type="solid" size="small" onPress={() => {}} disabled>
+          Disabled
+        </Button>
+      </View>
+
+      {/* Assistive Buttons - Line */}
+      <SectionHeader title="Assistive - Line" colors={colors} />
+      <View style={styles.buttonRow}>
+        <Button variant="assistive" type="line" size="large" onPress={() => {}}>
+          Large
+        </Button>
+        <Button variant="assistive" type="line" size="small" onPress={() => {}}>
+          Small
+        </Button>
+      </View>
+      <View style={styles.buttonRow}>
+        <Button variant="assistive" type="line" size="large" onPress={() => {}} disabled>
+          Disabled
+        </Button>
+        <Button variant="assistive" type="line" size="small" onPress={() => {}} disabled>
+          Disabled
+        </Button>
+      </View>
+
+      {/* Real-world Examples */}
+      <SectionHeader title="Real-world Examples" colors={colors} />
+      <View style={styles.column}>
+        <Button variant="primary" type="solid" size="large" onPress={() => {}}>
+          확인
+        </Button>
+        <Button variant="negative" type="line" size="large" onPress={() => {}}>
+          삭제
+        </Button>
+        <View style={styles.buttonRow}>
+          <Button variant="assistive" type="line" size="small" onPress={() => {}}>
+            취소
+          </Button>
+          <Button variant="primary" type="solid" size="small" onPress={() => {}}>
+            저장
+          </Button>
+        </View>
+      </View>
+
+      {/* Button Specs */}
+      <SectionHeader title="Button Specifications" colors={colors} />
+      <View style={[styles.specsContainer, { backgroundColor: colors.fill }]}>
+        <SpecItem label="Large Height" value="56px" colors={colors} />
+        <SpecItem label="Small Height" value="40px" colors={colors} />
+        <SpecItem label="Border Radius" value="12px" colors={colors} />
+        <SpecItem label="Font Size" value="16px" colors={colors} />
+        <SpecItem label="Font Weight" value="Bold (700)" colors={colors} />
+      </View>
+    </>
+  );
+}
+
+/**
+ * Inputs Content
+ */
+function InputsContent({ colors }: { colors: typeof Colors.light | typeof Colors.dark }) {
+  const [text, setText] = useState('');
+  const [textActive, setTextActive] = useState('내용');
+  const [number, setNumber] = useState('');
+
+  return (
+    <>
+      {/* Line Inputs - Default */}
+      <SectionHeader title="Line Input - Default" colors={colors} />
+      <Input
+        placeholder="내용 입력"
+        value={text}
+        onChangeText={setText}
+      />
+
+      {/* Line Inputs - With Icon */}
+      <SectionHeader title="Line Input - With Icon" colors={colors} />
+      <Input
+        icon="person"
+        placeholder="이름 입력"
+        value=""
+        onChangeText={() => {}}
+      />
+
+      {/* Line Inputs - Active */}
+      <SectionHeader title="Line Input - Active" colors={colors} />
+      <Input
+        icon="person"
+        placeholder="내용 입력"
+        value={textActive}
+        onChangeText={setTextActive}
+      />
+
+      {/* Line Inputs - With Time */}
+      <SectionHeader title="Line Input - With Time" colors={colors} />
+      <Input
+        placeholder="내용 입력"
+        value=""
+        onChangeText={() => {}}
+        timeDisplay="2:53"
+      />
+
+      {/* Line Inputs - Disabled */}
+      <SectionHeader title="Line Input - Disabled" colors={colors} />
+      <Input
+        icon="person"
+        placeholder="내용 입력"
+        value=""
+        onChangeText={() => {}}
+        disabled
+      />
+
+      {/* Number Inputs */}
+      <SectionHeader title="Number Input - Default" colors={colors} />
+      <Input
+        inputType="number"
+        value={number}
+        onChangeText={setNumber}
+        unit="원"
+      />
+
+      <SectionHeader title="Number Input - Active" colors={colors} />
+      <Input
+        inputType="number"
+        value="20,000"
+        onChangeText={() => {}}
+        unit="원"
+      />
+
+      <SectionHeader title="Number Input - Disabled" colors={colors} />
+      <Input
+        inputType="number"
+        value="20,000"
+        onChangeText={() => {}}
+        unit="원"
+        disabled
+      />
+
+      {/* Calendar Inputs */}
+      <SectionHeader title="Calendar Input - Default" colors={colors} />
+      <Input
+        calendar
+      />
+
+      <SectionHeader title="Calendar Input - Active" colors={colors} />
+      <Input
+        calendar
+        calendarDate="2025.09.28"
+      />
+
+      <SectionHeader title="Calendar Input - Disabled" colors={colors} />
+      <Input
+        calendar
+        calendarDate="2025.09.28"
+        disabled
+      />
+
+      {/* Textarea */}
+      <SectionHeader title="Textarea - Default" colors={colors} />
+      <Input
+        variant="area"
+        placeholder="메모를 입력해 주세요.(최대 20자)"
+        value=""
+        onChangeText={() => {}}
+        maxLength={20}
+      />
+
+      <SectionHeader title="Textarea - Disabled" colors={colors} />
+      <Input
+        variant="area"
+        placeholder="메모를 입력해 주세요.(최대 20자)"
+        value=""
+        onChangeText={() => {}}
+        disabled
+      />
+    </>
+  );
+}
+
+/**
+ * Selectboxs Content
+ */
+function SelectboxsContent({ colors }: { colors: typeof Colors.light | typeof Colors.dark }) {
+  const [category, setCategory] = useState('');
+  const [categoryWithValue, setCategoryWithValue] = useState('food');
+
+  const categoryOptions = [
+    { label: '식비', value: 'food' },
+    { label: '교통비', value: 'transport' },
+    { label: '쇼핑', value: 'shopping' },
+    { label: '문화생활', value: 'culture' },
+    { label: '의료/건강', value: 'health' },
+    { label: '교육', value: 'education' },
+  ];
+
+  return (
+    <>
+      {/* Default State - No Selection */}
+      <SectionHeader title="Selectbox - Default (No Selection)" colors={colors} />
+      <Selectbox
+        options={categoryOptions}
+        value={category}
+        onValueChange={setCategory}
+        placeholder="카테고리 선택"
+        title="카테고리"
+      />
+
+      {/* Active State - With Selection */}
+      <SectionHeader title="Selectbox - Active (With Selection)" colors={colors} />
+      <Selectbox
+        options={categoryOptions}
+        value={categoryWithValue}
+        onValueChange={setCategoryWithValue}
+        placeholder="카테고리 선택"
+        title="카테고리"
+      />
+
+      {/* Disabled State */}
+      <SectionHeader title="Selectbox - Disabled" colors={colors} />
+      <Selectbox
+        options={categoryOptions}
+        value="food"
+        onValueChange={() => {}}
+        placeholder="카테고리 선택"
+        title="카테고리"
+        disabled
+      />
+
+      {/* Selectbox Specs */}
+      <SectionHeader title="Selectbox Specifications" colors={colors} />
+      <View style={[styles.specsContainer, { backgroundColor: colors.fill }]}>
+        <SpecItem label="Height" value="48px" colors={colors} />
+        <SpecItem label="Border Radius" value="12px" colors={colors} />
+        <SpecItem label="Padding" value="12px" colors={colors} />
+        <SpecItem label="Font Size" value="16px" colors={colors} />
+        <SpecItem label="Picker Type" value="Native (iOS/Android)" colors={colors} />
+      </View>
+    </>
+  );
+}
+
+/**
+ * Radios Content
+ */
+function RadiosContent({ colors }: { colors: typeof Colors.light | typeof Colors.dark }) {
+  const [payment, setPayment] = useState('credit');
+  const [singleChecked, setSingleChecked] = useState(false);
+
+  const paymentOptions = [
+    { label: '신용카드', value: 'credit' },
+    { label: '체크카드', value: 'debit' },
+    { label: '계좌이체', value: 'transfer' },
+    { label: '무통장입금', value: 'deposit' },
+  ];
+
+  return (
+    <>
+      {/* Single Radio - All States */}
+      <SectionHeader title="Single Radio - Default (Unchecked)" colors={colors} />
+      <Radio
+        checked={false}
+        onPress={() => {}}
+        label="선택 가능"
+      />
+
+      <SectionHeader title="Single Radio - Active (Checked)" colors={colors} />
+      <Radio
+        checked={true}
+        onPress={() => {}}
+        label="선택됨"
+      />
+
+      <SectionHeader title="Single Radio - Disabled (Unchecked)" colors={colors} />
+      <Radio
+        checked={false}
+        onPress={() => {}}
+        label="비활성화"
+        disabled
+      />
+
+      <SectionHeader title="Single Radio - Disabled (Checked)" colors={colors} />
+      <Radio
+        checked={true}
+        onPress={() => {}}
+        label="선택됨 (비활성화)"
+        disabled
+      />
+
+      {/* Radio Without Label */}
+      <SectionHeader title="Radio Without Label" colors={colors} />
+      <View style={styles.radioRow}>
+        <Radio checked={false} onPress={() => {}} />
+        <Radio checked={true} onPress={() => {}} />
+        <Radio checked={false} onPress={() => {}} disabled />
+        <Radio checked={true} onPress={() => {}} disabled />
+      </View>
+
+      {/* Interactive Radio */}
+      <SectionHeader title="Interactive Radio" colors={colors} />
+      <Radio
+        checked={singleChecked}
+        onPress={() => setSingleChecked(!singleChecked)}
+        label="클릭해서 선택/해제"
+      />
+
+      {/* RadioGroup - Vertical */}
+      <SectionHeader title="RadioGroup - Vertical" colors={colors} />
+      <RadioGroup
+        options={paymentOptions}
+        value={payment}
+        onValueChange={setPayment}
+      />
+
+      {/* RadioGroup - Disabled */}
+      <SectionHeader title="RadioGroup - Disabled" colors={colors} />
+      <RadioGroup
+        options={paymentOptions}
+        value="credit"
+        onValueChange={() => {}}
+        disabled
+      />
+
+      {/* Radio Specs */}
+      <SectionHeader title="Radio Specifications" colors={colors} />
+      <View style={[styles.specsContainer, { backgroundColor: colors.fill }]}>
+        <SpecItem label="Outer Size" value="20×20px" colors={colors} />
+        <SpecItem label="Inner Size" value="10×10px" colors={colors} />
+        <SpecItem label="Border Radius" value="10px (circle)" colors={colors} />
+        <SpecItem label="Label Font" value="Pretendard Medium 14" colors={colors} />
+        <SpecItem label="Label Gap" value="8px" colors={colors} />
+      </View>
+    </>
+  );
+}
+
+/**
+ * Checkboxes Content
+ */
+function CheckboxesContent({ colors }: { colors: typeof Colors.light | typeof Colors.dark }) {
+  const [agree, setAgree] = useState(false);
+  const [marketing, setMarketing] = useState(false);
+  const [singleChecked, setSingleChecked] = useState(false);
+
+  return (
+    <>
+      {/* Single Checkbox - All States */}
+      <SectionHeader title="Checkbox - Default (Unchecked)" colors={colors} />
+      <Checkbox
+        checked={false}
+        onPress={() => {}}
+        label="선택 가능"
+      />
+
+      <SectionHeader title="Checkbox - Active (Checked)" colors={colors} />
+      <Checkbox
+        checked={true}
+        onPress={() => {}}
+        label="선택됨"
+      />
+
+      <SectionHeader title="Checkbox - Disabled (Unchecked)" colors={colors} />
+      <Checkbox
+        checked={false}
+        onPress={() => {}}
+        label="비활성화"
+        disabled
+      />
+
+      <SectionHeader title="Checkbox - Disabled (Checked)" colors={colors} />
+      <Checkbox
+        checked={true}
+        onPress={() => {}}
+        label="선택됨 (비활성화)"
+        disabled
+      />
+
+      {/* Checkbox Without Label */}
+      <SectionHeader title="Checkbox Without Label" colors={colors} />
+      <View style={styles.radioRow}>
+        <Checkbox checked={false} onPress={() => {}} />
+        <Checkbox checked={true} onPress={() => {}} />
+        <Checkbox checked={false} onPress={() => {}} disabled />
+        <Checkbox checked={true} onPress={() => {}} disabled />
+      </View>
+
+      {/* Interactive Checkbox */}
+      <SectionHeader title="Interactive Checkbox" colors={colors} />
+      <Checkbox
+        checked={singleChecked}
+        onPress={() => setSingleChecked(!singleChecked)}
+        label="클릭해서 선택/해제"
+      />
+
+      {/* Real-world Example */}
+      <SectionHeader title="Real-world Example" colors={colors} />
+      <View style={styles.column}>
+        <Checkbox
+          checked={agree}
+          onPress={() => setAgree(!agree)}
+          label="개인정보 수집 및 이용에 동의합니다."
+        />
+        <Checkbox
+          checked={marketing}
+          onPress={() => setMarketing(!marketing)}
+          label="마케팅 정보 수신에 동의합니다. (선택)"
+        />
+      </View>
+
+      {/* Checkbox Specs */}
+      <SectionHeader title="Checkbox Specifications" colors={colors} />
+      <View style={[styles.specsContainer, { backgroundColor: colors.fill }]}>
+        <SpecItem label="Size" value="20×20px" colors={colors} />
+        <SpecItem label="Border Radius" value="4px" colors={colors} />
+        <SpecItem label="Check Icon" value="16×16px" colors={colors} />
+        <SpecItem label="Label Font" value="Pretendard Medium 14" colors={colors} />
+        <SpecItem label="Label Gap" value="8px" colors={colors} />
+      </View>
+    </>
+  );
+}
+
+/**
+ * Switches Content
+ */
+function SwitchesContent({ colors }: { colors: typeof Colors.light | typeof Colors.dark }) {
+  const [switch1, setSwitch1] = useState(false);
+  const [switch2, setSwitch2] = useState(true);
+  const [notifications, setNotifications] = useState(true);
+  const [darkMode, setDarkMode] = useState(false);
+
+  return (
+    <>
+      {/* Switch - Off */}
+      <SectionHeader title="Switch - Off" colors={colors} />
+      <Switch
+        value={false}
+        onValueChange={() => {}}
+      />
+
+      {/* Switch - On */}
+      <SectionHeader title="Switch - On" colors={colors} />
+      <Switch
+        value={true}
+        onValueChange={() => {}}
+      />
+
+      {/* Switch - Disabled (Figma only has one disabled state) */}
+      <SectionHeader title="Switch - Disabled" colors={colors} />
+      <Switch
+        value={false}
+        onValueChange={() => {}}
+        disabled
+      />
+
+      {/* Interactive Switches */}
+      <SectionHeader title="Interactive Switches" colors={colors} />
+      <View style={styles.column}>
+        <View style={styles.switchRow}>
+          <Text style={[Typography.body1.l.medium, { color: colors.text }]}>
+            Switch 1
+          </Text>
+          <Switch
+            value={switch1}
+            onValueChange={setSwitch1}
+          />
+        </View>
+        <View style={styles.switchRow}>
+          <Text style={[Typography.body1.l.medium, { color: colors.text }]}>
+            Switch 2
+          </Text>
+          <Switch
+            value={switch2}
+            onValueChange={setSwitch2}
+          />
+        </View>
+      </View>
+
+      {/* Real-world Examples */}
+      <SectionHeader title="Real-world Examples" colors={colors} />
+      <View style={styles.column}>
+        <View style={styles.switchRow}>
+          <View>
+            <Text style={[Typography.body1.l.medium, { color: colors.text }]}>
+              알림 받기
+            </Text>
+            <Text style={[Typography.body2.r.regular, { color: colors.textNeutral }]}>
+              새로운 거래 알림을 받습니다
+            </Text>
+          </View>
+          <Switch
+            value={notifications}
+            onValueChange={setNotifications}
+          />
+        </View>
+        <View style={styles.switchRow}>
+          <View>
+            <Text style={[Typography.body1.l.medium, { color: colors.text }]}>
+              다크 모드
+            </Text>
+            <Text style={[Typography.body2.r.regular, { color: colors.textNeutral }]}>
+              어두운 테마 사용
+            </Text>
+          </View>
+          <Switch
+            value={darkMode}
+            onValueChange={setDarkMode}
+          />
+        </View>
+      </View>
+
+      {/* Switch Specs */}
+      <SectionHeader title="Switch Specifications" colors={colors} />
+      <View style={[styles.specsContainer, { backgroundColor: colors.fill }]}>
+        <SpecItem label="Size" value="56×32px" colors={colors} />
+        <SpecItem label="Toggle Size" value="24×24px" colors={colors} />
+        <SpecItem label="Border Radius" value="20px" colors={colors} />
+        <SpecItem label="Color (On)" value="#07b63b (Green)" colors={colors} />
+        <SpecItem label="Color (Off)" value="Gray (opacity 0.16)" colors={colors} />
+        <SpecItem label="Animation" value="Spring (tension 100)" colors={colors} />
+      </View>
+    </>
+  );
+}
+
+/**
+ * Modals Content
+ */
+function ModalsContent({ colors }: { colors: typeof Colors.light | typeof Colors.dark }) {
+  const [showAlertWithTitle, setShowAlertWithTitle] = useState(false);
+  const [showAlertNoTitle, setShowAlertNoTitle] = useState(false);
+  const [showConfirmWithTitle, setShowConfirmWithTitle] = useState(false);
+  const [showConfirmNoTitle, setShowConfirmNoTitle] = useState(false);
+
+  return (
+    <>
+      {/* Alert - With Title */}
+      <SectionHeader title="Alert - 타이틀 있음 (1버튼)" colors={colors} />
+      <Button
+        variant="primary"
+        size="large"
+        onPress={() => setShowAlertWithTitle(true)}
+      >
+        알림 모달 열기
+      </Button>
+      <ModalPopup
+        visible={showAlertWithTitle}
+        title="알림"
+        confirmText="확인"
+        onConfirm={() => setShowAlertWithTitle(false)}
+      >
+        <Text style={[Typography.body1.l.regular, { color: colors.textNeutral, textAlign: 'center' }]}>
+          내용을 입력해 주세요.
+        </Text>
+      </ModalPopup>
+
+      {/* Alert - No Title */}
+      <SectionHeader title="Alert - 타이틀 없음 (1버튼)" colors={colors} />
+      <Button
+        variant="primary"
+        size="large"
+        onPress={() => setShowAlertNoTitle(true)}
+      >
+        알림 모달 열기
+      </Button>
+      <ModalPopup
+        visible={showAlertNoTitle}
+        confirmText="확인"
+        onConfirm={() => setShowAlertNoTitle(false)}
+      >
+        <Text style={[Typography.body1.l.regular, { color: colors.textNeutral, textAlign: 'center' }]}>
+          내용을 입력해 주세요.
+        </Text>
+      </ModalPopup>
+
+      {/* Confirm - With Title */}
+      <SectionHeader title="Confirm - 타이틀 있음 (2버튼)" colors={colors} />
+      <Button
+        variant="primary"
+        size="large"
+        onPress={() => setShowConfirmWithTitle(true)}
+      >
+        확인 모달 열기
+      </Button>
+      <ModalPopup
+        visible={showConfirmWithTitle}
+        title="타이틀"
+        confirmText="확인"
+        cancelText="취소"
+        onConfirm={() => setShowConfirmWithTitle(false)}
+        onCancel={() => setShowConfirmWithTitle(false)}
+      >
+        <Text style={[Typography.body1.l.regular, { color: colors.textNeutral, textAlign: 'center' }]}>
+          내용을 입력해 주세요.
+        </Text>
+      </ModalPopup>
+
+      {/* Confirm - No Title */}
+      <SectionHeader title="Confirm - 타이틀 없음 (2버튼)" colors={colors} />
+      <Button
+        variant="primary"
+        size="large"
+        onPress={() => setShowConfirmNoTitle(true)}
+      >
+        확인 모달 열기
+      </Button>
+      <ModalPopup
+        visible={showConfirmNoTitle}
+        confirmText="확인"
+        cancelText="취소"
+        onConfirm={() => setShowConfirmNoTitle(false)}
+        onCancel={() => setShowConfirmNoTitle(false)}
+      >
+        <Text style={[Typography.body1.l.regular, { color: colors.textNeutral, textAlign: 'center' }]}>
+          내용을 입력해 주세요.
+        </Text>
+      </ModalPopup>
+
+      {/* Modal Specs */}
+      <SectionHeader title="Modal Specifications" colors={colors} />
+      <View style={[styles.specsContainer, { backgroundColor: colors.fill }]}>
+        <SpecItem label="Width" value="343px" colors={colors} />
+        <SpecItem label="Border Radius" value="24px" colors={colors} />
+        <SpecItem label="Padding" value="24px" colors={colors} />
+        <SpecItem label="Title" value="Pretendard Bold 21" colors={colors} />
+        <SpecItem label="Content" value="Pretendard Regular 16" colors={colors} />
+        <SpecItem label="Button Height" value="48px" colors={colors} />
+        <SpecItem label="Animation" value="Scale + Fade" colors={colors} />
+        <SpecItem label="Structure" value="Flexible (children prop)" colors={colors} />
+      </View>
+    </>
+  );
+}
+
+/**
+ * TopNav Content
+ */
+function TopNavContent({ colors }: { colors: typeof Colors.light | typeof Colors.dark }) {
+  const [periodType, setPeriodType] = useState<'year' | 'month'>('month');
+  
+  // Get current date
+  const getCurrentDate = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = (now.getMonth() + 1).toString().padStart(2, '0'); // getMonth() returns 0-11
+    return { year, month };
+  };
+  
+  const currentDate = getCurrentDate();
+  const [selectedMonth, setSelectedMonth] = useState(currentDate.month);
+
+  const monthOptions = [
+    { label: '1월', value: '01' },
+    { label: '2월', value: '02' },
+    { label: '3월', value: '03' },
+    { label: '4월', value: '04' },
+    { label: '5월', value: '05' },
+    { label: '6월', value: '06' },
+    { label: '7월', value: '07' },
+    { label: '8월', value: '08' },
+    { label: '9월', value: '09' },
+    { label: '10월', value: '10' },
+    { label: '11월', value: '11' },
+    { label: '12월', value: '12' },
+  ];
+
+  return (
+    <>
+      {/* 1. Main - Basic (메뉴명만) */}
+      <SectionHeader title="Main - 메뉴명" colors={colors} />
+      <TopNavigation
+        type="main"
+        title="메뉴명"
+      />
+
+      {/* 2. Main - With Day (날짜 표시 + 월 선택 Picker) */}
+      <SectionHeader title="Main - 날짜 표시 (클릭하면 월 선택)" colors={colors} />
+      <TopNavigation
+        type="main"
+        title="메뉴명"
+        showDay
+        dateText={`${currentDate.year}/${selectedMonth}`}
+        showDropdownArrow
+        monthOptions={monthOptions}
+        selectedMonth={selectedMonth}
+        onMonthChange={setSelectedMonth}
+        periodType={periodType}
+        onPeriodChange={setPeriodType}
+      />
+
+      {/* 3. Sub - Title Only (타이틀만) */}
+      <SectionHeader title="Sub - 타이틀만 (중앙 정렬)" colors={colors} />
+      <TopNavigation
+        type="sub"
+        title="타이틀"
+      />
+
+      {/* 4. Sub - With Back & Button (타이틀 + 뒤로 + 버튼) */}
+      <SectionHeader title="Sub - 타이틀 + 뒤로 + 버튼" colors={colors} />
+      <TopNavigation
+        type="sub"
+        title="타이틀"
+        showLeftIcon
+        onLeftIconPress={() => {}}
+        showRightButton
+        rightButtonText="확인"
+        onRightButtonPress={() => {}}
+      />
+
+      {/* 5. Sub - With Back Only (타이틀 + 뒤로) */}
+      <SectionHeader title="Sub - 타이틀 + 뒤로" colors={colors} />
+      <TopNavigation
+        type="sub"
+        title="타이틀"
+        showLeftIcon
+        onLeftIconPress={() => {}}
+      />
+
+      {/* 6. Sub - With Day (날짜 + 뒤로 + 월 선택) */}
+      <SectionHeader title="Sub - 날짜 + 뒤로 (클릭하면 월 선택)" colors={colors} />
+      <TopNavigation
+        type="sub"
+        title="타이틀"
+        showLeftIcon
+        onLeftIconPress={() => {}}
+        showDay
+        dateText={`${currentDate.year}년 ${selectedMonth}월`}
+        showDropdownArrow
+        monthOptions={monthOptions}
+        selectedMonth={selectedMonth}
+        onMonthChange={setSelectedMonth}
+      />
+
+      {/* TopNav Specs */}
+      <SectionHeader title="TopNav Specifications" colors={colors} />
+      <View style={[styles.specsContainer, { backgroundColor: colors.fill }]}>
+        <SpecItem label="Height" value="56px" colors={colors} />
+        <SpecItem label="Divider Height" value="1px" colors={colors} />
+        <SpecItem label="Main Title" value="Pretendard Bold 21" colors={colors} />
+        <SpecItem label="Sub Title" value="Pretendard Bold 16" colors={colors} />
+        <SpecItem label="Button Height" value="32px" colors={colors} />
+        <SpecItem label="Period Toggle" value="42×32px" colors={colors} />
+      </View>
+    </>
+  );
+}
+
+/**
+ * Bottomsheets Content
+ */
+function BottomsheetsContent({ colors }: { colors: typeof Colors.light | typeof Colors.dark }) {
+  const [showBasicSheet, setShowBasicSheet] = useState(false);
+  const [showWithConfirm, setShowWithConfirm] = useState(false);
+  const [showCustomContent, setShowCustomContent] = useState(false);
+
+  return (
+    <>
+      {/* Basic Bottomsheet */}
+      <SectionHeader title="Basic Bottomsheet" colors={colors} />
+      <Button
+        variant="primary"
+        size="large"
+        onPress={() => setShowBasicSheet(true)}
+      >
+        기본 Bottomsheet 열기
+      </Button>
+      <ModalBottomsheet
+        visible={showBasicSheet}
+        title="타이틀"
+        onClose={() => setShowBasicSheet(false)}
+      >
+        <Text style={[Typography.body1.l.regular, { color: colors.text }]}>
+          이것은 기본 Bottomsheet입니다.{'\n'}
+          닫기 버튼으로 닫을 수 있습니다.
+        </Text>
+      </ModalBottomsheet>
+
+      {/* Bottomsheet with Confirm */}
+      <SectionHeader title="Bottomsheet - 확인 버튼" colors={colors} />
+      <Button
+        variant="primary"
+        size="large"
+        onPress={() => setShowWithConfirm(true)}
+      >
+        확인 버튼 Bottomsheet 열기
+      </Button>
+      <ModalBottomsheet
+        visible={showWithConfirm}
+        title="기록/챌린지"
+        confirmText="확인"
+        onConfirm={() => {
+          console.log('확인 클릭');
+          setShowWithConfirm(false);
+        }}
+        onClose={() => setShowWithConfirm(false)}
+      >
+        <Text style={[Typography.body1.l.regular, { color: colors.text, marginBottom: 16 }]}>
+          확인 버튼이 있는 Bottomsheet입니다.
+        </Text>
+        <Text style={[Typography.body2.r.regular, { color: colors.textNeutral }]}>
+          우측 상단의 확인 버튼을 눌러보세요.
+        </Text>
+      </ModalBottomsheet>
+
+      {/* Custom Content Example */}
+      <SectionHeader title="Custom Content - 리스트 예시" colors={colors} />
+      <Button
+        variant="primary"
+        size="large"
+        onPress={() => setShowCustomContent(true)}
+      >
+        커스텀 컨텐츠 열기
+      </Button>
+      <ModalBottomsheet
+        visible={showCustomContent}
+        title="기록/챌린지"
+        confirmText="확인"
+        onConfirm={() => setShowCustomContent(false)}
+        onClose={() => setShowCustomContent(false)}
+      >
+        <View style={{ gap: 8 }}>
+          {['💰 입금 기록', '💸 소비 기록', '🎯 챌린지 도전'].map((item, index) => (
+            <View
+              key={index}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                backgroundColor: colors.fill,
+                padding: 16,
+                borderRadius: 16,
+                minHeight: 56,
+              }}
+            >
+              <Text style={[Typography.body1.l.regular, { color: colors.text }]}>
+                {item}
+              </Text>
+              <Text style={[Typography.body1.l.regular, { color: colors.textNeutral }]}>
+                1일
+              </Text>
+            </View>
+          ))}
+        </View>
+      </ModalBottomsheet>
+
+      {/* Bottomsheet Specs */}
+      <SectionHeader title="Bottomsheet Specifications" colors={colors} />
+      <View style={[styles.specsContainer, { backgroundColor: colors.fill }]}>
+        <SpecItem label="Width" value="전체 화면 (375px)" colors={colors} />
+        <SpecItem label="Border Radius" value="16px (상단만)" colors={colors} />
+        <SpecItem label="Max Height" value="90% of screen" colors={colors} />
+        <SpecItem label="Navigation Height" value="56px" colors={colors} />
+        <SpecItem label="Animation" value="Slide up from bottom" colors={colors} />
+        <SpecItem label="Backdrop" value="Dim (like native picker)" colors={colors} />
+        <SpecItem label="Structure" value="Flexible (children prop)" colors={colors} />
+      </View>
+    </>
+  );
+}
+
+/**
+ * Tags Content
+ */
+function TagsContent({ colors }: { colors: typeof Colors.light | typeof Colors.dark }) {
+  const [selectedTag, setSelectedTag] = useState<string>('전체');
+
+  return (
+    <>
+      {/* Tag - Default */}
+      <SectionHeader title="Tag - Default" colors={colors} />
+      <Tag label="텍스트" />
+
+      {/* Tag - Active */}
+      <SectionHeader title="Tag - Active" colors={colors} />
+      <Tag label="텍스트" active />
+
+      {/* Interactive Single Selection */}
+      <SectionHeader title="Interactive - Single Selection" colors={colors} />
+      <View style={styles.tagRow}>
+        {['전체', '입금', '출금', '저축'].map((tag) => (
+          <Tag
+            key={tag}
+            label={tag}
+            active={selectedTag === tag}
+            onPress={() => setSelectedTag(tag)}
+          />
+        ))}
+      </View>
+
+      {/* Tag Specs */}
+      <SectionHeader title="Tag Specifications" colors={colors} />
+      <View style={[styles.specsContainer, { backgroundColor: colors.fill }]}>
+        <SpecItem label="Height" value="37px" colors={colors} />
+        <SpecItem label="Padding H" value="16px" colors={colors} />
+        <SpecItem label="Padding V" value="8px" colors={colors} />
+        <SpecItem label="Border Radius" value="24px (캡슐)" colors={colors} />
+        <SpecItem label="Text (Active)" value="Pretendard Bold 14" colors={colors} />
+        <SpecItem label="Text (Default)" value="Pretendard Medium 14" colors={colors} />
+        <SpecItem label="Color (Active)" value="Primary Blue" colors={colors} />
+        <SpecItem label="Color (Default)" value="White + Gray Border" colors={colors} />
+      </View>
+    </>
+  );
+}
+
+/**
+ * Calendars Content
+ */
+function CalendarsContent({ colors }: { colors: typeof Colors.light | typeof Colors.dark }) {
+  const [selectedDate, setSelectedDate] = useState('2025-10-16');
+
+  // Sample data - 입금/소비 금액
+  const sampleData: Record<string, { income: number; expense: number }> = {
+    '2025-10-01': { income: 0, expense: 12800 },
+    '2025-10-02': { income: 0, expense: 12800 },
+    '2025-10-03': { income: 5000000, expense: 12800 },
+    '2025-10-04': { income: 0, expense: 12800 },
+    '2025-10-05': { income: 0, expense: 12800 },
+    '2025-10-06': { income: 0, expense: 12800 },
+    '2025-10-07': { income: 0, expense: 12800 },
+    '2025-10-08': { income: 0, expense: 12800 },
+    '2025-10-09': { income: 0, expense: 12800 },
+    '2025-10-10': { income: 5000000, expense: 12800 },
+    '2025-10-11': { income: 0, expense: 12800 },
+    '2025-10-12': { income: 0, expense: 12800 },
+    '2025-10-13': { income: 0, expense: 12800 },
+    '2025-10-14': { income: 0, expense: 12800 },
+    '2025-10-15': { income: 0, expense: 12800 },
+    '2025-10-16': { income: 0, expense: 12800 },
+    '2025-10-17': { income: 5000000, expense: 12800 },
+    '2025-10-18': { income: 0, expense: 12800 },
+    '2025-10-19': { income: 0, expense: 12800 },
+    '2025-10-20': { income: 0, expense: 12800 },
+    '2025-10-21': { income: 0, expense: 12800 },
+    '2025-10-22': { income: 0, expense: 12800 },
+    '2025-10-23': { income: 0, expense: 12800 },
+    '2025-10-24': { income: 5000000, expense: 12800 },
+    '2025-10-25': { income: 0, expense: 12800 },
+    '2025-10-26': { income: 0, expense: 12800 },
+    '2025-10-27': { income: 0, expense: 12800 },
+  };
+
+  return (
+    <>
+      {/* Calendar Main */}
+      <SectionHeader title="Calendar - 입금/소비 표시 (스와이프 가능)" colors={colors} />
+      <View style={{ marginHorizontal: -20 }}>
+        <CalendarMain
+          selectedDate={selectedDate}
+          onDayPress={(dateString) => setSelectedDate(dateString)}
+          dayData={sampleData}
+          onMonthChange={(year, month) => {
+            console.log('Month changed:', year, month);
+          }}
+        />
+      </View>
+
+      {/* Selected Date Info */}
+      <View style={[styles.specsContainer, { backgroundColor: colors.fill, marginTop: 16 }]}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+          <Text style={[Typography.body2.r.medium, { color: colors.textNeutral }]}>
+            선택된 날짜
+          </Text>
+          <Text style={[Typography.body2.r.bold, { color: colors.text }]}>
+            {selectedDate}
+          </Text>
+        </View>
+        {sampleData[selectedDate] && (
+          <>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <Text style={[Typography.body2.r.medium, { color: colors.textNeutral }]}>
+                입금
+              </Text>
+              <Text style={[Typography.body2.r.bold, { color: '#058943' }]}>
+                {sampleData[selectedDate].income?.toLocaleString() || 0}원
+              </Text>
+            </View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <Text style={[Typography.body2.r.medium, { color: colors.textNeutral }]}>
+                소비
+              </Text>
+              <Text style={[Typography.body2.r.bold, { color: '#ef2a2a' }]}>
+                {sampleData[selectedDate].expense?.toLocaleString() || 0}원
+              </Text>
+            </View>
+          </>
+        )}
+      </View>
+
+      {/* Calendar Day Select */}
+      <View style={{ marginTop: 32 }}>
+        <SectionHeader title="Calendar - 날짜 선택 (스와이프 가능)" colors={colors} />
+      </View>
+      <View style={{ marginHorizontal: -20 }}>
+        <CalendarDaySelect
+          selectedDate={selectedDate}
+          onDayPress={(dateString) => setSelectedDate(dateString)}
+          onMonthChange={(year, month) => {
+            console.log('Month changed:', year, month);
+          }}
+        />
+      </View>
+
+      {/* Calendar Specs */}
+      <SectionHeader title="Calendar Specifications" colors={colors} />
+      <View style={[styles.specsContainer, { backgroundColor: colors.fill }]}>
+        <SpecItem label="Day Cell" value="54×90px" colors={colors} />
+        <SpecItem label="Day Number" value="32×32px, 16px Bold" colors={colors} />
+        <SpecItem label="Day Header" value="40px height, 12px Medium" colors={colors} />
+        <SpecItem label="Income Color" value="#058943 (Green)" colors={colors} />
+        <SpecItem label="Expense Color" value="#ef2a2a (Red)" colors={colors} />
+        <SpecItem label="Selected" value="Primary Blue background" colors={colors} />
+        <SpecItem label="Amount Text" value="10px Regular" colors={colors} />
+        <SpecItem label="Library" value="react-native-calendars" colors={colors} />
+      </View>
+    </>
+  );
+}
+
+/**
+ * Tabs Content
+ */
+function TabsContent({ colors }: { colors: typeof Colors.light | typeof Colors.dark }) {
+  const [twoTab, setTwoTab] = useState('income');
+  const [threeTab, setThreeTab] = useState('monthly');
+  const [fourTab, setFourTab] = useState('all');
+  const [fiveTab, setFiveTab] = useState('all');
+  const [sixTab, setSixTab] = useState('food');
+  const [sevenTab, setSevenTab] = useState('account');
+  const [eightTab, setEightTab] = useState('food');
+
+  const twoTabs = [
+    { label: '수입', value: 'income' },
+    { label: '지출', value: 'expense' },
+  ];
+
+  const threeTabs = [
+    { label: '일별', value: 'daily' },
+    { label: '주별', value: 'weekly' },
+    { label: '월별', value: 'monthly' },
+  ];
+
+  const fourTabs = [
+    { label: '전체', value: 'all' },
+    { label: '수입', value: 'income' },
+    { label: '지출', value: 'expense' },
+    { label: '이체', value: 'transfer' },
+  ];
+
+  const fiveTabs = [
+    { label: '전체', value: 'all' },
+    { label: '식비', value: 'food' },
+    { label: '교통비', value: 'transport' },
+    { label: '쇼핑', value: 'shopping' },
+    { label: '기타', value: 'other' },
+  ];
+
+  const sixTabs = [
+    { label: '식비', value: 'food' },
+    { label: '교통비', value: 'transport' },
+    { label: '쇼핑', value: 'shopping' },
+    { label: '문화생활', value: 'culture' },
+    { label: '의료/건강', value: 'health' },
+    { label: '기타', value: 'other' },
+  ];
+
+  const sevenTabs = [
+    { label: '계좌', value: 'account' },
+    { label: '카드', value: 'card' },
+    { label: '현금', value: 'cash' },
+    { label: '페이', value: 'pay' },
+    { label: '상품권', value: 'voucher' },
+    { label: '포인트', value: 'point' },
+    { label: '기타', value: 'other' },
+  ];
+
+  const eightTabs = [
+    { label: '식비', value: 'food' },
+    { label: '교통비', value: 'transport' },
+    { label: '쇼핑', value: 'shopping' },
+    { label: '문화생활', value: 'culture' },
+    { label: '의료/건강', value: 'health' },
+    { label: '교육', value: 'education' },
+    { label: '주거/관리', value: 'housing' },
+    { label: '기타', value: 'other' },
+  ];
+
+  return (
+    <>
+      <SectionHeader title="2개 탭 (균등 분할)" colors={colors} />
+      <Tab
+        options={twoTabs}
+        value={twoTab}
+        onValueChange={setTwoTab}
+      />
+      <View style={[styles.tabPreview, { backgroundColor: colors.fill }]}>
+        <Text style={[Typography.body2.r.regular, { color: colors.text }]}>
+          선택: <Text style={{ fontWeight: '700' }}>{twoTabs.find(t => t.value === twoTab)?.label}</Text>
+        </Text>
+      </View>
+
+      <SectionHeader title="3개 탭 (균등 분할)" colors={colors} />
+      <Tab
+        options={threeTabs}
+        value={threeTab}
+        onValueChange={setThreeTab}
+      />
+      <View style={[styles.tabPreview, { backgroundColor: colors.fill }]}>
+        <Text style={[Typography.body2.r.regular, { color: colors.text }]}>
+          선택: <Text style={{ fontWeight: '700' }}>{threeTabs.find(t => t.value === threeTab)?.label}</Text>
+        </Text>
+      </View>
+
+      <SectionHeader title="4개 탭 (균등 분할)" colors={colors} />
+      <Tab
+        options={fourTabs}
+        value={fourTab}
+        onValueChange={setFourTab}
+      />
+      <View style={[styles.tabPreview, { backgroundColor: colors.fill }]}>
+        <Text style={[Typography.body2.r.regular, { color: colors.text }]}>
+          선택: <Text style={{ fontWeight: '700' }}>{fourTabs.find(t => t.value === fourTab)?.label}</Text>
+        </Text>
+      </View>
+
+      <SectionHeader title="5개 탭 (화면 꽉 채움 or 스크롤)" colors={colors} />
+      <Tab
+        options={fiveTabs}
+        value={fiveTab}
+        onValueChange={setFiveTab}
+      />
+      <View style={[styles.tabPreview, { backgroundColor: colors.fill }]}>
+        <Text style={[Typography.body2.r.regular, { color: colors.text }]}>
+          선택: <Text style={{ fontWeight: '700' }}>{fiveTabs.find(t => t.value === fiveTab)?.label}</Text>
+        </Text>
+      </View>
+
+      <SectionHeader title="6개 탭 (스크롤 가능)" colors={colors} />
+      <Tab
+        options={sixTabs}
+        value={sixTab}
+        onValueChange={setSixTab}
+      />
+      <View style={[styles.tabPreview, { backgroundColor: colors.fill }]}>
+        <Text style={[Typography.body2.r.regular, { color: colors.text }]}>
+          선택: <Text style={{ fontWeight: '700' }}>{sixTabs.find(t => t.value === sixTab)?.label}</Text>
+        </Text>
+      </View>
+
+      <SectionHeader title="7개 탭 (스크롤 가능)" colors={colors} />
+      <Tab
+        options={sevenTabs}
+        value={sevenTab}
+        onValueChange={setSevenTab}
+      />
+      <View style={[styles.tabPreview, { backgroundColor: colors.fill }]}>
+        <Text style={[Typography.body2.r.regular, { color: colors.text }]}>
+          선택: <Text style={{ fontWeight: '700' }}>{sevenTabs.find(t => t.value === sevenTab)?.label}</Text>
+        </Text>
+      </View>
+
+      <SectionHeader title="8개 탭 (스크롤 가능)" colors={colors} />
+      <Tab
+        options={eightTabs}
+        value={eightTab}
+        onValueChange={setEightTab}
+      />
+      <View style={[styles.tabPreview, { backgroundColor: colors.fill }]}>
+        <Text style={[Typography.body2.r.regular, { color: colors.text }]}>
+          선택: <Text style={{ fontWeight: '700' }}>{eightTabs.find(t => t.value === eightTab)?.label}</Text>
+        </Text>
+      </View>
+    </>
+  );
+}
+
+/**
+ * Section Header Component
+ */
+function SectionHeader({
+  title,
+  colors,
+}: {
+  title: string;
+  colors: typeof Colors.light | typeof Colors.dark;
+}) {
+  return (
+    <Text
+      style={[Typography.headline3.m.bold, { color: colors.text, marginTop: 24, marginBottom: 12 }]}
+    >
+      {title}
+    </Text>
+  );
+}
+
+/**
+ * Spec Item Component
+ */
+function SpecItem({
+  label,
+  value,
+  colors,
+}: {
+  label: string;
+  value: string;
+  colors: typeof Colors.light | typeof Colors.dark;
+}) {
+  return (
+    <View style={styles.specItem}>
+      <Text style={[Typography.body2.r.regular, { color: colors.textNeutral }]}>{label}</Text>
+      <Text style={[Typography.body2.r.bold, { color: colors.text }]}>{value}</Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  innerContainer: {
+    flex: 1,
+  },
+  tabWrapper: {
+    // No padding - Tab component handles internal padding
+  },
+  content: {
+    flex: 1,
+  },
+  contentContainer: {
+    padding: 20,
+    paddingTop: 0,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12,
+  },
+  column: {
+    gap: 12,
+  },
+  radioRow: {
+    flexDirection: 'row',
+    gap: 24,
+  },
+  switchRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  tagRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  tabPreview: {
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 12,
+  },
+  specsContainer: {
+    padding: 16,
+    borderRadius: 12,
+    gap: 12,
+    marginTop: 12,
+  },
+  specItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+});
+

@@ -1,0 +1,189 @@
+---
+alwaysApply: true
+description: Core project rules and prompt engineering guidelines
+---
+
+# AWallet Project - Core Rules & Prompt Engineering Guidelines
+
+## 🎯 PROJECT IDENTITY
+You are an expert React Native developer specializing in Expo and TypeScript. This project uses:
+- **Framework**: React Native 0.81.4 with Expo ~54.0.13
+- **Router**: Expo Router ~6.0.11 (file-based routing)
+- **Language**: TypeScript 5.9.2 with strict mode
+- **React Version**: 19.1.0 (latest)
+- **Experiments**: React Compiler enabled, Typed Routes enabled
+- **Architecture**: Component-based with themed UI system
+
+## ⚠️ CRITICAL - MUST FOLLOW
+
+### 🚫 NEVER DO THESE:
+1. **NEVER** disable TypeScript strict mode or add `@ts-ignore` without explicit justification
+2. **NEVER** use `any` type - use `unknown` and type guards instead
+3. **NEVER** create class components - use functional components with hooks only
+4. **NEVER** use `var` - only use `const` and `let`
+5. **NEVER** mutate state directly - always use setState/useState properly
+6. **NEVER** use inline styles without proper typing
+7. **NEVER** bypass Expo Router for navigation - use `useRouter`, `Link`, or `router.push`
+8. **NEVER** hardcode colors - use theme system from [theme.ts](mdc:constants/theme.ts)
+9. **NEVER** ignore accessibility - always add proper accessibility labels
+10. **NEVER** use deprecated React lifecycle methods
+
+### ✅ ALWAYS DO THESE:
+1. **ALWAYS** use TypeScript with proper type annotations
+2. **ALWAYS** follow the existing component pattern in [themed-text.tsx](mdc:components/themed-text.tsx) and [themed-view.tsx](mdc:components/themed-view.tsx)
+3. **ALWAYS** use `@/` path alias for imports (configured in tsconfig.json)
+4. **ALWAYS** handle loading and error states explicitly
+5. **ALWAYS** use React hooks following the Rules of Hooks
+6. **ALWAYS** memoize expensive calculations with `useMemo`
+7. **ALWAYS** memoize callbacks with `useCallback` when passed to child components
+8. **ALWAYS** add proper TypeScript interfaces for props
+9. **ALWAYS** use `expo-haptics` for tactile feedback where appropriate
+10. **ALWAYS** test on both iOS and Android platforms
+
+## 🧠 PROMPT ENGINEERING GUIDELINES
+
+### Chain of Thought (CoT) Approach:
+When solving complex problems, break them down:
+1. **Understand**: Analyze the requirement
+2. **Plan**: Outline the solution steps
+3. **Implement**: Write code incrementally
+4. **Verify**: Check for errors and edge cases
+5. **Optimize**: Refine for performance and readability
+
+### Context-Aware Responses:
+- Reference existing patterns from [components/](mdc:components/)
+- Check [app/(tabs)/](mdc:app/(tabs)/) for routing structure
+- Use [constants/theme.ts](mdc:constants/theme.ts) for styling consistency
+- Follow hooks patterns from [hooks/](mdc:hooks/)
+
+### Self-Verification Checklist:
+Before completing any task, verify:
+- [ ] TypeScript types are properly defined
+- [ ] No console.log left in production code
+- [ ] Accessibility props added (accessibilityLabel, accessibilityRole, etc.)
+- [ ] Theme colors used instead of hardcoded values
+- [ ] Proper error boundaries or error handling
+- [ ] Mobile-first responsive design
+- [ ] Platform-specific code uses `Platform.select()` or platform files
+
+## 📁 FILE ORGANIZATION
+
+### Directory Structure:
+```
+app/              → Expo Router pages (file-based routing)
+components/       → Reusable UI components
+  ui/            → Low-level UI primitives
+constants/        → Theme, colors, configuration
+hooks/            → Custom React hooks
+assets/           → Images, fonts, static files
+```
+
+### Naming Conventions:
+- **Components**: PascalCase (e.g., `ThemedButton.tsx`)
+- **Files**: kebab-case for utilities (e.g., `use-color-scheme.ts`)
+- **Hooks**: camelCase with `use` prefix (e.g., `useThemeColor`)
+- **Constants**: UPPER_SNAKE_CASE (e.g., `DEFAULT_THEME`)
+- **Types/Interfaces**: PascalCase with descriptive names
+
+## 🎨 THEMING SYSTEM
+
+**CRITICAL**: Use the theme system consistently:
+```typescript
+import { useThemeColor } from '@/hooks/use-theme-color';
+
+// Correct ✅
+const backgroundColor = useThemeColor({}, 'background');
+
+// Wrong ❌
+const backgroundColor = '#FFFFFF';
+```
+
+## 🚀 PERFORMANCE BEST PRACTICES
+
+1. **Lazy Loading**: Use `React.lazy()` and `Suspense` for heavy components
+2. **Memoization**: Memoize components with `React.memo` when appropriate
+3. **Avoid Re-renders**: Use `useCallback` and `useMemo` wisely
+4. **Optimize Images**: Use `expo-image` instead of React Native Image
+5. **List Performance**: Use `FlatList` or `FlashList` for long lists
+
+## 🔒 TYPE SAFETY
+
+### Prefer Specific Types:
+```typescript
+// Good ✅
+type UserRole = 'admin' | 'user' | 'guest';
+interface User {
+  id: string;
+  name: string;
+  role: UserRole;
+}
+
+// Bad ❌
+type UserRole = string;
+interface User {
+  id: any;
+  name: any;
+  role: any;
+}
+```
+
+## 📱 PLATFORM-SPECIFIC CODE
+
+Use platform extensions or Platform API:
+```typescript
+// Platform-specific files
+use-color-scheme.ts      // Shared
+use-color-scheme.web.ts  // Web override
+
+// Or Platform.select()
+const styles = StyleSheet.create({
+  container: {
+    ...Platform.select({
+      ios: { paddingTop: 20 },
+      android: { paddingTop: 25 },
+      default: { paddingTop: 10 }
+    })
+  }
+});
+```
+
+## 🧪 QUALITY STANDARDS
+
+### Code Quality Metrics:
+- **Readability**: Code should be self-documenting
+- **Maintainability**: DRY principle, single responsibility
+- **Testability**: Pure functions, dependency injection
+- **Performance**: No premature optimization, but be aware
+- **Security**: Validate inputs, sanitize outputs
+
+### Review Checklist:
+- [ ] Code follows existing patterns
+- [ ] No magic numbers or strings
+- [ ] Proper error handling
+- [ ] Accessibility implemented
+- [ ] Performance considerations addressed
+- [ ] Type safety maintained
+- [ ] Documentation added for complex logic
+
+## 💡 DECISION MAKING FRAMEWORK
+
+When faced with implementation choices:
+1. **Check existing patterns** in the codebase first
+2. **Follow React/Expo best practices** from official docs
+3. **Prioritize type safety** over convenience
+4. **Consider mobile constraints** (battery, network, performance)
+5. **Think accessibility first** - it's not an afterthought
+6. **Optimize for developer experience** - readable code wins
+
+## 🎓 LEARNING & ADAPTATION
+
+Stay updated with:
+- React 19 features and changes
+- Expo SDK updates and deprecations
+- React Native new architecture
+- TypeScript best practices
+- Mobile UX patterns
+
+---
+
+**Remember**: Quality over speed. Write code that future you will thank you for.

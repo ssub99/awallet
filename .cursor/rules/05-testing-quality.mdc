@@ -1,0 +1,455 @@
+---
+description: Testing, code quality, and debugging guidelines
+---
+
+# Testing & Code Quality Guidelines for AWallet
+
+## 🎯 CODE QUALITY PRINCIPLES
+
+### The Boy Scout Rule:
+**"Always leave the code better than you found it."**
+
+Every commit should improve the codebase:
+- Fix typos and formatting
+- Add missing type annotations
+- Improve variable names
+- Add comments for complex logic
+- Remove dead code
+
+## 🚫 CODE QUALITY - NEVER DO
+
+### Critical Code Quality Mistakes:
+```typescript
+// ❌ NEVER - Magic numbers/strings
+const total = price * 1.1;
+if (status === 'A') { }
+
+// ✅ USE - Named constants
+const TAX_RATE = 1.1;
+const STATUS_ACTIVE = 'A';
+const total = price * TAX_RATE;
+if (status === STATUS_ACTIVE) { }
+
+// ❌ NEVER - Deep nesting
+if (user) {
+  if (user.profile) {
+    if (user.profile.settings) {
+      if (user.profile.settings.notifications) {
+        // do something
+      }
+    }
+  }
+}
+
+// ✅ USE - Early returns and optional chaining
+const notifications = user?.profile?.settings?.notifications;
+if (!notifications) return;
+// do something with notifications
+
+// ❌ NEVER - Unclear variable names
+const d = new Date();
+const x = items.filter(i => i.p > 100);
+
+// ✅ USE - Descriptive names
+const currentDate = new Date();
+const expensiveItems = items.filter(item => item.price > 100);
+
+// ❌ NEVER - God functions (doing too much)
+function processUserData(user) {
+  // 200 lines of code doing everything
+}
+
+// ✅ USE - Single responsibility
+function validateUser(user) { }
+function transformUserData(user) { }
+function saveUser(user) { }
+```
+
+## ✅ CODE QUALITY - ALWAYS DO
+
+### Clean Code Practices:
+```typescript
+// ✅ Self-documenting code
+interface UserRegistrationData {
+  email: string;
+  password: string;
+  agreedToTerms: boolean;
+}
+
+function registerUser(data: UserRegistrationData): Promise<User> {
+  validateEmail(data.email);
+  validatePassword(data.password);
+  
+  if (!data.agreedToTerms) {
+    throw new Error('User must agree to terms');
+  }
+  
+  return createUserAccount(data);
+}
+
+// ✅ Use TypeScript discriminated unions for state
+type AsyncState<T, E = Error> =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'success'; data: T }
+  | { status: 'error'; error: E };
+
+function renderAsyncState<T>(state: AsyncState<T>) {
+  switch (state.status) {
+    case 'idle':
+      return null;
+    case 'loading':
+      return <Spinner />;
+    case 'success':
+      return <DataView data={state.data} />;
+    case 'error':
+      return <ErrorView error={state.error} />;
+  }
+}
+
+// ✅ Extract complex conditions
+// Bad
+if (user.age >= 18 && user.hasLicense && !user.isSuspended && user.payments.length > 0) {
+  // do something
+}
+
+// Good
+const isEligibleDriver = (user: User) => {
+  return (
+    user.age >= 18 &&
+    user.hasLicense &&
+    !user.isSuspended &&
+    user.payments.length > 0
+  );
+};
+
+if (isEligibleDriver(user)) {
+  // do something
+}
+```
+
+## 🧪 TESTING STRATEGY
+
+### Test Structure (AAA Pattern):
+```typescript
+// ✅ Arrange, Act, Assert
+describe('calculateTotal', () => {
+  it('should calculate total with tax', () => {
+    // Arrange
+    const items = [
+      { price: 10, quantity: 2 },
+      { price: 5, quantity: 1 },
+    ];
+    const taxRate = 0.1;
+    
+    // Act
+    const result = calculateTotal(items, taxRate);
+    
+    // Assert
+    expect(result).toBe(27.5); // (20 + 5) * 1.1
+  });
+  
+  it('should handle empty array', () => {
+    expect(calculateTotal([], 0.1)).toBe(0);
+  });
+  
+  it('should throw on negative tax rate', () => {
+    expect(() => calculateTotal(items, -0.1)).toThrow();
+  });
+});
+```
+
+### Component Testing:
+```typescript
+import { render, fireEvent, screen } from '@testing-library/react-native';
+
+// ✅ Test component behavior, not implementation
+describe('LoginForm', () => {
+  it('should call onSubmit with email and password', () => {
+    const mockSubmit = jest.fn();
+    render(<LoginForm onSubmit={mockSubmit} />);
+    
+    // Find elements by accessibility label (better than testID)
+    const emailInput = screen.getByLabelText('Email');
+    const passwordInput = screen.getByLabelText('Password');
+    const submitButton = screen.getByRole('button', { name: 'Login' });
+    
+    // Interact with component
+    fireEvent.changeText(emailInput, 'test@example.com');
+    fireEvent.changeText(passwordInput, 'password123');
+    fireEvent.press(submitButton);
+    
+    // Assert
+    expect(mockSubmit).toHaveBeenCalledWith({
+      email: 'test@example.com',
+      password: 'password123',
+    });
+  });
+  
+  it('should show error for invalid email', async () => {
+    render(<LoginForm onSubmit={jest.fn()} />);
+    
+    const emailInput = screen.getByLabelText('Email');
+    fireEvent.changeText(emailInput, 'invalid-email');
+    
+    const errorMessage = await screen.findByText('Invalid email address');
+    expect(errorMessage).toBeTruthy();
+  });
+});
+```
+
+### Hook Testing:
+```typescript
+import { renderHook, act } from '@testing-library/react-hooks';
+
+// ✅ Test custom hooks
+describe('useCounter', () => {
+  it('should increment counter', () => {
+    const { result } = renderHook(() => useCounter(0));
+    
+    act(() => {
+      result.current.increment();
+    });
+    
+    expect(result.current.count).toBe(1);
+  });
+  
+  it('should respect max value', () => {
+    const { result } = renderHook(() => useCounter(9, { max: 10 }));
+    
+    act(() => {
+      result.current.increment();
+      result.current.increment(); // Should not go above 10
+    });
+    
+    expect(result.current.count).toBe(10);
+  });
+});
+```
+
+## 🐛 DEBUGGING BEST PRACTICES
+
+### Logging Strategy:
+```typescript
+// ✅ Use descriptive log messages
+console.log('Fetching user data for ID:', userId);
+console.error('Failed to save user:', error);
+console.warn('Deprecated API usage detected');
+
+// ✅ Use console.table for objects
+console.table(users);
+
+// ✅ Use console.group for related logs
+console.group('User Registration');
+console.log('Validating email...');
+console.log('Creating account...');
+console.log('Sending confirmation...');
+console.groupEnd();
+
+// ❌ NEVER - Leave console.log in production
+// Use a logger that can be disabled in production
+const logger = {
+  log: __DEV__ ? console.log : () => {},
+  error: console.error, // Always log errors
+  warn: __DEV__ ? console.warn : () => {},
+};
+```
+
+### Error Handling:
+```typescript
+// ✅ Comprehensive error handling
+async function fetchUserData(userId: string): Promise<User> {
+  try {
+    const response = await fetch(`/api/users/${userId}`);
+    
+    if (!response.ok) {
+      throw new NetworkError(
+        `Failed to fetch user: ${response.statusText}`,
+        response.status
+      );
+    }
+    
+    const data = await response.json();
+    
+    if (!isValidUserData(data)) {
+      throw new ValidationError('Invalid user data received', data);
+    }
+    
+    return data;
+  } catch (error) {
+    if (error instanceof NetworkError) {
+      logger.error('Network error:', error.message);
+      throw error;
+    }
+    
+    if (error instanceof ValidationError) {
+      logger.error('Validation error:', error.message);
+      throw error;
+    }
+    
+    // Unknown error
+    logger.error('Unexpected error fetching user:', error);
+    throw new Error('Failed to fetch user data');
+  }
+}
+
+// ✅ Custom error classes
+class NetworkError extends Error {
+  constructor(
+    message: string,
+    public statusCode: number
+  ) {
+    super(message);
+    this.name = 'NetworkError';
+  }
+}
+
+class ValidationError extends Error {
+  constructor(
+    message: string,
+    public invalidData: unknown
+  ) {
+    super(message);
+    this.name = 'ValidationError';
+  }
+}
+```
+
+### React DevTools:
+```typescript
+// ✅ Use displayName for debugging
+const MemoizedComponent = React.memo(function UserCard({ user }) {
+  return <View>{/* ... */}</View>;
+});
+MemoizedComponent.displayName = 'UserCard';
+
+// ✅ Add debug value to custom hooks
+function useDebugValue(value: any) {
+  const [state, setState] = useState(value);
+  
+  useDebugValue(state, (state) => `Current value: ${state}`);
+  
+  return [state, setState];
+}
+```
+
+## 📝 CODE DOCUMENTATION
+
+### When to Add Comments:
+```typescript
+// ✅ Document WHY, not WHAT
+// We use a 500ms debounce to prevent excessive API calls
+// while the user is typing. Tested with users and 500ms
+// provides the best balance between responsiveness and
+// server load.
+const debouncedSearch = useDebouncedValue(searchQuery, 500);
+
+// ✅ Document complex algorithms
+/**
+ * Calculates the shortest path using Dijkstra's algorithm.
+ * Time complexity: O((V + E) log V)
+ * Space complexity: O(V)
+ */
+function findShortestPath(graph: Graph, start: Node, end: Node) {
+  // Implementation
+}
+
+// ✅ Document non-obvious workarounds
+// HACK: iOS requires a small delay before keyboard dismissal
+// to prevent animation glitch. See issue #123
+setTimeout(() => Keyboard.dismiss(), 100);
+
+// ❌ Don't document the obvious
+// Set the user name
+const userName = user.name; // Useless comment
+```
+
+### JSDoc for Public APIs:
+```typescript
+/**
+ * Formats a price value with currency symbol and proper decimals.
+ * 
+ * @param amount - The numeric amount to format
+ * @param currency - ISO 4217 currency code (e.g., 'USD', 'EUR')
+ * @param locale - Optional locale for formatting (defaults to user's locale)
+ * @returns Formatted price string
+ * 
+ * @example
+ * ```ts
+ * formatPrice(1234.5, 'USD')
+ * // Returns: "$1,234.50"
+ * 
+ * formatPrice(1234.5, 'EUR', 'de-DE')
+ * // Returns: "1.234,50 €"
+ * ```
+ * 
+ * @throws {Error} If currency code is invalid
+ */
+export function formatPrice(
+  amount: number,
+  currency: string,
+  locale?: string
+): string {
+  // Implementation
+}
+```
+
+## 🔍 CODE REVIEW CHECKLIST
+
+### Before Submitting Code:
+- [ ] Code follows project style guide
+- [ ] All TypeScript errors resolved
+- [ ] No console.log statements left
+- [ ] Proper error handling added
+- [ ] Complex logic has comments
+- [ ] Accessibility labels added
+- [ ] Performance considerations addressed
+- [ ] No hardcoded values (use constants)
+- [ ] Proper null/undefined checks
+- [ ] Tests added for new functionality
+- [ ] Variable/function names are descriptive
+- [ ] No code duplication (DRY principle)
+
+### Reviewing Others' Code:
+1. **Be constructive** - Suggest improvements, don't just criticize
+2. **Ask questions** - "Why did you choose this approach?"
+3. **Praise good code** - Acknowledge well-written solutions
+4. **Focus on important issues** - Don't nitpick style if tools handle it
+5. **Test the code** - Actually run it if possible
+
+## 📊 CODE METRICS
+
+### Complexity Guidelines:
+- **Function length**: Aim for < 50 lines, max 100 lines
+- **File length**: Aim for < 300 lines, max 500 lines
+- **Parameters**: Max 3-4 parameters (use object for more)
+- **Nesting depth**: Max 3 levels deep
+- **Cyclomatic complexity**: Aim for < 10
+
+### Refactoring Indicators:
+- Function is hard to name clearly
+- Function has more than one responsibility
+- Code needs extensive comments to understand
+- Duplicated code in multiple places
+- Changes in one place require changes elsewhere
+- Tests are difficult to write
+
+## 🎯 QUALITY METRICS
+
+### Definition of Done:
+A feature is "done" when:
+- [ ] Functionality implemented and working
+- [ ] TypeScript types properly defined
+- [ ] Error handling implemented
+- [ ] Loading states handled
+- [ ] Accessibility implemented
+- [ ] Performance optimized
+- [ ] Code reviewed and approved
+- [ ] Tests written and passing
+- [ ] Documentation updated
+- [ ] No linter errors
+- [ ] Works on iOS and Android
+
+---
+
+**Remember**: Code is read far more often than it is written. Write for the next developer, who might be you in 6 months.

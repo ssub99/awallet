@@ -1,0 +1,417 @@
+---
+alwaysApply: true
+description: Design system implementation and development best practices
+---
+
+# Design System & Development Guidelines
+
+## 🎯 CORE PRINCIPLE
+
+**ALWAYS use the established design system and existing components. Never hardcode values or create duplicates.**
+
+---
+
+## ✅ DESIGN SYSTEM IMPLEMENTATION
+
+### 1. Design System First
+
+**ALWAYS check these before hardcoding:**
+
+- **Colors**: Use [theme-colors.ts](mdc:constants/theme-colors.ts)
+  - Check Semantic colors (e.g., `Semantic/Fill/Normal` → `colors.fill`)
+  - Check Static colors (e.g., `Semantic/Static/Black` → `colors.staticBlack`)
+  - Check Atomic colors if needed
+
+- **Typography**: Use [typography.ts](mdc:constants/typography.ts)
+  - Check Typography system (e.g., `body01/l_16/bold` → `Typography.body1.l.bold`)
+  - Never hardcode font sizes, weights, or line heights
+
+- **Spacing**: Use design system spacing values
+  - Check if spacing tokens are defined
+  - Use consistent spacing patterns
+
+- **Components**: Use existing UI components
+  - Check [components/ui/](mdc:components/ui/) for reusable components
+  - Check [components/navigation/](mdc:components/navigation/) for navigation components
+  - Extend existing components rather than creating duplicates
+
+### 2. When Values Don't Match
+
+**If Figma value doesn't exist in design system:**
+
+```
+❌ WRONG:
+[Just hardcode the value]
+
+✅ CORRECT:
+"I noticed this Figma design uses [specific value/color]:
+- Figma: [value from design]
+- Design System: [closest match or 'not defined']
+
+Options:
+A) Update Figma to use [existing design system value]
+B) Add [new value] to the design system
+C) Use hardcoded value for now (technical debt)
+
+Which approach would you prefer?"
+```
+
+### 3. Component Reusability Check
+
+**Before creating new components, verify:**
+
+- [ ] Does a similar component already exist?
+- [ ] Can I extend/modify an existing component?
+- [ ] Is this a one-off or reusable component?
+- [ ] Should this be added to the design system?
+
+---
+
+## 🚫 NEVER DO
+
+### Don't Hardcode Design System Values:
+
+```typescript
+// ❌ WRONG - Hardcoded colors
+<View style={{ backgroundColor: '#ffffff' }}>
+
+// ✅ CORRECT - Use theme
+<View style={{ backgroundColor: colors.background }}>
+
+// ❌ WRONG - Hardcoded typography
+<Text style={{ fontSize: 16, fontWeight: '700', lineHeight: 24 }}>
+
+// ✅ CORRECT - Use Typography
+<Text style={Typography.body1.l.bold}>
+
+// ❌ WRONG - Magic numbers
+<View style={{ padding: 16, gap: 8, borderRadius: 12 }}>
+
+// ✅ CORRECT - Named constants or design tokens
+<View style={{ padding: spacing.md, gap: spacing.xs, borderRadius: radius.md }}>
+```
+
+### Don't Ignore Component Library:
+
+```typescript
+// ❌ WRONG - Recreating existing component
+<Pressable style={styles.button}>
+  <Text style={styles.buttonText}>Click me</Text>
+</Pressable>
+
+// ✅ CORRECT - Use existing Button component
+<Button title="Click me" onPress={handlePress} />
+```
+
+---
+
+## ✅ MANDATORY CHECKS BEFORE CREATING
+
+### 1. Before Creating Components
+
+**ALWAYS search for existing components first:**
+
+```typescript
+// ❌ WRONG - Create without checking
+export function Button() { /* ... */ }
+
+// ✅ CORRECT - Check first
+// 1. Search: "Does Button component exist?"
+// 2. Check: components/ui/, components/navigation/
+// 3. If exists: Use it or extend it
+// 4. If not: Create new one
+```
+
+**Search Checklist:**
+- [ ] Check `components/ui/` directory
+- [ ] Check `components/navigation/` directory
+- [ ] Search codebase for similar component names
+- [ ] Check if functionality exists in different component
+
+### 2. Before Installing Packages
+
+**ALWAYS check package.json first:**
+
+```bash
+# ❌ WRONG - Install without checking
+npm install @gorhom/bottom-sheet
+
+# ✅ CORRECT - Check first
+# 1. Check package.json for existing packages
+# 2. Search for similar functionality in codebase
+# 3. If exists: Use existing solution
+# 4. If not: Inform user before installing
+```
+
+**Installation Workflow:**
+```
+"I need to install [package-name] for [functionality].
+
+Checking existing packages...
+❌ Not found in package.json
+❌ No similar functionality in codebase
+
+Would you like me to:
+A) Install [package-name]
+B) Implement custom solution
+C) Use alternative approach
+
+Please advise."
+```
+
+### 3. Before Creating Utilities/Hooks
+
+**ALWAYS search for existing utilities:**
+
+```typescript
+// ❌ WRONG - Create duplicate hook
+export function useTheme() { /* ... */ }
+
+// ✅ CORRECT - Check hooks/ directory first
+// Found: hooks/use-theme-color.ts, hooks/use-color-scheme.ts
+// Use existing hooks instead of creating new one
+```
+
+**Search Locations:**
+- [ ] `hooks/` directory for custom hooks
+- [ ] `utils/` directory for utilities
+- [ ] `constants/` directory for constants
+- [ ] `lib/` or `helpers/` directories
+
+### 4. Before Creating Screens/Pages
+
+**ALWAYS check existing routes:**
+
+```typescript
+// ❌ WRONG - Create duplicate screen
+// app/(tabs)/home.tsx already exists
+
+// ✅ CORRECT - Check app/ directory structure
+// 1. List files in app/(tabs)/
+// 2. Verify route doesn't exist
+// 3. If exists: Modify existing screen
+// 4. If not: Create new screen
+```
+
+---
+
+## 🔍 SEARCH STRATEGIES
+
+### Method 1: File Search
+```bash
+# Search for component files
+glob_file_search: "*button*"
+glob_file_search: "*modal*"
+glob_file_search: "*bottom*sheet*"
+```
+
+### Method 2: Code Search
+```bash
+# Search for component usage
+grep: "BottomSheet|Bottomsheet"
+grep: "export.*Button"
+```
+
+### Method 3: Directory Listing
+```bash
+# List components directory
+list_dir: "components/ui/"
+list_dir: "components/navigation/"
+```
+
+---
+
+## 📋 PRE-WORK CHECKLIST
+
+Before starting ANY task, verify:
+
+1. **Component Check**
+   - [ ] Does this component already exist?
+   - [ ] Can I extend/modify existing component?
+   - [ ] Is similar functionality available elsewhere?
+
+2. **Package Check**
+   - [ ] Is required package already installed?
+   - [ ] Is similar package already available?
+   - [ ] Does native functionality cover this need?
+
+3. **Utility Check**
+   - [ ] Does this helper/hook already exist?
+   - [ ] Can I use existing utility with small modification?
+   - [ ] Is this built-in to React/React Native?
+
+4. **Screen/Route Check**
+   - [ ] Does this route already exist?
+   - [ ] Is similar screen already implemented?
+   - [ ] Should I modify existing screen instead?
+
+---
+
+## ✅ CORRECT WORKFLOW EXAMPLES
+
+### Example 1: User Asks to Create Bottom Sheet
+```
+User: "Create a bottom sheet for the create screen"
+
+✅ CORRECT Response:
+1. Search: glob_file_search "*sheet*"
+2. Found: components/ui/modal-bottomsheet.tsx
+3. Read file and verify it matches requirements
+4. Response: "I found an existing ModalBottomsheet component. 
+   I'll use this instead of creating a new one."
+5. Implement using existing component
+
+❌ WRONG Response:
+1. Install @gorhom/bottom-sheet
+2. Create new BottomSheet component
+3. Duplicate functionality
+```
+
+### Example 2: User Asks to Install Package
+```
+User: "We need date formatting"
+
+✅ CORRECT Response:
+1. Check: Does JavaScript Date have this?
+2. Check: Is date-fns or dayjs already installed?
+3. Search: Any existing date utilities?
+4. Response: "I checked and found [existing solution].
+   Should I use this or install new package?"
+
+❌ WRONG Response:
+1. npm install moment
+2. Create new date utility
+3. Ignore existing solutions
+```
+
+### Example 3: User Asks to Create Hook
+```
+User: "Create a hook for theme colors"
+
+✅ CORRECT Response:
+1. Search: list_dir "hooks/"
+2. Found: hooks/use-theme-color.ts, hooks/use-color-scheme.ts
+3. Read and verify functionality
+4. Response: "These hooks already exist:
+   - use-theme-color.ts: [description]
+   - use-color-scheme.ts: [description]
+   Do you want to use these or create something different?"
+
+❌ WRONG Response:
+1. Create hooks/use-theme.ts
+2. Duplicate existing functionality
+```
+
+---
+
+## 🚨 RED FLAGS - STOP AND CHECK
+
+Stop and search if you're about to:
+
+- ❌ Create a component with generic name (Button, Input, Modal, etc.)
+- ❌ Install a popular package (dates, forms, navigation, etc.)
+- ❌ Create a utility hook (useTheme, useAuth, useAPI, etc.)
+- ❌ Implement common functionality (formatting, validation, etc.)
+- ❌ Create a screen/route (especially with standard names)
+
+**These are HIGH PROBABILITY items that likely already exist.**
+
+---
+
+## 💡 REPORTING FINDINGS
+
+### When You Find Existing Code:
+
+```
+✅ GOOD:
+"I found an existing [component/hook/utility]:
+- File: [file-path]
+- Description: [what it does]
+- Matches your request: [Yes/Partially/No]
+
+Should I:
+A) Use the existing [item]
+B) Extend the existing [item]
+C) Create new [item] with different purpose
+
+Which would you prefer?"
+
+❌ BAD:
+[Creates duplicate without checking]
+```
+
+### When Nothing Exists:
+
+```
+✅ GOOD:
+"I searched for [functionality] in:
+- components/ui/
+- components/navigation/
+- hooks/
+- package.json
+
+No existing implementation found.
+
+I'll create a new [component/hook/utility] at [path].
+Proceeding with implementation."
+
+❌ BAD:
+[Creates without reporting search results]
+```
+
+---
+
+## 🎯 SEARCH PRIORITY ORDER
+
+When checking for existing code:
+
+1. **Exact match** - Same component/hook name
+2. **Semantic match** - Similar functionality, different name
+3. **Partial match** - Related functionality that could be extended
+4. **Package match** - Third-party package providing this
+5. **Native match** - React Native built-in functionality
+
+---
+
+## 📝 DOCUMENTATION
+
+When using existing code, document it:
+
+```typescript
+// ✅ Good practice
+import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
+
+// Using existing ModalBottomsheet component
+// Already supports: title, close button, backdrop, animation
+export function CreateScreen() {
+  return (
+    <ModalBottomsheet title="...">
+      {/* content */}
+    </ModalBottomsheet>
+  );
+}
+```
+
+---
+
+## 🎯 SUMMARY
+
+### Before Creating ANYTHING:
+
+1. **STOP** - Don't create immediately
+2. **SEARCH** - Look for existing implementation
+3. **VERIFY** - Check if it matches requirements
+4. **REPORT** - Inform user what you found
+5. **DECIDE** - Use existing, extend, or create new
+6. **EXECUTE** - Only after verification
+
+### Key Principles:
+1. **Search First** - Always look before creating
+2. **Report Findings** - Tell user what exists
+3. **Reuse Over Recreate** - Prefer existing solutions
+4. **Ask Before Installing** - Check and confirm first
+5. **Document Usage** - Comment when using existing code
+
+---
+
+**Remember**: The fastest code to write is code that's already written. Always check first.

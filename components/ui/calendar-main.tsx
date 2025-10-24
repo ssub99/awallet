@@ -1,0 +1,505 @@
+/**
+ * Calendar Main Component
+ * 
+ * Monthly calendar with swipeable day cells.
+ * Header and weekdays are fixed, only day cells scroll.
+ */
+
+import { Colors, Typography } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Dimensions, LayoutAnimation, Platform, Pressable, ScrollView, StyleSheet, Text, UIManager, View, ViewStyle } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+// Enable LayoutAnimation on Android
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+// Fixed heights from design
+const STATUS_BAR_HEIGHT = 44;
+const TOP_NAV_HEIGHT = 56;
+const AMOUNT_SECTION_HEIGHT = 128;
+const DAY_HEADER_HEIGHT = 40;
+const TAB_BAR_BASE_HEIGHT = 64;
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const DAY_CELL_WIDTH = Math.floor(SCREEN_WIDTH / 7);
+
+const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
+
+export interface DayData {
+  totalIncome?: number;
+  totalExpense?: number;
+  records?: Array<{
+    type: 'income' | 'expense';
+    amount: number;
+    category: string;
+    memo?: string;
+    timestamp: number;
+  }>;
+}
+
+export interface CalendarMainProps {
+  selectedDate?: string;
+  onDayPress?: (dateString: string) => void;
+  dayData?: Record<string, DayData>;
+  onMonthChange?: (year: number, month: number) => void;
+  showTitle?: boolean;
+  style?: ViewStyle;
+  initialYear?: number;
+  initialMonth?: number;
+}
+
+/**
+ * Get days in month
+ */
+function getDaysInMonth(year: number, month: number): number {
+  return new Date(year, month, 0).getDate();
+}
+
+/**
+ * Get first day of week (0 = Sunday)
+ */
+function getFirstDayOfWeek(year: number, month: number): number {
+  return new Date(year, month - 1, 1).getDay();
+}
+
+/**
+ * Generate calendar grid for a month
+ */
+function generateMonthGrid(year: number, month: number): Array<{ date: string; day: number; isCurrentMonth: boolean }> {
+  const daysInMonth = getDaysInMonth(year, month);
+  const firstDayOfWeek = getFirstDayOfWeek(year, month);
+  
+  const grid: Array<{ date: string; day: number; isCurrentMonth: boolean }> = [];
+  
+  // Previous month days
+  const prevMonth = month === 1 ? 12 : month - 1;
+  const prevYear = month === 1 ? year - 1 : year;
+  const daysInPrevMonth = getDaysInMonth(prevYear, prevMonth);
+  
+  for (let i = firstDayOfWeek - 1; i >= 0; i--) {
+    const day = daysInPrevMonth - i;
+    grid.push({
+      date: `${prevYear}-${String(prevMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
+      day,
+      isCurrentMonth: false,
+    });
+  }
+  
+  // Current month days
+  for (let day = 1; day <= daysInMonth; day++) {
+    grid.push({
+      date: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
+      day,
+      isCurrentMonth: true,
+    });
+  }
+  
+  // Next month days (fill to complete weeks)
+  const remainingCells = grid.length % 7 === 0 ? 0 : 7 - (grid.length % 7);
+  const nextMonth = month === 12 ? 1 : month + 1;
+  const nextYear = month === 12 ? year + 1 : year;
+  
+  for (let day = 1; day <= remainingCells; day++) {
+    grid.push({
+      date: `${nextYear}-${String(nextMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
+      day,
+      isCurrentMonth: false,
+    });
+  }
+  
+  return grid;
+}
+
+/**
+ * Format number with commas
+ */
+function formatCurrency(num: number): string {
+  return num.toLocaleString('ko-KR');
+}
+
+/**
+ * Calendar Main Component
+ */
+export function CalendarMain({
+  selectedDate,
+  onDayPress,
+  dayData = {},
+  onMonthChange,
+  showTitle = true,
+  style,
+  initialYear,
+  initialMonth,
+}: CalendarMainProps) {
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const insets = useSafeAreaInsets();
+
+  // Current month state - 로컬 시간 기준으로 초기화
+  const getTodayLocalDate = () => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  
+  const initialDate = selectedDate ? new Date(selectedDate) : new Date();
+  const [currentYear, setCurrentYear] = useState(initialYear ?? initialDate.getFullYear());
+  const [currentMonth, setCurrentMonth] = useState(initialMonth ?? (initialDate.getMonth() + 1));
+
+  const [isScrolling, setIsScrolling] = useState(false);
+  
+  // Animation lock to prevent rapid swipes
+  const [isAnimating, setIsAnimating] = useState(false);
+
+  // Calculate dynamic day cell height
+  const dayCellHeight = useMemo(() => {
+    const screenHeight = Dimensions.get('window').height;
+    const TITLE_HEIGHT = 48;
+    const fixedHeight = 
+      STATUS_BAR_HEIGHT +
+      TOP_NAV_HEIGHT +
+      AMOUNT_SECTION_HEIGHT +
+      TITLE_HEIGHT +
+      DAY_HEADER_HEIGHT +
+      TAB_BAR_BASE_HEIGHT +
+      insets.bottom;
+    
+    const remainingHeight = screenHeight - fixedHeight;
+    const grid = generateMonthGrid(currentYear, currentMonth);
+    const weeks = Math.ceil(grid.length / 7);
+    
+    return Math.floor(remainingHeight / weeks);
+  }, [currentYear, currentMonth, insets.bottom]);
+
+  // Generate grids for 7 months (prev3, prev2, prev1, current, next1, next2, next3)
+  const monthGrids = useMemo(() => {
+    const grids = [];
+    
+    for (let offset = -3; offset <= 3; offset++) {
+      let targetMonth = currentMonth + offset;
+      let targetYear = currentYear;
+      
+      // Handle month overflow/underflow
+      while (targetMonth < 1) {
+        targetMonth += 12;
+        targetYear -= 1;
+      }
+      while (targetMonth > 12) {
+        targetMonth -= 12;
+        targetYear += 1;
+      }
+      
+      grids.push({
+        grid: generateMonthGrid(targetYear, targetMonth),
+        year: targetYear,
+        month: targetMonth,
+      });
+    }
+    
+    return grids;
+  }, [currentYear, currentMonth]);
+  
+  // ScrollView ref and initialization
+  const scrollViewRef = useRef<ScrollView>(null);
+  const [scrollInitialized, setScrollInitialized] = useState(false);
+  
+  // Initialize scroll to center (index 3)
+  useEffect(() => {
+    if (!scrollInitialized && scrollViewRef.current) {
+      setTimeout(() => {
+        scrollViewRef.current?.scrollTo({
+          x: SCREEN_WIDTH * 3, // Center of 7 months (index 3)
+          animated: false,
+        });
+        setScrollInitialized(true);
+      }, 100);
+    }
+  }, [scrollInitialized]);
+  
+  // Sync external year/month changes
+  useEffect(() => {
+    if (initialYear !== undefined && initialYear !== currentYear) {
+      setCurrentYear(initialYear);
+    }
+    if (initialMonth !== undefined && initialMonth !== currentMonth) {
+      setCurrentMonth(initialMonth);
+    }
+  }, [initialYear, initialMonth]);
+  
+  // Handle scroll end
+  const handleScrollEnd = (event: any) => {
+    // Prevent action if animation is in progress
+    if (isAnimating) return;
+    
+    const offsetX = event.nativeEvent.contentOffset.x;
+    const page = Math.round(offsetX / SCREEN_WIDTH);
+    const centerPage = 3; // Center index of 7-month array
+    
+    // Calculate how many months to move (positive = forward, negative = backward)
+    const monthsToMove = page - centerPage;
+    
+    // If no change (still at center), do nothing
+    if (monthsToMove === 0) return;
+    
+    // Lock and animate
+    setIsAnimating(true);
+    
+    // Configure fast layout animation
+    LayoutAnimation.configureNext({
+      duration: 50,
+      update: {
+        type: LayoutAnimation.Types.easeInEaseOut,
+      },
+      delete: {
+        type: LayoutAnimation.Types.easeInEaseOut,
+        property: LayoutAnimation.Properties.opacity,
+      },
+    });
+    
+    // Reset scroll to center
+    scrollViewRef.current?.scrollTo({
+      x: SCREEN_WIDTH * 3,
+      animated: false,
+    });
+    
+    // Change month by the calculated amount (LayoutAnimation will handle the transition)
+    changeMonthBy(monthsToMove);
+    
+    // Release lock after animation completes
+    setTimeout(() => setIsAnimating(false), 100);
+  };
+
+  // Change month by a specific amount (positive = forward, negative = backward)
+  const changeMonthBy = useCallback((amount: number) => {
+    // Use Date object for safe month/year calculation
+    const currentDate = new Date(currentYear, currentMonth - 1); // month is 0-indexed in Date
+    currentDate.setMonth(currentDate.getMonth() + amount);
+    
+    const newYear = currentDate.getFullYear();
+    const newMonth = currentDate.getMonth() + 1; // Convert back to 1-indexed
+    
+    // Update both states atomically
+    setCurrentYear(newYear);
+    setCurrentMonth(newMonth);
+    
+    // Notify callback
+    if (onMonthChange) {
+      onMonthChange(newYear, newMonth);
+    }
+  }, [currentYear, currentMonth, onMonthChange]);
+
+  // Handle day press
+  const handleDayPress = (dateString: string) => {
+    if (onDayPress) {
+      onDayPress(dateString);
+    }
+  };
+
+  // Render day cell
+  const renderDay = (item: { date: string; day: number; isCurrentMonth: boolean }, index: number, gridType: 'prev' | 'current' | 'next') => {
+    const isSelected = item.date === selectedDate;
+    const data = dayData[item.date];
+    
+    // For prev/next grids, consider their days as "current month" for styling
+    const isCurrentMonthForStyling = gridType === 'current' ? item.isCurrentMonth : true;
+
+    const dayTextColor = !isCurrentMonthForStyling
+      ? colors.textAssistive
+      : isSelected
+      ? colors.staticWhite
+      : colors.textNeutral;
+
+    const dayTextStyle = !isCurrentMonthForStyling
+      ? styles.dayTextOtherMonth
+      : isSelected
+      ? styles.dayTextSelected
+      : styles.dayTextDefault;
+
+    return (
+      <Pressable
+        key={`${gridType}-${item.date}-${index}`}
+        onPress={() => handleDayPress(item.date)}
+        style={[styles.dayContainer, { width: DAY_CELL_WIDTH, height: dayCellHeight }]}
+        accessibilityRole="button"
+        accessibilityLabel={item.date}
+      >
+        {/* Day Number */}
+        <View
+          style={[
+            styles.dayCircle,
+            isSelected && { backgroundColor: colors.primary },
+          ]}
+        >
+          <Text style={[dayTextStyle, { color: dayTextColor }]}>
+            {item.day}
+          </Text>
+        </View>
+
+        {/* Income/Expense */}
+        {data && isCurrentMonthForStyling && (
+          <View style={styles.costContainer}>
+            {data.totalExpense !== undefined && data.totalExpense > 0 && (
+              <Text
+                style={styles.expenseText}
+                adjustsFontSizeToFit
+                numberOfLines={1}
+                minimumFontScale={0.5}
+              >
+                {formatCurrency(data.totalExpense)}
+              </Text>
+            )}
+            {data.totalIncome !== undefined && data.totalIncome > 0 && (
+              <Text
+                style={styles.incomeText}
+                adjustsFontSizeToFit
+                numberOfLines={1}
+                minimumFontScale={0.5}
+              >
+                {formatCurrency(data.totalIncome)}
+              </Text>
+            )}
+          </View>
+        )}
+      </Pressable>
+    );
+  };
+
+  return (
+    <View style={[styles.container, { width: SCREEN_WIDTH }, style]}>
+      {/* Year/Month Title (Fixed) - Optional */}
+      {showTitle && (
+        <View style={styles.titleContainer}>
+          <Text style={[styles.titleText, { color: colors.text }]}>
+            {currentYear}년 {currentMonth}월
+          </Text>
+        </View>
+      )}
+
+      {/* Day Headers (Fixed) */}
+      <View style={[styles.weekdayHeader, { backgroundColor: colors.fillStrong }]}>
+        {WEEKDAYS.map((day) => (
+          <View key={day} style={[styles.weekdayCell, { width: DAY_CELL_WIDTH }]}>
+            <Text style={[styles.weekdayText, { color: colors.textNeutral }]}>
+              {day}
+            </Text>
+          </View>
+        ))}
+      </View>
+
+      {/* Day Cells (Swipeable with 5-month ScrollView) */}
+      <ScrollView
+        ref={scrollViewRef}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onMomentumScrollEnd={handleScrollEnd}
+        onScrollBeginDrag={() => {}}
+        scrollEnabled={!isAnimating}
+        style={styles.scrollView}
+      >
+        {/* Render 7 months: [prev3, prev2, prev1, current, next1, next2, next3] */}
+        {monthGrids.map((monthData, index) => {
+          const gridType = index === 3 ? 'current' : (index < 3 ? 'prev' : 'next');
+          return (
+            <View key={`${monthData.year}-${monthData.month}`} style={[styles.monthPage, { width: SCREEN_WIDTH }]}>
+              <View style={styles.weeksContainer}>
+                {monthData.grid.map((item, dayIndex) => renderDay(item, dayIndex, gridType))}
+              </View>
+            </View>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    backgroundColor: 'white',
+    overflow: 'hidden',
+  },
+  titleContainer: {
+    height: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(144, 146, 158, 0.16)',
+  },
+  titleText: {
+    fontSize: 18,
+    fontFamily: 'Pretendard',
+    fontWeight: '700',
+    lineHeight: 27,
+  },
+  weekdayHeader: {
+    flexDirection: 'row',
+    height: DAY_HEADER_HEIGHT,
+    alignItems: 'center',
+  },
+  weekdayCell: {
+    height: DAY_HEADER_HEIGHT,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  weekdayText: {
+    fontSize: 12,
+    fontFamily: 'Pretendard',
+    fontWeight: '500',
+    lineHeight: 18,
+  },
+  scrollView: {
+    width: '100%',
+  },
+  monthPage: {
+    // width: dynamic (SCREEN_WIDTH)
+  },
+  weeksContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  dayContainer: {
+    alignItems: 'center',
+    paddingTop: 8,
+  },
+  dayCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dayTextSelected: {
+    ...Typography.body1.l.bold,
+  },
+  dayTextDefault: {
+    ...Typography.body1.l.bold,
+  },
+  dayTextOtherMonth: {
+    ...Typography.body1.l.medium,
+  },
+  costContainer: {
+    marginTop: 4,
+    gap: 0,
+    alignItems: 'center',
+  },
+  expenseText: {
+    fontSize: 10,
+    fontFamily: 'Pretendard',
+    fontWeight: '400',
+    lineHeight: 15,
+    color: '#ef2a2a',
+  },
+  incomeText: {
+    fontSize: 10,
+    fontFamily: 'Pretendard',
+    fontWeight: '400',
+    lineHeight: 15,
+    color: '#058943',
+  },
+});
+

@@ -1,0 +1,377 @@
+---
+globs: *.ts,*.tsx
+description: TypeScript specific rules and type safety guidelines
+---
+
+# TypeScript Guidelines for AWallet
+
+## 🎯 TYPE SAFETY PRINCIPLES
+
+### Type Inference vs Explicit Types:
+```typescript
+// Let TypeScript infer when obvious ✅
+const count = 5; // inferred as number
+const items = ['a', 'b', 'c']; // inferred as string[]
+
+// Be explicit for function returns and props ✅
+function calculateTotal(items: CartItem[]): number {
+  return items.reduce((sum, item) => sum + item.price, 0);
+}
+
+// Always type component props ✅
+interface ButtonProps {
+  title: string;
+  onPress: () => void;
+  disabled?: boolean;
+}
+
+export function Button({ title, onPress, disabled = false }: ButtonProps) {
+  // implementation
+}
+```
+
+## 🚫 FORBIDDEN PATTERNS
+
+### Never Use:
+```typescript
+// ❌ NEVER - any bypasses type safety
+const data: any = fetchData();
+
+// ✅ USE - unknown with type guards
+const data: unknown = fetchData();
+if (isValidData(data)) {
+  // data is now properly typed
+}
+
+// ❌ NEVER - non-null assertion without reason
+const value = maybeUndefined!;
+
+// ✅ USE - proper null checking
+const value = maybeUndefined ?? defaultValue;
+if (maybeUndefined !== undefined) {
+  // safely use maybeUndefined
+}
+
+// ❌ NEVER - as any casting
+const result = (something as any).property;
+
+// ✅ USE - proper type guards
+function isObjectWithProperty(obj: unknown): obj is { property: string } {
+  return typeof obj === 'object' && obj !== null && 'property' in obj;
+}
+```
+
+## ✅ REQUIRED PATTERNS
+
+### Strict Null Checks:
+```typescript
+// Handle undefined/null explicitly ✅
+interface User {
+  name: string;
+  email?: string; // optional property
+}
+
+function getUserEmail(user: User): string {
+  return user.email ?? 'No email provided';
+}
+
+// Use optional chaining ✅
+const userEmail = user?.profile?.email;
+
+// Nullish coalescing for defaults ✅
+const displayName = user.name ?? 'Anonymous';
+```
+
+### Discriminated Unions:
+```typescript
+// Excellent for state management ✅
+type LoadingState<T> =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'success'; data: T }
+  | { status: 'error'; error: Error };
+
+function renderData<T>(state: LoadingState<T>) {
+  switch (state.status) {
+    case 'idle':
+      return null;
+    case 'loading':
+      return <LoadingSpinner />;
+    case 'success':
+      return <DataView data={state.data} />;
+    case 'error':
+      return <ErrorMessage error={state.error} />;
+  }
+}
+```
+
+### Generic Constraints:
+```typescript
+// Constrain generics appropriately ✅
+interface HasId {
+  id: string;
+}
+
+function findById<T extends HasId>(items: T[], id: string): T | undefined {
+  return items.find(item => item.id === id);
+}
+
+// React component with generic props ✅
+interface ListProps<T> {
+  items: T[];
+  renderItem: (item: T) => React.ReactNode;
+  keyExtractor: (item: T) => string;
+}
+
+function List<T>({ items, renderItem, keyExtractor }: ListProps<T>) {
+  return (
+    <View>
+      {items.map(item => (
+        <View key={keyExtractor(item)}>
+          {renderItem(item)}
+        </View>
+      ))}
+    </View>
+  );
+}
+```
+
+## 📋 REACT NATIVE SPECIFIC TYPES
+
+### Component Props:
+```typescript
+import { ViewProps, TextProps, PressableProps } from 'react-native';
+
+// Extend built-in props ✅
+interface CustomViewProps extends ViewProps {
+  variant?: 'default' | 'card' | 'panel';
+  spacing?: number;
+}
+
+// Omit props you don't want ✅
+interface CustomButtonProps extends Omit<PressableProps, 'children'> {
+  title: string;
+  icon?: string;
+}
+```
+
+### Style Types:
+```typescript
+import { StyleSheet, ViewStyle, TextStyle, ImageStyle } from 'react-native';
+
+// Type your styles ✅
+interface Styles {
+  container: ViewStyle;
+  title: TextStyle;
+  image: ImageStyle;
+}
+
+const styles = StyleSheet.create<Styles>({
+  container: {
+    flex: 1,
+    padding: 16,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  image: {
+    width: 100,
+    height: 100,
+  },
+});
+```
+
+## 🎨 TYPE HELPERS
+
+### Utility Types:
+```typescript
+// Pick specific properties ✅
+type UserPreview = Pick<User, 'id' | 'name' | 'avatar'>;
+
+// Make all properties optional ✅
+type PartialUser = Partial<User>;
+
+// Make all properties required ✅
+type RequiredUser = Required<User>;
+
+// Make all properties readonly ✅
+type ReadonlyUser = Readonly<User>;
+
+// Extract union member ✅
+type Status = 'pending' | 'approved' | 'rejected';
+type PositiveStatus = Exclude<Status, 'rejected'>; // 'pending' | 'approved'
+```
+
+### Custom Type Guards:
+```typescript
+// Type guard pattern ✅
+function isString(value: unknown): value is string {
+  return typeof value === 'string';
+}
+
+function isArrayOf<T>(
+  value: unknown,
+  guard: (item: unknown) => item is T
+): value is T[] {
+  return Array.isArray(value) && value.every(guard);
+}
+
+// Usage
+if (isArrayOf(data, isString)) {
+  // data is now string[]
+  data.forEach(str => console.log(str.toUpperCase()));
+}
+```
+
+## 🔧 CONFIGURATION
+
+### tsconfig.json Settings (DO NOT MODIFY):
+The following settings are critical and should NOT be changed:
+```json
+{
+  "compilerOptions": {
+    "strict": true,           // REQUIRED
+    "paths": {
+      "@/*": ["./*"]         // REQUIRED for imports
+    }
+  }
+}
+```
+
+## 📚 IMPORT/EXPORT PATTERNS
+
+### Prefer Named Exports:
+```typescript
+// Good ✅ - explicit and tree-shakeable
+export interface UserData {
+  id: string;
+  name: string;
+}
+
+export function formatUser(user: UserData): string {
+  return `${user.name} (${user.id})`;
+}
+
+// Acceptable for components ✅
+export default function UserProfile() {
+  // ...
+}
+
+// Avoid ❌ - harder to refactor
+export default {
+  UserData,
+  formatUser,
+};
+```
+
+### Use Barrel Exports Carefully:
+```typescript
+// components/index.ts
+// Only re-export if it adds value ✅
+export { ThemedText } from './themed-text';
+export { ThemedView } from './themed-view';
+export type { ThemedTextProps } from './themed-text';
+export type { ThemedViewProps } from './themed-view';
+```
+
+## 🎯 ASYNC/AWAIT TYPING
+
+### Promise Handling:
+```typescript
+// Type async functions explicitly ✅
+async function fetchUser(id: string): Promise<User> {
+  const response = await fetch(`/api/users/${id}`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch user: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+// Handle errors with proper types ✅
+async function safelyFetchUser(id: string): Promise<User | null> {
+  try {
+    return await fetchUser(id);
+  } catch (error) {
+    if (error instanceof Error) {
+      console.error('Fetch error:', error.message);
+    }
+    return null;
+  }
+}
+```
+
+## 🚨 ERROR HANDLING TYPES
+
+### Typed Errors:
+```typescript
+// Custom error types ✅
+class ValidationError extends Error {
+  constructor(
+    message: string,
+    public field: string,
+    public value: unknown
+  ) {
+    super(message);
+    this.name = 'ValidationError';
+  }
+}
+
+class NetworkError extends Error {
+  constructor(
+    message: string,
+    public statusCode: number,
+    public endpoint: string
+  ) {
+    super(message);
+    this.name = 'NetworkError';
+  }
+}
+
+// Type-safe error handling ✅
+function handleError(error: unknown): string {
+  if (error instanceof ValidationError) {
+    return `Invalid ${error.field}: ${error.message}`;
+  }
+  if (error instanceof NetworkError) {
+    return `Network error (${error.statusCode}): ${error.message}`;
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return 'An unknown error occurred';
+}
+```
+
+## 📖 DOCUMENTATION WITH TYPES
+
+### JSDoc with TypeScript:
+```typescript
+/**
+ * Calculates the total price of items in the cart
+ * 
+ * @param items - Array of cart items with price and quantity
+ * @param discountPercent - Optional discount to apply (0-100)
+ * @returns The total price after applying discount
+ * 
+ * @example
+ * ```ts
+ * const total = calculateCartTotal([
+ *   { price: 10, quantity: 2 },
+ *   { price: 15, quantity: 1 }
+ * ], 10);
+ * // Returns: 31.5 (35 with 10% discount)
+ * ```
+ */
+export function calculateCartTotal(
+  items: Array<{ price: number; quantity: number }>,
+  discountPercent: number = 0
+): number {
+  const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  return subtotal * (1 - discountPercent / 100);
+}
+```
+
+---
+
+**Remember**: TypeScript is your friend. Embrace the compiler errors—they prevent runtime bugs.

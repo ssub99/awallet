@@ -1,0 +1,420 @@
+---
+description: Design system synchronization and naming convention enforcement for Figma and Notion
+---
+
+# Design System Synchronization Guidelines
+
+## 🎯 OBJECTIVE
+
+When importing design tokens, components, or guidelines from Figma or Notion, ensure that naming conventions align with AWallet project standards. If inconsistencies are found, **proactively suggest corrections** and guide the user to update the design tools.
+
+## 🎨 DESIGN SYSTEM SOURCES
+
+### Figma
+- Design tokens (colors, typography, spacing, etc.)
+- Component library
+- Style guides
+- Design specifications
+
+### Notion
+- Design documentation
+- Component guidelines
+- Naming conventions database
+- Design decision records
+
+## 📋 NAMING CONVENTION RULES
+
+### Component Naming:
+```typescript
+// ✅ PROJECT STANDARD - PascalCase for components
+ThemedButton
+UserProfileCard
+NavigationHeader
+
+// ❌ FIGMA/NOTION - Common incorrect patterns
+themed-button          → Should be: ThemedButton
+user_profile_card      → Should be: UserProfileCard
+navigationHeader       → Should be: NavigationHeader
+NAVIGATION_HEADER      → Should be: NavigationHeader
+```
+
+### Design Token Naming:
+```typescript
+// ✅ PROJECT STANDARD - Semantic naming with camelCase/PascalCase
+// Colors
+const Colors = {
+  light: {
+    background: '#FFFFFF',
+    text: '#000000',
+    tint: '#0a7ea4',
+    primary: '#007AFF',
+    secondary: '#5856D6',
+  },
+  dark: {
+    background: '#000000',
+    text: '#FFFFFF',
+    tint: '#fff',
+    primary: '#0A84FF',
+    secondary: '#5E5CE6',
+  },
+};
+
+// ❌ FIGMA - Common incorrect patterns
+'color/background/light'     → Should be: Colors.light.background
+'Background-Light'           → Should be: Colors.light.background
+'bg_light'                   → Should be: Colors.light.background
+'PRIMARY_COLOR'              → Should be: Colors.light.primary
+'color-primary-500'          → Should be: Colors.light.primary
+```
+
+### File and Directory Naming:
+```typescript
+// ✅ PROJECT STANDARD
+components/themed-button.tsx        // kebab-case for files
+hooks/use-theme-color.ts            // kebab-case with 'use' prefix
+constants/theme.ts                  // kebab-case
+
+// ❌ FIGMA/NOTION - Incorrect patterns
+ThemedButton.tsx                    → Should be: themed-button.tsx
+useThemeColor.ts                    → Should be: use-theme-color.ts
+Theme.ts                            → Should be: theme.ts
+```
+
+### Constant Naming:
+```typescript
+// ✅ PROJECT STANDARD - UPPER_SNAKE_CASE
+const DEFAULT_PADDING = 16;
+const MAX_RETRY_COUNT = 3;
+const API_BASE_URL = 'https://api.example.com';
+
+// ❌ FIGMA/NOTION - Incorrect patterns
+defaultPadding                      → Should be: DEFAULT_PADDING
+MaxRetryCount                       → Should be: MAX_RETRY_COUNT
+'api-base-url'                      → Should be: API_BASE_URL
+```
+
+### Hook Naming:
+```typescript
+// ✅ PROJECT STANDARD - camelCase with 'use' prefix
+useThemeColor
+useColorScheme
+useAsyncStorage
+
+// ❌ FIGMA/NOTION - Incorrect patterns
+themeColor                          → Should be: useThemeColor
+UseColorScheme                      → Should be: useColorScheme
+use_theme_color                     → Should be: useThemeColor
+getThemeColor                       → Should be: useThemeColor
+```
+
+## 🔍 VALIDATION PROCESS
+
+### Step 1: Import and Analyze
+When importing from Figma/Notion:
+```typescript
+// Example: Importing design tokens from Figma
+const figmaTokens = {
+  'color-primary-500': '#007AFF',
+  'spacing-base': 16,
+  'Button-Primary': 'component-id-123',
+};
+
+// Immediately validate against project standards
+```
+
+### Step 2: Detect Inconsistencies
+Identify patterns that don't match project conventions:
+- Snake_case → Should be camelCase or PascalCase
+- kebab-case for components → Should be PascalCase
+- Unclear semantic meaning → Should be descriptive
+- Platform-specific naming → Should be cross-platform
+
+### Step 3: Generate Suggestions
+```markdown
+## 🚨 Naming Convention Inconsistencies Detected
+
+The following items from [Figma/Notion] don't match our project standards:
+
+### Colors
+❌ **Figma**: `color-primary-500`
+✅ **Suggested**: `Colors.light.primary`
+📝 **Reason**: Use semantic naming in our theme system
+
+❌ **Figma**: `Background-Light`
+✅ **Suggested**: `Colors.light.background`
+📝 **Reason**: Consistent with theme.ts structure
+
+### Components
+❌ **Figma**: `Button-Primary`
+✅ **Suggested**: `PrimaryButton` or `Button` with variant prop
+📝 **Reason**: PascalCase for React components
+
+❌ **Notion**: `user_profile_card`
+✅ **Suggested**: `UserProfileCard`
+📝 **Reason**: Component naming convention
+
+### Spacing
+❌ **Figma**: `spacing-base`
+✅ **Suggested**: `SPACING_BASE` or add to theme system
+📝 **Reason**: Constants use UPPER_SNAKE_CASE
+
+### Recommended Actions:
+1. Update Figma library to use suggested naming
+2. Update Notion documentation with corrected names
+3. Create a mapping file if legacy names must be preserved
+```
+
+## 🛠️ FIGMA SYNCHRONIZATION WORKFLOW
+
+### When Importing from Figma:
+
+```typescript
+// 1. Extract design tokens
+const figmaStyles = await getFigmaStyles();
+
+// 2. Validate and transform
+const validatedTokens = validateAndTransform(figmaStyles, {
+  sourceFormat: 'figma',
+  targetFormat: 'awallet',
+  strictMode: true,
+});
+
+// 3. Report inconsistencies
+if (validatedTokens.warnings.length > 0) {
+  console.log('⚠️ NAMING INCONSISTENCIES FOUND');
+  console.log('\nPlease update Figma with these corrections:');
+  
+  validatedTokens.warnings.forEach(warning => {
+    console.log(`\n❌ Figma: ${warning.original}`);
+    console.log(`✅ Suggested: ${warning.suggested}`);
+    console.log(`📝 Reason: ${warning.reason}`);
+    console.log(`🔧 Action: ${warning.action}`);
+  });
+  
+  console.log('\n📋 Copy this report and update your Figma library');
+}
+```
+
+### Figma Update Guide:
+```markdown
+## How to Update Figma
+
+1. **Colors/Styles**
+   - Open Figma → Assets Panel → Styles
+   - Right-click the style → Rename
+   - Use suggested naming from the report
+   
+2. **Components**
+   - Select component → Right panel → Rename
+   - Update component name to PascalCase
+   - Update variants if needed
+   
+3. **Design Tokens Plugin**
+   - If using Tokens Studio or similar
+   - Update token names in JSON
+   - Re-sync with Figma
+   
+4. **Verify Changes**
+   - Re-export from Figma
+   - Run validation again
+   - All warnings should be resolved
+```
+
+## 📝 NOTION SYNCHRONIZATION WORKFLOW
+
+### When Importing from Notion:
+
+```typescript
+// 1. Extract documentation
+const notionPages = await getNotionPages({
+  database_id: DESIGN_SYSTEM_DB_ID,
+});
+
+// 2. Validate naming in documentation
+const validatedDocs = validateNotionContent(notionPages, {
+  checkCodeBlocks: true,
+  checkTitles: true,
+  checkProperties: true,
+});
+
+// 3. Generate update suggestions
+if (validatedDocs.inconsistencies.length > 0) {
+  generateNotionUpdateReport(validatedDocs.inconsistencies);
+}
+```
+
+### Notion Update Guide:
+```markdown
+## How to Update Notion
+
+1. **Page Titles**
+   - Navigate to the page
+   - Click title → Edit
+   - Use PascalCase for component pages
+   - Use Title Case for documentation
+   
+2. **Code Blocks**
+   - Find code blocks with incorrect naming
+   - Update variable/component names
+   - Ensure examples match project standards
+   
+3. **Database Properties**
+   - Open database → Properties
+   - Rename properties to match conventions
+   - Update all entries accordingly
+   
+4. **Cross-References**
+   - Search for old naming using Ctrl/Cmd + F
+   - Replace with new naming
+   - Update all linked pages
+```
+
+## 🎯 AUTOMATED SUGGESTIONS FORMAT
+
+When presenting naming corrections to the user:
+
+```markdown
+## 🔄 Design System Sync Report
+
+### Summary
+- Source: [Figma/Notion]
+- Items analyzed: X
+- Inconsistencies found: Y
+- Auto-fixable: Z
+
+### Required Updates
+
+#### 1. Component: Button-Primary
+**Location**: Figma → Components → Buttons
+**Current Name**: `Button-Primary`
+**Suggested Name**: `PrimaryButton`
+**Rationale**: React components use PascalCase without hyphens
+**Impact**: Medium - Used in 5 designs
+**Action Required**:
+\`\`\`
+1. Open Figma
+2. Navigate to Components → Buttons
+3. Rename "Button-Primary" to "PrimaryButton"
+4. Update all instances (Figma will auto-update)
+\`\`\`
+
+#### 2. Color Token: color-primary-500
+**Location**: Figma → Styles → Colors
+**Current Name**: `color-primary-500`
+**Suggested Name**: Use in code as `Colors.light.primary`
+**Rationale**: Semantic naming in theme system
+**Impact**: High - Core brand color
+**Action Required**:
+\`\`\`
+Option A (Recommended): Update Figma style name to "Primary Color"
+Option B: Keep Figma name but map to Colors.light.primary in code
+
+If Option A:
+1. Figma → Right-click style → Rename to "Primary Color"
+2. Update code to reference Colors.light.primary
+
+If Option B:
+1. Add mapping in constants/figma-tokens.ts:
+   'color-primary-500': Colors.light.primary
+\`\`\`
+
+### Quick Fix Commands
+
+If you agree with all suggestions, I can:
+1. ✅ Generate a mapping file for legacy compatibility
+2. ✅ Create updated theme.ts with new tokens
+3. ✅ Generate a checklist for manual Figma updates
+4. ✅ Create updated Notion documentation
+
+Would you like me to proceed?
+```
+
+## 🔄 BIDIRECTIONAL SYNC STRATEGY
+
+### Design Tool → Code (Import):
+1. Extract tokens/components from Figma/Notion
+2. Validate against project conventions
+3. Report inconsistencies with suggestions
+4. User updates design tool
+5. Re-import and verify
+
+### Code → Design Tool (Export):
+1. Extract types/components from codebase
+2. Generate Figma-compatible token JSON
+3. Suggest updates to Figma library
+4. Generate Notion documentation
+5. User updates design tool
+
+## ⚠️ CRITICAL RULES
+
+### ALWAYS DO:
+1. **Always validate** naming when importing from design tools
+2. **Always provide specific suggestions** with rationale
+3. **Always show the exact location** in Figma/Notion to update
+4. **Always explain the impact** of naming inconsistencies
+5. **Always offer to generate** corrected documentation
+
+### NEVER DO:
+1. **Never silently accept** incorrect naming from design tools
+2. **Never auto-rename** without asking user first
+3. **Never use design tool naming** if it conflicts with project standards
+4. **Never create components** without validating naming
+5. **Never skip validation** even for small imports
+
+## 📊 NAMING COMPARISON TABLE
+
+| Category | Figma/Notion Pattern | ❌ Wrong | ✅ AWallet Standard |
+|----------|---------------------|----------|-------------------|
+| Components | button-primary, Button_Primary | Yes | PrimaryButton |
+| Colors | color-primary-500, Primary-Color | Yes | Colors.light.primary |
+| Spacing | spacing-base, Spacing-Base | Yes | SPACING_BASE or theme.spacing.base |
+| Typography | text-heading-1, Text/Heading/1 | Yes | theme.typography.h1 or FONT_SIZE_H1 |
+| Files | Button.tsx, ButtonComponent.tsx | Yes | button.tsx, primary-button.tsx |
+| Hooks | ThemeColor, theme_color | Yes | useThemeColor |
+| Constants | apiUrl, api-url | Yes | API_URL |
+
+## 🎓 TEACHING DESIGNERS
+
+When suggesting changes, also educate on the reasoning:
+
+```markdown
+### Why These Naming Conventions?
+
+**PascalCase for Components**
+- Standard in React ecosystem
+- Clear distinction from regular variables
+- Auto-import works better in IDEs
+
+**Semantic Color Names**
+- `primary` instead of `blue-500`
+- Easier theming (light/dark mode)
+- Change color without renaming everywhere
+
+**UPPER_SNAKE_CASE for Constants**
+- Visual distinction from variables
+- Indicates "don't change at runtime"
+- Industry standard
+
+**kebab-case for Files**
+- URL-friendly
+- Works on all file systems
+- Aligns with web standards
+```
+
+## 🚀 IMPLEMENTATION CHECKLIST
+
+When syncing design systems:
+- [ ] Import tokens/components from Figma/Notion
+- [ ] Run naming validation
+- [ ] Generate inconsistency report
+- [ ] Present suggestions with rationale
+- [ ] Provide exact update instructions
+- [ ] Offer to create mapping/documentation
+- [ ] Wait for user confirmation
+- [ ] Apply approved changes
+- [ ] Verify all conventions followed
+- [ ] Update design tool documentation
+
+---
+
+**Remember**: Design tools and code should speak the same language. When they don't, we guide the design tools to match our project standards, ensuring consistency across the entire product development lifecycle.

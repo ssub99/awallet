@@ -1,33 +1,99 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
 
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
+import { TabBar } from '@/components/navigation/tab-bar';
+import { Icon } from '@/components/ui/icon';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme ?? 'light'];
 
   return (
     <Tabs
+      initialRouteName="home"
+      tabBar={(props) => <TabBar {...props} />}
       screenOptions={{
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: false,
-        tabBarButton: HapticTab,
       }}>
+      {/* Main App Screens */}
       <Tabs.Screen
-        name="index"
+        name="home"
         options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          title: '홈',
+          tabBarIcon: ({ focused }) => (
+            <Icon name="home" variant={focused ? 'solid' : 'line'} size={28} color={colors.staticBlack} />
+          ),
         }}
       />
       <Tabs.Screen
-        name="explore"
+        name="create"
         options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+          title: '만들기',
+          tabBarIcon: () => (
+            <Icon name="addTask" variant="line" size={28} color={colors.staticBlack} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="mypage"
+        options={{
+          title: '마이페이지',
+          tabBarIcon: ({ focused }) => (
+            <Icon name="mypage" variant={focused ? 'solid' : 'line'} size={28} color={colors.staticBlack} />
+          ),
+        }}
+      />
+      
+      {/* Design System Tabs - visible in development only */}
+      <Tabs.Screen
+        name="components"
+        options={{
+          title: 'Components',
+          href: __DEV__ ? undefined : null,
+          tabBarIcon: ({ color }) => <Icon name="search" variant="line" size={28} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="icons"
+        options={{
+          title: 'Icons',
+          href: __DEV__ ? undefined : null,
+          tabBarIcon: ({ color }) => <Icon name="info" variant="line" size={28} color={color} />,
+        }}
+      />
+      
+      {/* Hidden tabs - still accessible but not in bottom navigation */}
+      <Tabs.Screen
+        name="index"
+        options={{
+          href: null, // Hide from tab bar
+        }}
+      />
+      <Tabs.Screen
+        name="inputs"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="selectboxs"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="radios"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="tabs"
+        options={{
+          href: null,
         }}
       />
     </Tabs>

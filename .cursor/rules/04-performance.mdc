@@ -1,0 +1,451 @@
+---
+description: Performance optimization guidelines for mobile apps
+---
+
+# Performance Optimization Guidelines for AWallet
+
+## 🎯 MOBILE PERFORMANCE PRINCIPLES
+
+Mobile devices have constraints that web apps don't:
+- **Limited CPU/GPU** - Less processing power
+- **Limited Memory** - App can be killed if using too much
+- **Battery Constraints** - Inefficient code drains battery
+- **Network Variability** - Users may have slow/unstable connections
+
+## 🚫 PERFORMANCE - NEVER DO
+
+### Critical Performance Mistakes:
+```typescript
+// ❌ NEVER - Inline object/array in render
+function BadComponent() {
+  return (
+    <View style={{ padding: 10, margin: 5 }}>
+      <FlatList data={[1, 2, 3]} />
+    </View>
+  );
+}
+
+// ❌ NEVER - Create functions in render
+function BadComponent() {
+  return (
+    <Pressable onPress={() => console.log('pressed')}>
+      <Child onEvent={(x) => handleEvent(x)} />
+    </Pressable>
+  );
+}
+
+// ❌ NEVER - Expensive calculations in render
+function BadComponent({ items }) {
+  const sorted = items.sort((a, b) => a - b); // Runs every render!
+  return <View />;
+}
+
+// ❌ NEVER - Deep object comparisons in useEffect deps
+useEffect(() => {
+  doSomething();
+}, [largeObject]); // Will re-run on every render!
+
+// ❌ NEVER - Synchronous expensive operations on UI thread
+function BadComponent() {
+  const processedData = heavyComputation(bigDataSet); // Blocks UI!
+  return <View />;
+}
+```
+
+## ✅ PERFORMANCE - ALWAYS DO
+
+### Memoization Strategy:
+```typescript
+// ✅ useMemo for expensive calculations
+import { useMemo } from 'react';
+
+function GoodComponent({ items }) {
+  const sortedItems = useMemo(() => {
+    return items.sort((a, b) => a.price - b.price);
+  }, [items]);
+  
+  const statistics = useMemo(() => {
+    return {
+      total: items.reduce((sum, item) => sum + item.price, 0),
+      average: items.length > 0 ? total / items.length : 0,
+    };
+  }, [items]);
+  
+  return <View>{/* Use sortedItems and statistics */}</View>;
+}
+
+// ✅ useCallback for functions passed to children
+function GoodComponent() {
+  const [count, setCount] = useState(0);
+  
+  const handleIncrement = useCallback(() => {
+    setCount(c => c + 1);
+  }, []);
+  
+  const handleDecrement = useCallback(() => {
+    setCount(c => c - 1);
+  }, []);
+  
+  return (
+    <>
+      <MemoizedButton onPress={handleIncrement}>+</MemoizedButton>
+      <MemoizedButton onPress={handleDecrement}>-</MemoizedButton>
+    </>
+  );
+}
+
+// ✅ React.memo for components that re-render often
+export const ExpensiveChild = React.memo(({ data, onAction }) => {
+  // Expensive rendering logic
+  return <View>{/* ... */}</View>;
+});
+```
+
+### List Performance:
+```typescript
+import { FlatList, VirtualizedList } from 'react-native';
+
+// ✅ Use FlatList for long lists
+function GoodListComponent({ items }) {
+  const renderItem = useCallback(({ item }) => (
+    <ItemComponent item={item} />
+  ), []);
+  
+  const keyExtractor = useCallback((item) => item.id, []);
+  
+  return (
+    <FlatList
+      data={items}
+      renderItem={renderItem}
+      keyExtractor={keyExtractor}
+      // Performance optimizations
+      removeClippedSubviews={true}
+      maxToRenderPerBatch={10}
+      updateCellsBatchingPeriod={50}
+      initialNumToRender={10}
+      windowSize={21}
+      getItemLayout={(data, index) => ({
+        length: ITEM_HEIGHT,
+        offset: ITEM_HEIGHT * index,
+        index,
+      })}
+    />
+  );
+}
+
+// ❌ WRONG - map() for long lists
+function BadListComponent({ items }) {
+  return (
+    <ScrollView>
+      {items.map(item => <ItemComponent key={item.id} item={item} />)}
+    </ScrollView>
+  );
+}
+```
+
+### Image Optimization:
+```typescript
+import { Image } from 'expo-image';
+
+// ✅ Use expo-image (faster, better caching)
+function GoodImageComponent({ source }) {
+  return (
+    <Image
+      source={source}
+      placeholder={blurhash}
+      contentFit="cover"
+      transition={1000}
+      cachePolicy="memory-disk"
+    />
+  );
+}
+
+// ✅ Proper image sizing
+<Image
+  source={{ uri: imageUrl }}
+  style={{ width: 100, height: 100 }} // Specific dimensions
+  contentFit="cover"
+/>
+
+// ❌ WRONG - No dimensions (causes layout shifts)
+<Image source={{ uri: imageUrl }} />
+```
+
+## ⚡ STATE MANAGEMENT PERFORMANCE
+
+### State Updates:
+```typescript
+// ✅ Batch state updates
+import { unstable_batchedUpdates } from 'react-native';
+
+function handleMultipleUpdates() {
+  unstable_batchedUpdates(() => {
+    setName('John');
+    setAge(30);
+    setEmail('john@example.com');
+  });
+}
+
+// ✅ Use reducer for complex state
+import { useReducer } from 'react';
+
+type State = {
+  loading: boolean;
+  data: Data | null;
+  error: Error | null;
+};
+
+type Action =
+  | { type: 'FETCH_START' }
+  | { type: 'FETCH_SUCCESS'; payload: Data }
+  | { type: 'FETCH_ERROR'; error: Error };
+
+function reducer(state: State, action: Action): State {
+  switch (action.type) {
+    case 'FETCH_START':
+      return { loading: true, data: null, error: null };
+    case 'FETCH_SUCCESS':
+      return { loading: false, data: action.payload, error: null };
+    case 'FETCH_ERROR':
+      return { loading: false, data: null, error: action.error };
+    default:
+      return state;
+  }
+}
+
+function useDataFetch() {
+  const [state, dispatch] = useReducer(reducer, {
+    loading: false,
+    data: null,
+    error: null,
+  });
+  
+  // Single dispatch updates entire state
+  return [state, dispatch];
+}
+```
+
+### Context Performance:
+```typescript
+// ✅ Split contexts to prevent unnecessary re-renders
+const UserContext = createContext<User | null>(null);
+const ThemeContext = createContext<Theme>(defaultTheme);
+
+// ❌ WRONG - Single context with everything
+const AppContext = createContext<{
+  user: User | null;
+  theme: Theme;
+  settings: Settings;
+}>(defaultValue);
+
+// ✅ Memoize context value
+function UserProvider({ children }) {
+  const [user, setUser] = useState<User | null>(null);
+  
+  const value = useMemo(() => ({ user, setUser }), [user]);
+  
+  return (
+    <UserContext.Provider value={value}>
+      {children}
+    </UserContext.Provider>
+  );
+}
+```
+
+## 🎨 RENDER PERFORMANCE
+
+### StyleSheet Optimization:
+```typescript
+// ✅ Define styles outside component
+const styles = StyleSheet.create({
+  container: { flex: 1, padding: 16 },
+  text: { fontSize: 16, color: '#000' },
+});
+
+// ✅ Or use useMemo for dynamic styles
+function Component({ theme }) {
+  const dynamicStyles = useMemo(() => StyleSheet.create({
+    container: {
+      backgroundColor: theme.background,
+      padding: 16,
+    },
+  }), [theme]);
+  
+  return <View style={dynamicStyles.container} />;
+}
+
+// ❌ WRONG - Creating styles in render
+function BadComponent() {
+  const styles = StyleSheet.create({ // Re-created every render!
+    container: { flex: 1 },
+  });
+  return <View style={styles.container} />;
+}
+```
+
+### Conditional Rendering:
+```typescript
+// ✅ Early return for loading states
+function Component({ data, loading }) {
+  if (loading) {
+    return <LoadingSpinner />;
+  }
+  
+  if (!data) {
+    return <EmptyState />;
+  }
+  
+  // Main content rendering
+  return <MainContent data={data} />;
+}
+
+// ✅ Use null instead of conditional with &&
+// Good for performance (avoids creating/destroying elements)
+{showModal ? <Modal /> : null}
+
+// ❌ Avoid (can cause issues with 0, false, etc.)
+{count && <Badge count={count} />} // Shows "0" when count is 0!
+{count > 0 && <Badge count={count} />} // Better
+```
+
+## 🔄 ANIMATION PERFORMANCE
+
+### Use Reanimated for Animations:
+```typescript
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
+
+// ✅ Reanimated runs on UI thread (60 FPS)
+function AnimatedComponent() {
+  const offset = useSharedValue(0);
+  
+  const animatedStyles = useAnimatedStyle(() => ({
+    transform: [{ translateX: offset.value }],
+  }));
+  
+  const handlePress = () => {
+    offset.value = withSpring(offset.value + 100);
+  };
+  
+  return (
+    <Pressable onPress={handlePress}>
+      <Animated.View style={animatedStyles}>
+        <Text>Drag me</Text>
+      </Animated.View>
+    </Pressable>
+  );
+}
+
+// ❌ WRONG - Animated API (runs on JS thread, can be janky)
+const fadeAnim = useRef(new Animated.Value(0)).current;
+```
+
+## 📡 NETWORK PERFORMANCE
+
+### API Call Optimization:
+```typescript
+// ✅ Debounce search inputs
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
+
+function SearchComponent() {
+  const [query, setQuery] = useState('');
+  const debouncedQuery = useDebouncedValue(query, 500);
+  
+  useEffect(() => {
+    if (debouncedQuery) {
+      searchAPI(debouncedQuery);
+    }
+  }, [debouncedQuery]);
+  
+  return <TextInput value={query} onChangeText={setQuery} />;
+}
+
+// ✅ Cancel pending requests
+useEffect(() => {
+  const controller = new AbortController();
+  
+  fetch(url, { signal: controller.signal })
+    .then(res => res.json())
+    .then(setData);
+  
+  return () => controller.abort();
+}, [url]);
+
+// ✅ Implement request deduplication
+const requestCache = new Map();
+
+async function fetchWithCache(url: string) {
+  if (requestCache.has(url)) {
+    return requestCache.get(url);
+  }
+  
+  const promise = fetch(url).then(r => r.json());
+  requestCache.set(url, promise);
+  
+  return promise;
+}
+```
+
+## 🧪 PERFORMANCE MONITORING
+
+### Use Performance Profiler:
+```typescript
+// ✅ Measure component performance
+import { Profiler } from 'react';
+
+function onRenderCallback(
+  id: string,
+  phase: 'mount' | 'update',
+  actualDuration: number,
+  baseDuration: number,
+  startTime: number,
+  commitTime: number
+) {
+  console.log(`${id} (${phase}) took ${actualDuration}ms`);
+}
+
+<Profiler id="MyComponent" onRender={onRenderCallback}>
+  <MyComponent />
+</Profiler>
+```
+
+## 📊 BUNDLE SIZE OPTIMIZATION
+
+### Code Splitting:
+```typescript
+// ✅ Lazy load heavy dependencies
+const HeavyChart = React.lazy(() => import('./heavy-chart'));
+
+function ChartScreen() {
+  return (
+    <Suspense fallback={<LoadingSpinner />}>
+      <HeavyChart data={data} />
+    </Suspense>
+  );
+}
+
+// ✅ Import only what you need
+import { debounce } from 'lodash/debounce'; // ✅ 
+import _ from 'lodash'; // ❌ imports entire library
+```
+
+## 🎯 PERFORMANCE CHECKLIST
+
+Before shipping any feature:
+- [ ] No console.log statements in production code
+- [ ] Lists use FlatList with proper optimizations
+- [ ] Images have proper dimensions and use expo-image
+- [ ] Expensive calculations are memoized
+- [ ] Callbacks passed to children are memoized
+- [ ] No inline styles or functions in render
+- [ ] Animations use Reanimated
+- [ ] Network requests are debounced/throttled where appropriate
+- [ ] Large components are code-split with lazy loading
+- [ ] Performance profiled with no obvious bottlenecks
+
+---
+
+**Remember**: Premature optimization is the root of all evil, but mobile performance is NOT premature. Always think mobile-first.

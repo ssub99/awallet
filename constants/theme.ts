@@ -1,31 +1,27 @@
 /**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
+ * Theme Configuration
+ * 
+ * This file exports the complete theme system including:
+ * - Colors (from ThemeColors - Figma/Notion synchronized)
+ * - Typography (Text styles with Pretendard font)
+ * - Fonts (Platform-specific font stacks)
+ * 
+ * Architecture:
+ * 1. Atomic Colors (atomic-colors.ts) - Base color palette
+ * 2. Theme Colors (theme-colors.ts) - Semantic color layer
+ * 3. Typography (typography.ts) - Text styles
+ * 4. This file - Main export for the app
  */
 
 import { Platform } from 'react-native';
+import { ThemeColors } from './theme-colors';
 
-const tintColorLight = '#0a7ea4';
-const tintColorDark = '#fff';
+// Re-export ThemeColors as Colors for app-wide usage
+export const Colors = ThemeColors;
 
-export const Colors = {
-  light: {
-    text: '#11181C',
-    background: '#fff',
-    tint: tintColorLight,
-    icon: '#687076',
-    tabIconDefault: '#687076',
-    tabIconSelected: tintColorLight,
-  },
-  dark: {
-    text: '#ECEDEE',
-    background: '#151718',
-    tint: tintColorDark,
-    icon: '#9BA1A6',
-    tabIconDefault: '#9BA1A6',
-    tabIconSelected: tintColorDark,
-  },
-};
+// Re-export Typography system
+export { Typography, TypographyPresets } from './typography';
+export type { FontWeight, SizeCategory } from './typography';
 
 export const Fonts = Platform.select({
   ios: {

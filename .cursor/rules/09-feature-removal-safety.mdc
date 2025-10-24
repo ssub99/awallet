@@ -1,0 +1,213 @@
+---
+alwaysApply: true
+description: Feature removal safety guidelines and procedures
+---
+
+# Feature Removal Safety Guidelines
+
+## 🎯 CORE PRINCIPLE
+
+**ALWAYS perform comprehensive safety checks before removing any feature to prevent breaking other functionality.**
+
+---
+
+## ✅ MANDATORY SAFETY PROCEDURE
+
+### Step 1: Pre-Removal Analysis
+**BEFORE removing any feature, ALWAYS ask the user:**
+
+```
+"I need to perform a safety analysis before removing [feature name].
+
+This analysis will check for:
+- Functions that handle multiple features together
+- Shared logic between features
+- Dependencies that might break other functionality
+- Data structures that might be affected
+
+Should I proceed with the safety analysis first?"
+```
+
+### Step 2: Risk Assessment
+**If user requests immediate removal without analysis:**
+
+```
+"⚠️ WARNING: Removing [feature name] without safety analysis could:
+- Break other features that share logic
+- Cause runtime errors in related functions
+- Corrupt data structures
+- Require extensive debugging later
+
+I strongly recommend the safety analysis first. Do you want to:
+A) Proceed with safety analysis (recommended)
+B) Remove immediately (high risk)
+C) Cancel removal
+
+Please confirm your choice."
+```
+
+### Step 3: Triple Safety Audit
+**When performing safety analysis, conduct 3 comprehensive checks:**
+
+#### 1st Audit: Function-Level Analysis
+- Search for functions that handle multiple features together
+- Check for shared conditional logic (e.g., `if (featureA || featureB)`)
+- Identify functions that process both target feature and other features
+
+#### 2nd Audit: Data Structure Analysis
+- Check for shared data fields between features
+- Identify common properties in interfaces/types
+- Look for shared state variables
+
+#### 3rd Audit: UI/Logic Integration Analysis
+- Check for UI components that display multiple features
+- Look for shared validation logic
+- Identify common utility functions
+
+### Step 4: Separation Requirements
+**If interconnected code is found:**
+
+```
+"🔍 SAFETY ANALYSIS COMPLETE
+
+Found interconnected code:
+- [List specific functions/components that share logic]
+- [List shared data structures]
+- [List common UI elements]
+
+⚠️ SEPARATION REQUIRED: The target feature is integrated with other features.
+
+Required actions:
+1. Separate shared logic into independent functions
+2. Split shared data structures
+3. Isolate UI components
+4. Update dependent code
+
+Would you like me to:
+A) Proceed with separation first, then remove feature
+B) Show detailed separation plan
+C) Cancel removal
+
+Please choose your approach."
+```
+
+### Step 5: Safe Removal Execution
+**Only after separation is complete:**
+
+```
+"✅ SEPARATION COMPLETE
+
+Now safely removing [feature name]:
+- [List what will be removed]
+- [List what will remain intact]
+- [List any cleanup actions]
+
+Proceeding with removal..."
+```
+
+---
+
+## 🔍 SEARCH STRATEGIES
+
+### Function Interconnection Detection:
+```bash
+# Search for functions handling multiple features
+grep: "function.*featureA.*featureB|featureB.*featureA"
+grep: "if.*featureA.*featureB|if.*featureB.*featureA"
+grep: "featureA.*&&.*featureB|featureB.*&&.*featureA"
+```
+
+### Data Structure Analysis:
+```bash
+# Search for shared properties
+grep: "interface.*featureA.*featureB"
+grep: "type.*featureA.*featureB"
+grep: "featureA.*featureB.*:"
+```
+
+### UI Integration Check:
+```bash
+# Search for shared UI components
+grep: "featureA.*featureB.*component"
+grep: "component.*featureA.*featureB"
+```
+
+---
+
+## 📋 SAFETY CHECKLIST
+
+Before any feature removal:
+
+- [ ] **1st Audit**: Function-level interconnection check
+- [ ] **2nd Audit**: Data structure sharing analysis  
+- [ ] **3rd Audit**: UI/logic integration review
+- [ ] **Separation**: Split shared code if found
+- [ ] **Verification**: Confirm no breaking changes
+- [ ] **Cleanup**: Remove only target feature code
+- [ ] **Testing**: Verify remaining functionality works
+
+---
+
+## 🚨 RED FLAGS - STOP AND SEPARATE
+
+Stop removal and require separation if you find:
+
+- ❌ Functions with `if (featureA || featureB)` logic
+- ❌ Shared data structures with multiple feature properties
+- ❌ UI components displaying multiple features
+- ❌ Common utility functions used by multiple features
+- ❌ Shared validation or processing logic
+- ❌ Common state management for multiple features
+
+---
+
+## 💡 EXAMPLES
+
+### Example 1: Safe Removal
+```
+User: "Remove feature X"
+
+✅ CORRECT Response:
+"I'll perform a safety analysis for feature X removal.
+
+1st Audit: Checking function-level interconnections...
+2nd Audit: Analyzing data structure sharing...
+3rd Audit: Reviewing UI/logic integration...
+
+✅ ANALYSIS COMPLETE: Feature X is isolated.
+Safely removing feature X..."
+```
+
+### Example 2: Separation Required
+```
+User: "Remove feature X"
+
+⚠️ CORRECT Response:
+"Safety analysis found interconnected code:
+- Function `processData()` handles both feature X and feature Y
+- Interface `UserData` contains properties for both features
+- Component `DataDisplay` shows both features
+
+⚠️ SEPARATION REQUIRED before removal.
+Proceeding with separation..."
+```
+
+---
+
+## 🎯 SUMMARY
+
+### Golden Rules:
+1. **Always Ask First** - Request safety analysis before removal
+2. **Warn About Risks** - Explain dangers of immediate removal
+3. **Triple Check** - Perform 3 comprehensive audits
+4. **Separate When Needed** - Split shared code before removal
+5. **Remove Safely** - Only remove after separation is complete
+
+### When in Doubt:
+- ❓ "Is this feature interconnected?" → Perform safety analysis
+- ❓ "Should I separate first?" → Yes, always separate shared code
+- ❓ "Is removal safe now?" → Only after separation is complete
+
+---
+
+**Remember**: It's faster to do safety analysis upfront than to debug broken functionality later.

@@ -1,0 +1,229 @@
+/**
+ * Year View Component
+ * 
+ * Displays monthly summary cards for the entire year.
+ * Shows consumption ratio, amount, and status for each month.
+ */
+
+import { Colors, Typography } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+
+export interface MonthData {
+  month: number; // 1-12
+  income: number; // 입금 금액
+  expense: number; // 소비 금액
+}
+
+export interface YearViewProps {
+  year: number;
+  monthsData: MonthData[];
+  initialMonth?: number; // 초기 스크롤 위치 (월)
+}
+
+export interface YearViewRef {
+  scrollToMonth: (month: number, animated?: boolean) => void;
+}
+
+/**
+ * Year View Component
+ */
+export const YearView = forwardRef<YearViewRef, YearViewProps>(
+  ({ year, monthsData, initialMonth }, ref) => {
+    const colorScheme = useColorScheme();
+    const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+    const scrollViewRef = useRef<ScrollView>(null);
+
+    // 1월부터 12월까지 정렬
+    const sortedData = [...monthsData].sort((a, b) => a.month - b.month);
+
+    // 카드 높이 + 간격
+    const CARD_HEIGHT = 147;
+    const CARD_GAP = 16;
+    const CARD_TOTAL_HEIGHT = CARD_HEIGHT + CARD_GAP;
+
+    // 특정 월로 스크롤하는 메서드 노출
+    useImperativeHandle(ref, () => ({
+      scrollToMonth: (month: number, animated: boolean = true) => {
+        // 1월 = index 0, 2월 = index 1, ..., 12월 = index 11
+        const index = month - 1;
+        const yOffset = index * CARD_TOTAL_HEIGHT;
+        
+        scrollViewRef.current?.scrollTo({
+          y: yOffset,
+          animated,
+        });
+      },
+    }));
+
+    // 초기 마운트 시 initialMonth가 있으면 즉시 그 위치로 (애니메이션 없이)
+    // 이후 외부(home.tsx)에서 애니메이션으로 목표 위치로 이동
+    useEffect(() => {
+      if (initialMonth !== undefined) {
+        const index = initialMonth - 1;
+        const yOffset = index * CARD_TOTAL_HEIGHT;
+        
+        // 렌더링 즉시 해당 위치로 이동 (애니메이션 없음)
+        requestAnimationFrame(() => {
+          scrollViewRef.current?.scrollTo({
+            y: yOffset,
+            animated: false,
+          });
+        });
+      }
+    }, []); // 마운트 시 1회만
+
+    return (
+      <ScrollView 
+        ref={scrollViewRef}
+        style={styles.container}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+      >
+        {sortedData.map((data) => (
+          <MonthCard key={data.month} data={data} colors={colors} />
+        ))}
+      </ScrollView>
+    );
+  }
+);
+
+/**
+ * Month Card Component
+ */
+interface MonthCardProps {
+  data: MonthData;
+  colors: typeof Colors.light;
+}
+
+function MonthCard({ data, colors }: MonthCardProps) {
+  // 입금대비 소비율 계산
+  const calculateRatio = (): number => {
+    if (data.income === 0) return 0;
+    return (data.expense / data.income) * 100;
+  };
+
+  const ratio = calculateRatio();
+  const hasIncome = data.income > 0;
+
+  // 상태 판단 (입금 금액 기준)
+  const getStatus = () => {
+    if (!hasIncome) {
+      // 입금 금액 없음 → NONE
+      return { emoji: '🗑️', text: 'NONE', color: '#9E9E9E', textColor: '#f5f5f5' };
+    }
+    if (ratio <= 100) {
+      // 소비율 ≤ 100% → GOOD (100% 포함)
+      return { emoji: '👍', text: 'GOOD', color: '#20C565', textColor: '#e6fff1' };
+    }
+    // 소비율 > 100% → BAD
+    return { emoji: '😭', text: 'BAD', color: '#EF5252', textColor: '#fbe9e9' };
+  };
+
+  const status = getStatus();
+
+  // 금액 포맷
+  const formatAmount = (amount: number) => {
+    return new Intl.NumberFormat('ko-KR').format(amount) + '원';
+  };
+
+  // 비율 포맷
+  const formatRatio = (ratio: number) => {
+    return ratio.toFixed(1) + '%';
+  };
+
+  return (
+    <View style={[styles.card, { backgroundColor: status.color }]}>
+      {/* 헤더 */}
+      <View style={styles.cardHeader}>
+        <Text style={styles.monthText}>{data.month}월</Text>
+        <Text style={styles.statusText}>
+          {status.emoji} {status.text}
+        </Text>
+      </View>
+
+      {/* 정보 */}
+      <View style={styles.cardInfo}>
+        {/* 입금대비 소비율 */}
+        <View style={styles.infoLeft}>
+          <Text style={[styles.infoLabel, { color: status.textColor }]}>
+            입금대비 소비율
+          </Text>
+          <Text style={styles.infoValue}>
+            {hasIncome ? formatRatio(ratio) : '0%'}
+          </Text>
+        </View>
+
+        {/* 이번달 소비 금액 */}
+        <View style={styles.infoRight}>
+          <Text style={[styles.infoLabel, { color: status.textColor }]}>
+            이번달 소비 금액
+          </Text>
+          <Text style={[styles.infoValue, styles.infoValueRight]}>
+            {data.expense > 0 ? formatAmount(data.expense) : '없음'}
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  contentContainer: {
+    padding: 16,
+    gap: 16,
+  },
+  card: {
+    borderRadius: 16,
+    padding: 20,
+    height: 147,
+    justifyContent: 'space-between',
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  monthText: {
+    ...Typography.headline1.xl.bold,
+    fontSize: 28,
+    lineHeight: 42,
+    color: '#ffffff',
+  },
+  statusText: {
+    ...Typography.headline1.xl.bold,
+    fontSize: 28,
+    lineHeight: 42,
+    color: '#ffffff',
+  },
+  cardInfo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  infoLeft: {
+    gap: 4,
+  },
+  infoRight: {
+    gap: 4,
+    alignItems: 'flex-end',
+  },
+  infoLabel: {
+    ...Typography.body2.r.regular,
+    fontSize: 14,
+    lineHeight: 21,
+  },
+  infoValue: {
+    ...Typography.headline2.l.bold,
+    fontSize: 21,
+    lineHeight: 31.5,
+    color: '#ffffff',
+  },
+  infoValueRight: {
+    textAlign: 'right',
+  },
+});
+
