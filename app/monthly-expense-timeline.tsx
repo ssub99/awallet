@@ -220,6 +220,9 @@ export default function MonthlyExpenseTimelineScreen() {
                 includedDates.push(dateString);
                 if (data.records && Array.isArray(data.records)) {
                   data.records.forEach((record: any, recordIndex: number) => {
+                    // isDeleted가 true인 기록 제외
+                    if (record.isDeleted) return;
+                    
                     items.push({
                       date: dateString,
                       type: record.type,
@@ -333,6 +336,9 @@ export default function MonthlyExpenseTimelineScreen() {
             if (itemDate >= startDate && itemDate <= endDate) {
               if (data.records && Array.isArray(data.records)) {
                 data.records.forEach((record: any) => {
+                  // isDeleted가 true인 기록 제외
+                  if (record.isDeleted) return;
+                  
                   if (record.type === 'expense' && record.category === challenge.category) {
                     totalAmount += record.amount || 0;
                   }

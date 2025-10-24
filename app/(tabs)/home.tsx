@@ -135,9 +135,15 @@ export default function HomeScreen() {
     
     // Load month start day to calculate correct custom month
     const monthStart = await loadMonthStartDay();
+    console.log('📅 [홈] resetToToday 월 시작일:', { monthStart, today: today.toISOString() });
     
     // Get custom month info for today's date
     const customMonthInfo = getCustomMonthInfo(today, monthStart);
+    console.log('📅 [홈] 커스텀 월 정보:', {
+      customMonthInfo,
+      monthStart,
+      today: today.toISOString()
+    });
     
     setCurrentYear(customMonthInfo.year);
     setCurrentMonth(customMonthInfo.month);
@@ -253,6 +259,29 @@ export default function HomeScreen() {
           const storedData = await AsyncStorage.getItem('calendarData');
           if (storedData) {
             const parsedData = JSON.parse(storedData);
+            // isDeleted가 true인 기록 제외하고 계산
+            const totalRecords = Object.values(parsedData).reduce((sum: number, day: any) => {
+              if (day.records) {
+                const activeRecords = day.records.filter((record: any) => !record.isDeleted);
+                return sum + activeRecords.length;
+              }
+              return sum;
+            }, 0);
+            
+            // 활성 기록이 있는 날짜만 dataKeys에 포함
+            const activeDataKeys = Object.keys(parsedData).filter(dateKey => {
+              const day = parsedData[dateKey];
+              if (day.records) {
+                const activeRecords = day.records.filter((record: any) => !record.isDeleted);
+                return activeRecords.length > 0;
+              }
+              return false;
+            });
+            
+            console.log('📊 [홈] 포커스 시 캘린더 데이터 로드:', {
+              dataKeys: activeDataKeys,
+              totalRecords
+            });
             setCalendarData(parsedData);
           } else {
             setCalendarData({});
@@ -260,6 +289,7 @@ export default function HomeScreen() {
           
           // Load month start day
           const monthStart = await loadMonthStartDay();
+          console.log('📅 [홈] 포커스 시 월 시작일 로드:', { monthStart });
           setMonthStartDay(monthStart);
           
           // 현재 날짜가 속하는 올바른 커스텀 월로 설정 (제거됨)
