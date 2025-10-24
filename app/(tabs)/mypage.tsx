@@ -46,7 +46,7 @@ export default function MyPageScreen() {
           if (weekStart !== null) setWeekStartsSunday(JSON.parse(weekStart));
           if (notifications !== null) setNotificationsEnabled(JSON.parse(notifications));
         } catch (error) {
-
+          console.error('설정 로드 중 오류:', error);
         }
       };
 
@@ -75,6 +75,7 @@ export default function MyPageScreen() {
           await AsyncStorage.setItem('notificationsEnabled', JSON.stringify(false));
         }
       } catch (error) {
+        console.error('설정 저장 중 오류:', error);
 
       }
     };
@@ -108,6 +109,7 @@ export default function MyPageScreen() {
       weekStartEvent.emit(value);
 
     } catch (error) {
+      console.error('설정 저장 중 오류:', error);
 
     }
   };
@@ -128,6 +130,7 @@ export default function MyPageScreen() {
       await AsyncStorage.setItem('notificationsEnabled', JSON.stringify(value));
 
     } catch (error) {
+      console.error('설정 저장 중 오류:', error);
 
     }
   };
@@ -152,7 +155,6 @@ export default function MyPageScreen() {
       if (!isAvailable) {
         // Fallback to mailto URL
         const EMAIL = 'support@awallet.com';
-        const mailtoUrl = `mailto:${EMAIL}`;
         
         Alert.alert(
           '메일 앱 없음',
@@ -196,6 +198,7 @@ export default function MyPageScreen() {
 
       }
     } catch (error) {
+      console.error('설정 저장 중 오류:', error);
 
       Alert.alert(
         '오류',
@@ -270,6 +273,7 @@ export default function MyPageScreen() {
 
       }
     } catch (error) {
+      console.error('설정 저장 중 오류:', error);
 
       Alert.alert(
         '오류',

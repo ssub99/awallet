@@ -18,7 +18,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useIsFocused } from '@react-navigation/native';
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Dimensions, Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function HomeScreen() {
@@ -111,7 +111,7 @@ export default function HomeScreen() {
           setSelectedDate(getTodayLocalDate());
         }
       } catch (error) {
-
+        console.error('설정 로드 중 오류:', error);
       } finally {
         setIsLoadingSettings(false);
       }
@@ -130,7 +130,7 @@ export default function HomeScreen() {
   }, [periodType, isLoadingSettings]);
   
   // Reset to today's date (and switch to month view if in year view)
-  const resetToToday = async () => {
+  const resetToToday = useCallback(async () => {
     const today = new Date();
     
     // Load month start day to calculate correct custom month
@@ -159,7 +159,7 @@ export default function HomeScreen() {
     if (periodType === 'year') {
       setPeriodType('month');
     }
-  };
+  }, [periodType, setCurrentYear, setCurrentMonth, setSelectedDate, setPeriodType]);
   
   // Create bottom sheet state
   const [isCreateSheetVisible, setIsCreateSheetVisible] = useState(false);
@@ -175,7 +175,7 @@ export default function HomeScreen() {
     });
     
     return unsubscribe;
-  }, [navigation]);
+  }, [navigation, resetToToday]);
   
   // Listen for create tab press (only when focused)
   useEffect(() => {
@@ -352,37 +352,6 @@ export default function HomeScreen() {
 
   // Calculate monthly financial data from calendar data (based on custom month start day)
   const financialData = useMemo(() => {
-    
-    // 월 범위 계산
-    const { startDate, endDate } = (() => {
-      if (monthStartDay === 1) {
-        return {
-          startDate: new Date(currentYear, currentMonth - 1, 1),
-          endDate: new Date(currentYear, currentMonth, 0)
-        };
-      }
-      
-      const start = new Date(currentYear, currentMonth - 1, monthStartDay);
-      let endYear = currentYear;
-      let endMonth = currentMonth + 1;
-      if (endMonth > 12) {
-        endMonth = 1;
-        endYear += 1;
-      }
-      const end = new Date(endYear, endMonth - 1, monthStartDay - 1);
-      
-      return { startDate: start, endDate: end };
-    })();
-    
-    // 로컬 시간 기준으로 날짜 문자열 생성
-    const formatLocalDate = (date: Date) => {
-      const y = date.getFullYear();
-      const m = String(date.getMonth() + 1).padStart(2, '0');
-      const d = String(date.getDate()).padStart(2, '0');
-      return `${y}-${m}-${d}`;
-    };
-    
-    
     let totalIncome = 0;
     let totalExpense = 0;
     let includedDates: string[] = [];
@@ -673,8 +642,6 @@ export default function HomeScreen() {
     </SafeAreaView>
   );
 }
-
-const SCREEN_WIDTH = Dimensions.get('window').width;
 
 const styles = StyleSheet.create({
   container: {
