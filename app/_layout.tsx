@@ -1,4 +1,6 @@
+import { GlobalProgressBar } from '@/components/ui/global-progress-bar';
 import { Colors } from '@/constants/theme';
+import { LoadingProvider } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useFirstLaunchNotificationPermission } from '@/hooks/use-notifications';
 import { checkEndedChallenges } from '@/utils/challenge-utils';
@@ -59,24 +61,31 @@ export default function RootLayout() {
   }, [permissionChecked]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.staticWhite }}>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="(dev-tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="expense-category" options={{ headerShown: false }} />
-        <Stack.Screen name="expense-record" options={{ headerShown: false }} />
-        <Stack.Screen name="expense-edit" options={{ headerShown: false }} />
-        <Stack.Screen name="income-record" options={{ headerShown: false }} />
-        <Stack.Screen name="income-edit" options={{ headerShown: false }} />
-        <Stack.Screen name="challenge-create" options={{ headerShown: false }} />
-        <Stack.Screen name="challenge-edit" options={{ headerShown: false }} />
-        <Stack.Screen name="monthly-expense-timeline" options={{ headerShown: false }} />
-        <Stack.Screen name="month-start-day" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-      </Stack>
-        <StatusBar style="auto" />
-      </ThemeProvider>
-    </View>
+    <LoadingProvider>
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <Stack>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="(dev-tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="expense-category" options={{ headerShown: false }} />
+          <Stack.Screen name="expense-record" options={{ headerShown: false }} />
+          <Stack.Screen name="expense-edit" options={{ headerShown: false }} />
+          <Stack.Screen name="income-record" options={{ headerShown: false }} />
+          <Stack.Screen name="income-edit" options={{ headerShown: false }} />
+          <Stack.Screen name="challenge-create" options={{ headerShown: false }} />
+          <Stack.Screen name="challenge-edit" options={{ headerShown: false }} />
+          <Stack.Screen name="monthly-expense-timeline" options={{ headerShown: false }} />
+          <Stack.Screen name="month-start-day" options={{ headerShown: false }} />
+          <Stack.Screen name="login" options={{ headerShown: false }} />
+          <Stack.Screen name="email-verify" options={{ headerShown: false }} />
+          <Stack.Screen name="signup-intro" options={{ headerShown: false }} />
+          <Stack.Screen name="signup-complete" options={{ headerShown: false }} />
+          <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+        </Stack>
+          <StatusBar style="auto" />
+          <GlobalProgressBar />
+        </ThemeProvider>
+      </View>
+    </LoadingProvider>
   );
 }

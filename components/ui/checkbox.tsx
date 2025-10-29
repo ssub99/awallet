@@ -27,6 +27,11 @@ export interface CheckboxProps {
   label?: string;
   
   /**
+   * Whether this field is required (renders a red asterisk)
+   */
+  required?: boolean;
+  
+  /**
    * Disabled state
    */
   disabled?: boolean;
@@ -44,6 +49,7 @@ export function Checkbox({
   checked,
   onPress,
   label,
+  required = false,
   disabled = false,
   style,
 }: CheckboxProps) {
@@ -102,8 +108,13 @@ export function Checkbox({
 
       {/* Label */}
       {label && (
-        <Text style={[styles.label, { color: labelColor }]}>
+        <Text style={[styles.label, { color: labelColor }]}
+          accessibilityLabel={label}
+        >
           {label}
+          {required ? (
+            <Text style={[styles.requiredMark, { color: colors.statusNegative }]}> *</Text>
+          ) : null}
         </Text>
       )}
     </Pressable>
@@ -129,6 +140,12 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     lineHeight: 21,
     marginLeft: 8,
+  },
+  requiredMark: {
+    fontSize: 14,
+    fontFamily: 'Pretendard',
+    fontWeight: '500',
+    lineHeight: 21,
   },
 });
 

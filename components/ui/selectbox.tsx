@@ -14,7 +14,7 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Picker } from '@react-native-picker/picker';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Modal, Platform, Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { Animated, Keyboard, Modal, Platform, Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
 
 export interface SelectboxOption {
   label: string;
@@ -134,14 +134,14 @@ export function Selectbox({
   }, [showPicker, dimOpacity, pickerTranslateY]);
 
   const handlePress = () => {
-    // onPress prop이 있으면 disabled 상태여도 호출 (토스트 메시지 등)
-    if (onPress) {
-      onPress();
-    } else if (!disabled) {
-      if (Platform.OS === 'ios') {
-        setTempValue(value); // 임시 값을 현재 값으로 초기화
-        setShowPicker(true);
-      }
+    // 항상 먼저 키패드 등 열린 요소 닫기
+    Keyboard.dismiss();
+    // 사용자가 전달한 onPress (토스트 등) 실행
+    onPress?.();
+    if (disabled) return;
+    if (Platform.OS === 'ios') {
+      setTempValue(value); // 임시 값을 현재 값으로 초기화
+      setShowPicker(true);
     }
   };
 
@@ -190,6 +190,10 @@ export function Selectbox({
           enabled={!disabled}
           style={styles.androidPicker}
           mode="dropdown"
+          onFocus={() => {
+            Keyboard.dismiss();
+            onPress?.();
+          }}
         >
           {options.map((option) => (
             <Picker.Item

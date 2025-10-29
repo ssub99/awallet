@@ -171,7 +171,14 @@ function getIconComponent(name: IconName, variant: IconVariant) {
     return iconComponents.line[name];
   }
   
-  return iconComponents.line[name];
+  const component = iconComponents.line[name];
+  if (!component) {
+    console.error(`Icon component not found: ${name} (${variant})`);
+    // Return a fallback component
+    return iconComponents.line.close; // Use close icon as fallback
+  }
+  
+  return component;
 }
 
 /**
@@ -193,6 +200,12 @@ export function Icon({
   
   const IconComponent = getIconComponent(name, variant);
   const iconColor = color ?? defaultColor;
+
+  // Safety check for IconComponent
+  if (!IconComponent) {
+    console.error(`Failed to get icon component for: ${name} (${variant})`);
+    return null;
+  }
 
   const IconElement = IconComponent as any;
   
