@@ -292,8 +292,8 @@ export default function HomeScreen() {
           console.log('📅 [홈] 포커스 시 월 시작일 로드:', { monthStart });
           setMonthStartDay(monthStart);
           
-          // 현재 날짜가 속하는 올바른 커스텀 월로 설정 (제거됨)
-          // await resetToToday();
+          // 현재 날짜가 속하는 올바른 커스텀 월로 설정
+          await resetToToday();
 
         } catch (error) {
           console.error('월 시작일 변경 감지 중 오류:', error);
