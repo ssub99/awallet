@@ -1,0 +1,41 @@
+---
+alwaysApply: true
+description: Commit Result Notes Guideline
+---
+# Commit Result Notes Guideline
+
+After completing any commit (especially when using in-editor git tools), produce a concise English note in chat summarizing the outcome so users have a clear record of what changed.
+
+What to include (in order):
+- Branch name and whether push to remote succeeded
+- Commit message subject (first line) and a short bullet summary of key changes
+- High-impact files or routes added/modified (only the most relevant)
+- Any migrations/config changes and required follow-up actions (if any)
+- Next suggested steps or verification checklist (1–3 bullets)
+
+Formatting rules:
+- Use short, skimmable bullets
+- Prefer file references with backticks (e.g., `app/email-verify.tsx`)
+- Avoid noisy details like full diff stats unless requested
+
+Example template:
+```
+Commit complete and pushed to <branch>.
+
+Subject: <first line of commit message>
+
+Highlights:
+- <concise bullet 1>
+- <concise bullet 2>
+
+Key files/routes:
+- `<path/to/file>` — <short description>
+
+Follow-ups:
+- <verification or TODO 1>
+- <verification or TODO 2>
+```
+
+Notes:
+- If push failed, state it clearly and include the error summary with a recommended fix.
+- If multiple commits were made in one operation, summarize the most recent commit and mention there were N additional commits.

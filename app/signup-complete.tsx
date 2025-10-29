@@ -14,7 +14,7 @@ export default function SignupCompleteScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ headerShown: false }} />
+      <Stack.Screen options={{ headerShown: false, gestureEnabled: false }} />
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top','bottom']}>
         <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
 
@@ -39,12 +39,12 @@ export default function SignupCompleteScreen() {
           {/* Subtitle */}
           <Text style={[styles.subtitle, { color: colors.textNeutral }]}>회원이 되신 것을 환영합니다.{Platform.OS === 'ios' ? '\n' : '\n'}더욱 쉽고 간편하게 소비를 기록하세요.</Text>
 
-          {/* Button */}
-          <View style={styles.buttonArea}>
-            <Button onPress={() => router.replace('/')}>
-              홈으로
-            </Button>
-          </View>
+        </View>
+
+        <View style={[styles.bottomContainer, { backgroundColor: colors.background }]}>
+          <Button onPress={() => router.replace('/')}>
+            홈으로
+          </Button>
         </View>
       </SafeAreaView>
     </>
@@ -84,6 +84,7 @@ const styles = StyleSheet.create({
   title: { ...Typography.headline4.r.bold, textAlign: 'center' },
   subtitle: { ...Typography.body1.l.regular, textAlign: 'center' },
   buttonArea: { marginTop: 'auto', alignSelf: 'stretch' },
+  bottomContainer: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16 },
 });
 
 

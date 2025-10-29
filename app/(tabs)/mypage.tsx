@@ -9,7 +9,6 @@ import { Icon } from '@/components/ui/icon';
 import { Switch } from '@/components/ui/switch';
 import { ThemeColors } from '@/constants/theme-colors';
 import { Typography } from '@/constants/typography';
-import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getNotificationPermissionStatus, handleNotificationToggle } from '@/hooks/use-notifications';
 import { weekStartEvent } from '@/hooks/use-week-start';
@@ -26,7 +25,6 @@ export default function MyPageScreen() {
   const colors = ThemeColors[colorScheme ?? 'light'];
   const appState = useRef(AppState.currentState);
   const router = useRouter();
-  const { setLoading } = useLoading();
   
   // Settings state
   const [monthStartDay, setMonthStartDay] = useState('1일');
@@ -142,19 +140,7 @@ export default function MyPageScreen() {
     router.push('/login');
   };
 
-  const handleTestLoadingPress = async () => {
-    setLoading(true);
-    
-    try {
-      // 3초간 로딩 시뮬레이션
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      Alert.alert('테스트 완료', '글로벌 프로그레스 바 테스트가 완료되었습니다!');
-    } catch (error) {
-      console.error('Test error:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  
 
   const handleMonthStartDayPress = () => {
 
@@ -343,24 +329,6 @@ export default function MyPageScreen() {
             <Icon name="arrowRight" size={24} color={colors.text} />
           </Pressable>
 
-          {/* Test Loading Button */}
-          <Pressable 
-            style={[styles.card, styles.testButton, { backgroundColor: colors.background }]}
-            onPress={handleTestLoadingPress}
-            accessibilityRole="button"
-            accessibilityLabel="로딩 테스트"
-          >
-            <View style={styles.testButtonContent}>
-              <Text style={[styles.refreshIcon, { color: colors.primary }]}>
-                🔄
-              </Text>
-              <Text style={[styles.testButtonText, { color: colors.primary }]}>
-                글로벌 로딩 테스트 (3초)
-              </Text>
-            </View>
-            <Icon name="arrowRight" size={24} color={colors.text} />
-          </Pressable>
-
           {/* Settings Card */}
           <View style={[styles.card, { backgroundColor: colors.background }]}>
             {/* Month Start Day */}
@@ -528,28 +496,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  // Test Button
-  testButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    minHeight: 60,
-  },
-  testButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flex: 1,
-  },
-  refreshIcon: {
-    fontSize: 20,
-  },
-  testButtonText: {
-    ...Typography.body1.l.medium,
-    flex: 1,
-  },
+  
 
   // Setting Row
   settingRow: {

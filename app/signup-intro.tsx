@@ -19,7 +19,6 @@ import { useState } from 'react';
 import {
     Alert,
     KeyboardAvoidingView,
-    Platform,
     Pressable,
     ScrollView,
     StatusBar,
@@ -191,7 +190,7 @@ export default function SignupIntroScreen() {
 
         <KeyboardAvoidingView 
           style={styles.keyboardAvoidingView}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={undefined}
         >
           <ScrollView 
             style={styles.scrollView}
@@ -297,17 +296,16 @@ export default function SignupIntroScreen() {
                 </View>
               </View>
 
-              {/* Next Button */}
-              <View style={styles.buttonSection}>
-                <Button
-                  onPress={handleNextPress}
-                  disabled={!isFormValid()}
-                >
-                  다음
-                </Button>
-              </View>
             </View>
           </ScrollView>
+          <View style={[styles.bottomContainer, { backgroundColor: colors.background }]}>
+            <Button
+              onPress={handleNextPress}
+              disabled={!isFormValid()}
+            >
+              다음
+            </Button>
+          </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
     </>
@@ -404,6 +402,13 @@ const styles = StyleSheet.create({
   // Button Section
   buttonSection: {
     marginTop: 'auto',
+  },
+
+  // Bottom fixed container
+  bottomContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 16,
   },
 
   // Error Text

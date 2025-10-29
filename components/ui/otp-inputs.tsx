@@ -10,8 +10,12 @@ interface OtpInputsProps {
   onChange: (code: string) => void;
   onComplete?: (code: string) => void;
   error?: boolean;
+  /** 보더만 붉게 표시할지 여부 (에러 캡션과 분리 제어) */
+  errorBorder?: boolean;
   /** 접근성 레이블 */
   accessibilityLabel?: string;
+  /** 에러 캡션 커스텀 메시지 */
+  errorMessage?: string;
   inputProps?: Omit<TextInputProps, 'value' | 'onChangeText' | 'maxLength' | 'keyboardType'>;
 }
 
@@ -21,7 +25,9 @@ export function OtpInputs({
   onChange,
   onComplete,
   error = false,
+  errorBorder = false,
   accessibilityLabel = '인증코드 입력',
+  errorMessage = '인증번호가 일치하지 않습니다.',
   inputProps,
 }: OtpInputsProps) {
   const colorScheme = useColorScheme();
@@ -66,7 +72,47 @@ export function OtpInputs({
       <View style={styles.row}>
         {Array.from({ length }).map((_, i) => {
           const char = safeValue[i] ?? '';
-          const active = i === safeValue.length && safeValue.length < length;
+          
+          // 첫 번째 박스(i=0)를 삭제하고 두 번째 박스(i=1)와 동일하게 재생성
+          if (i === 0) {
+            return (
+              <Pressable
+                key={i}
+                onPress={() => refs.current[i]?.focus()}
+                style={[
+                  styles.cellBox,
+                  { borderColor: colors.border, backgroundColor: colors.staticWhite },
+                  focusedIndex === i && { borderColor: colors.primary },
+                  errorBorder && { borderColor: colors.statusNegative },
+                ]}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={`${i + 1}번째 숫자 입력칸`}
+              >
+                <TextInput
+                  ref={(el) => (refs.current[i] = el)}
+                  value={char}
+                  onChangeText={(t) => {
+                    const onlyDigit = t.replace(/\D/g, '').slice(0, 1);
+                    setDigit(i, onlyDigit);
+                  }}
+                  onKeyPress={(e) => handleKeyPress(i, e.nativeEvent.key)}
+                  onFocus={() => setFocusedIndex(i)}
+                  onBlur={() => setFocusedIndex((prev) => (prev === i ? null : prev))}
+                  keyboardType="number-pad"
+                  maxLength={1}
+                  style={styles.input}
+                  textAlign="center"
+                  {...inputProps}
+                  // 접근성
+                  accessibilityLabel={`${i + 1}번째 숫자`}
+                  accessibilityHint="숫자를 입력하세요"
+                  blurOnSubmit={false}
+                />
+              </Pressable>
+            );
+          }
+          
           return (
             <Pressable
               key={i}
@@ -74,9 +120,8 @@ export function OtpInputs({
               style={[
                 styles.cellBox,
                 { borderColor: colors.border, backgroundColor: colors.staticWhite },
-                active && { borderColor: colors.borderStrong },
                 focusedIndex === i && { borderColor: colors.primary },
-                error && { borderColor: colors.statusNegative },
+                errorBorder && { borderColor: colors.statusNegative },
               ]}
               hitSlop={8}
               accessibilityRole="button"
@@ -107,7 +152,7 @@ export function OtpInputs({
         })}
       </View>
       {error ? (
-        <Text style={[styles.errorText, { color: colors.statusNegative }]}>인증코드가 올바르지 않습니다.</Text>
+        <Text style={[styles.errorText, { color: colors.statusNegative }]}>{errorMessage}</Text>
       ) : null}
     </View>
   );
@@ -134,7 +179,7 @@ const styles = StyleSheet.create({
     textAlignVertical: 'center', // Android
   },
   errorText: {
-    marginTop: 8,
+    marginTop: 24,
     ...Typography.body2.r.regular,
     textAlign: 'center',
   },

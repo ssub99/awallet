@@ -87,7 +87,7 @@ export default function LoginScreen() {
 
   // Navigation handlers
   const handleClosePress = () => {
-    router.back();
+    router.replace('/(tabs)/mypage');
   };
 
   const handleLoginPress = async () => {
@@ -135,14 +135,8 @@ export default function LoginScreen() {
     router.push('/signup-intro');
   };
 
-  const handleFindIdPress = () => {
-    // TODO: Navigate to find ID screen
-    Alert.alert('아이디 찾기', '아이디 찾기 기능은 준비 중입니다.');
-  };
-
-  const handleFindPasswordPress = () => {
-    // TODO: Navigate to find password screen
-    Alert.alert('비밀번호 찾기', '비밀번호 찾기 기능은 준비 중입니다.');
+  const handleFindAccountPress = () => {
+    router.push('/account-verify');
   };
 
   return (
@@ -245,29 +239,16 @@ export default function LoginScreen() {
                 로그인
               </Button>
 
-              {/* Find Account Links */}
+              {/* Find Account Link */}
               <View style={styles.findAccountContainer}>
                 <Pressable 
-                  onPress={handleFindIdPress}
+                  onPress={handleFindAccountPress}
                   style={styles.findAccountLink}
                   accessibilityRole="button"
-                  accessibilityLabel="아이디 찾기"
+                  accessibilityLabel="계정 및 비밀번호 찾기"
                 >
                   <Text style={[styles.findAccountText, { color: colors.textAssistive }]}>
-                    아이디 찾기
-                  </Text>
-                </Pressable>
-                
-                <View style={[styles.findAccountDivider, { backgroundColor: colors.borderStrong }]} />
-                
-                <Pressable 
-                  onPress={handleFindPasswordPress}
-                  style={styles.findAccountLink}
-                  accessibilityRole="button"
-                  accessibilityLabel="비밀번호 찾기"
-                >
-                  <Text style={[styles.findAccountText, { color: colors.textAssistive }]}>
-                    비밀번호 찾기
+                    계정 및 비밀번호 찾기
                   </Text>
                 </Pressable>
               </View>
@@ -370,9 +351,8 @@ const styles = StyleSheet.create({
     opacity: 0.12,
   },
 
-  // Find Account Links
+  // Find Account Link
   findAccountContainer: {
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 8,
@@ -383,12 +363,6 @@ const styles = StyleSheet.create({
   },
   findAccountText: {
     ...Typography.body2.r.medium,
-  },
-  findAccountDivider: {
-    width: 1,
-    height: 12,
-    opacity: 0.32,
-    marginHorizontal: 8,
   },
 
   // Signup Button

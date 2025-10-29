@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
+import { IdFindResultModal } from '@/components/ui/id-find-result-modal';
 import OtpInputs from '@/components/ui/otp-inputs';
 import { ThemeColors } from '@/constants/theme-colors';
 import { Typography } from '@/constants/typography';
@@ -12,30 +13,31 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 const OTP_TTL_MS = 3 * 60 * 1000; // 3분
 
-export default function EmailVerifyScreen() {
+export default function IdFindVerifyScreen() {
   const colorScheme = useColorScheme();
   const colors = ThemeColors[colorScheme ?? 'light'];
   const router = useRouter();
   const params = useLocalSearchParams<{ email?: string | string[] }>();
-  const [displayEmail, setDisplayEmail] = useState<string>('');
 
+  const [displayEmail, setDisplayEmail] = useState<string>('');
   const [code, setCode] = useState('');
-  const [error, setError] = useState(false); // caption control
+  const [error, setError] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
-  const [errorBorder, setErrorBorder] = useState(false); // border highlight control
+  const [errorBorder, setErrorBorder] = useState(false);
   const [isResendDisabled, setIsResendDisabled] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const [expiresAt, setExpiresAt] = useState<number>(Date.now() + OTP_TTL_MS);
-  const [remainingSeconds, setRemainingSeconds] = useState<number>(Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000)));
+  
+  // Modal state
+  const [showResultModal, setShowResultModal] = useState(false);
+  const [foundUserId, setFoundUserId] = useState('');
+  const [registrationDate, setRegistrationDate] = useState('');
 
   const handleBack = () => router.back();
 
   const handleChange = (value: string) => {
     setCode(value);
-    // 입력이 6자 미만이면 보더 하이라이트는 끄되, 캡션은 유지
-    if (value.length < 6) {
-      setErrorBorder(false);
-    }
+    if (value.length < 6) setErrorBorder(false);
   };
 
   useEffect(() => {
@@ -53,18 +55,9 @@ export default function EmailVerifyScreen() {
     })();
   }, [params.email]);
 
-  // 남은 시간 갱신 타이머
-  useEffect(() => {
-    const update = () => {
-      setRemainingSeconds(Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000)));
-    };
-    update();
-    const timer = setInterval(update, 1000);
-    return () => clearInterval(timer);
-  }, [expiresAt]);
+  // 남은 시간은 고정 문구로 안내 (카운트다운 텍스트 미사용)
 
   const handleComplete = useCallback(async (value: string) => {
-    // 만료 우선 체크
     if (Date.now() > expiresAt) {
       setError(true);
       setErrorMessage('인증번호가 만료되었습니다.');
@@ -73,26 +66,30 @@ export default function EmailVerifyScreen() {
     }
 
     try {
-      // 임시 유효값(디자인 확인용): 실제 검증 연동시 제거
+      // TODO: 서버 검증 연동
       const TEMP_VALID_CODE = '123456';
       const isValid = value === TEMP_VALID_CODE;
       if (!isValid) {
-        setError(true); // 캡션 표시 유지
+        setError(true);
         setErrorMessage('인증번호가 일치하지 않습니다.');
-        setErrorBorder(true); // 이번 시도에 한해 보더 표시
+        setErrorBorder(true);
         return;
       }
-      // 성공 시 에러 상태 초기화
       setError(false);
       setErrorMessage('');
       setErrorBorder(false);
-      router.replace('/signup-complete');
+      
+      // TODO: 서버에서 실제 아이디와 가입일 조회
+      // 임시: 사용자가 입력한 이메일을 아이디로 노출하여 본인 확인
+      setFoundUserId(displayEmail);
+      setRegistrationDate('2025.10.10');
+      setShowResultModal(true);
     } catch {
       setError(true);
       setErrorMessage('인증번호가 일치하지 않습니다.');
       setErrorBorder(true);
     }
-  }, [expiresAt, router]);
+  }, [expiresAt, displayEmail]);
 
   const startCooldown = useCallback((seconds: number) => {
     setIsResendDisabled(true);
@@ -112,11 +109,7 @@ export default function EmailVerifyScreen() {
   const handleResend = () => {
     if (isResendDisabled) return;
     // TODO: 재전송 API 호출
-    // 새 만료 타이머 시작
-    const newExpires = Date.now() + OTP_TTL_MS;
-    setExpiresAt(newExpires);
-    setRemainingSeconds(Math.max(0, Math.ceil((newExpires - Date.now()) / 1000)));
-    // 에러 표시 초기화(원하시면 캡션 유지로 바꿀 수 있음)
+    setExpiresAt(Date.now() + OTP_TTL_MS);
     setError(false);
     setErrorMessage('');
     setErrorBorder(false);
@@ -125,26 +118,33 @@ export default function EmailVerifyScreen() {
 
   const canSubmit = code.length === 6 && !error;
 
-  // 화면 진입 시 바로 쿨다운/만료 시작 (초기 발송 직후 UX 반영)
+  // Modal handlers
+  const handleCloseModal = () => {
+    setShowResultModal(false);
+  };
+
+  const handleLoginPress = () => {
+    setShowResultModal(false);
+    router.replace('/login');
+  };
+
+  const handleChangePasswordPress = () => {
+    setShowResultModal(false);
+    router.push('/password-change');
+  };
+
   useEffect(() => {
     if (!isResendDisabled && cooldown === 0) {
       startCooldown(60);
     }
-    // 만료 타이머 시작(초기 발송 시점 가정)
-    const initialExpires = Date.now() + OTP_TTL_MS;
-    setExpiresAt(initialExpires);
-    setRemainingSeconds(Math.max(0, Math.ceil((initialExpires - Date.now()) / 1000)));
+    setExpiresAt(Date.now() + OTP_TTL_MS);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const mm = String(Math.floor(remainingSeconds / 60)).padStart(2, '0');
-  const ss = String(remainingSeconds % 60).padStart(2, '0');
-
-  // 이메일 마스킹 처리 (아이디 뒷자리 3자리)
   const getMaskedEmail = (email: string) => {
     if (!email || !email.includes('@')) return email;
     const [id, domain] = email.split('@');
-    if (id.length <= 3) return email; // 3자리 이하면 마스킹 안함
+    if (id.length <= 3) return email;
     const maskedId = id.slice(0, -3) + '***';
     return `${maskedId}@${domain}`;
   };
@@ -166,9 +166,7 @@ export default function EmailVerifyScreen() {
             >
               <Icon name="arrowLeft" size={24} color={colors.text} />
             </Pressable>
-
             <Text style={[styles.pageTitle, { color: colors.text }]}>이메일 인증</Text>
-
             <View style={styles.placeholder} />
           </View>
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
@@ -179,9 +177,7 @@ export default function EmailVerifyScreen() {
             <View style={[styles.mainContent, { backgroundColor: colors.fill }]}>
               <View style={styles.titleGroup}>
                 <Text style={[styles.title, { color: colors.text }]}>인증 코드를{"\n"}{getMaskedEmail(displayEmail)}로{"\n"}발송하였습니다.</Text>
-                <Text style={[styles.remainingTime, { color: colors.textNeutral }]}>
-                  인증 코드는 3분 후 만료됩니다.
-                </Text>
+                <Text style={[styles.remainingTime, { color: colors.textNeutral }]}>인증 코드는 3분 후 만료됩니다.</Text>
               </View>
 
               <View style={styles.otpArea}>
@@ -204,15 +200,26 @@ export default function EmailVerifyScreen() {
               </View>
             </View>
           </ScrollView>
+
           <View style={[styles.bottomContainer, { backgroundColor: colors.background }]}>
             <View style={styles.buttonSection}>
-              <Button onPress={() => router.replace('/signup-complete')} disabled={!canSubmit}>
+              <Button onPress={() => router.replace('/login')} disabled={!canSubmit}>
                 확인
               </Button>
             </View>
           </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
+
+      {/* ID Find Result Modal */}
+      <IdFindResultModal
+        visible={showResultModal}
+        userId={foundUserId}
+        registrationDate={registrationDate}
+        onClose={handleCloseModal}
+        onLogin={handleLoginPress}
+        onChangePassword={handleChangePasswordPress}
+      />
     </>
   );
 }
@@ -237,8 +244,8 @@ const styles = StyleSheet.create({
   mainContent: { flex: 1, paddingHorizontal: 16, paddingTop: 32, paddingBottom: 32 },
   titleGroup: { marginBottom: 32 },
   title: { ...Typography.headline4.r.bold, lineHeight: 31.5, textAlign: 'center' },
-  otpArea: { alignItems: 'center', marginBottom: 0 },
   remainingTime: { ...Typography.body1.l.regular, textAlign: 'center', marginTop: 16 },
+  otpArea: { alignItems: 'center', marginBottom: 0 },
   resendArea: { alignItems: 'center', marginTop: 'auto' },
   resendPrefix: { ...Typography.body1.l.medium },
   resendText: { ...Typography.body1.l.medium },
