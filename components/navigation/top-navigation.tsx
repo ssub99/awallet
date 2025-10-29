@@ -86,7 +86,7 @@ export interface TopNavigationProps {
   /**
    * Year options for picker (main type with day)
    */
-  yearOptions?: Array<{ label: string; value: number }>;
+  yearOptions?: { label: string; value: number }[];
   
   /**
    * Selected year value
@@ -101,7 +101,7 @@ export interface TopNavigationProps {
   /**
    * Month options for picker (main type with day)
    */
-  monthOptions?: Array<{ label: string; value: number }>;
+  monthOptions?: { label: string; value: number }[];
   
   /**
    * Selected month value

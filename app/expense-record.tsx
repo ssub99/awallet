@@ -5,11 +5,6 @@
  * Supports both create and edit modes.
  */
 
-interface ExpenseRecordProps {
-  mode?: 'create' | 'edit';
-  editData?: any;
-}
-
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Button } from '@/components/ui/button';
 import { CalendarDaySelect } from '@/components/ui/calendar-day-select';
@@ -33,6 +28,11 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Dimensions, Keyboard, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+
+interface ExpenseRecordProps {
+  mode?: 'create' | 'edit';
+  editData?: any;
+}
 
 /**
  * 해당 월의 실제 일자 계산 (월말 처리)
@@ -1518,7 +1518,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       const { startYear, startMonth, editYear, editMonth } = calcPeriod(editData, recurringMonths);
 
       // 삭제할 기록들 찾기
-      const recordsToDelete: Array<{dateKey: string, record: any}> = [];
+      const recordsToDelete: {dateKey: string, record: any}[] = [];
       
       Object.keys(calendarData).forEach(dateKey => {
         if (calendarData[dateKey].records) {

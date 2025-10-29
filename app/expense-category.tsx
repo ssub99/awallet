@@ -43,7 +43,7 @@ export default function ExpenseCategoryScreen() {
       mode: params.mode,
       selectedCategory: params.selectedCategory
     });
-  }, []);
+  }, [params.calendarMonth, params.calendarYear, params.mode, params.selectedCategory, params.selectedDate]);
   
   // 수정 모드인지 확인 (소비 기록 상세에서 온 경우)
   const isEditMode = params.fromEdit === 'true';

@@ -130,12 +130,12 @@ export default function MonthlyExpenseTimelineScreen() {
   const [timelineData, setTimelineData] = useState<TimelineItem[]>([]);
   
   // Category expense data
-  const [categoryExpenses, setCategoryExpenses] = useState<Array<{
+  const [categoryExpenses, setCategoryExpenses] = useState<{
     category: string;
     count: number;
     amount: number;
     memo?: string;
-  }>>([]);
+  }[]>([]);
   
   // Challenge data
   const [challenges, setChallenges] = useState<ChallengeData[]>([]);

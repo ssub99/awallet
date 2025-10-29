@@ -57,8 +57,8 @@ function generateMonthGrid(
   month: number,
   adjustFirstDayOfWeek: (jsDay: number) => number,
   monthStartDay: number = 1
-): Array<{ date: string; day: number; isCurrentMonth: boolean }> {
-  const grid: Array<{ date: string; day: number; isCurrentMonth: boolean }> = [];
+): { date: string; day: number; isCurrentMonth: boolean }[] {
+  const grid: { date: string; day: number; isCurrentMonth: boolean }[] = [];
   
   // monthStartDay 기준으로 시작일과 종료일 계산
   // 예: monthStartDay=21이면, 10월 21일 ~ 11월 20일이 "10월"

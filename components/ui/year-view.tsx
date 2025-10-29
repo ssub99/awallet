@@ -72,7 +72,7 @@ export const YearView = forwardRef<YearViewRef, YearViewProps>(
           });
         });
       }
-    }, []); // 마운트 시 1회만
+    }, [CARD_TOTAL_HEIGHT, initialMonth]); // 마운트 시 1회만
 
     return (
       <ScrollView 

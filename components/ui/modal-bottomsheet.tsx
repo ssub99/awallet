@@ -161,7 +161,7 @@ export function ModalBottomsheet({
     if (visible) {
       setCurrentContent(children);
     }
-  }, [children, visible]);
+  }, [children, visible, dimOpacity, isModalVisible, sheetTranslateY]);
 
   const handleClose = () => {
     onClose();

@@ -31,13 +31,13 @@ const DAY_CELL_WIDTH = Math.floor(SCREEN_WIDTH / 7);
 export interface DayData {
   totalIncome?: number;
   totalExpense?: number;
-  records?: Array<{
+  records?: {
     type: 'income' | 'expense';
     amount: number;
     category: string;
     memo?: string;
     timestamp: number;
-  }>;
+  }[];
 }
 
 export interface CalendarMainProps {
@@ -74,8 +74,8 @@ function generateMonthGrid(
   month: number,
   adjustFirstDayOfWeek: (jsDay: number) => number,
   monthStartDay: number = 1
-): Array<{ date: string; day: number; isCurrentMonth: boolean }> {
-  const grid: Array<{ date: string; day: number; isCurrentMonth: boolean }> = [];
+): { date: string; day: number; isCurrentMonth: boolean }[] {
+  const grid: { date: string; day: number; isCurrentMonth: boolean }[] = [];
   
   if (monthStartDay === 1) {
     // Standard month (1일 시작) - 기존 로직 유지
@@ -309,7 +309,7 @@ export function CalendarMain({
     if (initialMonth !== undefined && initialMonth !== currentMonth) {
       setCurrentMonth(initialMonth);
     }
-  }, [initialYear, initialMonth]);
+  }, [initialYear, initialMonth, currentYear, currentMonth]);
   
   // Handle scroll end
   const handleScrollEnd = (event: any) => {
