@@ -86,7 +86,7 @@ export default function EmailVerifyScreen() {
       setError(false);
       setErrorMessage('');
       setErrorBorder(false);
-      router.replace('/signup-complete');
+      router.replace('/password-set');
     } catch {
       setError(true);
       setErrorMessage('인증번호가 일치하지 않습니다.');
@@ -206,7 +206,7 @@ export default function EmailVerifyScreen() {
           </ScrollView>
           <View style={[styles.bottomContainer, { backgroundColor: colors.background }]}>
             <View style={styles.buttonSection}>
-              <Button onPress={() => router.replace('/signup-complete')} disabled={!canSubmit}>
+              <Button onPress={() => router.replace('/password-set')} disabled={!canSubmit}>
                 확인
               </Button>
             </View>

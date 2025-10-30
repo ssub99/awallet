@@ -34,7 +34,7 @@ export default function IdFindScreen() {
     
     // 검증 성공 시 다음 단계로 이동
     setError(false);
-    router.push({ pathname: '/id-find-verify', params: { email } });
+          router.push({ pathname: '/account-verify-email', params: { email } });
   };
 
   const handleInputChange = (field: 'name' | 'email', value: string) => {

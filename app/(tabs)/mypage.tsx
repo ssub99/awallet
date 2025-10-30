@@ -30,6 +30,7 @@ export default function MyPageScreen() {
   const [monthStartDay, setMonthStartDay] = useState('1일');
   const [weekStartsSunday, setWeekStartsSunday] = useState(true);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [userName, setUserName] = useState<string | null>(null);
 
   // Load settings from AsyncStorage on screen focus
   useFocusEffect(
@@ -45,6 +46,10 @@ export default function MyPageScreen() {
           if (startDay) setMonthStartDay(startDay);
           if (weekStart !== null) setWeekStartsSunday(JSON.parse(weekStart));
           if (notifications !== null) setNotificationsEnabled(JSON.parse(notifications));
+
+          // 로그인 사용자명 로드
+          const storedUserName = await AsyncStorage.getItem('userName');
+          setUserName(storedUserName);
         } catch (error) {
           console.error('설정 로드 중 오류:', error);
         }
@@ -137,7 +142,20 @@ export default function MyPageScreen() {
 
   // Navigation handlers
   const handleLoginPress = () => {
+    if (userName) {
+      return; // 로그인 상태면 동작 없음 (디자인상 화살표 유지)
+    }
     router.push('/login');
+  };
+
+  const handleLogoutPress = async () => {
+    try {
+      await AsyncStorage.removeItem('userName');
+      setUserName(null);
+      Alert.alert('로그아웃', '정상적으로 로그아웃되었습니다.', [{ text: '확인' }]);
+    } catch (error) {
+      console.error('로그아웃 중 오류:', error);
+    }
   };
 
   
@@ -321,7 +339,7 @@ export default function MyPageScreen() {
 
               {/* Login Text */}
               <Text style={[styles.loginText, { color: colors.staticBlack }]}>
-                로그인 후 동기화를 진행해 보세요.
+                {userName ? `${userName}님, 안녕하세요!` : '로그인 후 동기화를 진행해 보세요.'}
               </Text>
             </View>
 
@@ -398,6 +416,21 @@ export default function MyPageScreen() {
               <Icon name="arrowRight" size={24} color={colors.text} />
             </Pressable>
           </View>
+
+          {/* Logout (only when logged in) */}
+          {userName && (
+            <View style={[styles.card, { backgroundColor: colors.background }]}>            
+              <Pressable 
+                style={styles.menuRow}
+                onPress={handleLogoutPress}
+                accessibilityRole="button"
+                accessibilityLabel="로그아웃"
+              >
+                <Text style={[styles.menuLabel, { color: colors.statusNegative }]}>로그아웃</Text>
+                <Icon name="arrowRight" size={24} color={colors.text} />
+              </Pressable>
+            </View>
+          )}
 
           {/* Test Environment Card (only in __DEV__) */}
           {__DEV__ && (

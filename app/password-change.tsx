@@ -222,6 +222,7 @@ export default function PasswordChangeScreen() {
                   secureTextEntry
                   autoCapitalize="none"
                   autoCorrect={false}
+                  keyboardType={Platform.select({ ios: 'ascii-capable', android: 'visible-password' }) as any}
                   maxLength={16}
                   accessibilityLabel="새 비밀번호 입력"
                 />
@@ -232,6 +233,7 @@ export default function PasswordChangeScreen() {
                   secureTextEntry
                   autoCapitalize="none"
                   autoCorrect={false}
+                  keyboardType={Platform.select({ ios: 'ascii-capable', android: 'visible-password' }) as any}
                   maxLength={16}
                   accessibilityLabel="새 비밀번호 입력 확인"
                 />

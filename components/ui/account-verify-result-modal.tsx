@@ -10,15 +10,15 @@ import { Typography } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useEffect, useRef } from 'react';
 import {
-  Animated,
-  Modal,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
+    Animated,
+    Modal,
+    Pressable,
+    StyleSheet,
+    Text,
+    View,
 } from 'react-native';
 
-export interface IdFindResultModalProps {
+export interface AccountVerifyResultModalProps {
   /**
    * Modal visibility
    */
@@ -51,16 +51,16 @@ export interface IdFindResultModalProps {
 }
 
 /**
- * ID Find Result Modal Component
+ * Account Verify Result Modal Component
  */
-export function IdFindResultModal({
+export function AccountVerifyResultModal({
   visible,
   userId,
   registrationDate,
   onClose,
   onLogin,
   onChangePassword,
-}: IdFindResultModalProps) {
+}: AccountVerifyResultModalProps) {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
   

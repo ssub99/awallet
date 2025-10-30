@@ -13,6 +13,7 @@ import { Typography } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Stack, useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useState } from 'react';
 import {
     Alert,
@@ -87,7 +88,7 @@ export default function LoginScreen() {
 
   // Navigation handlers
   const handleClosePress = () => {
-    router.replace('/(tabs)/mypage');
+    router.back();
   };
 
   const handleLoginPress = async () => {
@@ -118,10 +119,12 @@ export default function LoginScreen() {
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // For now, just show success and go back
-      Alert.alert('로그인 성공', '로그인이 완료되었습니다.', [
-        { text: '확인', onPress: () => router.back() }
-      ]);
+      // 임시 사용자명: 이메일의 @ 앞부분 사용
+      const nameFromEmail = email.split('@')[0] ?? '';
+      await AsyncStorage.setItem('userName', nameFromEmail);
+
+      // 마이페이지로 이동 (replace로 스택 정리)
+      router.replace('/(tabs)/mypage');
       
     } catch (error) {
       console.error('Login error:', error);
@@ -152,6 +155,7 @@ export default function LoginScreen() {
       >
         <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
 
+      {/* Screen Content */}
       {/* Top Navigation */}
       <View style={[styles.topNavigation, { backgroundColor: colors.background }]}>
         <View style={styles.topNavigationContent}>

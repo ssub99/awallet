@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 const OTP_TTL_MS = 3 * 60 * 1000; // 3분
 
-export default function IdFindVerifyScreen() {
+export default function AccountVerifyEmailScreen() {
   const colorScheme = useColorScheme();
   const colors = ThemeColors[colorScheme ?? 'light'];
   const router = useRouter();
@@ -79,8 +79,8 @@ export default function IdFindVerifyScreen() {
       setErrorMessage('');
       setErrorBorder(false);
       
-      // TODO: 서버에서 실제 아이디와 가입일 조회
-      // 임시: 사용자가 입력한 이메일을 아이디로 노출하여 본인 확인
+      // TODO: 서버에서 실제 계정 정보와 가입일 조회
+      // 임시: 사용자가 입력한 이메일을 계정으로 노출하여 본인 확인
       setFoundUserId(displayEmail);
       setRegistrationDate('2025.10.10');
       setShowResultModal(true);
