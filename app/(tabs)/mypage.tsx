@@ -13,11 +13,14 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getNotificationPermissionStatus, handleNotificationToggle } from '@/hooks/use-notifications';
 import { weekStartEvent } from '@/hooks/use-week-start';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase, isSupabaseConfigured } from '@/utils/supabase-client';
+import { useLoading } from '@/contexts/loading-context';
 import Constants from 'expo-constants';
 import * as MailComposer from 'expo-mail-composer';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, AppState, AppStateStatus, Linking, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { ModalPopup } from '@/components/ui/modal-popup';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function MyPageScreen() {
@@ -25,12 +28,15 @@ export default function MyPageScreen() {
   const colors = ThemeColors[colorScheme ?? 'light'];
   const appState = useRef(AppState.currentState);
   const router = useRouter();
+  const { setLoading } = useLoading();
   
   // Settings state
   const [monthStartDay, setMonthStartDay] = useState('1일');
   const [weekStartsSunday, setWeekStartsSunday] = useState(true);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [userName, setUserName] = useState<string | null>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   // Load settings from AsyncStorage on screen focus
   useFocusEffect(
@@ -47,9 +53,38 @@ export default function MyPageScreen() {
           if (weekStart !== null) setWeekStartsSunday(JSON.parse(weekStart));
           if (notifications !== null) setNotificationsEnabled(JSON.parse(notifications));
 
-          // 로그인 사용자명 로드
-          const storedUserName = await AsyncStorage.getItem('userName');
-          setUserName(storedUserName);
+          // 로그인 사용자명 로드 (Supabase 프로필만 신뢰)
+          try {
+            if (isSupabaseConfigured) {
+              const { data: userData } = await supabase.auth.getUser();
+              const authUid = userData?.user?.id;
+              if (authUid) {
+                setIsLoggedIn(true);
+                const { data: profile } = await supabase
+                  .from('profiles')
+                  .select('nm')
+                  .eq('auth_uid', authUid)
+                  .maybeSingle();
+                const nm = (profile?.nm as string | null) ?? null;
+                setUserName(nm);
+                if (nm) {
+                  await AsyncStorage.setItem('userName', nm);
+                } else {
+                  await AsyncStorage.removeItem('userName');
+                }
+              } else {
+                setIsLoggedIn(false);
+                setUserName(null);
+                await AsyncStorage.removeItem('userName');
+              }
+            } else {
+              setIsLoggedIn(false);
+              setUserName(null);
+            }
+          } catch {
+            setIsLoggedIn(false);
+            setUserName(null);
+          }
         } catch (error) {
           console.error('설정 로드 중 오류:', error);
         }
@@ -148,13 +183,26 @@ export default function MyPageScreen() {
     router.push('/login');
   };
 
-  const handleLogoutPress = async () => {
+  const handleLogoutPress = () => {
+    setShowLogoutConfirm(true);
+  };
+
+  const confirmLogout = async () => {
     try {
+      setLoading(true);
+      if (isSupabaseConfigured) {
+        await supabase.auth.signOut();
+      }
       await AsyncStorage.removeItem('userName');
       setUserName(null);
-      Alert.alert('로그아웃', '정상적으로 로그아웃되었습니다.', [{ text: '확인' }]);
+      setIsLoggedIn(false);
     } catch (error) {
       console.error('로그아웃 중 오류:', error);
+    } finally {
+      setShowLogoutConfirm(false);
+      setLoading(false);
+      // 화면 리프레시로 상태 일관성 확보
+      router.replace('/(tabs)/mypage');
     }
   };
 
@@ -339,12 +387,16 @@ export default function MyPageScreen() {
 
               {/* Login Text */}
               <Text style={[styles.loginText, { color: colors.staticBlack }]}>
-                {userName ? `${userName}님, 안녕하세요!` : '로그인 후 동기화를 진행해 보세요.'}
+                {isLoggedIn
+                  ? userName ? `${userName}님, 안녕하세요!` : '안녕하세요!'
+                  : '로그인 후 동기화를 진행해 보세요.'}
               </Text>
             </View>
 
-            {/* Arrow Icon */}
-            <Icon name="arrowRight" size={24} color={colors.text} />
+            {/* Arrow Icon (로그인 전용) */}
+            {!isLoggedIn && (
+              <Icon name="arrowRight" size={24} color={colors.text} />
+            )}
           </Pressable>
 
           {/* Settings Card */}
@@ -418,7 +470,7 @@ export default function MyPageScreen() {
           </View>
 
           {/* Logout (only when logged in) */}
-          {userName && (
+          {isLoggedIn && (
             <View style={[styles.card, { backgroundColor: colors.background }]}>            
               <Pressable 
                 style={styles.menuRow}
@@ -427,7 +479,6 @@ export default function MyPageScreen() {
                 accessibilityLabel="로그아웃"
               >
                 <Text style={[styles.menuLabel, { color: colors.statusNegative }]}>로그아웃</Text>
-                <Icon name="arrowRight" size={24} color={colors.text} />
               </Pressable>
             </View>
           )}
@@ -453,6 +504,16 @@ export default function MyPageScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* Logout Confirm Modal */}
+      <ModalPopup
+        visible={showLogoutConfirm}
+        message={"로그아웃 하시겠어요?"}
+        confirmText="확인"
+        onConfirm={confirmLogout}
+        cancelText="취소"
+        onCancel={() => setShowLogoutConfirm(false)}
+      />
     </SafeAreaView>
   );
 }

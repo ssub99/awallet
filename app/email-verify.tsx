@@ -9,6 +9,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { supabase, isSupabaseConfigured } from '@/utils/supabase-client';
 
 const OTP_TTL_MS = 3 * 60 * 1000; // 3분
 
@@ -73,23 +74,28 @@ export default function EmailVerifyScreen() {
     }
 
     try {
-      // 임시 유효값(디자인 확인용): 실제 검증 연동시 제거
-      const TEMP_VALID_CODE = '123456';
-      const isValid = value === TEMP_VALID_CODE;
-      if (!isValid) {
-        setError(true); // 캡션 표시 유지
-        setErrorMessage('인증번호가 일치하지 않습니다.');
-        setErrorBorder(true); // 이번 시도에 한해 보더 표시
+      if (!isSupabaseConfigured) {
+        throw new Error('Supabase not configured');
+      }
+      const email = displayEmail;
+      const { error: verifyError } = await supabase.auth.verifyOtp({
+        email,
+        token: value,
+        type: 'email',
+      });
+      if (verifyError) {
+        setError(true);
+        setErrorMessage(verifyError.message?.includes('Token has expired') ? '인증번호가 만료되었습니다.' : '인증번호가 일치하지 않습니다.');
+        setErrorBorder(true);
         return;
       }
-      // 성공 시 에러 상태 초기화
       setError(false);
       setErrorMessage('');
       setErrorBorder(false);
       router.replace('/password-set');
-    } catch {
+    } catch (e) {
       setError(true);
-      setErrorMessage('인증번호가 일치하지 않습니다.');
+      setErrorMessage('네트워크 오류가 발생했습니다.');
       setErrorBorder(true);
     }
   }, [expiresAt, router]);
@@ -111,7 +117,10 @@ export default function EmailVerifyScreen() {
 
   const handleResend = () => {
     if (isResendDisabled) return;
-    // TODO: 재전송 API 호출
+    // Supabase OTP 재전송
+    if (isSupabaseConfigured && displayEmail) {
+      supabase.auth.signInWithOtp({ email: displayEmail, options: { shouldCreateUser: true } }).catch(() => {});
+    }
     // 새 만료 타이머 시작
     const newExpires = Date.now() + OTP_TTL_MS;
     setExpiresAt(newExpires);

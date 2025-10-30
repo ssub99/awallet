@@ -5,14 +5,29 @@ import { ThemeColors } from '@/constants/theme-colors';
 import { Typography } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Stack, useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { supabase, isSupabaseConfigured } from '@/utils/supabase-client';
+import { upsertProfile } from '@/utils/profiles';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getOrCreateDeviceId } from '@/utils/device-id';
 
 export default function PasswordSetScreen() {
   const colorScheme = useColorScheme();
   const colors = ThemeColors[colorScheme ?? 'light'];
   const router = useRouter();
+  // 인증 세션 가드: 세션이 없으면 처음으로 되돌림
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await supabase.auth.getUser();
+        if (!data?.user) {
+          router.replace('/signup-intro');
+        }
+      } catch {}
+    })();
+  }, [router]);
 
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -54,7 +69,7 @@ export default function PasswordSetScreen() {
     setConfirm(next);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     setError('');
     setKoreanError('');
 
@@ -68,8 +83,37 @@ export default function PasswordSetScreen() {
       return;
     }
 
-    // TODO: 서버에 비밀번호 설정 요청
-    router.replace('/signup-complete');
+    try {
+      if (!isSupabaseConfigured) throw new Error('Supabase not configured');
+      const { data: userData } = await supabase.auth.getUser();
+      const user = userData?.user;
+      const { error: updateErr } = await supabase.auth.updateUser({ password });
+      if (updateErr) {
+        setError(updateErr.message || '비밀번호 설정에 실패했습니다.');
+        return;
+      }
+      try {
+        if (user?.id) {
+          const [savedName, savedBirth] = await AsyncStorage.multiGet(['signupName', 'signupBirth']);
+          const nameVal = savedName?.[1] ?? null;
+          const birthVal = savedBirth?.[1] ?? null; // YYYY-MM-DD
+          const deviceId = await getOrCreateDeviceId();
+          await upsertProfile({
+            authUid: user.id,
+            email: user.email ?? null,
+            name: nameVal,
+            birthDate: birthVal,
+            deviceId,
+            loginAt: new Date().toISOString(),
+          });
+          // cleanup
+          await AsyncStorage.multiRemove(['signupName', 'signupBirth']);
+        }
+      } catch {}
+      router.replace('/signup-complete');
+    } catch {
+      setError('네트워크 오류가 발생했습니다.');
+    }
   };
 
   return (

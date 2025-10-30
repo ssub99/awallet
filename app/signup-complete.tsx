@@ -42,8 +42,8 @@ export default function SignupCompleteScreen() {
         </View>
 
         <View style={[styles.bottomContainer, { backgroundColor: colors.background }]}>
-          <Button onPress={() => router.replace('/')}>
-            홈으로
+          <Button onPress={() => router.replace('/(tabs)/mypage')}>
+            확인
           </Button>
         </View>
       </SafeAreaView>

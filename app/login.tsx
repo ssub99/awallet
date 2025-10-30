@@ -12,6 +12,9 @@ import { ThemeColors } from '@/constants/theme-colors';
 import { Typography } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { supabase, isSupabaseConfigured } from '@/utils/supabase-client';
+import { upsertProfile } from '@/utils/profiles';
+import { getOrCreateDeviceId } from '@/utils/device-id';
 import { Stack, useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useState } from 'react';
@@ -111,24 +114,52 @@ export default function LoginScreen() {
     }
 
     setLoading(true);
-    
+
     try {
-      // TODO: Implement actual login logic
-      console.log('Login attempt:', { email, password });
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // 임시 사용자명: 이메일의 @ 앞부분 사용
-      const nameFromEmail = email.split('@')[0] ?? '';
-      await AsyncStorage.setItem('userName', nameFromEmail);
+      if (!isSupabaseConfigured) {
+        throw new Error('Supabase not configured');
+      }
+
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (authError || !data?.user) {
+        Alert.alert('로그인 실패', '이메일 또는 비밀번호가 올바르지 않습니다.');
+        return;
+      }
+
+      const user = data.user;
+      // 로그인 후 프로필에서 이름을 조회하여 저장 (이메일 아이디 하드코딩 제거)
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('nm')
+          .eq('auth_uid', user.id)
+          .maybeSingle();
+        if (profile?.nm) {
+          await AsyncStorage.setItem('userName', profile.nm as string);
+        } else {
+          await AsyncStorage.removeItem('userName');
+        }
+      } catch {}
+
+      // 프로필 동기화 (upsert)
+      try {
+        const deviceId = await getOrCreateDeviceId();
+        await upsertProfile({
+          authUid: user.id,
+          email: user.email ?? email,
+          deviceId,
+          loginAt: new Date().toISOString(),
+        });
+      } catch {}
 
       // 마이페이지로 이동 (replace로 스택 정리)
       router.replace('/(tabs)/mypage');
-      
-    } catch (error) {
-      console.error('Login error:', error);
-      Alert.alert('로그인 실패', '로그인 중 오류가 발생했습니다.');
+    } catch (e) {
+      Alert.alert('로그인 실패', '네트워크 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
     } finally {
       setLoading(false);
     }
