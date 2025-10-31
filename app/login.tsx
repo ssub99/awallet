@@ -12,14 +12,13 @@ import { ThemeColors } from '@/constants/theme-colors';
 import { Typography } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { supabase, isSupabaseConfigured } from '@/utils/supabase-client';
-import { upsertProfile } from '@/utils/profiles';
 import { getOrCreateDeviceId } from '@/utils/device-id';
-import { Stack, useRouter } from 'expo-router';
+import { upsertProfile } from '@/utils/profiles';
+import { isSupabaseConfigured, supabase } from '@/utils/supabase-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useState } from 'react';
+import { Stack, useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import {
-    Alert,
     KeyboardAvoidingView,
     Platform,
     Pressable,
@@ -36,9 +35,43 @@ export default function LoginScreen() {
   const colors = ThemeColors[colorScheme ?? 'light'];
   const router = useRouter();
   const { setLoading } = useLoading();
+  const [isClosing, setIsClosing] = useState(false);
+  // Focus log
+  useFocusEffect(
+    useCallback(() => {
+      console.log('🔎 [Login] entered');
+    }, [])
+  );
+
+
+  // 진입 시 애니메이션 없음
   
   // Form state
+  const params = useLocalSearchParams<{ email?: string | string[]; force?: string | string[] }>();
   const [email, setEmail] = useState('');
+  // Prefill email when navigated with param
+  useEffect(() => {
+    const paramEmail = Array.isArray(params.email) ? params.email[0] : params.email;
+    const decoded = paramEmail ? decodeURIComponent(paramEmail) : '';
+    if (decoded) {
+      setEmail(decoded);
+      setEmailError('');
+    }
+  }, [params.email]);
+
+  // 이미 세션이 있으면 폼을 보여주지 않고 마이페이지로 보냄
+  useEffect(() => {
+    (async () => {
+      try {
+        const forceParam = Array.isArray(params.force) ? params.force[0] : params.force;
+        if (forceParam === '1') return; // 강제 로그인 화면 표시
+        const { data } = await supabase.auth.getUser();
+        if (data?.user) {
+          router.replace('/(tabs)/mypage');
+        }
+      } catch {}
+    })();
+  }, [router, params.force]);
   const [password, setPassword] = useState('');
   
   // Validation states
@@ -63,35 +96,17 @@ export default function LoginScreen() {
   };
 
   const validatePassword = (passwordValue: string) => {
-    // 빈 값 체크
-    if (!passwordValue.trim()) {
-      return '비밀번호를 입력해 주세요.';
-    }
-    
-    // 10자리 이상 체크
-    if (passwordValue.length < 10) {
-      return '비밀번호가 일치하지 않습니다.';
-    }
-    
-    // 맨 앞자리 대문자 체크
-    if (!/^[A-Z]/.test(passwordValue)) {
-      return '비밀번호가 일치하지 않습니다.';
-    }
-    
-    // 특수문자 2개 이상 체크
-    const specialCharRegex = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/g;
-    const specialCharMatches = passwordValue.match(specialCharRegex);
-    if (!specialCharMatches || specialCharMatches.length < 2) {
-      return '비밀번호가 일치하지 않습니다.';
-    }
-    
+    // 서버 검증에 맡기고, 클라이언트는 비어있지만 체크만 수행
+    if (!passwordValue.trim()) return '비밀번호를 입력해 주세요.';
     return '';
   };
 
 
   // Navigation handlers
   const handleClosePress = () => {
-    router.back();
+    if (isClosing) return;
+    setIsClosing(true);
+    router.replace('/(tabs)/mypage');
   };
 
   const handleLoginPress = async () => {
@@ -126,7 +141,7 @@ export default function LoginScreen() {
       });
 
       if (authError || !data?.user) {
-        Alert.alert('로그인 실패', '이메일 또는 비밀번호가 올바르지 않습니다.');
+        setPasswordError('이메일 또는 비밀번호가 올바르지 않습니다.');
         return;
       }
 
@@ -156,10 +171,9 @@ export default function LoginScreen() {
         });
       } catch {}
 
-      // 마이페이지로 이동 (replace로 스택 정리)
       router.replace('/(tabs)/mypage');
     } catch (e) {
-      Alert.alert('로그인 실패', '네트워크 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
+      setPasswordError('네트워크 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
     } finally {
       setLoading(false);
     }
@@ -170,6 +184,7 @@ export default function LoginScreen() {
   };
 
   const handleFindAccountPress = () => {
+    // 이전 동작으로 복구: push 사용
     router.push('/account-verify');
   };
 
@@ -178,6 +193,8 @@ export default function LoginScreen() {
       <Stack.Screen 
         options={{
           headerShown: false,
+          gestureEnabled: false,
+          animation: 'none',
         }}
       />
       <SafeAreaView 
@@ -187,8 +204,9 @@ export default function LoginScreen() {
         <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
 
       {/* Screen Content */}
+      <View style={{ flex: 1 }}>
       {/* Top Navigation */}
-      <View style={[styles.topNavigation, { backgroundColor: colors.background }]}>
+      <View style={[styles.topNavigation, { backgroundColor: colors.background }]}> 
         <View style={styles.topNavigationContent}>
           <Pressable 
             style={styles.closeButton}
@@ -240,7 +258,7 @@ export default function LoginScreen() {
                     setEmail(value);
                     setEmailError(''); // 에러 상태 초기화
                   }}
-                  keyboardType="email-address"
+                  keyboardType={Platform.select({ ios: 'default', android: 'default' }) as any}
                   autoCapitalize="none"
                   autoCorrect={false}
                   icon="person"
@@ -255,6 +273,7 @@ export default function LoginScreen() {
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry
+                  keyboardType={Platform.select({ ios: 'default', android: 'default' }) as any}
                   icon="lock"
                   accessibilityLabel="비밀번호 입력"
                 />
@@ -301,6 +320,7 @@ export default function LoginScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+      </View>
       </SafeAreaView>
     </>
   );

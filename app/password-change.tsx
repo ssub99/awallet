@@ -1,18 +1,23 @@
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
+import { ModalPopup } from '@/components/ui/modal-popup';
 import { ThemeColors } from '@/constants/theme-colors';
 import { Typography } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { Stack, useRouter } from 'expo-router';
+import { useLoading } from '@/contexts/loading-context';
+import { supabase, isSupabaseConfigured } from '@/utils/supabase-client';
+import { Stack, useRouter, useNavigation } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { AppState, AppStateStatus, KeyboardAvoidingView, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function PasswordChangeScreen() {
   const colorScheme = useColorScheme();
   const colors = ThemeColors[colorScheme ?? 'light'];
   const router = useRouter();
+  const navigation = useNavigation();
+  const { setLoading } = useLoading();
 
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -21,8 +26,42 @@ export default function PasswordChangeScreen() {
   const [koreanError, setKoreanError] = useState('');
   const [isExpired, setIsExpired] = useState(false);
   const [showExpiredModal, setShowExpiredModal] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showBackModal, setShowBackModal] = useState(false);
+  const [isPasswordChanged, setIsPasswordChanged] = useState(false); // 비밀번호 변경 완료 여부
+  const isNavigatingRef = useRef(false); // 로그인 화면으로 이동 중인지 추적
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const appState = useRef(AppState.currentState);
+
+  // 세션 확인: 이메일 인증 후 세션이 있어야 비밀번호 변경 가능
+  useEffect(() => {
+    // 이미 로그인 화면으로 이동 중이면 세션 확인하지 않음
+    if (isNavigatingRef.current) {
+      return;
+    }
+
+    (async () => {
+      try {
+        if (!isSupabaseConfigured) {
+          console.log('🔎 [PasswordChange] Supabase not configured');
+          setIsExpired(true);
+          setShowExpiredModal(true);
+          return;
+        }
+        const { data } = await supabase.auth.getUser();
+        if (!data?.user) {
+          console.log('🔎 [PasswordChange] No session found');
+          setIsExpired(true);
+          setShowExpiredModal(true);
+        }
+      } catch (error) {
+        console.error('🔎 [PasswordChange] Session check error:', error);
+        setIsExpired(true);
+        setShowExpiredModal(true);
+      }
+    })();
+  }, []);
 
   // 한글 입력 체크
   const hasKorean = (text: string) => /[ㄱ-ㅎ|ㅏ-ㅣ|가-힣]/.test(text);
@@ -74,14 +113,18 @@ export default function PasswordChangeScreen() {
     }
     
     timerRef.current = setTimeout(() => {
-      setIsExpired(true);
-      setShowExpiredModal(true);
+      // 이미 로그인 화면으로 이동 중이면 타이머로 모달을 열지 않음
+      if (!isNavigatingRef.current) {
+        setIsExpired(true);
+        setShowExpiredModal(true);
+      }
     }, 5 * 60 * 1000); // 5분
   };
 
   // 5분 타이머 시작 (백그라운드에서도 유지)
   useEffect(() => {
     // 컴포넌트 마운트 시 타이머 시작
+    console.log('🔎 [PasswordChange] mounted, start 5min timer');
     startTimer();
 
     return () => {
@@ -91,14 +134,59 @@ export default function PasswordChangeScreen() {
     };
   }, []);
 
+  // 앱이 백그라운드로 가거나 종료될 때 세션 종료 처리
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      // 앱이 백그라운드로 가거나 비활성화될 때
+      if (
+        (appState.current === 'active' && nextAppState.match(/inactive|background/)) ||
+        (appState.current.match(/inactive|background/) && nextAppState === 'background')
+      ) {
+        // 비밀번호 변경이 완료되지 않았으면 세션 종료
+        if (!isPasswordChanged && isSupabaseConfigured) {
+          console.log('🔎 [PasswordChange] App going to background, signing out (password not changed)');
+          supabase.auth.signOut().catch((error) => {
+            console.error('🔎 [PasswordChange] Sign out error:', error);
+          });
+        }
+      }
+      appState.current = nextAppState;
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+
+    return () => {
+      subscription.remove();
+    };
+  }, [isPasswordChanged]);
+
+  // 뒤로가기 버튼/제스처 처리
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+      // 이미 다른 화면으로 이동 중이면 차단하지 않음
+      if (isNavigatingRef.current) {
+        return;
+      }
+      // 비밀번호 변경이 완료되지 않았으면 뒤로가기 방지
+      if (!isPasswordChanged) {
+        e.preventDefault();
+        if (!showBackModal) {
+          setShowBackModal(true);
+        }
+      }
+    });
+
+    return unsubscribe;
+  }, [navigation, isPasswordChanged, showBackModal]);
+
+  // 버튼 활성화 조건: 입력값만 확인 (에러는 제출 시 검증하여 재시도 가능하도록)
   const canSubmit = newPassword.trim().length > 0 && 
                    confirmPassword.trim().length > 0 && 
-                   !newPasswordError && 
-                   !confirmPasswordError &&
                    !koreanError &&
                    !isExpired;
 
   const handleNewPasswordChange = (value: string) => {
+    console.log('🔎 [PasswordChange] new password input');
     // 공백 제거
     const cleanValue = removeSpaces(value);
     
@@ -114,6 +202,26 @@ export default function PasswordChangeScreen() {
     const limitedValue = cleanValue.slice(0, 16);
     setNewPassword(limitedValue);
     
+    // 실시간 비밀번호 형식 검증 (8자 이상일 때만 검증)
+    // 단, 서버 에러 메시지가 있으면 사용자가 입력을 변경했으므로 형식 검증으로 덮어씀
+    if (limitedValue.length >= 8) {
+      const passwordValidation = validatePassword(limitedValue);
+      if (passwordValidation) {
+        // 형식 검증 에러가 있으면 설정 (서버 에러 대체)
+        setNewPasswordError(passwordValidation);
+      } else {
+        // 형식 검증 통과 시 서버 에러가 있으면 유지, 없으면 클리어
+        // (사용자가 올바른 형식으로 수정 중이면 서버 에러는 유지하지 않음)
+        setNewPasswordError('');
+      }
+    } else if (limitedValue.length > 0) {
+      // 8자 미만이면 에러 표시하지 않음 (입력 중일 수 있음)
+      // 단, 형식 검증 통과 상태면 서버 에러도 클리어
+      setNewPasswordError('');
+    } else {
+      setNewPasswordError('');
+    }
+    
     // 새 비밀번호가 변경되면 확인 비밀번호도 다시 검증
     if (confirmPassword.trim().length > 0) {
       setConfirmPasswordError(validateConfirmPassword(confirmPassword));
@@ -121,6 +229,7 @@ export default function PasswordChangeScreen() {
   };
 
   const handleConfirmPasswordChange = (value: string) => {
+    console.log('🔎 [PasswordChange] confirm password input');
     // 공백 제거
     const cleanValue = removeSpaces(value);
     
@@ -137,7 +246,8 @@ export default function PasswordChangeScreen() {
     setConfirmPassword(limitedValue);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    console.log('🔎 [PasswordChange] submit clicked');
     // 모든 에러 상태 초기화
     setNewPasswordError('');
     setConfirmPasswordError('');
@@ -156,27 +266,105 @@ export default function PasswordChangeScreen() {
       setConfirmPasswordError(confirmValidation);
       return;
     }
+
+    setLoading(true);
     
-    // 6번: 기존 비밀번호와 동일한지 체크 (임시로 하드코딩)
-    // TODO: 실제 기존 비밀번호와 비교
-    const existingPassword = 'OldPassword123!'; // 임시
-    if (newPassword === existingPassword) {
-      setNewPasswordError('기존 비밀번호와 동일합니다.');
-      return;
+    try {
+      if (!isSupabaseConfigured) {
+        throw new Error('Supabase not configured');
+      }
+
+      // 세션 확인
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData?.user) {
+        setNewPasswordError('인증이 만료되었습니다. 처음부터 다시 진행해 주세요.');
+        setIsExpired(true);
+        setShowExpiredModal(true);
+        return;
+      }
+
+      // 비밀번호 변경 API 호출
+      console.log('🔎 [PasswordChange] updating password via Supabase');
+      const { error: updateErr } = await supabase.auth.updateUser({ 
+        password: newPassword 
+      });
+
+      if (updateErr) {
+        // Supabase 에러 메시지 처리 (사용자에게 표시할 에러로 변환하므로 console.error 대신 console.log 사용)
+        const errorMessage = updateErr.message.toLowerCase();
+        console.log('🔎 [PasswordChange] password update error:', errorMessage);
+        
+        // 기존 비밀번호와 동일한 경우
+        if (errorMessage.includes('different') || 
+            errorMessage.includes('same') || 
+            errorMessage.includes('identical')) {
+          const errorMsg = '기존 비밀번호와 동일합니다.';
+          setNewPasswordError(errorMsg);
+        } else if (errorMessage.includes('weak')) {
+          setNewPasswordError('비밀번호가 너무 약합니다.');
+        } else {
+          setNewPasswordError('비밀번호 변경에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+        }
+        setLoading(false);
+        return;
+      }
+
+      console.log('🔎 [PasswordChange] password updated successfully');
+      
+      // 비밀번호 변경 완료 플래그 설정
+      setIsPasswordChanged(true);
+      
+      // 성공 시 완료 모달 표시
+      setShowSuccessModal(true);
+    } catch (error) {
+      console.error('🔎 [PasswordChange] unexpected error:', error);
+      setNewPasswordError('네트워크 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleExpiredModalClose = async () => {
+    console.log('🔎 [PasswordChange] expired modal confirm, sign out and go to login');
+    // 로그인 화면으로 이동 중임을 표시하여 다른 로직이 모달을 다시 열지 않도록 함
+    isNavigatingRef.current = true;
+    setShowExpiredModal(false);
+    
+    // 세션 종료 후 로그인 화면으로 이동
+    try {
+      if (isSupabaseConfigured) {
+        await supabase.auth.signOut();
+      }
+    } catch (error) {
+      console.error('🔎 [PasswordChange] Sign out error:', error);
     }
     
-    // 모든 검증 통과 시
-    // TODO: 서버에 비밀번호 변경 요청
-    console.log('비밀번호 변경 요청:', { newPassword });
-    
-    // 성공 시 로그인 화면으로 이동
+    // 즉시 로그인 화면으로 이동
     router.replace('/login');
   };
 
-  const handleExpiredModalClose = () => {
-    setShowExpiredModal(false);
-    // 계정 확인 화면으로 이동
-    router.replace('/account-verify');
+  const handleSuccessModalClose = async () => {
+    console.log('🔎 [PasswordChange] success modal confirm, sign out and go to login');
+    setShowSuccessModal(false);
+    // 세션 종료 후 로그인 화면으로 이동
+    await supabase.auth.signOut();
+    router.replace('/login');
+  };
+
+  const handleBackModalClose = async () => {
+    console.log('🔎 [PasswordChange] back modal confirm, sign out and go to login');
+    // 다른 로직이 다시 모달을 띄우지 않도록 네비게이팅 플래그 설정
+    isNavigatingRef.current = true;
+    setShowBackModal(false);
+    // 세션 종료 후 로그인 화면으로 이동
+    try {
+      if (isSupabaseConfigured) {
+        await supabase.auth.signOut();
+      }
+    } catch (error) {
+      console.error('🔎 [PasswordChange] Sign out error:', error);
+    }
+    router.replace('/login');
   };
 
   return (
@@ -193,7 +381,16 @@ export default function PasswordChangeScreen() {
           <View style={styles.topNavigationContent}>
             <Pressable
               style={styles.backButton}
-              onPress={() => router.back()}
+              onPress={() => {
+                // 이미 이동 중이면 무시
+                if (isNavigatingRef.current) return;
+                // 비밀번호 변경이 완료되지 않았으면 모달 표시
+                if (!isPasswordChanged) {
+                  setShowBackModal(true);
+                } else {
+                  router.back();
+                }
+              }}
               accessibilityRole="button"
               accessibilityLabel="뒤로가기"
             >
@@ -222,7 +419,7 @@ export default function PasswordChangeScreen() {
                   secureTextEntry
                   autoCapitalize="none"
                   autoCorrect={false}
-                  keyboardType={Platform.select({ ios: 'ascii-capable', android: 'visible-password' }) as any}
+                  keyboardType={Platform.select({ ios: 'default', android: 'default' }) as any}
                   maxLength={16}
                   accessibilityLabel="새 비밀번호 입력"
                 />
@@ -233,13 +430,21 @@ export default function PasswordChangeScreen() {
                   secureTextEntry
                   autoCapitalize="none"
                   autoCorrect={false}
-                  keyboardType={Platform.select({ ios: 'ascii-capable', android: 'visible-password' }) as any}
+                  keyboardType={Platform.select({ ios: 'default', android: 'default' }) as any}
                   maxLength={16}
                   accessibilityLabel="새 비밀번호 입력 확인"
                 />
-                {(koreanError || newPasswordError || confirmPasswordError) ? (
+                {koreanError ? (
                   <Text style={[styles.errorText, { color: colors.statusNegative }]}>
-                    {koreanError || newPasswordError || confirmPasswordError}
+                    {koreanError}
+                  </Text>
+                ) : newPasswordError ? (
+                  <Text style={[styles.errorText, { color: colors.statusNegative }]}>
+                    {newPasswordError}
+                  </Text>
+                ) : confirmPasswordError ? (
+                  <Text style={[styles.errorText, { color: colors.statusNegative }]}>
+                    {confirmPasswordError}
                   </Text>
                 ) : null}
               </View>
@@ -257,37 +462,38 @@ export default function PasswordChangeScreen() {
         </KeyboardAvoidingView>
 
         {/* 인증 만료 모달 */}
-        <Modal
+        <ModalPopup
           visible={showExpiredModal}
-          transparent
-          animationType="fade"
-          onRequestClose={handleExpiredModalClose}
+          confirmText="확인"
+          onConfirm={handleExpiredModalClose}
         >
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalContainer, { backgroundColor: colors.staticWhite }]}>
-              <View style={styles.modalContent}>
-                <Text style={[styles.modalTitle, { color: colors.text }]}>
-                  인증이 만료되었습니다.
-                </Text>
-                <Text style={[styles.modalMessage, { color: colors.textNeutral }]}>
-                  처음부터 다시 진행해 주세요.
-                </Text>
-              </View>
-              <View style={styles.modalButtons}>
-                <Pressable
-                  style={[styles.modalButton, { backgroundColor: colors.primary }]}
-                  onPress={handleExpiredModalClose}
-                  accessibilityRole="button"
-                  accessibilityLabel="확인"
-                >
-                  <Text style={[styles.modalButtonText, { color: colors.staticWhite }]}>
-                    확인
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
-          </View>
-        </Modal>
+          <Text style={[Typography.body1.l.regular, { color: colors.text, textAlign: 'center' }]}>
+            인증이 만료되었습니다.
+            {'\n'}
+            처음부터 다시 진행해 주세요.
+          </Text>
+        </ModalPopup>
+
+        {/* 비밀번호 변경 완료 모달 */}
+        <ModalPopup
+          visible={showSuccessModal}
+          message="비밀번호 변경이 완료 되었습니다."
+          confirmText="확인"
+          onConfirm={handleSuccessModalClose}
+        />
+
+        {/* 뒤로가기 방지 모달 */}
+        <ModalPopup
+          visible={showBackModal}
+          confirmText="확인"
+          onConfirm={handleBackModalClose}
+        >
+          <Text style={[Typography.body1.l.regular, { color: colors.text, textAlign: 'center' }]}>
+            이전화면으로 이동이 불가합니다.
+            {'\n'}
+            처음부터 다시 진행해 주세요.
+          </Text>
+        </ModalPopup>
       </SafeAreaView>
     </>
   );
@@ -315,47 +521,4 @@ const styles = StyleSheet.create({
   inputContainer: { gap: 8 },
   errorText: { ...Typography.body2.r.regular, marginTop: 0 },
   bottomContainer: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16 },
-  // 모달 스타일
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-  },
-  modalContainer: {
-    borderRadius: 24,
-    width: '100%',
-    maxWidth: 343,
-    overflow: 'hidden',
-  },
-  modalContent: {
-    paddingHorizontal: 24,
-    paddingTop: 24,
-    paddingBottom: 16,
-    alignItems: 'center',
-  },
-  modalTitle: {
-    ...Typography.headline4.r.bold,
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  modalMessage: {
-    ...Typography.body1.l.regular,
-    textAlign: 'center',
-    lineHeight: 24,
-  },
-  modalButtons: {
-    paddingHorizontal: 24,
-    paddingBottom: 24,
-  },
-  modalButton: {
-    height: 48,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalButtonText: {
-    ...Typography.body1.l.medium,
-  },
 });

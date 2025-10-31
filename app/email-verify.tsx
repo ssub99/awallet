@@ -29,7 +29,13 @@ export default function EmailVerifyScreen() {
   const [expiresAt, setExpiresAt] = useState<number>(Date.now() + OTP_TTL_MS);
   const [remainingSeconds, setRemainingSeconds] = useState<number>(Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000)));
 
-  const handleBack = () => router.back();
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)/mypage');
+    }
+  };
 
   const handleChange = (value: string) => {
     setCode(value);

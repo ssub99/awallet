@@ -344,7 +344,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     minHeight: 56,
     paddingHorizontal: 16,
-    paddingVertical: 12, // Add vertical padding for better alignment
+    // Figma spec height 56: remove vertical padding to keep total height at 56
   },
   leftSection: {
     flexDirection: 'row',

@@ -7,21 +7,22 @@
 
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ModalPopup } from '@/components/ui/modal-popup';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
+import { ModalPopup } from '@/components/ui/modal-popup';
 import { Selectbox } from '@/components/ui/selectbox';
 import { ThemeColors } from '@/constants/theme-colors';
 import { Typography } from '@/constants/typography';
+import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { isSupabaseConfigured, supabase } from '@/utils/supabase-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, useRouter } from 'expo-router';
-import { useLoading } from '@/contexts/loading-context';
-import { supabase, isSupabaseConfigured } from '@/utils/supabase-client';
 import { useState } from 'react';
 import {
     Alert,
     KeyboardAvoidingView,
+    Platform,
     Pressable,
     ScrollView,
     StatusBar,
@@ -261,6 +262,7 @@ export default function SignupIntroScreen() {
                       setName(value);
                       setNameError(''); // Clear error on change
                     }}
+                    keyboardType={Platform.select({ ios: 'default', android: 'default' }) as any}
                     accessibilityLabel="이름 입력"
                   />
                   {nameError ? (
@@ -311,7 +313,7 @@ export default function SignupIntroScreen() {
                       setEmail(value);
                       setEmailError(''); // Clear error on change
                     }}
-                    keyboardType="email-address"
+                    keyboardType={Platform.select({ ios: 'default', android: 'default' }) as any}
                     autoCapitalize="none"
                     autoCorrect={false}
                     accessibilityLabel="이메일 입력"

@@ -5,6 +5,7 @@ import { ThemeColors } from '@/constants/theme-colors';
 import { Typography } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Stack, useRouter } from 'expo-router';
+import { supabase, isSupabaseConfigured } from '@/utils/supabase-client';
 import React, { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,24 +18,58 @@ export default function IdFindScreen() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [error, setError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
   const canSubmit = name.trim().length > 0 && isValidEmail(email.trim());
 
-  const handleSubmit = () => {
-    // TODO: 서버 검증 연동 (입력값으로 실제 확인 후 처리)
-    // 임시 검증: 하드코딩된 값으로 테스트
-    const isValidName = name.trim() === '홍길동';
-    const isValidEmail = email.trim() === 'test@example.com';
-    
-    if (!isValidName || !isValidEmail) {
+  const handleSubmit = async () => {
+    console.log('🔎 [AccountVerify] submit clicked', { name, email });
+    setError(false);
+    setErrorMessage('');
+    if (!name.trim() || !isValidEmail(email.trim())) {
+      console.log('🔎 [AccountVerify] local validation failed');
       setError(true);
+      setErrorMessage('입력하신 정보가 존재하지 않습니다.');
       return;
     }
-    
-    // 검증 성공 시 다음 단계로 이동
-    setError(false);
-          router.push({ pathname: '/account-verify-email', params: { email } });
+
+    try {
+      if (!isSupabaseConfigured) throw new Error('Supabase not configured');
+      console.log('🔎 [AccountVerify] verifying candidate via RPC');
+      // 1) 보안 RPC로 이름+이메일 매칭 확인 (RLS 우회)
+      const { data: isValid, error: verifyErr } = await supabase.rpc('verify_account_candidate', {
+        p_email: email.trim(),
+        p_nm: name.trim(),
+      });
+
+      if (verifyErr || !isValid) {
+        console.log('🔎 [AccountVerify] verify failed', { verifyErr, isValid });
+        setError(true);
+        setErrorMessage('입력하신 정보가 존재하지 않습니다.');
+        return;
+      }
+
+      console.log('🔎 [AccountVerify] verify ok, sending OTP');
+      // 2) OTP 발송 (기존 가입자만, shouldCreateUser: false)
+      const { error: otpErr } = await supabase.auth.signInWithOtp({
+        email: email.trim(),
+        options: { shouldCreateUser: false },
+      });
+      if (otpErr) {
+        console.log('🔎 [AccountVerify] send OTP failed', { otpErr });
+        setError(true);
+        setErrorMessage('인증 요청이 잦습니다. 30초 후 다시 시도해 주세요.');
+        return;
+      }
+      console.log('🔎 [AccountVerify] send OTP ok, navigating to email verify');
+      router.push({ pathname: '/account-verify-email', params: { email: encodeURIComponent(email.trim()), name: encodeURIComponent(name.trim()) } });
+    } catch {
+      console.log('🔎 [AccountVerify] unexpected error');
+      setError(true);
+      setErrorMessage('일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
+    } finally {
+    }
   };
 
   const handleInputChange = (field: 'name' | 'email', value: string) => {
@@ -60,7 +95,13 @@ export default function IdFindScreen() {
           <View style={styles.topNavigationContent}>
             <Pressable
               style={styles.backButton}
-              onPress={() => router.back()}
+              onPress={() => {
+                if (router.canGoBack()) {
+                  router.back();
+                } else {
+                  router.replace('/(tabs)/mypage');
+                }
+              }}
               accessibilityRole="button"
               accessibilityLabel="뒤로가기"
             >
@@ -84,20 +125,21 @@ export default function IdFindScreen() {
                   placeholder="이름 입력"
                   value={name}
                   onChangeText={(value) => handleInputChange('name', value)}
+                  keyboardType={Platform.select({ ios: 'default', android: 'default' }) as any}
                   accessibilityLabel="이름 입력"
                 />
                 <Input
                   placeholder="이메일 입력"
                   value={email}
                   onChangeText={(value) => handleInputChange('email', value)}
-                  keyboardType="email-address"
+                  keyboardType={Platform.select({ ios: 'default', android: 'default' }) as any}
                   autoCapitalize="none"
                   autoCorrect={false}
                   accessibilityLabel="이메일 입력"
                 />
-                {error && (
+                {error && !!errorMessage && (
                   <Text style={[styles.errorText, { color: colors.statusNegative }]}>
-                    입력하신 정보가 존재하지 않습니다.
+                    {errorMessage}
                   </Text>
                 )}
               </View>

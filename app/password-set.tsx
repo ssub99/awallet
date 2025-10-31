@@ -98,15 +98,17 @@ export default function PasswordSetScreen() {
           const nameVal = savedName?.[1] ?? null;
           const birthVal = savedBirth?.[1] ?? null; // YYYY-MM-DD
           const deviceId = await getOrCreateDeviceId();
+          // atomic profiles + user_metadata update (if both provided)
+          if (nameVal && birthVal) {
+            await supabase.rpc('update_profile', { p_nm: nameVal, p_birth_date: birthVal });
+          }
+          // upsert technical fields (email/device/timestamps) without overwriting name
           await upsertProfile({
             authUid: user.id,
             email: user.email ?? null,
-            name: nameVal,
-            birthDate: birthVal,
             deviceId,
             loginAt: new Date().toISOString(),
           });
-          // cleanup
           await AsyncStorage.multiRemove(['signupName', 'signupBirth']);
         }
       } catch {}
@@ -152,7 +154,7 @@ export default function PasswordSetScreen() {
                   secureTextEntry
                   autoCapitalize="none"
                   autoCorrect={false}
-                  keyboardType={Platform.select({ ios: 'ascii-capable', android: 'visible-password' }) as any}
+                  keyboardType={Platform.select({ ios: 'default', android: 'default' }) as any}
                   maxLength={16}
                   accessibilityLabel="비밀번호 입력"
                 />
@@ -163,7 +165,7 @@ export default function PasswordSetScreen() {
                   secureTextEntry
                   autoCapitalize="none"
                   autoCorrect={false}
-                  keyboardType={Platform.select({ ios: 'ascii-capable', android: 'visible-password' }) as any}
+                  keyboardType={Platform.select({ ios: 'default', android: 'default' }) as any}
                   maxLength={16}
                   accessibilityLabel="비밀번호 입력 확인"
                 />

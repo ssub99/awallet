@@ -5,6 +5,7 @@ import OtpInputs from '@/components/ui/otp-inputs';
 import { ThemeColors } from '@/constants/theme-colors';
 import { Typography } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { isSupabaseConfigured, supabase } from '@/utils/supabase-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
@@ -17,10 +18,11 @@ export default function AccountVerifyEmailScreen() {
   const colorScheme = useColorScheme();
   const colors = ThemeColors[colorScheme ?? 'light'];
   const router = useRouter();
-  const params = useLocalSearchParams<{ email?: string | string[] }>();
+  const params = useLocalSearchParams<{ email?: string | string[]; name?: string | string[] }>();
 
   const [displayEmail, setDisplayEmail] = useState<string>('');
   const [code, setCode] = useState('');
+  const [displayName, setDisplayName] = useState<string>('');
   const [error, setError] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [errorBorder, setErrorBorder] = useState(false);
@@ -42,9 +44,13 @@ export default function AccountVerifyEmailScreen() {
 
   useEffect(() => {
     const paramEmail = Array.isArray(params.email) ? params.email[0] : params.email;
+    const paramName = Array.isArray(params.name) ? params.name[0] : params.name;
     const decoded = paramEmail ? decodeURIComponent(paramEmail) : '';
+    const decodedName = paramName ? decodeURIComponent(paramName) : '';
     if (decoded) {
       setDisplayEmail(decoded);
+      setDisplayName(decodedName);
+      console.log('🔎 [AccountVerifyEmail] mounted', { email: decoded, name: decodedName });
       return;
     }
     (async () => {
@@ -58,36 +64,63 @@ export default function AccountVerifyEmailScreen() {
   // 남은 시간은 고정 문구로 안내 (카운트다운 텍스트 미사용)
 
   const handleComplete = useCallback(async (value: string) => {
+    console.log('🔎 [AccountVerifyEmail] onComplete', { value });
     if (Date.now() > expiresAt) {
       setError(true);
       setErrorMessage('인증번호가 만료되었습니다.');
       setErrorBorder(false);
+      console.log('🔎 [AccountVerifyEmail] expired');
       return;
     }
 
     try {
-      // TODO: 서버 검증 연동
-      const TEMP_VALID_CODE = '123456';
-      const isValid = value === TEMP_VALID_CODE;
-      if (!isValid) {
+      if (!isSupabaseConfigured) throw new Error('Supabase not configured');
+      const { error: verifyErr, data: verifyData } = await supabase.auth.verifyOtp({
+        email: displayEmail,
+        token: value,
+        type: 'email',
+      });
+      if (verifyErr) {
         setError(true);
         setErrorMessage('인증번호가 일치하지 않습니다.');
         setErrorBorder(true);
+        console.log('🔎 [AccountVerifyEmail] verify error', { verifyErr });
         return;
       }
+
       setError(false);
       setErrorMessage('');
       setErrorBorder(false);
-      
-      // TODO: 서버에서 실제 계정 정보와 가입일 조회
-      // 임시: 사용자가 입력한 이메일을 계정으로 노출하여 본인 확인
+
+      // 가입일 조회: profiles.join_at 우선 사용
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('join_at')
+          .eq('email', displayEmail)
+          .maybeSingle();
+        if (profile?.join_at) {
+          const d = new Date(profile.join_at as string);
+          const yyyy = d.getFullYear();
+          const mm = String(d.getMonth() + 1).padStart(2, '0');
+          const dd = String(d.getDate()).padStart(2, '0');
+          setRegistrationDate(`${yyyy}.${mm}.${dd}`);
+          console.log('🔎 [AccountVerifyEmail] join_at loaded');
+        } else {
+          setRegistrationDate('');
+        }
+      } catch {
+        setRegistrationDate('');
+      }
+
       setFoundUserId(displayEmail);
-      setRegistrationDate('2025.10.10');
+      console.log('🔎 [AccountVerifyEmail] show result modal');
       setShowResultModal(true);
     } catch {
       setError(true);
       setErrorMessage('인증번호가 일치하지 않습니다.');
       setErrorBorder(true);
+      console.log('🔎 [AccountVerifyEmail] unexpected verify failure');
     }
   }, [expiresAt, displayEmail]);
 
@@ -106,14 +139,41 @@ export default function AccountVerifyEmailScreen() {
     }, 1000);
   }, []);
 
-  const handleResend = () => {
+  const handleResend = async () => {
     if (isResendDisabled) return;
-    // TODO: 재전송 API 호출
-    setExpiresAt(Date.now() + OTP_TTL_MS);
-    setError(false);
-    setErrorMessage('');
-    setErrorBorder(false);
-    startCooldown(60);
+    try {
+      if (!isSupabaseConfigured) throw new Error('Supabase not configured');
+      console.log('🔎 [AccountVerifyEmail] resend clicked');
+      // 존재 확인 (이메일+이름) 재검증 후 재전송
+      if (displayName && displayEmail) {
+        const { data: isValid } = await supabase.rpc('verify_account_candidate', {
+          p_email: displayEmail,
+          p_nm: displayName,
+        });
+        if (!isValid) {
+          setError(true);
+          setErrorMessage('입력하신 정보가 존재하지 않습니다.');
+          setErrorBorder(false);
+          console.log('🔎 [AccountVerifyEmail] resend blocked: candidate invalid');
+          return;
+        }
+      }
+      await supabase.auth.signInWithOtp({
+        email: displayEmail,
+        options: { shouldCreateUser: false },
+      });
+      console.log('🔎 [AccountVerifyEmail] resend success');
+      setExpiresAt(Date.now() + OTP_TTL_MS);
+      setError(false);
+      setErrorMessage('');
+      setErrorBorder(false);
+      startCooldown(60);
+    } catch {
+      setError(true);
+      setErrorMessage('재전송에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+      setErrorBorder(false);
+      console.log('🔎 [AccountVerifyEmail] resend failed');
+    }
   };
 
   const canSubmit = code.length === 6 && !error;
@@ -123,9 +183,12 @@ export default function AccountVerifyEmailScreen() {
     setShowResultModal(false);
   };
 
-  const handleLoginPress = () => {
+  const handleLoginPress = async () => {
     setShowResultModal(false);
-    router.replace('/login');
+    // 이메일 인증 과정에서 생긴 세션은 비밀번호 확인 전이므로 제거 후 로그인 화면으로 이동
+    try { await supabase.auth.signOut(); } catch {}
+    console.log('🔎 [AccountVerifyEmail] navigate login (signed out any session)', { email: displayEmail });
+    router.replace({ pathname: '/login', params: { email: encodeURIComponent(displayEmail), force: '1' } });
   };
 
   const handleChangePasswordPress = () => {
@@ -133,11 +196,13 @@ export default function AccountVerifyEmailScreen() {
     router.push('/password-change');
   };
 
+  // 초기 진입 시 60초 쿨다운을 바로 시작하여 버튼 연타를 방지하고 UX를 통일
   useEffect(() => {
     if (!isResendDisabled && cooldown === 0) {
       startCooldown(60);
     }
     setExpiresAt(Date.now() + OTP_TTL_MS);
+    console.log('🔎 [AccountVerifyEmail] cooldown started');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

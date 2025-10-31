@@ -6,6 +6,7 @@
  */
 
 import { Icon } from '@/components/ui/icon';
+import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Switch } from '@/components/ui/switch';
 import { ThemeColors } from '@/constants/theme-colors';
 import { Typography } from '@/constants/typography';
@@ -17,9 +18,9 @@ import { supabase, isSupabaseConfigured } from '@/utils/supabase-client';
 import { useLoading } from '@/contexts/loading-context';
 import Constants from 'expo-constants';
 import * as MailComposer from 'expo-mail-composer';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useRouter, Stack } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, AppState, AppStateStatus, Linking, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { Alert, AppState, AppStateStatus, BackHandler, Linking, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { ModalPopup } from '@/components/ui/modal-popup';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -41,6 +42,11 @@ export default function MyPageScreen() {
   // Load settings from AsyncStorage on screen focus
   useFocusEffect(
     useCallback(() => {
+      console.log('🔎 [MyPage] entered');
+      // 안드로이드 하드웨어 뒤로가기 비활성화
+      const onBackPress = () => true; // 기본 뒤로가기 동작 차단
+      const backSub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+
       const loadSettings = async () => {
         try {
           const [startDay, weekStart, notifications] = await Promise.all([
@@ -66,11 +72,23 @@ export default function MyPageScreen() {
                   .eq('auth_uid', authUid)
                   .maybeSingle();
                 const nm = (profile?.nm as string | null) ?? null;
-                setUserName(nm);
                 if (nm) {
+                  setUserName(nm);
                   await AsyncStorage.setItem('userName', nm);
                 } else {
-                  await AsyncStorage.removeItem('userName');
+                  // 프로필 이름이 없으면 user_metadata.name을 읽어 1회 표시/백필
+                  const metaName = (userData.user.user_metadata as any)?.name as string | undefined;
+                  if (metaName && metaName.trim()) {
+                    setUserName(metaName);
+                    await AsyncStorage.setItem('userName', metaName);
+                    // 선택: profiles에 한 번 백필 (단방향)
+                    try {
+                      await supabase.rpc('update_profile', { p_nm: metaName, p_birth_date: null });
+                    } catch {}
+                  } else {
+                    setUserName(null);
+                    await AsyncStorage.removeItem('userName');
+                  }
                 }
               } else {
                 setIsLoggedIn(false);
@@ -91,6 +109,10 @@ export default function MyPageScreen() {
       };
 
       loadSettings();
+
+      return () => {
+        backSub.remove();
+      };
     }, [])
   );
 
@@ -180,7 +202,8 @@ export default function MyPageScreen() {
     if (userName) {
       return; // 로그인 상태면 동작 없음 (디자인상 화살표 유지)
     }
-    router.push('/login');
+    // 요청대로 replace로 이동 (스택 교체)
+    router.replace({ pathname: '/login', params: { from: 'mypage' } });
   };
 
   const handleLogoutPress = () => {
@@ -355,15 +378,11 @@ export default function MyPageScreen() {
       style={[styles.container, { backgroundColor: colors.background }]} 
       edges={['top']}
     >
+      <Stack.Screen options={{ headerShown: false, gestureEnabled: false, animation: 'none' }} />
       <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
 
-      {/* Top Navigation */}
-      <View style={styles.topNavigation}>
-        <View style={styles.topNavigationContent}>
-          <Text style={[styles.pageTitle, { color: colors.text }]}>마이페이지</Text>
-        </View>
-        <View style={[styles.divider, { backgroundColor: colors.border }]} />
-      </View>
+      {/* Top Navigation (shared component) - Figma main type (no arrow) */}
+      <TopNavigation type="main" title="마이페이지" />
 
       <ScrollView 
         style={styles.scrollView}
@@ -523,21 +542,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   
-  // Top Navigation
-  topNavigation: {
-    height: 56,
-  },
-  topNavigationContent: {
-    flex: 1,
-    paddingHorizontal: 16,
-    justifyContent: 'center',
-  },
-  pageTitle: {
-    ...Typography.headline4.r.bold,
-  },
+  // TopNavigation styles removed (using shared component)
   divider: {
-    height: StyleSheet.hairlineWidth,
-    opacity: 0.16,
+    height: 1,
+    marginHorizontal: 16,
   },
 
   // Scroll View
