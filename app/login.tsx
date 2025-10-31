@@ -105,7 +105,7 @@ export default function LoginScreen() {
   const handleClosePress = () => {
     if (isClosing) return;
     setIsClosing(true);
-    router.replace('/(tabs)/mypage');
+    router.back();
   };
 
   const handleLoginPress = async () => {
@@ -183,7 +183,7 @@ export default function LoginScreen() {
   };
 
   const handleFindAccountPress = () => {
-    // 이전 동작으로 복구: push 사용
+    // push로 스택을 쌓아서 뒤로가기 시 로그인으로 복귀 가능하게 함
     router.push('/account-verify');
   };
 
@@ -193,7 +193,6 @@ export default function LoginScreen() {
         options={{
           headerShown: false,
           gestureEnabled: false,
-          animation: 'none',
         }}
       />
       <SafeAreaView 
@@ -306,18 +305,19 @@ export default function LoginScreen() {
               </View>
             </View>
 
-            {/* Signup Button */}
-            <View style={styles.signupButtonContainer}>
-              <Button
-                onPress={handleSignupPress}
-                type="line"
-              >
-                회원가입
-              </Button>
-            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+      
+      {/* Signup Button - Fixed at bottom */}
+      <View style={[styles.signupButtonContainer, { backgroundColor: colors.background }]}>
+        <Button
+          onPress={handleSignupPress}
+          type="line"
+        >
+          회원가입
+        </Button>
+      </View>
       </View>
       </SafeAreaView>
     </>
@@ -420,7 +420,9 @@ const styles = StyleSheet.create({
 
   // Signup Button
   signupButtonContainer: {
-    marginTop: 'auto',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 16,
   },
 
   // Caption

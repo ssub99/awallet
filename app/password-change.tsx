@@ -340,15 +340,21 @@ export default function PasswordChangeScreen() {
     }
     
     // 즉시 로그인 화면으로 이동
-    router.replace('/login');
+    router.push('/login');
   };
 
   const handleSuccessModalClose = async () => {
     console.log('🔎 [PasswordChange] success modal confirm, sign out and go to login');
     setShowSuccessModal(false);
     // 세션 종료 후 로그인 화면으로 이동
-    await supabase.auth.signOut();
-    router.replace('/login');
+    try {
+      if (isSupabaseConfigured) {
+        await supabase.auth.signOut();
+      }
+    } catch (error) {
+      console.error('🔎 [PasswordChange] Sign out error:', error);
+    }
+    router.back();
   };
 
   const handleBackModalClose = async () => {
@@ -364,7 +370,7 @@ export default function PasswordChangeScreen() {
     } catch (error) {
       console.error('🔎 [PasswordChange] Sign out error:', error);
     }
-    router.replace('/login');
+    router.back();
   };
 
   return (

@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { ThemeColors } from '@/constants/theme-colors';
 import { Typography } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useLoading } from '@/contexts/loading-context';
 import { Stack, useRouter } from 'expo-router';
 import { supabase, isSupabaseConfigured } from '@/utils/supabase-client';
 import React, { useState } from 'react';
@@ -14,6 +15,7 @@ export default function IdFindScreen() {
   const colorScheme = useColorScheme();
   const colors = ThemeColors[colorScheme ?? 'light'];
   const router = useRouter();
+  const { setLoading } = useLoading();
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -35,6 +37,7 @@ export default function IdFindScreen() {
     }
 
     try {
+      setLoading(true);
       if (!isSupabaseConfigured) throw new Error('Supabase not configured');
       console.log('🔎 [AccountVerify] verifying candidate via RPC');
       // 1) 보안 RPC로 이름+이메일 매칭 확인 (RLS 우회)
@@ -47,6 +50,7 @@ export default function IdFindScreen() {
         console.log('🔎 [AccountVerify] verify failed', { verifyErr, isValid });
         setError(true);
         setErrorMessage('입력하신 정보가 존재하지 않습니다.');
+        setLoading(false);
         return;
       }
 
@@ -60,15 +64,17 @@ export default function IdFindScreen() {
         console.log('🔎 [AccountVerify] send OTP failed', { otpErr });
         setError(true);
         setErrorMessage('인증 요청이 잦습니다. 30초 후 다시 시도해 주세요.');
+        setLoading(false);
         return;
       }
       console.log('🔎 [AccountVerify] send OTP ok, navigating to email verify');
-      router.push({ pathname: '/account-verify-email', params: { email: encodeURIComponent(email.trim()), name: encodeURIComponent(name.trim()) } });
+      router.replace({ pathname: '/account-verify-email', params: { email: encodeURIComponent(email.trim()), name: encodeURIComponent(name.trim()) } });
     } catch {
       console.log('🔎 [AccountVerify] unexpected error');
       setError(true);
       setErrorMessage('일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
     } finally {
+      setLoading(false);
     }
   };
 
@@ -95,13 +101,7 @@ export default function IdFindScreen() {
           <View style={styles.topNavigationContent}>
             <Pressable
               style={styles.backButton}
-              onPress={() => {
-                if (router.canGoBack()) {
-                  router.back();
-                } else {
-                  router.replace('/(tabs)/mypage');
-                }
-              }}
+              onPress={() => router.back()}
               accessibilityRole="button"
               accessibilityLabel="뒤로가기"
             >

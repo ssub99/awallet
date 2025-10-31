@@ -193,7 +193,7 @@ export default function AccountVerifyEmailScreen() {
 
   const handleChangePasswordPress = () => {
     setShowResultModal(false);
-    router.push('/password-change');
+    router.replace('/password-change');
   };
 
   // 초기 진입 시 60초 쿨다운을 바로 시작하여 버튼 연타를 방지하고 UX를 통일

@@ -65,32 +65,36 @@ export default function RootLayout() {
   return (
     <LoadingProvider>
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-        <View style={{ flex: 1, backgroundColor: colors.background }}>
-          <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
           <AppDataProvider>
-          <Stack>
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="(dev-tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="expense-category" options={{ headerShown: false }} />
-            <Stack.Screen name="expense-record" options={{ headerShown: false }} />
-            <Stack.Screen name="expense-edit" options={{ headerShown: false }} />
-            <Stack.Screen name="income-record" options={{ headerShown: false }} />
-            <Stack.Screen name="income-edit" options={{ headerShown: false }} />
-            <Stack.Screen name="challenge-create" options={{ headerShown: false }} />
-            <Stack.Screen name="challenge-edit" options={{ headerShown: false }} />
-            <Stack.Screen name="monthly-expense-timeline" options={{ headerShown: false }} />
-            <Stack.Screen name="month-start-day" options={{ headerShown: false }} />
-            <Stack.Screen name="login" options={{ headerShown: false }} />
-            <Stack.Screen name="email-verify" options={{ headerShown: false }} />
-            <Stack.Screen name="signup-intro" options={{ headerShown: false }} />
-            <Stack.Screen name="signup-complete" options={{ headerShown: false }} />
-            <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-          </Stack>
-            <StatusBar style="auto" />
-            <GlobalProgressBar />
+        <Stack>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="(dev-tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="expense-category" options={{ headerShown: false }} />
+          <Stack.Screen name="expense-record" options={{ headerShown: false }} />
+          <Stack.Screen name="expense-edit" options={{ headerShown: false }} />
+          <Stack.Screen name="income-record" options={{ headerShown: false }} />
+          <Stack.Screen name="income-edit" options={{ headerShown: false }} />
+          <Stack.Screen name="challenge-create" options={{ headerShown: false }} />
+          <Stack.Screen name="challenge-edit" options={{ headerShown: false }} />
+          <Stack.Screen name="monthly-expense-timeline" options={{ headerShown: false }} />
+          <Stack.Screen name="month-start-day" options={{ headerShown: false }} />
+          <Stack.Screen name="login" options={{ headerShown: false }} />
+          <Stack.Screen name="account-verify" options={{ headerShown: false }} />
+          <Stack.Screen name="account-verify-email" options={{ headerShown: false }} />
+          <Stack.Screen name="password-change" options={{ headerShown: false }} />
+          <Stack.Screen name="password-set" options={{ headerShown: false }} />
+          <Stack.Screen name="email-verify" options={{ headerShown: false }} />
+          <Stack.Screen name="signup-intro" options={{ headerShown: false }} />
+          <Stack.Screen name="signup-complete" options={{ headerShown: false }} />
+          <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+        </Stack>
+          <StatusBar style="auto" />
+          <GlobalProgressBar />
           </AppDataProvider>
-          </ThemeProvider>
-        </View>
+        </ThemeProvider>
+      </View>
       </SafeAreaProvider>
     </LoadingProvider>
   );
