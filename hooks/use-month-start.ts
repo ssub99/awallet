@@ -9,6 +9,26 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const MONTH_START_DAY_KEY = 'monthStartDay';
 
 /**
+ * Event emitter for month start day changes
+ */
+class MonthStartEventEmitter {
+  private listeners: Array<(day: number) => void> = [];
+
+  subscribe(listener: (day: number) => void): () => void {
+    this.listeners.push(listener);
+    return () => {
+      this.listeners = this.listeners.filter(l => l !== listener);
+    };
+  }
+
+  emit(day: number): void {
+    this.listeners.forEach(listener => listener(day));
+  }
+}
+
+export const monthStartEvent = new MonthStartEventEmitter();
+
+/**
  * Load month start day from AsyncStorage
  * 
  * @returns Month start day (1-31)

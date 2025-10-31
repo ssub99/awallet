@@ -19,7 +19,7 @@ export const GlobalProgressBar: React.FC = () => {
     >
       <View style={styles.overlay} pointerEvents="auto">
         <View style={styles.indicatorContainer}>
-          <ActivityIndicator size="large" />
+          <ActivityIndicator size="small" />
         </View>
       </View>
     </Modal>
@@ -29,11 +29,10 @@ export const GlobalProgressBar: React.FC = () => {
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    backgroundColor: 'transparent',
     justifyContent: 'center',
     alignItems: 'center',
   },
   indicatorContainer: {
-    transform: [{ scale: 1.33 }], // 1.33배 확대 (기본 large는 약 24px, 1.33배하면 32px)
   },
 });

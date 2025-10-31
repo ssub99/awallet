@@ -10,15 +10,17 @@ import { Icon } from '@/components/ui/icon';
 import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
 import { MonthData, YearView, YearViewRef } from '@/components/ui/year-view';
 import { Colors, Typography } from '@/constants/theme';
+import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
+import { useAppData } from '@/contexts/app-data-context';
 import { createSheetEvent } from '@/utils/create-sheet-event';
 import { getCustomMonthInfo, isDateInCustomMonth } from '@/utils/custom-month';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useIsFocused } from '@react-navigation/native';
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function HomeScreen() {
@@ -27,7 +29,19 @@ export default function HomeScreen() {
   const navigation = useNavigation();
   const isFocused = useIsFocused();
   const router = useRouter();
-  const [monthStartDay, setMonthStartDay] = useState(1);
+  const { calendarData, monthStartDay, refresh, isReady, dataVersion } = useAppData();
+  const { setLoading } = useLoading();
+  const pendingOpsRef = useRef(0);
+  const beginLoad = () => {
+    pendingOpsRef.current += 1;
+    setLoading(true);
+  };
+  const endLoad = () => {
+    pendingOpsRef.current = Math.max(0, pendingOpsRef.current - 1);
+    if (pendingOpsRef.current === 0) setLoading(false);
+  };
+  const [isContentReady, setIsContentReady] = useState(false);
+  const contentOpacity = useRef(new Animated.Value(0)).current;
 
   // 소비 기록 완료 후 전달된 params 받기
   const params = useLocalSearchParams<{
@@ -71,18 +85,14 @@ export default function HomeScreen() {
   useEffect(() => {
     const loadSettings = async () => {
       try {
+        beginLoad();
         // 소비 기록 완료 후 전달된 params가 있으면 해당 날짜로 이동
         if (params.targetYear && params.targetMonth && params.targetDate) {
           const targetYear = parseInt(params.targetYear);
           const targetMonth = parseInt(params.targetMonth);
           
-          // 🔄 소비 기록 후에는 AsyncStorage에서 최신 데이터 다시 로드
-          const storedData = await AsyncStorage.getItem('calendarData');
-          if (storedData) {
-            const parsedData = JSON.parse(storedData);
-            // 저장된 데이터만 사용 (샘플 데이터 병합 안 함)
-            setCalendarData(parsedData);
-          }
+          // 🔄 소비 기록 후에는 전역 데이터 새로고침
+          await refresh();
           
           setCurrentYear(targetYear);
           setCurrentMonth(targetMonth);
@@ -114,6 +124,7 @@ export default function HomeScreen() {
         console.error('설정 로드 중 오류:', error);
       } finally {
         setIsLoadingSettings(false);
+        endLoad();
       }
     };
     
@@ -243,66 +254,44 @@ export default function HomeScreen() {
     []
   );
 
-  // Calendar data (빈 초기 상태 - 실제 입력 데이터만 사용)
-  const initialCalendarData: Record<string, DayData> = {};
-  
-  // State로 관리
-  const [calendarData, setCalendarData] = useState<Record<string, DayData>>(initialCalendarData);
+  // Calendar data는 전역 컨텍스트에서 제공됨
 
 
-  // AsyncStorage에서 calendarData와 monthStartDay 불러오기 (화면 포커스 시마다)
-  useFocusEffect(
-    useCallback(() => {
-      const loadData = async () => {
-        try {
-          // Load calendar data
-          const storedData = await AsyncStorage.getItem('calendarData');
-          if (storedData) {
-            const parsedData = JSON.parse(storedData);
-            // isDeleted가 true인 기록 제외하고 계산
-            const totalRecords = Object.values(parsedData).reduce((sum: number, day: any) => {
-              if (day.records) {
-                const activeRecords = day.records.filter((record: any) => !record.isDeleted);
-                return sum + activeRecords.length;
-              }
-              return sum;
-            }, 0);
-            
-            // 활성 기록이 있는 날짜만 dataKeys에 포함
-            const activeDataKeys = Object.keys(parsedData).filter(dateKey => {
-              const day = parsedData[dateKey];
-              if (day.records) {
-                const activeRecords = day.records.filter((record: any) => !record.isDeleted);
-                return activeRecords.length > 0;
-              }
-              return false;
-            });
-            
-            console.log('📊 [홈] 포커스 시 캘린더 데이터 로드:', {
-              dataKeys: activeDataKeys,
-              totalRecords
-            });
-            setCalendarData(parsedData);
-          } else {
-            setCalendarData({});
-          }
-          
-          // Load month start day
-          const monthStart = await loadMonthStartDay();
-          console.log('📅 [홈] 포커스 시 월 시작일 로드:', { monthStart });
-          setMonthStartDay(monthStart);
-          
-          // 현재 날짜가 속하는 올바른 커스텀 월로 설정
-          await resetToToday();
+  // 모든 필요한 데이터가 준비된 이후(초기/갱신) 한 번만 페이드 트리거
+  const animatingRef = useRef(false);
+  useEffect(() => {
+    if (!isReady) return;
+    if (animatingRef.current) return;
+    animatingRef.current = true;
+    const init = async () => {
+      setIsContentReady(false);
+      try {
+        await resetToToday();
+      } finally {
+        setIsContentReady(true);
+        // 약간의 지연 후 다음 갱신을 허용
+        setTimeout(() => {
+          animatingRef.current = false;
+        }, 50);
+      }
+    };
+    init();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isReady, dataVersion]);
 
-        } catch (error) {
-          console.error('월 시작일 변경 감지 중 오류:', error);
-        }
-      };
-      
-      loadData();
-    }, [])
-  );
+  useEffect(() => {
+    if (isContentReady) {
+      contentOpacity.setValue(0);
+      Animated.timing(contentOpacity, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      contentOpacity.setValue(0);
+    }
+  }, [isContentReady, contentOpacity]);
+
 
   // Calculate year data from calendar data (based on custom month start day)
   const yearData: MonthData[] = useMemo(() => {
@@ -387,150 +376,151 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-      <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
       
       {/* Top Navigation */}
-      <TopNavigation
-        type="main"
-        title=""
-        showDay
-        dateText={dateText}
-        periodType={periodType}
-        onPeriodChange={setPeriodType}
-        showDropdownArrow
-        yearOptions={yearOptions}
-        selectedYear={currentYear}
-        onYearChange={(year) => setCurrentYear(year)}
-        monthOptions={periodType === 'month' ? monthOptions : undefined}
-        selectedMonth={periodType === 'month' ? currentMonth : undefined}
-        onMonthChange={periodType === 'month' ? (month) => setCurrentMonth(month) : undefined}
-      />
+      <Animated.View style={{ opacity: isContentReady ? contentOpacity : 0 }}>
+        <TopNavigation
+          type="main"
+          title=""
+          showDay
+          dateText={dateText}
+          periodType={periodType}
+          onPeriodChange={setPeriodType}
+          showDropdownArrow
+          yearOptions={yearOptions}
+          selectedYear={currentYear}
+          onYearChange={(year) => setCurrentYear(year)}
+          monthOptions={periodType === 'month' ? monthOptions : undefined}
+          selectedMonth={periodType === 'month' ? currentMonth : undefined}
+          onMonthChange={periodType === 'month' ? (month) => setCurrentMonth(month) : undefined}
+        />
+      </Animated.View>
 
       {/* Conditional Content: Month View or Year View */}
       {periodType === 'month' ? (
-        <>
-          {/* Financial Summary Cards */}
-          <View style={[styles.summaryContainer, { backgroundColor: colors.fill }]}>
-            <View style={styles.summaryRow}>
-              {/* Income Card */}
-              <View style={[styles.card, { backgroundColor: colors.staticWhite }]}>
-                <Text style={[styles.cardLabel, { color: colors.textNeutral }]}>
-                  입금
-                </Text>
-                <Text 
-                  style={[styles.cardAmount, { color: '#05a234' }]}
-                  adjustsFontSizeToFit
-                  numberOfLines={1}
-                  minimumFontScale={0.5}
-                >
-                  + {financialData.income.toLocaleString()}원
-                </Text>
+        <Animated.View style={{ opacity: isContentReady ? contentOpacity : 0 }}>
+            {/* Financial Summary Cards */}
+            <View style={[styles.summaryContainer, { backgroundColor: colors.fill }]}> 
+              <View style={styles.summaryRow}>
+                {/* Income Card */}
+                <View style={[styles.card, { backgroundColor: colors.staticWhite }]}> 
+                  <Text style={[styles.cardLabel, { color: colors.textNeutral }]}> 
+                    입금
+                  </Text>
+                  <Text 
+                    style={[styles.cardAmount, { color: '#05a234' }]}
+                    adjustsFontSizeToFit
+                    numberOfLines={1}
+                    minimumFontScale={0.5}
+                  >
+                    + {financialData.income.toLocaleString()}원
+                  </Text>
+                </View>
+
+                {/* Balance Card */}
+                <View style={[styles.card, { backgroundColor: colors.staticWhite }]}> 
+                  <Text style={[styles.cardLabel, { color: colors.textNeutral }]}> 
+                    잔액
+                  </Text>
+                  <Text 
+                    style={[styles.cardAmount, { color: colors.text }]}
+                    adjustsFontSizeToFit
+                    numberOfLines={1}
+                    minimumFontScale={0.5}
+                  >
+                    {financialData.balance.toLocaleString()}원
+                  </Text>
+                </View>
               </View>
 
-              {/* Balance Card */}
-              <View style={[styles.card, { backgroundColor: colors.staticWhite }]}>
-                <Text style={[styles.cardLabel, { color: colors.textNeutral }]}>
-                  잔액
-                </Text>
-                <Text 
-                  style={[styles.cardAmount, { color: colors.text }]}
-                  adjustsFontSizeToFit
-                  numberOfLines={1}
-                  minimumFontScale={0.5}
+              <View style={styles.summaryRow}>
+                {/* Expense Card */}
+                <View style={[styles.card, { backgroundColor: colors.staticWhite }]}> 
+                  <Text style={[styles.cardLabel, { color: colors.textNeutral }]}> 
+                    소비
+                  </Text>
+                  <Text 
+                    style={[styles.cardAmount, { color: '#ef2a2a' }]}
+                    adjustsFontSizeToFit
+                    numberOfLines={1}
+                    minimumFontScale={0.5}
+                  >
+                    - {financialData.expense.toLocaleString()}원
+                  </Text>
+                </View>
+
+                {/* Challenge Card */}
+                <Pressable 
+                  style={[styles.card, { backgroundColor: colors.staticWhite }]}
+                  onPress={() => {
+                    // 챌린지 현황으로 이동
+                    router.push({
+                      pathname: '/monthly-expense-timeline',
+                      params: {
+                        year: currentYear.toString(),
+                        month: currentMonth.toString(),
+                        tab: 'challenge'
+                      }
+                    });
+                  }}
                 >
-                  {financialData.balance.toLocaleString()}원
-                </Text>
+                  <Text style={[styles.cardLabel, { color: colors.textNeutral }]}> 
+                    챌린지 진행현황
+                  </Text>
+                  <View style={styles.challengeIcon}>
+                    <Icon name="arrowRight" variant="solid" size={24} color={colors.textAssistive} />
+                  </View>
+                </Pressable>
               </View>
             </View>
 
-            <View style={styles.summaryRow}>
-              {/* Expense Card */}
-              <View style={[styles.card, { backgroundColor: colors.staticWhite }]}>
-                <Text style={[styles.cardLabel, { color: colors.textNeutral }]}>
-                  소비
-                </Text>
-                <Text 
-                  style={[styles.cardAmount, { color: '#ef2a2a' }]}
-                  adjustsFontSizeToFit
-                  numberOfLines={1}
-                  minimumFontScale={0.5}
-                >
-                  - {financialData.expense.toLocaleString()}원
-                </Text>
-              </View>
-
-              {/* Challenge Card */}
-              <Pressable 
-                style={[styles.card, { backgroundColor: colors.staticWhite }]}
-                onPress={() => {
-                  // 챌린지 현황으로 이동
+            {/* Calendar */}
+            <CalendarMain
+              selectedDate={selectedDate}
+              onDayPress={(dateString) => {
+                // 이미 선택된 날짜를 다시 탭하면 월 소비현황으로 이동
+                if (selectedDate === dateString) {
+                  // 중복 네비게이션 방지
+                  if (isNavigating.current) {
+                    return;
+                  }
+                  
+                  isNavigating.current = true;
+                  
+                  // 🔧 수정: 날짜 문자열이 아닌 현재 보고 있는 캘린더의 년/월 사용
+                  // 월 시작일이 20일이면 9월 캘린더에 10월 날짜가 표시될 수 있음
+                  
                   router.push({
                     pathname: '/monthly-expense-timeline',
                     params: {
                       year: currentYear.toString(),
                       month: currentMonth.toString(),
-                      tab: 'challenge'
-                    }
+                      selectedDate: dateString,
+                    },
                   });
-                }}
-              >
-                <Text style={[styles.cardLabel, { color: colors.textNeutral }]}>
-                  챌린지 진행현황
-                </Text>
-                <View style={styles.challengeIcon}>
-                  <Icon name="arrowRight" variant="solid" size={24} color={colors.textAssistive} />
-                </View>
-              </Pressable>
-            </View>
-          </View>
-
-          {/* Calendar */}
-          <CalendarMain
-            selectedDate={selectedDate}
-            onDayPress={(dateString) => {
-              // 이미 선택된 날짜를 다시 탭하면 월 소비현황으로 이동
-              if (selectedDate === dateString) {
-                // 중복 네비게이션 방지
-                if (isNavigating.current) {
-                  return;
+                  
+                  // 500ms 후 네비게이션 잠금 해제
+                  setTimeout(() => {
+                    isNavigating.current = false;
+                  }, 500);
+                } else {
+                  // 새로운 날짜 선택
+                  
+                  setSelectedDate(dateString);
                 }
-                
-                isNavigating.current = true;
-                
-                // 🔧 수정: 날짜 문자열이 아닌 현재 보고 있는 캘린더의 년/월 사용
-                // 월 시작일이 20일이면 9월 캘린더에 10월 날짜가 표시될 수 있음
-
-                router.push({
-                  pathname: '/monthly-expense-timeline',
-                  params: {
-                    year: currentYear.toString(),
-                    month: currentMonth.toString(),
-                    selectedDate: dateString,
-                  },
-                });
-                
-                // 500ms 후 네비게이션 잠금 해제
-                setTimeout(() => {
-                  isNavigating.current = false;
-                }, 500);
-              } else {
-                // 새로운 날짜 선택
-
-                setSelectedDate(dateString);
-              }
-            }}
-            dayData={calendarData}
-            showTitle={false}
-            initialYear={currentYear}
-            initialMonth={currentMonth}
-            monthStartDay={monthStartDay}
-            onMonthChange={(year, month) => {
-              // Update shared year/month state when calendar changes
-              setCurrentYear(year);
-              setCurrentMonth(month);
-            }}
-          />
-        </>
+              }}
+              dayData={calendarData}
+              showTitle={false}
+              initialYear={currentYear}
+              initialMonth={currentMonth}
+              monthStartDay={monthStartDay}
+              onMonthChange={(year, month) => {
+                // Update shared year/month state when calendar changes
+                setCurrentYear(year);
+                setCurrentMonth(month);
+              }}
+            />
+        </Animated.View>
       ) : (
         <>
           {/* Year View */}

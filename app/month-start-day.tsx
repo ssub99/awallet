@@ -12,6 +12,7 @@ import { Typography } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getCustomMonthInfo } from '@/utils/custom-month';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { monthStartEvent } from '@/hooks/use-month-start';
 import { useNavigation } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
@@ -178,6 +179,8 @@ export default function MonthStartDayScreen() {
           
           // 월 시작일이 변경되었을 때만 챌린지 재생성
           await regenerateChallengesForNewMonthStart(selectedDay);
+          // Emit month start change
+          monthStartEvent.emit(selectedDay);
         } catch (error) {
           console.error('❌ 월 시작일 저장 중 오류:', error);
         }
@@ -201,6 +204,8 @@ export default function MonthStartDayScreen() {
         
         // 월 시작일이 변경되었을 때만 챌린지 재생성
         await regenerateChallengesForNewMonthStart(selectedDay);
+        // Emit month start change
+        monthStartEvent.emit(selectedDay);
         
       } catch (error) {
         console.error('❌ 월 시작일 저장 중 오류:', error);

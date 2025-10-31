@@ -23,7 +23,6 @@ import {
     Platform,
     Pressable,
     ScrollView,
-    StatusBar,
     StyleSheet,
     Text,
     View
@@ -201,7 +200,6 @@ export default function LoginScreen() {
         style={[styles.container, { backgroundColor: colors.background }]} 
         edges={['top','bottom']}
       >
-        <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
 
       {/* Screen Content */}
       <View style={{ flex: 1 }}>

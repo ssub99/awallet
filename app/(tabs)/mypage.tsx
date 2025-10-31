@@ -13,6 +13,7 @@ import { Typography } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getNotificationPermissionStatus, handleNotificationToggle } from '@/hooks/use-notifications';
 import { weekStartEvent } from '@/hooks/use-week-start';
+import { monthStartEvent } from '@/hooks/use-month-start';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase, isSupabaseConfigured } from '@/utils/supabase-client';
 import { useLoading } from '@/contexts/loading-context';
@@ -20,7 +21,7 @@ import Constants from 'expo-constants';
 import * as MailComposer from 'expo-mail-composer';
 import { useFocusEffect, useRouter, Stack } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, AppState, AppStateStatus, BackHandler, Linking, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { Alert, AppState, AppStateStatus, BackHandler, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View, Animated } from 'react-native';
 import { ModalPopup } from '@/components/ui/modal-popup';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -30,6 +31,10 @@ export default function MyPageScreen() {
   const appState = useRef(AppState.currentState);
   const router = useRouter();
   const { setLoading } = useLoading();
+  const hasLoadedProfileRef = useRef(false); // 앱 실행 중 1회만 프로필 로드
+  const hasInitializedRef = useRef(false);   // 마이페이지 최초 진입 1회만 로드
+  const [isContentReady, setIsContentReady] = useState(false);
+  const contentOpacity = useRef(new Animated.Value(0)).current;
   
   // Settings state
   const [monthStartDay, setMonthStartDay] = useState('1일');
@@ -49,6 +54,15 @@ export default function MyPageScreen() {
 
       const loadSettings = async () => {
         try {
+          // 최초 1회만 글로벌 인디케이터 + 로드
+          const shouldLoad = !hasInitializedRef.current;
+          if (shouldLoad) {
+            setIsContentReady(false);
+            setLoading(true);
+          } else {
+            // 이미 초기화된 경우, 바로 컨텐츠 표시 유지
+            setIsContentReady(true);
+          }
           const [startDay, weekStart, notifications] = await Promise.all([
             AsyncStorage.getItem('monthStartDay'),
             AsyncStorage.getItem('weekStartsSunday'),
@@ -59,52 +73,64 @@ export default function MyPageScreen() {
           if (weekStart !== null) setWeekStartsSunday(JSON.parse(weekStart));
           if (notifications !== null) setNotificationsEnabled(JSON.parse(notifications));
 
-          // 로그인 사용자명 로드 (Supabase 프로필만 신뢰)
+          // 사용자/프로필 로드는 앱 실행 중 1회만 수행 (로컬 캐시가 있으면 사용)
           try {
-            if (isSupabaseConfigured) {
-              const { data: userData } = await supabase.auth.getUser();
-              const authUid = userData?.user?.id;
-              if (authUid) {
+            if (!hasLoadedProfileRef.current) {
+              const cachedName = await AsyncStorage.getItem('userName');
+              if (cachedName) {
+                setUserName(cachedName);
                 setIsLoggedIn(true);
-                const { data: profile } = await supabase
-                  .from('profiles')
-                  .select('nm')
-                  .eq('auth_uid', authUid)
-                  .maybeSingle();
-                const nm = (profile?.nm as string | null) ?? null;
-                if (nm) {
-                  setUserName(nm);
-                  await AsyncStorage.setItem('userName', nm);
-                } else {
-                  // 프로필 이름이 없으면 user_metadata.name을 읽어 1회 표시/백필
-                  const metaName = (userData.user.user_metadata as any)?.name as string | undefined;
-                  if (metaName && metaName.trim()) {
-                    setUserName(metaName);
-                    await AsyncStorage.setItem('userName', metaName);
-                    // 선택: profiles에 한 번 백필 (단방향)
-                    try {
-                      await supabase.rpc('update_profile', { p_nm: metaName, p_birth_date: null });
-                    } catch {}
+                hasLoadedProfileRef.current = true;
+              } else if (isSupabaseConfigured) {
+                const { data: userData } = await supabase.auth.getUser();
+                const authUid = userData?.user?.id;
+                if (authUid) {
+                  setIsLoggedIn(true);
+                  const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('nm')
+                    .eq('auth_uid', authUid)
+                    .maybeSingle();
+                  const nm = (profile?.nm as string | null) ?? null;
+                  if (nm) {
+                    setUserName(nm);
+                    await AsyncStorage.setItem('userName', nm);
                   } else {
-                    setUserName(null);
-                    await AsyncStorage.removeItem('userName');
+                    const metaName = (userData.user.user_metadata as any)?.name as string | undefined;
+                    if (metaName && metaName.trim()) {
+                      setUserName(metaName);
+                      await AsyncStorage.setItem('userName', metaName);
+                      try {
+                        await supabase.rpc('update_profile', { p_nm: metaName, p_birth_date: null });
+                      } catch {}
+                    } else {
+                      setUserName(null);
+                      await AsyncStorage.removeItem('userName');
+                    }
                   }
+                } else {
+                  setIsLoggedIn(false);
+                  setUserName(null);
+                  await AsyncStorage.removeItem('userName');
                 }
+                hasLoadedProfileRef.current = true;
               } else {
                 setIsLoggedIn(false);
                 setUserName(null);
-                await AsyncStorage.removeItem('userName');
+                hasLoadedProfileRef.current = true;
               }
-            } else {
-              setIsLoggedIn(false);
-              setUserName(null);
             }
           } catch {
             setIsLoggedIn(false);
             setUserName(null);
+            hasLoadedProfileRef.current = true;
           }
         } catch (error) {
           console.error('설정 로드 중 오류:', error);
+        } finally {
+          hasInitializedRef.current = true;
+          setIsContentReady(true);
+          setLoading(false);
         }
       };
 
@@ -115,6 +141,28 @@ export default function MyPageScreen() {
       };
     }, [])
   );
+
+  // Fade-in when ready
+  useEffect(() => {
+    if (isContentReady) {
+      contentOpacity.setValue(0);
+      Animated.timing(contentOpacity, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      contentOpacity.setValue(0);
+    }
+  }, [isContentReady, contentOpacity]);
+
+  // Reflect month start day change without full reload
+  useEffect(() => {
+    const unsub = monthStartEvent.subscribe((day) => {
+      setMonthStartDay(`${day}일`);
+    });
+    return unsub;
+  }, []);
 
   // Sync notification setting with system permission when app becomes active
   useEffect(() => {
@@ -379,150 +427,155 @@ export default function MyPageScreen() {
       edges={['top']}
     >
       <Stack.Screen options={{ headerShown: false, gestureEnabled: false, animation: 'none' }} />
-      <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
 
       {/* Top Navigation (shared component) - Figma main type (no arrow) */}
-      <TopNavigation type="main" title="마이페이지" />
+      <Animated.View style={{ opacity: isContentReady ? contentOpacity : 0 }}>
+        <TopNavigation type="main" title="마이페이지" />
+      </Animated.View>
 
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
+      <Animated.View style={{ flex: 1, opacity: isContentReady ? contentOpacity : 0 }}>
+        <ScrollView 
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
         {/* Background */}
         <View style={[styles.background, { backgroundColor: colors.fill }]}>
-          {/* Login Card */}
-          <Pressable 
-            style={[styles.card, styles.loginCard, { backgroundColor: colors.background }]}
-            onPress={handleLoginPress}
-            accessibilityRole="button"
-            accessibilityLabel="로그인하기"
-          >
-            <View style={styles.loginContent}>
-              {/* Profile Icon */}
-              <View style={styles.profileIconContainer}>
-                <Icon name="profile" size={48} color={colors.textAssistive} />
+          <>
+              {/* Login Card */}
+              <Pressable 
+                style={[styles.card, styles.loginCard, { backgroundColor: colors.background }]}
+                onPress={handleLoginPress}
+                accessibilityRole="button"
+                accessibilityLabel="로그인하기"
+              >
+                <View style={styles.loginContent}>
+                  {/* Profile Icon */}
+                  <View style={styles.profileIconContainer}>
+                    <Icon name="profile" size={48} color={colors.textAssistive} />
+                  </View>
+
+                  {/* Login Text */}
+                  <Text style={[styles.loginText, { color: colors.staticBlack }]}>
+                    {isLoggedIn
+                      ? userName ? `${userName}님, 안녕하세요!` : '안녕하세요!'
+                      : '로그인 후 동기화를 진행해 보세요.'}
+                  </Text>
+                </View>
+
+                {/* Arrow Icon (로그인 전용) */}
+                {!isLoggedIn && (
+                  <Icon name="arrowRight" size={24} color={colors.text} />
+                )}
+              </Pressable>
+
+              {/* Settings Card */}
+              <View style={[styles.card, { backgroundColor: colors.background }]}> 
+                {/* Month Start Day */}
+                <Pressable 
+                  style={styles.settingRow}
+                  onPress={handleMonthStartDayPress}
+                  accessibilityRole="button"
+                  accessibilityLabel="월 시작일 설정"
+                >
+                  <Text style={[styles.settingLabel, { color: colors.text }]}>월 시작일</Text>
+                  <View style={styles.settingValue}>
+                    <Text style={[styles.settingValueText, { color: colors.textNeutral }]}> 
+                      {monthStartDay}
+                    </Text>
+                    <Icon name="arrowRight" size={24} color={colors.text} />
+                  </View>
+                </Pressable>
+
+                <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+                {/* Week Start Sunday */}
+                <View style={styles.settingRow}>
+                  <Text style={[styles.settingLabel, { color: colors.text }]}> 
+                    한주 일요일 시작
+                  </Text>
+                  <Switch 
+                    value={weekStartsSunday}
+                    onValueChange={handleWeekStartChange}
+                  />
+                </View>
+
+                <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+                {/* Notifications */}
+                <View style={styles.settingRow}>
+                  <Text style={[styles.settingLabel, { color: colors.text }]}>알림 설정</Text>
+                  <Switch 
+                    value={notificationsEnabled}
+                    onValueChange={handleNotificationsChange}
+                  />
+                </View>
               </View>
 
-              {/* Login Text */}
-              <Text style={[styles.loginText, { color: colors.staticBlack }]}>
-                {isLoggedIn
-                  ? userName ? `${userName}님, 안녕하세요!` : '안녕하세요!'
-                  : '로그인 후 동기화를 진행해 보세요.'}
-              </Text>
-            </View>
+              {/* Inquiry & Review Card */}
+              <View style={[styles.card, { backgroundColor: colors.background }]}> 
+                {/* Inquiry */}
+                <Pressable 
+                  style={styles.menuRow}
+                  onPress={handleInquiryPress}
+                  accessibilityRole="button"
+                  accessibilityLabel="문의하기"
+                >
+                  <Text style={[styles.menuLabel, { color: colors.text }]}>문의하기</Text>
+                  <Icon name="arrowRight" size={24} color={colors.text} />
+                </Pressable>
 
-            {/* Arrow Icon (로그인 전용) */}
-            {!isLoggedIn && (
-              <Icon name="arrowRight" size={24} color={colors.text} />
-            )}
-          </Pressable>
+                <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
-          {/* Settings Card */}
-          <View style={[styles.card, { backgroundColor: colors.background }]}>
-            {/* Month Start Day */}
-            <Pressable 
-              style={styles.settingRow}
-              onPress={handleMonthStartDayPress}
-              accessibilityRole="button"
-              accessibilityLabel="월 시작일 설정"
-            >
-              <Text style={[styles.settingLabel, { color: colors.text }]}>월 시작일</Text>
-              <View style={styles.settingValue}>
-                <Text style={[styles.settingValueText, { color: colors.textNeutral }]}>
-                  {monthStartDay}
-                </Text>
-                <Icon name="arrowRight" size={24} color={colors.text} />
+                {/* Review */}
+                <Pressable 
+                  style={styles.menuRow}
+                  onPress={handleReviewPress}
+                  accessibilityRole="button"
+                  accessibilityLabel="리뷰 쓰기"
+                >
+                  <Text style={[styles.menuLabel, { color: colors.text }]}>리뷰 쓰기</Text>
+                  <Icon name="arrowRight" size={24} color={colors.text} />
+                </Pressable>
               </View>
-            </Pressable>
 
-            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+              {/* Logout (only when logged in) */}
+              {isLoggedIn && (
+                <View style={[styles.card, { backgroundColor: colors.background }]}>            
+                  <Pressable 
+                    style={styles.menuRow}
+                    onPress={handleLogoutPress}
+                    accessibilityRole="button"
+                    accessibilityLabel="로그아웃"
+                  >
+                    <Text style={[styles.menuLabel, { color: colors.statusNegative }]}>로그아웃</Text>
+                  </Pressable>
+                </View>
+              )}
 
-            {/* Week Start Sunday */}
-            <View style={styles.settingRow}>
-              <Text style={[styles.settingLabel, { color: colors.text }]}>
-                한주 일요일 시작
-              </Text>
-              <Switch 
-                value={weekStartsSunday}
-                onValueChange={handleWeekStartChange}
-              />
-            </View>
-
-            <View style={[styles.divider, { backgroundColor: colors.border }]} />
-
-            {/* Notifications */}
-            <View style={styles.settingRow}>
-              <Text style={[styles.settingLabel, { color: colors.text }]}>알림 설정</Text>
-              <Switch 
-                value={notificationsEnabled}
-                onValueChange={handleNotificationsChange}
-              />
-            </View>
-          </View>
-
-          {/* Inquiry & Review Card */}
-          <View style={[styles.card, { backgroundColor: colors.background }]}>
-            {/* Inquiry */}
-            <Pressable 
-              style={styles.menuRow}
-              onPress={handleInquiryPress}
-              accessibilityRole="button"
-              accessibilityLabel="문의하기"
-            >
-              <Text style={[styles.menuLabel, { color: colors.text }]}>문의하기</Text>
-              <Icon name="arrowRight" size={24} color={colors.text} />
-            </Pressable>
-
-            <View style={[styles.divider, { backgroundColor: colors.border }]} />
-
-            {/* Review */}
-            <Pressable 
-              style={styles.menuRow}
-              onPress={handleReviewPress}
-              accessibilityRole="button"
-              accessibilityLabel="리뷰 쓰기"
-            >
-              <Text style={[styles.menuLabel, { color: colors.text }]}>리뷰 쓰기</Text>
-              <Icon name="arrowRight" size={24} color={colors.text} />
-            </Pressable>
-          </View>
-
-          {/* Logout (only when logged in) */}
-          {isLoggedIn && (
-            <View style={[styles.card, { backgroundColor: colors.background }]}>            
-              <Pressable 
-                style={styles.menuRow}
-                onPress={handleLogoutPress}
-                accessibilityRole="button"
-                accessibilityLabel="로그아웃"
-              >
-                <Text style={[styles.menuLabel, { color: colors.statusNegative }]}>로그아웃</Text>
-              </Pressable>
-            </View>
-          )}
-
-          {/* Test Environment Card (only in __DEV__) */}
-          {__DEV__ && (
-            <View style={[styles.card, { backgroundColor: colors.background }]}>
-              <Pressable 
-                style={styles.menuRow}
-                onPress={() => {
-
-                  router.push('/(dev-tabs)/components');
-                }}
-                accessibilityRole="button"
-                accessibilityLabel="테스트 환경 바로가기"
-              >
-                <Text style={[styles.menuLabel, { color: colors.text }]}>
-                  테스트 환경 바로가기
-                </Text>
-                <Icon name="arrowRight" size={24} color={colors.text} />
-              </Pressable>
-            </View>
-          )}
+              {/* Test Environment Card (only in __DEV__) */}
+              {__DEV__ && (
+                <View style={[styles.card, { backgroundColor: colors.background }]}> 
+                  <Pressable 
+                    style={styles.menuRow}
+                    onPress={() => {
+                      
+                      router.push('/(dev-tabs)/components');
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel="테스트 환경 바로가기"
+                  >
+                    <Text style={[styles.menuLabel, { color: colors.text }]}> 
+                      테스트 환경 바로가기
+                    </Text>
+                    <Icon name="arrowRight" size={24} color={colors.text} />
+                  </Pressable>
+                </View>
+              )}
+          </>
         </View>
-      </ScrollView>
+        </ScrollView>
+      </Animated.View>
 
       {/* Logout Confirm Modal */}
       <ModalPopup
