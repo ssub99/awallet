@@ -312,7 +312,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   const [showCategoryAlert, setShowCategoryAlert] = useState<boolean>(false);
   const [showWeekendConfirm, setShowWeekendConfirm] = useState<boolean>(false);
   const [showPeriodPicker, setShowPeriodPicker] = useState<boolean>(false);
-  const [showPeriodNativePicker, setShowPeriodNativePicker] = useState<boolean>(false);
+  // showPeriodNativePicker는 더 이상 사용하지 않음 (Selectbox로 대체)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<boolean>(false);
   const [showRecurringDeleteConfirm, setShowRecurringDeleteConfirm] = useState<boolean>(false);
   const [showNoChangesModal, setShowNoChangesModal] = useState<boolean>(false);
@@ -2049,17 +2049,19 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                       const isDisabled = mode === 'edit' && editData?.isRecurring;
 
                       if (isDisabled) {
-
+                        if (__DEV__) {
+                          console.log('🔍 [개월수 선택] 변경 불가 (정기 기록 수정 모드)');
+                        }
                         setRecurringToastMessage('변경할 수 없습니다. 새로 생성해 주세요.');
                         setShowRecurringToast(true);
-                        return;
                       }
-
-                      Keyboard.dismiss();
-                      setShowPeriodNativePicker(true);
+                      // Selectbox의 자체 모달을 사용하므로 추가 동작 불필요
                     }}
                     onValueChange={(value) => {
                       if (mode !== 'edit' || !editData?.isRecurring) {
+                        if (__DEV__) {
+                          console.log('🔍 [개월수 선택] 값 변경:', value);
+                        }
                         setRecurringMonths(parseInt(value, 10));
                       }
                     }}
@@ -2380,24 +2382,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         </Text>
       </ModalPopup>
 
-      {/* 기간 선택 네이티브 피커 */}
-      <DatePicker
-        visible={showPeriodNativePicker}
-        onClose={() => setShowPeriodNativePicker(false)}
-        title="기간 선택"
-        dayOptions={Array.from({ length: 11 }, (_, i) => {
-          const month = i + 2;
-          return {
-            label: `${month}개월`,
-            value: month,
-          };
-        })}
-        selectedDay={recurringMonths}
-        onDayChange={(month) => {
-          setRecurringMonths(month);
-          setShowPeriodNativePicker(false);
-        }}
-      />
+      {/* 기간 선택은 이제 Selectbox를 사용하므로 DatePicker 제거됨 */}
 
       {/* 일반 삭제 확인 모달 */}
       <ModalPopup
