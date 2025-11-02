@@ -1,7 +1,7 @@
 /**
  * Expense Validation Utilities
  * 
- * 정기 기록과 분할 기록의 검증 로직을 통합 관리
+ * 정기 기록과 할부 기록의 검증 로직을 통합 관리
  */
 
 export interface ValidationResult {
@@ -69,9 +69,9 @@ export function validateAmountChange(record: any, mode: 'create' | 'edit'): Vali
 }
 
 /**
- * 분할 설정 변경 가능 여부를 확인합니다
+ * 할부 설정 변경 가능 여부를 확인합니다
  */
-export function validateSplitChange(record: any, mode: 'create' | 'edit'): ValidationResult {
+export function validateInstallmentChange(record: any, mode: 'create' | 'edit'): ValidationResult {
   if (mode === 'create') {
     return { isValid: true };
   }
@@ -154,7 +154,7 @@ export function hasChanges(
     currentData.memo !== (originalData.memo || '') ||
     currentData.isRecurring !== (originalData.isRecurring || false) ||
     currentData.recurringMonths !== (originalData.recurringMonths || 2) ||
-    currentData.isAmountSplit !== (originalData.isAmountSplit || false) ||
+    currentData.isInstallment !== (originalData.isInstallment || false) ||
     currentData.weekendOption !== (originalData.weekendOption || 'weekend')
   );
 }
