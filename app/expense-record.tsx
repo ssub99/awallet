@@ -286,7 +286,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   const [memo, setMemo] = useState<string>('');
   const [isRecurring, setIsRecurring] = useState<boolean>(false);
   const [recurringMonths, setRecurringMonths] = useState<number>(2); // 2개월~12개월
-  const [isAmountSplit, setIsAmountSplit] = useState<boolean>(false); // 금액 분할하기
+  const [isInstallment, setIsInstallment] = useState<boolean>(false); // 할부
   const [weekendOption, setWeekendOption] = useState<'weekend' | 'friday' | 'monday'>('weekend');
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
   const [monthStartDay, setMonthStartDay] = useState(1);
@@ -422,7 +422,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       }
       setMemo(editData.memo || '');
       setIsRecurring(editData.isRecurring || false);
-      // 정기 기록 개월수 설정 (정기 기록이든 분할 기록이든 모두 설정)
+      // 정기 기록 개월수 설정 (정기 기록이든 할부 기록이든 모두 설정)
       let finalRecurringMonths = editData.recurringMonths || 2;
 
       setRecurringMonths(finalRecurringMonths);
@@ -456,30 +456,30 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         
         inferRecurringMonths();
       }
-      // 정기 기록의 경우 originalAmountSplit 값이 있으면 그것을 사용, 없으면 isAmountSplit 사용
-      // isAmountSplit이 undefined인 경우 금액을 통해 분할 기록인지 판단
-      let amountSplitValue = false;
+      // 정기 기록의 경우 originalInstallment 값이 있으면 그것을 사용, 없으면 isInstallment 사용
+      // isInstallment이 undefined인 경우 금액을 통해 할부 기록인지 판단
+      let installmentValue = false;
       if (editData.isRecurring) {
-        if (editData.originalAmountSplit !== undefined) {
-          amountSplitValue = editData.originalAmountSplit;
-        } else if (editData.isAmountSplit === true) {
-          amountSplitValue = true;
+        if (editData.originalInstallment !== undefined) {
+          installmentValue = editData.originalInstallment;
+        } else if (editData.isInstallment === true) {
+          installmentValue = true;
         } else {
-          // 금액을 통해 분할 기록인지 판단
+          // 금액을 통해 할부 기록인지 판단
           const currentAmount = Number(editData.amount);
           const months = editData.recurringMonths || 2;
-          // 분할 기록의 경우 현재 금액이 월별 분할 금액이므로, 
+          // 할부 기록의 경우 현재 금액이 월별 할부 금액이므로, 
           // 이를 개월 수로 곱했을 때 원래 금액이 나와야 함
           // 하지만 정확한 원래 금액을 알 수 없으므로, 
-          // 현재 금액이 월별 분할 금액처럼 보이는지 확인
-          const isLikelySplit = months > 1 && currentAmount > 0;
-          amountSplitValue = isLikelySplit;
+          // 현재 금액이 월별 할부 금액처럼 보이는지 확인
+          const isLikelyInstallment = months > 1 && currentAmount > 0;
+          installmentValue = isLikelyInstallment;
 
         }
       } else {
-        amountSplitValue = editData.isAmountSplit === true;
+        installmentValue = editData.isInstallment === true;
       }
-      setIsAmountSplit(amountSplitValue);
+      setIsInstallment(installmentValue);
 
       setWeekendOption(editData.weekendOption || 'weekend');
       
@@ -655,10 +655,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     // 3. 기존 recurringId 유지 (새로 생성하지 않음)
     const newRecurringId = editData.recurringId; // 기존 ID 유지
     
-    // 분할 기록 시 첫 번째 기록(원본)에는 나머지 금액 추가
+    // 할부 기록 시 첫 번째 기록(원본)에는 나머지 금액 추가
     let firstRecordAmount = monthlyAmount;
-    if (isRecurring && isAmountSplit) {
-      // 전체 수정 시에는 원래 총 금액을 계산해서 분할
+    if (isRecurring && isInstallment) {
+      // 전체 수정 시에는 원래 총 금액을 계산해서 할부
       const originalTotalAmount = monthlyAmount * recurringMonths;
       const baseAmount = Math.floor(originalTotalAmount / recurringMonths);
       const remainder = originalTotalAmount - (baseAmount * recurringMonths);
@@ -668,7 +668,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     debugLog('🔄 [전체수정] 새 기록 생성:', {
       newRecurringId,
       firstRecordAmount,
-      isAmountSplit,
+      isInstallment,
       recurringMonths
     });
     
@@ -741,7 +741,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           };
         }
         
-        const futureMonthlyAmount = monthlyAmount; // 이미 분할된 금액이므로 그대로 사용
+        const futureMonthlyAmount = monthlyAmount; // 이미 할부된 금액이므로 그대로 사용
         
         const futureRecord = {
           ...updatedRecord,
@@ -783,8 +783,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       actualDateKey,
       monthlyAmount,
       editDataAmount: editData.amount,
-      editDataIsAmountSplit: editData.isAmountSplit,
-      editDataOriginalAmountSplit: editData.originalAmountSplit,
+      editDataIsInstallment: editData.isInstallment,
+      editDataOriginalInstallment: editData.originalInstallment,
       editDataRecurringId: editData.recurringId,
       editDataTimestamp: editData.timestamp
     });
@@ -834,20 +834,20 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     debugLog('📝 [오늘만수정] 새 위치에 기록 재생성:', {
       actualDateKey,
       monthlyAmount,
-      isAmountSplit: editData.isAmountSplit,
-      originalAmountSplit: editData.originalAmountSplit
+      isInstallment: editData.isInstallment,
+      originalInstallment: editData.originalInstallment
     });
 
-    // 분할 기록 수정 시에는 기존 금액 그대로 사용 (재분할 방지)
-    const finalAmount = (editData.isAmountSplit && editData.originalAmountSplit) 
-      ? editData.amount  // 분할 기록은 기존 금액 유지
+    // 할부 기록 수정 시에는 기존 금액 그대로 사용 (재할부 방지)
+    const finalAmount = (editData.isInstallment && editData.originalInstallment) 
+      ? editData.amount  // 할부 기록은 기존 금액 유지
       : monthlyAmount;    // 일반 기록은 새 금액 사용
 
     const updatedRecord = {
       ...newRecord,
       recurringId: editData.recurringId, // 기존 recurringId 유지
       timestamp: editData.timestamp, // 기존 timestamp 유지
-      amount: finalAmount, // 분할 기록 수정 시 기존 금액 사용
+      amount: finalAmount, // 할부 기록 수정 시 기존 금액 사용
     };
 
     calendarData[actualDateKey].records.push(updatedRecord);
@@ -945,11 +945,11 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     const memoChanged = memo !== (editData.memo || '');
     const recurringChanged = isRecurring !== (editData.isRecurring || false);
     const recurringMonthsChanged = recurringMonths !== (editData.recurringMonths || 2);
-    const amountSplitChanged = isAmountSplit !== (editData.isAmountSplit || false);
+    const installmentChanged = isInstallment !== (editData.isInstallment || false);
     const weekendOptionChanged = weekendOption !== (editData.weekendOption || 'weekend');
 
     return categoryChanged || amountChanged || dateChanged || memoChanged || 
-           recurringChanged || recurringMonthsChanged || amountSplitChanged || weekendOptionChanged;
+           recurringChanged || recurringMonthsChanged || installmentChanged || weekendOptionChanged;
   };
 
   const handleConfirm = async () => {
@@ -965,10 +965,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     }
     
     // 수정 모드에서 변경사항이 없으면 모달 표시
-    // 정기/분할 기록 수정모드에서 확인 모달 표시 (hasChanges 체크 전에 실행)
+    // 정기/할부 기록 수정모드에서 확인 모달 표시 (hasChanges 체크 전에 실행)
     if (mode === 'edit' && editData?.isRecurring) {
-      const isSplitRecord = editData.isAmountSplit && editData.originalAmountSplit;
-      const recordType = isSplitRecord ? '분할' : '정기';
+      const isInstallmentRecord = editData.isInstallment && editData.originalInstallment;
+      const recordType = isInstallmentRecord ? '할부' : '정기';
       
       let message = '';
       if (editOption === 'all') {
@@ -1048,13 +1048,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
       // 정기 지출 시 월별 금액 계산
       let monthlyAmount: number;
-      if (isRecurring && isAmountSplit) {
-        // 수정 모드이고 분할 기록인 경우: 기존 금액 그대로 사용 (재분할 방지)
-        if (mode === 'edit' && editData?.isRecurring && editData?.isAmountSplit) {
+      if (isRecurring && isInstallment) {
+        // 수정 모드이고 할부 기록인 경우: 기존 금액 그대로 사용 (재할부 방지)
+        if (mode === 'edit' && editData?.isRecurring && editData?.isInstallment) {
           monthlyAmount = parseFloat(amount.replace(/,/g, ''));
 
         } else {
-          // 생성 모드: 분할 계산
+          // 생성 모드: 할부 계산
           const baseAmount = Math.floor(expenseAmount / recurringMonths);  // 소수점 제거하여 정수로 계산
           const remainder = expenseAmount - (baseAmount * recurringMonths);  // 나머지 금액 계산
           monthlyAmount = baseAmount + remainder;  // 원본 기록에는 나머지 금액 추가
@@ -1074,10 +1074,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         weekendOption: isRecurring ? weekendOption : undefined,
         recurringId: isRecurring ? recurringId : undefined, // 원본 기록에도 recurringId 저장
         isAutoGenerated: false, // 원본 기록은 자동생성이 아님
-        isAmountSplit: isRecurring ? isAmountSplit : undefined, // 분할 여부 저장
+        isInstallment: isRecurring ? isInstallment : undefined, // 할부 여부 저장
         recurringMonths: isRecurring ? recurringMonths : undefined, // 정기 기록 개월 수 저장
-        splitMonths: isRecurring && isAmountSplit ? recurringMonths : undefined, // 분할 개월 수 저장
-        originalAmountSplit: isRecurring ? isAmountSplit : undefined, // 최초 생성 시 금액 분할 설정 저장
+        installmentMonths: isRecurring && isInstallment ? recurringMonths : undefined, // 할부 개월 수 저장
+        originalInstallment: isRecurring ? isInstallment : undefined, // 최초 생성 시 할부 설정 저장
       };
 
       if (mode === 'edit' && editData) {
@@ -1089,9 +1089,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             await handleRecurringBulkUpdate(calendarData, editData, newRecord, actualDateKey, monthlyAmount, expenseAmount);
           } else {
             // 오늘만 수정: 해당 건만 수정 (부모/자식 관계 유지)
-            // 분할 기록 수정 시에는 기존 금액을 사용하여 재분할 방지
-            const singleUpdateAmount = (editData.isAmountSplit && editData.originalAmountSplit) 
-              ? editData.amount  // 분할 기록은 기존 금액 사용
+            // 할부 기록 수정 시에는 기존 금액을 사용하여 재할부 방지
+            const singleUpdateAmount = (editData.isInstallment && editData.originalInstallment) 
+              ? editData.amount  // 할부 기록은 기존 금액 사용
               : monthlyAmount;    // 일반 기록은 새 금액 사용
 
             await handleRecurringSingleUpdate(calendarData, editData, newRecord, actualDateKey, singleUpdateAmount);
@@ -1172,13 +1172,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
       // 정기 지출 시 월별 금액 계산 (미래 기록용)
       let futureMonthlyAmount: number;
-      if (isAmountSplit) {
+      if (isInstallment) {
         futureMonthlyAmount = Math.floor(expenseAmount / recurringMonths);  // 소수점 제거하여 정수로 계산
       } else {
         futureMonthlyAmount = expenseAmount;
       }
         
-        console.log('💰 [저장] 월별 금액:', futureMonthlyAmount, isAmountSplit ? '(분할)' : '(동일)');
+        console.log('💰 [저장] 월별 금액:', futureMonthlyAmount, isInstallment ? '(할부)' : '(동일)');
         
         // 원래 선택한 날짜를 기준으로 다음 달 계산
         const [yearNum, monthNum, dayNum] = date.split('.').map(Number);
@@ -1227,10 +1227,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             timestamp: newTimestamp + i,
             recurringId: recurringId,
             isAutoGenerated: true,
-            isAmountSplit: isAmountSplit, // 분할 여부 저장
+            isInstallment: isInstallment, // 할부 여부 저장
             recurringMonths: recurringMonths, // 정기 기록 개월 수 저장
-            splitMonths: isAmountSplit ? recurringMonths : undefined, // 분할 개월 수 저장
-            originalAmountSplit: isAmountSplit, // 최초 생성 시 금액 분할 설정 저장
+            installmentMonths: isInstallment ? recurringMonths : undefined, // 할부 개월 수 저장
+            originalInstallment: isInstallment, // 최초 생성 시 할부 설정 저장
           });
           
           calendarData[futureDateKey].totalExpense = (calendarData[futureDateKey].totalExpense || 0) + futureMonthlyAmount;
@@ -2010,19 +2010,19 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 </Text>
                 {isRecurring && (
                   <Checkbox
-                    checked={isAmountSplit}
+                    checked={isInstallment}
                     onPress={() => {
-                      // 정기 기록 수정 모드에서는 금액 분할 설정 변경 불가
-                      // originalAmountSplit이 없으면 isRecurring이 true인 경우로 판단
+                      // 정기 기록 수정 모드에서는 할부 설정 변경 불가
+                      // originalInstallment이 없으면 isRecurring이 true인 경우로 판단
                       const isRecurringRecord = mode === 'edit' && editData?.isRecurring;
                       if (isRecurringRecord) {
                         setRecurringToastMessage('변경할 수 없습니다. 새로 생성해 주세요.');
                         setShowRecurringToast(true);
                         return;
                       }
-                      setIsAmountSplit(!isAmountSplit);
+                      setIsInstallment(!isInstallment);
                     }}
-                    label="금액 분할하기"
+                    label="할부"
                     disabled={mode === 'edit' && editData?.isRecurring}
                   />
                 )}
@@ -2044,6 +2044,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                     ]}
                     value={recurringMonths.toString()}
                     placeholder="개월수 선택"
+                    title="개월 수 선택"
                     onPress={() => {
                       // 정기 기록 수정 모드에서는 개월수 변경 불가
                       const isDisabled = mode === 'edit' && editData?.isRecurring;
@@ -2080,7 +2081,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                     textAlign="right"
                     disabled={mode === 'edit' && editData?.isRecurring}
                     onPress={() => {
-                      // 정기 기록 수정 모드에서는 금액 변경 불가 (정기 기록과 분할 기록 모두)
+                      // 정기 기록 수정 모드에서는 금액 변경 불가 (정기 기록과 할부 기록 모두)
                       const isDisabled = mode === 'edit' && editData?.isRecurring;
 
                       if (isDisabled) {
@@ -2091,7 +2092,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                       }
 
                     }}
-                    style={styles.splitAmountInput}
+                    style={styles.installmentAmountInput}
                   />
                 </View>
               )}
@@ -2141,7 +2142,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                       setIsRecurring(value);
                       if (!value) {
                         // 정기 지출 OFF 시 관련 상태 초기화
-                      setIsAmountSplit(false);
+                      setIsInstallment(false);
                       setRecurringMonths(2);
                     } else {
                       // 정기 지출 ON 시 선택한 날짜의 일자로 selectedDay 설정
@@ -2536,7 +2537,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         onHide={() => setShowCategoryToast(false)}
       />
 
-      {/* 정기/분할 기록 수정 확인 모달 */}
+      {/* 정기/할부 기록 수정 확인 모달 */}
       <ModalPopup
         visible={showEditConfirmModal}
         title="정기 지출 기록 안내"
@@ -2773,11 +2774,11 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   // 새로운 스타일들
-  amountSplitButton: {
+  installmentButton: {
     paddingVertical: 4,
     paddingHorizontal: 8,
   },
-  amountSplitText: {
+  installmentText: {
     ...Typography.body2.r.medium,
     fontSize: 14,
   },
@@ -2809,14 +2810,14 @@ const styles = StyleSheet.create({
     width: 100,
     height: 48,
   },
-  splitAmountInput: {
+  installmentAmountInput: {
     flex: 1,
     minWidth: 200,
   },
   recurringAmountInput: {
     width: '100%',
   },
-  splitAmountContainer: {
+  installmentAmountContainer: {
     marginTop: 12,
     padding: 12,
     backgroundColor: 'rgba(54, 100, 206, 0.05)',
@@ -2825,10 +2826,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  splitAmountLabel: {
+  installmentAmountLabel: {
     ...Typography.body2.r.medium,
   },
-  splitAmountValue: {
+  installmentAmountValue: {
     ...Typography.body1.l.bold,
     fontSize: 16,
   },

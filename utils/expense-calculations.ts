@@ -1,43 +1,43 @@
 /**
  * Expense Calculation Utilities
  * 
- * 정기 기록과 분할 기록의 금액 계산 로직을 통합 관리
+ * 정기 기록과 할부 기록의 금액 계산 로직을 통합 관리
  */
 
 export interface ExpenseCalculationParams {
   totalAmount: number;
   months: number;
-  isSplit: boolean;
+  isInstallment: boolean;
   isEditMode?: boolean;
   existingAmount?: number;
-  isExistingSplit?: boolean;
+  isExistingInstallment?: boolean;
 }
 
 export interface ExpenseCalculationResult {
   monthlyAmount: number;
   firstMonthAmount: number;
   remainingAmount: number;
-  isSplitRecord: boolean;
+  isInstallmentRecord: boolean;
 }
 
 /**
  * 정기 기록의 월별 금액을 계산합니다
  */
 export function calculateRecurringAmount(params: ExpenseCalculationParams): ExpenseCalculationResult {
-  const { totalAmount, months, isSplit, isEditMode, existingAmount, isExistingSplit } = params;
+  const { totalAmount, months, isInstallment, isEditMode, existingAmount, isExistingInstallment } = params;
   
-  // 수정 모드이고 기존 분할 기록인 경우: 기존 금액 그대로 사용 (재분할 방지)
-  if (isEditMode && isExistingSplit && existingAmount) {
+  // 수정 모드이고 기존 할부 기록인 경우: 기존 금액 그대로 사용 (재할부 방지)
+  if (isEditMode && isExistingInstallment && existingAmount) {
     return {
       monthlyAmount: existingAmount,
       firstMonthAmount: existingAmount,
       remainingAmount: 0,
-      isSplitRecord: true
+      isInstallmentRecord: true
     };
   }
   
-  if (isSplit) {
-    // 분할 기록: 총 금액을 개월 수로 나누기
+  if (isInstallment) {
+    // 할부 기록: 총 금액을 개월 수로 나누기
     const baseAmount = Math.floor(totalAmount / months);
     const remainder = totalAmount - (baseAmount * months);
     
@@ -45,7 +45,7 @@ export function calculateRecurringAmount(params: ExpenseCalculationParams): Expe
       monthlyAmount: baseAmount,
       firstMonthAmount: baseAmount + remainder, // 첫 번째 달에 나머지 추가
       remainingAmount: remainder,
-      isSplitRecord: true
+      isInstallmentRecord: true
     };
   } else {
     // 일반 정기 기록: 매달 동일한 금액
@@ -53,7 +53,7 @@ export function calculateRecurringAmount(params: ExpenseCalculationParams): Expe
       monthlyAmount: totalAmount,
       firstMonthAmount: totalAmount,
       remainingAmount: 0,
-      isSplitRecord: false
+      isInstallmentRecord: false
     };
   }
 }
@@ -61,9 +61,9 @@ export function calculateRecurringAmount(params: ExpenseCalculationParams): Expe
 /**
  * 기록 타입을 판단합니다
  */
-export function getRecordType(record: any): 'single' | 'recurring' | 'split' {
+export function getRecordType(record: any): 'single' | 'recurring' | 'installment' {
   if (!record.isRecurring) return 'single';
-  if (record.isAmountSplit || record.originalAmountSplit) return 'split';
+  if (record.isInstallment || record.originalInstallment) return 'installment';
   return 'recurring';
 }
 
@@ -74,24 +74,24 @@ export function getEditableFields(record: any, mode: 'create' | 'edit'): {
   canEditCategory: boolean;
   canEditAmount: boolean;
   canEditRecurring: boolean;
-  canEditSplit: boolean;
+  canEditInstallment: boolean;
 } {
   if (mode === 'create') {
     return {
       canEditCategory: true,
       canEditAmount: true,
       canEditRecurring: true,
-      canEditSplit: true
+      canEditInstallment: true
     };
   }
   
-  // 수정 모드에서 정기/분할 기록은 제한적 수정만 가능
+  // 수정 모드에서 정기/할부 기록은 제한적 수정만 가능
   if (record.isRecurring) {
     return {
       canEditCategory: false, // 정기 기록은 카테고리 변경 불가
       canEditAmount: false,   // 정기 기록은 금액 변경 불가
       canEditRecurring: false, // 정기 기록은 해제 불가
-      canEditSplit: false     // 분할 설정 변경 불가
+      canEditInstallment: false     // 할부 설정 변경 불가
     };
   }
   
@@ -99,7 +99,7 @@ export function getEditableFields(record: any, mode: 'create' | 'edit'): {
     canEditCategory: true,
     canEditAmount: true,
     canEditRecurring: true,
-    canEditSplit: true
+    canEditInstallment: true
   };
 }
 
