@@ -116,20 +116,67 @@ export function DatePicker({
   const [tempMonth, setTempMonth] = useState<number | undefined>(selectedMonth);
   const [tempDay, setTempDay] = useState<number | undefined>(selectedDay);
   
+  // 모달이 닫히는 중인지 추적 (prop 변경 무시하기 위함)
+  const isClosingRef = useRef(false);
+  
   // Animation values (same as TopNavigation)
   const dimOpacity = useRef(new Animated.Value(0)).current;
   const pickerTranslateY = useRef(new Animated.Value(300)).current;
   
+  // Track if picker has been opened (to prevent prop updates while open)
+  const wasOpenRef = useRef(false);
+  
   // Update temp values when props change
   useEffect(() => {
-    setTempYear(selectedYear);
-    setTempMonth(selectedMonth);
-    setTempDay(selectedDay);
-  }, [selectedYear, selectedMonth, selectedDay]);
+    if (__DEV__) {
+      console.log('🔍 [DatePicker] props 업데이트:', { selectedYear, selectedMonth, selectedDay, visible, isClosing: isClosingRef.current, wasOpen: wasOpenRef.current });
+    }
+    
+    // 모달이 닫히는 중이면 prop 변경 무시
+    if (isClosingRef.current) {
+      if (__DEV__) {
+        console.log('🔍 [DatePicker] 모달 닫히는 중 - prop 변경 무시');
+      }
+      return;
+    }
+    
+    // 피커가 열려있는 동안에는 prop 변경 완전히 무시
+    if (visible) {
+      // 피커가 막 열릴 때만 초기값 설정 (이미 열려있으면 무시)
+      if (!wasOpenRef.current) {
+        wasOpenRef.current = true;
+        if (__DEV__) {
+          console.log('🔍 [DatePicker] 피커 막 열릴 때 초기값 설정');
+        }
+        if (selectedYear !== undefined) setTempYear(selectedYear);
+        if (selectedMonth !== undefined) setTempMonth(selectedMonth);
+        if (selectedDay !== undefined) setTempDay(selectedDay);
+      } else {
+        if (__DEV__) {
+          console.log('🔍 [DatePicker] 피커 이미 열려있음 - prop 변경 무시');
+        }
+      }
+    } else {
+      // 피커가 닫혀있을 때는 항상 prop 값으로 동기화
+      wasOpenRef.current = false;
+      if (__DEV__) {
+        console.log('🔍 [DatePicker] 피커 닫혀있을 때 prop 값으로 동기화');
+      }
+      setTempYear(selectedYear);
+      setTempMonth(selectedMonth);
+      setTempDay(selectedDay);
+    }
+  }, [selectedYear, selectedMonth, selectedDay, visible]);
   
   // Animate picker open/close (same as TopNavigation)
   useEffect(() => {
+    if (__DEV__) {
+      console.log('🔍 [DatePicker] visible 변경:', visible);
+    }
     if (visible) {
+      // 모달이 열릴 때 isClosing 플래그 리셋
+      isClosingRef.current = false;
+      
       // Reset animation values before opening
       dimOpacity.setValue(0);
       pickerTranslateY.setValue(300);
@@ -146,8 +193,18 @@ export function DatePicker({
           duration: 250,
           useNativeDriver: true,
         }),
-      ]).start();
+      ]).start(() => {
+        if (__DEV__) {
+          console.log('🔍 [DatePicker] 열기 애니메이션 완료');
+        }
+      });
     } else {
+      // 모달이 닫히기 시작할 때 플래그 설정
+      isClosingRef.current = true;
+      if (__DEV__) {
+        console.log('🔍 [DatePicker] 닫기 시작 - isClosing 플래그 설정');
+      }
+      
       // Closing: Both fade out together
       Animated.parallel([
         Animated.timing(dimOpacity, {
@@ -160,30 +217,146 @@ export function DatePicker({
           duration: 200,
           useNativeDriver: true,
         }),
-      ]).start();
+      ]).start(() => {
+        if (__DEV__) {
+          console.log('🔍 [DatePicker] 닫기 애니메이션 완료 - isClosing 플래그 리셋');
+        }
+        // 애니메이션 완료 후 플래그 리셋 (약간의 지연을 두어 prop 변경이 완료될 때까지 대기)
+        setTimeout(() => {
+          isClosingRef.current = false;
+        }, 100);
+      });
     }
   }, [visible, dimOpacity, pickerTranslateY]);
   
   const handleDone = () => {
-    // Apply temp values to actual values
-    if (onYearChange && tempYear !== undefined) {
-      onYearChange(tempYear);
+    if (__DEV__) {
+      console.log('🔍 [DatePicker] handleDone 호출됨', { tempYear, tempMonth, tempDay });
     }
-    if (onMonthChange && tempMonth !== undefined) {
-      onMonthChange(tempMonth);
+    try {
+      // 먼저 닫기 플래그 설정 (prop 변경 무시)
+      isClosingRef.current = true;
+      if (__DEV__) {
+        console.log('🔍 [DatePicker] handleDone - isClosing 플래그 설정');
+      }
+      
+      // 먼저 모달을 닫기 (리렌더링 전에 터치 이벤트 처리 완료)
+      if (__DEV__) {
+        console.log('🔍 [DatePicker] onClose 호출 전');
+      }
+      onClose();
+      if (__DEV__) {
+        console.log('🔍 [DatePicker] onClose 호출 후');
+      }
+      
+      // 모달이 닫힌 후 상태 변경 (다음 프레임에서 실행)
+      setTimeout(() => {
+        if (__DEV__) {
+          console.log('🔍 [DatePicker] 상태 변경 시작 (setTimeout)');
+        }
+        try {
+          // Apply temp values to actual values
+          if (onYearChange && tempYear !== undefined) {
+            if (__DEV__) {
+              console.log('🔍 [DatePicker] onYearChange 호출:', tempYear);
+            }
+            onYearChange(tempYear);
+          }
+          if (onMonthChange && tempMonth !== undefined) {
+            if (__DEV__) {
+              console.log('🔍 [DatePicker] onMonthChange 호출:', tempMonth);
+            }
+            onMonthChange(tempMonth);
+          }
+          if (onDayChange && tempDay !== undefined) {
+            if (__DEV__) {
+              console.log('🔍 [DatePicker] onDayChange 호출:', tempDay);
+            }
+            onDayChange(tempDay);
+          }
+          if (__DEV__) {
+            console.log('🔍 [DatePicker] 상태 변경 완료');
+          }
+          
+          // 상태 변경 완료 후 플래그 리셋 (약간의 지연)
+          setTimeout(() => {
+            isClosingRef.current = false;
+            if (__DEV__) {
+              console.log('🔍 [DatePicker] 상태 변경 후 isClosing 플래그 리셋');
+            }
+          }, 100);
+        } catch (error) {
+          if (__DEV__) {
+            console.error('❌ [DatePicker] 상태 변경 에러:', error);
+          }
+          isClosingRef.current = false;
+        }
+      }, 50); // 50ms 지연으로 모달 닫기 애니메이션이 시작되도록 함
+    } catch (error) {
+      if (__DEV__) {
+        console.error('❌ [DatePicker] handleDone 에러:', error);
+      }
+      isClosingRef.current = false;
+      // 에러 발생 시에도 모달은 닫기
+      onClose();
     }
-    if (onDayChange && tempDay !== undefined) {
-      onDayChange(tempDay);
-    }
-    onClose();
   };
   
   const handleCancel = () => {
-    // Reset temp values to original values
-    setTempYear(selectedYear);
-    setTempMonth(selectedMonth);
-    setTempDay(selectedDay);
-    onClose();
+    if (__DEV__) {
+      console.log('🔍 [DatePicker] handleCancel 호출됨');
+    }
+    try {
+      // 먼저 닫기 플래그 설정 (prop 변경 무시)
+      isClosingRef.current = true;
+      if (__DEV__) {
+        console.log('🔍 [DatePicker] handleCancel - isClosing 플래그 설정');
+      }
+      
+      // 먼저 모달을 닫기
+      if (__DEV__) {
+        console.log('🔍 [DatePicker] onClose 호출 전 (cancel)');
+      }
+      onClose();
+      if (__DEV__) {
+        console.log('🔍 [DatePicker] onClose 호출 후 (cancel)');
+      }
+      
+      // 모달이 닫힌 후 temp 값을 원래 값으로 복원 (다음 프레임에서 실행)
+      setTimeout(() => {
+        if (__DEV__) {
+          console.log('🔍 [DatePicker] temp 값 복원 시작 (setTimeout)');
+        }
+        try {
+          setTempYear(selectedYear);
+          setTempMonth(selectedMonth);
+          setTempDay(selectedDay);
+          if (__DEV__) {
+            console.log('🔍 [DatePicker] temp 값 복원 완료');
+          }
+          
+          // 복원 완료 후 플래그 리셋
+          setTimeout(() => {
+            isClosingRef.current = false;
+            if (__DEV__) {
+              console.log('🔍 [DatePicker] temp 값 복원 후 isClosing 플래그 리셋');
+            }
+          }, 100);
+        } catch (error) {
+          if (__DEV__) {
+            console.error('❌ [DatePicker] temp 값 복원 에러:', error);
+          }
+          isClosingRef.current = false;
+        }
+      }, 50);
+    } catch (error) {
+      if (__DEV__) {
+        console.error('❌ [DatePicker] handleCancel 에러:', error);
+      }
+      isClosingRef.current = false;
+      // 에러 발생 시에도 모달은 닫기
+      onClose();
+    }
   };
   
   const handleYearValueChange = (itemValue: number) => {
@@ -235,7 +408,12 @@ export function DatePicker({
       >
         <Pressable 
           style={styles.backdrop}
-          onPress={handleCancel}
+          onPress={() => {
+            if (__DEV__) {
+              console.log('🔍 [DatePicker] 백드롭(딤 영역) 클릭됨');
+            }
+            handleCancel();
+          }}
         />
       </Animated.View>
 
@@ -247,7 +425,15 @@ export function DatePicker({
       >
         <Pressable onPress={(e) => e.stopPropagation()}>
           <View style={[styles.pickerHeader, { backgroundColor: colors.background }]}>
-            <Pressable onPress={handleCancel} style={styles.headerButton}>
+            <Pressable 
+              onPress={() => {
+                if (__DEV__) {
+                  console.log('🔍 [DatePicker] 취소 버튼 클릭됨');
+                }
+                handleCancel();
+              }} 
+              style={styles.headerButton}
+            >
               <Text style={[styles.cancelButton, { color: colors.textNeutral }]}>
                 취소
               </Text>
@@ -257,7 +443,15 @@ export function DatePicker({
               {title}
             </Text>
             
-            <Pressable onPress={handleDone} style={styles.headerButton}>
+            <Pressable 
+              onPress={() => {
+                if (__DEV__) {
+                  console.log('🔍 [DatePicker] 완료 버튼 클릭됨');
+                }
+                handleDone();
+              }} 
+              style={styles.headerButton}
+            >
               <Text style={[styles.doneButton, { color: colors.primary }]}>
                 완료
               </Text>

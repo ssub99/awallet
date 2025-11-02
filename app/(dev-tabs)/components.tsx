@@ -23,6 +23,8 @@ import { Tag } from '@/components/ui/tag';
 import { Colors, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { cancelAllNotifications, getScheduledNotifications, sendTestNotification } from '@/utils/notification-scheduler';
+import { storageCache } from '@/utils/storage-cache';
+import { useAppData } from '@/contexts/app-data-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -105,6 +107,7 @@ export default function ComponentsScreen() {
  */
 function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.dark }) {
   const [devMode, setDevMode] = useState(false);
+  const { refresh } = useAppData();
 
   // 원본 Date 생성자 저장
   const OriginalDate = Date;
@@ -301,10 +304,11 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
               onPress={async () => {
                 try {
                   await AsyncStorage.removeItem('calendarData');
-
+                  storageCache.clearCache();
+                  await refresh();
                   alert('캘린더 데이터가 삭제되었습니다.');
                 } catch (error) {
-
+                  console.error('캘린더 데이터 삭제 중 오류:', error);
                   alert('데이터 삭제 중 오류가 발생했습니다.');
                 }
               }}
@@ -319,10 +323,11 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
               onPress={async () => {
                 try {
                   await AsyncStorage.removeItem('challengeData');
-
+                  storageCache.clearCache();
+                  await refresh();
                   alert('챌린지 데이터가 삭제되었습니다.');
                 } catch (error) {
-
+                  console.error('챌린지 데이터 삭제 중 오류:', error);
                   alert('데이터 삭제 중 오류가 발생했습니다.');
                 }
               }}
