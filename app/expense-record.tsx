@@ -2758,12 +2758,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                     소비 정보
                   </Text>
                   <Pressable onPress={() => {
-                    // 정기 기록 또는 할부 기록인지 확인하여 적절한 모달 표시
-                    if (mode === 'edit' && (editData?.isRecurring || editData?.isInstallment)) {
-                      setShowRecurringDeleteOptions(true);
-                    } else {
-                      setShowDeleteConfirm(true);
-                    }
+                    // 통합 삭제 모달만 사용 (유형과 무관하게 동일 플로우)
+                    setShowDeleteConfirm(true);
                   }}>
                     <Text style={[styles.deleteText, { color: colors.statusNegative }]}>
                       삭제
