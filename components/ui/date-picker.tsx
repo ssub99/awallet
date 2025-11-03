@@ -129,13 +129,11 @@ export function DatePicker({
   // Update temp values when props change
   useEffect(() => {
     if (__DEV__) {
-      console.log('🔍 [DatePicker] props 업데이트:', { selectedYear, selectedMonth, selectedDay, visible, isClosing: isClosingRef.current, wasOpen: wasOpenRef.current });
     }
     
     // 모달이 닫히는 중이면 prop 변경 무시
     if (isClosingRef.current) {
       if (__DEV__) {
-        console.log('🔍 [DatePicker] 모달 닫히는 중 - prop 변경 무시');
       }
       return;
     }
@@ -146,21 +144,18 @@ export function DatePicker({
       if (!wasOpenRef.current) {
         wasOpenRef.current = true;
         if (__DEV__) {
-          console.log('🔍 [DatePicker] 피커 막 열릴 때 초기값 설정');
         }
         if (selectedYear !== undefined) setTempYear(selectedYear);
         if (selectedMonth !== undefined) setTempMonth(selectedMonth);
         if (selectedDay !== undefined) setTempDay(selectedDay);
       } else {
         if (__DEV__) {
-          console.log('🔍 [DatePicker] 피커 이미 열려있음 - prop 변경 무시');
         }
       }
     } else {
       // 피커가 닫혀있을 때는 항상 prop 값으로 동기화
       wasOpenRef.current = false;
       if (__DEV__) {
-        console.log('🔍 [DatePicker] 피커 닫혀있을 때 prop 값으로 동기화');
       }
       setTempYear(selectedYear);
       setTempMonth(selectedMonth);
@@ -171,7 +166,6 @@ export function DatePicker({
   // Animate picker open/close (same as TopNavigation)
   useEffect(() => {
     if (__DEV__) {
-      console.log('🔍 [DatePicker] visible 변경:', visible);
     }
     if (visible) {
       // 모달이 열릴 때 isClosing 플래그 리셋
@@ -195,14 +189,12 @@ export function DatePicker({
         }),
       ]).start(() => {
         if (__DEV__) {
-          console.log('🔍 [DatePicker] 열기 애니메이션 완료');
         }
       });
     } else {
       // 모달이 닫히기 시작할 때 플래그 설정
       isClosingRef.current = true;
       if (__DEV__) {
-        console.log('🔍 [DatePicker] 닫기 시작 - isClosing 플래그 설정');
       }
       
       // Closing: Both fade out together
@@ -219,7 +211,6 @@ export function DatePicker({
         }),
       ]).start(() => {
         if (__DEV__) {
-          console.log('🔍 [DatePicker] 닫기 애니메이션 완료 - isClosing 플래그 리셋');
         }
         // 애니메이션 완료 후 플래그 리셋 (약간의 지연을 두어 prop 변경이 완료될 때까지 대기)
         setTimeout(() => {
@@ -231,58 +222,48 @@ export function DatePicker({
   
   const handleDone = () => {
     if (__DEV__) {
-      console.log('🔍 [DatePicker] handleDone 호출됨', { tempYear, tempMonth, tempDay });
     }
     try {
       // 먼저 닫기 플래그 설정 (prop 변경 무시)
       isClosingRef.current = true;
       if (__DEV__) {
-        console.log('🔍 [DatePicker] handleDone - isClosing 플래그 설정');
       }
       
       // 먼저 모달을 닫기 (리렌더링 전에 터치 이벤트 처리 완료)
       if (__DEV__) {
-        console.log('🔍 [DatePicker] onClose 호출 전');
       }
       onClose();
       if (__DEV__) {
-        console.log('🔍 [DatePicker] onClose 호출 후');
       }
       
       // 모달이 닫힌 후 상태 변경 (다음 프레임에서 실행)
       setTimeout(() => {
         if (__DEV__) {
-          console.log('🔍 [DatePicker] 상태 변경 시작 (setTimeout)');
         }
         try {
           // Apply temp values to actual values
           if (onYearChange && tempYear !== undefined) {
             if (__DEV__) {
-              console.log('🔍 [DatePicker] onYearChange 호출:', tempYear);
             }
             onYearChange(tempYear);
           }
           if (onMonthChange && tempMonth !== undefined) {
             if (__DEV__) {
-              console.log('🔍 [DatePicker] onMonthChange 호출:', tempMonth);
             }
             onMonthChange(tempMonth);
           }
           if (onDayChange && tempDay !== undefined) {
             if (__DEV__) {
-              console.log('🔍 [DatePicker] onDayChange 호출:', tempDay);
             }
             onDayChange(tempDay);
           }
           if (__DEV__) {
-            console.log('🔍 [DatePicker] 상태 변경 완료');
           }
           
           // 상태 변경 완료 후 플래그 리셋 (약간의 지연)
           setTimeout(() => {
             isClosingRef.current = false;
             if (__DEV__) {
-              console.log('🔍 [DatePicker] 상태 변경 후 isClosing 플래그 리셋');
             }
           }, 100);
         } catch (error) {
@@ -304,42 +285,35 @@ export function DatePicker({
   
   const handleCancel = () => {
     if (__DEV__) {
-      console.log('🔍 [DatePicker] handleCancel 호출됨');
     }
     try {
       // 먼저 닫기 플래그 설정 (prop 변경 무시)
       isClosingRef.current = true;
       if (__DEV__) {
-        console.log('🔍 [DatePicker] handleCancel - isClosing 플래그 설정');
       }
       
       // 먼저 모달을 닫기
       if (__DEV__) {
-        console.log('🔍 [DatePicker] onClose 호출 전 (cancel)');
       }
       onClose();
       if (__DEV__) {
-        console.log('🔍 [DatePicker] onClose 호출 후 (cancel)');
       }
       
       // 모달이 닫힌 후 temp 값을 원래 값으로 복원 (다음 프레임에서 실행)
       setTimeout(() => {
         if (__DEV__) {
-          console.log('🔍 [DatePicker] temp 값 복원 시작 (setTimeout)');
         }
         try {
           setTempYear(selectedYear);
           setTempMonth(selectedMonth);
           setTempDay(selectedDay);
           if (__DEV__) {
-            console.log('🔍 [DatePicker] temp 값 복원 완료');
           }
           
           // 복원 완료 후 플래그 리셋
           setTimeout(() => {
             isClosingRef.current = false;
             if (__DEV__) {
-              console.log('🔍 [DatePicker] temp 값 복원 후 isClosing 플래그 리셋');
             }
           }, 100);
         } catch (error) {
@@ -410,7 +384,6 @@ export function DatePicker({
           style={styles.backdrop}
           onPress={() => {
             if (__DEV__) {
-              console.log('🔍 [DatePicker] 백드롭(딤 영역) 클릭됨');
             }
             handleCancel();
           }}
@@ -428,7 +401,6 @@ export function DatePicker({
             <Pressable 
               onPress={() => {
                 if (__DEV__) {
-                  console.log('🔍 [DatePicker] 취소 버튼 클릭됨');
                 }
                 handleCancel();
               }} 
@@ -446,7 +418,6 @@ export function DatePicker({
             <Pressable 
               onPress={() => {
                 if (__DEV__) {
-                  console.log('🔍 [DatePicker] 완료 버튼 클릭됨');
                 }
                 handleDone();
               }} 
