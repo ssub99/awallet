@@ -64,6 +64,7 @@ interface TimelineItem {
   isInstallment?: boolean; // 할부 여부
   originalInstallment?: boolean; // 최초 생성 시 할부 설정
   recurringMonths?: number; // 정기 기록 개월 수
+  isRefunded?: boolean; // 환불 여부
 }
 
 interface ChallengeData {
@@ -221,7 +222,7 @@ export default function MonthlyExpenseTimelineScreen() {
                 includedDates.push(dateString);
                 if (data.records && Array.isArray(data.records)) {
                   data.records.forEach((record: any, recordIndex: number) => {
-                    // isDeleted가 true인 기록 제외
+                    // isDeleted가 true인 기록 제외 (환불된 기록은 표시)
                     if (record.isDeleted) return;
                     
                     items.push({
@@ -240,7 +241,8 @@ export default function MonthlyExpenseTimelineScreen() {
                       actualRecordIndex: recordIndex,
                       isInstallment: record.isInstallment,
                       originalInstallment: record.originalInstallment,
-                      recurringMonths: record.recurringMonths
+                      recurringMonths: record.recurringMonths,
+                      isRefunded: record.isRefunded // 환불 여부 추가
                     });
                   });
                 }
@@ -338,8 +340,8 @@ export default function MonthlyExpenseTimelineScreen() {
             if (itemDate >= startDate && itemDate <= endDate) {
               if (data.records && Array.isArray(data.records)) {
                 data.records.forEach((record: any) => {
-                  // isDeleted가 true인 기록 제외
-                  if (record.isDeleted) return;
+                  // isDeleted가 true인 기록 제외 (환불된 기록도 제외 - 금액이 0이므로)
+                  if (record.isDeleted || record.isRefunded) return;
                   
                   if (record.type === 'expense' && record.category === challenge.category) {
                     totalAmount += record.amount || 0;
@@ -649,7 +651,10 @@ export default function MonthlyExpenseTimelineScreen() {
                               </Text>
                               {/* 태그 표시 */}
                               {item.isInstallment && (
-                                <Tag label="할부" status="negative" />
+                                <Tag 
+                                  label={item.isRefunded ? "할부·환불" : "할부"} 
+                                  status="negative" 
+                                />
                               )}
                               {!item.isInstallment && item.isPrepaid && (
                                 <Tag label="선납" status="positive" />

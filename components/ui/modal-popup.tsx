@@ -183,7 +183,7 @@ export function ModalPopup({
       </Animated.View>
 
       {/* Modal Content */}
-      <View style={styles.container}>
+      <View style={styles.container} pointerEvents="box-none">
         <Animated.View
           style={[
             styles.modal,

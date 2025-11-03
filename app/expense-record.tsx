@@ -13,6 +13,7 @@ import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
 import { ModalPopup } from '@/components/ui/modal-popup';
+import PrepaymentModal from '@/components/ui/prepayment-modal';
 import { Radio } from '@/components/ui/radio';
 import { Selectbox } from '@/components/ui/selectbox';
 import { Switch } from '@/components/ui/switch';
@@ -26,7 +27,7 @@ import { getCustomMonthInfo } from '@/utils/custom-month';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Dimensions, Keyboard, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { Dimensions, InteractionManager, Keyboard, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface ExpenseRecordProps {
@@ -314,6 +315,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   const [monthStartDay, setMonthStartDay] = useState(1);
   const [showDayPicker, setShowDayPicker] = useState<boolean>(false);
   const [tempSelectedDate, setTempSelectedDate] = useState<string>(date.replace(/\./g, '-'));
+  const isOpeningDatePickerRef = useRef<boolean>(false);
   const [selectedDay, setSelectedDay] = useState<number>(() => {
     // 수정 모드이고 editData가 있으면 해당 날짜의 일자 사용
     if (mode === 'edit' && editData?.date) {
@@ -357,6 +359,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   
   // 환불 처리 복구 모달
   const [showRefundRestore, setShowRefundRestore] = useState<boolean>(false);
+  // 선결제 모달
+  const [showPrepaymentModal, setShowPrepaymentModal] = useState<boolean>(false);
   
   // 토스트 state 변경 감지
   useEffect(() => {
@@ -2884,7 +2888,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                               <Pressable 
                                 style={[styles.prepaymentRefundButton, { marginLeft: 0 }]}
                                 onPress={() => {
-                                  // 선결제 처리 로직 (추후 구현)
+                                  // 선결제 모달 열기
+                                  setShowPrepaymentModal(true);
                                 }}
                               >
                                 <Text style={[styles.prepaymentRefundText, { color: colors.textAssistive }]}>
@@ -3430,7 +3435,37 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           </Button>
         </View>
 
-      {/* 날짜 선택 바텀시트 */}
+      
+
+      {/* 카테고리 미선택 얼럿 */}
+      <PrepaymentModal
+        visible={showPrepaymentModal}
+        categoryLabel={categoryDisplay ?? ''}
+        amountText={(amount ? `${amount}원` : (editData?.amount ? `${Number(editData.amount).toLocaleString()}원` : ''))}
+        periodText={`기간 : ${date}`}
+        selectedDateLabel={date}
+        onOpenDatePicker={() => {
+          setTempSelectedDate(date.replace(/\./g, '-'));
+          if (isOpeningDatePickerRef.current) return;
+          isOpeningDatePickerRef.current = true;
+          InteractionManager.runAfterInteractions(() => {
+            requestAnimationFrame(() => {
+              setShowDatePicker(true);
+              // 약간의 시간 후 플래그 해제
+              setTimeout(() => {
+                isOpeningDatePickerRef.current = false;
+              }, 100);
+            });
+          });
+        }}
+        onConfirm={() => {
+          // TODO: 선결제 처리 확정 로직 연동
+          setShowPrepaymentModal(false);
+        }}
+        onCancel={() => setShowPrepaymentModal(false)}
+      />
+
+      {/* 날짜 선택 바텀시트 (팝업 위에 보이도록 모달 순서상 뒤로 이동) */}
       {showDatePicker && (
         <ModalBottomsheet
           visible={true}
@@ -3439,14 +3474,14 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           closeOnBackdrop={true}
           contentStyle={styles.dateBottomsheetContent}
         >
-        <CalendarDaySelect
-          selectedDate={tempSelectedDate}
-          onDayPress={(dateString) => {
-            setTempSelectedDate(dateString);
-          }}
-          monthStartDay={monthStartDay}
-        />
-          
+          <CalendarDaySelect
+            selectedDate={tempSelectedDate}
+            onDayPress={(dateString) => {
+              setTempSelectedDate(dateString);
+            }}
+            monthStartDay={monthStartDay}
+          />
+
           <View style={styles.dateButtonArea}>
             <Pressable
               style={[styles.dateButton, { backgroundColor: colors.primary }]}

@@ -185,6 +185,8 @@ export function ModalBottomsheet({
       transparent
       animationType="none"
       onRequestClose={onClose}
+      presentationStyle="overFullScreen"
+      statusBarTranslucent={true}
     >
       {/* Dim Backdrop */}
       <Animated.View
