@@ -25,6 +25,7 @@ import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { triggerChallengeNotifications } from '@/utils/challenge-utils';
 import { getCustomMonthInfo } from '@/utils/custom-month';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { calendarRefreshEvent } from '@/hooks/calendar-events';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Dimensions, InteractionManager, Keyboard, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
@@ -557,6 +558,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                   if (!foundRecord.refundedAt) {
                     foundRecord.refundedAt = new Date().toISOString();
                     await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
+                    calendarRefreshEvent.emit();
                     // editData도 업데이트 (화면에 반영되도록)
                     editData.refundedAt = foundRecord.refundedAt;
                   }
@@ -1428,6 +1430,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
       // 6. AsyncStorage에 저장
       await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
+      calendarRefreshEvent.emit();
+      calendarRefreshEvent.emit();
+      calendarRefreshEvent.emit();
       
       // 6-0. 캘린더 데이터 컨텍스트 갱신 (캘린더 UI 업데이트를 위해 필수)
       await refresh();
@@ -1818,6 +1823,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       
       // AsyncStorage에 저장
       await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
+      calendarRefreshEvent.emit();
       
       // 저장 후 확인
       const savedData = await AsyncStorage.getItem('calendarData');
