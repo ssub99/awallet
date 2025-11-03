@@ -340,6 +340,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   const [showNoChangesModal, setShowNoChangesModal] = useState<boolean>(false);
   const [showEditConfirmModal, setShowEditConfirmModal] = useState<boolean>(false);
   const [editConfirmMessage, setEditConfirmMessage] = useState<string>('');
+  const [showRefundEditConfirmModal, setShowRefundEditConfirmModal] = useState<boolean>(false);
+  const [refundEditConfirmMessage, setRefundEditConfirmMessage] = useState<string>('');
   const [showRecurringToast, setShowRecurringToast] = useState<boolean>(false);
   const [recurringToastMessage, setRecurringToastMessage] = useState<string>('');
   const [showCategoryToast, setShowCategoryToast] = useState<boolean>(false);
@@ -1237,14 +1239,26 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       return;
     }
     
-    if (!amount || amount === '0' || amount.trim() === '') {
-      setShowAmountAlert(true);
-      return;
+    const isRefundedRecord = mode === 'edit' && !!editData?.isRefunded;
+    
+    // 금액 필수 검증: 환불된 기록은 0원/미입력 허용
+    if (!isRefundedRecord) {
+      if (!amount || amount === '0' || amount.trim() === '') {
+        setShowAmountAlert(true);
+        return;
+      }
     }
     
     // 수정 모드에서 변경사항이 없으면 모달 표시
-    // 정기/할부 기록 수정모드에서 확인 모달 표시 (hasChanges 체크 전에 실행)
-    if (mode === 'edit' && (editData?.isRecurring || editData?.isInstallment)) {
+    // 환불 기록: 저장 전에 환불 전용 모달 표시
+    if (isRefundedRecord) {
+      setRefundEditConfirmMessage('현재 데이터만 변경 됩니다.\n진행하시겠어요?');
+      setShowRefundEditConfirmModal(true);
+      return;
+    }
+
+    // 정기/할부 기록 수정모드에서 확인 모달 표시 (환불 기록은 제외)
+    if (!isRefundedRecord && mode === 'edit' && (editData?.isRecurring || editData?.isInstallment)) {
       const isInstallmentRecord = editData.isInstallment && editData.originalInstallment;
       const recordType = isInstallmentRecord ? '할부' : '정기';
       
@@ -1281,6 +1295,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       const storedData = await AsyncStorage.getItem('calendarData');
       const calendarData = storedData ? JSON.parse(storedData) : {};
       
+      const isRefundedRecordForSave = mode === 'edit' && !!editData?.isRefunded;
       const expenseAmount = parseFloat(amount.replace(/,/g, ''));
 
       // 1. 실제 저장될 날짜 계산 (주말 옵션 적용)
@@ -1303,6 +1318,38 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       }
       
       const actualDateKey = actualDate.replace(/\./g, '-');
+
+      // 환불된 기록은 금액/상태를 유지한 채 날짜만 이동
+      if (isRefundedRecordForSave && mode === 'edit' && editData?.timestamp) {
+        const originalDateKey = (editData.date || date).replace(/\./g, '-');
+        const ts = editData.timestamp;
+        if (!calendarData[actualDateKey]) {
+          calendarData[actualDateKey] = { totalExpense: 0, totalIncome: 0, records: [] };
+        }
+        // 원본 위치에서 레코드 찾아 이동
+        if (calendarData[originalDateKey]?.records) {
+          const idx = calendarData[originalDateKey].records.findIndex((r: any) => r.timestamp === ts);
+          if (idx !== -1) {
+            const rec = calendarData[originalDateKey].records[idx];
+            // 날짜 문자열 업데이트(YYYY.MM.DD)
+            rec.date = actualDate;
+            // 환불 상태/금액/백업 값 유지
+            rec.isRefunded = true;
+            rec.amount = 0;
+            // 원본에서 제거
+            calendarData[originalDateKey].records.splice(idx, 1);
+            // 원본 날짜키가 비면 정리
+            if (calendarData[originalDateKey].records.length === 0) {
+              delete calendarData[originalDateKey];
+            }
+            // 대상 날짜키에 추가
+            calendarData[actualDateKey].records.push(rec);
+            await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
+            await refresh();
+            return;
+          }
+        }
+      }
 
       // 2. 날짜에 데이터 구조 생성
       if (!calendarData[actualDateKey]) {
@@ -3475,7 +3522,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       {/* 정기 기록 삭제 확인 모달 */}
       <ModalPopup
         visible={showRecurringDeleteConfirm}
-        title="정기 지출 기록 안내"
+        title="소비 기록 안내"
         onConfirm={handleDeleteConfirm}
         onCancel={() => setShowRecurringDeleteConfirm(false)}
         confirmText="확인"
@@ -3735,6 +3782,23 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       >
         <Text style={[styles.alertText, { color: colors.text }]}>
           {editConfirmMessage}
+        </Text>
+      </ModalPopup>
+
+      {/* 환불 기록 저장 확인 모달 */}
+      <ModalPopup
+        visible={showRefundEditConfirmModal}
+        title="소비 기록 안내"
+        onConfirm={async () => {
+          setShowRefundEditConfirmModal(false);
+          await saveExpenseRecord();
+        }}
+        onCancel={() => setShowRefundEditConfirmModal(false)}
+        confirmText="확인"
+        cancelText="취소"
+      >
+        <Text style={[styles.alertText, { color: colors.text }]}>
+          {refundEditConfirmMessage}
         </Text>
       </ModalPopup>
 
