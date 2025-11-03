@@ -17,6 +17,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { calendarRefreshEvent } from '@/hooks/calendar-events';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -193,10 +194,8 @@ export default function MonthlyExpenseTimelineScreen() {
 
   // Load challenge data - REMOVED (useFocusEffect에서 처리)
 
-  // 화면이 포커스될 때마다 데이터 새로고침
-  useFocusEffect(
-    useCallback(() => {
-      const refreshData = async () => {
+  // 데이터 새로고침 함수
+  const refreshData = useCallback(async () => {
         try {
           // Load month start day
           const monthStart = await loadMonthStartDay();
@@ -286,16 +285,24 @@ export default function MonthlyExpenseTimelineScreen() {
             setChallenges([]);
           }
         } catch (error) {
-
         }
-      };
+  }, [year, month]);
 
+  // 화면 포커스 시 새로고침
+  useFocusEffect(
+    useCallback(() => {
       refreshData();
-      
-      return () => {
-      };
-    }, [year, month])
+      return () => {};
+    }, [refreshData])
   );
+
+  // 전역 이벤트 구독으로 즉시 새로고침
+  useEffect(() => {
+    const unsub = calendarRefreshEvent.subscribe(() => {
+      refreshData();
+    });
+    return unsub;
+  }, [refreshData]);
   
   // Calculate monthly totals
   const monthlyTotals = useMemo(() => {
