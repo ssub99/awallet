@@ -323,6 +323,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   const [recurringToastMessage, setRecurringToastMessage] = useState<string>('');
   const [showCategoryToast, setShowCategoryToast] = useState<boolean>(false);
   const [categoryToastMessage, setCategoryToastMessage] = useState<string>('');
+  const [showDateSelectToast, setShowDateSelectToast] = useState<boolean>(false);
+  const [dateSelectToastMessage, setDateSelectToastMessage] = useState<string>('');
   
   // 정기 기록 삭제 옵션 모달
   const [showRecurringDeleteOptions, setShowRecurringDeleteOptions] = useState<boolean>(false);
@@ -1200,6 +1202,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             // 대상 날짜키에 추가
             calendarData[actualDateKey].records.push(rec);
             await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
+            calendarRefreshEvent.emit();
             await refresh();
             return;
           }
@@ -1430,8 +1433,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
       // 6. AsyncStorage에 저장
       await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
-      calendarRefreshEvent.emit();
-      calendarRefreshEvent.emit();
       calendarRefreshEvent.emit();
       
       // 6-0. 캘린더 데이터 컨텍스트 갱신 (캘린더 UI 업데이트를 위해 필수)
@@ -1666,6 +1667,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           
           // AsyncStorage에 저장
           await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
+          calendarRefreshEvent.emit();
           debugLog('✅ [삭제] 삭제 완료 및 저장');
           
           // 모달 닫기
@@ -1823,6 +1825,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       
       // AsyncStorage에 저장
       await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
+      calendarRefreshEvent.emit();
       calendarRefreshEvent.emit();
       
       // 저장 후 확인
@@ -2034,6 +2037,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
       // AsyncStorage에 저장
       await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
+      calendarRefreshEvent.emit();
       
       // 캘린더 데이터 컨텍스트 갱신
       await refresh();
@@ -3138,7 +3142,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           InteractionManager.runAfterInteractions(() => {
             requestAnimationFrame(() => {
               setShowDatePicker(true);
-              // 약간의 시간 후 플래그 해제
               setTimeout(() => {
                 isOpeningDatePickerRef.current = false;
               }, 100);
@@ -3150,25 +3153,30 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           setShowPrepaymentModal(false);
         }}
         onCancel={() => setShowPrepaymentModal(false)}
-      />
-
-      {/* 날짜 선택 바텀시트 (팝업 위에 보이도록 모달 순서상 뒤로 이동) */}
-      {showDatePicker && (
+        backdropInteractive={true}
+        extraOverlay={showDatePicker ? (
+          <>
         <ModalBottomsheet
           visible={true}
           title="소비 기록일 선택"
           onClose={handleDatePickerClose}
           closeOnBackdrop={true}
           contentStyle={styles.dateBottomsheetContent}
+              embedded
         >
         <CalendarDaySelect
           selectedDate={tempSelectedDate}
+                autoCenterOnSelectedDate={false}
+                disablePastDates={true}
+                onInvalidPastDate={() => {
+                  setDateSelectToastMessage('금일 보다 이전일은 선택할 수 없습니다.');
+                  setShowDateSelectToast(true);
+                }}
           onDayPress={(dateString) => {
             setTempSelectedDate(dateString);
           }}
           monthStartDay={monthStartDay}
         />
-          
           <View style={styles.dateButtonArea}>
             <Pressable
               style={[styles.dateButton, { backgroundColor: colors.primary }]}
@@ -3180,7 +3188,18 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             </Pressable>
           </View>
         </ModalBottomsheet>
-      )}
+            {/* Toast inside the same Modal to ensure it's on top */}
+            <Toast
+              visible={showDateSelectToast}
+              message={dateSelectToastMessage}
+              onHide={() => setShowDateSelectToast(false)}
+              zIndex={100005}
+            />
+          </>
+        ) : null}
+      />
+
+      {/* 날짜 선택 바텀시트: PrepaymentModal 내부 extraOverlay로 이동 */}
 
       {/* 카테고리 미선택 얼럿 */}
       <ModalPopup
@@ -3488,6 +3507,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         visible={showCategoryToast}
         message={categoryToastMessage}
         onHide={() => setShowCategoryToast(false)}
+      />
+
+      {/* 날짜 선택 제한 토스트 */}
+      <Toast
+        visible={showDateSelectToast}
+        message={dateSelectToastMessage}
+        onHide={() => setShowDateSelectToast(false)}
       />
 
       {/* 정기/할부 기록 수정 확인 모달 */}
