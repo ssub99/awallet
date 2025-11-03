@@ -44,14 +44,12 @@ export default function PasswordChangeScreen() {
     (async () => {
       try {
         if (!isSupabaseConfigured) {
-          console.log('🔎 [PasswordChange] Supabase not configured');
           setIsExpired(true);
           setShowExpiredModal(true);
           return;
         }
         const { data } = await supabase.auth.getUser();
         if (!data?.user) {
-          console.log('🔎 [PasswordChange] No session found');
           setIsExpired(true);
           setShowExpiredModal(true);
         }
@@ -124,7 +122,6 @@ export default function PasswordChangeScreen() {
   // 5분 타이머 시작 (백그라운드에서도 유지)
   useEffect(() => {
     // 컴포넌트 마운트 시 타이머 시작
-    console.log('🔎 [PasswordChange] mounted, start 5min timer');
     startTimer();
 
     return () => {
@@ -144,7 +141,6 @@ export default function PasswordChangeScreen() {
       ) {
         // 비밀번호 변경이 완료되지 않았으면 세션 종료
         if (!isPasswordChanged && isSupabaseConfigured) {
-          console.log('🔎 [PasswordChange] App going to background, signing out (password not changed)');
           supabase.auth.signOut().catch((error) => {
             console.error('🔎 [PasswordChange] Sign out error:', error);
           });
@@ -186,7 +182,7 @@ export default function PasswordChangeScreen() {
                    !isExpired;
 
   const handleNewPasswordChange = (value: string) => {
-    console.log('🔎 [PasswordChange] new password input');
+    
     // 공백 제거
     const cleanValue = removeSpaces(value);
     
@@ -229,7 +225,7 @@ export default function PasswordChangeScreen() {
   };
 
   const handleConfirmPasswordChange = (value: string) => {
-    console.log('🔎 [PasswordChange] confirm password input');
+    
     // 공백 제거
     const cleanValue = removeSpaces(value);
     
@@ -247,7 +243,7 @@ export default function PasswordChangeScreen() {
   };
 
   const handleSubmit = async () => {
-    console.log('🔎 [PasswordChange] submit clicked');
+    
     // 모든 에러 상태 초기화
     setNewPasswordError('');
     setConfirmPasswordError('');
@@ -284,7 +280,7 @@ export default function PasswordChangeScreen() {
       }
 
       // 비밀번호 변경 API 호출
-      console.log('🔎 [PasswordChange] updating password via Supabase');
+      
       const { error: updateErr } = await supabase.auth.updateUser({ 
         password: newPassword 
       });
@@ -292,7 +288,7 @@ export default function PasswordChangeScreen() {
       if (updateErr) {
         // Supabase 에러 메시지 처리 (사용자에게 표시할 에러로 변환하므로 console.error 대신 console.log 사용)
         const errorMessage = updateErr.message.toLowerCase();
-        console.log('🔎 [PasswordChange] password update error:', errorMessage);
+        
         
         // 기존 비밀번호와 동일한 경우
         if (errorMessage.includes('different') || 
@@ -309,7 +305,7 @@ export default function PasswordChangeScreen() {
         return;
       }
 
-      console.log('🔎 [PasswordChange] password updated successfully');
+      
       
       // 비밀번호 변경 완료 플래그 설정
       setIsPasswordChanged(true);
@@ -325,7 +321,7 @@ export default function PasswordChangeScreen() {
   };
 
   const handleExpiredModalClose = async () => {
-    console.log('🔎 [PasswordChange] expired modal confirm, sign out and go to login');
+    
     // 로그인 화면으로 이동 중임을 표시하여 다른 로직이 모달을 다시 열지 않도록 함
     isNavigatingRef.current = true;
     setShowExpiredModal(false);
@@ -344,7 +340,7 @@ export default function PasswordChangeScreen() {
   };
 
   const handleSuccessModalClose = async () => {
-    console.log('🔎 [PasswordChange] success modal confirm, sign out and go to login');
+    
     setShowSuccessModal(false);
     // 세션 종료 후 로그인 화면으로 이동
     try {
@@ -358,7 +354,7 @@ export default function PasswordChangeScreen() {
   };
 
   const handleBackModalClose = async () => {
-    console.log('🔎 [PasswordChange] back modal confirm, sign out and go to login');
+    
     // 다른 로직이 다시 모달을 띄우지 않도록 네비게이팅 플래그 설정
     isNavigatingRef.current = true;
     setShowBackModal(false);

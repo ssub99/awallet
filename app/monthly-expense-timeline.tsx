@@ -777,21 +777,11 @@ export default function MonthlyExpenseTimelineScreen() {
                   const endDate = new Date(challenge.endDate.replace(/\./g, '-'));
                   endDate.setHours(0, 0, 0, 0);
                   
-                  console.log('🔍 [챌린지 상태] 상태 계산 시작:', {
-                    challengeId: challenge.id,
-                    startDate: challenge.startDate,
-                    endDate: challenge.endDate,
-                    today: today.toISOString().split('T')[0],
-                    monthStartDay: monthStartDay
-                  });
+                  
                   
                   // 챌린지 시작일 판단 (단순히 현재 날짜와 비교)
                   const isChallengeStarted = () => {
-                    console.log('🔍 [챌린지 상태] 시작일 판단:', {
-                      startDate: startDate.toISOString().split('T')[0],
-                      today: today.toISOString().split('T')[0],
-                      isStarted: startDate <= today
-                    });
+                    
                     
                     // 챌린지 시작일이 현재 날짜 이전 또는 같은 날인지 확인
                     return startDate <= today;

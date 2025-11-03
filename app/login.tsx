@@ -35,12 +35,7 @@ export default function LoginScreen() {
   const router = useRouter();
   const { setLoading } = useLoading();
   const [isClosing, setIsClosing] = useState(false);
-  // Focus log
-  useFocusEffect(
-    useCallback(() => {
-      console.log('🔎 [Login] entered');
-    }, [])
-  );
+  
 
 
   // 진입 시 애니메이션 없음

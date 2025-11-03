@@ -47,7 +47,6 @@ export default function MyPageScreen() {
   // Load settings from AsyncStorage on screen focus
   useFocusEffect(
     useCallback(() => {
-      console.log('🔎 [MyPage] entered');
       // 안드로이드 하드웨어 뒤로가기 비활성화
       const onBackPress = () => true; // 기본 뒤로가기 동작 차단
       const backSub = BackHandler.addEventListener('hardwareBackPress', onBackPress);

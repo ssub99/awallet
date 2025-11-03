@@ -50,7 +50,6 @@ export default function AccountVerifyEmailScreen() {
     if (decoded) {
       setDisplayEmail(decoded);
       setDisplayName(decodedName);
-      console.log('🔎 [AccountVerifyEmail] mounted', { email: decoded, name: decodedName });
       return;
     }
     (async () => {
@@ -64,12 +63,11 @@ export default function AccountVerifyEmailScreen() {
   // 남은 시간은 고정 문구로 안내 (카운트다운 텍스트 미사용)
 
   const handleComplete = useCallback(async (value: string) => {
-    console.log('🔎 [AccountVerifyEmail] onComplete', { value });
+    
     if (Date.now() > expiresAt) {
       setError(true);
       setErrorMessage('인증번호가 만료되었습니다.');
       setErrorBorder(false);
-      console.log('🔎 [AccountVerifyEmail] expired');
       return;
     }
 
@@ -84,7 +82,7 @@ export default function AccountVerifyEmailScreen() {
         setError(true);
         setErrorMessage('인증번호가 일치하지 않습니다.');
         setErrorBorder(true);
-        console.log('🔎 [AccountVerifyEmail] verify error', { verifyErr });
+        
         return;
       }
 
@@ -105,7 +103,7 @@ export default function AccountVerifyEmailScreen() {
           const mm = String(d.getMonth() + 1).padStart(2, '0');
           const dd = String(d.getDate()).padStart(2, '0');
           setRegistrationDate(`${yyyy}.${mm}.${dd}`);
-          console.log('🔎 [AccountVerifyEmail] join_at loaded');
+          
         } else {
           setRegistrationDate('');
         }
@@ -114,13 +112,13 @@ export default function AccountVerifyEmailScreen() {
       }
 
       setFoundUserId(displayEmail);
-      console.log('🔎 [AccountVerifyEmail] show result modal');
+      
       setShowResultModal(true);
     } catch {
       setError(true);
       setErrorMessage('인증번호가 일치하지 않습니다.');
       setErrorBorder(true);
-      console.log('🔎 [AccountVerifyEmail] unexpected verify failure');
+      
     }
   }, [expiresAt, displayEmail]);
 

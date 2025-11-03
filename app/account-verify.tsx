@@ -26,11 +26,9 @@ export default function IdFindScreen() {
   const canSubmit = name.trim().length > 0 && isValidEmail(email.trim());
 
   const handleSubmit = async () => {
-    console.log('🔎 [AccountVerify] submit clicked', { name, email });
     setError(false);
     setErrorMessage('');
     if (!name.trim() || !isValidEmail(email.trim())) {
-      console.log('🔎 [AccountVerify] local validation failed');
       setError(true);
       setErrorMessage('입력하신 정보가 존재하지 않습니다.');
       return;
@@ -39,7 +37,6 @@ export default function IdFindScreen() {
     try {
       setLoading(true);
       if (!isSupabaseConfigured) throw new Error('Supabase not configured');
-      console.log('🔎 [AccountVerify] verifying candidate via RPC');
       // 1) 보안 RPC로 이름+이메일 매칭 확인 (RLS 우회)
       const { data: isValid, error: verifyErr } = await supabase.rpc('verify_account_candidate', {
         p_email: email.trim(),
@@ -47,30 +44,25 @@ export default function IdFindScreen() {
       });
 
       if (verifyErr || !isValid) {
-        console.log('🔎 [AccountVerify] verify failed', { verifyErr, isValid });
         setError(true);
         setErrorMessage('입력하신 정보가 존재하지 않습니다.');
         setLoading(false);
         return;
       }
 
-      console.log('🔎 [AccountVerify] verify ok, sending OTP');
       // 2) OTP 발송 (기존 가입자만, shouldCreateUser: false)
       const { error: otpErr } = await supabase.auth.signInWithOtp({
         email: email.trim(),
         options: { shouldCreateUser: false },
       });
       if (otpErr) {
-        console.log('🔎 [AccountVerify] send OTP failed', { otpErr });
         setError(true);
         setErrorMessage('인증 요청이 잦습니다. 30초 후 다시 시도해 주세요.');
         setLoading(false);
         return;
       }
-      console.log('🔎 [AccountVerify] send OTP ok, navigating to email verify');
       router.replace({ pathname: '/account-verify-email', params: { email: encodeURIComponent(email.trim()), name: encodeURIComponent(name.trim()) } });
     } catch {
-      console.log('🔎 [AccountVerify] unexpected error');
       setError(true);
       setErrorMessage('일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
     } finally {

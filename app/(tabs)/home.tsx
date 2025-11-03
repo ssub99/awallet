@@ -146,15 +146,9 @@ export default function HomeScreen() {
     
     // Load month start day to calculate correct custom month
     const monthStart = await loadMonthStartDay();
-    console.log('📅 [홈] resetToToday 월 시작일:', { monthStart, today: today.toISOString() });
     
     // Get custom month info for today's date
     const customMonthInfo = getCustomMonthInfo(today, monthStart);
-    console.log('📅 [홈] 커스텀 월 정보:', {
-      customMonthInfo,
-      monthStart,
-      today: today.toISOString()
-    });
     
     setCurrentYear(customMonthInfo.year);
     setCurrentMonth(customMonthInfo.month);
@@ -599,15 +593,7 @@ export default function HomeScreen() {
               // 선택한 날짜에서 년/월 추출
               const [selectedYear, selectedMonth] = selectedDate.split('-').map(Number);
               
-              console.log('🔍 [홈 화면] 챌린지 도전으로 전달할 파라미터:', {
-                mode: 'challenge',
-                selectedDate: challengeDate,
-                calendarYear: selectedYear.toString(),      // ✅ 선택한 날짜의 년도
-                calendarMonth: selectedMonth.toString(),    // ✅ 선택한 날짜의 월
-                originalSelectedDate: selectedDate,
-                extractedYear: selectedYear,
-                extractedMonth: selectedMonth
-              });
+              
 
               setIsCreateSheetVisible(false);
               setTimeout(() => {
