@@ -74,6 +74,11 @@ export interface ModalBottomsheetProps {
    * Use when content handles home indicator internally
    */
   noPaddingBottom?: boolean;
+
+  /**
+   * Render as embedded overlay (no RN Modal). Use when inside another Modal.
+   */
+  embedded?: boolean;
 }
 
 /**
@@ -90,12 +95,13 @@ export function ModalBottomsheet({
   style,
   contentStyle,
   noPaddingBottom = false,
+  embedded = false,
 }: ModalBottomsheetProps) {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
   const insets = useSafeAreaInsets();
   
-  // Internal state to control actual Modal visibility
+  // Internal state to control actual Modal visibility (Modal mode only)
   const [isModalVisible, setIsModalVisible] = useState(false);
   
   // Store content to prevent flickering when switching between sheets
@@ -113,16 +119,16 @@ export function ModalBottomsheet({
       setCurrentContent(children);
       setCurrentTitle(title);
       
-      // Show modal
+      // In modal mode, show modal first
+      if (!embedded) {
       setIsModalVisible(true);
+      }
       
       // Reset animation values immediately
       dimOpacity.setValue(0);
       sheetTranslateY.setValue(SCREEN_HEIGHT);
       
-      // Small delay to ensure modal is rendered before animating
       requestAnimationFrame(() => {
-        // Dim first, then slide up
         Animated.sequence([
           Animated.timing(dimOpacity, {
             toValue: 1,
@@ -136,8 +142,8 @@ export function ModalBottomsheet({
           }),
         ]).start();
       });
-    } else if (isModalVisible) {
-      // Slide down, then fade dim, then hide modal
+    } else {
+      // Slide down, then fade dim
       Animated.sequence([
         Animated.timing(sheetTranslateY, {
           toValue: SCREEN_HEIGHT,
@@ -150,11 +156,12 @@ export function ModalBottomsheet({
           useNativeDriver: true,
         }),
       ]).start(() => {
-        // Hide modal after animation completes
+        if (!embedded) {
         setIsModalVisible(false);
+        }
       });
     }
-  }, [visible, title]);
+  }, [visible, title, embedded]);
   
   // Update content when children change (without triggering animation)
   useEffect(() => {
@@ -179,6 +186,82 @@ export function ModalBottomsheet({
     }
   };
 
+  if (embedded) {
+    // Embedded render (no RN Modal)
+    return (
+      <>
+        {/* Dim Backdrop */}
+        <Animated.View
+          style={[
+            styles.backdrop,
+            { opacity: dimOpacity, zIndex: 100001 },
+          ]}
+          pointerEvents={visible ? 'auto' : 'none'}
+        >
+          <Pressable style={StyleSheet.absoluteFill} onPress={handleBackdropPress} />
+        </Animated.View>
+
+        {/* Bottomsheet */}
+        <Animated.View
+          style={[
+            styles.sheetContainer,
+            {
+              transform: [{ translateY: sheetTranslateY }],
+              backgroundColor: colors.staticWhite,
+              paddingBottom: noPaddingBottom ? 0 : insets.bottom,
+              // Ensure overlay is above popup content when embedded
+              zIndex: 100002,
+            },
+          ]}
+          pointerEvents={visible ? 'auto' : 'none'}
+        >
+          <View style={[styles.sheet, style]}>
+            <View style={styles.navigation}>
+              <View style={styles.navContent}>
+                <View style={styles.navLeft}>
+                  <Pressable
+                    onPress={handleClose}
+                    style={styles.closeButton}
+                    accessibilityRole="button"
+                    accessibilityLabel="닫기"
+                  >
+                    <Icon name="close" size={24} color={colors.text} />
+                  </Pressable>
+                </View>
+                <View style={styles.titleContainer}>
+                  <Text style={[styles.title, { color: colors.text }]}>
+                    {currentTitle}
+                  </Text>
+                </View>
+                <View style={styles.navRight}>
+                  {onConfirm ? (
+                    <Pressable
+                      onPress={handleConfirm}
+                      style={[styles.confirmButton, { backgroundColor: colors.primary }]}
+                      accessibilityRole="button"
+                      accessibilityLabel={confirmText}
+                    >
+                      <Text style={[styles.confirmText, { color: colors.staticWhite }]}>
+                        {confirmText}
+                      </Text>
+                    </Pressable>
+                  ) : (
+                    <View style={styles.emptySpace} />
+                  )}
+                </View>
+              </View>
+              <View style={[styles.divider, { backgroundColor: colors.border }]} />
+            </View>
+            <View style={[styles.content, contentStyle]}>
+              {currentContent}
+            </View>
+          </View>
+        </Animated.View>
+      </>
+    );
+  }
+
+  // Modal render (default)
   return (
     <Modal
       visible={isModalVisible}
@@ -188,20 +271,9 @@ export function ModalBottomsheet({
       presentationStyle="overFullScreen"
       statusBarTranslucent={true}
     >
-      {/* Dim Backdrop */}
-      <Animated.View
-        style={[
-          styles.backdrop,
-          { opacity: dimOpacity }
-        ]}
-      >
-        <Pressable
-          style={StyleSheet.absoluteFill}
-          onPress={handleBackdropPress}
-        />
+      <Animated.View style={[styles.backdrop, { opacity: dimOpacity }]}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={handleBackdropPress} />
       </Animated.View>
-
-      {/* Bottomsheet */}
       <Animated.View
         style={[
           styles.sheetContainer,
@@ -212,16 +284,9 @@ export function ModalBottomsheet({
           },
         ]}
       >
-        <View
-          style={[
-            styles.sheet,
-            style,
-          ]}
-        >
-          {/* Top Navigation */}
+        <View style={[styles.sheet, style]}>
           <View style={styles.navigation}>
             <View style={styles.navContent}>
-              {/* Left: Close Button */}
               <View style={styles.navLeft}>
                 <Pressable
                   onPress={handleClose}
@@ -232,15 +297,11 @@ export function ModalBottomsheet({
                   <Icon name="close" size={24} color={colors.text} />
                 </Pressable>
               </View>
-
-              {/* Center: Title */}
               <View style={styles.titleContainer}>
                 <Text style={[styles.title, { color: colors.text }]}>
                   {currentTitle}
                 </Text>
               </View>
-
-              {/* Right: Confirm Button or Empty Space */}
               <View style={styles.navRight}>
                 {onConfirm ? (
                   <Pressable
@@ -258,12 +319,8 @@ export function ModalBottomsheet({
                 )}
               </View>
             </View>
-
-            {/* Divider */}
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
           </View>
-
-          {/* Content */}
           <View style={[styles.content, contentStyle]}>
             {currentContent}
           </View>

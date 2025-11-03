@@ -16,6 +16,8 @@ export interface PrepaymentModalProps {
   onOpenDatePicker: () => void;
   onConfirm: () => void;
   onCancel: () => void;
+  backdropInteractive?: boolean;
+  extraOverlay?: ReactNode;
 }
 
 export function PrepaymentModal({
@@ -30,6 +32,8 @@ export function PrepaymentModal({
   onOpenDatePicker,
   onConfirm,
   onCancel,
+  backdropInteractive = true,
+  extraOverlay,
 }: PrepaymentModalProps) {
   const scheme = useColorScheme();
   const colors = Colors[scheme ?? 'light'] as typeof Colors.light;
@@ -54,6 +58,8 @@ export function PrepaymentModal({
       onCancel={onCancel}
       cancelText="취소"
       closeOnBackdrop={true}
+      backdropInteractive={backdropInteractive}
+      extraOverlay={extraOverlay}
     >
       <View style={styles.container}>
         <View style={[styles.centerBlock]}>

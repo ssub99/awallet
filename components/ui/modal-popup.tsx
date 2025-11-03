@@ -65,6 +65,17 @@ export interface ModalPopupProps {
   closeOnBackdrop?: boolean;
   
   /**
+   * Whether the backdrop/content should receive touches
+   * When false, the popup stays visible but does not intercept touches
+   */
+  backdropInteractive?: boolean;
+
+  /**
+   * Optional extra overlay to render within the same RN Modal (e.g., embedded bottomsheet)
+   */
+  extraOverlay?: ReactNode;
+  
+  /**
    * Container style
    */
   style?: ViewStyle;
@@ -83,6 +94,8 @@ export function ModalPopup({
   cancelText,
   onCancel,
   closeOnBackdrop = true,
+  backdropInteractive = true,
+  extraOverlay,
   style,
 }: ModalPopupProps) {
   const colorScheme = useColorScheme();
@@ -175,15 +188,18 @@ export function ModalPopup({
           styles.backdrop,
           { opacity: dimOpacity }
         ]}
+        pointerEvents={backdropInteractive ? 'auto' : 'none'}
       >
+        {backdropInteractive && (
         <Pressable
           style={StyleSheet.absoluteFill}
           onPress={handleBackdropPress}
         />
+        )}
       </Animated.View>
 
       {/* Modal Content */}
-      <View style={styles.container} pointerEvents="box-none">
+      <View style={styles.container} pointerEvents={backdropInteractive ? 'auto' : 'none'}>
         <Animated.View
           style={[
             styles.modal,
@@ -251,6 +267,9 @@ export function ModalPopup({
           </View>
         </Animated.View>
       </View>
+
+      {/* Extra overlay area (e.g., embedded bottomsheet) */}
+      {extraOverlay}
     </Modal>
   );
 }

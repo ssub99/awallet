@@ -20,6 +20,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useIsFocused } from '@react-navigation/native';
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { calendarRefreshEvent } from '@/hooks/calendar-events';
 import { Pressable, StyleSheet, Text, View, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -203,6 +204,14 @@ export default function HomeScreen() {
       };
     }, [])
   );
+
+  // 전역 캘린더 새로고침 이벤트 구독: 로컬 캐시 변경 즉시 반영
+  useEffect(() => {
+    const unsub = calendarRefreshEvent.subscribe(() => {
+      refresh();
+    });
+    return unsub;
+  }, [refresh]);
 
   // 년도 화면에 진입할 때와 스크롤 애니메이션 처리
   useEffect(() => {

@@ -33,6 +33,19 @@ export interface CalendarDaySelectProps {
   style?: ViewStyle;
   hideNavBar?: boolean;
   monthStartDay?: number; // 월 시작일 (1-31)
+  /**
+   * When true (default), scrolling auto-centers to the selectedDate's month.
+   * Set false to prevent month jump when selecting a day.
+   */
+  autoCenterOnSelectedDate?: boolean;
+  /**
+   * Disable all days before today (local time)
+   */
+  disablePastDates?: boolean;
+  /**
+   * Callback when a disabled past date is tapped
+   */
+  onInvalidPastDate?: () => void;
 }
 
 /**
@@ -123,6 +136,9 @@ export function CalendarDaySelect({
   style,
   hideNavBar = false,
   monthStartDay = 1,
+  autoCenterOnSelectedDate = true,
+  disablePastDates = false,
+  onInvalidPastDate,
 }: CalendarDaySelectProps) {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
@@ -138,50 +154,60 @@ export function CalendarDaySelect({
   };
   
   const initialDate = selectedDate ? new Date(selectedDate) : new Date();
-  const [internalYear, setInternalYear] = useState(initialDate.getFullYear());
-  const [internalMonth, setInternalMonth] = useState(initialDate.getMonth() + 1);
+  // Compute custom month (based on monthStartDay)
+  const getCustomMonthFromDate = (date: Date, startDay: number) => {
+    const y = date.getFullYear();
+    const m = date.getMonth() + 1; // 1-indexed
+    const d = date.getDate();
+    if (d >= startDay) {
+      return { year: y, month: m };
+    }
+    // Move to previous month
+    const prev = new Date(y, m - 2, 1); // m-2 because Date month is 0-indexed
+    return { year: prev.getFullYear(), month: prev.getMonth() + 1 };
+  };
+
+  const initialCustom = getCustomMonthFromDate(initialDate, monthStartDay);
+  const [internalYear, setInternalYear] = useState(initialCustom.year);
+  const [internalMonth, setInternalMonth] = useState(initialCustom.month);
   
   // 변수 선언을 useEffect 앞으로 이동
   const currentYear = propYear !== undefined ? propYear : internalYear;
   const currentMonth = propMonth !== undefined ? propMonth : internalMonth;
   const [scrollInitialized, setScrollInitialized] = useState(false);
+  const [layoutReady, setLayoutReady] = useState(false);
   
-  // selectedDate가 변경될 때 내부 상태 업데이트
+  // selectedDate가 변경될 때 내부 상태/스크롤 업데이트 (옵션)
   useEffect(() => {
-    if (selectedDate) {
+    if (!selectedDate) return;
+    // 사용처에서 선택: 날짜 선택이 있어도 현재 보이는 월을 유지하려면 완전히 무시
+    if (!autoCenterOnSelectedDate) return;
+
       const newDate = new Date(selectedDate);
-      const newYear = newDate.getFullYear();
-      const newMonth = newDate.getMonth() + 1;
+    const custom = getCustomMonthFromDate(newDate, monthStartDay);
       
-      // prop으로 제어되지 않는 경우에만 내부 상태 업데이트
+    // prop으로 제어되지 않는 경우에만 내부 상태 업데이트 (항상 반영)
       if (propYear === undefined) {
-        setInternalYear(newYear);
+      setInternalYear(custom.year);
       }
       if (propMonth === undefined) {
-        setInternalMonth(newMonth);
+      setInternalMonth(custom.month);
       }
       
-      // 스크롤 위치도 업데이트 (선택된 날짜가 보이도록)
-      if (scrollViewRef.current && scrollInitialized) {
-        // 현재 년월과 선택된 년월의 차이 계산
+    // 자동 중앙 정렬 옵션일 때만 스크롤 이동
+    if (autoCenterOnSelectedDate && scrollViewRef.current && scrollInitialized) {
         const currentDate = new Date(currentYear, currentMonth - 1);
-        const selectedDateObj = new Date(newYear, newMonth - 1);
+      const selectedDateObj = new Date(custom.year, custom.month - 1);
         const monthsDiff = (selectedDateObj.getFullYear() - currentDate.getFullYear()) * 12 + 
                           (selectedDateObj.getMonth() - currentDate.getMonth());
-        
-        // 중앙 인덱스(3)에서 차이만큼 이동
         const targetIndex = 3 + monthsDiff;
         const targetX = SCREEN_WIDTH * targetIndex;
         
         setTimeout(() => {
-          scrollViewRef.current?.scrollTo({
-            x: targetX,
-            animated: true,
-          });
+        scrollViewRef.current?.scrollTo({ x: targetX, animated: true });
         }, 100);
-      }
     }
-  }, [selectedDate, propYear, propMonth, currentYear, currentMonth, scrollInitialized]);
+  }, [selectedDate, propYear, propMonth, currentYear, currentMonth, scrollInitialized, autoCenterOnSelectedDate, monthStartDay]);
   
   // Animation lock to prevent rapid swipes
   const [isAnimating, setIsAnimating] = useState(false);
@@ -217,18 +243,17 @@ export function CalendarDaySelect({
   // ScrollView ref and initialization
   const scrollViewRef = useRef<ScrollView>(null);
   
-  // Initialize scroll to center (index 3)
+  // Initialize scroll to center (index 3) after layout is ready
   useEffect(() => {
-    if (!scrollInitialized && scrollViewRef.current) {
-      setTimeout(() => {
+    if (!layoutReady || scrollInitialized || !scrollViewRef.current) return;
+    requestAnimationFrame(() => {
         scrollViewRef.current?.scrollTo({
           x: SCREEN_WIDTH * 3, // Center of 7 months (index 3)
           animated: false,
         });
         setScrollInitialized(true);
-      }, 100);
-    }
-  }, [scrollInitialized]);
+    });
+  }, [layoutReady, scrollInitialized]);
   
   // Handle scroll end
   const handleScrollEnd = (event: any) => {
@@ -343,17 +368,24 @@ export function CalendarDaySelect({
   // Render day cell
   const renderDay = (item: { date: string; day: number; isCurrentMonth: boolean }, index: number, gridType: 'prev' | 'current' | 'next') => {
     const isSelected = item.date === selectedDate;
+    // Disable past dates if requested
+    const todayLocal = getTodayLocalDate();
+    const isPast = disablePastDates && item.date < todayLocal;
     
     // For prev/next grids, consider their days as "current month" for styling
     const isCurrentMonthForStyling = gridType === 'current' ? item.isCurrentMonth : true;
 
-    const dayTextColor = !isCurrentMonthForStyling
+    const dayTextColor = isPast
+      ? colors.textAssistive
+      : !isCurrentMonthForStyling
       ? colors.textAssistive
       : isSelected
       ? colors.staticWhite
       : colors.textNeutral;
 
-    const dayTextStyle = !isCurrentMonthForStyling
+    const dayTextStyle = isPast
+      ? styles.dayTextOtherMonth
+      : !isCurrentMonthForStyling
       ? styles.dayTextOtherMonth
       : isSelected
       ? styles.dayTextSelected
@@ -362,7 +394,13 @@ export function CalendarDaySelect({
     return (
       <Pressable
         key={`${gridType}-${item.date}-${index}`}
-        onPress={() => handleDayPress(item.date)}
+        onPress={() => {
+          if (isPast) {
+            onInvalidPastDate?.();
+            return;
+          }
+          handleDayPress(item.date);
+        }}
         style={[styles.dayContainer, { width: DAY_CELL_WIDTH }]}
         accessibilityRole="button"
         accessibilityLabel={item.date}
@@ -371,7 +409,7 @@ export function CalendarDaySelect({
         <View
           style={[
             styles.dayCircle,
-            isSelected && { backgroundColor: colors.primary },
+            isSelected && !isPast && { backgroundColor: colors.primary },
           ]}
         >
           <Text style={[dayTextStyle, { color: dayTextColor }]}>
@@ -433,6 +471,7 @@ export function CalendarDaySelect({
         onScrollBeginDrag={() => {}}
         scrollEnabled={!isAnimating}
         style={[styles.scrollView, { height: DAY_CELLS_AREA_HEIGHT }]}
+        onLayout={() => setLayoutReady(true)}
       >
         {/* Render 7 months: [prev3, prev2, prev1, current, next1, next2, next3] */}
         {monthGrids.map((monthData, index) => {

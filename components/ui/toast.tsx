@@ -28,6 +28,10 @@ export interface ToastProps {
    * Container style
    */
   style?: ViewStyle;
+  /**
+   * Optional zIndex to control stacking (e.g., above embedded overlays)
+   */
+  zIndex?: number;
 }
 
 /**
@@ -38,6 +42,7 @@ export function Toast({
   visible,
   onHide,
   style,
+  zIndex = 100003,
 }: ToastProps) {
   const opacity = useRef(new Animated.Value(0)).current;
   const insets = useSafeAreaInsets();
@@ -85,6 +90,7 @@ export function Toast({
         { 
           opacity,
           top: insets.top + 16, // StatusBar 아래 16px
+          zIndex,
         },
         style,
       ]}
