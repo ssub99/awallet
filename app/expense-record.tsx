@@ -325,6 +325,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   const [categoryToastMessage, setCategoryToastMessage] = useState<string>('');
   const [showDateSelectToast, setShowDateSelectToast] = useState<boolean>(false);
   const [dateSelectToastMessage, setDateSelectToastMessage] = useState<string>('');
+  const [showPrepaymentToast, setShowPrepaymentToast] = useState<boolean>(false);
+  const [prepaymentToastMessage, setPrepaymentToastMessage] = useState<string>('');
   
   // 정기 기록 삭제 옵션 모달
   const [showRecurringDeleteOptions, setShowRecurringDeleteOptions] = useState<boolean>(false);
@@ -336,6 +338,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   
   // 환불 처리 복구 모달
   const [showRefundRestore, setShowRefundRestore] = useState<boolean>(false);
+  // 선결제 처리 복구 모달
+  const [showPrepaymentRestore, setShowPrepaymentRestore] = useState<boolean>(false);
   // 선결제 모달
   const [showPrepaymentModal, setShowPrepaymentModal] = useState<boolean>(false);
   
@@ -695,7 +699,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     // 3. 할부 기록 전체 수정 시 사용자가 입력한 금액을 새로운 총액으로 사용
     // 기존 기록들의 총액을 계산하지 않고, 사용자가 입력한 expenseAmount를 총액으로 사용
     
-    // 4. 기존 정기/할부 기록들 모두 삭제 (같은 ID를 가진 기록만)
+    // 4. 기존 정기/할부 기록들 모두 삭제 (같은 ID를 가진 기록만, 단 선결제 기록은 제외)
     let deletedRecordsCount = 0;
     
     Object.keys(calendarData).forEach(dateKey => {
@@ -705,22 +709,22 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             if (editData.isRecurring) {
               return r.recurringId === idToUse;
             } else {
-              // 할부 기록: 같은 installmentId만 삭제
-              return r.installmentId === idToUse;
+              // 할부 기록: 같은 installmentId이면서 선결제 기록이 아닌 것만 삭제 대상
+              return r.installmentId === idToUse && r.isPrepaid !== true;
             }
           }
         );
         
         if (relatedRecords.length > 0) {
 
-          // 관련 기록들 삭제 (완전 삭제)
+          // 관련 기록들 삭제 (완전 삭제, 단 선결제 기록은 유지)
           calendarData[dateKey].records = calendarData[dateKey].records.filter(
             (r: any) => {
               if (editData.isRecurring) {
                 return r.recurringId !== idToUse;
               } else {
-                // 할부 기록: 같은 installmentId만 삭제
-                return r.installmentId !== idToUse;
+                // 할부 기록: 같은 installmentId이지만 선결제 기록은 유지
+                return r.installmentId !== idToUse || r.isPrepaid === true;
               }
             }
           );
@@ -1039,6 +1043,123 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     setShowDatePicker(false);
   };
 
+  // 선결제 처리 함수
+  const handlePrepaymentConfirm = async () => {
+    if (!editData || !editData.isInstallment) {
+      return;
+    }
+
+    try {
+      const storedData = await AsyncStorage.getItem('calendarData');
+      const calendarData = storedData ? JSON.parse(storedData) : {};
+
+      // 선결제 날짜 (사용자가 선택한 날짜)
+      const prepaidDateStr = date.replace(/\./g, '-');
+      const prepaidDateKey = prepaidDateStr;
+      const prepaidDateFormatted = date; // "YYYY.MM.DD" 형식
+
+      // 원래 기록의 날짜와 위치 찾기
+      const originalDateKey = editData.date ? editData.date.replace(/\./g, '-') : '';
+      if (!originalDateKey || !calendarData[originalDateKey]) {
+        return;
+      }
+
+      // 기존 기록 찾기 (timestamp 또는 installmentId로)
+      let recordIndex = -1;
+      let originalRecord: any = null;
+
+      if (calendarData[originalDateKey].records) {
+        recordIndex = calendarData[originalDateKey].records.findIndex((r: any) => {
+          // timestamp로 찾기
+          if (r.timestamp === editData.timestamp) return true;
+          // 할부 기록의 경우 installmentId도 확인
+          if (editData.isInstallment && r.installmentId === editData.installmentId && r.date === editData.date) {
+            return true;
+          }
+          return false;
+        });
+
+        if (recordIndex !== -1) {
+          originalRecord = calendarData[originalDateKey].records[recordIndex];
+        }
+      }
+
+      if (!originalRecord) {
+        return;
+      }
+
+      // 기존 기록 삭제
+      calendarData[originalDateKey].totalExpense = Math.max(0, 
+        calendarData[originalDateKey].totalExpense - originalRecord.amount
+      );
+      calendarData[originalDateKey].records.splice(recordIndex, 1);
+
+      // 빈 날짜 정리
+      if (calendarData[originalDateKey].records.length === 0) {
+        delete calendarData[originalDateKey];
+      }
+
+      // 선결제 날짜에 데이터 구조 생성
+      if (!calendarData[prepaidDateKey]) {
+        calendarData[prepaidDateKey] = {
+          totalExpense: 0,
+          totalIncome: 0,
+          records: [],
+        };
+      }
+
+      // 선결제 기록 생성 (기존 ID 유지)
+      const prepaidRecord = {
+        ...originalRecord,
+        date: prepaidDateFormatted,
+        isPrepaid: true,
+        prepaidDate: prepaidDateFormatted,
+        originalScheduledDate: originalRecord.date, // 원래 할부 예정일 저장
+        originalInstallmentDate: originalRecord.originalInstallmentDate || editData.date, // 원본 할부 생성일 저장
+        timestamp: originalRecord.timestamp, // 기존 timestamp 유지
+        installmentId: originalRecord.installmentId, // 기존 installmentId 유지
+      };
+
+      calendarData[prepaidDateKey].records.push(prepaidRecord);
+      calendarData[prepaidDateKey].totalExpense += originalRecord.amount;
+
+      // 저장
+      await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
+      calendarRefreshEvent.emit();
+      await refresh();
+
+      // 모달 닫기
+      setShowPrepaymentModal(false);
+
+      // 타임라인으로 이동 (선결제 날짜의 해당 커스텀 월)
+      const [prepaidYear, prepaidMonth, prepaidDay] = prepaidDateKey.split('-').map(Number);
+      const prepaidDate = new Date(prepaidYear, prepaidMonth - 1, prepaidDay);
+      
+      // 월 시작일 로드
+      const currentMonthStartDay = await loadMonthStartDay();
+      
+      // 실제 날짜가 속한 커스텀 월 계산
+      const customMonthInfo = getCustomMonthInfo(prepaidDate, currentMonthStartDay);
+      const targetYear = customMonthInfo.year;
+      const targetMonth = customMonthInfo.month;
+      
+      router.back();
+      setTimeout(() => {
+        router.replace({
+          pathname: '/monthly-expense-timeline',
+          params: {
+            year: targetYear.toString(),
+            month: targetMonth.toString(),
+            tab: 'timeline',
+          },
+        });
+      }, NAVIGATION_DELAY);
+
+    } catch (error) {
+      console.error('선결제 처리 중 오류:', error);
+    }
+  };
+
   // amount auto-scroll removed per request
   
   // amount auto-scroll removed per request
@@ -1114,8 +1235,34 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       return;
     }
 
-    // 정기/할부 기록 수정모드에서 확인 모달 표시 (환불 기록은 제외)
-    if (!isRefundedRecord && mode === 'edit' && (editData?.isRecurring || editData?.isInstallment)) {
+    // 선결제 기록에서 날짜 변경 확인 (정기/할부 모달보다 먼저 체크)
+    if (mode === 'edit' && editData?.isPrepaid && editData?.isInstallment) {
+      const originalDateKey = editData.date ? editData.date.replace(/\./g, '-') : '';
+      const parts = date.split('.');
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      const dateObj = new Date(year, month, day);
+      const dayOfWeek = dateObj.getDay();
+      const isWeekendDay = dayOfWeek === 0 || dayOfWeek === 6;
+      
+      let checkActualDate = date;
+      if ((isRecurring || isInstallment) && isWeekendDay && weekendOption !== 'weekend') {
+        checkActualDate = getAdjustedWeekendDate(date, weekendOption);
+      }
+      const checkActualDateKey = checkActualDate.replace(/\./g, '-');
+      const isDateChanged = originalDateKey !== checkActualDateKey;
+      
+      // 날짜가 변경되었으면 모달 표시
+      if (isDateChanged) {
+        setEditConfirmMessage('현재 데이터만 변경 됩니다.\n진행하시겠어요?');
+        setShowEditConfirmModal(true);
+        return;
+      }
+    }
+
+    // 정기/할부 기록 수정모드에서 확인 모달 표시 (환불 기록, 선결제 기록은 제외)
+    if (!isRefundedRecord && mode === 'edit' && (editData?.isRecurring || editData?.isInstallment) && !editData?.isPrepaid) {
       const isInstallmentRecord = editData.isInstallment && editData.originalInstallment;
       const recordType = isInstallmentRecord ? '할부' : '정기';
       
@@ -1154,8 +1301,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       
       const isRefundedRecordForSave = mode === 'edit' && !!editData?.isRefunded;
       const expenseAmount = parseFloat(amount.replace(/,/g, ''));
-
+      
       // 1. 실제 저장될 날짜 계산 (주말 옵션 적용)
+      // 선결제 기록 날짜 변경 체크는 handleConfirm에서 이미 처리됨
       let actualDate = date;
       
       // 주말 체크
@@ -1273,9 +1421,73 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       };
 
       if (mode === 'edit' && editData) {
-        // Edit mode: 정기 기록 또는 할부 기록 수정 정책에 따른 처리
-        if (editData.isRecurring || editData.isInstallment) {
-          // 정기 기록 또는 할부 기록 수정
+        // Edit mode: 선결제 기록은 단순 필드 업데이트
+        if (editData.isPrepaid && editData.isInstallment) {
+          // 선결제 기록 수정: 삭제 후 재생성 없이 필드만 업데이트
+          const originalDateKey = editData.date ? editData.date.replace(/\./g, '-') : actualDateKey;
+          const isDateChanged = originalDateKey !== actualDateKey;
+
+          // 기존 위치에서 기록 찾기
+          if (calendarData[originalDateKey] && calendarData[originalDateKey].records) {
+            const recordIndex = calendarData[originalDateKey].records.findIndex(
+              (r: any) => r.timestamp === editData.timestamp || 
+                (r.isPrepaid && r.installmentId === editData.installmentId && r.date === editData.date)
+            );
+
+            if (recordIndex !== -1) {
+              const existingRecord = calendarData[originalDateKey].records[recordIndex];
+
+              // 날짜가 변경된 경우
+              if (isDateChanged) {
+                // 기존 위치에서 제거
+                calendarData[originalDateKey].records.splice(recordIndex, 1);
+                calendarData[originalDateKey].totalExpense = Math.max(0, 
+                  (calendarData[originalDateKey].totalExpense || 0) - (existingRecord.amount || 0)
+                );
+
+                // 빈 날짜 데이터 정리
+                if (calendarData[originalDateKey].records.length === 0) {
+                  delete calendarData[originalDateKey];
+                }
+
+                // 새 위치에 데이터 구조 생성
+                if (!calendarData[actualDateKey]) {
+                  calendarData[actualDateKey] = {
+                    totalExpense: 0,
+                    totalIncome: 0,
+                    records: [],
+                  };
+                }
+
+                // 새 위치에 기록 추가 (선결제 필드 유지)
+                calendarData[actualDateKey].records.push({
+                  ...existingRecord,
+                  ...newRecord,
+                  date: actualDate,
+                  prepaidDate: actualDate, // 선결제 일자도 업데이트
+                  isPrepaid: true,
+                  originalScheduledDate: existingRecord.originalScheduledDate || editData.originalScheduledDate, // 유지
+                  timestamp: editData.timestamp, // 유지
+                  installmentId: editData.installmentId, // 유지
+                });
+                calendarData[actualDateKey].totalExpense = (calendarData[actualDateKey].totalExpense || 0) + monthlyAmount;
+              } else {
+                // 날짜 변경 없이 다른 필드만 업데이트
+                calendarData[originalDateKey].records[recordIndex] = {
+                  ...existingRecord,
+                  ...newRecord,
+                  date: actualDate,
+                  prepaidDate: existingRecord.prepaidDate || actualDate, // 선결제 일자는 유지 (날짜 변경 없으면)
+                  isPrepaid: true,
+                  originalScheduledDate: existingRecord.originalScheduledDate || editData.originalScheduledDate, // 유지
+                  timestamp: editData.timestamp, // 유지
+                  installmentId: editData.installmentId, // 유지
+                };
+              }
+            }
+          }
+        } else if (editData.isRecurring || editData.isInstallment) {
+          // 정기 기록 또는 할부 기록 수정 (선결제 기록 제외)
           if (editOption === 'all') {
             // 전체 수정: 기존 데이터 삭제 후 새로 생성
             await handleMultipleRecordsBulkUpdate(calendarData, editData, newRecord, actualDateKey, monthlyAmount, expenseAmount);
@@ -1890,6 +2102,123 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     }
   };
 
+  // 선결제 처리 복구 로직
+  const handlePrepaymentRestore = async () => {
+    if (mode !== 'edit' || !editData || !editData.isInstallment || !editData.isPrepaid) {
+      return;
+    }
+
+    try {
+      const storedData = await AsyncStorage.getItem('calendarData');
+      const calendarData = storedData ? JSON.parse(storedData) : {};
+
+      // 선결제 기록의 현재 날짜와 위치 찾기
+      const prepaidDateKey = editData.date ? editData.date.replace(/\./g, '-') : '';
+      if (!prepaidDateKey || !calendarData[prepaidDateKey]) {
+        return;
+      }
+
+      // 선결제 기록 찾기
+      let recordIndex = -1;
+      let prepaidRecord: any = null;
+
+      if (calendarData[prepaidDateKey].records) {
+        recordIndex = calendarData[prepaidDateKey].records.findIndex((r: any) => {
+          // timestamp로 찾기
+          if (r.timestamp === editData.timestamp) return true;
+          // 할부 기록의 경우 installmentId도 확인
+          if (editData.isInstallment && r.installmentId === editData.installmentId && r.isPrepaid === true) {
+            return true;
+          }
+          return false;
+        });
+
+        if (recordIndex !== -1) {
+          prepaidRecord = calendarData[prepaidDateKey].records[recordIndex];
+        }
+      }
+
+      if (!prepaidRecord || !prepaidRecord.originalScheduledDate) {
+        return;
+      }
+
+      // 원래 기록일자로 복구
+      const originalScheduledDate = prepaidRecord.originalScheduledDate;
+      const originalDateKey = originalScheduledDate.replace(/\./g, '-');
+      const originalDateFormatted = originalScheduledDate; // "YYYY.MM.DD" 형식
+
+      // 선결제 기록 삭제
+      calendarData[prepaidDateKey].totalExpense = Math.max(0, 
+        calendarData[prepaidDateKey].totalExpense - prepaidRecord.amount
+      );
+      calendarData[prepaidDateKey].records.splice(recordIndex, 1);
+
+      // 빈 날짜 정리
+      if (calendarData[prepaidDateKey].records.length === 0) {
+        delete calendarData[prepaidDateKey];
+      }
+
+      // 원래 날짜에 데이터 구조 생성
+      if (!calendarData[originalDateKey]) {
+        calendarData[originalDateKey] = {
+          totalExpense: 0,
+          totalIncome: 0,
+          records: [],
+        };
+      }
+
+      // 원래 할부 기록 복구 (선결제 정보 제거)
+      const restoredRecord = {
+        ...prepaidRecord,
+        date: originalDateFormatted,
+        isPrepaid: false,
+        prepaidDate: undefined,
+        originalScheduledDate: undefined,
+        // 기존 필드 유지
+        timestamp: prepaidRecord.timestamp,
+        installmentId: prepaidRecord.installmentId,
+      };
+
+      calendarData[originalDateKey].records.push(restoredRecord);
+      calendarData[originalDateKey].totalExpense += prepaidRecord.amount;
+
+      // 저장
+      await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
+      calendarRefreshEvent.emit();
+      await refresh();
+
+      // 모달 닫기
+      setShowPrepaymentRestore(false);
+
+      // 타임라인으로 이동 (원래 기록일자의 해당 커스텀 월)
+      const [originalYear, originalMonth, originalDay] = originalDateKey.split('-').map(Number);
+      const originalDate = new Date(originalYear, originalMonth - 1, originalDay);
+      
+      // 월 시작일 로드
+      const currentMonthStartDay = await loadMonthStartDay();
+      
+      // 실제 날짜가 속한 커스텀 월 계산
+      const customMonthInfo = getCustomMonthInfo(originalDate, currentMonthStartDay);
+      const targetYear = customMonthInfo.year;
+      const targetMonth = customMonthInfo.month;
+      
+      router.back();
+      setTimeout(() => {
+        router.replace({
+          pathname: '/monthly-expense-timeline',
+          params: {
+            year: targetYear.toString(),
+            month: targetMonth.toString(),
+            tab: 'timeline',
+          },
+        });
+      }, NAVIGATION_DELAY);
+
+    } catch (error) {
+      console.error('선결제 처리 복구 중 오류:', error);
+    }
+  };
+
   // 환불 처리 복구 로직
   const handleRefundRestore = async () => {
     if (mode !== 'edit' || !editData || !editData.isInstallment || !editData.isRefunded) {
@@ -2247,6 +2576,48 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     }
   };
 
+  // 선결제 일자 포맷 함수 (YYYY.MM.DD 형식을 YY/MM/DD로 변환)
+  const formatPrepaidDate = (dateString: string): string => {
+    try {
+      if (!dateString) return '';
+      // YYYY.MM.DD 형식인 경우
+      if (dateString.includes('.')) {
+        const [year, month, day] = dateString.split('.');
+        const yearShort = year.slice(-2);
+        return `${yearShort}/${month}/${day}`;
+      }
+      // YYYY-MM-DD 형식인 경우
+      if (dateString.includes('-')) {
+        const [year, month, day] = dateString.split('-');
+        const yearShort = year.slice(-2);
+        return `${yearShort}/${month}/${day}`;
+      }
+      return dateString;
+    } catch (error) {
+      return '';
+    }
+  };
+
+  // 원래 할부 기록일 포맷 함수 (YYYY.MM.DD 형식을 YYYY년 MM월 DD일로 변환)
+  const formatOriginalScheduledDate = (dateString: string): string => {
+    try {
+      if (!dateString) return '';
+      // YYYY.MM.DD 형식인 경우
+      if (dateString.includes('.')) {
+        const [year, month, day] = dateString.split('.');
+        return `${year}년 ${month}월 ${day}일`;
+      }
+      // YYYY-MM-DD 형식인 경우
+      if (dateString.includes('-')) {
+        const [year, month, day] = dateString.split('-');
+        return `${year}년 ${month}월 ${day}일`;
+      }
+      return dateString;
+    } catch (error) {
+      return '';
+    }
+  };
+
   // 카테고리 이모지 찾기
   const getCategoryEmoji = (label: string) => {
     const categories: Record<string, string> = {
@@ -2521,7 +2892,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               <View style={[styles.section, { paddingTop: 24 }]}>
                 <View style={styles.sectionHeader}>
                   <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
-                    소비 정보
+                    {editData?.isPrepaid ? '소비 내역' : '소비 정보'}
                   </Text>
                   <Pressable onPress={() => {
                     // 통합 삭제 모달만 사용 (유형과 무관하게 동일 플로우)
@@ -2543,7 +2914,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                       </View>
                       <View style={styles.expenseInfoBottom}>
                         <Text style={[styles.expenseDate, { color: colors.textAssistive }]}>
-                          {date || '날짜'}
+                          {editData?.isPrepaid && editData?.originalScheduledDate 
+                            ? editData.originalScheduledDate 
+                            : (date || '날짜')}
                         </Text>
                       </View>
                     </View>
@@ -2572,7 +2945,28 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                     <>
                       <View style={[styles.expenseInfoDivider, { backgroundColor: colors.border }]} />
                       <View style={styles.prepaymentRefundRow}>
-                        {editData?.isRefunded ? (
+                        {editData?.isPrepaid ? (
+                          // 선결제 처리된 경우: 선결제 일자와 복구 버튼 표시
+                          <>
+                            <Text style={[styles.prepaymentRefundLabel, { color: colors.textAssistive }]}>
+                              선결제 일자 : {editData?.prepaidDate 
+                                ? formatPrepaidDate(editData.prepaidDate)
+                                : formatPrepaidDate(editData.date || '')
+                              }
+                            </Text>
+                            <Pressable 
+                              style={styles.prepaymentRefundButton}
+                              onPress={() => {
+                                // 선결제 처리 복구 모달 열기
+                                setShowPrepaymentRestore(true);
+                              }}
+                            >
+                              <Text style={[styles.prepaymentRefundText, { color: colors.textAssistive }]}>
+                                선결제 처리 복구
+                              </Text>
+                            </Pressable>
+                          </>
+                        ) : editData?.isRefunded ? (
                           // 환불 처리된 경우: 환불 처리날짜와 복구 버튼 표시
                           <>
                             <Text style={[styles.prepaymentRefundLabel, { color: colors.textAssistive }]}>
@@ -2603,7 +2997,29 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                               <Pressable 
                                 style={[styles.prepaymentRefundButton, { marginLeft: 0 }]}
                                 onPress={() => {
-                                  // 선결제 모달 열기
+                                  // 할부 기록일자 검증 (선결제 처리 시에만 적용)
+                                  if (editData?.date && editData?.isInstallment) {
+                                    // 할부 기록일자를 Date 객체로 변환
+                                    const recordDateStr = editData.date.replace(/\./g, '-');
+                                    const recordDate = new Date(recordDateStr);
+                                    const today = new Date();
+                                    // 날짜만 비교 (시간 제외)
+                                    today.setHours(0, 0, 0, 0);
+                                    recordDate.setHours(0, 0, 0, 0);
+                                    
+                                    // 할부 기록일자가 당일 또는 이전이면 토스트 표시
+                                    if (recordDate <= today) {
+                                      setPrepaymentToastMessage('당일 또는 이전 기록은 선납 적용이 불가합니다.');
+                                      setShowPrepaymentToast(true);
+                                      return;
+                                    }
+                                  }
+                                  // 검증 통과 시 선결제 모달 열기
+                                  // 선결제 모달 열 때 현재 일자로 날짜 초기화
+                                  const today = new Date();
+                                  const todayFormatted = `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, '0')}.${String(today.getDate()).padStart(2, '0')}`;
+                                  setDate(todayFormatted);
+                                  setTempSelectedDate(todayFormatted.replace(/\./g, '-'));
                                   setShowPrepaymentModal(true);
                                 }}
                               >
@@ -3072,8 +3488,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         )}
 
         {/* 할부 기록 수정 시 기간 표기 및 수정 옵션 */}
-        {/* 환불 처리된 할부 기록에서는 하단 기간 영역을 표시하지 않음 */}
-        {mode === 'edit' && isInstallment && !editData?.isRefunded && (
+        {/* 환불 처리된 할부 기록 또는 선결제 처리된 할부 기록에서는 하단 기간 영역을 표시하지 않음 */}
+        {mode === 'edit' && isInstallment && !editData?.isRefunded && !editData?.isPrepaid && (
           <View style={[{ backgroundColor: '#ededed' }]}>
             <View style={styles.recurringSection}>
               <View style={styles.recurringTitleRow}>
@@ -3148,10 +3564,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             });
           });
         }}
-        onConfirm={() => {
-          // TODO: 선결제 처리 확정 로직 연동
-          setShowPrepaymentModal(false);
-        }}
+        onConfirm={handlePrepaymentConfirm}
         onCancel={() => setShowPrepaymentModal(false)}
         backdropInteractive={true}
         extraOverlay={showDatePicker ? (
@@ -3180,7 +3593,14 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           <View style={styles.dateButtonArea}>
             <Pressable
               style={[styles.dateButton, { backgroundColor: colors.primary }]}
-              onPress={handleDateConfirm}
+              onPress={() => {
+                // 선결제 날짜 선택 시 date state 업데이트
+                if (tempSelectedDate) {
+                  const formattedDate = tempSelectedDate.replace(/-/g, '.');
+                  setDate(formattedDate);
+                }
+                setShowDatePicker(false);
+              }}
             >
               <Text style={[styles.dateButtonText, { color: colors.staticWhite }]}>
                 확인
@@ -3469,6 +3889,24 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         </View>
       </ModalPopup>
 
+      {/* 선결제 처리 복구 모달 */}
+      <ModalPopup
+        visible={showPrepaymentRestore}
+        title="선결제 처리 복구 안내"
+        onConfirm={handlePrepaymentRestore}
+        onCancel={() => setShowPrepaymentRestore(false)}
+        confirmText="확인"
+        cancelText="취소"
+      >
+        <Text style={[styles.deleteConfirmText, { color: colors.textNeutral }]}>
+          선결제 처리된 해당 기록을{'\n'}
+          최초 할부 기록일인{'\n'}
+          {editData?.originalScheduledDate 
+            ? formatOriginalScheduledDate(editData.originalScheduledDate)
+            : '날짜'}로 복구 됩니다.
+        </Text>
+      </ModalPopup>
+
       {/* 환불 처리 복구 모달 */}
       <ModalPopup
         visible={showRefundRestore}
@@ -3514,6 +3952,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         visible={showDateSelectToast}
         message={dateSelectToastMessage}
         onHide={() => setShowDateSelectToast(false)}
+      />
+
+      {/* 선결제 처리 토스트 */}
+      <Toast
+        visible={showPrepaymentToast}
+        message={prepaymentToastMessage}
+        onHide={() => setShowPrepaymentToast(false)}
       />
 
       {/* 정기/할부 기록 수정 확인 모달 */}
