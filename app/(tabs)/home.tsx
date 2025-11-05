@@ -75,7 +75,7 @@ export default function HomeScreen() {
     return `${year}-${month}-${day}`;
   };
   
-  const [selectedDate, setSelectedDate] = useState<string>(getTodayLocalDate());
+  const [selectedDate, setSelectedDate] = useState<string>('');
   
   // Shared year/month state for both TopNavigation and Calendar
   // 초기값은 임시로 설정하고, useFocusEffect에서 올바른 값으로 설정
@@ -87,6 +87,21 @@ export default function HomeScreen() {
     const loadSettings = async () => {
       try {
         beginLoad();
+        // 0) pending 타겟이 있으면 최우선 적용 후 종료
+        try {
+          const raw = await AsyncStorage.getItem('pendingCalendarTarget');
+          if (raw) {
+            const parsed = JSON.parse(raw) as { year?: number; month?: number; targetDate?: string };
+            if (parsed?.year && parsed?.month && parsed?.targetDate) {
+              setCurrentYear(parsed.year);
+              setCurrentMonth(parsed.month);
+              setSelectedDate(parsed.targetDate);
+              setPeriodType('month');
+              await AsyncStorage.removeItem('pendingCalendarTarget');
+              return; // 오늘 초기화/기타 분기 타지 않게 조기 종료
+            }
+          }
+        } catch {}
         // 소비 기록 완료 후 전달된 params가 있으면 해당 날짜로 이동
         if (params.targetYear && params.targetMonth && params.targetDate) {
           const targetYear = parseInt(params.targetYear);
@@ -114,12 +129,6 @@ export default function HomeScreen() {
               setPeriodType(savedViewType);
             }
           }
-          
-          // 날짜는 항상 오늘로 설정 (이미 useState로 초기화됨)
-          const today = new Date();
-          setCurrentYear(today.getFullYear());
-          setCurrentMonth(today.getMonth() + 1);
-          setSelectedDate(getTodayLocalDate());
         }
       } catch (error) {
         console.error('설정 로드 중 오류:', error);
@@ -269,13 +278,16 @@ export default function HomeScreen() {
     const init = async () => {
       setIsContentReady(false);
       try {
-        await resetToToday();
+        // selectedDate가 비어있고 pending/params도 없는 경우에만 오늘로 초기화
+        if (!params.targetDate) {
+          const raw = await AsyncStorage.getItem('pendingCalendarTarget');
+          if (!raw) {
+            await resetToToday();
+          }
+        }
       } finally {
         setIsContentReady(true);
-        // 약간의 지연 후 다음 갱신을 허용
-        setTimeout(() => {
-          animatingRef.current = false;
-        }, 50);
+        setTimeout(() => { animatingRef.current = false; }, 50);
       }
     };
     init();
