@@ -7,6 +7,7 @@
 
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Button } from '@/components/ui/button';
+import BasicCalendarDaySelect from '@/components/ui/calendar-day-basic';
 import { CalendarDaySelect } from '@/components/ui/calendar-day-select';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Icon } from '@/components/ui/icon';
@@ -19,14 +20,13 @@ import { Selectbox } from '@/components/ui/selectbox';
 import { Switch } from '@/components/ui/switch';
 import { Toast } from '@/components/ui/toast';
 import { Colors, Typography } from '@/constants/theme';
-import { useAppData } from '@/contexts/app-data-context';
+import { calendarRefreshEvent } from '@/hooks/calendar-events';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { triggerChallengeNotifications } from '@/utils/challenge-utils';
 import { getCustomMonthInfo } from '@/utils/custom-month';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { calendarRefreshEvent } from '@/hooks/calendar-events';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Dimensions, InteractionManager, Keyboard, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -237,8 +237,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
   const router = useRouter();
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  const { refresh } = useAppData();
   const params = useLocalSearchParams<{ 
     category?: string; 
     selectedDate?: string;
@@ -262,6 +262,56 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   };
   
   const [category, setCategory] = useState<string>(params.category || '');
+
+  interface GoHomeOptions {
+    year: number;
+    month: number;
+    targetDate: string;
+    refresh?: boolean;
+  }
+
+  // 공통: 홈으로 이동 + 지정 날짜 포커스 (네비 혼용/레이스 방지)
+  const goHomeWithFocus = useCallback(
+    async ({ year, month, targetDate, refresh = true }: GoHomeOptions) => {
+      console.log('[NAV] goHomeWithFocus:start', { year, month, targetDate, refresh });
+      try {
+        await AsyncStorage.setItem(
+          'pendingCalendarTarget',
+          JSON.stringify({ year, month, targetDate })
+        );
+        console.log('[NAV] goHomeWithFocus:pendingCalendarTarget:stored');
+      } catch (error) {
+        console.warn('[NAV] goHomeWithFocus:pendingCalendarTarget:error', error);
+      }
+
+      (navigation as any).reset({
+        index: 0,
+        routes: [
+          {
+            name: '(tabs)',
+            params: {
+              screen: 'home',
+              params: {
+                targetYear: year.toString(),
+                targetMonth: month.toString(),
+                targetDate,
+                periodType: 'month',
+              },
+            },
+          },
+        ],
+      });
+      console.log('[NAV] goHomeWithFocus:navigation.reset:called');
+
+      if (refresh) {
+        InteractionManager.runAfterInteractions(() => {
+          console.log('[NAV] goHomeWithFocus:emit refresh');
+          calendarRefreshEvent.emit();
+        });
+      }
+    },
+    [navigation]
+  );
   
   // 카테고리 state 변경 감지
   useEffect(() => {
@@ -1026,9 +1076,18 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   const handleDatePress = () => {
     // 키패드가 열려있으면 닫기
     Keyboard.dismiss();
-    
+    // 일반 생성 흐름: 캘린더 바텀시트를 열어 날짜 선택
     setTempSelectedDate(date.replace(/\./g, '-'));
-    setShowDatePicker(true);
+    if (isOpeningDatePickerRef.current) return;
+    isOpeningDatePickerRef.current = true;
+    InteractionManager.runAfterInteractions(() => {
+      requestAnimationFrame(() => {
+        setShowDatePicker(true);
+        setTimeout(() => {
+          isOpeningDatePickerRef.current = false;
+        }, 100);
+      });
+    });
   };
 
   const handleDatePickerClose = () => {
@@ -1125,35 +1184,18 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
       // 저장
       await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
-      calendarRefreshEvent.emit();
-      await refresh();
 
       // 모달 닫기
       setShowPrepaymentModal(false);
 
-      // 타임라인으로 이동 (선결제 날짜의 해당 커스텀 월)
-      const [prepaidYear, prepaidMonth, prepaidDay] = prepaidDateKey.split('-').map(Number);
-      const prepaidDate = new Date(prepaidYear, prepaidMonth - 1, prepaidDay);
-      
-      // 월 시작일 로드
+      console.log('[PREPAY] confirm:stored & refreshed');
+      // 홈으로 이동 (선결제 날짜의 해당 커스텀 월)
+      const [prepaidYear, prepaidMonth] = prepaidDateKey.split('-').map(Number);
+      const prepaidDate = new Date(prepaidYear, prepaidMonth - 1, 1);
       const currentMonthStartDay = await loadMonthStartDay();
-      
-      // 실제 날짜가 속한 커스텀 월 계산
-      const customMonthInfo = getCustomMonthInfo(prepaidDate, currentMonthStartDay);
-      const targetYear = customMonthInfo.year;
-      const targetMonth = customMonthInfo.month;
-      
-      router.back();
-      setTimeout(() => {
-        router.replace({
-          pathname: '/monthly-expense-timeline',
-          params: {
-            year: targetYear.toString(),
-            month: targetMonth.toString(),
-            tab: 'timeline',
-          },
-        });
-      }, NAVIGATION_DELAY);
+      const { year: targetYear, month: targetMonth } = getCustomMonthInfo(prepaidDate, currentMonthStartDay);
+      console.log('[PREPAY] confirm:navigate', { targetYear, targetMonth, prepaidDateKey });
+      await goHomeWithFocus({ year: targetYear, month: targetMonth, targetDate: prepaidDateKey });
 
     } catch (error) {
       console.error('선결제 처리 중 오류:', error);
@@ -1349,9 +1391,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             }
             // 대상 날짜키에 추가
             calendarData[actualDateKey].records.push(rec);
-            await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
-            calendarRefreshEvent.emit();
-            await refresh();
+      await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
             return;
           }
         }
@@ -1645,10 +1685,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
       // 6. AsyncStorage에 저장
       await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
-      calendarRefreshEvent.emit();
-      
-      // 6-0. 캘린더 데이터 컨텍스트 갱신 (캘린더 UI 업데이트를 위해 필수)
-      await refresh();
 
       // 6-1. 챌린지 알림 트리거 (비동기이지만 대기하지 않음)
       if (category) {
@@ -1705,23 +1741,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       
       const [, , targetDay] = targetDateKey.split('-').map(Number);
 
-      // Stack 정리: 카테고리, 소비기록 모두 제거하고 홈으로
-      router.back(); // expense-record 제거
-      router.back(); // expense-category 제거
-      
-      // params를 전달하기 위해 replace 사용
-      setTimeout(() => {
-        router.replace({
-          pathname: '/(tabs)/home',
-          params: {
-            targetYear: targetYear.toString(),
-            targetMonth: targetMonth.toString(),
-            targetDay: targetDay.toString(),
-            targetDate: targetDateKey,
-            periodType: 'month',
-          },
-        });
-      }, 100);
+      console.log('[SAVE] navigate', { targetYear, targetMonth, targetDate: targetDateKey });
+      await goHomeWithFocus({ year: targetYear, month: targetMonth, targetDate: targetDateKey });
     } catch (error) {
 
     }
@@ -1879,7 +1900,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           
           // AsyncStorage에 저장
           await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
-          calendarRefreshEvent.emit();
           debugLog('✅ [삭제] 삭제 완료 및 저장');
           
           // 모달 닫기
@@ -1888,38 +1908,20 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           
           // 타임라인에서 왔으면 타임라인으로, 아니면 홈으로 이동
           if (params.calendarYear && params.calendarMonth) {
-            // 타임라인으로 복귀
-            
-            router.back();
-            
-            setTimeout(() => {
-              router.replace({
-                pathname: '/monthly-expense-timeline',
-                params: {
-                  year: params.calendarYear,
-                  month: params.calendarMonth,
-                  tab: 'timeline'
-                },
-              });
-            }, NAVIGATION_DELAY);
+            const recordDateTimeline = editData.date || date;
+            const dateKeyForTimeline = formatDateKey(recordDateTimeline);
+            console.log('[REFUND] delete:navigate:timelineBranch', {
+              targetYear: Number(params.calendarYear),
+              targetMonth: Number(params.calendarMonth),
+              targetDate: dateKeyForTimeline,
+            });
+            await goHomeWithFocus({ year: Number(params.calendarYear), month: Number(params.calendarMonth), targetDate: dateKeyForTimeline });
           } else {
-            // 홈으로 이동
-            const [targetYear, targetMonth, targetDay] = dateKey.split('-').map(Number);
-            
-            router.back();
-            
-            setTimeout(() => {
-              router.replace({
-                pathname: '/(tabs)/home',
-                params: {
-                  targetYear: targetYear.toString(),
-                  targetMonth: targetMonth.toString(),
-                  targetDay: targetDay.toString(),
-                  targetDate: dateKey,
-                  periodType: 'month',
-                },
-              });
-            }, NAVIGATION_DELAY);
+            const recordDateHome = editData.date || date;
+            const dateKeyForHome = formatDateKey(recordDateHome);
+            const [targetYear, targetMonth] = dateKeyForHome.split('-').map(Number);
+            console.log('[REFUND] delete:navigate:homeBranch', { targetYear, targetMonth, targetDate: dateKeyForHome });
+            await goHomeWithFocus({ year: targetYear, month: targetMonth, targetDate: dateKeyForHome });
           }
         } else {
 
@@ -2037,23 +2039,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       
       // AsyncStorage에 저장
       await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
-      calendarRefreshEvent.emit();
-      calendarRefreshEvent.emit();
-      
-      // 저장 후 확인
-      const savedData = await AsyncStorage.getItem('calendarData');
-      if (savedData) {
-        const savedCalendarData = JSON.parse(savedData);
-        refundedDateKeys.forEach(dateKey => {
-          if (savedCalendarData[dateKey]) {
-            const refundedRecords = savedCalendarData[dateKey].records.filter((r: any) => r.isRefunded);
-          } else {
-          }
-        });
-      }
-      
-      // 캘린더 데이터 컨텍스트 갱신 (캘린더 UI 업데이트를 위해 필수)
-      await refresh();
+      console.log('[REFUND] options:stored to AsyncStorage');
       
       
       
@@ -2062,40 +2048,20 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       
       // 타임라인에서 왔으면 타임라인으로, 아니면 홈으로 이동
       if (params.calendarYear && params.calendarMonth) {
-        // 타임라인으로 복귀
-        
-        router.back();
-        
-        setTimeout(() => {
-          router.replace({
-            pathname: '/monthly-expense-timeline',
-            params: {
-              year: params.calendarYear,
-              month: params.calendarMonth,
-              tab: 'timeline'
-            },
-          });
-        }, NAVIGATION_DELAY);
+        const recordDateTimeline = editData.date || date;
+        const dateKeyTimeline = formatDateKey(recordDateTimeline);
+        console.log('[REFUND] options:navigate:timelineBranch', {
+          targetYear: Number(params.calendarYear),
+          targetMonth: Number(params.calendarMonth),
+          targetDate: dateKeyTimeline,
+        });
+        await goHomeWithFocus({ year: Number(params.calendarYear), month: Number(params.calendarMonth), targetDate: dateKeyTimeline });
       } else {
-        // 홈으로 이동
-        const recordDate = editData.date || date;
-        const dateKey = formatDateKey(recordDate);
-        const [targetYear, targetMonth, targetDay] = dateKey.split('-').map(Number);
-        
-        router.back();
-        
-        setTimeout(() => {
-          router.replace({
-            pathname: '/(tabs)/home',
-            params: {
-              targetYear: targetYear.toString(),
-              targetMonth: targetMonth.toString(),
-              targetDay: targetDay.toString(),
-              targetDate: dateKey,
-              periodType: 'month',
-            },
-          });
-        }, NAVIGATION_DELAY);
+        const recordDateHome = editData.date || date;
+        const dateKeyHome = formatDateKey(recordDateHome);
+        const [targetYear, targetMonth] = dateKeyHome.split('-').map(Number);
+        console.log('[REFUND] options:navigate:homeBranch', { targetYear, targetMonth, targetDate: dateKeyHome });
+        await goHomeWithFocus({ year: targetYear, month: targetMonth, targetDate: dateKeyHome });
       }
       
     } catch (error) {
@@ -2184,35 +2150,18 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
       // 저장
       await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
-      calendarRefreshEvent.emit();
-      await refresh();
 
       // 모달 닫기
       setShowPrepaymentRestore(false);
 
-      // 타임라인으로 이동 (원래 기록일자의 해당 커스텀 월)
-      const [originalYear, originalMonth, originalDay] = originalDateKey.split('-').map(Number);
-      const originalDate = new Date(originalYear, originalMonth - 1, originalDay);
-      
-      // 월 시작일 로드
+      console.log('[PREPAY] restore:stored & refreshed');
+      // 홈으로 이동 (원래 기록일자의 해당 커스텀 월)
+      const [originalYear, originalMonth] = originalDateKey.split('-').map(Number);
+      const originalDate = new Date(originalYear, originalMonth - 1, 1);
       const currentMonthStartDay = await loadMonthStartDay();
-      
-      // 실제 날짜가 속한 커스텀 월 계산
-      const customMonthInfo = getCustomMonthInfo(originalDate, currentMonthStartDay);
-      const targetYear = customMonthInfo.year;
-      const targetMonth = customMonthInfo.month;
-      
-      router.back();
-      setTimeout(() => {
-        router.replace({
-          pathname: '/monthly-expense-timeline',
-          params: {
-            year: targetYear.toString(),
-            month: targetMonth.toString(),
-            tab: 'timeline',
-          },
-        });
-      }, NAVIGATION_DELAY);
+      const { year: targetYear, month: targetMonth } = getCustomMonthInfo(originalDate, currentMonthStartDay);
+      console.log('[PREPAY] restore:navigate', { targetYear, targetMonth, originalDateKey });
+      await goHomeWithFocus({ year: targetYear, month: targetMonth, targetDate: originalDateKey });
 
     } catch (error) {
       console.error('선결제 처리 복구 중 오류:', error);
@@ -2366,10 +2315,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
       // AsyncStorage에 저장
       await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
-      calendarRefreshEvent.emit();
-      
-      // 캘린더 데이터 컨텍스트 갱신
-      await refresh();
       
       
       
@@ -2381,42 +2326,19 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       // 하지만 현재 화면이 수정 모드이므로, 화면을 다시 로드하거나 
       // editData를 다시 가져와야 함
       
-      // 타임라인에서 왔으면 타임라인으로, 아니면 홈으로 이동
+      const recordDate = editData.date || date;
+      const dateKey = formatDateKey(recordDate);
       if (params.calendarYear && params.calendarMonth) {
-        // 타임라인으로 복귀
-        
-        router.back();
-        
-        setTimeout(() => {
-          router.replace({
-            pathname: '/monthly-expense-timeline',
-            params: {
-              year: params.calendarYear,
-              month: params.calendarMonth,
-              tab: 'timeline'
-            },
-          });
-        }, NAVIGATION_DELAY);
+        console.log('[REFUND] options:navigate:timelineBranch', {
+          targetYear: Number(params.calendarYear),
+          targetMonth: Number(params.calendarMonth),
+          targetDate: dateKey,
+        });
+        await goHomeWithFocus({ year: Number(params.calendarYear), month: Number(params.calendarMonth), targetDate: dateKey });
       } else {
-        // 홈으로 이동
-        const recordDate = editData.date || date;
-        const dateKey = formatDateKey(recordDate);
-        const [targetYear, targetMonth, targetDay] = dateKey.split('-').map(Number);
-        
-        router.back();
-        
-        setTimeout(() => {
-          router.replace({
-            pathname: '/(tabs)/home',
-            params: {
-              targetYear: targetYear.toString(),
-              targetMonth: targetMonth.toString(),
-              targetDay: targetDay.toString(),
-              targetDate: dateKey,
-              periodType: 'month',
-            },
-          });
-        }, NAVIGATION_DELAY);
+        const [targetYear, targetMonth] = dateKey.split('-').map(Number);
+        console.log('[REFUND] options:navigate:homeBranch', { targetYear, targetMonth, targetDate: dateKey });
+        await goHomeWithFocus({ year: targetYear, month: targetMonth, targetDate: dateKey });
       }
       
     } catch (error) {
@@ -2513,49 +2435,24 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       // AsyncStorage에 저장
       await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
       
-      // 캘린더 데이터 컨텍스트 갱신 (캘린더 UI 업데이트를 위해 필수)
-      await refresh();
-      
       
       // 모달 닫기
       setShowRecurringDeleteOptions(false);
       
       // 타임라인에서 왔으면 타임라인으로, 아니면 홈으로 이동
+      const recordDateAfter = editData.date || date;
+      const dateKeyAfter = formatDateKey(recordDateAfter);
       if (params.calendarYear && params.calendarMonth) {
-        // 타임라인으로 복귀
-        
-        router.back();
-        
-        setTimeout(() => {
-          router.replace({
-            pathname: '/monthly-expense-timeline',
-            params: {
-              year: params.calendarYear,
-              month: params.calendarMonth,
-              tab: 'timeline'
-            },
-          });
-        }, NAVIGATION_DELAY);
+        console.log('[REFUND] options:navigate:timelineBranch', {
+          targetYear: Number(params.calendarYear),
+          targetMonth: Number(params.calendarMonth),
+          targetDate: dateKeyAfter,
+        });
+        await goHomeWithFocus({ year: Number(params.calendarYear), month: Number(params.calendarMonth), targetDate: dateKeyAfter });
       } else {
-        // 홈으로 이동
-        const recordDate = editData.date || date;
-        const dateKey = formatDateKey(recordDate);
-        const [targetYear, targetMonth, targetDay] = dateKey.split('-').map(Number);
-        
-        router.back();
-        
-        setTimeout(() => {
-          router.replace({
-            pathname: '/(tabs)/home',
-            params: {
-              targetYear: targetYear.toString(),
-              targetMonth: targetMonth.toString(),
-              targetDay: targetDay.toString(),
-              targetDate: dateKey,
-              periodType: 'month',
-            },
-          });
-        }, NAVIGATION_DELAY);
+        const [targetYear, targetMonth] = dateKeyAfter.split('-').map(Number);
+        console.log('[REFUND] options:navigate:homeBranch', { targetYear, targetMonth, targetDate: dateKeyAfter });
+        await goHomeWithFocus({ year: targetYear, month: targetMonth, targetDate: dateKeyAfter });
       }
       
     } catch (error) {
@@ -3564,7 +3461,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             });
           });
         }}
-        onConfirm={handlePrepaymentConfirm}
+        onConfirm={async () => { await handlePrepaymentConfirm(); }}
         onCancel={() => setShowPrepaymentModal(false)}
         backdropInteractive={true}
         extraOverlay={showDatePicker ? (
@@ -3618,6 +3515,40 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           </>
         ) : null}
       />
+
+      {/* 일반 생성 흐름에서의 날짜 선택 바텀시트 (선결제 모달이 열려있지 않을 때만 표시) */}
+      {!showPrepaymentModal && showDatePicker ? (
+        <ModalBottomsheet
+          visible={true}
+          title="소비 기록일 선택"
+          onClose={handleDatePickerClose}
+          closeOnBackdrop={true}
+          contentStyle={styles.dateBottomsheetContent}
+          embedded
+        >
+          <BasicCalendarDaySelect
+            selectedDate={tempSelectedDate ?? undefined}
+            onDayPress={(dateString) => {
+              setTempSelectedDate(dateString);
+            }}
+            monthStartDay={monthStartDay}
+          />
+          <View style={styles.dateButtonArea}>
+            <Pressable
+              style={[styles.dateButton, { backgroundColor: colors.primary }]}
+              onPress={() => {
+                if (tempSelectedDate) {
+                  const formattedDate = tempSelectedDate.replace(/-/g, '.');
+                  setDate(formattedDate);
+                }
+                setShowDatePicker(false);
+              }}
+            >
+              <Text style={[styles.dateButtonText, { color: colors.staticWhite }]}>확인</Text>
+            </Pressable>
+          </View>
+        </ModalBottomsheet>
+      ) : null}
 
       {/* 날짜 선택 바텀시트: PrepaymentModal 내부 extraOverlay로 이동 */}
 
@@ -3796,7 +3727,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       <ModalPopup
         visible={showRefundOptions}
         title="할부 기록 환불 반영 안내"
-        onConfirm={handleMultipleRecordsRefund}
+        onConfirm={async () => { await handleMultipleRecordsRefund(); }}
         onCancel={() => setShowRefundOptions(false)}
         confirmText="확인"
         cancelText="취소"
@@ -3911,7 +3842,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       <ModalPopup
         visible={showRefundRestore}
         title="환불 처리 복구 안내"
-        onConfirm={handleRefundRestore}
+        onConfirm={async () => { await handleRefundRestore(); }}
         onCancel={() => setShowRefundRestore(false)}
         confirmText="확인"
         cancelText="취소"
