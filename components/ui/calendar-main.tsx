@@ -213,24 +213,9 @@ export function CalendarMain({
   const insets = useSafeAreaInsets();
   const { weekdays, adjustFirstDayOfWeek } = useWeekStart();
 
-  // 월 캘린더 초기화 로그
-  useEffect(() => {
-  }, [initialYear, initialMonth, monthStartDay]);
-
-  // Current month state - 로컬 시간 기준으로 초기화
-  const getTodayLocalDate = () => {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-  
   const initialDate = selectedDate ? new Date(selectedDate) : new Date();
   const [currentYear, setCurrentYear] = useState(initialYear ?? initialDate.getFullYear());
   const [currentMonth, setCurrentMonth] = useState(initialMonth ?? (initialDate.getMonth() + 1));
-
-  const [isScrolling, setIsScrolling] = useState(false);
   
   // Animation lock to prevent rapid swipes
   const [isAnimating, setIsAnimating] = useState(false);

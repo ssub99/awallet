@@ -272,19 +272,6 @@ export default function IncomeRecordScreen() {
       const targetYear = customMonthInfo.year;
       const targetMonth = customMonthInfo.month;
       
-      console.log('🏠 [입금 이동] 실제 날짜가 속한 커스텀 월 계산:', {
-        savedDate: dateKey,
-        monthStartDay: currentMonthStartDay,
-        targetYear,
-        targetMonth,
-        customMonthRange: {
-          start: customMonthInfo.startDate.toISOString().split('T')[0],
-          end: customMonthInfo.endDate.toISOString().split('T')[0]
-        }
-      });
-      
-      const [, , day] = dateKey.split('-').map(Number);
-
       // Stack 정리: 입금 기록 제거하고 홈으로
       await goHomeWithFocus({
         year: targetYear,

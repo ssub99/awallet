@@ -29,7 +29,7 @@ export async function getActiveChallengeByCategory(
 ): Promise<ChallengeData | null> {
   try {
     const challenges = await getAllChallenges();
-
+    
     const targetTime = new Date(date);
     targetTime.setHours(0, 0, 0, 0);
 
@@ -37,15 +37,15 @@ export async function getActiveChallengeByCategory(
       if (challenge.category !== category || challenge.isDeleted) {
         return false;
       }
-
+      
       const startDate = new Date(challenge.startDate.replace(/\./g, '-'));
       const endDate = new Date(challenge.endDate.replace(/\./g, '-'));
       startDate.setHours(0, 0, 0, 0);
       endDate.setHours(0, 0, 0, 0);
-
+      
       return targetTime >= startDate && targetTime <= endDate;
     });
-
+    
     return activeChallenge ?? null;
   } catch (error) {
     console.error('[challenge-utils] Failed to get active challenge:', error);
@@ -173,7 +173,7 @@ export async function checkEndedChallenges(): Promise<void> {
     const challenges = await getAllChallenges();
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-
+    
     for (const challenge of challenges) {
       if (challenge.isDeleted) {
         continue;
@@ -181,17 +181,17 @@ export async function checkEndedChallenges(): Promise<void> {
 
       const endDate = new Date(challenge.endDate.replace(/\./g, '-'));
       endDate.setHours(0, 0, 0, 0);
-
+      
       const yesterday = new Date(today);
       yesterday.setDate(yesterday.getDate() - 1);
-
+      
       if (endDate.getTime() === yesterday.getTime()) {
         const status = await getChallengeStatus(challenge);
-
+        
         if (status.percentage <= 100) {
           const sentKey = `challenge_success_${challenge.id}`;
           const alreadySent = await AsyncStorage.getItem(sentKey);
-
+          
           if (!alreadySent) {
             await notifyChallengeSuccess(
               challenge.category,

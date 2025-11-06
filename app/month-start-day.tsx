@@ -38,7 +38,7 @@ export default function MonthStartDayScreen() {
       // 기존 챌린지 데이터 로드 (Supabase)
       const existingChallenges = await getAllChallenges();
       const activeChallenges = existingChallenges.filter((challenge) => !challenge.isDeleted);
-
+      
       // 기존 챌린지가 없으면 재생성하지 않음
       if (activeChallenges.length === 0) {
         return;
@@ -67,7 +67,7 @@ export default function MonthStartDayScreen() {
           Array.from(recurringIds).map((recurringId) => softDeleteChallengesByRecurringId(recurringId))
         );
       }
-
+      
       // 새로운 챌린지들 생성
       const newChallenges: ChallengeRecord[] = [];
       const today = new Date();
@@ -161,7 +161,7 @@ export default function MonthStartDayScreen() {
             setInitialDay(dayNumber); // 초기값도 저장
           }
         }
-      } catch (error) {
+      } catch {
 
       }
     };

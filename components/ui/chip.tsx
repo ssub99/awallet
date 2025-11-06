@@ -5,7 +5,7 @@
  * Supports active/default states with proper styling based on Figma design.
  */
 
-import { Colors, Typography } from '@/constants/theme';
+import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Pressable, StyleSheet, Text, ViewStyle } from 'react-native';
 

@@ -27,7 +27,6 @@ export default function EmailVerifyScreen() {
   const [isResendDisabled, setIsResendDisabled] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const [expiresAt, setExpiresAt] = useState<number>(Date.now() + OTP_TTL_MS);
-  const [remainingSeconds, setRemainingSeconds] = useState<number>(Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000)));
 
   const handleBack = () => {
     if (router.canGoBack()) {
@@ -60,16 +59,6 @@ export default function EmailVerifyScreen() {
     })();
   }, [params.email]);
 
-  // 남은 시간 갱신 타이머
-  useEffect(() => {
-    const update = () => {
-      setRemainingSeconds(Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000)));
-    };
-    update();
-    const timer = setInterval(update, 1000);
-    return () => clearInterval(timer);
-  }, [expiresAt]);
-
   const handleComplete = useCallback(async (value: string) => {
     // 만료 우선 체크
     if (Date.now() > expiresAt) {
@@ -99,7 +88,7 @@ export default function EmailVerifyScreen() {
       setErrorMessage('');
       setErrorBorder(false);
       router.replace('/password-set');
-    } catch (e) {
+    } catch {
       setError(true);
       setErrorMessage('네트워크 오류가 발생했습니다.');
       setErrorBorder(true);
@@ -130,7 +119,6 @@ export default function EmailVerifyScreen() {
     // 새 만료 타이머 시작
     const newExpires = Date.now() + OTP_TTL_MS;
     setExpiresAt(newExpires);
-    setRemainingSeconds(Math.max(0, Math.ceil((newExpires - Date.now()) / 1000)));
     // 에러 표시 초기화(원하시면 캡션 유지로 바꿀 수 있음)
     setError(false);
     setErrorMessage('');
@@ -148,12 +136,8 @@ export default function EmailVerifyScreen() {
     // 만료 타이머 시작(초기 발송 시점 가정)
     const initialExpires = Date.now() + OTP_TTL_MS;
     setExpiresAt(initialExpires);
-    setRemainingSeconds(Math.max(0, Math.ceil((initialExpires - Date.now()) / 1000)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const mm = String(Math.floor(remainingSeconds / 60)).padStart(2, '0');
-  const ss = String(remainingSeconds % 60).padStart(2, '0');
 
   // 이메일 마스킹 처리 (아이디 뒷자리 3자리)
   const getMaskedEmail = (email: string) => {
