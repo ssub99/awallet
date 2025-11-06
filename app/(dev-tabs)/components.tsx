@@ -28,6 +28,7 @@ import { useAppData } from '@/contexts/app-data-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
+import { getAllChallenges, hardDeleteChallengesByRecurringId } from '@/utils/challenges';
 import { Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -305,6 +306,9 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
                 try {
                   // AsyncStorage 캘린더 데이터 삭제
                   await AsyncStorage.removeItem('calendarData');
+                  // 로컬 입금/지출 캐시 삭제
+                  await AsyncStorage.removeItem('incomeData');
+                  await AsyncStorage.removeItem('expenseData');
                   storageCache.clearCache();
                   
                   // Supabase 지출 기록도 삭제
@@ -326,6 +330,22 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
                     console.error('Supabase 데이터 삭제 중 오류:', supabaseError);
                     // Supabase 삭제 실패해도 AsyncStorage 삭제는 완료되었으므로 계속 진행
                   }
+
+                  // Supabase 입금 기록도 삭제 (소프트 삭제)
+                  try {
+                    const { getAllIncomes, softDeleteIncome } = await import('@/utils/incomes');
+                    const incomes = await getAllIncomes();
+                    for (const income of incomes) {
+                      try {
+                        await softDeleteIncome(income.timestamp.toString());
+                      } catch (error) {
+                        console.error('입금 기록 삭제 중 오류:', income.timestamp, error);
+                      }
+                    }
+                    console.log(`[dev-mode] Supabase에서 ${incomes.length}개의 입금 기록 삭제 처리 완료`);
+                  } catch (incomeDeleteError) {
+                    console.error('Supabase 입금 삭제 중 오류:', incomeDeleteError);
+                  }
                   
                   await refresh();
                   alert('캘린더 데이터가 삭제되었습니다.');
@@ -346,6 +366,22 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
                 try {
                   await AsyncStorage.removeItem('challengeData');
                   storageCache.clearCache();
+                  // Supabase 챌린지 기록도 삭제 (recurring 단위로 소프트 삭제)
+                  try {
+                    const challenges = await getAllChallenges();
+                    const recurringIds = Array.from(new Set(challenges.map((c: any) => c.recurringId).filter(Boolean)));
+                    for (const recurringId of recurringIds) {
+                      try {
+                        await hardDeleteChallengesByRecurringId(recurringId);
+                      } catch (error) {
+                        console.error('챌린지 하드 삭제 중 오류:', recurringId, error);
+                      }
+                    }
+                    console.log(`[dev-mode] Supabase에서 ${recurringIds.length}개의 챌린지 묶음(Recurring) 하드 삭제 완료`);
+                  } catch (supabaseError) {
+                    console.error('Supabase 챌린지 삭제 중 오류:', supabaseError);
+                    // 실패하더라도 로컬 삭제는 완료되었으므로 계속 진행
+                  }
                   await refresh();
                   alert('챌린지 데이터가 삭제되었습니다.');
                 } catch (error) {

@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLoading } from '@/contexts/loading-context';
 import { loadMonthStartDay, monthStartEvent } from '@/hooks/use-month-start';
 import { getAllExpenses, type ExpenseRecord } from '@/utils/expenses';
-import { getAllIncomes } from '@/utils/incomes';
+import { getAllIncomes, type IncomeRecord } from '@/utils/incomes';
 
 export interface DayDataRecord {
   [date: string]: any;
@@ -231,6 +231,17 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
         } else {
           // 새로운 날짜 데이터는 Supabase 데이터 그대로 사용
           mergedCalendarData[dateKey] = supabaseCalendarData[dateKey];
+        }
+      });
+      
+      // 최종 정리: 잔재 제거 (기록이 없고 총액이 0인 날짜 키 삭제)
+      Object.keys(mergedCalendarData).forEach((dateKey) => {
+        const bucket = mergedCalendarData[dateKey];
+        const records = Array.isArray(bucket?.records) ? bucket.records : [];
+        const totalIncome = bucket?.totalIncome || 0;
+        const totalExpense = bucket?.totalExpense || 0;
+        if (records.length === 0 && totalIncome === 0 && totalExpense === 0) {
+          delete mergedCalendarData[dateKey];
         }
       });
       

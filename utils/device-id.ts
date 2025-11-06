@@ -3,9 +3,9 @@ import 'react-native-get-random-values';
 
 function generateUuidV4(): string {
   // RFC4122 version 4 UUID using crypto.getRandomValues
+  // react-native-get-random-values polyfills crypto.getRandomValues
   const bytes = new Uint8Array(16);
-  // @ts-expect-error react-native-get-random-values polyfills crypto
-  crypto.getRandomValues(bytes);
+  (globalThis.crypto as Crypto).getRandomValues(bytes);
   bytes[6] = (bytes[6] & 0x0f) | 0x40; // version 4
   bytes[8] = (bytes[8] & 0x3f) | 0x80; // variant 10
   const toHex = (n: number) => n.toString(16).padStart(2, '0');

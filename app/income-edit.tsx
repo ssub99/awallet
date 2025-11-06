@@ -139,7 +139,6 @@ export default function IncomeEditScreen() {
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   
   // Section position tracking
-  const [amountSectionY, setAmountSectionY] = useState(0);
   const [memoSectionY, setMemoSectionY] = useState(0);
   
   useEffect(() => {
@@ -238,13 +237,21 @@ export default function IncomeEditScreen() {
         console.error('[입금 수정] Supabase update error:', error);
       }
       
-      // 기존 날짜에서 총 입금 금액 차감
+      // 기존 날짜에서 총 입금 금액 차감 및 잔재 제거
       if (calendarData[oldDateKey]) {
         calendarData[oldDateKey].totalIncome = Math.max(0, (calendarData[oldDateKey].totalIncome || 0) - oldAmount);
         
         // 기존 기록 제거
         if (calendarData[oldDateKey].records && calendarData[oldDateKey].records[recordIndex]) {
           calendarData[oldDateKey].records.splice(recordIndex, 1);
+        }
+        
+        // 잔재 제거: 기록 없고 총액 0이면 키 삭제
+        const bucket = calendarData[oldDateKey];
+        const hasNoRecords = !bucket.records || bucket.records.length === 0;
+        const noTotals = (bucket.totalIncome || 0) === 0 && (bucket.totalExpense || 0) === 0;
+        if (hasNoRecords && noTotals) {
+          delete calendarData[oldDateKey];
         }
       }
       
@@ -318,13 +325,21 @@ export default function IncomeEditScreen() {
         console.error('[입금 삭제] Supabase soft delete error:', error);
       }
       
-      // 기존 날짜에서 총 입금 금액 차감
+      // 기존 날짜에서 총 입금 금액 차감 및 잔재 제거
       if (calendarData[dateKey]) {
         calendarData[dateKey].totalIncome = Math.max(0, (calendarData[dateKey].totalIncome || 0) - oldAmount);
         
         // 기존 기록 제거
         if (calendarData[dateKey].records && calendarData[dateKey].records[recordIndex]) {
           calendarData[dateKey].records.splice(recordIndex, 1);
+        }
+        
+        // 잔재 제거: 기록 없고 총액 0이면 키 삭제
+        const bucket = calendarData[dateKey];
+        const hasNoRecords = !bucket.records || bucket.records.length === 0;
+        const noTotals = (bucket.totalIncome || 0) === 0 && (bucket.totalExpense || 0) === 0;
+        if (hasNoRecords && noTotals) {
+          delete calendarData[dateKey];
         }
       }
       
@@ -419,10 +434,6 @@ export default function IncomeEditScreen() {
           {/* 금액 */}
           <View 
             style={styles.section}
-            onLayout={(event) => {
-              const layout = event.nativeEvent.layout;
-              setAmountSectionY(layout.y);
-            }}
           >
             <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
               금액 <Text style={{ color: '#EF5252' }}>*</Text>

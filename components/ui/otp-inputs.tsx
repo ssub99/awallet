@@ -90,7 +90,9 @@ export function OtpInputs({
                 accessibilityLabel={`${i + 1}번째 숫자 입력칸`}
               >
                 <TextInput
-                  ref={(el) => (refs.current[i] = el)}
+                  ref={(el) => {
+                    refs.current[i] = el;
+                  }}
                   value={char}
                   onChangeText={(t) => {
                     const onlyDigit = t.replace(/\D/g, '').slice(0, 1);
@@ -128,7 +130,9 @@ export function OtpInputs({
               accessibilityLabel={`${i + 1}번째 숫자 입력칸`}
             >
               <TextInput
-                ref={(el) => (refs.current[i] = el)}
+                ref={(el) => {
+                  refs.current[i] = el;
+                }}
                 value={char}
                 onChangeText={(t) => {
                   const onlyDigit = t.replace(/\D/g, '').slice(0, 1);

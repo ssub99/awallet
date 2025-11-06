@@ -15,6 +15,7 @@ import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { getCustomMonthRange, isDateInCustomMonth } from '@/utils/custom-month';
 import { getChallengesByDateRange } from '@/utils/challenges';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAppData } from '@/contexts/app-data-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -307,21 +308,13 @@ export default function MonthlyExpenseTimelineScreen() {
         }
   }, [year, month]);
 
-  // 화면 포커스 시 새로고침
-  useFocusEffect(
-    useCallback(() => {
-      refreshData();
-      return () => {};
-    }, [refreshData])
-  );
-
-  // 전역 이벤트 구독으로 즉시 새로고침
+  // 데이터 변경 시에만 새로고침 (홈과 동일한 정책)
+  const { dataVersion } = useAppData();
   useEffect(() => {
-    const unsub = calendarRefreshEvent.subscribe(() => {
-      refreshData();
-    });
-    return unsub;
-  }, [refreshData]);
+    refreshData();
+  }, [dataVersion, year, month, refreshData]);
+
+  // 전역 이벤트 구독은 컨텍스트에서 처리하므로 제거 (중복 새로고침 방지)
 
   // 페이드인 애니메이션 처리
   useEffect(() => {

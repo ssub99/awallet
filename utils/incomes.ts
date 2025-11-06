@@ -37,21 +37,40 @@ async function getAuthContext(): Promise<AuthContext> {
     return { authUid: null, deviceId: null };
   }
 
+  let authUid: string | null = null;
   try {
     const {
       data: { user },
-      error,
     } = await supabase.auth.getUser();
-
-    if (!error && user) {
-      return { authUid: user.id, deviceId: null };
-    }
+    if (user) authUid = user.id;
   } catch (error) {
-    console.warn('[incomes] Failed to get auth user, fallback to guest:', error);
+    console.warn('[incomes] Failed to get auth user:', error);
   }
 
-  const deviceId = await getOrCreateDeviceId();
-  return { authUid: null, deviceId };
+  // 항상 deviceId도 확보하여, 게스트로 생성된 과거 데이터도 업데이트 가능하게 한다
+  let deviceId: string | null = null;
+  try {
+    deviceId = await getOrCreateDeviceId();
+  } catch (error) {
+    console.warn('[incomes] Failed to get device id:', error);
+  }
+
+  return { authUid, deviceId };
+}
+
+function applyOwnershipFilter(query: any, context: AuthContext) {
+  const parts: string[] = [];
+  if (context.authUid) {
+    parts.push(`auth_uid.eq.${context.authUid}`);
+  }
+  if (context.deviceId) {
+    // 게스트 데이터: auth_uid IS NULL AND device_id = <deviceId>
+    parts.push(`and(auth_uid.is.null,device_id.eq.${context.deviceId})`);
+  }
+  if (parts.length > 0) {
+    return query.or(parts.join(','));
+  }
+  return query;
 }
 
 function convertToSupabaseFormat(record: IncomeRecord, context: AuthContext): Partial<SupabaseIncome> {
@@ -129,14 +148,9 @@ export async function updateIncome(id: string, updates: Partial<IncomeRecord>): 
     if (updates.deletedAt !== undefined) supabaseUpdates.deleted_at = updates.deletedAt ?? null;
 
     let query = supabase.from('incomes').update(supabaseUpdates).eq('id', id);
+    query = applyOwnershipFilter(query, context);
 
-    if (context.authUid) {
-      query = query.eq('auth_uid', context.authUid);
-    } else if (context.deviceId) {
-      query = query.eq('device_id', context.deviceId).is('auth_uid', null);
-    }
-
-    const { data, error } = await query.select().single();
+    const { data, error } = await query.select();
 
     if (error) {
       throw error;
@@ -166,12 +180,7 @@ export async function softDeleteIncome(id: string): Promise<void> {
       .from('incomes')
       .update({ is_deleted: true, deleted_at: deletedAt })
       .eq('id', id);
-
-    if (context.authUid) {
-      query = query.eq('auth_uid', context.authUid);
-    } else if (context.deviceId) {
-      query = query.eq('device_id', context.deviceId).is('auth_uid', null);
-    }
+    query = applyOwnershipFilter(query, context);
 
     const { error } = await query;
     if (error) {
@@ -193,12 +202,7 @@ export async function getIncomeById(id: string): Promise<IncomeRecord | null> {
   try {
     const context = await getAuthContext();
     let query = supabase.from('incomes').select('*').eq('id', id);
-
-    if (context.authUid) {
-      query = query.eq('auth_uid', context.authUid);
-    } else if (context.deviceId) {
-      query = query.eq('device_id', context.deviceId).is('auth_uid', null);
-    }
+    query = applyOwnershipFilter(query, context);
 
     const { data, error } = await query.single();
 
@@ -234,12 +238,7 @@ export async function getIncomesByDateRange(startDate: string, endDate: string):
       .gte('date', startDate)
       .lte('date', endDate)
       .eq('is_deleted', false);
-
-    if (context.authUid) {
-      query = query.eq('auth_uid', context.authUid);
-    } else if (context.deviceId) {
-      query = query.eq('device_id', context.deviceId).is('auth_uid', null);
-    }
+    query = applyOwnershipFilter(query, context);
 
     const { data, error } = await query.order('timestamp', { ascending: true });
 
@@ -262,12 +261,7 @@ export async function getAllIncomes(): Promise<IncomeRecord[]> {
   try {
     const context = await getAuthContext();
     let query = supabase.from('incomes').select('*').order('timestamp', { ascending: true });
-
-    if (context.authUid) {
-      query = query.eq('auth_uid', context.authUid);
-    } else if (context.deviceId) {
-      query = query.eq('device_id', context.deviceId).is('auth_uid', null);
-    }
+    query = applyOwnershipFilter(query, context);
 
     const { data, error } = await query;
 

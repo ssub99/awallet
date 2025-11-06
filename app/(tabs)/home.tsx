@@ -66,14 +66,7 @@ export default function HomeScreen() {
   // 년도 화면에서 마지막으로 본 월 추적
   const lastYearViewMonth = useRef<number | null>(null);
   
-  // Calendar state - 로컬 시간 기준으로 오늘 날짜 초기화
-  const getTodayLocalDate = () => {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
+  // 사용되지 않는 오늘 날짜 유틸 제거 (기능 영향 없음)
   
   const [selectedDate, setSelectedDate] = useState<string>('');
   

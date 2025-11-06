@@ -59,13 +59,8 @@ function getDayOfWeekLabel(year: number, month: number, day: number): string {
 // ===== 삭제 기능 유틸리티 함수들 =====
 
 /**
- * 개발 환경에서만 로그 출력
+ * 개발 환경 로그 유틸은 현재 사용되지 않음 (정리)
  */
-const debugLog = (message: string, data?: any) => {
-  if (__DEV__) {
-    console.log(`🔍 [DEBUG] ${message}`, data || '');
-  }
-};
 
 /**
  * 날짜 형식 변환 유틸리티
@@ -150,13 +145,7 @@ const isSameDate = (recordDate: string, currentDate: Date): boolean => {
   return recordDateKey === currentDateKey;
 };
 
-/**
- * 미래 날짜 확인 유틸리티
- */
-const isFutureDate = (recordDate: string, currentDate: Date): boolean => {
-  const recordDateObj = new Date(recordDate);
-  return recordDateObj >= currentDate;
-};
+// 사용되지 않는 미래 날짜 확인 유틸 제거
 
 /**
  * 삭제 옵션별 기록 필터링
@@ -216,9 +205,7 @@ const shouldDelete = (
   }
 };
 
-// 상수 정의
-const NAVIGATION_DELAY = 100; // ms
-const DATE_FORMAT = 'YYYY-MM-DD';
+// 사용되지 않는 상수 제거
 
 /**
  * 정기 기록의 기간을 계산하는 함수
@@ -3827,7 +3814,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         title="소비내역 삭제"
         onConfirm={handleDeleteConfirm}
         onCancel={() => setShowDeleteConfirm(false)}
-        confirmText="삭제"
+        confirmText="확인"
         cancelText="취소"
       >
         <Text style={[styles.deleteConfirmText, { color: colors.textNeutral }]}>
