@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
 import { ModalPopup } from '@/components/ui/modal-popup';
 import { Colors, Typography } from '@/constants/theme';
+import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { getCustomMonthInfo } from '@/utils/custom-month';
@@ -35,6 +36,7 @@ export default function IncomeRecordScreen() {
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { setLoading } = useLoading();
   const params = useLocalSearchParams<{ 
     selectedDate?: string;
     calendarYear?: string;
@@ -161,15 +163,16 @@ export default function IncomeRecordScreen() {
       return;
     }
     
-    // 입금 기록 데이터 준비
-    const incomeRecord = {
-      amount: parseFloat(amount.replace(/,/g, '')),
-      date,
-      memo,
-    };
-    
-    // AsyncStorage에서 기존 calendarData 가져오기
+    setLoading(true);
     try {
+      // 입금 기록 데이터 준비
+      const incomeRecord = {
+        amount: parseFloat(amount.replace(/,/g, '')),
+        date,
+        memo,
+      };
+      
+      // AsyncStorage에서 기존 calendarData 가져오기
       const storedData = await AsyncStorage.getItem('calendarData');
       const calendarData = storedData ? JSON.parse(storedData) : {};
       
@@ -244,7 +247,9 @@ export default function IncomeRecordScreen() {
         });
       }, 100);
     } catch (error) {
-
+      console.error('[입금 생성] error:', error);
+    } finally {
+      setLoading(false);
     }
   };
 

@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { EXPENSE_CATEGORIES } from '@/constants/categories';
 import { Colors, Typography } from '@/constants/theme';
+import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { getCustomMonthInfo } from '@/utils/custom-month';
@@ -36,6 +37,7 @@ export default function ChallengeCreateScreen() {
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { setLoading } = useLoading();
   const params = useLocalSearchParams<{ 
     category?: string;
     selectedDate?: string;
@@ -156,22 +158,19 @@ export default function ChallengeCreateScreen() {
   };
 
   const handleConfirm = async () => {
-
     // 필수값 검증
     if (!params.category) {
-
       return;
     }
     
     if (!targetAmount || targetAmount === '0' || targetAmount.trim() === '') {
-
       return;
     }
     
-    const targetAmountNum = parseFloat(targetAmount.replace(/,/g, ''));
-    const monthsToCreate = isRecurring ? recurringMonths : 1;
-
+    setLoading(true);
     try {
+      const targetAmountNum = parseFloat(targetAmount.replace(/,/g, ''));
+      const monthsToCreate = isRecurring ? recurringMonths : 1;
       // 기존 챌린지 데이터 가져오기
       const storedData = await AsyncStorage.getItem('challengeData');
       const challenges: ChallengeData[] = storedData ? JSON.parse(storedData) : [];
@@ -259,7 +258,9 @@ export default function ChallengeCreateScreen() {
         });
       }, 100);
     } catch (error) {
-
+      console.error('[챌린지 생성] error:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
