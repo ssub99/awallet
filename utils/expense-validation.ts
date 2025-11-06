@@ -153,7 +153,7 @@ export function hasChanges(
     currentDate !== originalDate ||
     currentData.memo !== (originalData.memo || '') ||
     currentData.isRecurring !== (originalData.isRecurring || false) ||
-    currentData.recurringMonths !== (originalData.recurringMonths || 2) ||
+    currentData.totalMonths !== (originalData.totalMonths || 2) ||
     currentData.isInstallment !== (originalData.isInstallment || false) ||
     currentData.weekendOption !== (originalData.weekendOption || 'weekend')
   );
