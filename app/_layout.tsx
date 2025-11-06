@@ -54,7 +54,7 @@ export default function RootLayout() {
           await checkEndedChallenges();
 
         } catch (error) {
-
+          console.error('알림 설정 중 오류:', error);
         }
       };
       

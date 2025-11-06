@@ -87,19 +87,7 @@ export default function ChallengeCreateScreen() {
   const [showRecurringMonthsPicker, setShowRecurringMonthsPicker] = useState<boolean>(false);
   const [monthStartDay, setMonthStartDay] = useState<number>(1);
   
-  // 시작일 계산 (년월은 사용자 선택, 일자는 캘린더 선택값 유지)
-  // 유효한 날짜인지 확인하고 조정
-  const startDate = useMemo(() => {
-    // 해당 월의 마지막 날짜 확인
-    const lastDayOfMonth = new Date(startYear, startMonth, 0).getDate();
-    const validDay = Math.min(selectedDay, lastDayOfMonth);
-    
-    if (validDay !== selectedDay) {
-
-    }
-    
-    return `${startYear}.${String(startMonth).padStart(2, '0')}.${String(validDay).padStart(2, '0')}`;
-  }, [startYear, startMonth, selectedDay]);
+  // 시작일 계산 메모 값은 사용하지 않아 제거 (lint 정리)
   
   // 년/월 선택 옵션 생성 (현재 년도 기준 ±10년)
   const yearOptions = Array.from({ length: 21 }, (_, i) => {
