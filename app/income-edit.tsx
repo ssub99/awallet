@@ -17,6 +17,8 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { getCustomMonthInfo } from '@/utils/custom-month';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { calendarRefreshEvent } from '@/hooks/calendar-events';
+import { updateIncome, softDeleteIncome } from '@/utils/incomes';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Dimensions, Keyboard, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
@@ -180,6 +182,18 @@ export default function IncomeEditScreen() {
       // 기존 기록의 금액
       const oldAmount = recordData?.amount || 0;
       const newAmount = parseFloat(amount.replace(/,/g, ''));
+      const recordTimestamp = recordData?.timestamp ?? Date.now();
+      const incomeId = recordTimestamp.toString();
+
+      try {
+        await updateIncome(incomeId, {
+          amount: newAmount,
+          date,
+          memo,
+        });
+      } catch (error) {
+        console.error('[입금 수정] Supabase update error:', error);
+      }
       
       // 기존 날짜에서 총 입금 금액 차감
       if (calendarData[oldDateKey]) {
@@ -210,7 +224,7 @@ export default function IncomeEditScreen() {
         amount: newAmount,
         category: '💰 입금',
         memo: memo,
-        timestamp: new Date().getTime(), // 새로운 timestamp로 업데이트
+        timestamp: recordTimestamp,
       });
       
       // AsyncStorage에 저장
@@ -247,6 +261,8 @@ export default function IncomeEditScreen() {
           },
         });
       }, 100);
+
+      calendarRefreshEvent.emit();
     } catch (error) {
       console.error('[입금 수정] error:', error);
     } finally {
@@ -262,6 +278,14 @@ export default function IncomeEditScreen() {
       
       // 기존 기록의 금액
       const oldAmount = recordData?.amount || 0;
+      const recordTimestamp = recordData?.timestamp ?? Date.now();
+      const incomeId = recordTimestamp.toString();
+
+      try {
+        await softDeleteIncome(incomeId);
+      } catch (error) {
+        console.error('[입금 삭제] Supabase soft delete error:', error);
+      }
       
       // 기존 날짜에서 총 입금 금액 차감
       if (calendarData[dateKey]) {
@@ -313,6 +337,8 @@ export default function IncomeEditScreen() {
           });
         }, 100);
       }
+
+      calendarRefreshEvent.emit();
     } catch (error) {
       console.error('[입금 삭제] error:', error);
     } finally {
@@ -353,7 +379,7 @@ export default function IncomeEditScreen() {
                 날짜 <Text style={{ color: '#EF5252' }}>*</Text>
               </Text>
               <Pressable onPress={() => setShowDeleteAlert(true)}>
-                <Text style={[styles.deleteButton, { color: colors.textAssistive }]}>
+                <Text style={[styles.deleteButton, { color: colors.statusNegative }]}> 
                   삭제
                 </Text>
               </Pressable>
