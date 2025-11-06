@@ -714,238 +714,187 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
   // 정기 기록/할부 기록 전체 수정 (기존 데이터 삭제 후 새로 생성)
   const handleMultipleRecordsBulkUpdate = async (
-    calendarData: any, 
-    editData: any, 
-    newRecord: any, 
-    actualDateKey: string, 
-    monthlyAmount: number,
-    expenseAmount: number
-  ) => {
+    calendarData: any,
+    editData: any,
+    newRecord: any,
+    actualDateKey: string,
+    monthlyAmount: number
+  ): Promise<{ deletedTimestamps: number[] }> => {
+    const isInstallmentGroup = !!editData.isInstallment;
+    const isRecurringGroup = !!editData.isRecurring;
+    const groupId = isRecurringGroup ? editData.recurringId : editData.installmentId;
 
-    // 1. ID 필수 체크: 할부/정기 기록 전체 수정은 반드시 ID가 있어야 함
-    const idToUse = editData.isRecurring ? editData.recurringId : editData.installmentId;
-    
-    if (!idToUse) {
+    if (!groupId) {
       throw new Error('할부/정기 기록 전체 수정은 ID가 필요합니다.');
     }
-    
-    // 2. 최초 생성 날짜 찾기 (삭제 전에 찾아야 함)
-    // ID(timestamp)에서 직접 최초 생성 날짜 계산
-    // installmentId/recurringId는 timestamp이므로, 이를 Date로 변환하면 최초 생성 날짜를 알 수 있음
-    let originalDate = actualDateKey;
-    
-    if (idToUse) {
-      // ID(timestamp)에서 최초 생성 날짜 계산
-      const originalStartDate = new Date(Number(idToUse));
-      const year = originalStartDate.getFullYear();
-      const month = String(originalStartDate.getMonth() + 1).padStart(2, '0');
-      const day = String(originalStartDate.getDate()).padStart(2, '0');
-      originalDate = `${year}-${month}-${day}`;
-      
-      
-    } else {
-      // ID가 없으면 actualDateKey 사용 (에러 케이스지만 안전장치)
-    }
-    
-    
 
-    // 3. 할부 기록 전체 수정 시 사용자가 입력한 금액을 새로운 총액으로 사용
-    // 기존 기록들의 총액을 계산하지 않고, 사용자가 입력한 expenseAmount를 총액으로 사용
-    
-    // 4. 기존 정기/할부 기록들 모두 삭제 (같은 ID를 가진 기록만, 단 선결제 기록은 제외)
-    let deletedRecordsCount = 0;
-    
-    Object.keys(calendarData).forEach(dateKey => {
-      if (calendarData[dateKey].records) {
-        const relatedRecords = calendarData[dateKey].records.filter(
-          (r: any) => {
-            if (editData.isRecurring) {
-              return r.recurringId === idToUse;
-            } else {
-              // 할부 기록: 같은 installmentId이면서 선결제 기록이 아닌 것만 삭제 대상
-              return r.installmentId === idToUse && r.isPrepaid !== true;
-            }
-          }
-        );
-        
-        if (relatedRecords.length > 0) {
+    const parseDateKey = (key: string) => {
+      const [y, m, d] = key.split('-').map(Number);
+      return { year: y, month: m, day: d };
+    };
 
-          // 관련 기록들 삭제 (완전 삭제, 단 선결제 기록은 유지)
-          calendarData[dateKey].records = calendarData[dateKey].records.filter(
-            (r: any) => {
-              if (editData.isRecurring) {
-                return r.recurringId !== idToUse;
-              } else {
-                // 할부 기록: 같은 installmentId이지만 선결제 기록은 유지
-                return r.installmentId !== idToUse || r.isPrepaid === true;
-              }
-            }
-          );
-          
-          deletedRecordsCount += relatedRecords.length;
-          
-          // 총액에서 차감
-          relatedRecords.forEach((record: any) => {
-            if (record.type === 'expense') {
-              calendarData[dateKey].totalExpense = Math.max(0, 
-                (calendarData[dateKey].totalExpense || 0) - (record.amount || 0)
-              );
-            } else if (record.type === 'income') {
-              calendarData[dateKey].totalIncome = Math.max(0, 
-                (calendarData[dateKey].totalIncome || 0) - (record.amount || 0)
-              );
-            }
-          });
-          
-          // 빈 날짜 데이터 정리
-          if (calendarData[dateKey].records.length === 0) {
-            delete calendarData[dateKey];
-          }
+    const recalcBucketTotals = (bucket: any) => {
+      let totalExpense = 0;
+      let totalIncome = 0;
+      (bucket.records || []).forEach((record: any) => {
+        if (record.type === 'expense' && record.isRefunded !== true) {
+          totalExpense += record.amount || 0;
+        } else if (record.type === 'income') {
+          totalIncome += record.amount || 0;
         }
+      });
+      bucket.totalExpense = totalExpense;
+      bucket.totalIncome = totalIncome;
+    };
+
+    const preservedByTimestamp = new Map<number, { dateKey: string; record: any }>();
+    const deletedTimestampSet = new Set<number>();
+
+    // 1) 기존 기록을 분류 (선결제/환불은 유지, 나머지는 제거)
+    Object.keys(calendarData).forEach((dateKey) => {
+      const bucket = calendarData[dateKey];
+      if (!bucket?.records) {
+        return;
+      }
+
+      const remaining: any[] = [];
+
+      bucket.records.forEach((record: any) => {
+        const belongsToGroup = isRecurringGroup
+          ? record.recurringId === groupId
+          : record.installmentId === groupId;
+
+        if (!belongsToGroup) {
+          remaining.push(record);
+          return;
+        }
+
+        if (record.isPrepaid || record.isRefunded) {
+          preservedByTimestamp.set(record.timestamp, { dateKey, record });
+          remaining.push(record);
+          return;
+        }
+
+        // 제거 대상
+        deletedTimestampSet.add(record.timestamp);
+      });
+
+      if (remaining.length === 0) {
+        delete calendarData[dateKey];
+      } else {
+        bucket.records = remaining;
+        recalcBucketTotals(bucket);
       }
     });
-    
-    
-    
-    // 5. 기존 ID 유지 (새로 생성하지 않음)
-    // 같은 ID를 가진 기록들을 삭제했으므로, 같은 ID로 재생성
-    const newRecurringId = editData.isRecurring ? idToUse : undefined;
-    const newInstallmentId = editData.isInstallment ? idToUse : undefined;
-    
-    // 전체 수정 시에는 원래 생성되었을 때의 개월 수를 사용해야 함
-    // editData에서 원래 totalMonths 또는 installmentMonths를 가져옴
-    const originalTotalMonths = editData.isInstallment 
-      ? (editData.installmentMonths || editData.totalMonths || 2)
-      : (editData.totalMonths || 2);
-    
-    // 할부 기록 시 첫 번째 기록(원본)에는 나머지 금액 추가
-    let firstRecordAmount = monthlyAmount;
-    if (isInstallment) {
-      // 전체 수정 시에는 사용자가 입력한 expenseAmount를 새로운 총액으로 사용
-      // 할부 기록 수정 화면의 금액 필드는 월별 금액이므로, 총액으로 변환 필요
-      // 하지만 전체 수정 시에는 사용자가 입력한 값이 총액인지 월별 금액인지 명확하지 않음
-      // 따라서 사용자가 입력한 금액을 총액으로 간주하고 재할부
-      const totalAmountToUse = expenseAmount * originalTotalMonths;
-      
-      // 새로운 총액을 기준으로 재할부
-      const baseAmount = Math.floor(totalAmountToUse / originalTotalMonths);
-      const remainder = totalAmountToUse - (baseAmount * originalTotalMonths);
-      firstRecordAmount = baseAmount + remainder; // 원본 기록에는 나머지 금액 추가
-      monthlyAmount = baseAmount; // 나머지 기록을 위한 기본 할부 금액
-      
-      
-    }
-    
-    
-    
-    // 전체 수정 시에도 첫 번째 기록은 원본 timestamp 유지 (할부 기록 그룹 유지)
-    const firstRecordTimestamp = editData.timestamp || new Date().getTime();
-    
-    const updatedRecord = {
-      ...newRecord,
-      recurringId: newRecurringId,
-      installmentId: newInstallmentId,
-      timestamp: firstRecordTimestamp, // 원본 timestamp 유지
-      amount: firstRecordAmount,
-      // 전체 수정 시 원본 데이터 초기화 (재생성하는 것이므로)
-      originalAmount: firstRecordAmount,
-      originalCategory: category,
-      originalDate: actualDateKey.replace(/-/g, '.'),
-    };
-    
-    // 미래 기록들 생성 (최초 생성 날짜 기준으로 전체 재생성)
-    if (isRecurring || isInstallment) {
-      // 최초 생성 날짜의 년월 + 수정한 일자로 재생성
-      const originalDateFormatted = originalDate.replace(/-/g, '.');
-      const [originalYear, originalMonth, originalDay] = originalDateFormatted.split('.').map(Number);
-      
-      // 수정한 날짜에서 일자 추출
-      const currentDateFormatted = actualDateKey.replace(/-/g, '.');
-      const [currentYear, currentMonth, newDay] = currentDateFormatted.split('.').map(Number);
 
-      
+    // 2) 새 스케줄 정보 계산
+    const baseDateInfo = parseDateKey(actualDateKey);
+    const baseDate = new Date(baseDateInfo.year, baseDateInfo.month - 1, baseDateInfo.day);
+    const baseDay = baseDateInfo.day;
 
-      // 시작 인덱스: 0부터 시작 (최초 생성 날짜부터 전체 재생성)
-      let startIndex = 0;
-      let createdRecordsCount = 0;
+    const requestedTotalMonths = isInstallmentGroup
+      ? newRecord.installmentMonths ?? editData.installmentMonths ?? editData.totalMonths ?? 1
+      : newRecord.totalMonths ?? editData.totalMonths ?? 1;
 
-      // 원래 생성되었을 때의 개월 수를 사용 (전체 수정 시에는 원래 개월 수 유지)
-      for (let i = startIndex; i < originalTotalMonths; i++) {
-        let futureMonth = originalMonth + i;
-        let futureYear = originalYear;
-        
-        while (futureMonth > 12) {
-          futureMonth -= 12;
-          futureYear += 1;
-        }
-        
-        const actualDay = getActualDayForMonth(futureYear, futureMonth, newDay);
-        let futureDate = `${futureYear}.${String(futureMonth).padStart(2, '0')}.${String(actualDay).padStart(2, '0')}`;
-        
-        // 주말 조정
-        const futureDateObj = new Date(futureYear, futureMonth - 1, actualDay);
-        const futureDayOfWeek = futureDateObj.getDay();
-        
-        if ((futureDayOfWeek === 0 || futureDayOfWeek === 6) && weekendOption !== 'weekend') {
-          const adjustedDate = getAdjustedWeekendDate(futureDate, weekendOption);
-          futureDate = adjustedDate;
-        }
-        
-        const futureDateKey = futureDate.replace(/\./g, '-');
-        
-        if (!calendarData[futureDateKey]) {
-          calendarData[futureDateKey] = {
-            totalExpense: 0,
-            totalIncome: 0,
-            records: [],
-          };
-        }
-        
-        // 할부 기록과 정기 기록 구분하여 금액 계산
-        let futureMonthlyAmount = monthlyAmount;
-        if (isInstallment && i === 0) {
-          // 할부 기록 첫 번째 기록: 이미 firstRecordAmount로 설정됨 (updatedRecord에 포함)
-          futureMonthlyAmount = firstRecordAmount;
-        } else if (isInstallment) {
-          // 할부 기록 나머지 기록: 기본 할부 금액 사용 (이미 monthlyAmount에 baseAmount로 설정됨)
-          futureMonthlyAmount = monthlyAmount;
-        } else {
-          // 정기 기록: 동일 금액
-          futureMonthlyAmount = monthlyAmount;
-        }
-        
-        // 첫 번째 기록(i=0)도 원본 timestamp 사용, 나머지는 새 timestamp
-        const recordTimestamp = i === 0 
-          ? firstRecordTimestamp 
-          : firstRecordTimestamp + i; // 할부 기록들은 순차적으로 증가
-        
-        const futureRecord = {
-          ...updatedRecord,
-          date: futureDate,
-          amount: futureMonthlyAmount,
-          timestamp: recordTimestamp,
-          isAutoGenerated: i > 0, // 첫 번째 기록은 원본이므로 false
-          isInstallment: isInstallment ? true : undefined, // 할부 여부 저장
-          totalMonths: isRecurring ? originalTotalMonths : undefined, // 정기 기록 개월 수 저장 (원래 값 유지)
-          installmentMonths: isInstallment ? originalTotalMonths : undefined, // 할부 기록 개월 수 저장 (원래 값 유지)
-          originalInstallment: isInstallment && i === 0 ? true : undefined, // 첫 번째만 원본으로 표시
-          // 전체 수정 시에도 원본 데이터 초기화 (재생성하는 것이므로)
-          originalAmount: futureMonthlyAmount,
-          originalCategory: category,
-          originalDate: futureDate,
-        };
-        
-        calendarData[futureDateKey].records.push(futureRecord);
-        calendarData[futureDateKey].totalExpense = (calendarData[futureDateKey].totalExpense || 0) + futureMonthlyAmount;
-        
-        createdRecordsCount++;
-        
-        
+    const totalIterations = Math.max(1, requestedTotalMonths, preservedByTimestamp.size || 0);
+
+    let baseTimestamp = Number(groupId);
+    if (!Number.isFinite(baseTimestamp)) {
+      const preservedExample = preservedByTimestamp.keys().next();
+      if (!preservedExample.done) {
+        baseTimestamp = preservedExample.value;
+      } else if (deletedTimestampSet.size > 0) {
+        baseTimestamp = Math.min(...Array.from(deletedTimestampSet));
+      } else {
+        baseTimestamp = Date.now();
       }
-      
-      
     }
 
+    const computeTargetDate = (index: number): { dot: string; key: string } => {
+      const target = new Date(baseDate);
+      target.setMonth(baseDate.getMonth() + index);
+
+      const futureYear = target.getFullYear();
+      const futureMonth = target.getMonth() + 1;
+      const actualDay = getActualDayForMonth(futureYear, futureMonth, baseDay);
+
+      let futureDate = `${futureYear}.${String(futureMonth).padStart(2, '0')}.${String(actualDay).padStart(2, '0')}`;
+
+      const futureDateObj = new Date(futureYear, futureMonth - 1, actualDay);
+      const futureDayOfWeek = futureDateObj.getDay();
+      if ((futureDayOfWeek === 0 || futureDayOfWeek === 6) && weekendOption !== 'weekend') {
+        futureDate = getAdjustedWeekendDate(futureDate, weekendOption);
+      }
+
+      return { dot: futureDate, key: futureDate.replace(/\./g, '-') };
+    };
+
+    // 3) 재생성
+    for (let i = 0; i < totalIterations; i++) {
+      const recordTimestamp = baseTimestamp + i;
+
+      if (preservedByTimestamp.has(recordTimestamp)) {
+        const preserved = preservedByTimestamp.get(recordTimestamp)!;
+        const bucket = calendarData[preserved.dateKey];
+        if (bucket?.records) {
+          bucket.records = bucket.records.map((record: any) => {
+            if (record.timestamp !== recordTimestamp) {
+              return record;
+            }
+            if (isInstallmentGroup) {
+              record.totalMonths = totalIterations;
+              record.installmentMonths = totalIterations;
+            } else if (isRecurringGroup) {
+              record.totalMonths = totalIterations;
+            }
+            return record;
+          });
+          recalcBucketTotals(bucket);
+        }
+        continue;
+      }
+
+      const targetDate = computeTargetDate(i);
+
+      if (!calendarData[targetDate.key]) {
+        calendarData[targetDate.key] = {
+          totalExpense: 0,
+          totalIncome: 0,
+          records: [],
+        };
+      }
+
+      const bucket = calendarData[targetDate.key];
+
+      const normalizedMonthlyAmount = Number.isFinite(monthlyAmount) ? monthlyAmount : 0;
+
+      const generatedRecord = {
+        ...newRecord,
+        date: targetDate.dot,
+        timestamp: recordTimestamp,
+        amount: normalizedMonthlyAmount,
+        recurringId: isRecurringGroup ? groupId : undefined,
+        installmentId: isInstallmentGroup ? groupId : undefined,
+        isAutoGenerated: i > 0,
+        isInstallment: isInstallmentGroup ? true : undefined,
+        totalMonths: isRecurringGroup ? totalIterations : undefined,
+        installmentMonths: isInstallmentGroup ? totalIterations : undefined,
+        originalInstallment: isInstallmentGroup && i === 0 ? true : undefined,
+        originalAmount: normalizedMonthlyAmount,
+        originalCategory: category,
+        originalDate: targetDate.dot,
+        isPrepaid: false,
+        isRefunded: false,
+        installmentOriginDate: undefined,
+      };
+
+      bucket.records.push(generatedRecord);
+      recalcBucketTotals(bucket);
+
+      deletedTimestampSet.delete(recordTimestamp);
+    }
+
+    return { deletedTimestamps: Array.from(deletedTimestampSet) };
   };
 
   // 정기/할부 기록 오늘만 수정 (완전 삭제 후 ID 유지하여 재생성)
@@ -1187,13 +1136,14 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       }
 
       // 선결제 기록 생성 (기존 ID 유지)
+      // 선결제 시: originalDate에 원래 예정일 저장 (복구 시 사용)
       const prepaidRecord = {
         ...originalRecord,
         date: prepaidDateFormatted,
         isPrepaid: true,
         prepaidDate: prepaidDateFormatted,
-        originalScheduledDate: originalRecord.date, // 원래 할부 예정일 저장
-        originalInstallmentDate: originalRecord.originalInstallmentDate || editData.date, // 원본 할부 생성일 저장
+        installmentOriginDate: originalRecord.date, // 원래 할부 예정일 저장 (선결제 복구 시 사용)
+        originalDate: originalRecord.originalDate || originalRecord.date,
         timestamp: originalRecord.timestamp, // 기존 timestamp 유지
         installmentId: originalRecord.installmentId, // 기존 installmentId 유지
       };
@@ -1211,7 +1161,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           date: prepaidDateFormatted,
           isPrepaid: true,
           prepaidDate: prepaidDateFormatted,
-          originalScheduledDate: originalRecord.date,
+          installmentOriginDate: originalRecord.date,
+          originalDate: originalRecord.originalDate || originalRecord.date,
         });
         console.log('[PREPAY] Supabase updated:', recordId);
       } catch (error) {
@@ -1427,7 +1378,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             }
             // 대상 날짜키에 추가
             calendarData[actualDateKey].records.push(rec);
-      await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
+            await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
             return;
           }
         }
@@ -1546,7 +1497,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                   date: actualDate,
                   prepaidDate: actualDate, // 선결제 일자도 업데이트
                   isPrepaid: true,
-                  originalScheduledDate: existingRecord.originalScheduledDate || editData.originalScheduledDate, // 유지
+                  originalDate: existingRecord.originalDate || editData.originalDate, // 원래 예정일 유지
                   timestamp: editData.timestamp, // 유지
                   installmentId: editData.installmentId, // 유지
                 });
@@ -1559,7 +1510,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                   date: actualDate,
                   prepaidDate: existingRecord.prepaidDate || actualDate, // 선결제 일자는 유지 (날짜 변경 없으면)
                   isPrepaid: true,
-                  originalScheduledDate: existingRecord.originalScheduledDate || editData.originalScheduledDate, // 유지
+                  originalDate: existingRecord.originalDate || editData.originalDate, // 원래 예정일 유지
                   timestamp: editData.timestamp, // 유지
                   installmentId: editData.installmentId, // 유지
                 };
@@ -1570,7 +1521,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           // 정기 기록 또는 할부 기록 수정 (선결제 기록 제외)
           if (editOption === 'all') {
             // 전체 수정: 기존 데이터 삭제 후 새로 생성
-            await handleMultipleRecordsBulkUpdate(calendarData, editData, newRecord, actualDateKey, monthlyAmount, expenseAmount);
+            await handleMultipleRecordsBulkUpdate(calendarData, editData, newRecord, actualDateKey, monthlyAmount);
           } else {
             // 오늘만 수정: 해당 건만 수정 (부모/자식 관계 유지)
             // 할부 기록 수정 시에는 기존 금액을 사용하여 재할부 방지
@@ -1737,21 +1688,12 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             // 전체 수정: handleMultipleRecordsBulkUpdate에서 생성된 모든 기록 저장
             // 전체 수정 시에는 editData의 원본 ID를 사용해야 함 (handleMultipleRecordsBulkUpdate에서 동일한 ID로 재생성함)
             const idToUse = editData.isRecurring ? editData.recurringId : editData.installmentId;
-            console.log('[expense-record] Collecting records for Supabase update, idToUse:', idToUse, 'recurringId:', recurringId, 'installmentId:', installmentId, 'editData.recurringId:', editData.recurringId, 'editData.installmentId:', editData.installmentId);
             if (idToUse) {
               // calendarData에서 해당 ID로 생성된 모든 기록 찾기
-              let foundRecordsCount = 0;
               Object.keys(calendarData).forEach(dateKey => {
                 if (calendarData[dateKey].records) {
                   calendarData[dateKey].records.forEach((record: any) => {
                     if (editData.isRecurring && record.recurringId === idToUse) {
-                      foundRecordsCount++;
-                      // date 필드가 없으면 경고 로그 출력
-                      if (!record.date) {
-                        console.warn('[expense-record] Missing date in calendarData record:', record.timestamp, record);
-                      } else {
-                        console.log('[expense-record] Found record with date:', record.timestamp, record.date, 'recurringId:', record.recurringId);
-                      }
                       recordsToSave.push({
                         type: 'expense',
                         amount: record.amount,
@@ -1773,13 +1715,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                         originalDate: record.originalDate,
                       });
                     } else if (editData.isInstallment && record.installmentId === idToUse) {
-                      foundRecordsCount++;
-                      // date 필드가 없으면 경고 로그 출력
-                      if (!record.date) {
-                        console.warn('[expense-record] Missing date in calendarData record:', record.timestamp, record);
-                      } else {
-                        console.log('[expense-record] Found record with date:', record.timestamp, record.date, 'installmentId:', record.installmentId);
-                      }
                       recordsToSave.push({
                         type: 'expense',
                         amount: record.amount,
@@ -1804,7 +1739,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                   });
                 }
               });
-              console.log('[expense-record] Total records found for Supabase update:', foundRecordsCount);
             }
           } else {
             // 오늘만 수정 또는 일반 기록 수정: 수정된 기록만 저장
@@ -1826,7 +1760,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               originalInstallment: isInstallment ? true : undefined,
               isPrepaid: editData.isPrepaid,
               prepaidDate: editData.prepaidDate,
-              originalScheduledDate: editData.originalScheduledDate,
+              originalDate: editData.originalDate,
               isRefunded: editData.isRefunded,
             };
             recordsToSave.push(updatedRecord);
@@ -1915,11 +1849,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             
             if (mode === 'edit' && editData) {
               // 수정 모드: 기록이 존재하는지 확인 후 업데이트 또는 생성
-              // date 필드가 명시적으로 포함되도록 보장
-              if (!record.date) {
-                console.warn('[expense-record] Missing date field in record:', recordId, record);
-              }
-              
               // Supabase에서 기록 존재 여부 확인
               const { getExpenseById } = await import('@/utils/expenses');
               const existingRecord = await getExpenseById(recordId);
@@ -1930,11 +1859,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                   ...record,
                   date: record.date, // 명시적으로 date 포함
                 };
-                console.log('[expense-record] Updating expense with date:', recordId, updateData.date);
                 await updateExpense(recordId, updateData);
               } else {
                 // 기존 기록이 없으면 생성 (전체 수정 시 새로 생성된 기록)
-                console.log('[expense-record] Creating new expense record (not found in Supabase):', recordId, record.date);
                 await createExpense(record);
               }
             } else {
@@ -2057,150 +1984,109 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
   const handleDeleteConfirm = async () => {
     if (mode !== 'edit' || !editData) {
-
       return;
     }
 
+    setLoading(true);
     try {
+      const timestampsToDelete = new Set<number>();
+      const { getExpensesByInstallmentId, getExpensesByRecurringId } = await import('@/utils/expenses');
 
-      const storedData = await AsyncStorage.getItem('calendarData');
-      const calendarData = storedData ? JSON.parse(storedData) : {};
-      
-      // 삭제할 기록의 날짜 키 생성
-      const recordDate = editData.date || date;
-      const dateKey = recordDate.replace(/\./g, '-');
+      if (editData.isInstallment && editData.installmentId) {
+        const installmentRecords = await getExpensesByInstallmentId(editData.installmentId);
+        installmentRecords.forEach(record => {
+          if (typeof record.timestamp === 'number') {
+            timestampsToDelete.add(record.timestamp);
+          }
+        });
+      }
 
-      if (calendarData[dateKey] && calendarData[dateKey].records) {
-        // 해당 날짜의 기록들에서 삭제할 기록 찾기
-        const recordIndex = calendarData[dateKey].records.findIndex(
-          (r: any) => r.timestamp === editData.timestamp
+      if (editData.isRecurring && editData.recurringId) {
+        const recurringRecords = await getExpensesByRecurringId(editData.recurringId);
+        recurringRecords.forEach(record => {
+          if (typeof record.timestamp === 'number') {
+            timestampsToDelete.add(record.timestamp);
+          }
+        });
+      }
+
+      if (!editData.isInstallment && !editData.isRecurring && typeof editData.timestamp === 'number') {
+        timestampsToDelete.add(editData.timestamp);
+      }
+
+      if (timestampsToDelete.size > 0) {
+        const deletedAt = new Date().toISOString();
+        await Promise.all(
+          Array.from(timestampsToDelete).map(async (timestamp) => {
+            await updateExpense(timestamp.toString(), {
+              isDeleted: true,
+              deletedAt,
+            });
+          })
         );
-        
-        if (recordIndex !== -1) {
-          const recordToDelete = calendarData[dateKey].records[recordIndex];
+      }
 
-          // 기록 삭제 (완전 삭제)
-          calendarData[dateKey].records.splice(recordIndex, 1);
-          
-          // 총 지출액에서 해당 금액 차감
-          if (recordToDelete.type === 'expense') {
-            calendarData[dateKey].totalExpense = Math.max(0, 
-              (calendarData[dateKey].totalExpense || 0) - (recordToDelete.amount || 0)
-            );
-          } else if (recordToDelete.type === 'income') {
-            calendarData[dateKey].totalIncome = Math.max(0, 
-              (calendarData[dateKey].totalIncome || 0) - (recordToDelete.amount || 0)
-            );
+      // 로컬 캐시에서도 동일한 기록 제거 (입금 데이터는 보존)
+      const storedData = await AsyncStorage.getItem('calendarData');
+      if (storedData) {
+        const calendarData = JSON.parse(storedData);
+        let isModified = false;
+
+        Object.keys(calendarData).forEach((dateKey: string) => {
+          const bucket = calendarData[dateKey];
+          if (!bucket?.records) {
+            return;
           }
-          
-          // 정기 지출인 경우 관련된 모든 기록 삭제
-          if (recordToDelete.isRecurring && recordToDelete.recurringId) {
 
-            // 모든 날짜에서 같은 recurringId를 가진 기록들 찾아서 삭제
-            Object.keys(calendarData).forEach(key => {
-              if (calendarData[key].records) {
-                const relatedRecords = calendarData[key].records.filter(
-                  (r: any) => r.recurringId === recordToDelete.recurringId
-                );
-                
-                if (relatedRecords.length > 0) {
+          const originalLength = bucket.records.length;
+          bucket.records = bucket.records.filter((record: any) => {
+            if (typeof record?.timestamp !== 'number') {
+              return true;
+            }
+            return !timestampsToDelete.has(record.timestamp);
+          });
 
-                  // 관련 기록들 삭제
-                  calendarData[key].records = calendarData[key].records.filter(
-                    (r: any) => r.recurringId !== recordToDelete.recurringId
-                  );
-                  
-                  // 총액에서 차감
-                  relatedRecords.forEach((relatedRecord: any) => {
-                    if (relatedRecord.type === 'expense') {
-                      calendarData[key].totalExpense = Math.max(0, 
-                        (calendarData[key].totalExpense || 0) - (relatedRecord.amount || 0)
-                      );
-                    } else if (relatedRecord.type === 'income') {
-                      calendarData[key].totalIncome = Math.max(0,
-                        (calendarData[key].totalIncome || 0) - (relatedRecord.amount || 0)
-                      );
-                    }
-                  });
-                }
+          if (bucket.records.length !== originalLength) {
+            isModified = true;
+            let totalExpense = 0;
+            let totalIncome = 0;
+            bucket.records.forEach((record: any) => {
+              if (record?.type === 'expense' && record?.isRefunded !== true) {
+                totalExpense += record?.amount || 0;
+              } else if (record?.type === 'income') {
+                totalIncome += record?.amount || 0;
               }
             });
-          }
-          
-          // 할부 기록인 경우 관련된 모든 기록 삭제
-          if (recordToDelete.isInstallment && recordToDelete.installmentId) {
-            const installmentIdToDelete = recordToDelete.installmentId;
+            bucket.totalExpense = totalExpense;
+            bucket.totalIncome = totalIncome;
 
-            // 모든 날짜에서 같은 installmentId를 가진 기록들 찾아서 삭제
-            Object.keys(calendarData).forEach(key => {
-              if (calendarData[key].records) {
-                const relatedRecords = calendarData[key].records.filter(
-                  (r: any) => r.installmentId === installmentIdToDelete
-                );
-                
-                if (relatedRecords.length > 0) {
-
-                  // 관련 기록들 삭제
-                  calendarData[key].records = calendarData[key].records.filter(
-                    (r: any) => r.installmentId !== installmentIdToDelete
-                  );
-                  
-                  // 총액에서 차감
-                  relatedRecords.forEach((relatedRecord: any) => {
-                    if (relatedRecord.type === 'expense') {
-                      calendarData[key].totalExpense = Math.max(0, 
-                        (calendarData[key].totalExpense || 0) - (relatedRecord.amount || 0)
-                      );
-                    } else if (relatedRecord.type === 'income') {
-                      calendarData[key].totalIncome = Math.max(0, 
-                        (calendarData[key].totalIncome || 0) - (relatedRecord.amount || 0)
-                      );
-                    }
-                  });
-                }
-              }
-            });
+            if (bucket.records.length === 0 && totalIncome === 0) {
+              delete calendarData[dateKey];
+            }
           }
-          
-          // 빈 날짜 데이터 정리
-          if (calendarData[dateKey].records.length === 0) {
-            delete calendarData[dateKey];
+        });
 
-          }
-          
-          // AsyncStorage에 저장
+        if (isModified) {
           await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
-          debugLog('✅ [삭제] 삭제 완료 및 저장');
-          
-          // 모달 닫기
-          setShowDeleteConfirm(false);
-          setShowRecurringDeleteConfirm(false);
-          
-          // 타임라인에서 왔으면 타임라인으로, 아니면 홈으로 이동
-          if (params.calendarYear && params.calendarMonth) {
-            const recordDateTimeline = editData.date || date;
-            const dateKeyForTimeline = formatDateKey(recordDateTimeline);
-            console.log('[REFUND] delete:navigate:timelineBranch', {
-              targetYear: Number(params.calendarYear),
-              targetMonth: Number(params.calendarMonth),
-              targetDate: dateKeyForTimeline,
-            });
-            await goHomeWithFocus({ year: Number(params.calendarYear), month: Number(params.calendarMonth), targetDate: dateKeyForTimeline });
-          } else {
-            const recordDateHome = editData.date || date;
-            const dateKeyForHome = formatDateKey(recordDateHome);
-            const [targetYear, targetMonth] = dateKeyForHome.split('-').map(Number);
-            console.log('[REFUND] delete:navigate:homeBranch', { targetYear, targetMonth, targetDate: dateKeyForHome });
-            await goHomeWithFocus({ year: targetYear, month: targetMonth, targetDate: dateKeyForHome });
-          }
-        } else {
-
         }
-      } else {
+      }
 
+      calendarRefreshEvent.emit();
+      setShowDeleteConfirm(false);
+      setShowRecurringDeleteConfirm(false);
+
+      const recordDateKey = formatDateKey(editData.date || date);
+      const [targetYear, targetMonth] = recordDateKey.split('-').map(Number);
+
+      if (params.calendarYear && params.calendarMonth) {
+        await goHomeWithFocus({ year: Number(params.calendarYear), month: Number(params.calendarMonth), targetDate: recordDateKey });
+      } else {
+        await goHomeWithFocus({ year: targetYear, month: targetMonth, targetDate: recordDateKey });
       }
     } catch (error) {
-
+      console.error('[DELETE] Failed to delete records:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -2394,12 +2280,12 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         }
       }
 
-      if (!prepaidRecord || !prepaidRecord.originalScheduledDate) {
+      if (!prepaidRecord || !prepaidRecord.installmentOriginDate) {
         return;
       }
 
-      // 원래 기록일자로 복구
-      const originalScheduledDate = prepaidRecord.originalScheduledDate;
+      // 원래 기록일자로 복구 (originalDate에 저장된 원래 예정일 사용)
+      const originalScheduledDate = prepaidRecord.installmentOriginDate;
       const originalDateKey = originalScheduledDate.replace(/\./g, '-');
       const originalDateFormatted = originalScheduledDate; // "YYYY.MM.DD" 형식
 
@@ -2424,12 +2310,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       }
 
       // 원래 할부 기록 복구 (선결제 정보 제거)
+      // 복구 시 originalDate는 원래 예정일 그대로 유지 (선결제 전 원본 날짜)
       const restoredRecord = {
         ...prepaidRecord,
         date: originalDateFormatted,
         isPrepaid: false,
         prepaidDate: undefined,
-        originalScheduledDate: undefined,
+        // originalDate는 원래 예정일로 유지 (선결제 전 날짜)
         // 기존 필드 유지
         timestamp: prepaidRecord.timestamp,
         installmentId: prepaidRecord.installmentId,
@@ -2448,7 +2335,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           date: originalDateFormatted,
           isPrepaid: false,
           prepaidDate: undefined,
-          originalScheduledDate: undefined,
+          // originalDate는 원래 예정일로 유지 (변경하지 않음)
         });
         console.log('[PREPAY] restore: Supabase updated:', recordId);
       } catch (error) {
@@ -3149,8 +3036,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                       </View>
                       <View style={styles.expenseInfoBottom}>
                         <Text style={[styles.expenseDate, { color: colors.textAssistive }]}>
-                          {editData?.isPrepaid && editData?.originalScheduledDate 
-                            ? editData.originalScheduledDate 
+                          {editData?.isPrepaid && editData?.originalDate 
+                            ? editData.originalDate 
                             : (date || '날짜')}
                         </Text>
                       </View>
@@ -4169,9 +4056,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       >
         <Text style={[styles.deleteConfirmText, { color: colors.textNeutral }]}>
           선결제 처리된 해당 기록을{'\n'}
-          최초 할부 기록일인{'\n'}
-          {editData?.originalScheduledDate 
-            ? formatOriginalScheduledDate(editData.originalScheduledDate)
+          원래 할부 예정일인{'\n'}
+          {editData?.originalDate 
+            ? formatOriginalScheduledDate(editData.originalDate)
             : '날짜'}로 복구 됩니다.
         </Text>
       </ModalPopup>

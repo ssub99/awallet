@@ -26,11 +26,13 @@ export interface ExpenseRecord {
   originalInstallment?: boolean;
   isPrepaid?: boolean;
   prepaidDate?: string; // YYYY.MM.DD 형식
-  originalScheduledDate?: string; // YYYY.MM.DD 형식
   isRefunded?: boolean;
+  installmentOriginDate?: string; // 할부 기록 원본 예정일 (선결제 시 사용)
+  isDeleted?: boolean;
+  deletedAt?: string;
   originalAmount?: number; // 원본 금액
   originalCategory?: string; // 원본 카테고리
-  originalDate?: string; // 원본 날짜 (YYYY.MM.DD 형식)
+  originalDate?: string; // 원본 날짜 (YYYY.MM.DD 형식) - 일반 기록: 처음 생성일, 선결제 기록: 원래 예정일
 }
 
 // Supabase expenses 테이블 타입
@@ -54,8 +56,10 @@ export interface SupabaseExpense {
   installment_id?: string | null;
   original_installment?: boolean | null;
   prepaid_date?: string | null;
-  original_scheduled_date?: string | null;
   is_refunded?: boolean | null;
+  installment_origin_date?: string | null;
+  is_deleted?: boolean | null;
+  deleted_at?: string | null;
   auth_uid?: string | null;
   device_id?: string | null;
   original_amount?: number | null;
@@ -86,8 +90,10 @@ function convertToSupabaseFormat(record: ExpenseRecord): Partial<SupabaseExpense
     installment_id: record.installmentId || null,
     original_installment: record.originalInstallment || false,
     prepaid_date: record.prepaidDate || null,
-    original_scheduled_date: record.originalScheduledDate || null,
     is_refunded: record.isRefunded || false,
+    installment_origin_date: record.installmentOriginDate || null,
+    is_deleted: record.isDeleted ?? false,
+    deleted_at: record.deletedAt || null,
     original_amount: record.originalAmount || null,
     original_category: record.originalCategory || null,
     original_date: record.originalDate || null,
@@ -116,8 +122,10 @@ function convertFromSupabaseFormat(row: SupabaseExpense): ExpenseRecord {
     originalInstallment: row.original_installment || false,
     isPrepaid: row.is_prepaid || false,
     prepaidDate: row.prepaid_date || undefined,
-    originalScheduledDate: row.original_scheduled_date || undefined,
     isRefunded: row.is_refunded || false,
+    installmentOriginDate: row.installment_origin_date || undefined,
+    isDeleted: row.is_deleted ?? undefined,
+    deletedAt: row.deleted_at || undefined,
     originalAmount: row.original_amount || undefined,
     originalCategory: row.original_category || undefined,
     originalDate: row.original_date || undefined,
@@ -201,16 +209,8 @@ export async function updateExpense(
     if (updates.category !== undefined) supabaseUpdates.category = updates.category;
     if (updates.memo !== undefined) supabaseUpdates.memo = updates.memo || null;
     // date 필드는 명시적으로 항상 업데이트 (전체 수정 시 필수)
-    // date가 undefined가 아니고 유효한 문자열이면 항상 업데이트
-    if (updates.date !== undefined) {
-      if (updates.date && typeof updates.date === 'string' && updates.date.trim() !== '') {
-        supabaseUpdates.date = updates.date;
-        console.log('[expenses] updateExpense: date will be updated to:', updates.date);
-      } else {
-        console.warn('[expenses] updateExpense: date is invalid:', updates.date);
-      }
-    } else {
-      console.warn('[expenses] updateExpense: date is undefined in updates');
+    if (updates.date !== undefined && updates.date && typeof updates.date === 'string' && updates.date.trim() !== '') {
+      supabaseUpdates.date = updates.date;
     }
     if (updates.isRecurring !== undefined) supabaseUpdates.is_recurring = updates.isRecurring;
     if (updates.totalMonths !== undefined) supabaseUpdates.total_months = updates.totalMonths || null;
@@ -223,23 +223,40 @@ export async function updateExpense(
     if (updates.installmentId !== undefined) supabaseUpdates.installment_id = updates.installmentId || null;
     if (updates.originalInstallment !== undefined) supabaseUpdates.original_installment = updates.originalInstallment;
     if (updates.prepaidDate !== undefined) supabaseUpdates.prepaid_date = updates.prepaidDate || null;
-    if (updates.originalScheduledDate !== undefined) supabaseUpdates.original_scheduled_date = updates.originalScheduledDate || null;
     if (updates.isRefunded !== undefined) supabaseUpdates.is_refunded = updates.isRefunded;
-    if (updates.originalAmount !== undefined) supabaseUpdates.original_amount = updates.originalAmount || null;
-    if (updates.originalCategory !== undefined) supabaseUpdates.original_category = updates.originalCategory || null;
-    if (updates.originalDate !== undefined) supabaseUpdates.original_date = updates.originalDate || null;
-
+    if (updates.installmentOriginDate !== undefined) supabaseUpdates.installment_origin_date = updates.installmentOriginDate || null;
+    if (updates.isDeleted !== undefined) supabaseUpdates.is_deleted = updates.isDeleted;
+    if (updates.deletedAt !== undefined) supabaseUpdates.deleted_at = updates.deletedAt || null;
+    
     // 원본 데이터 보존 로직: 기존 기록 조회하여 원본 데이터 확인
     const { data: existingData } = await supabase
       .from('expenses')
-      .select('original_amount, original_category, original_date, amount, category, date')
+      .select('original_amount, original_category, original_date, amount, category, date, installment_origin_date, is_deleted, deleted_at')
       .eq('id', id)
       .single();
 
     // 원본 데이터가 없으면 현재 값을 원본으로 저장 (첫 수정 시)
     // 단, 선결제/환불 관련 업데이트(isPrepaid, isRefunded 등)는 원본 데이터를 변경하지 않음
+    // 단, 선결제 시에는 originalDate를 명시적으로 업데이트할 수 있도록 허용 (원래 예정일 저장용)
     const isPrepaymentOrRefundUpdate = updates.isPrepaid !== undefined || updates.isRefunded !== undefined || 
-                                        updates.prepaidDate !== undefined || updates.originalScheduledDate !== undefined;
+                                        updates.prepaidDate !== undefined;
+    const isRefundUpdate = updates.isRefunded !== undefined;
+    
+    // 원본 데이터 필드 업데이트 (명시적으로 전달된 경우)
+    // 선결제 시에는 originalDate를 명시적으로 업데이트할 수 있음 (원래 예정일 저장)
+    // 환불 시에는 원본 데이터를 변경하지 않음
+    if (updates.originalAmount !== undefined && !isRefundUpdate) {
+      supabaseUpdates.original_amount = updates.originalAmount || null;
+    }
+    if (updates.originalCategory !== undefined && !isRefundUpdate) {
+      supabaseUpdates.original_category = updates.originalCategory || null;
+    }
+    if (updates.originalDate !== undefined) {
+      // 선결제 시에는 originalDate 업데이트 허용, 환불 시에는 차단
+      if (!isRefundUpdate) {
+        supabaseUpdates.original_date = updates.originalDate || null;
+      }
+    }
     
     if (existingData && !isPrepaymentOrRefundUpdate) {
       // 원본 금액이 없고 금액이 변경되는 경우: 현재 금액을 원본으로 저장
@@ -257,13 +274,6 @@ export async function updateExpense(
       }
     }
 
-    // 업데이트할 필드가 있는지 확인
-    if (Object.keys(supabaseUpdates).length === 0) {
-      console.warn('[expenses] updateExpense: No fields to update');
-    }
-    
-    console.log('[expenses] updateExpense: supabaseUpdates:', JSON.stringify(supabaseUpdates));
-    
     const { data, error } = await supabase
       .from('expenses')
       .update(supabaseUpdates)
@@ -275,8 +285,6 @@ export async function updateExpense(
       console.error('[expenses] Update error:', error);
       throw error;
     }
-    
-    console.log('[expenses] updateExpense: Successfully updated, new date:', data?.date);
 
     if (!data) {
       return null;
