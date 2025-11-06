@@ -183,7 +183,7 @@ export default function SignupIntroScreen() {
             shouldCreateUser: true,
           },
         });
-      } catch (e) {
+      } catch {
         Alert.alert('인증 메일 발송 실패', '잠시 후 다시 시도해 주세요.');
       }
     }
