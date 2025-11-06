@@ -10,6 +10,7 @@ import { Tab } from '@/components/ui/tab';
 import { Tag } from '@/components/ui/tag';
 import { EXPENSE_CATEGORIES } from '@/constants/categories';
 import { Colors, Typography } from '@/constants/theme';
+import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { getCustomMonthRange, isDateInCustomMonth } from '@/utils/custom-month';
@@ -82,6 +83,18 @@ interface ChallengeData {
 export default function MonthlyExpenseTimelineScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const { setLoading } = useLoading();
+  const pendingOpsRef = useRef(0);
+  const beginLoad = useCallback(() => {
+    pendingOpsRef.current += 1;
+    setLoading(true);
+  }, [setLoading]);
+  const endLoad = useCallback(() => {
+    pendingOpsRef.current = Math.max(0, pendingOpsRef.current - 1);
+    if (pendingOpsRef.current === 0) {
+      setLoading(false);
+    }
+  }, [setLoading]);
   const router = useRouter();
   const [monthStartDay, setMonthStartDay] = useState(1);
   
@@ -202,6 +215,7 @@ export default function MonthlyExpenseTimelineScreen() {
 
   // 데이터 새로고침 함수
   const refreshData = useCallback(async () => {
+        beginLoad();
         try {
           if (!hasAnimatedRef.current) {
             setIsContentReady(false);
@@ -308,8 +322,10 @@ export default function MonthlyExpenseTimelineScreen() {
         } catch {
           setIsContentReady(true); // 에러 발생 시에도 페이드인 처리
           hasAnimatedRef.current = true;
+        } finally {
+          endLoad();
         }
-  }, [year, month]);
+  }, [year, month, beginLoad, endLoad]);
 
   // 데이터 변경 시에만 새로고침 (홈과 동일한 정책)
   const { dataVersion } = useAppData();

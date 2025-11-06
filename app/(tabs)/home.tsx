@@ -33,14 +33,14 @@ export default function HomeScreen() {
   const { calendarData, monthStartDay, refresh, isReady } = useAppData();
   const { setLoading } = useLoading();
   const pendingOpsRef = useRef(0);
-  const beginLoad = () => {
+  const beginLoad = useCallback(() => {
     pendingOpsRef.current += 1;
     setLoading(true);
-  };
-  const endLoad = () => {
+  }, [setLoading]);
+  const endLoad = useCallback(() => {
     pendingOpsRef.current = Math.max(0, pendingOpsRef.current - 1);
     if (pendingOpsRef.current === 0) setLoading(false);
-  };
+  }, [setLoading]);
   const [isContentReady, setIsContentReady] = useState(false);
   const contentOpacity = useRef(new Animated.Value(0)).current;
   const hasAnimatedRef = useRef(false);
@@ -133,7 +133,7 @@ export default function HomeScreen() {
     };
     
     loadSettings();
-  }, [params.targetYear, params.targetMonth, params.targetDate]); // params가 변경될 때마다 실행
+  }, [params.targetYear, params.targetMonth, params.targetDate, beginLoad, endLoad, refresh]); // params가 변경될 때마다 실행
   
   // periodType 변경 시 저장
   useEffect(() => {

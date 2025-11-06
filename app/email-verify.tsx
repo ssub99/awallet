@@ -93,7 +93,7 @@ export default function EmailVerifyScreen() {
       setErrorMessage('네트워크 오류가 발생했습니다.');
       setErrorBorder(true);
     }
-  }, [expiresAt, router]);
+  }, [expiresAt, router, displayEmail]);
 
   const startCooldown = useCallback((seconds: number) => {
     setIsResendDisabled(true);
