@@ -303,8 +303,30 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
               style={[styles.deleteButton, { backgroundColor: colors.background, borderWidth: 2, borderColor: colors.statusNegative }]}
               onPress={async () => {
                 try {
+                  // AsyncStorage 캘린더 데이터 삭제
                   await AsyncStorage.removeItem('calendarData');
                   storageCache.clearCache();
+                  
+                  // Supabase 지출 기록도 삭제
+                  try {
+                    const { getAllExpenses, deleteExpense } = await import('@/utils/expenses');
+                    const expenses = await getAllExpenses();
+                    
+                    // 모든 지출 기록 삭제
+                    for (const expense of expenses) {
+                      try {
+                        await deleteExpense(expense.timestamp.toString());
+                      } catch (error) {
+                        console.error('지출 기록 삭제 중 오류:', expense.timestamp, error);
+                      }
+                    }
+                    
+                    console.log(`[dev-mode] Supabase에서 ${expenses.length}개의 지출 기록 삭제 완료`);
+                  } catch (supabaseError) {
+                    console.error('Supabase 데이터 삭제 중 오류:', supabaseError);
+                    // Supabase 삭제 실패해도 AsyncStorage 삭제는 완료되었으므로 계속 진행
+                  }
+                  
                   await refresh();
                   alert('캘린더 데이터가 삭제되었습니다.');
                 } catch (error) {

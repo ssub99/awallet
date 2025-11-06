@@ -393,7 +393,7 @@ export default function HomeScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       
       {/* Top Navigation */}
-      <Animated.View style={{ opacity: isContentReady ? contentOpacity : 0 }}>
+      <Animated.View style={{ opacity: isContentReady ? contentOpacity : 1 }}>
         <TopNavigation
           type="main"
           title=""
