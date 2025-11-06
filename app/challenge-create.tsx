@@ -16,21 +16,11 @@ import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { getCustomMonthInfo } from '@/utils/custom-month';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createChallenges, type ChallengeRecord } from '@/utils/challenges';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Keyboard, Pressable, ScrollView, StatusBar, StyleSheet, Text, TouchableWithoutFeedback, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-
-interface ChallengeData {
-  id: string;
-  category: string;
-  startDate: string; // YYYY.MM.DD
-  endDate: string; // YYYY.MM.DD
-  targetAmount: number;
-  createdAt: number;
-  recurringId: string; // 반복 챌린지의 그룹 ID
-}
 
 export default function ChallengeCreateScreen() {
   const colorScheme = useColorScheme();
@@ -172,14 +162,11 @@ export default function ChallengeCreateScreen() {
       const targetAmountNum = parseFloat(targetAmount.replace(/,/g, ''));
       const monthsToCreate = isRecurring ? recurringMonths : 1;
       // 기존 챌린지 데이터 가져오기
-      const storedData = await AsyncStorage.getItem('challengeData');
-      const challenges: ChallengeData[] = storedData ? JSON.parse(storedData) : [];
-
       // recurringId 생성 (부모 챌린지의 ID)
       const recurringId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
       // 반복 개월 수만큼 챌린지 생성
-      const newChallenges: ChallengeData[] = [];
+      const newChallenges: ChallengeRecord[] = [];
       
       // 사용자가 선택한 날짜가 속하는 커스텀 월 계산
       const selectedDateObj = new Date(params.selectedDate?.replace(/\./g, '-') || '');
@@ -213,7 +200,7 @@ export default function ChallengeCreateScreen() {
         const challengeStartDate = `${challengeStartYear}.${String(challengeStartMonth).padStart(2, '0')}.${String(challengeStartDay).padStart(2, '0')}`;
         const challengeEndDateStr = `${challengeEndYear}.${String(challengeEndMonth).padStart(2, '0')}.${String(challengeEndDay).padStart(2, '0')}`;
 
-        const challengeData: ChallengeData = {
+        const challengeData: ChallengeRecord = {
           id: i === 0 ? recurringId : `${Date.now()}_${i}_${Math.random().toString(36).substr(2, 9)}`,
           category: params.category,
           startDate: challengeStartDate,
@@ -221,17 +208,15 @@ export default function ChallengeCreateScreen() {
           targetAmount: targetAmountNum,
           createdAt: Date.now(),
           recurringId: recurringId, // 모든 챌린지가 같은 recurringId 공유
+          isDeleted: false,
+          deletedAt: null,
         };
         
         newChallenges.push(challengeData);
 
       }
       
-      // 새 챌린지들을 기존 챌린지 배열에 추가
-      const updatedChallenges = [...challenges, ...newChallenges];
-
-      // AsyncStorage에 저장
-      await AsyncStorage.setItem('challengeData', JSON.stringify(updatedChallenges));
+      await createChallenges(newChallenges);
 
       console.log('📋 [챌린지 생성] 생성된 챌린지 목록:', newChallenges.map(c => `${c.startDate}~${c.endDate}`).join(', '));
       
