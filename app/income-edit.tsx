@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
 import { ModalPopup } from '@/components/ui/modal-popup';
 import { Colors, Typography } from '@/constants/theme';
+import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { getCustomMonthInfo } from '@/utils/custom-month';
@@ -43,6 +44,7 @@ export default function IncomeEditScreen() {
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { setLoading } = useLoading();
   const params = useLocalSearchParams<{ 
     recordData?: string;
     dateKey?: string;
@@ -166,6 +168,7 @@ export default function IncomeEditScreen() {
       return;
     }
     
+    setLoading(true);
     try {
       const storedData = await AsyncStorage.getItem('calendarData');
       const calendarData = storedData ? JSON.parse(storedData) : {};
@@ -245,11 +248,14 @@ export default function IncomeEditScreen() {
         });
       }, 100);
     } catch (error) {
-
+      console.error('[입금 수정] error:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleDelete = async () => {
+    setLoading(true);
     try {
       const storedData = await AsyncStorage.getItem('calendarData');
       const calendarData = storedData ? JSON.parse(storedData) : {};
@@ -308,7 +314,9 @@ export default function IncomeEditScreen() {
         }, 100);
       }
     } catch (error) {
-
+      console.error('[입금 삭제] error:', error);
+    } finally {
+      setLoading(false);
     }
   };
 

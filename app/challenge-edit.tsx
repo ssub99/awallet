@@ -36,6 +36,7 @@ export default function ChallengeEditScreen() {
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { setLoading } = useLoading();
   const params = useLocalSearchParams<{ 
     challengeId?: string;
   }>();
@@ -204,6 +205,7 @@ export default function ChallengeEditScreen() {
       return;
     }
     
+    setLoading(true);
     try {
       const storedData = await AsyncStorage.getItem('challengeData');
       const challenges: ChallengeData[] = storedData ? JSON.parse(storedData) : [];
@@ -240,8 +242,10 @@ export default function ChallengeEditScreen() {
         });
       }, 100);
     } catch (error) {
-
+      console.error('[챌린지 수정] error:', error);
       Alert.alert('오류', '챌린지 저장에 실패했습니다.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -250,6 +254,7 @@ export default function ChallengeEditScreen() {
   };
 
   const confirmDelete = async () => {
+    setLoading(true);
     try {
 
       const storedData = await AsyncStorage.getItem('challengeData');
@@ -287,8 +292,10 @@ export default function ChallengeEditScreen() {
         }, 100);
       }
     } catch (error) {
-
+      console.error('[챌린지 삭제] error:', error);
       Alert.alert('오류', '챌린지 삭제에 실패했습니다.');
+    } finally {
+      setLoading(false);
     }
   };
 
