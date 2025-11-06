@@ -77,7 +77,7 @@ interface SupabaseChallenge {
   end_month: string | null;
   duration_months: number | null;
   status: string | null;
-  updated_at: string | number | null;
+  updated_at: string | null;
 }
 
 interface AuthContext {
@@ -167,6 +167,10 @@ function convertToSupabaseFormat(
     payload.status = record.status;
   }
 
+  if (record.updatedAt !== undefined && record.updatedAt !== null) {
+    payload.updated_at = new Date(record.updatedAt).toISOString();
+  }
+
   if (includeSoftDelete) {
     payload.is_deleted = record.isDeleted ?? false;
     payload.deleted_at = record.deletedAt ?? null;
@@ -183,32 +187,9 @@ function convertToSupabaseFormat(
   return payload;
 }
 
-function parseSupabaseBigint(
-  value: string | number | null | undefined,
-  fallback: number | null = Date.now()
-): number | null {
-  if (value === null || value === undefined) {
-    return fallback;
-  }
-
-  if (typeof value === 'number') {
-    return value;
-  }
-
-  // Supabase may return bigint columns as strings
-  const numericValue = Number(value);
-  if (!Number.isNaN(numericValue)) {
-    return numericValue;
-  }
-
-  const parsedDate = new Date(value);
-  const time = parsedDate.getTime();
-  return Number.isNaN(time) ? fallback : time;
-}
-
 function convertFromSupabaseFormat(row: SupabaseChallenge): ChallengeRecord {
-  const createdAt = parseSupabaseBigint(row.created_at) ?? Date.now();
-  const updatedAt = parseSupabaseBigint(row.updated_at, null);
+  const createdAt = row.created_at ? new Date(row.created_at).getTime() : Date.now();
+  const updatedAt = row.updated_at ? new Date(row.updated_at).getTime() : null;
 
   return {
     id: row.id,
@@ -399,7 +380,8 @@ export async function updateChallengesByRecurringId(
         supabaseUpdates.status = updates.status;
       }
       if (includeSoftDeleteFields) {
-        supabaseUpdates.updated_at = updates.updatedAt ?? Date.now();
+        const updatedAtSource = updates.updatedAt ?? Date.now();
+        supabaseUpdates.updated_at = new Date(updatedAtSource).toISOString();
       }
 
       if (Object.keys(supabaseUpdates).length === 0) {
