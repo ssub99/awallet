@@ -6,15 +6,10 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { notifyChallengeFailure, notifyChallengeProgress, notifyChallengeSuccess } from './notification-scheduler';
-
-export interface ChallengeData {
-  id: string;
-  category: string;
-  startDate: string; // "YYYY.MM.DD"
-  endDate: string; // "YYYY.MM.DD"
-  targetAmount: number;
-  createdAt: number;
-}
+import {
+  getAllChallenges,
+  type ChallengeRecord as ChallengeData,
+} from './challenges';
 
 export interface ChallengeStatus {
   challenge: ChallengeData;
@@ -28,26 +23,32 @@ export interface ChallengeStatus {
 /**
  * 특정 카테고리의 활성 챌린지 찾기
  */
-export async function getActiveChallengeByCategory(category: string, date: Date = new Date()): Promise<ChallengeData | null> {
+export async function getActiveChallengeByCategory(
+  category: string,
+  date: Date = new Date()
+): Promise<ChallengeData | null> {
   try {
-    const storedData = await AsyncStorage.getItem('challengeData');
-    if (!storedData) return null;
-    
-    const challenges: ChallengeData[] = JSON.parse(storedData);
-    
-    // 해당 카테고리이고, 기간 내에 있는 챌린지 찾기
-    const activeChallenge = challenges.find(challenge => {
-      if (challenge.category !== category) return false;
-      
+    const challenges = await getAllChallenges();
+
+    const targetTime = new Date(date);
+    targetTime.setHours(0, 0, 0, 0);
+
+    const activeChallenge = challenges.find((challenge) => {
+      if (challenge.category !== category || challenge.isDeleted) {
+        return false;
+      }
+
       const startDate = new Date(challenge.startDate.replace(/\./g, '-'));
       const endDate = new Date(challenge.endDate.replace(/\./g, '-'));
-      
-      return date >= startDate && date <= endDate;
-    });
-    
-    return activeChallenge || null;
-  } catch (error) {
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setHours(0, 0, 0, 0);
 
+      return targetTime >= startDate && targetTime <= endDate;
+    });
+
+    return activeChallenge ?? null;
+  } catch (error) {
+    console.error('[challenge-utils] Failed to get active challenge:', error);
     return null;
   }
 }
@@ -169,33 +170,29 @@ export async function triggerChallengeNotifications(category: string, recordDate
  */
 export async function checkEndedChallenges(): Promise<void> {
   try {
-
-    const storedData = await AsyncStorage.getItem('challengeData');
-    if (!storedData) return;
-    
-    const challenges: ChallengeData[] = JSON.parse(storedData);
+    const challenges = await getAllChallenges();
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     for (const challenge of challenges) {
+      if (challenge.isDeleted) {
+        continue;
+      }
+
       const endDate = new Date(challenge.endDate.replace(/\./g, '-'));
       endDate.setHours(0, 0, 0, 0);
-      
-      // 어제 종료된 챌린지만 체크 (오늘 오전 9시 30분에 알림 발송)
+
       const yesterday = new Date(today);
       yesterday.setDate(yesterday.getDate() - 1);
-      
-      if (endDate.getTime() === yesterday.getTime()) {
 
+      if (endDate.getTime() === yesterday.getTime()) {
         const status = await getChallengeStatus(challenge);
-        
-        // 성공 조건: 소비율 ≤ 100%
+
         if (status.percentage <= 100) {
           const sentKey = `challenge_success_${challenge.id}`;
           const alreadySent = await AsyncStorage.getItem(sentKey);
-          
-          if (!alreadySent) {
 
+          if (!alreadySent) {
             await notifyChallengeSuccess(
               challenge.category,
               status.percentage,
@@ -206,9 +203,8 @@ export async function checkEndedChallenges(): Promise<void> {
         }
       }
     }
-
   } catch (error) {
-
+    console.error('[challenge-utils] Failed to check ended challenges:', error);
   }
 }
 

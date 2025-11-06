@@ -13,23 +13,15 @@ import { Switch } from '@/components/ui/switch';
 import { Toast } from '@/components/ui/toast';
 import { EXPENSE_CATEGORIES } from '@/constants/categories';
 import { Colors, Typography } from '@/constants/theme';
+import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
+import { getChallengeById, getChallengesByRecurringId, softDeleteChallengesByRecurringId, updateChallengesByRecurringId, type ChallengeRecord } from '@/utils/challenges';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, Keyboard, Pressable, ScrollView, StatusBar, StyleSheet, Text, TouchableWithoutFeedback, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-
-interface ChallengeData {
-  id: string;
-  category: string;
-  startDate: string; // YYYY.MM.DD
-  endDate: string; // YYYY.MM.DD
-  targetAmount: number;
-  createdAt: number;
-  recurringId: string; // 반복 챌린지의 그룹 ID
-}
 
 export default function ChallengeEditScreen() {
   const colorScheme = useColorScheme();
@@ -75,70 +67,32 @@ export default function ChallengeEditScreen() {
       setMonthStartDay(monthStart);
       
       try {
-        const storedData = await AsyncStorage.getItem('challengeData');
-        
-        if (storedData) {
-          const challenges = JSON.parse(storedData);
-          
-          const challenge = challenges.find((c: ChallengeData) => c.id === params.challengeId);
-          
-          if (challenge) {
-            
-            // recurringId 확인 (없으면 자동 생성 - 이전 버전 호환성)
-            if (!challenge.recurringId) {
-              challenge.recurringId = challenge.id;
-              const updatedChallenges = challenges.map((c: ChallengeData) => 
-                c.id === challenge.id ? { ...c, recurringId: challenge.id } : c
-              );
-              await AsyncStorage.setItem('challengeData', JSON.stringify(updatedChallenges));
-            }
-            
-            // 반복 챌린지 여부 확인
-            const relatedChallenges = challenges.filter((c: ChallengeData) => 
-              c.recurringId === challenge.recurringId
-            );
-            const isRecurring = relatedChallenges.length > 1;
-
-            setRecurringCount(relatedChallenges.length);
-            
-            // 종료일이 잘못된 경우 자동 수정 (시작일 + 31일)
-            const startDateParts = challenge.startDate.split('.');
-            if (startDateParts.length === 3) {
-              const year = parseInt(startDateParts[0]);
-              const month = parseInt(startDateParts[1]) - 1;
-              const day = parseInt(startDateParts[2]);
-              
-              const nextMonthSameDay = new Date(year, month + 1, day);
-              const correctEndDateObj = new Date(nextMonthSameDay.getTime() - 24 * 60 * 60 * 1000);
-              const correctEndYear = correctEndDateObj.getFullYear();
-              const correctEndMonth = correctEndDateObj.getMonth() + 1;
-              const correctEndDay = correctEndDateObj.getDate();
-              const correctEndDate = `${correctEndYear}.${String(correctEndMonth).padStart(2, '0')}.${String(correctEndDay).padStart(2, '0')}`;
-
-              // 종료일이 다르면 자동으로 DB 업데이트
-              if (challenge.endDate !== correctEndDate) {
-                const updatedChallenges = challenges.map((c: ChallengeData) => 
-                  c.id === challenge.id ? { ...c, endDate: correctEndDate } : c
-                );
-                await AsyncStorage.setItem('challengeData', JSON.stringify(updatedChallenges));
-                challenge.endDate = correctEndDate; // 현재 객체도 업데이트
-              }
-            }
-            
-            setStartDate(challenge.startDate);
-            setEndDate(challenge.endDate);
-            setTargetAmount(challenge.targetAmount.toLocaleString());
-            setCategory(challenge.category);
-            setRecurringId(challenge.recurringId);
-            setIsRecurringChallenge(isRecurring);
-            
-            // 현재 소비금액 계산
-            const currentAmount = await calculateCurrentAmount(challenge);
-            setCurrentAmount(currentAmount);
-          }
+        const challenge = await getChallengeById(params.challengeId);
+        if (!challenge || challenge.isDeleted) {
+          return;
         }
-      } catch (error) {
 
+        setRecurringId(challenge.recurringId);
+        setStartDate(challenge.startDate);
+        setEndDate(challenge.endDate);
+        setTargetAmount(
+          typeof challenge.targetAmount === 'number'
+            ? challenge.targetAmount.toLocaleString()
+            : ''
+        );
+        setCategory(challenge.category);
+
+        const relatedChallenges = await getChallengesByRecurringId(challenge.recurringId);
+        const recurringChallenges = relatedChallenges.length > 0 ? relatedChallenges : [challenge];
+        const isRecurring = recurringChallenges.length > 1;
+
+        setIsRecurringChallenge(isRecurring);
+        setRecurringCount(recurringChallenges.length);
+
+        const currentAmountValue = await calculateCurrentAmount(challenge);
+        setCurrentAmount(currentAmountValue);
+      } catch (error) {
+        console.error('[챌린지 수정] 데이터 로드 실패:', error);
       }
     };
 
@@ -146,7 +100,7 @@ export default function ChallengeEditScreen() {
   }, [params.challengeId]);
 
   // 현재 소비금액 계산
-  const calculateCurrentAmount = async (challenge: ChallengeData): Promise<number> => {
+  const calculateCurrentAmount = async (challenge: ChallengeRecord): Promise<number> => {
     try {
       const storedData = await AsyncStorage.getItem('calendarData');
       if (!storedData) return 0;
@@ -207,27 +161,13 @@ export default function ChallengeEditScreen() {
     
     setLoading(true);
     try {
-      const storedData = await AsyncStorage.getItem('challengeData');
-      const challenges: ChallengeData[] = storedData ? JSON.parse(storedData) : [];
-      
       const targetAmountNum = parseFloat(targetAmount.replace(/,/g, ''));
 
-      // recurringId가 같은 모든 챌린지 업데이트
-      const updatedChallenges = challenges.map((c: ChallengeData) => {
-        if (c.recurringId === recurringId) {
+      if (!recurringId) {
+        throw new Error('챌린지 그룹 식별자가 없습니다.');
+      }
 
-          return {
-            ...c,
-            targetAmount: targetAmountNum,
-          };
-        }
-        return c;
-      });
-      
-      const updatedCount = updatedChallenges.filter(c => c.recurringId === recurringId).length;
-
-      // AsyncStorage에 저장
-      await AsyncStorage.setItem('challengeData', JSON.stringify(updatedChallenges));
+      await updateChallengesByRecurringId(recurringId, { targetAmount: targetAmountNum });
 
       // 챌린지 현황으로 이동
       router.back();
@@ -256,41 +196,26 @@ export default function ChallengeEditScreen() {
   const confirmDelete = async () => {
     setLoading(true);
     try {
-
-      const storedData = await AsyncStorage.getItem('challengeData');
-      if (storedData) {
-        const challenges: ChallengeData[] = JSON.parse(storedData);
-
-        // recurringId가 같은 모든 챌린지 찾기
-        const challengesToDelete = challenges.filter((c: ChallengeData) => c.recurringId === recurringId);
-        console.log('🗑️ [챌린지 삭제] 삭제할 챌린지 목록:', challengesToDelete.map(c => ({
-          id: c.id,
-          startDate: c.startDate,
-          category: c.category
-        })));
-        
-        // recurringId가 다른 챌린지만 남기기 (같은 recurringId 모두 삭제)
-        const filteredChallenges = challenges.filter((c: ChallengeData) => c.recurringId !== recurringId);
-
-        console.log('🗑️ [챌린지 삭제] 남은 챌린지:', filteredChallenges.map((c: ChallengeData) => `${c.id}: ${c.category}`).join(', '));
-        
-        await AsyncStorage.setItem('challengeData', JSON.stringify(filteredChallenges));
-
-        setShowDeleteModal(false);
-        
-        // 챌린지 현황으로 이동
-        router.back();
-        setTimeout(() => {
-          router.replace({
-            pathname: '/monthly-expense-timeline',
-            params: {
-              year: new Date().getFullYear().toString(),
-              month: (new Date().getMonth() + 1).toString(),
-              tab: 'challenge'
-            },
-          });
-        }, 100);
+      if (!recurringId) {
+        throw new Error('삭제할 챌린지를 찾을 수 없습니다.');
       }
+
+      await softDeleteChallengesByRecurringId(recurringId);
+
+      setShowDeleteModal(false);
+
+      // 챌린지 현황으로 이동
+      router.back();
+      setTimeout(() => {
+        router.replace({
+          pathname: '/monthly-expense-timeline',
+          params: {
+            year: new Date().getFullYear().toString(),
+            month: (new Date().getMonth() + 1).toString(),
+            tab: 'challenge'
+          },
+        });
+      }, 100);
     } catch (error) {
       console.error('[챌린지 삭제] error:', error);
       Alert.alert('오류', '챌린지 삭제에 실패했습니다.');
@@ -433,7 +358,7 @@ export default function ChallengeEditScreen() {
                 챌린지 정보
               </Text>
               <Pressable onPress={handleDelete}>
-                <Text style={[styles.deleteText, { color: colors.textAssistive }]}>
+                <Text style={[styles.deleteText, { color: colors.statusNegative }]}> 
                   삭제
                 </Text>
               </Pressable>

@@ -13,6 +13,7 @@ import { Colors, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { getCustomMonthRange, isDateInCustomMonth } from '@/utils/custom-month';
+import { getChallengesByDateRange } from '@/utils/challenges';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -271,25 +272,31 @@ export default function MonthlyExpenseTimelineScreen() {
             setTimelineData(items);
           }
 
-          // 챌린지 데이터 새로고침 (필터링 적용)
-          const challengeData = await AsyncStorage.getItem('challengeData');
-          
-          if (challengeData) {
-            const allChallenges = JSON.parse(challengeData);
-            
-            // 챌린지의 시작일이 현재 월에 속하는지 확인
-            const filteredChallenges = allChallenges.filter((challenge: any) => {
+          // 챌린지 데이터 새로고침 (Supabase 연동)
+          try {
+            const { startDate: customStart, endDate: customEnd } = getCustomMonthRange(year, month, monthStart);
+
+            const formatChallengeDate = (dateObj: Date) => {
+              const challengeYear = dateObj.getFullYear();
+              const challengeMonth = String(dateObj.getMonth() + 1).padStart(2, '0');
+              const challengeDay = String(dateObj.getDate()).padStart(2, '0');
+              return `${challengeYear}.${challengeMonth}.${challengeDay}`;
+            };
+
+            const supabaseChallenges = await getChallengesByDateRange(
+              formatChallengeDate(customStart),
+              formatChallengeDate(customEnd)
+            );
+
+            const activeChallenges = supabaseChallenges.filter((challenge) => {
               const [startY, startM, startD] = challenge.startDate.split('.').map(Number);
               const challengeStartDate = new Date(startY, startM - 1, startD);
-              
-              // 챌린지 시작일이 현재 커스텀 월 범위에 속하는지 확인
-              const isInCurrentMonth = isDateInCustomMonth(challengeStartDate, year, month, monthStart);
-
-              return isInCurrentMonth;
+              return isDateInCustomMonth(challengeStartDate, year, month, monthStart);
             });
 
-            setChallenges(filteredChallenges);
-          } else {
+            setChallenges(activeChallenges);
+          } catch (challengeError) {
+            console.error('[monthly-expense-timeline] Failed to load challenges:', challengeError);
             setChallenges([]);
           }
           

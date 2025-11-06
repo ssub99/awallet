@@ -11,6 +11,7 @@ import { ThemeColors } from '@/constants/theme-colors';
 import { Typography } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getCustomMonthInfo } from '@/utils/custom-month';
+import { createChallenges, getAllChallenges, softDeleteChallengesByRecurringId, type ChallengeRecord } from '@/utils/challenges';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { monthStartEvent } from '@/hooks/use-month-start';
 import { useNavigation } from '@react-navigation/native';
@@ -34,27 +35,41 @@ export default function MonthStartDayScreen() {
   const regenerateChallengesForNewMonthStart = async (newMonthStartDay: number) => {
     try {
       
-      // 기존 챌린지 데이터 로드
-      const storedChallengeData = await AsyncStorage.getItem('challengeData');
-      const existingChallenges = storedChallengeData ? JSON.parse(storedChallengeData) : [];
-      
+      // 기존 챌린지 데이터 로드 (Supabase)
+      const existingChallenges = await getAllChallenges();
+      const activeChallenges = existingChallenges.filter((challenge) => !challenge.isDeleted);
+
       // 기존 챌린지가 없으면 재생성하지 않음
-      if (existingChallenges.length === 0) {
+      if (activeChallenges.length === 0) {
         return;
       }
       
       // 기존 챌린지들을 카테고리별로 그룹화
-      const challengeGroups = new Map<string, any[]>();
+      const challengeGroups = new Map<string, ChallengeRecord[]>();
       
-      existingChallenges.forEach((challenge: any) => {
+      activeChallenges.forEach((challenge: ChallengeRecord) => {
         if (!challengeGroups.has(challenge.category)) {
           challengeGroups.set(challenge.category, []);
         }
         challengeGroups.get(challenge.category)!.push(challenge);
       });
       
+      // 기존 챌린지들 비활성화 (soft delete)
+      const recurringIds = new Set<string>();
+      activeChallenges.forEach((challenge) => {
+        if (challenge.recurringId) {
+          recurringIds.add(challenge.recurringId);
+        }
+      });
+
+      if (recurringIds.size > 0) {
+        await Promise.all(
+          Array.from(recurringIds).map((recurringId) => softDeleteChallengesByRecurringId(recurringId))
+        );
+      }
+
       // 새로운 챌린지들 생성
-      const newChallenges: any[] = [];
+      const newChallenges: ChallengeRecord[] = [];
       const today = new Date();
       
       // 오늘 날짜가 속하는 커스텀 월 정보 계산
@@ -93,7 +108,7 @@ export default function MonthStartDayScreen() {
           const challengeStartDate = `${challengeStartYear}.${String(challengeStartMonth).padStart(2, '0')}.${String(challengeStartDay).padStart(2, '0')}`;
           const challengeEndDateStr = `${challengeEndYear}.${String(challengeEndMonth).padStart(2, '0')}.${String(challengeEndDay).padStart(2, '0')}`;
           
-          const newChallenge = {
+          const newChallenge: ChallengeRecord = {
             id: i === 0 ? newRecurringId : `${today.getTime()}_${i}_${Math.random().toString(36).substr(2, 9)}`,
             category: category,
             startDate: challengeStartDate,
@@ -101,6 +116,8 @@ export default function MonthStartDayScreen() {
             targetAmount: targetAmount,
             createdAt: today.getTime(),
             recurringId: newRecurringId,
+            isDeleted: false,
+            deletedAt: null,
           };
           
           newChallenges.push(newChallenge);
@@ -109,8 +126,9 @@ export default function MonthStartDayScreen() {
         }
       }
       
-      // 새로운 챌린지들 저장
-      await AsyncStorage.setItem('challengeData', JSON.stringify(newChallenges));
+      if (newChallenges.length > 0) {
+        await createChallenges(newChallenges);
+      }
       
       
       
