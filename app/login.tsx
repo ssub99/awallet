@@ -16,8 +16,8 @@ import { getOrCreateDeviceId } from '@/utils/device-id';
 import { upsertProfile } from '@/utils/profiles';
 import { isSupabaseConfigured, supabase } from '@/utils/supabase-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Stack, useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import {
     KeyboardAvoidingView,
     Platform,
