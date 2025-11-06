@@ -73,7 +73,7 @@ export default function AccountVerifyEmailScreen() {
 
     try {
       if (!isSupabaseConfigured) throw new Error('Supabase not configured');
-      const { error: verifyErr, data: verifyData } = await supabase.auth.verifyOtp({
+      const { error: verifyErr } = await supabase.auth.verifyOtp({
         email: displayEmail,
         token: value,
         type: 'email',

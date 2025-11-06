@@ -16,10 +16,8 @@ import { getCustomMonthRange, isDateInCustomMonth } from '@/utils/custom-month';
 import { getChallengesByDateRange } from '@/utils/challenges';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAppData } from '@/contexts/app-data-context';
-import { useFocusEffect } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { calendarRefreshEvent } from '@/hooks/calendar-events';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
