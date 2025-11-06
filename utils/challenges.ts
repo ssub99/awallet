@@ -90,21 +90,39 @@ async function getAuthContext(): Promise<AuthContext> {
     return { authUid: null, deviceId: null };
   }
 
+  let authUid: string | null = null;
   try {
     const {
       data: { user },
-      error,
     } = await supabase.auth.getUser();
-
-    if (!error && user) {
-      return { authUid: user.id, deviceId: null };
-    }
-  } catch (error) {
-    // Ignore and fallback to guest handling below
+    if (user) authUid = user.id;
+  } catch {
+    // ignore
   }
 
-  const deviceId = await getOrCreateDeviceId();
-  return { authUid: null, deviceId };
+  // 항상 deviceId도 확보 (게스트로 생성된 과거 데이터도 함께 처리)
+  let deviceId: string | null = null;
+  try {
+    deviceId = await getOrCreateDeviceId();
+  } catch {
+    deviceId = null;
+  }
+
+  return { authUid, deviceId };
+}
+
+function applyOwnershipFilter(query: any, context: AuthContext) {
+  const parts: string[] = [];
+  if (context.authUid) {
+    parts.push(`auth_uid.eq.${context.authUid}`);
+  }
+  if (context.deviceId) {
+    parts.push(`and(auth_uid.is.null,device_id.eq.${context.deviceId})`);
+  }
+  if (parts.length > 0) {
+    return query.or(parts.join(','));
+  }
+  return query;
 }
 
 async function fetchLocalChallenges(): Promise<ChallengeRecord[]> {
@@ -389,19 +407,7 @@ export async function updateChallengesByRecurringId(
       }
 
       let query = supabase.from('challenges').update(supabaseUpdates).eq('recurring_id', recurringId);
-
-      if (context.authUid) {
-        if (includeAuthFilter) {
-          query = query.eq('auth_uid', context.authUid);
-        }
-      } else {
-        if (context.deviceId && includeDeviceFilter) {
-          query = query.eq('device_id', context.deviceId);
-        }
-        if (includeAuthFilter) {
-          query = query.is('auth_uid', null);
-        }
-      }
+      query = applyOwnershipFilter(query, context);
 
       const { data, error } = await query.select();
 
@@ -486,19 +492,7 @@ export async function softDeleteChallengesByRecurringId(recurringId: string): Pr
 
       while (true) {
         let query = supabase.from('challenges').update(supabaseUpdates).eq('recurring_id', recurringId);
-
-        if (context.authUid) {
-          if (includeAuthFilter) {
-            query = query.eq('auth_uid', context.authUid);
-          }
-        } else {
-          if (context.deviceId && includeDeviceFilter) {
-            query = query.eq('device_id', context.deviceId);
-          }
-          if (includeAuthFilter) {
-            query = query.is('auth_uid', null);
-          }
-        }
+        query = applyOwnershipFilter(query, context);
 
         const { error } = await query;
         if (error) {
@@ -543,19 +537,7 @@ export async function softDeleteChallengesByRecurringId(recurringId: string): Pr
 
       while (true) {
         let deleteQuery = supabase.from('challenges').delete().eq('recurring_id', recurringId);
-
-        if (context.authUid) {
-          if (includeAuthForDelete) {
-            deleteQuery = deleteQuery.eq('auth_uid', context.authUid);
-          }
-        } else {
-          if (context.deviceId && includeDeviceForDelete) {
-            deleteQuery = deleteQuery.eq('device_id', context.deviceId);
-          }
-          if (includeAuthForDelete) {
-            deleteQuery = deleteQuery.is('auth_uid', null);
-          }
-        }
+        deleteQuery = applyOwnershipFilter(deleteQuery, context);
 
         const { error: deleteError } = await deleteQuery;
         if (deleteError) {
@@ -592,6 +574,28 @@ export async function softDeleteChallengesByRecurringId(recurringId: string): Pr
   }
 }
 
+// 개발자 도구 전용: 하드 삭제(복구 불가)
+export async function hardDeleteChallengesByRecurringId(recurringId: string): Promise<void> {
+  if (!recurringId) return;
+
+  if (!isSupabaseConfigured) {
+    // 로컬 캐시에서도 제거
+    const challenges = await fetchLocalChallenges();
+    const kept = challenges.filter((c) => c.recurringId !== recurringId);
+    await saveLocalChallenges(kept);
+    return;
+  }
+
+  const context = await getAuthContext();
+  let deleteQuery = supabase.from('challenges').delete().eq('recurring_id', recurringId);
+  deleteQuery = applyOwnershipFilter(deleteQuery, context);
+  const { error } = await deleteQuery;
+  if (error) {
+    throw error;
+  }
+  await syncLocalChallengesFromSupabase();
+}
+
 export async function getChallengeById(id: string): Promise<ChallengeRecord | null> {
   if (!id) {
     return null;
@@ -613,19 +617,7 @@ export async function getChallengeById(id: string): Promise<ChallengeRecord | nu
       if (includeSoftDelete) {
         query = query.or('is_deleted.is.null,is_deleted.eq.false');
       }
-
-      if (context.authUid) {
-        if (includeAuthFilter) {
-          query = query.eq('auth_uid', context.authUid);
-        }
-      } else {
-        if (context.deviceId && includeDeviceFilter) {
-          query = query.eq('device_id', context.deviceId);
-        }
-        if (includeAuthFilter) {
-          query = query.is('auth_uid', null);
-        }
-      }
+      query = applyOwnershipFilter(query, context);
 
       const { data, error } = await query.single();
 
@@ -697,19 +689,7 @@ export async function getChallengesByRecurringId(recurringId: string): Promise<C
       if (includeSoftDelete) {
         query = query.or('is_deleted.is.null,is_deleted.eq.false');
       }
-
-      if (context.authUid) {
-        if (includeAuthFilter) {
-          query = query.eq('auth_uid', context.authUid);
-        }
-      } else {
-        if (context.deviceId && includeDeviceFilter) {
-          query = query.eq('device_id', context.deviceId);
-        }
-        if (includeAuthFilter) {
-          query = query.is('auth_uid', null);
-        }
-      }
+      query = applyOwnershipFilter(query, context);
 
       const { data, error } = await query.order('start_date', { ascending: true });
 
@@ -784,19 +764,7 @@ export async function getChallengesByDateRange(startDate: string, endDate: strin
       if (includeSoftDelete) {
         query = query.or('is_deleted.is.null,is_deleted.eq.false');
       }
-
-      if (context.authUid) {
-        if (includeAuthFilter) {
-          query = query.eq('auth_uid', context.authUid);
-        }
-      } else {
-        if (context.deviceId && includeDeviceFilter) {
-          query = query.eq('device_id', context.deviceId);
-        }
-        if (includeAuthFilter) {
-          query = query.is('auth_uid', null);
-        }
-      }
+      query = applyOwnershipFilter(query, context);
 
       const { data, error } = await query.order('start_date', { ascending: true });
 
@@ -855,19 +823,7 @@ export async function getAllChallenges(): Promise<ChallengeRecord[]> {
       if (includeSoftDelete) {
         query = query.or('is_deleted.is.null,is_deleted.eq.false');
       }
-
-      if (context.authUid) {
-        if (includeAuthFilter) {
-          query = query.eq('auth_uid', context.authUid);
-        }
-      } else {
-        if (context.deviceId && includeDeviceFilter) {
-          query = query.eq('device_id', context.deviceId);
-        }
-        if (includeAuthFilter) {
-          query = query.is('auth_uid', null);
-        }
-      }
+      query = applyOwnershipFilter(query, context);
 
       const { data, error } = await query.order('start_date', { ascending: true });
 

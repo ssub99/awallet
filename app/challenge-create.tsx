@@ -205,7 +205,7 @@ export default function ChallengeCreateScreen() {
         const durationMonths = monthsToCreate;
 
         const challengeData: ChallengeRecord = {
-          id: i === 0 ? recurringId : `${Date.now()}_${i}_${Math.random().toString(36).substr(2, 9)}`,
+          id: i === 0 ? recurringId : `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           category: params.category,
           startDate: challengeStartDate,
           endDate: challengeEndDateStr,

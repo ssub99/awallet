@@ -140,7 +140,6 @@ export default function IncomeRecordScreen() {
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   
   // Section position tracking
-  const [amountSectionY, setAmountSectionY] = useState(0);
   const [memoSectionY, setMemoSectionY] = useState(0);
   
   useEffect(() => {
@@ -349,11 +348,7 @@ export default function IncomeRecordScreen() {
 
             {/* 금액 */}
             <View 
-              style={styles.section}
-              onLayout={(event) => {
-                const layout = event.nativeEvent.layout;
-                setAmountSectionY(layout.y);
-              }}
+            style={styles.section}
             >
               <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
                 금액 <Text style={{ color: '#EF5252' }}>*</Text>

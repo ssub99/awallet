@@ -31,7 +31,7 @@ export default function PasswordChangeScreen() {
   const [isPasswordChanged, setIsPasswordChanged] = useState(false); // 비밀번호 변경 완료 여부
   const isNavigatingRef = useRef(false); // 로그인 화면으로 이동 중인지 추적
   
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const appState = useRef(AppState.currentState);
 
   // 세션 확인: 이메일 인증 후 세션이 있어야 비밀번호 변경 가능
