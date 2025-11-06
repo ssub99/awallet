@@ -292,8 +292,6 @@ export default function IncomeEditScreen() {
       const customMonthInfo = getCustomMonthInfo(savedDate, currentMonthStartDay);
       const targetYear = customMonthInfo.year;
       const targetMonth = customMonthInfo.month;
-
-      const [, , day] = newDateKey.split('-').map(Number);
       
       // Stack 정리: 수정 화면 제거하고 홈으로
       await goHomeWithFocus({

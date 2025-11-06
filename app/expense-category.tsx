@@ -14,6 +14,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Toast } from '@/components/ui/toast';
 
 export default function ExpenseCategoryScreen() {
   const colorScheme = useColorScheme();
@@ -50,6 +51,9 @@ export default function ExpenseCategoryScreen() {
   
   // 챌린지 모드인지 확인
   const isChallengeMode = params.mode === 'challenge';
+
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
 
   const handleConfirm = async () => {
 
@@ -92,7 +96,8 @@ export default function ExpenseCategoryScreen() {
         });
       }
     } else {
-
+      setToastMessage('카테고리를 선택해 주세요.');
+      setToastVisible(true);
     }
   };
 
@@ -157,6 +162,11 @@ export default function ExpenseCategoryScreen() {
           </ScrollView>
         </View>
       </View>
+      <Toast
+        visible={toastVisible}
+        message={toastMessage}
+        onHide={() => setToastVisible(false)}
+      />
     </SafeAreaView>
   );
 }

@@ -10,6 +10,7 @@ import { DatePicker } from '@/components/ui/date-picker';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
+import { Toast } from '@/components/ui/toast';
 import { EXPENSE_CATEGORIES } from '@/constants/categories';
 import { Colors, Typography } from '@/constants/theme';
 import { useLoading } from '@/contexts/loading-context';
@@ -86,6 +87,8 @@ export default function ChallengeCreateScreen() {
   const [showYearMonthPicker, setShowYearMonthPicker] = useState<boolean>(false);
   const [showRecurringMonthsPicker, setShowRecurringMonthsPicker] = useState<boolean>(false);
   const [monthStartDay, setMonthStartDay] = useState<number>(1);
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
   
   // 시작일 계산 메모 값은 사용하지 않아 제거 (lint 정리)
   
@@ -138,6 +141,8 @@ export default function ChallengeCreateScreen() {
   const handleConfirm = async () => {
     // 필수값 검증
     if (!params.category) {
+      setToastMessage('카테고리를 선택해 주세요.');
+      setToastVisible(true);
       return;
     }
     
@@ -450,6 +455,12 @@ export default function ChallengeCreateScreen() {
 
             setRecurringMonths(value);
           }}
+        />
+
+        <Toast
+          visible={toastVisible}
+          message={toastMessage}
+          onHide={() => setToastVisible(false)}
         />
 
       </SafeAreaView>

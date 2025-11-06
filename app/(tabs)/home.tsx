@@ -5,7 +5,7 @@
  */
 
 import { TopNavigation } from '@/components/navigation/top-navigation';
-import { CalendarMain, DayData } from '@/components/ui/calendar-main';
+import { CalendarMain } from '@/components/ui/calendar-main';
 import { Icon } from '@/components/ui/icon';
 import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
 import { MonthData, YearView, YearViewRef } from '@/components/ui/year-view';
@@ -30,7 +30,7 @@ export default function HomeScreen() {
   const navigation = useNavigation();
   const isFocused = useIsFocused();
   const router = useRouter();
-  const { calendarData, monthStartDay, refresh, isReady, dataVersion } = useAppData();
+  const { calendarData, monthStartDay, refresh, isReady } = useAppData();
   const { setLoading } = useLoading();
   const pendingOpsRef = useRef(0);
   const beginLoad = () => {
@@ -43,6 +43,7 @@ export default function HomeScreen() {
   };
   const [isContentReady, setIsContentReady] = useState(false);
   const contentOpacity = useRef(new Animated.Value(0)).current;
+  const hasAnimatedRef = useRef(false);
 
   // 소비 기록 완료 후 전달된 params 받기
   const params = useLocalSearchParams<{
@@ -265,8 +266,19 @@ export default function HomeScreen() {
   // 모든 필요한 데이터가 준비된 이후(초기/갱신) 한 번만 페이드 트리거
   const animatingRef = useRef(false);
   useEffect(() => {
-    if (!isReady) return;
-    if (animatingRef.current) return;
+    if (!isReady) {
+      return;
+    }
+
+    if (hasAnimatedRef.current) {
+      setIsContentReady(true);
+      return;
+    }
+
+    if (animatingRef.current) {
+      return;
+    }
+
     animatingRef.current = true;
     const init = async () => {
       setIsContentReady(false);
@@ -280,12 +292,16 @@ export default function HomeScreen() {
         }
       } finally {
         setIsContentReady(true);
-        setTimeout(() => { animatingRef.current = false; }, 50);
+        hasAnimatedRef.current = true;
+        setTimeout(() => {
+          animatingRef.current = false;
+        }, 50);
       }
     };
+
     init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isReady, dataVersion]);
+  }, [isReady]);
 
   useEffect(() => {
     if (isContentReady) {
@@ -386,7 +402,7 @@ export default function HomeScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       
       {/* Top Navigation */}
-      <Animated.View style={{ opacity: isContentReady ? contentOpacity : 1 }}>
+      <Animated.View style={{ opacity: isContentReady ? contentOpacity : 0 }}>
         <TopNavigation
           type="main"
           title=""

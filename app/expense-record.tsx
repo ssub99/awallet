@@ -47,15 +47,6 @@ function getActualDayForMonth(year: number, month: number, desiredDay: number): 
   return Math.min(desiredDay, lastDayOfMonth);
 }
 
-/**
- * 요일 계산 함수
- */
-function getDayOfWeekLabel(year: number, month: number, day: number): string {
-  const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
-  const date = new Date(year, month - 1, day);
-  return weekdays[date.getDay()];
-}
-
 // ===== 삭제 기능 유틸리티 함수들 =====
 
 /**
@@ -348,9 +339,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     return new Date().getDate();
   });
   const [showAmountAlert, setShowAmountAlert] = useState<boolean>(false);
-  const [showCategoryAlert, setShowCategoryAlert] = useState<boolean>(false);
   const [showWeekendConfirm, setShowWeekendConfirm] = useState<boolean>(false);
-  const [showPeriodPicker, setShowPeriodPicker] = useState<boolean>(false);
   // showPeriodNativePicker는 더 이상 사용하지 않음 (Selectbox로 대체)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<boolean>(false);
   const [showRecurringDeleteConfirm, setShowRecurringDeleteConfirm] = useState<boolean>(false);
@@ -469,7 +458,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           setActualRecordCount(actualCount);
           setActualTotalAmount(totalAmount);
           setActualFutureAmount(futureAmount);
-        } catch (error) {
+        } catch {
         }
       }
     };
@@ -499,11 +488,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       if (editData.date) {
         const editDateObj = new Date(editData.date);
         const day = editDateObj.getDate();
-        const year = editDateObj.getFullYear();
-        const month = editDateObj.getMonth() + 1;
-        const dayOfWeek = editDateObj.getDay();
-        const dayOfWeekLabel = getDayOfWeekLabel(year, month, day);
-
         setSelectedDay(day);
       }
       setMemo(editData.memo || '');
@@ -536,7 +520,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             if (relatedRecordsCount > 0) {
               setTotalMonths(relatedRecordsCount);
             }
-          } catch (error) {
+          } catch {
           }
         };
         
@@ -564,7 +548,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             if (relatedRecordsCount > 0) {
               setTotalMonths(relatedRecordsCount);
             }
-          } catch (error) {
+          } catch {
           }
         };
         
@@ -612,7 +596,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 }
               }
             }
-          } catch (error) {
+          } catch {
           }
         };
         
@@ -670,7 +654,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
             setCategory(params.category);
           }
-        } catch (error) {
+        } catch {
 
           // 에러 발생 시 URL 파라미터 사용
           if (params.category) {
@@ -894,10 +878,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   ) => {
     
     const originalDateKey = editData.date ? editData.date.replace(/\./g, '-') : actualDateKey;
-    const isDateChanged = originalDateKey !== actualDateKey;
-    
-    
-    
+
+
+
     // 기존 데이터 완전 삭제
     
     
@@ -1048,14 +1031,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     setShowDatePicker(false);
   };
   
-  const handleDateConfirm = () => {
-    if (tempSelectedDate) {
-      const formattedDate = tempSelectedDate.replace(/-/g, '.');
-      setDate(formattedDate);
-    }
-    setShowDatePicker(false);
-  };
-
   // 선결제 처리 함수
   const handlePrepaymentConfirm = async () => {
     if (!editData || !editData.isInstallment) {
@@ -1229,7 +1204,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   const handleConfirm = async () => {
     // 필수값 검증
     if (!category) {
-      setShowCategoryAlert(true);
+      setCategoryToastMessage('카테고리를 선택해 주세요.');
+      setShowCategoryToast(true);
       return;
     }
     
@@ -1279,9 +1255,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
     // 정기/할부 기록 수정모드에서 확인 모달 표시 (환불 기록, 선결제 기록은 제외)
     if (!isRefundedRecord && mode === 'edit' && (editData?.isRecurring || editData?.isInstallment) && !editData?.isPrepaid) {
-      const isInstallmentRecord = editData.isInstallment && editData.originalInstallment;
-      const recordType = isInstallmentRecord ? '할부' : '정기';
-      
       let message = '';
       if (editOption === 'all') {
         message = '매달 마다 자동으로 기록되는\n데이터 모두를 수정하시겠어요?';
@@ -1921,9 +1894,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       
       
       
-      const [, , targetDay] = targetDateKey.split('-').map(Number);
-
-      console.log('[SAVE] navigate', { targetYear, targetMonth, targetDate: targetDateKey });
       await goHomeWithFocus({ year: targetYear, month: targetMonth, targetDate: targetDateKey });
     } catch (error) {
       console.error('[SAVE] error:', error);
@@ -2173,14 +2143,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         }
       });
 
-      // AsyncStorage에 저장 전 확인 - 환불된 기록이 있는 날짜 데이터가 유지되는지 확인
-      const refundedDateKeys = recordsToRefund.map(({ dateKey }) => dateKey);
-      refundedDateKeys.forEach(dateKey => {
-        if (calendarData[dateKey]) {
-          const refundedRecords = calendarData[dateKey].records.filter((r: any) => r.isRefunded);
-        }
-      });
-      
       // AsyncStorage에 저장
       await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
       console.log('[REFUND] options:stored to AsyncStorage');
@@ -2382,20 +2344,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         }
       });
 
-      
-
-      // 환불되지 않은 기록 중 첫 번째 기록의 금액 확인
-      // 할부 기록의 총 금액 계산을 위해 사용
-      const nonRefundedRecords = allInstallmentRecords.filter(
-        ({ record }) => !record.isRefunded && record.amount > 0
-      );
-      
       // 환불된 기록 찾기
       const refundedRecords = allInstallmentRecords.filter(
         ({ record }) => record.isRefunded
       );
-
-      
 
       if (refundedRecords.length === 0) {
         return;
@@ -2667,7 +2619,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         await goHomeWithFocus({ year: targetYear, month: targetMonth, targetDate: dateKeyAfter });
       }
       
-    } catch (error) {
+    } catch {
 
     }
   };
@@ -2680,7 +2632,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       const month = String(date.getMonth() + 1).padStart(2, '0');
       const day = String(date.getDate()).padStart(2, '0');
       return `${year}/${month}/${day}`;
-    } catch (error) {
+    } catch {
       return '';
     }
   };
@@ -2702,7 +2654,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         return `${yearShort}/${month}/${day}`;
       }
       return dateString;
-    } catch (error) {
+    } catch {
       return '';
     }
   };
@@ -2722,7 +2674,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         return `${year}년 ${month}월 ${day}일`;
       }
       return dateString;
-    } catch (error) {
+    } catch {
       return '';
     }
   };
@@ -2910,7 +2862,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           }
         } else {
           // 정기 기록: 개수 * 금액
-          const { startYear: allStartYear, startMonth: allStartMonth, totalMonths: allTotalMonths } = calcPeriod(editData, totalMonths);
+          const { totalMonths: allTotalMonths } = calcPeriod(editData, totalMonths);
           const recordCount = actualRecordCount > 0 ? actualRecordCount : allTotalMonths;
           return `${(baseAmount * recordCount).toLocaleString()}원`;
         }
@@ -3763,17 +3715,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       ) : null}
 
       {/* 날짜 선택 바텀시트: PrepaymentModal 내부 extraOverlay로 이동 */}
-
-      {/* 카테고리 미선택 얼럿 */}
-      <ModalPopup
-        visible={showCategoryAlert}
-        onConfirm={() => setShowCategoryAlert(false)}
-        confirmText="확인"
-      >
-        <Text style={[styles.alertText, { color: colors.text }]}>
-          카테고리를 선택해 주세요.
-        </Text>
-      </ModalPopup>
 
       {/* 금액 미입력 얼럿 */}
       <ModalPopup

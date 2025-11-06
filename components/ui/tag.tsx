@@ -5,8 +5,6 @@
  * Supports normal/positive/negative states with proper styling based on Figma design.
  */
 
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { StyleSheet, Text, View, ViewStyle } from 'react-native';
 
 export type TagStatus = 'normal' | 'positive' | 'negative';
@@ -36,8 +34,6 @@ export function Tag({
   status = 'normal',
   style,
 }: TagProps) {
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
 
   // Colors based on status (matching Figma design)
   const getStatusColors = (status: TagStatus) => {

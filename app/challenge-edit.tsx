@@ -19,8 +19,8 @@ import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { getChallengeById, getChallengesByRecurringId, softDeleteChallengesByRecurringId, updateChallengesByRecurringId, type ChallengeRecord } from '@/utils/challenges';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Alert, Keyboard, Pressable, ScrollView, StatusBar, StyleSheet, Text, TouchableWithoutFeedback, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Alert, Animated, Keyboard, Pressable, ScrollView, StatusBar, StyleSheet, Text, TouchableWithoutFeedback, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function ChallengeEditScreen() {
@@ -49,6 +49,8 @@ export default function ChallengeEditScreen() {
   
   // Toast state
   const [showToast, setShowToast] = useState<boolean>(false);
+  const [isContentReady, setIsContentReady] = useState(false);
+  const contentOpacity = useRef(new Animated.Value(0)).current;
   
   // 토스트 표시 함수
   const showDisabledToast = () => {
@@ -58,7 +60,11 @@ export default function ChallengeEditScreen() {
   // Load challenge data
   useEffect(() => {
     const loadChallengeData = async () => {
+      setLoading(true);
+      setIsContentReady(false);
       if (!params.challengeId) {
+        setIsContentReady(true);
+        setLoading(false);
         return;
       }
       
@@ -69,35 +75,52 @@ export default function ChallengeEditScreen() {
       try {
         const challenge = await getChallengeById(params.challengeId);
         if (!challenge || challenge.isDeleted) {
+          setIsContentReady(true);
           return;
         }
 
         setRecurringId(challenge.recurringId);
-        setStartDate(challenge.startDate);
-        setEndDate(challenge.endDate);
+            setStartDate(challenge.startDate);
+            setEndDate(challenge.endDate);
         setTargetAmount(
           typeof challenge.targetAmount === 'number'
             ? challenge.targetAmount.toLocaleString()
             : ''
         );
-        setCategory(challenge.category);
+            setCategory(challenge.category);
 
         const relatedChallenges = await getChallengesByRecurringId(challenge.recurringId);
         const recurringChallenges = relatedChallenges.length > 0 ? relatedChallenges : [challenge];
         const isRecurring = recurringChallenges.length > 1;
 
-        setIsRecurringChallenge(isRecurring);
+            setIsRecurringChallenge(isRecurring);
         setRecurringCount(recurringChallenges.length);
 
         const currentAmountValue = await calculateCurrentAmount(challenge);
         setCurrentAmount(currentAmountValue);
       } catch (error) {
         console.error('[챌린지 수정] 데이터 로드 실패:', error);
+      } finally {
+        setIsContentReady(true);
+        setLoading(false);
       }
     };
 
     loadChallengeData();
-  }, [params.challengeId]);
+  }, [params.challengeId, setLoading]);
+
+  useEffect(() => {
+    if (isContentReady) {
+      contentOpacity.setValue(0);
+      Animated.timing(contentOpacity, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      contentOpacity.setValue(0);
+    }
+  }, [isContentReady, contentOpacity]);
 
   // 현재 소비금액 계산
   const calculateCurrentAmount = async (challenge: ChallengeRecord): Promise<number> => {
@@ -128,7 +151,7 @@ export default function ChallengeEditScreen() {
       });
 
       return totalAmount;
-    } catch (error) {
+    } catch {
 
       return 0;
     }
@@ -168,7 +191,7 @@ export default function ChallengeEditScreen() {
       }
 
       await updateChallengesByRecurringId(recurringId, {
-        targetAmount: targetAmountNum,
+            targetAmount: targetAmountNum,
         updatedAt: Date.now(),
       });
 
@@ -205,20 +228,20 @@ export default function ChallengeEditScreen() {
 
       await softDeleteChallengesByRecurringId(recurringId);
 
-      setShowDeleteModal(false);
-
-      // 챌린지 현황으로 이동
-      router.back();
-      setTimeout(() => {
-        router.replace({
-          pathname: '/monthly-expense-timeline',
-          params: {
-            year: new Date().getFullYear().toString(),
-            month: (new Date().getMonth() + 1).toString(),
-            tab: 'challenge'
-          },
-        });
-      }, 100);
+        setShowDeleteModal(false);
+        
+        // 챌린지 현황으로 이동
+        router.back();
+        setTimeout(() => {
+          router.replace({
+            pathname: '/monthly-expense-timeline',
+            params: {
+              year: new Date().getFullYear().toString(),
+              month: (new Date().getMonth() + 1).toString(),
+              tab: 'challenge'
+            },
+          });
+        }, 100);
     } catch (error) {
       console.error('[챌린지 삭제] error:', error);
       Alert.alert('오류', '챌린지 삭제에 실패했습니다.');
@@ -350,10 +373,11 @@ export default function ChallengeEditScreen() {
           onLeftIconPress={handleBack}
         />
 
-        <ScrollView 
-          style={[styles.content, { backgroundColor: colors.fill }]}
-          contentContainerStyle={styles.contentContainer}
-        >
+        <Animated.View style={{ flex: 1, opacity: isContentReady ? contentOpacity : 0 }}>
+          <ScrollView 
+            style={[styles.content, { backgroundColor: colors.fill }]}
+            contentContainerStyle={styles.contentContainer}
+          >
           {/* 챌린지 정보 */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
@@ -514,20 +538,20 @@ export default function ChallengeEditScreen() {
               </Pressable>
             </View>
           )}
-        </ScrollView>
+          </ScrollView>
 
-        {/* 하단 고정 버튼 */}
-        <View style={[
-          styles.bottomButtonContainer, 
-          { 
-            backgroundColor: colors.staticWhite,
-            paddingBottom: 16 + insets.bottom 
-          }
-        ]}>
-          <Button onPress={handleSave}>
-            저장
-          </Button>
-        </View>
+          {/* 하단 고정 버튼 */}
+          <View style={[
+            styles.bottomButtonContainer, 
+            { 
+              backgroundColor: colors.staticWhite,
+              paddingBottom: 16 + insets.bottom 
+            }
+          ]}>
+            <Button onPress={handleSave}>
+              저장
+            </Button>
+          </View>
 
         {/* 삭제 확인 모달 */}
         <ModalPopup
@@ -550,6 +574,7 @@ export default function ChallengeEditScreen() {
           visible={showToast}
           onHide={() => setShowToast(false)}
         />
+        </Animated.View>
       </SafeAreaView>
     </TouchableWithoutFeedback>
   );

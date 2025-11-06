@@ -49,20 +49,6 @@ export interface CalendarDaySelectProps {
 }
 
 /**
- * Get days in month
- */
-function getDaysInMonth(year: number, month: number): number {
-  return new Date(year, month, 0).getDate();
-}
-
-/**
- * Get first day of week (0 = Sunday)
- */
-function getFirstDayOfWeek(year: number, month: number): number {
-  return new Date(year, month - 1, 1).getDay();
-}
-
-/**
  * Generate calendar grid for a custom month (based on monthStartDay)
  */
 function generateMonthGrid(

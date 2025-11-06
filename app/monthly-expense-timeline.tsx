@@ -150,6 +150,7 @@ export default function MonthlyExpenseTimelineScreen() {
   // 페이드인 효과를 위한 state
   const [isContentReady, setIsContentReady] = useState(false);
   const contentOpacity = useRef(new Animated.Value(0)).current;
+  const hasAnimatedRef = useRef(false);
   
   // Removed: Timeline data loading moved to useFocusEffect below
 
@@ -202,7 +203,9 @@ export default function MonthlyExpenseTimelineScreen() {
   // 데이터 새로고침 함수
   const refreshData = useCallback(async () => {
         try {
-          setIsContentReady(false);
+          if (!hasAnimatedRef.current) {
+            setIsContentReady(false);
+          }
           
           // Load month start day
           const monthStart = await loadMonthStartDay();
@@ -301,8 +304,10 @@ export default function MonthlyExpenseTimelineScreen() {
           
           // 데이터 로드 완료 후 페이드인 준비
           setIsContentReady(true);
-        } catch (error) {
+          hasAnimatedRef.current = true;
+        } catch {
           setIsContentReady(true); // 에러 발생 시에도 페이드인 처리
+          hasAnimatedRef.current = true;
         }
   }, [year, month]);
 
@@ -422,7 +427,7 @@ export default function MonthlyExpenseTimelineScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
       {/* Top Navigation */}
-      <Animated.View style={{ opacity: isContentReady ? contentOpacity : 1 }}>
+      <Animated.View style={{ opacity: isContentReady ? contentOpacity : 0 }}>
         <TopNavigation
           type="sub"
           title=""
@@ -580,7 +585,7 @@ export default function MonthlyExpenseTimelineScreen() {
                                   }
                                 }
                               }
-                            } catch (error) {
+                            } catch {
 
                             }
 
@@ -631,7 +636,7 @@ export default function MonthlyExpenseTimelineScreen() {
                                   }
                                 }
                               }
-                            } catch (error) {
+                            } catch {
 
                             }
 
