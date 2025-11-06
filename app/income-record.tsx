@@ -17,9 +17,12 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { getCustomMonthInfo } from '@/utils/custom-month';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { calendarRefreshEvent } from '@/hooks/calendar-events';
+import { createIncome, type IncomeRecord as IncomeRecordType } from '@/utils/incomes';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
-import { Dimensions, Keyboard, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Dimensions, InteractionManager, Keyboard, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /**
@@ -35,6 +38,48 @@ export default function IncomeRecordScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
   const router = useRouter();
+  const navigation = useNavigation();
+  interface GoHomeOptions {
+    year: number;
+    month: number;
+    targetDate: string;
+    refresh?: boolean;
+  }
+
+  const goHomeWithFocus = useCallback(
+    async ({ year, month, targetDate, refresh = true }: GoHomeOptions) => {
+      try {
+        await AsyncStorage.setItem('pendingCalendarTarget', JSON.stringify({ year, month, targetDate }));
+      } catch (error) {
+        console.warn('[income-record] Failed to store pending target:', error);
+      }
+
+      (navigation as any).reset({
+        index: 0,
+        routes: [
+          {
+            name: '(tabs)',
+            params: {
+              screen: 'home',
+              params: {
+                targetYear: year.toString(),
+                targetMonth: month.toString(),
+                targetDate,
+                periodType: 'month',
+              },
+            },
+          },
+        ],
+      });
+
+      if (refresh) {
+        InteractionManager.runAfterInteractions(() => {
+          calendarRefreshEvent.emit();
+        });
+      }
+    },
+    [navigation]
+  );
   const insets = useSafeAreaInsets();
   const { setLoading } = useLoading();
   const params = useLocalSearchParams<{ 
@@ -166,11 +211,22 @@ export default function IncomeRecordScreen() {
     setLoading(true);
     try {
       // 입금 기록 데이터 준비
-      const incomeRecord = {
-        amount: parseFloat(amount.replace(/,/g, '')),
+      const incomeAmount = parseFloat(amount.replace(/,/g, ''));
+      const incomeTimestamp = Date.now();
+
+      const incomeRecord: IncomeRecordType = {
+        type: 'income',
+        amount: incomeAmount,
         date,
         memo,
+        timestamp: incomeTimestamp,
       };
+
+      try {
+        await createIncome(incomeRecord);
+      } catch (error) {
+        console.error('[입금 생성] Supabase 저장 실패:', error);
+      }
       
       // AsyncStorage에서 기존 calendarData 가져오기
       const storedData = await AsyncStorage.getItem('calendarData');
@@ -198,7 +254,7 @@ export default function IncomeRecordScreen() {
         amount: incomeRecord.amount,
         category: '💰 입금',
         memo: incomeRecord.memo,
-        timestamp: new Date().getTime(), // 기록 순서 보장
+        timestamp: incomeTimestamp, // Supabase와 동일한 timestamp 사용
       });
       
       // AsyncStorage에 저장
@@ -231,21 +287,11 @@ export default function IncomeRecordScreen() {
       const [, , day] = dateKey.split('-').map(Number);
 
       // Stack 정리: 입금 기록 제거하고 홈으로
-      router.back(); // income-record 제거
-      
-      // params를 전달하기 위해 replace 사용
-      setTimeout(() => {
-        router.replace({
-          pathname: '/(tabs)/home',
-          params: {
-            targetYear: targetYear.toString(),
-            targetMonth: targetMonth.toString(),
-            targetDay: day.toString(),
-            targetDate: dateKey,
-            periodType: 'month',
-          },
-        });
-      }, 100);
+      await goHomeWithFocus({
+        year: targetYear,
+        month: targetMonth,
+        targetDate: dateKey,
+      });
     } catch (error) {
       console.error('[입금 생성] error:', error);
     } finally {

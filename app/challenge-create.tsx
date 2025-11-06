@@ -200,6 +200,10 @@ export default function ChallengeCreateScreen() {
         const challengeStartDate = `${challengeStartYear}.${String(challengeStartMonth).padStart(2, '0')}.${String(challengeStartDay).padStart(2, '0')}`;
         const challengeEndDateStr = `${challengeEndYear}.${String(challengeEndMonth).padStart(2, '0')}.${String(challengeEndDay).padStart(2, '0')}`;
 
+        const startMonthLabel = `${challengeStartYear}.${String(challengeStartMonth).padStart(2, '0')}`;
+        const endMonthLabel = `${challengeEndYear}.${String(challengeEndMonth).padStart(2, '0')}`;
+        const durationMonths = monthsToCreate;
+
         const challengeData: ChallengeRecord = {
           id: i === 0 ? recurringId : `${Date.now()}_${i}_${Math.random().toString(36).substr(2, 9)}`,
           category: params.category,
@@ -210,6 +214,11 @@ export default function ChallengeCreateScreen() {
           recurringId: recurringId, // 모든 챌린지가 같은 recurringId 공유
           isDeleted: false,
           deletedAt: null,
+          startMonth: startMonthLabel,
+          endMonth: endMonthLabel,
+          durationMonths,
+          status: 'active',
+          updatedAt: Date.now(),
         };
         
         newChallenges.push(challengeData);

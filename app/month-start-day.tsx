@@ -108,16 +108,27 @@ export default function MonthStartDayScreen() {
           const challengeStartDate = `${challengeStartYear}.${String(challengeStartMonth).padStart(2, '0')}.${String(challengeStartDay).padStart(2, '0')}`;
           const challengeEndDateStr = `${challengeEndYear}.${String(challengeEndMonth).padStart(2, '0')}.${String(challengeEndDay).padStart(2, '0')}`;
           
+          const startMonthLabel = `${challengeStartYear}.${String(challengeStartMonth).padStart(2, '0')}`;
+        const endMonthLabel = `${challengeEndYear}.${String(challengeEndMonth).padStart(2, '0')}`;
+        const durationMonths = challenges.length;
+
+          const now = Date.now();
+
           const newChallenge: ChallengeRecord = {
             id: i === 0 ? newRecurringId : `${today.getTime()}_${i}_${Math.random().toString(36).substr(2, 9)}`,
             category: category,
             startDate: challengeStartDate,
             endDate: challengeEndDateStr,
             targetAmount: targetAmount,
-            createdAt: today.getTime(),
+            createdAt: now,
             recurringId: newRecurringId,
             isDeleted: false,
             deletedAt: null,
+            startMonth: startMonthLabel,
+            endMonth: endMonthLabel,
+            durationMonths,
+            status: 'active',
+            updatedAt: now,
           };
           
           newChallenges.push(newChallenge);

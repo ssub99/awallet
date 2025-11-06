@@ -167,7 +167,10 @@ export default function ChallengeEditScreen() {
         throw new Error('챌린지 그룹 식별자가 없습니다.');
       }
 
-      await updateChallengesByRecurringId(recurringId, { targetAmount: targetAmountNum });
+      await updateChallengesByRecurringId(recurringId, {
+        targetAmount: targetAmountNum,
+        updatedAt: Date.now(),
+      });
 
       // 챌린지 현황으로 이동
       router.back();

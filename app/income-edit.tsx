@@ -20,9 +20,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { calendarRefreshEvent } from '@/hooks/calendar-events';
 import { updateIncome, softDeleteIncome } from '@/utils/incomes';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
-import { Dimensions, Keyboard, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Dimensions, InteractionManager, Keyboard, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 
 /**
  * 요일 계산 함수
@@ -45,6 +46,48 @@ export default function IncomeEditScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
   const router = useRouter();
+  const navigation = useNavigation();
+  interface GoHomeOptions {
+    year: number;
+    month: number;
+    targetDate: string;
+    refresh?: boolean;
+  }
+
+  const goHomeWithFocus = useCallback(
+    async ({ year, month, targetDate, refresh = true }: GoHomeOptions) => {
+      try {
+        await AsyncStorage.setItem('pendingCalendarTarget', JSON.stringify({ year, month, targetDate }));
+      } catch (error) {
+        console.warn('[income-edit] Failed to store pending target:', error);
+      }
+
+      (navigation as any).reset({
+        index: 0,
+        routes: [
+          {
+            name: '(tabs)',
+            params: {
+              screen: 'home',
+              params: {
+                targetYear: year.toString(),
+                targetMonth: month.toString(),
+                targetDate,
+                periodType: 'month',
+              },
+            },
+          },
+        ],
+      });
+
+      if (refresh) {
+        InteractionManager.runAfterInteractions(() => {
+          calendarRefreshEvent.emit();
+        });
+      }
+    },
+    [navigation]
+  );
   const insets = useSafeAreaInsets();
   const { setLoading } = useLoading();
   const params = useLocalSearchParams<{ 
@@ -246,23 +289,11 @@ export default function IncomeEditScreen() {
       const [, , day] = newDateKey.split('-').map(Number);
       
       // Stack 정리: 수정 화면 제거하고 홈으로
-      router.back(); // income-edit 제거
-      
-      // params를 전달하기 위해 replace 사용
-      setTimeout(() => {
-        router.replace({
-          pathname: '/(tabs)/home',
-          params: {
-            targetYear: targetYear.toString(),
-            targetMonth: targetMonth.toString(),
-            targetDay: day.toString(),
-            targetDate: newDateKey,
-            periodType: 'month',
-          },
-        });
-      }, 100);
-
-      calendarRefreshEvent.emit();
+      await goHomeWithFocus({
+        year: targetYear,
+        month: targetMonth,
+        targetDate: newDateKey,
+      });
     } catch (error) {
       console.error('[입금 수정] error:', error);
     } finally {
@@ -304,18 +335,11 @@ export default function IncomeEditScreen() {
       if (params.calendarYear && params.calendarMonth) {
         // 타임라인으로 복귀
 
-        router.back();
-        
-        setTimeout(() => {
-          router.replace({
-            pathname: '/monthly-expense-timeline',
-            params: {
-              year: params.calendarYear,
-              month: params.calendarMonth,
-              tab: 'timeline'
-            },
-          });
-        }, 100);
+        await goHomeWithFocus({
+          year: Number(params.calendarYear),
+          month: Number(params.calendarMonth),
+          targetDate: dateKey,
+        });
       } else {
         // 홈으로 이동
         const today = new Date();
@@ -324,21 +348,12 @@ export default function IncomeEditScreen() {
         const targetYear = customMonthInfo.year;
         const targetMonth = customMonthInfo.month;
 
-        router.back();
-        
-        setTimeout(() => {
-          router.replace({
-            pathname: '/(tabs)/home',
-            params: {
-              targetYear: targetYear.toString(),
-              targetMonth: targetMonth.toString(),
-              periodType: 'month',
-            },
-          });
-        }, 100);
+        await goHomeWithFocus({
+          year: targetYear,
+          month: targetMonth,
+          targetDate: dateKey,
+        });
       }
-
-      calendarRefreshEvent.emit();
     } catch (error) {
       console.error('[입금 삭제] error:', error);
     } finally {
