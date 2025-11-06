@@ -320,13 +320,13 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
                     for (const expense of expenses) {
                       try {
                         await deleteExpense(expense.timestamp.toString());
-                      } catch (error) {
+                      } catch (_error) {
                         console.error('지출 기록 삭제 중 오류:', expense.timestamp, error);
                       }
                     }
                     
                     console.log(`[dev-mode] Supabase에서 ${expenses.length}개의 지출 기록 삭제 완료`);
-                  } catch (supabaseError) {
+                  } catch (_supabaseError) {
                     console.error('Supabase 데이터 삭제 중 오류:', supabaseError);
                     // Supabase 삭제 실패해도 AsyncStorage 삭제는 완료되었으므로 계속 진행
                   }
@@ -338,18 +338,18 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
                     for (const income of incomes) {
                       try {
                         await softDeleteIncome(income.timestamp.toString());
-                      } catch (error) {
+                      } catch (_error) {
                         console.error('입금 기록 삭제 중 오류:', income.timestamp, error);
                       }
                     }
                     console.log(`[dev-mode] Supabase에서 ${incomes.length}개의 입금 기록 삭제 처리 완료`);
-                  } catch (incomeDeleteError) {
+                  } catch (_incomeDeleteError) {
                     console.error('Supabase 입금 삭제 중 오류:', incomeDeleteError);
                   }
                   
                   await refresh();
                   alert('캘린더 데이터가 삭제되었습니다.');
-                } catch (error) {
+                } catch (_error) {
                   console.error('캘린더 데이터 삭제 중 오류:', error);
                   alert('데이터 삭제 중 오류가 발생했습니다.');
                 }
@@ -378,7 +378,7 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
                       }
                     }
                     console.log(`[dev-mode] Supabase에서 ${recurringIds.length}개의 챌린지 묶음(Recurring) 하드 삭제 완료`);
-                  } catch (supabaseError) {
+                  } catch (_supabaseError) {
                     console.error('Supabase 챌린지 삭제 중 오류:', supabaseError);
                     // 실패하더라도 로컬 삭제는 완료되었으므로 계속 진행
                   }

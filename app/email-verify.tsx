@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
-import OtpInputs from '@/components/ui/otp-inputs';
+import { OtpInputs } from '@/components/ui/otp-inputs';
 import { ThemeColors } from '@/constants/theme-colors';
 import { Typography } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
