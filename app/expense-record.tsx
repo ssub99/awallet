@@ -7,14 +7,14 @@
 
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Button } from '@/components/ui/button';
-import BasicCalendarDaySelect from '@/components/ui/calendar-day-basic';
+import { BasicCalendarDaySelect } from '@/components/ui/calendar-day-basic';
 import { CalendarDaySelect } from '@/components/ui/calendar-day-select';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
 import { ModalPopup } from '@/components/ui/modal-popup';
-import PrepaymentModal from '@/components/ui/prepayment-modal';
+import { PrepaymentModal } from '@/components/ui/prepayment-modal';
 import { Radio } from '@/components/ui/radio';
 import { Selectbox } from '@/components/ui/selectbox';
 import { Switch } from '@/components/ui/switch';

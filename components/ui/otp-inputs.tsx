@@ -33,7 +33,7 @@ export function OtpInputs({
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
 
-  const refs = useRef<Array<TextInput | null>>(Array.from({ length }, () => null));
+  const refs = useRef<(TextInput | null)[]>(Array.from({ length }, () => null));
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
 
   const safeValue = useMemo(() => value.replace(/\D/g, '').slice(0, length), [value, length]);
