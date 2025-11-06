@@ -66,7 +66,7 @@ interface TimelineItem {
   actualRecordIndex?: number; // 실제 데이터의 recordIndex
   isInstallment?: boolean; // 할부 여부
   originalInstallment?: boolean; // 최초 생성 시 할부 설정
-  recurringMonths?: number; // 정기 기록 개월 수
+  totalMonths?: number; // 정기 기록 개월 수
   isRefunded?: boolean; // 환불 여부
 }
 
@@ -250,7 +250,7 @@ export default function MonthlyExpenseTimelineScreen() {
                       actualRecordIndex: recordIndex,
                       isInstallment: record.isInstallment,
                       originalInstallment: record.originalInstallment,
-                      recurringMonths: record.recurringMonths,
+                      totalMonths: record.totalMonths,
                       isRefunded: record.isRefunded // 환불 여부 추가
                     });
                   });
