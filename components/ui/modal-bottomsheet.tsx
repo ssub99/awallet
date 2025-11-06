@@ -161,14 +161,14 @@ export function ModalBottomsheet({
         }
       });
     }
-  }, [visible, title, embedded]);
+  }, [visible, title, embedded, dimOpacity, sheetTranslateY, children]);
   
   // Update content when children change (without triggering animation)
   useEffect(() => {
     if (visible) {
       setCurrentContent(children);
     }
-  }, [children, visible, dimOpacity, isModalVisible, sheetTranslateY]);
+  }, [children, visible]);
 
   const handleClose = () => {
     onClose();

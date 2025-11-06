@@ -138,7 +138,7 @@ export default function MyPageScreen() {
       return () => {
         backSub.remove();
       };
-    }, [])
+    }, [setLoading])
   );
 
   // Fade-in when ready

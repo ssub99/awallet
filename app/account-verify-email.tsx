@@ -58,7 +58,7 @@ export default function AccountVerifyEmailScreen() {
         if (stored) setDisplayEmail(stored);
       } catch {}
     })();
-  }, [params.email]);
+  }, [params.email, params.name]);
 
   // 남은 시간은 고정 문구로 안내 (카운트다운 텍스트 미사용)
 
