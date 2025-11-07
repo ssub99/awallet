@@ -8,9 +8,11 @@
     "scheme": "awallet",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "privacy": "public",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.ssong.awallet",
+      "category": "FINANCE",
       "infoPlist": {
         "NSUserNotificationsUsageDescription": "소비 기록 알림과 챌린지 리마인더를 받기 위해 알림 권한이 필요합니다."
       }
@@ -25,6 +27,7 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.ssong.awallet",
+      "category": "finance",
       "permissions": [
         "android.permission.POST_NOTIFICATIONS"
       ]
@@ -62,7 +65,10 @@
     },
     "extra": {
       "SUPABASE_URL": "https://jzyxvkejayspqjdclslr.supabase.co",
-      "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp6eXh2a2VqYXlzcHFqZGNsc2xyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAzMjI5OTIsImV4cCI6MjA3NTg5ODk5Mn0.X--IM1XcWfxUqfM-mrpvunhbNVlgWeuWejb2kmhrDsI"
+      "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp6eXh2a2VqYXlzcHFqZGNsc2xyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAzMjI5OTIsImV4cCI6MjA3NTg5ODk5Mn0.X--IM1XcWfxUqfM-mrpvunhbNVlgWeuWejb2kmhrDsI",
+      "supportEmail": "ssuby99@gmail.com",
+      "privacyPolicyUrl": "https://www.notion.so/2a4b71a1411280069937f6894dd544a6?source=copy_link",
+      "appCategory": "finance"
     }
   }
 }
