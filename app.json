@@ -3,6 +3,7 @@
     "name": "awallet",
     "slug": "awallet",
     "version": "1.0.0",
+    "description": "당신의 현명한 소비 기록 awallet",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "awallet",
