@@ -13,6 +13,7 @@ import { upsertProfile } from '@/utils/profiles';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getOrCreateDeviceId } from '@/utils/device-id';
 import { logLoginEvent } from '@/utils/login-logs';
+import { mergeGuestRecords } from '@/utils/merge-records';
 
 export default function PasswordSetScreen() {
   const colorScheme = useColorScheme();
@@ -95,10 +96,23 @@ export default function PasswordSetScreen() {
       }
       try {
         if (user?.id) {
+          try {
+            await mergeGuestRecords();
+          } catch {
+            await supabase.auth.signOut();
+            setError('연결에 실패했습니다. 다시 로그인해 주세요.');
+            return;
+          }
+
           const [savedName, savedBirth] = await AsyncStorage.multiGet(['signupName', 'signupBirth']);
           const nameVal = savedName?.[1] ?? null;
           const birthVal = savedBirth?.[1] ?? null; // YYYY-MM-DD
-          const deviceId = await getOrCreateDeviceId();
+          let deviceId: string | null = null;
+          try {
+            deviceId = await getOrCreateDeviceId();
+          } catch {
+            deviceId = null;
+          }
           // atomic profiles + user_metadata update (if both provided)
           if (nameVal && birthVal) {
             await supabase.rpc('update_profile', { p_nm: nameVal, p_birth_date: birthVal });

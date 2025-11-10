@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLoading } from '@/contexts/loading-context';
 import { loadMonthStartDay, monthStartEvent } from '@/hooks/use-month-start';
@@ -31,8 +31,13 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [monthStartDay, setMonthStartDay] = useState<number>(1);
   const [isReady, setIsReady] = useState<boolean>(false);
   const [dataVersion, setDataVersion] = useState<number>(0);
+  const refreshingRef = useRef(false);
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
+    if (refreshingRef.current) {
+      return;
+    }
+    refreshingRef.current = true;
     setLoading(true);
     try {
       const [storedData, msd] = await Promise.all([
@@ -250,13 +255,14 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setIsReady(true);
       setDataVersion((v) => v + 1);
     } finally {
+      refreshingRef.current = false;
       setLoading(false);
     }
-  };
+  }, [setLoading]);
 
   useEffect(() => {
     refresh().catch(() => {});
-  }, []);
+  }, [refresh]);
 
   useEffect(() => {
     const unsub = monthStartEvent.subscribe((day) => {
@@ -267,7 +273,10 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return unsub;
   }, []);
 
-  const value = useMemo(() => ({ calendarData, monthStartDay, refresh, isReady, dataVersion }), [calendarData, monthStartDay, isReady, dataVersion]);
+  const value = useMemo(
+    () => ({ calendarData, monthStartDay, refresh, isReady, dataVersion }),
+    [calendarData, monthStartDay, refresh, isReady, dataVersion]
+  );
 
   return (
     <AppDataContext.Provider value={value}>
