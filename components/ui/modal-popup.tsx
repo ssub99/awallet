@@ -48,6 +48,10 @@ export interface ModalPopupProps {
    * Confirm button handler
    */
   onConfirm?: () => void;
+  /**
+   * Whether the confirm button is disabled
+   */
+  confirmDisabled?: boolean;
   
   /**
    * Cancel button text (if provided, shows 2-button layout)
@@ -97,6 +101,7 @@ export function ModalPopup({
   backdropInteractive = true,
   extraOverlay,
   style,
+  confirmDisabled = false,
 }: ModalPopupProps) {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
@@ -244,9 +249,24 @@ export function ModalPopup({
                 </Pressable>
                 <Pressable
                   onPress={handleConfirm}
-                  style={[styles.button, styles.buttonHalf, { backgroundColor: colors.primary }]}
+                  disabled={confirmDisabled}
+                  style={[
+                    styles.button,
+                    styles.buttonHalf,
+                    confirmDisabled
+                      ? { backgroundColor: colors.fill }
+                      : { backgroundColor: colors.primary },
+                  ]}
+                  accessibilityState={{ disabled: confirmDisabled }}
                 >
-                  <Text style={[styles.buttonText, { color: colors.staticWhite }]}>
+                  <Text
+                    style={[
+                      styles.buttonText,
+                      {
+                        color: confirmDisabled ? colors.textAssistive : colors.staticWhite,
+                      },
+                    ]}
+                  >
                     {confirmText}
                   </Text>
                 </Pressable>
@@ -256,9 +276,24 @@ export function ModalPopup({
                 {/* 1-Button Layout (Alert) */}
                 <Pressable
                   onPress={handleConfirm}
-                  style={[styles.button, styles.buttonFull, { backgroundColor: colors.primary }]}
+                  disabled={confirmDisabled}
+                  style={[
+                    styles.button,
+                    styles.buttonFull,
+                    confirmDisabled
+                      ? { backgroundColor: colors.fill }
+                      : { backgroundColor: colors.primary },
+                  ]}
+                  accessibilityState={{ disabled: confirmDisabled }}
                 >
-                  <Text style={[styles.buttonText, { color: colors.staticWhite }]}>
+                  <Text
+                    style={[
+                      styles.buttonText,
+                      {
+                        color: confirmDisabled ? colors.textAssistive : colors.staticWhite,
+                      },
+                    ]}
+                  >
                     {confirmText}
                   </Text>
                 </Pressable>

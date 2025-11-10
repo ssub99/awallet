@@ -246,10 +246,10 @@ export default function MyPageScreen() {
 
   // Navigation handlers
   const handleLoginPress = () => {
-    if (userName) {
-      return; // 로그인 상태면 동작 없음 (디자인상 화살표 유지)
+    if (isLoggedIn) {
+      router.push('/account-edit');
+      return;
     }
-    // push로 이동하여 back() 동작 가능하게 함
     router.push({ pathname: '/login', params: { from: 'mypage' } });
   };
 
@@ -420,6 +420,36 @@ export default function MyPageScreen() {
     }
   };
 
+  const handlePrivacyPolicyPress = async () => {
+    const PRIVACY_POLICY_URL = 'https://lake-speedboat-a83.notion.site/2a4b71a1411280069937f6894dd544a6?source=copy_link';
+    try {
+      const supported = await Linking.canOpenURL(PRIVACY_POLICY_URL);
+      if (supported) {
+        await Linking.openURL(PRIVACY_POLICY_URL);
+      } else {
+        Alert.alert('열기 실패', '현재 개인정보처리방침 페이지를 열 수 없습니다.', [{ text: '확인' }]);
+      }
+    } catch (error) {
+      console.error('개인정보처리방침 열기 중 오류:', error);
+      Alert.alert('오류', '페이지로 이동하는 중 문제가 발생했습니다.', [{ text: '확인' }]);
+    }
+  };
+
+  const handleTermsOfUsePress = async () => {
+    const TERMS_OF_USE_URL = 'https://lake-speedboat-a83.notion.site/2a4b71a14112802795d9d090448b0f81?source=copy_link';
+    try {
+      const supported = await Linking.canOpenURL(TERMS_OF_USE_URL);
+      if (supported) {
+        await Linking.openURL(TERMS_OF_USE_URL);
+      } else {
+        Alert.alert('열기 실패', '현재 이용약관 페이지를 열 수 없습니다.', [{ text: '확인' }]);
+      }
+    } catch (error) {
+      console.error('이용약관 열기 중 오류:', error);
+      Alert.alert('오류', '페이지로 이동하는 중 문제가 발생했습니다.', [{ text: '확인' }]);
+    }
+  };
+
   return (
     <SafeAreaView 
       style={[styles.container, { backgroundColor: colors.background }]} 
@@ -449,23 +479,22 @@ export default function MyPageScreen() {
             accessibilityLabel="로그인하기"
           >
             <View style={styles.loginContent}>
-              {/* Profile Icon */}
-              <View style={styles.profileIconContainer}>
-                <Icon name="profile" size={48} color={colors.textAssistive} />
-              </View>
-
-              {/* Login Text */}
-              <Text style={[styles.loginText, { color: colors.staticBlack }]}>
+              <Text
+                style={[
+                  styles.loginText,
+                  isLoggedIn ? styles.loginTextLoggedIn : styles.loginTextLoggedOut,
+                  { color: isLoggedIn ? colors.text : colors.textNeutral },
+                ]}
+              >
                 {isLoggedIn
-                  ? userName ? `${userName}님, 안녕하세요!` : '안녕하세요!'
-                  : '로그인 후 동기화를 진행해 보세요.'}
+                  ? userName
+                    ? `${userName}님,\n안녕하세요!`
+                    : '안녕하세요!'
+                  : '로그인 후\n동기화를 진행해 보세요.'}
               </Text>
             </View>
 
-            {/* Arrow Icon (로그인 전용) */}
-            {!isLoggedIn && (
-              <Icon name="arrowRight" size={24} color={colors.text} />
-            )}
+            <Icon name="arrowRight" size={24} color={colors.text} />
           </Pressable>
 
           {/* Settings Card */}
@@ -534,6 +563,31 @@ export default function MyPageScreen() {
               accessibilityLabel="리뷰 쓰기"
             >
               <Text style={[styles.menuLabel, { color: colors.text }]}>리뷰 쓰기</Text>
+              <Icon name="arrowRight" size={24} color={colors.text} />
+            </Pressable>
+          </View>
+
+          {/* Policies */}
+          <View style={[styles.card, { backgroundColor: colors.background }]}>
+            <Pressable
+              style={styles.menuRow}
+              onPress={handlePrivacyPolicyPress}
+              accessibilityRole="button"
+              accessibilityLabel="개인정보처리방침"
+            >
+              <Text style={[styles.menuLabel, { color: colors.text }]}>개인정보처리방침</Text>
+              <Icon name="arrowRight" size={24} color={colors.text} />
+            </Pressable>
+
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+            <Pressable
+              style={styles.menuRow}
+              onPress={handleTermsOfUsePress}
+              accessibilityRole="button"
+              accessibilityLabel="이용약관"
+            >
+              <Text style={[styles.menuLabel, { color: colors.text }]}>이용약관</Text>
               <Icon name="arrowRight" size={24} color={colors.text} />
             </Pressable>
           </View>
@@ -625,29 +679,22 @@ const styles = StyleSheet.create({
 
   // Login Card
   loginCard: {
-    paddingVertical: 12,
+    paddingVertical: 20,
     paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    minHeight: 94,
   },
   loginContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
     flex: 1,
-  },
-  profileIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   loginText: {
-    ...Typography.body1.l.medium,
+    ...Typography.headline4.r.medium,
     flex: 1,
+  },
+  loginTextLoggedIn: {},
+  loginTextLoggedOut: {
+    ...Typography.headline4.r.medium,
   },
 
   
