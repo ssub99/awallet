@@ -130,7 +130,7 @@ export default function AccountEditScreen() {
     return () => {
       isMounted = false;
     };
-  }, [router, setLoading]);
+  }, [router, setLoading, contentOpacity]);
 
   const validateName = useCallback((value: string) => {
     if (!value.trim()) {
@@ -241,7 +241,7 @@ export default function AccountEditScreen() {
       setWithdrawSubmitting(false);
       setLoading(false);
     }
-  }, [withdrawAgree, withdrawSubmitting, router, setLoading, isSupabaseConfigured]);
+  }, [withdrawAgree, withdrawSubmitting, router, setLoading]);
 
   const handleWithdrawCancel = useCallback(() => {
     setShowWithdrawModal(false);
