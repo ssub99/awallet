@@ -309,7 +309,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   
   // date state 변경 감지
   useEffect(() => {
-    // 날짜 변경 시 필요한 로직이 있다면 여기에 추가
+    // 날짜 변경 시 tempSelectedDate 동기화 (바텀시트가 닫힌 상태에서만)
+    if (!showDatePicker) {
+      setTempSelectedDate(date.replace(/\./g, '-'));
+    }
   }, [date]);
   const [memo, setMemo] = useState<string>('');
   const [isRecurring, setIsRecurring] = useState<boolean>(false);
@@ -321,7 +324,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   const [monthStartDay, setMonthStartDay] = useState(1);
   const [showDayPicker, setShowDayPicker] = useState<boolean>(false);
   const [tempSelectedDate, setTempSelectedDate] = useState<string>(date.replace(/\./g, '-'));
-  const isOpeningDatePickerRef = useRef<boolean>(false);
   const [selectedDay, setSelectedDay] = useState<number>(() => {
     // 수정 모드이고 editData가 있으면 해당 날짜의 일자 사용
     if (mode === 'edit' && editData?.date) {
@@ -1011,25 +1013,23 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   };
 
   const handleDatePress = () => {
+    // 이미 열려있으면 무시
+    if (showDatePicker) {
+      return;
+    }
     // 키패드가 열려있으면 닫기
     Keyboard.dismiss();
     // 일반 생성 흐름: 캘린더 바텀시트를 열어 날짜 선택
     setTempSelectedDate(date.replace(/\./g, '-'));
-    if (isOpeningDatePickerRef.current) return;
-    isOpeningDatePickerRef.current = true;
-    InteractionManager.runAfterInteractions(() => {
-      requestAnimationFrame(() => {
-        setShowDatePicker(true);
-        setTimeout(() => {
-          isOpeningDatePickerRef.current = false;
-        }, 100);
-      });
-    });
+    setShowDatePicker(true);
   };
 
-  const handleDatePickerClose = () => {
+  const handleDatePickerClose = useCallback(() => {
+    if (!showDatePicker) {
+      return;
+    }
     setShowDatePicker(false);
-  };
+  }, [showDatePicker]);
   
   // 선결제 처리 함수
   const handlePrepaymentConfirm = async () => {
@@ -3614,16 +3614,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         selectedDateLabel={date}
         onOpenDatePicker={() => {
           setTempSelectedDate(date.replace(/\./g, '-'));
-          if (isOpeningDatePickerRef.current) return;
-          isOpeningDatePickerRef.current = true;
-          InteractionManager.runAfterInteractions(() => {
-            requestAnimationFrame(() => {
-              setShowDatePicker(true);
-              setTimeout(() => {
-                isOpeningDatePickerRef.current = false;
-              }, 100);
-            });
-          });
+          setShowDatePicker(true);
         }}
         onConfirm={async () => { await handlePrepaymentConfirm(); }}
         onCancel={() => setShowPrepaymentModal(false)}
@@ -3656,11 +3647,14 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               style={[styles.dateButton, { backgroundColor: colors.primary }]}
               onPress={() => {
                 // 선결제 날짜 선택 시 date state 업데이트
+                // 바텀시트를 먼저 닫고 나서 date를 업데이트하여 재오픈 방지
+                setShowDatePicker(false);
                 if (tempSelectedDate) {
                   const formattedDate = tempSelectedDate.replace(/-/g, '.');
-                  setDate(formattedDate);
+                  setTimeout(() => {
+                    setDate(formattedDate);
+                  }, 50);
                 }
-                setShowDatePicker(false);
               }}
             >
               <Text style={[styles.dateButtonText, { color: colors.staticWhite }]}>
@@ -3701,11 +3695,14 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             <Pressable
               style={[styles.dateButton, { backgroundColor: colors.primary }]}
               onPress={() => {
+                // 바텀시트를 먼저 닫고 나서 date를 업데이트하여 재오픈 방지
+                setShowDatePicker(false);
                 if (tempSelectedDate) {
                   const formattedDate = tempSelectedDate.replace(/-/g, '.');
-                  setDate(formattedDate);
+                  setTimeout(() => {
+                    setDate(formattedDate);
+                  }, 50);
                 }
-                setShowDatePicker(false);
               }}
             >
               <Text style={[styles.dateButtonText, { color: colors.staticWhite }]}>확인</Text>

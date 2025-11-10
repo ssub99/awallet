@@ -35,6 +35,7 @@ export default function MyPageScreen() {
   const hasInitializedRef = useRef(false);   // 마이페이지 최초 진입 1회만 로드
   const [isContentReady, setIsContentReady] = useState(false);
   const contentOpacity = useRef(new Animated.Value(0)).current;
+  const scrollViewRef = useRef<ScrollView>(null);
   
   // Settings state
   const [monthStartDay, setMonthStartDay] = useState('1일');
@@ -264,22 +265,58 @@ export default function MyPageScreen() {
   };
 
   const confirmLogout = async () => {
-    try {
-      setLoading(true);
-      if (isSupabaseConfigured) {
-        await supabase.auth.signOut();
+    // 모달을 먼저 닫고 페이드 아웃 효과
+    setShowLogoutConfirm(false);
+    
+    // 페이드 아웃 애니메이션
+    Animated.timing(contentOpacity, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(async () => {
+      try {
+        setIsContentReady(false);
+        setLoading(true);
+        
+        if (isSupabaseConfigured) {
+          await supabase.auth.signOut();
+        }
+        await AsyncStorage.removeItem('userName');
+        
+        // 프로필 리로드를 위한 플래그 리셋
+        hasLoadedProfileRef.current = false;
+        hasInitializedRef.current = false;
+        setUserName(null);
+        setIsLoggedIn(false);
+        
+        // 짧은 딜레이 후 페이드 인으로 새로고침 효과
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        // 설정 다시 로드
+        const [startDay, weekStart, notifications] = await Promise.all([
+          AsyncStorage.getItem('monthStartDay'),
+          AsyncStorage.getItem('weekStartsSunday'),
+          AsyncStorage.getItem('notificationsEnabled'),
+        ]);
+        
+        if (startDay) setMonthStartDay(startDay);
+        if (weekStart !== null) setWeekStartsSunday(JSON.parse(weekStart));
+        if (notifications !== null) setNotificationsEnabled(JSON.parse(notifications));
+        
+        // 페이드 인 애니메이션
+        setIsContentReady(true);
+        
+        // 스크롤을 최상단으로 이동
+        setTimeout(() => {
+          scrollViewRef.current?.scrollTo({ y: 0, animated: false });
+        }, 100);
+      } catch (error) {
+        console.error('로그아웃 중 오류:', error);
+        setIsContentReady(true);
+      } finally {
+        setLoading(false);
       }
-      await AsyncStorage.removeItem('userName');
-      setUserName(null);
-      setIsLoggedIn(false);
-    } catch (error) {
-      console.error('로그아웃 중 오류:', error);
-    } finally {
-      setShowLogoutConfirm(false);
-      setLoading(false);
-      // 화면 리프레시로 상태 일관성 확보
-      router.replace('/(tabs)/mypage');
-    }
+    });
   };
 
   
@@ -470,6 +507,7 @@ export default function MyPageScreen() {
 
       <Animated.View style={{ flex: 1, opacity: isContentReady ? contentOpacity : 0 }}>
       <ScrollView 
+        ref={scrollViewRef}
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}

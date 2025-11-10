@@ -163,23 +163,32 @@ export default function IncomeRecordScreen() {
   }, []);
 
   const handleDatePress = () => {
+    // 이미 열려있으면 무시
+    if (showDatePicker) {
+      return;
+    }
     // 키패드가 열려있으면 닫기
     Keyboard.dismiss();
-    
     setTempSelectedDate(date.replace(/\./g, '-'));
     setShowDatePicker(true);
   };
 
   const handleDatePickerClose = () => {
+    if (!showDatePicker) {
+      return;
+    }
     setShowDatePicker(false);
   };
   
   const handleDateConfirm = () => {
+    // 바텀시트를 먼저 닫고 나서 date를 업데이트하여 재오픈 방지
+    setShowDatePicker(false);
     if (tempSelectedDate) {
       const formattedDate = tempSelectedDate.replace(/-/g, '.');
-      setDate(formattedDate);
+      setTimeout(() => {
+        setDate(formattedDate);
+      }, 50);
     }
-    setShowDatePicker(false);
   };
 
   // amount auto-scroll removed per request

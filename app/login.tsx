@@ -14,6 +14,7 @@ import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getOrCreateDeviceId } from '@/utils/device-id';
 import { logLoginEvent } from '@/utils/login-logs';
+import { mergeGuestRecords } from '@/utils/merge-records';
 import { upsertProfile } from '@/utils/profiles';
 import { isSupabaseConfigured, supabase } from '@/utils/supabase-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -141,7 +142,17 @@ export default function LoginScreen() {
       }
 
       const user = data.user;
+
+      try {
+        await mergeGuestRecords();
+      } catch {
+        await supabase.auth.signOut();
+        setPasswordError('연결에 실패했습니다. 다시 로그인해 주세요.');
+        return;
+      }
       // 로그인 후 프로필에서 이름을 조회하여 저장 (이메일 아이디 하드코딩 제거)
+      let deviceId: string | null = null;
+
       try {
         const { data: profile } = await supabase
           .from('profiles')
@@ -155,9 +166,14 @@ export default function LoginScreen() {
         }
       } catch {}
 
+      try {
+        deviceId = await getOrCreateDeviceId();
+      } catch {
+        deviceId = null;
+      }
+
       // 프로필 동기화 (upsert)
       try {
-        const deviceId = await getOrCreateDeviceId();
         await upsertProfile({
           authUid: user.id,
           email: user.email ?? email,
