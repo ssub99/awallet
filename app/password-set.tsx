@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
+import { useLoading } from '@/contexts/loading-context';
 import { Input } from '@/components/ui/input';
 import { ThemeColors } from '@/constants/theme-colors';
 import { Typography } from '@/constants/typography';
@@ -19,6 +20,7 @@ export default function PasswordSetScreen() {
   const colorScheme = useColorScheme();
   const colors = ThemeColors[colorScheme ?? 'light'];
   const router = useRouter();
+  const { setLoading } = useLoading();
   // 인증 세션 가드: 세션이 없으면 처음으로 되돌림
   useEffect(() => {
     (async () => {
@@ -86,6 +88,7 @@ export default function PasswordSetScreen() {
     }
 
     try {
+      setLoading(true);
       if (!isSupabaseConfigured) throw new Error('Supabase not configured');
       const { data: userData } = await supabase.auth.getUser();
       const user = userData?.user;
@@ -137,6 +140,8 @@ export default function PasswordSetScreen() {
       router.replace('/signup-complete');
     } catch {
       setError('네트워크 오류가 발생했습니다.');
+    } finally {
+      setLoading(false);
     }
   };
 
