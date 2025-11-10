@@ -115,19 +115,13 @@ export function ModalBottomsheet({
   // Animate sheet open/close (like native picker)
   useEffect(() => {
     if (visible) {
-      // Update content immediately when opening
-      setCurrentContent(children);
-      setCurrentTitle(title);
-      
-      // In modal mode, show modal first
       if (!embedded) {
-      setIsModalVisible(true);
+        setIsModalVisible(true);
       }
-      
-      // Reset animation values immediately
+
       dimOpacity.setValue(0);
       sheetTranslateY.setValue(SCREEN_HEIGHT);
-      
+
       requestAnimationFrame(() => {
         Animated.sequence([
           Animated.timing(dimOpacity, {
@@ -143,7 +137,6 @@ export function ModalBottomsheet({
         ]).start();
       });
     } else {
-      // Slide down, then fade dim
       Animated.sequence([
         Animated.timing(sheetTranslateY, {
           toValue: SCREEN_HEIGHT,
@@ -157,11 +150,25 @@ export function ModalBottomsheet({
         }),
       ]).start(() => {
         if (!embedded) {
-        setIsModalVisible(false);
+          setIsModalVisible(false);
         }
       });
     }
-  }, [visible, title, embedded, dimOpacity, sheetTranslateY]);
+  }, [visible, embedded, dimOpacity, sheetTranslateY]);
+
+  useEffect(() => {
+    if (!visible) {
+      return;
+    }
+    setCurrentContent(children);
+  }, [children, visible]);
+
+  useEffect(() => {
+    if (!visible) {
+      return;
+    }
+    setCurrentTitle(title);
+  }, [title, visible]);
   
   // Update content when children change (without triggering animation)
   useEffect(() => {

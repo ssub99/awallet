@@ -310,10 +310,11 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   // date state 변경 감지
   useEffect(() => {
     // 날짜 변경 시 tempSelectedDate 동기화 (바텀시트가 닫힌 상태에서만)
-    if (!showDatePicker) {
-      setTempSelectedDate(date.replace(/\./g, '-'));
+    if (showDatePicker) {
+      return;
     }
-  }, [date]);
+    setTempSelectedDate(date.replace(/\./g, '-'));
+  }, [date, showDatePicker]);
   const [memo, setMemo] = useState<string>('');
   const [isRecurring, setIsRecurring] = useState<boolean>(false);
   // 정기 기록과 할부 기록 모두에서 사용하는 기간 개월수 (상호 배타적)
