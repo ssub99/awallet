@@ -53,6 +53,7 @@ export default function SignupIntroScreen() {
   const [nameError, setNameError] = useState('');
   const [emailError, setEmailError] = useState('');
   const [showExistingModal, setShowExistingModal] = useState(false);
+  const [showUnderAgeModal, setShowUnderAgeModal] = useState(false);
 
   // Generate year options (1950-2024)
   const yearOptions = Array.from({ length: 75 }, (_, i) => {
@@ -128,11 +129,13 @@ export default function SignupIntroScreen() {
 
     if (nameErr) {
       setNameError(nameErr);
+      setLoading(false);
       return;
     }
 
     if (emailErr) {
       setEmailError(emailErr);
+      setLoading(false);
       return;
     }
 
@@ -144,13 +147,30 @@ export default function SignupIntroScreen() {
 
     if (!privacyAgreed || !termsAgreed) {
       Alert.alert('약관 동의 필요', '개인정보처리방침과 이용약관에 동의해 주세요.');
+      setLoading(false);
+      return;
+    }
+
+    const birth = `${birthYear}-${String(parseInt(birthMonth || '0')).padStart(2, '0')}-${String(parseInt(birthDay || '0')).padStart(2, '0')}`;
+    const birthDate = new Date(Number(birthYear), Number(birthMonth) - 1, Number(birthDay));
+    const today = new Date();
+    const fourteenYearsAgo = new Date(today.getFullYear() - 14, today.getMonth(), today.getDate());
+
+    if (Number.isNaN(birthDate.getTime())) {
+      Alert.alert('입력 오류', '유효한 생년월일을 선택해 주세요.');
+      setLoading(false);
+      return;
+    }
+
+    if (birthDate > fourteenYearsAgo) {
+      setShowUnderAgeModal(true);
+      setLoading(false);
       return;
     }
 
     // 0) 기존 가입자 여부 확인 (RPC) — 이름+생년월일+이메일 기준
     try {
       if (isSupabaseConfigured) {
-        const birth = `${birthYear}-${String(parseInt(birthMonth || '0')).padStart(2, '0')}-${String(parseInt(birthDay || '0')).padStart(2, '0')}`;
         const { data: checkResult } = await supabase.rpc('check_signup_candidate', {
           p_email: email,
           p_nm: name,
@@ -166,7 +186,6 @@ export default function SignupIntroScreen() {
 
     // 1) 가입 정보 임시 저장 (다음 단계에서 upsert에 사용)
     try {
-      const birth = `${birthYear}-${String(parseInt(birthMonth || '0')).padStart(2, '0')}-${String(parseInt(birthDay || '0')).padStart(2, '0')}`;
       await AsyncStorage.multiSet([
         ['signupEmail', email],
         ['signupName', name],
@@ -353,6 +372,12 @@ export default function SignupIntroScreen() {
               setShowExistingModal(false);
             }}
             onCancel={() => setShowExistingModal(false)}
+          />
+          <ModalPopup
+            visible={showUnderAgeModal}
+            message={'만 14세 미만은\n서비스를 이용할 수 없습니다.'}
+            confirmText="확인"
+            onConfirm={() => setShowUnderAgeModal(false)}
           />
           <View style={[styles.bottomContainer, { backgroundColor: colors.background }]}>
             <Button

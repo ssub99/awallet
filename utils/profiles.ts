@@ -15,21 +15,30 @@ interface UpsertProfileParams {
  */
 export async function upsertProfile(params: UpsertProfileParams): Promise<void> {
   if (!isSupabaseConfigured) return;
-  const { authUid, email = null, name = null, deviceId = null, loginAt = null, birthDate = null } = params;
 
-  const { error } = await supabase
-    .from('profiles')
-    .upsert(
-      {
-        auth_uid: authUid,
-        email,
-        nm: name,
-        device_id: deviceId,
-        login_at: loginAt,
-        birth_date: birthDate,
-      } as any,
-      { onConflict: 'auth_uid' }
-    );
+  const { authUid, email, name, deviceId, loginAt, birthDate } = params;
+
+  const payload: Record<string, string | null> & { auth_uid: string } = {
+    auth_uid: authUid,
+  };
+
+  if (email !== undefined) {
+    payload.email = email;
+  }
+  if (name !== undefined) {
+    payload.nm = name;
+  }
+  if (deviceId !== undefined) {
+    payload.device_id = deviceId;
+  }
+  if (loginAt !== undefined) {
+    payload.login_at = loginAt;
+  }
+  if (birthDate !== undefined) {
+    payload.birth_date = birthDate;
+  }
+
+  const { error } = await supabase.from('profiles').upsert(payload, { onConflict: 'auth_uid' });
 
   if (error) {
     // Fail silently for now; caller can decide to surface
