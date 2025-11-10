@@ -53,6 +53,7 @@ export default function SignupIntroScreen() {
   const [nameError, setNameError] = useState('');
   const [emailError, setEmailError] = useState('');
   const [showExistingModal, setShowExistingModal] = useState(false);
+  const [showWithdrawPendingModal, setShowWithdrawPendingModal] = useState(false);
   const [showUnderAgeModal, setShowUnderAgeModal] = useState(false);
 
   // Generate year options (1950-2024)
@@ -176,6 +177,12 @@ export default function SignupIntroScreen() {
           p_nm: name,
           p_birth_date: birth,
         });
+        if (checkResult === 'withdrawal_pending') {
+          setShowWithdrawPendingModal(true);
+          setLoading(false);
+          return;
+        }
+
         if (checkResult === 'email_exists' || checkResult === 'person_exists') {
           setShowExistingModal(true);
           setLoading(false);
@@ -366,12 +373,18 @@ export default function SignupIntroScreen() {
           {/* Existing account modal */}
           <ModalPopup
             visible={showExistingModal}
-            message={"가입내역이 이미 존재합니다."}
+            message={'가입내역이 이미 존재합니다.'}
             confirmText="확인"
             onConfirm={() => {
               setShowExistingModal(false);
             }}
             onCancel={() => setShowExistingModal(false)}
+          />
+          <ModalPopup
+            visible={showWithdrawPendingModal}
+            message={'최근 탈퇴한 계정입니다.\n탈퇴 후 3개월 동안 재가입할 수 없습니다.'}
+            confirmText="확인"
+            onConfirm={() => setShowWithdrawPendingModal(false)}
           />
           <ModalPopup
             visible={showUnderAgeModal}

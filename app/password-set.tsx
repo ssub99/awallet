@@ -12,6 +12,7 @@ import { supabase, isSupabaseConfigured } from '@/utils/supabase-client';
 import { upsertProfile } from '@/utils/profiles';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getOrCreateDeviceId } from '@/utils/device-id';
+import { logLoginEvent } from '@/utils/login-logs';
 
 export default function PasswordSetScreen() {
   const colorScheme = useColorScheme();
@@ -108,6 +109,13 @@ export default function PasswordSetScreen() {
             email: user.email ?? null,
             deviceId,
             loginAt: new Date().toISOString(),
+          });
+          await logLoginEvent({
+            email: user.email ?? null,
+            deviceId,
+            metadata: {
+              loginMethod: 'signup_complete',
+            },
           });
           await AsyncStorage.multiRemove(['signupName', 'signupBirth']);
         }
