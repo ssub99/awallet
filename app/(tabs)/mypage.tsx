@@ -72,6 +72,12 @@ export default function MyPageScreen() {
           if (weekStart !== null) setWeekStartsSunday(JSON.parse(weekStart));
           if (notifications !== null) setNotificationsEnabled(JSON.parse(notifications));
 
+          const forceProfileReload = await AsyncStorage.getItem('forceProfileReload');
+          if (forceProfileReload === 'true') {
+            hasLoadedProfileRef.current = false;
+            await AsyncStorage.removeItem('forceProfileReload');
+          }
+
           // 사용자/프로필 로드는 앱 실행 중 1회만 수행 (로컬 캐시가 있으면 사용)
           try {
             if (!hasLoadedProfileRef.current) {
@@ -689,12 +695,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   loginText: {
-    ...Typography.headline4.r.medium,
+    ...Typography.headline4.r.bold,
     flex: 1,
   },
   loginTextLoggedIn: {},
   loginTextLoggedOut: {
-    ...Typography.headline4.r.medium,
+    ...Typography.headline4.r.bold,
   },
 
   

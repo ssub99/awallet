@@ -32,6 +32,7 @@ export default function AccountEditScreen() {
   const [nameError, setNameError] = useState('');
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [withdrawAgree, setWithdrawAgree] = useState(false);
+  const [withdrawSubmitting, setWithdrawSubmitting] = useState(false);
   const [contentHeight, setContentHeight] = useState(0);
   const [layoutHeight, setLayoutHeight] = useState(0);
   const [isContentReady, setIsContentReady] = useState(false);
@@ -201,15 +202,46 @@ export default function AccountEditScreen() {
     setShowWithdrawModal(true);
   }, []);
 
-  const handleWithdrawConfirm = useCallback(() => {
-    if (!withdrawAgree) {
-      Alert.alert('확인 필요', '동의 여부를 먼저 체크해 주세요.');
+  const handleWithdrawConfirm = useCallback(async () => {
+    if (!withdrawAgree || withdrawSubmitting) {
+      if (!withdrawAgree) {
+        Alert.alert('확인 필요', '동의 여부를 먼저 체크해 주세요.');
+      }
       return;
     }
 
-    setShowWithdrawModal(false);
-    Alert.alert('준비 중', '탈퇴 기능은 준비 중입니다.');
-  }, [withdrawAgree]);
+    if (!isSupabaseConfigured) {
+      Alert.alert('설정 오류', 'Supabase가 설정되지 않았습니다.');
+      return;
+    }
+
+    try {
+      setWithdrawSubmitting(true);
+      setLoading(true);
+
+      const { error } = await supabase.rpc('withdraw_account');
+
+      if (error) {
+        throw error;
+      }
+
+      await supabase.auth.signOut();
+      await AsyncStorage.multiRemove(['userName', 'signupEmail', 'signupName', 'signupBirth']);
+
+      await AsyncStorage.setItem('forceProfileReload', 'true');
+
+      setShowWithdrawModal(false);
+      setWithdrawAgree(false);
+
+      router.back();
+    } catch (error) {
+      console.error('회원 탈퇴 중 오류:', error);
+      Alert.alert('오류', '탈퇴 처리 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setWithdrawSubmitting(false);
+      setLoading(false);
+    }
+  }, [withdrawAgree, withdrawSubmitting, router, setLoading, isSupabaseConfigured]);
 
   const handleWithdrawCancel = useCallback(() => {
     setShowWithdrawModal(false);
@@ -362,7 +394,7 @@ export default function AccountEditScreen() {
         cancelText="취소"
         onConfirm={handleWithdrawConfirm}
         confirmText="확인"
-        confirmDisabled={!withdrawAgree}
+        confirmDisabled={!withdrawAgree || withdrawSubmitting}
       >
         <View style={styles.withdrawModalContent}>
           <Text style={[styles.withdrawModalTitle, { color: colors.text }]}>회원 탈퇴 안내</Text>

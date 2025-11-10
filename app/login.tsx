@@ -13,6 +13,7 @@ import { Typography } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getOrCreateDeviceId } from '@/utils/device-id';
+import { logLoginEvent } from '@/utils/login-logs';
 import { upsertProfile } from '@/utils/profiles';
 import { isSupabaseConfigured, supabase } from '@/utils/supabase-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -162,6 +163,16 @@ export default function LoginScreen() {
           email: user.email ?? email,
           deviceId,
           loginAt: new Date().toISOString(),
+        });
+      } catch {}
+
+      try {
+        await logLoginEvent({
+          email: user.email ?? email,
+          deviceId,
+          metadata: {
+            loginMethod: 'password',
+          },
         });
       } catch {}
 
