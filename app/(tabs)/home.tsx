@@ -7,18 +7,17 @@
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { CalendarMain } from '@/components/ui/calendar-main';
 import { Icon } from '@/components/ui/icon';
-import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
 import { MonthData, YearView, YearViewRef } from '@/components/ui/year-view';
 import { Colors, Typography } from '@/constants/theme';
 import { useLoading } from '@/contexts/loading-context';
+import { useCreateSheetContext } from '@/contexts/create-sheet-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { useAppData } from '@/contexts/app-data-context';
-import { createSheetEvent } from '@/utils/create-sheet-event';
 import { getCustomMonthInfo, isDateInCustomMonth } from '@/utils/custom-month';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useIsFocused } from '@react-navigation/native';
-import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { calendarRefreshEvent } from '@/hooks/calendar-events';
 import { Pressable, StyleSheet, Text, View, Animated } from 'react-native';
@@ -31,6 +30,7 @@ export default function HomeScreen() {
   const isFocused = useIsFocused();
   const router = useRouter();
   const { calendarData, monthStartDay, refresh, isReady } = useAppData();
+  const { updateCalendarContext } = useCreateSheetContext();
   const { setLoading } = useLoading();
   const pendingOpsRef = useRef(0);
   const beginLoad = useCallback(() => {
@@ -66,6 +66,30 @@ export default function HomeScreen() {
   
   // 년도 화면에서 마지막으로 본 월 추적
   const lastYearViewMonth = useRef<number | null>(null);
+  const handleYearMonthPress = useCallback(
+    (month: number) => {
+      if (isNavigating.current) {
+        return;
+      }
+
+      lastYearViewMonth.current = month;
+      isNavigating.current = true;
+
+      router.push({
+        pathname: '/monthly-expense-timeline',
+        params: {
+          year: currentYear.toString(),
+          month: month.toString(),
+          tab: 'timeline',
+        },
+      });
+
+      setTimeout(() => {
+        isNavigating.current = false;
+      }, 500);
+    },
+    [router, currentYear]
+  );
   
   // 사용되지 않는 오늘 날짜 유틸 제거 (기능 영향 없음)
   
@@ -170,9 +194,6 @@ export default function HomeScreen() {
     }
   }, [periodType, setCurrentYear, setCurrentMonth, setSelectedDate, setPeriodType]);
   
-  // Create bottom sheet state
-  const [isCreateSheetVisible, setIsCreateSheetVisible] = useState(false);
-  
   // Listen for double tap on home tab
   useEffect(() => {
     const unsubscribe = navigation.addListener('tabDoubleTap' as any, (e: any) => {
@@ -187,26 +208,21 @@ export default function HomeScreen() {
   }, [navigation, resetToToday]);
   
   // Listen for create tab press (only when focused)
-  useEffect(() => {
-    const unsubscribe = createSheetEvent.subscribe(() => {
-      // Only show sheet if this screen is currently focused
-      if (isFocused) {
-        setIsCreateSheetVisible(true);
-      }
-    });
-    
-    return unsubscribe;
-  }, [isFocused]);
+  const effectiveSelectedDate = useMemo(() => {
+    if (selectedDate) {
+      return selectedDate;
+    }
+    const paddedMonth = String(currentMonth).padStart(2, '0');
+    return `${currentYear}-${paddedMonth}-01`;
+  }, [selectedDate, currentYear, currentMonth]);
 
-  // Auto-close bottom sheet when navigating away from this screen
-  useFocusEffect(
-    useCallback(() => {
-      return () => {
-        // Cleanup when losing focus (navigating to another screen)
-        setIsCreateSheetVisible(false);
-      };
-    }, [])
-  );
+  useEffect(() => {
+    updateCalendarContext({
+      selectedDate: effectiveSelectedDate,
+      calendarYear: currentYear,
+      calendarMonth: currentMonth,
+    });
+  }, [effectiveSelectedDate, currentYear, currentMonth, updateCalendarContext]);
 
   // 전역 캘린더 새로고침 이벤트 구독: 로컬 캐시 변경 즉시 반영
   useEffect(() => {
@@ -554,97 +570,11 @@ export default function HomeScreen() {
             year={currentYear}
             monthsData={yearData}
             initialMonth={lastYearViewMonth.current ?? undefined}
+            onMonthPress={handleYearMonthPress}
           />
         </>
       )}
 
-      {/* Create Bottom Sheet */}
-      <ModalBottomsheet
-        visible={isCreateSheetVisible}
-        title="기록/챌린지"
-        onClose={() => setIsCreateSheetVisible(false)}
-        closeOnBackdrop={true}
-      >
-        <View style={styles.optionsContainer}>
-          {/* 입금 기록 */}
-          <Pressable 
-            style={[styles.option, { backgroundColor: colors.fill }]}
-            onPress={() => {
-
-              setIsCreateSheetVisible(false);
-              setTimeout(() => {
-                router.push({
-                  pathname: '/income-record',
-                  params: { 
-                    selectedDate: selectedDate,
-                    calendarYear: currentYear.toString(),
-                    calendarMonth: currentMonth.toString()
-                  }
-                });
-              }, 350);
-            }}
-          >
-            <Text style={[styles.optionText, { color: colors.text }]}>
-              💰 입금 기록
-            </Text>
-          </Pressable>
-
-          {/* 소비 기록 */}
-          <Pressable 
-            style={[styles.option, { backgroundColor: colors.fill }]}
-            onPress={() => {
-
-              setIsCreateSheetVisible(false);
-              setTimeout(() => {
-                router.push({
-                  pathname: '/expense-category',
-                  params: { 
-                    selectedDate: selectedDate,
-                    calendarYear: currentYear.toString(),
-                    calendarMonth: currentMonth.toString()
-                  }
-                });
-              }, 350); // 바텀시트 닫는 애니메이션 후
-            }}
-          >
-            <Text style={[styles.optionText, { color: colors.text }]}>
-              💸 소비 기록
-            </Text>
-          </Pressable>
-
-          {/* 챌린지 도전 */}
-          <Pressable 
-            style={[styles.option, { backgroundColor: colors.fill }]}
-            onPress={() => {
-              // 사용자가 선택한 날짜를 기준으로 챌린지 생성
-              // selectedDate는 "2025-10-24" 형식이므로 "2025.10.24" 형식으로 변환
-              const challengeDate = selectedDate.replace(/-/g, '.');
-              
-              // 선택한 날짜에서 년/월 추출
-              const [selectedYear, selectedMonth] = selectedDate.split('-').map(Number);
-              
-              
-
-              setIsCreateSheetVisible(false);
-              setTimeout(() => {
-                router.push({
-                  pathname: '/expense-category',
-                  params: { 
-                    mode: 'challenge',
-                    selectedDate: challengeDate,
-                    calendarYear: selectedYear.toString(),      // ✅ 선택한 날짜의 년도
-                    calendarMonth: selectedMonth.toString()      // ✅ 선택한 날짜의 월
-                  }
-                });
-              }, 350);
-            }}
-          >
-            <Text style={[styles.optionText, { color: colors.text }]}>
-              🎯 챌린지 도전
-            </Text>
-          </Pressable>
-        </View>
-      </ModalBottomsheet>
     </SafeAreaView>
   );
 }
@@ -687,19 +617,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 'auto', // Push to right
-  },
-  // Bottom sheet styles
-  optionsContainer: {
-    gap: 8,
-  },
-  option: {
-    borderRadius: 16,
-    height: 56,
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-  },
-  optionText: {
-    ...Typography.body1.l.regular,
   },
 });
 
