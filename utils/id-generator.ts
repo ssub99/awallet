@@ -40,16 +40,16 @@ export function generateRecordId(): string {
 /**
  * 그룹 ID 생성 (정기 기록, 할부 기록, 반복 챌린지 등의 그룹 식별자)
  * 
- * 형식: "recurring_{uuid}" 또는 "installment_{uuid}"
+ * 형식: UUID v4
  * 
- * @param type - 그룹 타입 ("recurring" 또는 "installment")
- * @returns 그룹 ID 문자열
+ * @param type - 그룹 타입 (하위 호환성 유지를 위한 매개변수, 실제로는 사용하지 않음)
+ * @returns 그룹 ID 문자열 (UUID v4)
  * 
  * @example
  * const groupId = generateGroupId("recurring");
- * // "recurring_550e8400-e29b-41d4-a716-446655440000"
+ * // "550e8400-e29b-41d4-a716-446655440000"
  */
 export function generateGroupId(type: 'recurring' | 'installment'): string {
-  return `${type}_${generateUuidV4()}`;
+  return generateUuidV4();
 }
 
