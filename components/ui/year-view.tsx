@@ -7,8 +7,9 @@
 
 import { Colors, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import * as Haptics from 'expo-haptics';
 
 export interface MonthData {
   month: number; // 1-12
@@ -20,6 +21,7 @@ export interface YearViewProps {
   year: number;
   monthsData: MonthData[];
   initialMonth?: number; // 초기 스크롤 위치 (월)
+  onMonthPress?: (month: number) => void;
 }
 
 export interface YearViewRef {
@@ -30,7 +32,7 @@ export interface YearViewRef {
  * Year View Component
  */
 export const YearView = forwardRef<YearViewRef, YearViewProps>(
-  ({ year, monthsData, initialMonth }, ref) => {
+  ({ year, monthsData, initialMonth, onMonthPress }, ref) => {
     const colorScheme = useColorScheme();
     const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
     const scrollViewRef = useRef<ScrollView>(null);
@@ -82,7 +84,18 @@ export const YearView = forwardRef<YearViewRef, YearViewProps>(
         showsVerticalScrollIndicator={false}
       >
         {sortedData.map((data) => (
-          <MonthCard key={data.month} data={data} colors={colors} />
+          <MonthCard
+            key={data.month}
+            data={data}
+            colors={colors}
+            onPress={
+              onMonthPress
+                ? () => {
+                    onMonthPress(data.month);
+                  }
+                : undefined
+            }
+          />
         ))}
       </ScrollView>
     );
@@ -95,9 +108,10 @@ export const YearView = forwardRef<YearViewRef, YearViewProps>(
 interface MonthCardProps {
   data: MonthData;
   colors: typeof Colors.light;
+  onPress?: () => void;
 }
 
-function MonthCard({ data, colors }: MonthCardProps) {
+function MonthCard({ data, colors, onPress }: MonthCardProps) {
   // 입금대비 소비율 계산
   const calculateRatio = (): number => {
     if (data.income === 0) return 0;
@@ -133,8 +147,16 @@ function MonthCard({ data, colors }: MonthCardProps) {
     return ratio.toFixed(1) + '%';
   };
 
-  return (
-    <View style={[styles.card, { backgroundColor: status.color }]}>
+  const handlePress = useCallback(() => {
+    if (!onPress) {
+      return;
+    }
+    void Haptics.selectionAsync();
+    onPress();
+  }, [onPress]);
+
+  const cardContent = (
+    <View style={[styles.cardContent, { backgroundColor: status.color }]}>
       {/* 헤더 */}
       <View style={styles.cardHeader}>
         <Text style={styles.monthText}>{data.month}월</Text>
@@ -167,6 +189,24 @@ function MonthCard({ data, colors }: MonthCardProps) {
       </View>
     </View>
   );
+
+  if (!onPress) {
+    return cardContent;
+  }
+
+  return (
+    <Pressable
+      onPress={handlePress}
+      accessibilityRole="button"
+      accessibilityLabel={`${data.month}월 타임라인으로 이동`}
+      style={({ pressed }) => [
+        styles.cardPressable,
+        { opacity: pressed ? 0.9 : 1 },
+      ]}
+    >
+      {cardContent}
+    </Pressable>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -177,7 +217,10 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 16,
   },
-  card: {
+  cardPressable: {
+    borderRadius: 16,
+  },
+  cardContent: {
     borderRadius: 16,
     padding: 20,
     height: 147,
