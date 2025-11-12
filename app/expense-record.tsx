@@ -1964,6 +1964,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     setLoading(true);
     try {
       const timestampsToDelete = new Set<number>();
+      const supabaseIdsToDelete = new Set<string>();
       const { getExpensesByInstallmentId, getExpensesByRecurringId } = await import('@/utils/expenses');
 
       if (editData.isInstallment && editData.installmentId) {
@@ -1971,6 +1972,11 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         installmentRecords.forEach(record => {
           if (typeof record.timestamp === 'number') {
             timestampsToDelete.add(record.timestamp);
+          }
+          if (record.id) {
+            supabaseIdsToDelete.add(record.id);
+          } else if (typeof record.timestamp === 'number') {
+            supabaseIdsToDelete.add(record.timestamp.toString());
           }
         });
       }
@@ -1981,18 +1987,28 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           if (typeof record.timestamp === 'number') {
             timestampsToDelete.add(record.timestamp);
           }
+          if (record.id) {
+            supabaseIdsToDelete.add(record.id);
+          } else if (typeof record.timestamp === 'number') {
+            supabaseIdsToDelete.add(record.timestamp.toString());
+          }
         });
       }
 
       if (!editData.isInstallment && !editData.isRecurring && typeof editData.timestamp === 'number') {
         timestampsToDelete.add(editData.timestamp);
+        supabaseIdsToDelete.add(
+          typeof editData.id === 'string'
+            ? editData.id
+            : editData.timestamp.toString()
+        );
       }
 
-      if (timestampsToDelete.size > 0) {
+      if (supabaseIdsToDelete.size > 0) {
         const deletedAt = new Date().toISOString();
         await Promise.all(
-          Array.from(timestampsToDelete).map(async (timestamp) => {
-            await updateExpense(timestamp.toString(), {
+          Array.from(supabaseIdsToDelete).map(async (recordId) => {
+            await updateExpense(recordId, {
               isDeleted: true,
               deletedAt,
             });
