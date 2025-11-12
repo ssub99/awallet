@@ -319,7 +319,8 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
                     // 모든 지출 기록 삭제
                     for (const expense of expenses) {
                       try {
-                        await deleteExpense(expense.timestamp.toString());
+                        const expenseId = expense.id || expense.timestamp.toString();
+                        await deleteExpense(expenseId);
                       } catch (_error) {
                         console.error('지출 기록 삭제 중 오류:', expense.timestamp, _error);
                       }
@@ -337,7 +338,8 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
                     const incomes = await getAllIncomes();
                     for (const income of incomes) {
                       try {
-                        await softDeleteIncome(income.timestamp.toString());
+                        const incomeId = income.id || income.timestamp.toString();
+                        await softDeleteIncome(incomeId);
                       } catch (_error) {
                         console.error('입금 기록 삭제 중 오류:', income.timestamp, _error);
                       }
