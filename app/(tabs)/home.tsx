@@ -16,7 +16,6 @@ import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { useAppData } from '@/contexts/app-data-context';
 import { getCustomMonthInfo, isDateInCustomMonth } from '@/utils/custom-month';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useIsFocused } from '@react-navigation/native';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { calendarRefreshEvent } from '@/hooks/calendar-events';
@@ -27,7 +26,6 @@ export default function HomeScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
   const navigation = useNavigation();
-  const isFocused = useIsFocused();
   const router = useRouter();
   const { calendarData, monthStartDay, refresh, isReady } = useAppData();
   const { updateCalendarContext } = useCreateSheetContext();

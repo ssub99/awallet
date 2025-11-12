@@ -27,6 +27,7 @@ import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { triggerChallengeNotifications } from '@/utils/challenge-utils';
 import { getCustomMonthInfo } from '@/utils/custom-month';
 import { createExpense, updateExpense, type ExpenseRecord as ExpenseRecordType } from '@/utils/expenses';
+import { generateRecordId, generateGroupId } from '@/utils/id-generator';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -1119,7 +1120,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
       // Supabase에 선결제 기록 업데이트
       try {
-        const recordId = prepaidRecord.timestamp.toString();
+        const recordId = prepaidRecord.id || prepaidRecord.timestamp.toString(); // UUID 우선, fallback으로 timestamp
         await updateExpense(recordId, {
           date: prepaidDateFormatted,
           isPrepaid: true,
@@ -1355,22 +1356,28 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       }
       
       // 3. 새 기록 추가
-      // 오늘만 수정 모드에서는 기존 timestamp와 recurringId 유지
+      // 오늘만 수정 모드에서는 기존 timestamp, id, recurringId 유지
       const newTimestamp = (mode === 'edit' && editData && editOption === 'today') 
         ? editData.timestamp 
         : new Date().getTime();
-      // 정기 기록 전용 ID
+      
+      // 고유 ID 생성 (UUID)
+      const recordId = (mode === 'edit' && editData && editOption === 'today')
+        ? editData.id
+        : generateRecordId();
+      
+      // 정기 기록 전용 그룹 ID (recurring_UUID 형식)
       const recurringId = isRecurring 
         ? ((mode === 'edit' && editData && editOption === 'today') 
           ? editData.recurringId 
-          : newTimestamp.toString())
+          : generateGroupId('recurring'))
         : undefined;
 
-      // 할부 기록 전용 ID
+      // 할부 기록 전용 그룹 ID (installment_UUID 형식)
       const installmentId = isInstallment 
         ? ((mode === 'edit' && editData && editOption === 'today') 
           ? editData.installmentId
-          : newTimestamp.toString())
+          : generateGroupId('installment'))
         : undefined;
 
       // 할부 옵션이 켜져 있으면 월별 금액 계산 (정기 옵션과 무관하게)
@@ -1391,6 +1398,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       }
 
       const newRecord = {
+        id: recordId, // UUID
         type: 'expense' as const,
         amount: monthlyAmount,
         category,
@@ -1618,6 +1626,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           // 미래 기록 추가 (자동생성 표시)
           calendarData[futureDateKey].records.push({
             ...newRecord,
+            id: generateRecordId(), // 각 기록마다 고유한 UUID
             amount: futureMonthlyAmount,
             date: futureDate,
             timestamp: newTimestamp + i,
@@ -1730,6 +1739,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           // 생성 모드: 새로 생성된 기록들 저장
           // 원본 기록
           recordsToSave.push({
+            id: recordId, // UUID
             type: 'expense',
             amount: monthlyAmount,
             category,
@@ -1779,6 +1789,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 : expenseAmount;
 
               recordsToSave.push({
+                id: generateRecordId(), // 각 기록마다 고유한 UUID
                 type: 'expense',
                 amount: futureMonthlyAmount,
                 category,
@@ -1806,7 +1817,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         // Supabase에 저장
         for (const record of recordsToSave) {
           try {
-            const recordId = record.timestamp.toString();
+            const recordId = record.id || record.timestamp.toString(); // UUID 우선, fallback으로 timestamp
             
             if (mode === 'edit' && editData) {
               // 수정 모드: 기록이 존재하는지 확인 후 업데이트 또는 생성
@@ -2151,7 +2162,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       // Supabase에 환불 기록 업데이트
       try {
         for (const { record } of recordsToRefund) {
-          const recordId = record.timestamp.toString();
+          const recordId = record.id || record.timestamp.toString(); // UUID 우선, fallback으로 timestamp
           await updateExpense(recordId, {
             isRefunded: true,
             amount: 0,
@@ -2280,7 +2291,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
       // Supabase에 선결제 복구 업데이트
       try {
-        const recordId = restoredRecord.timestamp.toString();
+        const recordId = restoredRecord.id || restoredRecord.timestamp.toString(); // UUID 우선, fallback으로 timestamp
         await updateExpense(recordId, {
           date: originalDateFormatted,
           isPrepaid: false,
@@ -2465,7 +2476,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               ? backupAmount
               : (isFirstRecordInGroup ? baseAmount + remainder : baseAmount);
             
-            const recordId = record.timestamp.toString();
+            const recordId = record.id || record.timestamp.toString(); // UUID 우선, fallback으로 timestamp
             await updateExpense(recordId, {
               isRefunded: false,
               amount: restoredAmount,

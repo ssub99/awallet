@@ -12,6 +12,7 @@ import { Typography } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getCustomMonthInfo } from '@/utils/custom-month';
 import { createChallenges, getAllChallenges, softDeleteChallengesByRecurringId, type ChallengeRecord } from '@/utils/challenges';
+import { generateRecordId, generateGroupId } from '@/utils/id-generator';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { monthStartEvent } from '@/hooks/use-month-start';
 import { useNavigation } from '@react-navigation/native';
@@ -87,8 +88,8 @@ export default function MonthStartDayScreen() {
         
         
         
-        // 새로운 recurringId 생성
-        const newRecurringId = `${today.getTime()}_${Math.random().toString(36).substr(2, 9)}`;
+        // 새로운 recurringId 생성 (그룹 식별자)
+        const newRecurringId = generateGroupId('recurring');
         
         // 오늘 날짜가 속하는 커스텀 월을 기준으로 챌린지들 생성
         for (let i = 0; i < recurringMonths; i++) {
@@ -115,7 +116,7 @@ export default function MonthStartDayScreen() {
           const now = Date.now();
 
           const newChallenge: ChallengeRecord = {
-            id: i === 0 ? newRecurringId : `${today.getTime()}_${i}_${Math.random().toString(36).substr(2, 9)}`,
+            id: generateRecordId(), // 각 챌린지마다 고유한 UUID
             category: category,
             startDate: challengeStartDate,
             endDate: challengeEndDateStr,
