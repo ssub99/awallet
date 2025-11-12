@@ -850,6 +850,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
       const generatedRecord = {
         ...newRecord,
+        id: generateRecordId(),
         date: targetDate.dot,
         timestamp: recordTimestamp,
         amount: normalizedMonthlyAmount,
