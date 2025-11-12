@@ -19,6 +19,7 @@ import { getCustomMonthInfo } from '@/utils/custom-month';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { calendarRefreshEvent } from '@/hooks/calendar-events';
 import { createIncome, type IncomeRecord as IncomeRecordType } from '@/utils/incomes';
+import { generateRecordId } from '@/utils/id-generator';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Dimensions, InteractionManager, Keyboard, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
@@ -223,6 +224,7 @@ export default function IncomeRecordScreen() {
       const incomeTimestamp = Date.now();
 
       const incomeRecord: IncomeRecordType = {
+        id: generateRecordId(), // UUID 생성
         type: 'income',
         amount: incomeAmount,
         date,

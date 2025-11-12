@@ -1,10 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase, isSupabaseConfigured } from './supabase-client';
 import { getOrCreateDeviceId } from './device-id';
+import { generateRecordId } from './id-generator';
 
 const INCOME_STORAGE_KEY = 'incomeData';
 
 export interface IncomeRecord {
+  id?: string; // UUID v4 (생성 시 자동 할당)
   type: 'income';
   amount: number;
   date: string; // YYYY.MM.DD
@@ -75,7 +77,7 @@ function applyOwnershipFilter(query: any, context: AuthContext) {
 
 function convertToSupabaseFormat(record: IncomeRecord, context: AuthContext): Partial<SupabaseIncome> {
   return {
-    id: record.timestamp.toString(),
+    id: record.id || generateRecordId(), // UUID 사용, fallback으로 새 ID 생성
     amount: record.amount,
     date: record.date,
     memo: record.memo ?? null,
@@ -90,6 +92,7 @@ function convertToSupabaseFormat(record: IncomeRecord, context: AuthContext): Pa
 
 function convertFromSupabaseFormat(row: SupabaseIncome): IncomeRecord {
   return {
+    id: row.id, // UUID 포함
     type: 'income',
     amount: row.amount,
     date: row.date,
@@ -196,7 +199,8 @@ export async function softDeleteIncome(id: string): Promise<void> {
 export async function getIncomeById(id: string): Promise<IncomeRecord | null> {
   if (!isSupabaseConfigured) {
     const locals = await loadLocalIncomes();
-    return locals.find((income) => income.timestamp.toString() === id) ?? null;
+    // ID 또는 timestamp로 찾기 (하위 호환성)
+    return locals.find((income) => income.id === id || income.timestamp.toString() === id) ?? null;
   }
 
   try {
@@ -280,7 +284,10 @@ export async function getAllIncomes(): Promise<IncomeRecord[]> {
 
 async function saveLocalIncome(record: IncomeRecord): Promise<void> {
   const locals = await loadLocalIncomes();
-  const filtered = locals.filter((income) => income.timestamp !== record.timestamp);
+  // ID 또는 timestamp로 중복 제거 (하위 호환성)
+  const filtered = locals.filter((income) => 
+    !(income.id && record.id && income.id === record.id) && income.timestamp !== record.timestamp
+  );
   filtered.push(record);
   await AsyncStorage.setItem(INCOME_STORAGE_KEY, JSON.stringify(filtered));
 }
@@ -288,7 +295,8 @@ async function saveLocalIncome(record: IncomeRecord): Promise<void> {
 async function updateLocalIncome(id: string, updates: Partial<IncomeRecord>): Promise<void> {
   const locals = await loadLocalIncomes();
   const updated = locals.map((income) => {
-    if (income.timestamp.toString() === id) {
+    // ID 또는 timestamp로 매칭 (하위 호환성)
+    if (income.id === id || income.timestamp.toString() === id) {
       return { ...income, ...updates };
     }
     return income;

@@ -18,6 +18,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { getCustomMonthInfo } from '@/utils/custom-month';
 import { createChallenges, type ChallengeRecord } from '@/utils/challenges';
+import { generateRecordId, generateGroupId } from '@/utils/id-generator';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Keyboard, Pressable, ScrollView, StatusBar, StyleSheet, Text, TouchableWithoutFeedback, View } from 'react-native';
@@ -155,8 +156,8 @@ export default function ChallengeCreateScreen() {
       const targetAmountNum = parseFloat(targetAmount.replace(/,/g, ''));
       const monthsToCreate = isRecurring ? recurringMonths : 1;
       // 기존 챌린지 데이터 가져오기
-      // recurringId 생성 (부모 챌린지의 ID)
-      const recurringId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      // recurringId 생성 (그룹 식별자)
+      const recurringId = generateGroupId('recurring');
 
       // 반복 개월 수만큼 챌린지 생성
       const newChallenges: ChallengeRecord[] = [];
@@ -198,7 +199,7 @@ export default function ChallengeCreateScreen() {
         const durationMonths = monthsToCreate;
 
         const challengeData: ChallengeRecord = {
-          id: i === 0 ? recurringId : `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          id: generateRecordId(), // 각 챌린지마다 고유한 UUID
           category: params.category,
           startDate: challengeStartDate,
           endDate: challengeEndDateStr,

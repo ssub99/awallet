@@ -6,9 +6,11 @@
 
 import { supabase, isSupabaseConfigured } from './supabase-client';
 import { getOrCreateDeviceId } from './device-id';
+import { generateRecordId, generateGroupId } from './id-generator';
 
 // 코드에서 사용하는 지출 기록 타입
 export interface ExpenseRecord {
+  id?: string; // UUID v4 (생성 시 자동 할당)
   type: 'expense';
   amount: number;
   category: string;
@@ -72,7 +74,7 @@ export interface SupabaseExpense {
  */
 function convertToSupabaseFormat(record: ExpenseRecord): Partial<SupabaseExpense> {
   return {
-    id: record.timestamp.toString(),
+    id: record.id || generateRecordId(), // UUID 사용, fallback으로 새 ID 생성
     category: record.category,
     amount: record.amount,
     date: record.date,
@@ -105,6 +107,7 @@ function convertToSupabaseFormat(record: ExpenseRecord): Partial<SupabaseExpense
  */
 function convertFromSupabaseFormat(row: SupabaseExpense): ExpenseRecord {
   return {
+    id: row.id, // UUID 포함
     type: 'expense',
     amount: row.amount,
     category: row.category,
