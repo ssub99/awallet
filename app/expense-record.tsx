@@ -27,7 +27,7 @@ import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { triggerChallengeNotifications } from '@/utils/challenge-utils';
 import { getCustomMonthInfo } from '@/utils/custom-month';
 import { createExpense, updateExpense, type ExpenseRecord as ExpenseRecordType } from '@/utils/expenses';
-import { generateRecordId, generateGroupId } from '@/utils/id-generator';
+import { generateRecordId, generateGroupId, extractTimestampFromId } from '@/utils/id-generator';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -67,26 +67,31 @@ const calcPeriod = (editData: any, totalMonths: number) => {
   // 정기 기록: recurringId, 할부 기록: installmentId
   const idToUse = editData.isRecurring ? editData.recurringId : editData.installmentId;
   
-  if (!idToUse) {
-    // ID가 없으면 편집 날짜를 기준으로 계산 (에러 케이스)
-    const editDate = new Date(editData.date || '');
+  const fallbackTimestamp =
+    typeof editData.createdAt === 'number' ? editData.createdAt :
+    typeof editData.timestamp === 'number' ? editData.timestamp :
+    Date.now();
+
+  const extractedTimestamp = extractTimestampFromId(idToUse);
+  const originalStartDate = new Date(extractedTimestamp ?? fallbackTimestamp);
+
+  if (Number.isNaN(originalStartDate.getTime())) {
+    const editDate = new Date(editData.date || fallbackTimestamp);
     const editYear = editDate.getFullYear();
     const editMonth = editDate.getMonth() + 1;
-    
+
     return {
       startYear: editYear,
       startMonth: editMonth,
       editYear,
       editMonth,
-      totalMonths: totalMonths,
+      totalMonths,
       originalStartDate: editDate,
       originalStartYear: editYear,
       originalStartMonth: editMonth
     };
   }
-  
-  // ID(timestamp)에서 최초 생성 날짜 계산
-  const originalStartDate = new Date(Number(idToUse));
+
   const originalStartYear = originalStartDate.getFullYear();
   const originalStartMonth = originalStartDate.getMonth() + 1;
   
@@ -773,15 +778,15 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
     const totalIterations = Math.max(1, requestedTotalMonths, preservedByTimestamp.size || 0);
 
-    let baseTimestamp = Number(groupId);
-    if (!Number.isFinite(baseTimestamp)) {
+    let baseTimestamp = extractTimestampFromId(groupId);
+    if (baseTimestamp === null || !Number.isFinite(baseTimestamp)) {
       const preservedExample = preservedByTimestamp.keys().next();
       if (!preservedExample.done) {
         baseTimestamp = preservedExample.value;
       } else if (deletedTimestampSet.size > 0) {
         baseTimestamp = Math.min(...Array.from(deletedTimestampSet));
       } else {
-        baseTimestamp = Date.now();
+        baseTimestamp = typeof newRecord.timestamp === 'number' ? newRecord.timestamp : Date.now();
       }
     }
 
@@ -3149,7 +3154,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                       // 수정 모드: 최초 생성년월 표시 (recurringId/installmentId는 timestamp)
                       (() => {
                         const idToUse = editData.isRecurring ? editData.recurringId : editData.installmentId;
-                        const originalDate = new Date(Number(idToUse));
+                        const originalTimestamp = extractTimestampFromId(idToUse) ?? (typeof editData.createdAt === 'number' ? editData.createdAt : editData.timestamp);
+                        const originalDate = new Date(originalTimestamp ?? Date.now());
                         const originalYear = originalDate.getFullYear();
                         const originalMonth = String(originalDate.getMonth() + 1).padStart(2, '0');
                         return `최초 생성년월 : ${originalYear}/${originalMonth}`;
@@ -3528,7 +3534,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                   기간 : {(() => {
                     if (editData?.isRecurring && editData?.recurringId) {
                       // 정기기록의 실제 원본 시작일 사용
-                      const originalStartDate = new Date(Number(editData.recurringId));
+                      const originalStartTimestamp = extractTimestampFromId(editData.recurringId) ?? (typeof editData.createdAt === 'number' ? editData.createdAt : editData.timestamp);
+                      const originalStartDate = new Date(originalStartTimestamp ?? Date.now());
                       const originalStartDateStr = `${originalStartDate.getFullYear()}.${String(originalStartDate.getMonth() + 1).padStart(2, '0')}.${String(originalStartDate.getDate()).padStart(2, '0')}`;
                       
                       return getRecurringPeriod(originalStartDateStr, totalMonths);
@@ -3570,7 +3577,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                   기간 : {(() => {
                     if (editData?.isInstallment && editData?.installmentId) {
                       // 할부기록의 실제 원본 시작일 사용
-                      const originalStartDate = new Date(Number(editData.installmentId));
+                      const originalStartTimestamp = extractTimestampFromId(editData.installmentId) ?? (typeof editData.createdAt === 'number' ? editData.createdAt : editData.timestamp);
+                      const originalStartDate = new Date(originalStartTimestamp ?? Date.now());
                       const originalStartDateStr = `${originalStartDate.getFullYear()}.${String(originalStartDate.getMonth() + 1).padStart(2, '0')}.${String(originalStartDate.getDate()).padStart(2, '0')}`;
                       
                       return getRecurringPeriod(originalStartDateStr, totalMonths);
