@@ -9,11 +9,9 @@
     "scheme": "awallet",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "privacy": "public",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.ssong.awallet",
-      "category": "FINANCE",
       "infoPlist": {
         "NSUserNotificationsUsageDescription": "소비 기록 알림과 챌린지 리마인더를 받기 위해 알림 권한이 필요합니다."
       }
@@ -28,7 +26,6 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.ssong.awallet",
-      "category": "finance",
       "permissions": [
         "android.permission.POST_NOTIFICATIONS"
       ]
@@ -68,7 +65,8 @@
           "color": "#3664CE",
           "sounds": []
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
