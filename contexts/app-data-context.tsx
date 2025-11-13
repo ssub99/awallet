@@ -25,13 +25,19 @@ export const useAppData = (): AppDataContextType => {
   return ctx;
 };
 
-export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+interface AppDataProviderProps {
+  children: React.ReactNode;
+  enabled?: boolean;
+}
+
+export const AppDataProvider: React.FC<AppDataProviderProps> = ({ children, enabled = true }) => {
   const { setLoading } = useLoading();
   const [calendarData, setCalendarData] = useState<DayDataRecord>({});
   const [monthStartDay, setMonthStartDay] = useState<number>(1);
   const [isReady, setIsReady] = useState<boolean>(false);
   const [dataVersion, setDataVersion] = useState<number>(0);
   const refreshingRef = useRef(false);
+  const initializedRef = useRef(false);
 
   const refresh = useCallback(async () => {
     if (refreshingRef.current) {
@@ -258,8 +264,12 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [setLoading]);
 
   useEffect(() => {
+    if (!enabled || initializedRef.current) {
+      return;
+    }
+    initializedRef.current = true;
     refresh().catch(() => {});
-  }, [refresh]);
+  }, [enabled, refresh]);
 
   useEffect(() => {
     const unsub = monthStartEvent.subscribe((day) => {

@@ -1,5 +1,7 @@
+import { AnimatedSplashOverlay } from '@/components/ui/animated-splash-overlay';
 import { GlobalProgressBar } from '@/components/ui/global-progress-bar';
 import { Colors } from '@/constants/theme';
+import { AppDataProvider } from '@/contexts/app-data-context';
 import { LoadingProvider } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useFirstLaunchNotificationPermission } from '@/hooks/use-notifications';
@@ -9,11 +11,10 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import * as Notifications from 'expo-notifications';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import 'react-native-reanimated';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
-import { AppDataProvider } from '@/contexts/app-data-context';
 
 // Configure how notifications should be handled when app is in foreground
 Notifications.setNotificationHandler({
@@ -32,6 +33,7 @@ export const unstable_settings = {
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+  const [splashFinished, setSplashFinished] = useState(false);
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
   
   // Request notification permission on first app launch
@@ -67,23 +69,25 @@ export default function RootLayout() {
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <View style={{ flex: 1, backgroundColor: colors.background }}>
         <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-          <AppDataProvider>
-        <Stack>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="(dev-tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="expense-category" options={{ headerShown: false }} />
-          <Stack.Screen name="expense-record" options={{ headerShown: false }} />
-          <Stack.Screen name="expense-edit" options={{ headerShown: false }} />
-          <Stack.Screen name="income-record" options={{ headerShown: false }} />
-          <Stack.Screen name="income-edit" options={{ headerShown: false }} />
-          <Stack.Screen name="challenge-create" options={{ headerShown: false }} />
-          <Stack.Screen name="challenge-edit" options={{ headerShown: false }} />
-          <Stack.Screen name="monthly-expense-timeline" options={{ headerShown: false }} />
-          <Stack.Screen name="month-start-day" options={{ headerShown: false }} />
-          <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-        </Stack>
-          <StatusBar style="auto" />
-          <GlobalProgressBar />
+          <AppDataProvider enabled={splashFinished}>
+            <AnimatedSplashOverlay onFinish={() => setSplashFinished(true)}>
+              <Stack>
+                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                <Stack.Screen name="(dev-tabs)" options={{ headerShown: false }} />
+                <Stack.Screen name="expense-category" options={{ headerShown: false }} />
+                <Stack.Screen name="expense-record" options={{ headerShown: false }} />
+                <Stack.Screen name="expense-edit" options={{ headerShown: false }} />
+                <Stack.Screen name="income-record" options={{ headerShown: false }} />
+                <Stack.Screen name="income-edit" options={{ headerShown: false }} />
+                <Stack.Screen name="challenge-create" options={{ headerShown: false }} />
+                <Stack.Screen name="challenge-edit" options={{ headerShown: false }} />
+                <Stack.Screen name="monthly-expense-timeline" options={{ headerShown: false }} />
+                <Stack.Screen name="month-start-day" options={{ headerShown: false }} />
+                <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+              </Stack>
+              <StatusBar style="auto" />
+              <GlobalProgressBar />
+            </AnimatedSplashOverlay>
           </AppDataProvider>
         </ThemeProvider>
       </View>

@@ -1,11 +1,13 @@
 import { useLoading } from '@/contexts/loading-context';
+import { useSplashVisibility } from '@/components/ui/animated-splash-overlay';
 import React from 'react';
 import { ActivityIndicator, Modal, StyleSheet, View } from 'react-native';
 
 export const GlobalProgressBar: React.FC = () => {
   const { isLoading } = useLoading();
+  const splashVisible = useSplashVisibility();
 
-  if (!isLoading) {
+  if (!isLoading || splashVisible) {
     return null;
   }
 
