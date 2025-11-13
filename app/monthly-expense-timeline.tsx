@@ -288,7 +288,7 @@ export default function MonthlyExpenseTimelineScreen() {
             setTimelineData(items);
           }
 
-          // 챌린지 데이터 새로고침 (Supabase 연동)
+          // 챌린지 데이터 새로고침
           try {
             const { startDate: customStart, endDate: customEnd } = getCustomMonthRange(year, month, monthStart);
 
@@ -299,12 +299,12 @@ export default function MonthlyExpenseTimelineScreen() {
               return `${challengeYear}.${challengeMonth}.${challengeDay}`;
             };
 
-            const supabaseChallenges = await getChallengesByDateRange(
+            const challengeRecords = await getChallengesByDateRange(
               formatChallengeDate(customStart),
               formatChallengeDate(customEnd)
             );
 
-            const activeChallenges = supabaseChallenges.filter((challenge) => {
+            const activeChallenges = challengeRecords.filter((challenge) => {
               const [startY, startM, startD] = challenge.startDate.split('.').map(Number);
               const challengeStartDate = new Date(startY, startM - 1, startD);
               return isDateInCustomMonth(challengeStartDate, year, month, monthStart);

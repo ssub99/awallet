@@ -5,7 +5,27 @@
  * ULID 형식을 사용하여 시간순 정렬 가능 + 예측 불가능 + 충돌 가능성 극히 낮음
  */
 
-import { ulid, decodeTime } from 'ulid';
+import 'react-native-get-random-values';
+import { ulid as createUlid, decodeTime, monotonicFactory } from 'ulid';
+
+const fallbackUlid = monotonicFactory();
+
+function safeUlid(): string {
+  const hasCrypto =
+    typeof globalThis !== 'undefined' &&
+    typeof globalThis.crypto !== 'undefined' &&
+    typeof globalThis.crypto.getRandomValues === 'function';
+
+  if (hasCrypto) {
+    try {
+      return createUlid();
+    } catch {
+      // fall through to fallback
+    }
+  }
+
+  return fallbackUlid();
+}
 
 /**
  * 기록 ID 생성 (소비, 입금, 챌린지 등 모든 기록에 사용)
@@ -22,7 +42,7 @@ import { ulid, decodeTime } from 'ulid';
  * // "01ARZ3NDEKTSV4RRFFQ69G5FAV"
  */
 export function generateRecordId(): string {
-  return ulid();
+  return safeUlid();
 }
 
 /**
@@ -38,7 +58,7 @@ export function generateRecordId(): string {
  * // "01ARZ3NDEKTSV4RRFFQ69G5FAV"
  */
 export function generateGroupId(type: 'recurring' | 'installment'): string {
-  return ulid();
+  return safeUlid();
 }
 
 /**

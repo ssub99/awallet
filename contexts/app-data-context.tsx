@@ -76,15 +76,15 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
       });
       
-      // Supabase에서 지출/입금 기록 조회
-      let supabaseCalendarData: DayDataRecord = {};
+      // 저장된 지출/입금 기록 조회
+      let fetchedCalendarData: DayDataRecord = {};
       try {
         const [expenses, incomes] = await Promise.all([
           getAllExpenses(),
           getAllIncomes(),
         ]);
-        
-        // Supabase 지출 기록을 calendarData 구조로 변환
+
+        // 지출 기록을 calendarData 구조로 변환
         expenses.forEach((expense: ExpenseRecord) => {
           if (expense.isDeleted) {
             return;
@@ -94,8 +94,8 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
           const dateKey = expense.date.replace(/\./g, '-');
           
           // 날짜별 데이터 구조 생성
-          if (!supabaseCalendarData[dateKey]) {
-            supabaseCalendarData[dateKey] = {
+          if (!fetchedCalendarData[dateKey]) {
+            fetchedCalendarData[dateKey] = {
               totalExpense: 0,
               totalIncome: 0,
               records: [],
@@ -103,7 +103,7 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
           }
           
           // 지출 기록 추가
-          supabaseCalendarData[dateKey].records.push({
+          fetchedCalendarData[dateKey].records.push({
             type: 'expense',
             amount: expense.amount,
             category: expense.category,
@@ -131,11 +131,11 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
           
           // 총액 계산 (환불된 기록은 제외)
           if (!expense.isRefunded) {
-            supabaseCalendarData[dateKey].totalExpense += expense.amount || 0;
+            fetchedCalendarData[dateKey].totalExpense += expense.amount || 0;
           }
         });
         
-        // Supabase 입금 기록 병합
+        // 입금 기록 병합
         incomes.forEach((income: IncomeRecord) => {
           if (income.isDeleted) {
             return;
@@ -143,15 +143,15 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
           const dateKey = income.date.replace(/\./g, '-');
 
-          if (!supabaseCalendarData[dateKey]) {
-            supabaseCalendarData[dateKey] = {
+          if (!fetchedCalendarData[dateKey]) {
+            fetchedCalendarData[dateKey] = {
               totalExpense: 0,
               totalIncome: 0,
               records: [],
             };
           }
 
-          supabaseCalendarData[dateKey].records.push({
+          fetchedCalendarData[dateKey].records.push({
             type: 'income',
             amount: income.amount,
             category: '💰 입금',
@@ -162,48 +162,45 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
             deletedAt: income.deletedAt,
           });
 
-          supabaseCalendarData[dateKey].totalIncome += income.amount || 0;
+          fetchedCalendarData[dateKey].totalIncome += income.amount || 0;
         });
         
         // 각 날짜별 총액 재계산 (기록이 모두 추가된 후)
-        Object.keys(supabaseCalendarData).forEach(dateKey => {
+        Object.keys(fetchedCalendarData).forEach(dateKey => {
           let totalExpense = 0;
           let totalIncome = 0;
-          supabaseCalendarData[dateKey].records.forEach((record: any) => {
+          fetchedCalendarData[dateKey].records.forEach((record: any) => {
             if (record.type === 'expense' && record.isDeleted !== true && !record.isRefunded) {
               totalExpense += record.amount || 0;
             } else if (record.type === 'income' && record.isDeleted !== true) {
               totalIncome += record.amount || 0;
             }
           });
-          supabaseCalendarData[dateKey].totalExpense = totalExpense;
-          supabaseCalendarData[dateKey].totalIncome = totalIncome;
+          fetchedCalendarData[dateKey].totalExpense = totalExpense;
+          fetchedCalendarData[dateKey].totalIncome = totalIncome;
         });
-        
-        console.log('[app-data-context] Loaded expenses from Supabase:', expenses.length);
-        console.log('[app-data-context] Loaded incomes from Supabase:', incomes.length);
       } catch (error) {
-        console.error('[app-data-context] Failed to load expenses/incomes from Supabase:', error);
-        // Supabase 로드 실패 시 AsyncStorage 데이터만 사용
+        console.error('[app-data-context] Failed to load expenses/incomes:', error);
+        // 로드 실패 시 AsyncStorage 데이터만 사용
       }
       
-      // Supabase 데이터와 AsyncStorage 데이터 병합
-      // Supabase의 지출/입금 기록을 우선하고, AsyncStorage에만 있는 기록은 유지
+      // 조회한 데이터와 AsyncStorage 데이터 병합
+      // 조회 결과를 우선하고, AsyncStorage에만 있는 기록은 유지
       const mergedCalendarData: DayDataRecord = { ...localCalendarData };
       
-      Object.keys(supabaseCalendarData).forEach(dateKey => {
+      Object.keys(fetchedCalendarData).forEach(dateKey => {
         if (mergedCalendarData[dateKey]) {
           const existingRecords = mergedCalendarData[dateKey].records || [];
-          const supabaseRecords = supabaseCalendarData[dateKey].records || [];
+          const fetchedRecords = fetchedCalendarData[dateKey].records || [];
 
-          const supabaseIncomeTimestamps = new Set(
-            supabaseRecords
+          const fetchedIncomeTimestamps = new Set(
+            fetchedRecords
               .filter((record: any) => record.type === 'income')
               .map((record: any) => record.timestamp)
           );
 
-          const supabaseExpenseTimestamps = new Set(
-            supabaseRecords
+          const fetchedExpenseTimestamps = new Set(
+            fetchedRecords
               .filter((record: any) => record.type === 'expense')
               .map((record: any) => record.timestamp)
           );
@@ -214,28 +211,28 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
             }
 
             if (record.type === 'income') {
-              return !supabaseIncomeTimestamps.has(record.timestamp);
+              return !fetchedIncomeTimestamps.has(record.timestamp);
             }
 
             if (record.type === 'expense') {
-              return !supabaseExpenseTimestamps.has(record.timestamp);
+              return !fetchedExpenseTimestamps.has(record.timestamp);
             }
 
             return true;
           });
 
           mergedCalendarData[dateKey] = {
-            totalExpense: supabaseCalendarData[dateKey].totalExpense,
+            totalExpense: fetchedCalendarData[dateKey].totalExpense,
             totalIncome:
-              supabaseCalendarData[dateKey].totalIncome +
+              fetchedCalendarData[dateKey].totalIncome +
               remainingLocalRecords
                 .filter((record: any) => record.type === 'income')
                 .reduce((sum: number, record: any) => sum + (record.amount || 0), 0),
-            records: [...supabaseRecords, ...remainingLocalRecords],
+            records: [...fetchedRecords, ...remainingLocalRecords],
           };
         } else {
-          // 새로운 날짜 데이터는 Supabase 데이터 그대로 사용
-          mergedCalendarData[dateKey] = supabaseCalendarData[dateKey];
+          // 새로운 날짜 데이터는 조회 데이터 그대로 사용
+          mergedCalendarData[dateKey] = fetchedCalendarData[dateKey];
         }
       });
       

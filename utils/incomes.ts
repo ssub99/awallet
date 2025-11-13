@@ -1,6 +1,4 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { supabase, isSupabaseConfigured } from './supabase-client';
-import { getOrCreateDeviceId } from './device-id';
 import { generateRecordId } from './id-generator';
 
 const INCOME_STORAGE_KEY = 'incomeData';
@@ -16,292 +14,26 @@ export interface IncomeRecord {
   deletedAt?: string | null;
 }
 
-interface SupabaseIncome {
-  id: string;
-  amount: number;
-  date: string;
-  memo: string | null;
-  timestamp: number;
-  created_at: string;
-  auth_uid: string | null;
-  device_id: string | null;
-  is_deleted: boolean;
-  deleted_at: string | null;
-}
+const DATE_TOKEN_REGEX = /\./g;
 
-interface AuthContext {
-  authUid: string | null;
-  deviceId: string | null;
-}
-
-async function getAuthContext(): Promise<AuthContext> {
-  if (!isSupabaseConfigured) {
-    return { authUid: null, deviceId: null };
-  }
-
-  let authUid: string | null = null;
-  try {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (user) authUid = user.id;
-  } catch (error) {
-    console.warn('[incomes] Failed to get auth user:', error);
-  }
-
-  // 항상 deviceId도 확보하여, 게스트로 생성된 과거 데이터도 업데이트 가능하게 한다
-  let deviceId: string | null = null;
-  try {
-    deviceId = await getOrCreateDeviceId();
-  } catch (error) {
-    console.warn('[incomes] Failed to get device id:', error);
-  }
-
-  return { authUid, deviceId };
-}
-
-function applyOwnershipFilter(query: any, context: AuthContext) {
-  const parts: string[] = [];
-  if (context.authUid) {
-    parts.push(`auth_uid.eq.${context.authUid}`);
-  }
-  if (context.deviceId) {
-    // 게스트 데이터: auth_uid IS NULL AND device_id = <deviceId>
-    parts.push(`and(auth_uid.is.null,device_id.eq.${context.deviceId})`);
-  }
-  if (parts.length > 0) {
-    return query.or(parts.join(','));
-  }
-  return query;
-}
-
-function convertToSupabaseFormat(record: IncomeRecord, context: AuthContext): Partial<SupabaseIncome> {
+function normalizeIncome(record: IncomeRecord): IncomeRecord {
   return {
-    id: record.id || generateRecordId(), // UUID 사용, fallback으로 새 ID 생성
-    amount: record.amount,
-    date: record.date,
-    memo: record.memo ?? null,
-    timestamp: record.timestamp,
-    created_at: new Date(record.timestamp).toISOString(),
-    auth_uid: context.authUid,
-    device_id: context.deviceId,
-    is_deleted: record.isDeleted ?? false,
-    deleted_at: record.deletedAt ?? null,
-  };
-}
-
-function convertFromSupabaseFormat(row: SupabaseIncome): IncomeRecord {
-  return {
-    id: row.id, // UUID 포함
+    ...record,
+    id: record.id ?? generateRecordId(),
     type: 'income',
-    amount: row.amount,
-    date: row.date,
-    memo: row.memo ?? undefined,
-    timestamp: row.timestamp,
-    isDeleted: row.is_deleted,
-    deletedAt: row.deleted_at ?? undefined,
+    isDeleted: record.isDeleted ?? false,
+    deletedAt: record.deletedAt ?? null,
   };
 }
 
-export async function createIncome(record: IncomeRecord): Promise<IncomeRecord | null> {
-  if (!isSupabaseConfigured) {
-    await saveLocalIncome(record);
-    return record;
-  }
-
-  try {
-    const context = await getAuthContext();
-    const payload = convertToSupabaseFormat(record, context);
-
-    const { data, error } = await supabase
-      .from('incomes')
-      .insert(payload)
-      .select()
-      .single();
-
-    if (error) {
-      throw error;
-    }
-
-    const created = convertFromSupabaseFormat(data as SupabaseIncome);
-    await saveLocalIncome(created);
-    return created;
-  } catch (error) {
-    console.error('[incomes] Failed to create income:', error);
-    await saveLocalIncome(record);
-    return record;
-  }
+function sortIncomesAscending(records: IncomeRecord[]): IncomeRecord[] {
+  return [...records].sort((a, b) => a.timestamp - b.timestamp);
 }
 
-export async function updateIncome(id: string, updates: Partial<IncomeRecord>): Promise<IncomeRecord | null> {
-  if (!isSupabaseConfigured) {
-    await updateLocalIncome(id, updates);
-    return null;
-  }
-
-  try {
-    const context = await getAuthContext();
-    const supabaseUpdates: Partial<SupabaseIncome> = {};
-
-    if (updates.amount !== undefined) supabaseUpdates.amount = updates.amount;
-    if (updates.date !== undefined) supabaseUpdates.date = updates.date;
-    if (updates.memo !== undefined) supabaseUpdates.memo = updates.memo ?? null;
-    if (updates.timestamp !== undefined) supabaseUpdates.timestamp = updates.timestamp;
-    if (updates.isDeleted !== undefined) supabaseUpdates.is_deleted = updates.isDeleted;
-    if (updates.deletedAt !== undefined) supabaseUpdates.deleted_at = updates.deletedAt ?? null;
-
-    let query = supabase.from('incomes').update(supabaseUpdates).eq('id', id);
-    query = applyOwnershipFilter(query, context);
-
-    const { data, error } = await query.select();
-
-    if (error) {
-      throw error;
-    }
-
-    const updated = convertFromSupabaseFormat(data as SupabaseIncome);
-    await updateLocalIncome(id, updates);
-    return updated;
-  } catch (error) {
-    console.error('[incomes] Failed to update income:', error);
-    await updateLocalIncome(id, updates);
-    return null;
-  }
-}
-
-export async function softDeleteIncome(id: string): Promise<void> {
-  const deletedAt = new Date().toISOString();
-
-  if (!isSupabaseConfigured) {
-    await updateLocalIncome(id, { isDeleted: true, deletedAt });
-    return;
-  }
-
-  try {
-    const context = await getAuthContext();
-    let query = supabase
-      .from('incomes')
-      .update({ is_deleted: true, deleted_at: deletedAt })
-      .eq('id', id);
-    query = applyOwnershipFilter(query, context);
-
-    const { error } = await query;
-    if (error) {
-      throw error;
-    }
-  } catch (error) {
-    console.error('[incomes] Failed to soft delete income:', error);
-  } finally {
-    await updateLocalIncome(id, { isDeleted: true, deletedAt });
-  }
-}
-
-export async function getIncomeById(id: string): Promise<IncomeRecord | null> {
-  if (!isSupabaseConfigured) {
-    const locals = await loadLocalIncomes();
-    // ID 또는 timestamp로 찾기 (하위 호환성)
-    return locals.find((income) => income.id === id || income.timestamp.toString() === id) ?? null;
-  }
-
-  try {
-    const context = await getAuthContext();
-    let query = supabase.from('incomes').select('*').eq('id', id);
-    query = applyOwnershipFilter(query, context);
-
-    const { data, error } = await query.single();
-
-    if (error) {
-      if (error.code === 'PGRST116') {
-        return null;
-      }
-      throw error;
-    }
-
-    if (!data) {
-      return null;
-    }
-
-    return convertFromSupabaseFormat(data as SupabaseIncome);
-  } catch (error) {
-    console.error('[incomes] Failed to fetch income by id:', error);
-    return null;
-  }
-}
-
-export async function getIncomesByDateRange(startDate: string, endDate: string): Promise<IncomeRecord[]> {
-  if (!isSupabaseConfigured) {
-    const locals = await loadLocalIncomes();
-    return locals.filter((record) => record.date >= startDate && record.date <= endDate && !record.isDeleted);
-  }
-
-  try {
-    const context = await getAuthContext();
-    let query = supabase
-      .from('incomes')
-      .select('*')
-      .gte('date', startDate)
-      .lte('date', endDate)
-      .eq('is_deleted', false);
-    query = applyOwnershipFilter(query, context);
-
-    const { data, error } = await query.order('timestamp', { ascending: true });
-
-    if (error) {
-      throw error;
-    }
-
-    return (data ?? []).map((row) => convertFromSupabaseFormat(row as SupabaseIncome));
-  } catch (error) {
-    console.error('[incomes] Failed to fetch incomes by range:', error);
-    return [];
-  }
-}
-
-export async function getAllIncomes(): Promise<IncomeRecord[]> {
-  if (!isSupabaseConfigured) {
-    return loadLocalIncomes();
-  }
-
-  try {
-    const context = await getAuthContext();
-    let query = supabase.from('incomes').select('*').order('timestamp', { ascending: true });
-    query = applyOwnershipFilter(query, context);
-
-    const { data, error } = await query;
-
-    if (error) {
-      throw error;
-    }
-
-    const incomes = (data ?? []).map((row) => convertFromSupabaseFormat(row as SupabaseIncome));
-    await AsyncStorage.setItem(INCOME_STORAGE_KEY, JSON.stringify(incomes));
-    return incomes;
-  } catch (error) {
-    console.error('[incomes] Failed to fetch all incomes:', error);
-    return loadLocalIncomes();
-  }
-}
-
-async function saveLocalIncome(record: IncomeRecord): Promise<void> {
-  const locals = await loadLocalIncomes();
-  // ID 또는 timestamp로 중복 제거 (하위 호환성)
-  const filtered = locals.filter((income) => 
-    !(income.id && record.id && income.id === record.id) && income.timestamp !== record.timestamp
-  );
-  filtered.push(record);
-  await AsyncStorage.setItem(INCOME_STORAGE_KEY, JSON.stringify(filtered));
-}
-
-async function updateLocalIncome(id: string, updates: Partial<IncomeRecord>): Promise<void> {
-  const locals = await loadLocalIncomes();
-  const updated = locals.map((income) => {
-    // ID 또는 timestamp로 매칭 (하위 호환성)
-    if (income.id === id || income.timestamp.toString() === id) {
-      return { ...income, ...updates };
-    }
-    return income;
-  });
-  await AsyncStorage.setItem(INCOME_STORAGE_KEY, JSON.stringify(updated));
+async function persistIncomes(records: IncomeRecord[]): Promise<void> {
+  const normalized = records.map(normalizeIncome);
+  const sorted = sortIncomesAscending(normalized);
+  await AsyncStorage.setItem(INCOME_STORAGE_KEY, JSON.stringify(sorted));
 }
 
 async function loadLocalIncomes(): Promise<IncomeRecord[]> {
@@ -310,12 +42,103 @@ async function loadLocalIncomes(): Promise<IncomeRecord[]> {
     if (!stored) {
       return [];
     }
-    const parsed = JSON.parse(stored) as IncomeRecord[];
-    return Array.isArray(parsed) ? parsed : [];
+
+    const parsed = JSON.parse(stored);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return sortIncomesAscending(
+      parsed.map((item) =>
+        normalizeIncome({
+          ...item,
+          timestamp: typeof item.timestamp === 'number' ? item.timestamp : Number(item.timestamp),
+        }),
+      ),
+    );
   } catch (error) {
     console.error('[incomes] Failed to load local incomes:', error);
     return [];
   }
+}
+
+function isWithinDateRange(date: string, startDate: string, endDate: string): boolean {
+  const normalizedDate = date.replace(DATE_TOKEN_REGEX, '');
+  const normalizedStart = startDate.replace(DATE_TOKEN_REGEX, '');
+  const normalizedEnd = endDate.replace(DATE_TOKEN_REGEX, '');
+  return normalizedDate >= normalizedStart && normalizedDate <= normalizedEnd;
+}
+
+export async function createIncome(record: IncomeRecord): Promise<IncomeRecord> {
+  const income = normalizeIncome(record);
+  const existing = await loadLocalIncomes();
+  const filtered = existing.filter(
+    (item) =>
+      !(item.id && income.id && item.id === income.id) && item.timestamp !== income.timestamp,
+  );
+  filtered.push(income);
+  await persistIncomes(filtered);
+  return income;
+}
+
+export async function updateIncome(
+  id: string,
+  updates: Partial<IncomeRecord>,
+): Promise<IncomeRecord | null> {
+  const incomes = await loadLocalIncomes();
+  let updated: IncomeRecord | null = null;
+
+  const next = incomes.map((income) => {
+    if (income.id === id || income.timestamp.toString() === id) {
+      updated = normalizeIncome({
+        ...income,
+        ...updates,
+        id: income.id ?? id,
+      });
+      return updated;
+    }
+    return income;
+  });
+
+  if (!updated) {
+    return null;
+  }
+
+  await persistIncomes(next);
+  return updated;
+}
+
+export async function softDeleteIncome(id: string): Promise<void> {
+  const deletedAt = new Date().toISOString();
+  await updateIncome(id, { isDeleted: true, deletedAt });
+}
+
+export async function getIncomeById(id: string): Promise<IncomeRecord | null> {
+  const incomes = await loadLocalIncomes();
+  return (
+    incomes.find(
+      (income) => income.id === id || income.timestamp.toString() === id,
+    ) ?? null
+  );
+}
+
+export async function getIncomesByDateRange(
+  startDate: string,
+  endDate: string,
+): Promise<IncomeRecord[]> {
+  const incomes = await loadLocalIncomes();
+  return incomes.filter(
+    (income) =>
+      !income.isDeleted && isWithinDateRange(income.date, startDate, endDate),
+  );
+}
+
+export async function getAllIncomes(): Promise<IncomeRecord[]> {
+  return loadLocalIncomes();
+}
+
+export async function clearAllIncomes(): Promise<void> {
+  await AsyncStorage.removeItem(INCOME_STORAGE_KEY);
 }
 
 

@@ -7,7 +7,6 @@
 
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Icon } from '@/components/ui/icon';
-import { ModalPopup } from '@/components/ui/modal-popup';
 import { Switch } from '@/components/ui/switch';
 import { ThemeColors } from '@/constants/theme-colors';
 import { Typography } from '@/constants/typography';
@@ -16,7 +15,6 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { monthStartEvent } from '@/hooks/use-month-start';
 import { getNotificationPermissionStatus, handleNotificationToggle } from '@/hooks/use-notifications';
 import { weekStartEvent } from '@/hooks/use-week-start';
-import { isSupabaseConfigured, supabase } from '@/utils/supabase-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import * as MailComposer from 'expo-mail-composer';
@@ -31,19 +29,14 @@ export default function MyPageScreen() {
   const appState = useRef(AppState.currentState);
   const router = useRouter();
   const { setLoading } = useLoading();
-  const hasLoadedProfileRef = useRef(false); // 앱 실행 중 1회만 프로필 로드
   const hasInitializedRef = useRef(false);   // 마이페이지 최초 진입 1회만 로드
   const [isContentReady, setIsContentReady] = useState(false);
   const contentOpacity = useRef(new Animated.Value(0)).current;
-  const scrollViewRef = useRef<ScrollView>(null);
   
   // Settings state
   const [monthStartDay, setMonthStartDay] = useState('1일');
   const [weekStartsSunday, setWeekStartsSunday] = useState(true);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [userName, setUserName] = useState<string | null>(null);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   // Load settings from AsyncStorage on screen focus
   useFocusEffect(
@@ -72,65 +65,6 @@ export default function MyPageScreen() {
           if (startDay) setMonthStartDay(startDay);
           if (weekStart !== null) setWeekStartsSunday(JSON.parse(weekStart));
           if (notifications !== null) setNotificationsEnabled(JSON.parse(notifications));
-
-          const forceProfileReload = await AsyncStorage.getItem('forceProfileReload');
-          if (forceProfileReload === 'true') {
-            hasLoadedProfileRef.current = false;
-            await AsyncStorage.removeItem('forceProfileReload');
-          }
-
-          // 사용자/프로필 로드는 앱 실행 중 1회만 수행 (로컬 캐시가 있으면 사용)
-          try {
-            if (!hasLoadedProfileRef.current) {
-              const cachedName = await AsyncStorage.getItem('userName');
-              if (cachedName) {
-                setUserName(cachedName);
-                setIsLoggedIn(true);
-                hasLoadedProfileRef.current = true;
-              } else if (isSupabaseConfigured) {
-              const { data: userData } = await supabase.auth.getUser();
-              const authUid = userData?.user?.id;
-              if (authUid) {
-                setIsLoggedIn(true);
-                const { data: profile } = await supabase
-                  .from('profiles')
-                  .select('nm')
-                  .eq('auth_uid', authUid)
-                  .maybeSingle();
-                const nm = (profile?.nm as string | null) ?? null;
-                if (nm) {
-                  setUserName(nm);
-                  await AsyncStorage.setItem('userName', nm);
-                } else {
-                  const metaName = (userData?.user?.user_metadata as any)?.name as string | undefined;
-                  if (metaName && metaName.trim()) {
-                    setUserName(metaName);
-                    await AsyncStorage.setItem('userName', metaName);
-                    try {
-                      await supabase.rpc('update_profile', { p_nm: metaName, p_birth_date: null });
-                    } catch {}
-                  } else {
-                    setUserName(null);
-                    await AsyncStorage.removeItem('userName');
-                  }
-                }
-              } else {
-                setIsLoggedIn(false);
-                setUserName(null);
-                await AsyncStorage.removeItem('userName');
-              }
-                hasLoadedProfileRef.current = true;
-            } else {
-              setIsLoggedIn(false);
-              setUserName(null);
-                hasLoadedProfileRef.current = true;
-              }
-            }
-          } catch {
-            setIsLoggedIn(false);
-            setUserName(null);
-            hasLoadedProfileRef.current = true;
-          }
         } catch (error) {
           console.error('설정 로드 중 오류:', error);
         } finally {
@@ -249,74 +183,6 @@ export default function MyPageScreen() {
       console.error('설정 저장 중 오류:', error);
 
     }
-  };
-
-  // Navigation handlers
-  const handleLoginPress = () => {
-    if (isLoggedIn) {
-      router.push('/account-edit');
-      return;
-    }
-    router.push({ pathname: '/login', params: { from: 'mypage' } });
-  };
-
-  const handleLogoutPress = () => {
-    setShowLogoutConfirm(true);
-  };
-
-  const confirmLogout = async () => {
-    // 모달을 먼저 닫고 페이드 아웃 효과
-    setShowLogoutConfirm(false);
-    
-    // 페이드 아웃 애니메이션
-    Animated.timing(contentOpacity, {
-      toValue: 0,
-      duration: 200,
-      useNativeDriver: true,
-    }).start(async () => {
-      try {
-        setIsContentReady(false);
-        setLoading(true);
-        
-        if (isSupabaseConfigured) {
-          await supabase.auth.signOut();
-        }
-        await AsyncStorage.removeItem('userName');
-        
-        // 프로필 리로드를 위한 플래그 리셋
-        hasLoadedProfileRef.current = false;
-        hasInitializedRef.current = false;
-        setUserName(null);
-        setIsLoggedIn(false);
-        
-        // 짧은 딜레이 후 페이드 인으로 새로고침 효과
-        await new Promise(resolve => setTimeout(resolve, 300));
-        
-        // 설정 다시 로드
-        const [startDay, weekStart, notifications] = await Promise.all([
-          AsyncStorage.getItem('monthStartDay'),
-          AsyncStorage.getItem('weekStartsSunday'),
-          AsyncStorage.getItem('notificationsEnabled'),
-        ]);
-        
-        if (startDay) setMonthStartDay(startDay);
-        if (weekStart !== null) setWeekStartsSunday(JSON.parse(weekStart));
-        if (notifications !== null) setNotificationsEnabled(JSON.parse(notifications));
-        
-        // 페이드 인 애니메이션
-        setIsContentReady(true);
-        
-        // 스크롤을 최상단으로 이동
-        setTimeout(() => {
-          scrollViewRef.current?.scrollTo({ y: 0, animated: false });
-        }, 100);
-      } catch (error) {
-        console.error('로그아웃 중 오류:', error);
-        setIsContentReady(true);
-      } finally {
-        setLoading(false);
-      }
-    });
   };
 
   
@@ -507,7 +373,6 @@ export default function MyPageScreen() {
 
       <Animated.View style={{ flex: 1, opacity: isContentReady ? contentOpacity : 0 }}>
       <ScrollView 
-        ref={scrollViewRef}
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -515,32 +380,6 @@ export default function MyPageScreen() {
         {/* Background */}
         <View style={[styles.background, { backgroundColor: colors.fill }]}>
           <>
-          {/* Login Card */}
-          <Pressable 
-            style={[styles.card, styles.loginCard, { backgroundColor: colors.background }]}
-            onPress={handleLoginPress}
-            accessibilityRole="button"
-            accessibilityLabel="로그인하기"
-          >
-            <View style={styles.loginContent}>
-              <Text
-                style={[
-                  styles.loginText,
-                  isLoggedIn ? styles.loginTextLoggedIn : styles.loginTextLoggedOut,
-                  { color: isLoggedIn ? colors.text : colors.textNeutral },
-                ]}
-              >
-                {isLoggedIn
-                  ? userName
-                    ? `${userName}님,\n안녕하세요!`
-                    : '안녕하세요!'
-                  : '로그인 후\n동기화를 진행해 보세요.'}
-              </Text>
-            </View>
-
-            <Icon name="arrowRight" size={24} color={colors.text} />
-          </Pressable>
-
           {/* Settings Card */}
           <View style={[styles.card, { backgroundColor: colors.background }]}>
             {/* Month Start Day */}
@@ -636,20 +475,6 @@ export default function MyPageScreen() {
             </Pressable>
           </View>
 
-          {/* Logout (only when logged in) */}
-          {isLoggedIn && (
-            <View style={[styles.card, { backgroundColor: colors.background }]}>            
-              <Pressable 
-                style={styles.menuRow}
-                onPress={handleLogoutPress}
-                accessibilityRole="button"
-                accessibilityLabel="로그아웃"
-              >
-                <Text style={[styles.menuLabel, { color: colors.statusNegative }]}>로그아웃</Text>
-              </Pressable>
-            </View>
-          )}
-
           {/* Test Environment Card (only in __DEV__) */}
           {__DEV__ && (
             <View style={[styles.card, { backgroundColor: colors.background }]}>
@@ -674,15 +499,6 @@ export default function MyPageScreen() {
       </ScrollView>
       </Animated.View>
 
-      {/* Logout Confirm Modal */}
-      <ModalPopup
-        visible={showLogoutConfirm}
-        message={"로그아웃 하시겠어요?"}
-        confirmText="확인"
-        onConfirm={confirmLogout}
-        cancelText="취소"
-        onCancel={() => setShowLogoutConfirm(false)}
-      />
     </SafeAreaView>
   );
 }
@@ -721,27 +537,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
 
-  // Login Card
-  loginCard: {
-    paddingVertical: 20,
-    paddingHorizontal: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  loginContent: {
-    flex: 1,
-  },
-  loginText: {
-    ...Typography.headline4.r.bold,
-    flex: 1,
-  },
-  loginTextLoggedIn: {},
-  loginTextLoggedOut: {
-    ...Typography.headline4.r.bold,
-  },
-
-  
 
   // Setting Row
   settingRow: {

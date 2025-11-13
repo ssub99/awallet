@@ -80,14 +80,6 @@ export default function RootLayout() {
           <Stack.Screen name="challenge-edit" options={{ headerShown: false }} />
           <Stack.Screen name="monthly-expense-timeline" options={{ headerShown: false }} />
           <Stack.Screen name="month-start-day" options={{ headerShown: false }} />
-          <Stack.Screen name="login" options={{ headerShown: false }} />
-          <Stack.Screen name="account-verify" options={{ headerShown: false }} />
-          <Stack.Screen name="account-verify-email" options={{ headerShown: false }} />
-          <Stack.Screen name="password-change" options={{ headerShown: false }} />
-          <Stack.Screen name="password-set" options={{ headerShown: false }} />
-          <Stack.Screen name="email-verify" options={{ headerShown: false }} />
-          <Stack.Screen name="signup-intro" options={{ headerShown: false }} />
-          <Stack.Screen name="signup-complete" options={{ headerShown: false }} />
           <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
         </Stack>
           <StatusBar style="auto" />

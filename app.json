@@ -75,8 +75,6 @@
       "reactCompiler": true
     },
     "extra": {
-      "SUPABASE_URL": "https://jzyxvkejayspqjdclslr.supabase.co",
-      "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp6eXh2a2VqYXlzcHFqZGNsc2xyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAzMjI5OTIsImV4cCI6MjA3NTg5ODk5Mn0.X--IM1XcWfxUqfM-mrpvunhbNVlgWeuWejb2kmhrDsI",
       "supportEmail": "ssuby99@gmail.com",
       "privacyPolicyUrl": "https://www.notion.so/2a4b71a1411280069937f6894dd544a6?source=copy_link",
       "appCategory": "finance"
