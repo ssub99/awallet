@@ -22,7 +22,20 @@ import { createIncome, type IncomeRecord as IncomeRecordType } from '@/utils/inc
 import { generateRecordId } from '@/utils/id-generator';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Dimensions, InteractionManager, Keyboard, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import {
+  Dimensions,
+  InteractionManager,
+  Keyboard,
+  NativeSyntheticEvent,
+  Platform,
+  Pressable,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInputKeyPressEventData,
+  View,
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -116,6 +129,22 @@ export default function IncomeRecordScreen() {
   };
   const [date, setDate] = useState<string>(getInitialDate());
   const [memo, setMemo] = useState<string>('');
+  const handleMemoChange = useCallback((text: string) => {
+    const trimmed = text.replace(/[\r\n]/g, '');
+    if (trimmed.length <= 20) {
+      setMemo(trimmed);
+    }
+  }, []);
+
+  const handleMemoKeyPress = useCallback((event: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
+    if (event.nativeEvent.key === 'Enter') {
+      Keyboard.dismiss();
+    }
+  }, []);
+
+  const handleMemoSubmitEditing = useCallback(() => {
+    Keyboard.dismiss();
+  }, []);
   const [monthStartDay, setMonthStartDay] = useState(1);
 
   // Date picker state
@@ -235,7 +264,7 @@ export default function IncomeRecordScreen() {
       try {
         await createIncome(incomeRecord);
       } catch (error) {
-        console.error('[입금 생성] Supabase 저장 실패:', error);
+        console.error('[입금 생성] 저장 실패:', error);
       }
       
       // AsyncStorage에서 기존 calendarData 가져오기
@@ -264,7 +293,7 @@ export default function IncomeRecordScreen() {
         amount: incomeRecord.amount,
         category: '💰 입금',
         memo: incomeRecord.memo,
-        timestamp: incomeTimestamp, // Supabase와 동일한 timestamp 사용
+        timestamp: incomeTimestamp, // 기존 기록과 동일한 timestamp 사용
       });
       
       // AsyncStorage에 저장
@@ -379,14 +408,13 @@ export default function IncomeRecordScreen() {
                 variant="area"
                 inputType="text"
                 value={memo}
-                onChangeText={(text) => {
-                  if (text.length <= 20) {
-                    setMemo(text);
-                  }
-                }}
+                onChangeText={handleMemoChange}
                 placeholder="메모를 입력해 주세요.(최대 20자)"
                 maxLength={20}
                 onFocus={handleMemoFocus}
+                onKeyPress={handleMemoKeyPress}
+                onSubmitEditing={handleMemoSubmitEditing}
+                blurOnSubmit={false}
               />
             </View>
           </ScrollView>

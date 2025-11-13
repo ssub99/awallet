@@ -36,7 +36,7 @@ export default function MonthStartDayScreen() {
   const regenerateChallengesForNewMonthStart = async (newMonthStartDay: number) => {
     try {
       
-      // 기존 챌린지 데이터 로드 (Supabase)
+      // 기존 챌린지 데이터 로드
       const existingChallenges = await getAllChallenges();
       const activeChallenges = existingChallenges.filter((challenge) => !challenge.isDeleted);
       

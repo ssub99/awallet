@@ -26,18 +26,37 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { triggerChallengeNotifications } from '@/utils/challenge-utils';
 import { getCustomMonthInfo } from '@/utils/custom-month';
-import { createExpense, updateExpense, type ExpenseRecord as ExpenseRecordType } from '@/utils/expenses';
+import { createExpense, updateExpense, deleteExpense, deleteExpensesByGroup, type ExpenseRecord as ExpenseRecordType } from '@/utils/expenses';
 import { generateRecordId, generateGroupId, extractTimestampFromId } from '@/utils/id-generator';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Dimensions, InteractionManager, Keyboard, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import {
+  Dimensions,
+  InteractionManager,
+  Keyboard,
+  NativeSyntheticEvent,
+  Platform,
+  Pressable,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInputKeyPressEventData,
+  View,
+} from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface ExpenseRecordProps {
   mode?: 'create' | 'edit';
   editData?: any;
 }
+
+type CalendarBucket = {
+  totalExpense: number;
+  totalIncome: number;
+  records: any[];
+};
 
 /**
  * 해당 월의 실제 일자 계산 (월말 처리)
@@ -402,6 +421,19 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   // Section/Input position tracking
   // Remove amount auto-scroll states per request
   const [memoSectionY, setMemoSectionY] = useState(0);
+  const handleMemoChange = useCallback((text: string) => {
+    setMemo(text.replace(/[\r\n]/g, ''));
+  }, []);
+
+  const handleMemoKeyPress = useCallback((event: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
+    if (event.nativeEvent.key === 'Enter') {
+      Keyboard.dismiss();
+    }
+  }, []);
+
+  const handleMemoSubmitEditing = useCallback(() => {
+    Keyboard.dismiss();
+  }, []);
   
   // 월 시작일 로드
   useEffect(() => {
@@ -442,9 +474,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               const relatedRecords = calendarData[dateKey].records.filter(
                 (r: any) => {
                   if (editData.isRecurring) {
-                    return r.recurringId === idToUse && !r.isDeleted;
+                    return r.recurringId === idToUse && !r.isDeleted && !r.isPrepaid;
                   } else {
-                    return r.installmentId === idToUse && !r.isDeleted;
+                    return r.installmentId === idToUse && !r.isDeleted && !r.isPrepaid;
                   }
                 }
               );
@@ -699,7 +731,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     newRecord: any,
     actualDateKey: string,
     monthlyAmount: number
-  ): Promise<{ deletedTimestamps: number[] }> => {
+  ): Promise<{
+    deletedRecords: { id?: string; timestamp: number }[];
+    upsertRecords: ExpenseRecordType[];
+  }> => {
     const isInstallmentGroup = !!editData.isInstallment;
     const isRecurringGroup = !!editData.isRecurring;
     const groupId = isRecurringGroup ? editData.recurringId : editData.installmentId;
@@ -729,6 +764,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
     const preservedByTimestamp = new Map<number, { dateKey: string; record: any }>();
     const deletedTimestampSet = new Set<number>();
+    const deletedRecords: { id?: string; timestamp: number }[] = [];
+    const upsertRecords: ExpenseRecordType[] = [];
+
+    const toExpenseRecord = (record: any): ExpenseRecordType => ({
+      ...record,
+      type: 'expense',
+    });
 
     // 1) 기존 기록을 분류 (선결제/환불은 유지, 나머지는 제거)
     Object.keys(calendarData).forEach((dateKey) => {
@@ -752,11 +794,16 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         if (record.isPrepaid || record.isRefunded) {
           preservedByTimestamp.set(record.timestamp, { dateKey, record });
           remaining.push(record);
+          upsertRecords.push(toExpenseRecord(record));
           return;
         }
 
         // 제거 대상
         deletedTimestampSet.add(record.timestamp);
+        deletedRecords.push({
+          id: typeof record.id === 'string' ? record.id : undefined,
+          timestamp: record.timestamp,
+        });
       });
 
       if (remaining.length === 0) {
@@ -829,6 +876,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             }
             return record;
           });
+          const updatedRecord = bucket.records.find((record: any) => record.timestamp === recordTimestamp);
+          if (updatedRecord) {
+            upsertRecords.push(toExpenseRecord(updatedRecord));
+          }
           recalcBucketTotals(bucket);
         }
         continue;
@@ -873,9 +924,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       recalcBucketTotals(bucket);
 
       deletedTimestampSet.delete(recordTimestamp);
+      upsertRecords.push(toExpenseRecord(generatedRecord));
     }
 
-    return { deletedTimestamps: Array.from(deletedTimestampSet) };
+    return {
+      deletedRecords,
+      upsertRecords,
+    };
   };
 
   // 정기/할부 기록 오늘만 수정 (완전 삭제 후 ID 유지하여 재생성)
@@ -1124,7 +1179,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       // 저장
       await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
 
-      // Supabase에 선결제 기록 업데이트
+      // 선결제 기록 업데이트
       try {
         const recordId = prepaidRecord.id || prepaidRecord.timestamp.toString(); // UUID 우선, fallback으로 timestamp
         await updateExpense(recordId, {
@@ -1134,11 +1189,14 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           installmentOriginDate: originalRecord.date,
           originalDate: originalRecord.originalDate || originalRecord.date,
         });
-        console.log('[PREPAY] Supabase updated:', recordId);
+        console.log('[PREPAY] record updated:', recordId);
       } catch (error) {
-        console.error('[PREPAY] Supabase update error:', error);
+        console.error('[PREPAY] update error:', error);
         // 에러가 발생해도 AsyncStorage 저장은 완료되었으므로 계속 진행
       }
+
+      await rebuildCalendarData();
+      calendarRefreshEvent.emit();
 
       // 모달 닫기
       setShowPrepaymentModal(false);
@@ -1426,6 +1484,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         originalDate: actualDate,
       };
 
+      const recordsToSave: ExpenseRecordType[] = [];
+
       if (mode === 'edit' && editData) {
         // Edit mode: 선결제 기록은 단순 필드 업데이트
         if (editData.isPrepaid && editData.isInstallment) {
@@ -1496,7 +1556,28 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           // 정기 기록 또는 할부 기록 수정 (선결제 기록 제외)
           if (editOption === 'all') {
             // 전체 수정: 기존 데이터 삭제 후 새로 생성
-            await handleMultipleRecordsBulkUpdate(calendarData, editData, newRecord, actualDateKey, monthlyAmount);
+            const { deletedRecords, upsertRecords } = await handleMultipleRecordsBulkUpdate(
+              calendarData,
+              editData,
+              newRecord,
+              actualDateKey,
+              monthlyAmount
+            );
+
+            recordsToSave.push(...upsertRecords);
+
+            if (deletedRecords.length > 0) {
+              await Promise.all(
+                deletedRecords.map(async ({ id, timestamp }) => {
+                  const deleteKey = typeof id === 'string' && id.length > 0 ? id : timestamp.toString();
+                  try {
+                    await deleteExpense(deleteKey);
+                  } catch (error) {
+                    console.error('[expense-record] Failed to delete expense during bulk update:', deleteKey, error);
+                  }
+                })
+              );
+            }
           } else {
             // 오늘만 수정: 해당 건만 수정 (부모/자식 관계 유지)
             // 할부 기록 수정 시에는 기존 금액을 사용하여 재할부 방지
@@ -1654,7 +1735,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
       }
 
-      // 6. Supabase에 저장 (Supabase가 설정된 경우)
+      // 6. 지출 기록 저장
       try {
         const recordsToSave: ExpenseRecordType[] = [];
         
@@ -1820,14 +1901,14 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           }
         }
 
-        // Supabase에 저장
+        // 지출 기록 저장
         for (const record of recordsToSave) {
           try {
             const recordId = record.id || record.timestamp.toString(); // UUID 우선, fallback으로 timestamp
             
             if (mode === 'edit' && editData) {
               // 수정 모드: 기록이 존재하는지 확인 후 업데이트 또는 생성
-              // Supabase에서 기록 존재 여부 확인
+              // 기존 기록 존재 여부 확인
               const { getExpenseById } = await import('@/utils/expenses');
               const existingRecord = await getExpenseById(recordId);
               
@@ -1847,16 +1928,16 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               await createExpense(record);
             }
           } catch (error) {
-            console.error('[expense-record] Failed to save to Supabase:', record.timestamp, error);
+            console.error('[expense-record] Failed to save expense:', record.timestamp, error);
             // 개별 기록 저장 실패해도 다음 기록 계속 처리
           }
         }
       } catch (error) {
-        console.error('[expense-record] Supabase save error:', error);
+        console.error('[expense-record] expense save error:', error);
         // 에러가 발생해도 AsyncStorage 저장은 계속 진행
       }
 
-      // 6-1. AsyncStorage에 저장 (로컬 캐시 및 Supabase 미설정 시 대체)
+      // 6-1. AsyncStorage에 저장 (로컬 캐시)
       await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
 
       // 6-2. 챌린지 알림 트리거 (비동기이지만 대기하지 않음)
@@ -1953,6 +2034,63 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     return `${adjustedYear}.${adjustedMonth}.${adjustedDay}`;
   };
 
+  const rebuildCalendarData = useCallback(async () => {
+    try {
+      const [{ getAllExpenses }, { getAllIncomes }] = await Promise.all([
+        import('@/utils/expenses'),
+        import('@/utils/incomes'),
+      ]);
+
+      const [expenses, incomes] = await Promise.all([getAllExpenses(), getAllIncomes()]);
+
+      const calendarData: Record<string, CalendarBucket> = {};
+
+      expenses.forEach((expense) => {
+        if (expense.isDeleted) {
+          return;
+        }
+        const dateKey = expense.date.replace(/\./g, '-');
+        if (!calendarData[dateKey]) {
+          calendarData[dateKey] = { totalExpense: 0, totalIncome: 0, records: [] };
+        }
+        calendarData[dateKey].records.push({
+          ...expense,
+          type: 'expense',
+        });
+        if (!expense.isRefunded) {
+          calendarData[dateKey].totalExpense += expense.amount || 0;
+        }
+      });
+
+      incomes.forEach((income) => {
+        if (income.isDeleted) {
+          return;
+        }
+        const dateKey = income.date.replace(/\./g, '-');
+        if (!calendarData[dateKey]) {
+          calendarData[dateKey] = { totalExpense: 0, totalIncome: 0, records: [] };
+        }
+        calendarData[dateKey].records.push({
+          ...income,
+          type: 'income',
+          category: '💰 입금',
+        });
+        calendarData[dateKey].totalIncome += income.amount || 0;
+      });
+
+      Object.keys(calendarData).forEach((dateKey) => {
+        const bucket = calendarData[dateKey];
+        if (!bucket.records || bucket.records.length === 0) {
+          delete calendarData[dateKey];
+        }
+      });
+
+      await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
+    } catch (error) {
+      console.error('[calendar] Failed to rebuild calendar data:', error);
+    }
+  }, []);
+
   const handleBack = () => {
     router.back();
   };
@@ -1964,103 +2102,25 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
     setLoading(true);
     try {
-      const timestampsToDelete = new Set<number>();
-      const supabaseIdsToDelete = new Set<string>();
-      const { getExpensesByInstallmentId, getExpensesByRecurringId } = await import('@/utils/expenses');
-
       if (editData.isInstallment && editData.installmentId) {
-        const installmentRecords = await getExpensesByInstallmentId(editData.installmentId);
-        installmentRecords.forEach(record => {
-          if (typeof record.timestamp === 'number') {
-            timestampsToDelete.add(record.timestamp);
-          }
-          if (record.id) {
-            supabaseIdsToDelete.add(record.id);
-          } else if (typeof record.timestamp === 'number') {
-            supabaseIdsToDelete.add(record.timestamp.toString());
-          }
-        });
+        await deleteExpensesByGroup({ installmentId: editData.installmentId });
       }
 
       if (editData.isRecurring && editData.recurringId) {
-        const recurringRecords = await getExpensesByRecurringId(editData.recurringId);
-        recurringRecords.forEach(record => {
-          if (typeof record.timestamp === 'number') {
-            timestampsToDelete.add(record.timestamp);
-          }
-          if (record.id) {
-            supabaseIdsToDelete.add(record.id);
-          } else if (typeof record.timestamp === 'number') {
-            supabaseIdsToDelete.add(record.timestamp.toString());
-          }
-        });
+        await deleteExpensesByGroup({ recurringId: editData.recurringId });
       }
 
       if (!editData.isInstallment && !editData.isRecurring && typeof editData.timestamp === 'number') {
-        timestampsToDelete.add(editData.timestamp);
-        supabaseIdsToDelete.add(
-          typeof editData.id === 'string'
-            ? editData.id
-            : editData.timestamp.toString()
-        );
-      }
-
-      if (supabaseIdsToDelete.size > 0) {
-        const deletedAt = new Date().toISOString();
-        await Promise.all(
-          Array.from(supabaseIdsToDelete).map(async (recordId) => {
-            await updateExpense(recordId, {
-              isDeleted: true,
-              deletedAt,
-            });
-          })
-        );
-      }
-
-      // 로컬 캐시에서도 동일한 기록 제거 (입금 데이터는 보존)
-      const storedData = await AsyncStorage.getItem('calendarData');
-      if (storedData) {
-        const calendarData = JSON.parse(storedData);
-        let isModified = false;
-
-        Object.keys(calendarData).forEach((dateKey: string) => {
-          const bucket = calendarData[dateKey];
-          if (!bucket?.records) {
-            return;
-          }
-
-          const originalLength = bucket.records.length;
-          bucket.records = bucket.records.filter((record: any) => {
-            if (typeof record?.timestamp !== 'number') {
-              return true;
-            }
-            return !timestampsToDelete.has(record.timestamp);
-          });
-
-          if (bucket.records.length !== originalLength) {
-            isModified = true;
-            let totalExpense = 0;
-            let totalIncome = 0;
-            bucket.records.forEach((record: any) => {
-              if (record?.type === 'expense' && record?.isRefunded !== true) {
-                totalExpense += record?.amount || 0;
-              } else if (record?.type === 'income') {
-                totalIncome += record?.amount || 0;
-              }
-            });
-            bucket.totalExpense = totalExpense;
-            bucket.totalIncome = totalIncome;
-
-            if (bucket.records.length === 0 && totalIncome === 0) {
-              delete calendarData[dateKey];
-            }
-          }
-        });
-
-        if (isModified) {
-          await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
+        const deleteKey = typeof editData.id === 'string'
+          ? editData.id
+          : editData.timestamp.toString();
+        const deleted = await deleteExpense(deleteKey);
+        if (!deleted) {
+          console.warn('[DELETE] No expense deleted for id:', deleteKey);
         }
       }
+
+      await rebuildCalendarData();
 
       calendarRefreshEvent.emit();
       setShowDeleteConfirm(false);
@@ -2112,6 +2172,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           );
           
           relatedRecords.forEach((record: any) => {
+            if (record.isPrepaid) {
+              return;
+            }
             const currentDate = new Date();
             
             // 편집하려는 날짜의 일(day) 정보 추출
@@ -2181,7 +2244,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
       console.log('[REFUND] options:stored to AsyncStorage');
 
-      // Supabase에 환불 기록 업데이트
+      // 환불 기록 업데이트
       try {
         for (const { record } of recordsToRefund) {
           const recordId = record.id || record.timestamp.toString(); // UUID 우선, fallback으로 timestamp
@@ -2189,13 +2252,15 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             isRefunded: true,
             amount: 0,
           });
-          console.log('[REFUND] Supabase updated:', recordId);
+          console.log('[REFUND] record updated:', recordId);
         }
       } catch (error) {
-        console.error('[REFUND] Supabase update error:', error);
+        console.error('[REFUND] update error:', error);
         // 에러가 발생해도 AsyncStorage 저장은 완료되었으므로 계속 진행
       }
       
+      await rebuildCalendarData();
+      calendarRefreshEvent.emit();
       
       
       // 모달 닫기
@@ -2311,7 +2376,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       // 저장
       await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
 
-      // Supabase에 선결제 복구 업데이트
+      // 선결제 복구 기록 업데이트
       try {
         const recordId = restoredRecord.id || restoredRecord.timestamp.toString(); // UUID 우선, fallback으로 timestamp
         await updateExpense(recordId, {
@@ -2320,9 +2385,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           prepaidDate: undefined,
           // originalDate는 원래 예정일로 유지 (변경하지 않음)
         });
-        console.log('[PREPAY] restore: Supabase updated:', recordId);
+        console.log('[PREPAY] restore: record updated:', recordId);
       } catch (error) {
-        console.error('[PREPAY] restore: Supabase update error:', error);
+        console.error('[PREPAY] restore: update error:', error);
         // 에러가 발생해도 AsyncStorage 저장은 완료되었으므로 계속 진행
       }
 
@@ -2484,7 +2549,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       // AsyncStorage에 저장
       await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
 
-      // Supabase에 환불 복구 업데이트
+      // 환불 복구 업데이트
       try {
         for (const { dateKey, record } of sortedRefundedRecords) {
           const recordIndex = calendarData[dateKey].records.findIndex(
@@ -2503,11 +2568,11 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               isRefunded: false,
               amount: restoredAmount,
             });
-            console.log('[REFUND] restore: Supabase updated:', recordId);
+            console.log('[REFUND] restore: record updated:', recordId);
           }
         }
       } catch (error) {
-        console.error('[REFUND] restore: Supabase update error:', error);
+        console.error('[REFUND] restore: update error:', error);
         // 에러가 발생해도 AsyncStorage 저장은 완료되었으므로 계속 진행
       }
       
@@ -3532,11 +3597,14 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             <Input
               variant="area"
               value={memo}
-              onChangeText={setMemo}
+              onChangeText={handleMemoChange}
               placeholder="메모를 입력해 주세요.(최대 20자)"
               maxLength={20}
               multiline
               onFocus={handleMemoFocus}
+              onKeyPress={handleMemoKeyPress}
+              onSubmitEditing={handleMemoSubmitEditing}
+              blurOnSubmit={false}
             />
           </View>
           </ScrollView>

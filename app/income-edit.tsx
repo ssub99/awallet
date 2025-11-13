@@ -21,7 +21,20 @@ import { calendarRefreshEvent } from '@/hooks/calendar-events';
 import { updateIncome, softDeleteIncome } from '@/utils/incomes';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Dimensions, InteractionManager, Keyboard, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import {
+  Dimensions,
+  InteractionManager,
+  Keyboard,
+  NativeSyntheticEvent,
+  Platform,
+  Pressable,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInputKeyPressEventData,
+  View,
+} from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 
@@ -113,6 +126,22 @@ export default function IncomeEditScreen() {
     return '';
   });
   const [memo, setMemo] = useState<string>(recordData?.memo || '');
+  const handleMemoChange = useCallback((text: string) => {
+    const trimmed = text.replace(/[\r\n]/g, '');
+    if (trimmed.length <= 20) {
+      setMemo(trimmed);
+    }
+  }, []);
+
+  const handleMemoKeyPress = useCallback((event: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
+    if (event.nativeEvent.key === 'Enter') {
+      Keyboard.dismiss();
+    }
+  }, []);
+
+  const handleMemoSubmitEditing = useCallback(() => {
+    Keyboard.dismiss();
+  }, []);
   const [monthStartDay, setMonthStartDay] = useState(1);
 
   // Date picker state
@@ -234,7 +263,7 @@ export default function IncomeEditScreen() {
           memo,
         });
       } catch (error) {
-        console.error('[입금 수정] Supabase update error:', error);
+        console.error('[입금 수정] 저장 오류:', error);
       }
       
       // 기존 날짜에서 총 입금 금액 차감 및 잔재 제거
@@ -320,7 +349,7 @@ export default function IncomeEditScreen() {
       try {
         await softDeleteIncome(incomeId);
       } catch (error) {
-        console.error('[입금 삭제] Supabase soft delete error:', error);
+        console.error('[입금 삭제] 소프트 삭제 오류:', error);
       }
       
       // 기존 날짜에서 총 입금 금액 차감 및 잔재 제거
@@ -464,14 +493,13 @@ export default function IncomeEditScreen() {
               variant="area"
               inputType="text"
               value={memo}
-              onChangeText={(text) => {
-                if (text.length <= 20) {
-                  setMemo(text);
-                }
-              }}
+              onChangeText={handleMemoChange}
               placeholder="메모를 입력해 주세요.(최대 20자)"
               maxLength={20}
               onFocus={handleMemoFocus}
+              onKeyPress={handleMemoKeyPress}
+              onSubmitEditing={handleMemoSubmitEditing}
+              blurOnSubmit={false}
             />
           </View>
         </ScrollView>
