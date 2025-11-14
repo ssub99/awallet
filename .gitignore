@@ -39,6 +39,9 @@ yarn-error.*
 app-example
 
 # generated native folders
-/ios
+/ios/*
+!/ios/awallet.xcodeproj
+/ios/awallet.xcodeproj/*
+!/ios/awallet.xcodeproj/project.pbxproj
 /android
 cursor-talk-to-figma-mcp/
