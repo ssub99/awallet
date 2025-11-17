@@ -1,4 +1,4 @@
-import { AnimatedSplashOverlay } from '@/components/ui/animated-splash-overlay';
+import * as SplashScreen from 'expo-splash-screen';
 import { GlobalProgressBar } from '@/components/ui/global-progress-bar';
 import { Colors } from '@/constants/theme';
 import { AppDataProvider } from '@/contexts/app-data-context';
@@ -11,7 +11,7 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import * as Notifications from 'expo-notifications';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useLayoutEffect } from 'react';
 import { View } from 'react-native';
 import 'react-native-reanimated';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
@@ -34,7 +34,56 @@ export const unstable_settings = {
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const [splashFinished, setSplashFinished] = useState(false);
+  const [appIsReady, setAppIsReady] = useState(false);
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  
+  // 스플래시 자동 숨김 방지 (컴포넌트 최상단에서 즉시 호출)
+  // Promise를 반환하지만 await하지 않아도 됨 (백그라운드에서 실행)
+  SplashScreen.preventAutoHideAsync().catch(() => {
+    // 에러가 발생해도 계속 진행
+  });
+  
+  // Expo 스플래시 2초 유지 및 데이터 로딩 시작
+  // useLayoutEffect를 사용하여 DOM 변경 전에 실행 (더 빠름)
+  useLayoutEffect(() => {
+    async function prepare() {
+      try {
+        // 스플래시 자동 숨김 방지 (이미 위에서 호출했지만 안전을 위해 다시 호출)
+        await SplashScreen.preventAutoHideAsync();
+        
+        // 2초 대기
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // 데이터 로딩 시작
+        setSplashFinished(true);
+        
+        // 앱 준비 완료
+        setAppIsReady(true);
+      } catch (e) {
+        console.warn('스플래시 처리 중 오류:', e);
+        setSplashFinished(true);
+        setAppIsReady(true);
+      }
+    }
+    
+    prepare();
+  }, []);
+  
+  // appIsReady가 true가 되면 스플래시 숨기기
+  useEffect(() => {
+    if (appIsReady) {
+      SplashScreen.hideAsync().catch(() => {
+        // 에러가 발생해도 계속 진행
+      });
+    }
+  }, [appIsReady]);
+  
+  const onLayoutRootView = useCallback(async () => {
+    if (appIsReady) {
+      // 레이아웃이 완료된 후 스플래시 숨기기 (이중 안전장치)
+      await SplashScreen.hideAsync();
+    }
+  }, [appIsReady]);
   
   // Request notification permission on first app launch
   const { permissionChecked } = useFirstLaunchNotificationPermission();
@@ -67,10 +116,10 @@ export default function RootLayout() {
   return (
     <LoadingProvider>
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-      <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <View style={{ flex: 1, backgroundColor: colors.background }} onLayout={onLayoutRootView}>
         <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-          <AppDataProvider enabled={splashFinished}>
-            <AnimatedSplashOverlay onFinish={() => setSplashFinished(true)}>
+          {appIsReady ? (
+            <AppDataProvider enabled={splashFinished}>
               <Stack>
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                 <Stack.Screen name="(dev-tabs)" options={{ headerShown: false }} />
@@ -87,8 +136,8 @@ export default function RootLayout() {
               </Stack>
               <StatusBar style="auto" />
               <GlobalProgressBar />
-            </AnimatedSplashOverlay>
-          </AppDataProvider>
+            </AppDataProvider>
+          ) : null}
         </ThemeProvider>
       </View>
       </SafeAreaProvider>

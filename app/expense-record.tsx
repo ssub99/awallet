@@ -26,8 +26,8 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { triggerChallengeNotifications } from '@/utils/challenge-utils';
 import { getCustomMonthInfo } from '@/utils/custom-month';
-import { createExpense, updateExpense, deleteExpense, deleteExpensesByGroup, type ExpenseRecord as ExpenseRecordType } from '@/utils/expenses';
-import { generateRecordId, generateGroupId, extractTimestampFromId } from '@/utils/id-generator';
+import { createExpense, deleteExpense, deleteExpensesByGroup, updateExpense, type ExpenseRecord as ExpenseRecordType } from '@/utils/expenses';
+import { extractTimestampFromId, generateGroupId, generateRecordId } from '@/utils/id-generator';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -331,6 +331,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     setAmount(text);
   };
   const [date, setDate] = useState<string>(getInitialDate());
+  const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
   
   // date state 변경 감지
   useEffect(() => {
@@ -346,7 +347,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   const [totalMonths, setTotalMonths] = useState<number>(2); // 2개월~12개월
   const [isInstallment, setIsInstallment] = useState<boolean>(false); // 할부
   const [weekendOption, setWeekendOption] = useState<'weekend' | 'friday' | 'monday'>('weekend');
-  const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
   const [monthStartDay, setMonthStartDay] = useState(1);
   const [showDayPicker, setShowDayPicker] = useState<boolean>(false);
   const [tempSelectedDate, setTempSelectedDate] = useState<string>(date.replace(/\./g, '-'));
@@ -743,6 +743,22 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       throw new Error('할부/정기 기록 전체 수정은 ID가 필요합니다.');
     }
 
+    const isDev = typeof __DEV__ !== 'undefined' && __DEV__;
+    const debugLog = (...args: unknown[]) => {
+      if (isDev) {
+        // eslint-disable-next-line no-console
+        console.log(...args);
+      }
+    };
+
+    debugLog('[expense][bulk-update:start]', {
+      groupId,
+      actualDateKey,
+      monthlyAmount,
+      isInstallmentGroup,
+      isRecurringGroup,
+    });
+
     const parseDateKey = (key: string) => {
       const [y, m, d] = key.split('-').map(Number);
       return { year: y, month: m, day: d };
@@ -766,6 +782,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     const deletedTimestampSet = new Set<number>();
     const deletedRecords: { id?: string; timestamp: number }[] = [];
     const upsertRecords: ExpenseRecordType[] = [];
+    // 기존 기록의 날짜를 추적 (timestamp -> 원래 dateKey)
+    const originalDateByTimestamp = new Map<number, string>();
+    // 삭제 전에 원래 시작일의 timestamp를 찾기 위한 배열
+    const allGroupTimestamps: number[] = [];
 
     const toExpenseRecord = (record: any): ExpenseRecordType => ({
       ...record,
@@ -791,6 +811,16 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           return;
         }
 
+        if (isDev) {
+          // eslint-disable-next-line no-console
+          console.log('[expense][bulk-update:match]', {
+            dateKey,
+            recordTimestamp: record.timestamp,
+            recurringId: record.recurringId,
+            installmentId: record.installmentId,
+          });
+        }
+
         if (record.isPrepaid || record.isRefunded) {
           preservedByTimestamp.set(record.timestamp, { dateKey, record });
           remaining.push(record);
@@ -798,7 +828,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           return;
         }
 
-        // 제거 대상
+        // 제거 대상 - 원래 날짜 추적
+        originalDateByTimestamp.set(record.timestamp, dateKey);
+        allGroupTimestamps.push(record.timestamp); // 원래 시작일 찾기 위해 수집
         deletedTimestampSet.add(record.timestamp);
         deletedRecords.push({
           id: typeof record.id === 'string' ? record.id : undefined,
@@ -815,27 +847,62 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     });
 
     // 2) 새 스케줄 정보 계산
-    const baseDateInfo = parseDateKey(actualDateKey);
-    const baseDate = new Date(baseDateInfo.year, baseDateInfo.month - 1, baseDateInfo.day);
-    const baseDay = baseDateInfo.day;
-
     const requestedTotalMonths = isInstallmentGroup
       ? newRecord.installmentMonths ?? editData.installmentMonths ?? editData.totalMonths ?? 1
       : newRecord.totalMonths ?? editData.totalMonths ?? 1;
 
     const totalIterations = Math.max(1, requestedTotalMonths, preservedByTimestamp.size || 0);
 
-    let baseTimestamp = extractTimestampFromId(groupId);
+    // 원래 시작일의 timestamp 추출
+    // 1순위: groupId에서 추출 (원래 시작일의 timestamp가 ID에 포함됨)
+    let baseTimestamp: number | null = extractTimestampFromId(groupId);
+    
+    // 2순위: 기존 기록들 중 가장 작은 timestamp (원래 시작일)
+    // 삭제 전에 수집한 모든 timestamp 중 최소값이 원래 시작일
     if (baseTimestamp === null || !Number.isFinite(baseTimestamp)) {
-      const preservedExample = preservedByTimestamp.keys().next();
-      if (!preservedExample.done) {
-        baseTimestamp = preservedExample.value;
-      } else if (deletedTimestampSet.size > 0) {
-        baseTimestamp = Math.min(...Array.from(deletedTimestampSet));
+      if (allGroupTimestamps.length > 0) {
+        baseTimestamp = Math.min(...allGroupTimestamps);
       } else {
-        baseTimestamp = typeof newRecord.timestamp === 'number' ? newRecord.timestamp : Date.now();
+        // 3순위: 삭제된 기록들 중 가장 작은 timestamp
+        const deletedTimestamps = Array.from(deletedTimestampSet);
+        if (deletedTimestamps.length > 0) {
+          baseTimestamp = Math.min(...deletedTimestamps);
+        } else {
+          // 4순위: 보존된 기록 중 가장 작은 timestamp
+          const preservedExample = preservedByTimestamp.keys().next();
+          if (!preservedExample.done) {
+            baseTimestamp = preservedExample.value;
+          } else {
+            // 5순위: fallback
+            baseTimestamp = typeof newRecord.timestamp === 'number' ? newRecord.timestamp : Date.now();
+          }
+        }
       }
     }
+
+    // baseTimestamp가 null이면 에러
+    if (baseTimestamp === null || !Number.isFinite(baseTimestamp)) {
+      throw new Error('Invalid baseTimestamp for bulk update');
+    }
+
+    // 원래 시작일을 기준으로 재생성 (전체 수정 시에는 편집 날짜가 아닌 원래 시작일 사용)
+    const originalStartDate = new Date(baseTimestamp);
+    const originalStartYear = originalStartDate.getFullYear();
+    const originalStartMonth = originalStartDate.getMonth() + 1;
+    
+    // 새로 입력한 날짜의 일(day) 추출 (사용자가 변경한 날짜 사용)
+    const newDateInfo = parseDateKey(actualDateKey);
+    const newDay = newDateInfo.day;
+    
+    // 원래 시작일의 년/월 + 새로 입력한 일 = 새로운 baseDate
+    const baseDate = new Date(originalStartYear, originalStartMonth - 1, newDay);
+    const baseDay = newDay;
+
+    debugLog('[expense][bulk-update:base]', {
+      baseTimestamp,
+      baseDate: baseDate.toISOString(),
+      totalIterations,
+    });
 
     const computeTargetDate = (index: number): { dot: string; key: string } => {
       const target = new Date(baseDate);
@@ -923,12 +990,34 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       bucket.records.push(generatedRecord);
       recalcBucketTotals(bucket);
 
-      deletedTimestampSet.delete(recordTimestamp);
+      // 재생성된 기록의 원래 날짜와 새 날짜를 비교
+      const originalDateKey = originalDateByTimestamp.get(recordTimestamp);
+      if (originalDateKey && originalDateKey === targetDate.key) {
+        // 날짜가 동일한 경우에만 삭제 리스트에서 제거 (같은 위치에 재생성)
+        deletedTimestampSet.delete(recordTimestamp);
+        // deletedRecords에서도 제거
+        const index = deletedRecords.findIndex(dr => dr.timestamp === recordTimestamp);
+        if (index !== -1) {
+          deletedRecords.splice(index, 1);
+        }
+      }
+      // 날짜가 변경된 경우 삭제 리스트에 남겨둠 (기존 기록은 삭제되어야 함)
+
       upsertRecords.push(toExpenseRecord(generatedRecord));
     }
 
+    // 최종적으로 삭제 리스트에 남은 기록들만 deletedRecords에 포함
+    const finalDeletedRecords = deletedRecords.filter(dr => deletedTimestampSet.has(dr.timestamp));
+
+    debugLog('[expense][bulk-update:result]', {
+      deletedCount: finalDeletedRecords.length,
+      upsertCount: upsertRecords.length,
+      preservedCount: preservedByTimestamp.size,
+      sampleDeleted: finalDeletedRecords.slice(0, 3),
+    });
+
     return {
-      deletedRecords,
+      deletedRecords: finalDeletedRecords,
       upsertRecords,
     };
   };
@@ -1123,10 +1212,16 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       if (calendarData[originalDateKey].records) {
         recordIndex = calendarData[originalDateKey].records.findIndex((r: any) => {
           // timestamp로 찾기
-          if (r.timestamp === editData.timestamp) return true;
-          // 할부 기록의 경우 installmentId도 확인
-          if (editData.isInstallment && r.installmentId === editData.installmentId && r.date === editData.date) {
+          if (r.timestamp === editData.timestamp) {
             return true;
+          }
+          // 할부 기록의 경우 installmentId도 확인 (이미 선결제 처리된 경우 제외)
+          if (editData.isInstallment && r.installmentId === editData.installmentId && !r.isPrepaid) {
+            // 날짜가 정확히 일치하거나, 원래 예정일과 일치하는 경우
+            const dateMatches = r.date === editData.date || r.installmentOriginDate === editData.date;
+            if (dateMatches) {
+              return true;
+            }
           }
           return false;
         });
@@ -1137,6 +1232,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       }
 
       if (!originalRecord) {
+        setLoading(false);
+        return;
+      }
+
+      // 이미 선결제 처리된 기록인지 확인
+      if (originalRecord.isPrepaid) {
+        setLoading(false);
         return;
       }
 
@@ -1179,35 +1281,51 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       // 저장
       await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
 
-      // 선결제 기록 업데이트
-      try {
-        const recordId = prepaidRecord.id || prepaidRecord.timestamp.toString(); // UUID 우선, fallback으로 timestamp
-        await updateExpense(recordId, {
-          date: prepaidDateFormatted,
-          isPrepaid: true,
-          prepaidDate: prepaidDateFormatted,
-          installmentOriginDate: originalRecord.date,
-          originalDate: originalRecord.originalDate || originalRecord.date,
-        });
-        console.log('[PREPAY] record updated:', recordId);
-      } catch (error) {
-        console.error('[PREPAY] update error:', error);
-        // 에러가 발생해도 AsyncStorage 저장은 완료되었으므로 계속 진행
-      }
+      // 선결제 기록 업데이트 (반드시 완료 대기)
+      const primaryRecordId = prepaidRecord.id;
+      const timestampRecordId = prepaidRecord.timestamp.toString();
+      const updatePayload: Partial<ExpenseRecordType> = {
+        date: prepaidDateFormatted,
+        isPrepaid: true,
+        prepaidDate: prepaidDateFormatted,
+        installmentOriginDate: originalRecord.date,
+        originalDate: originalRecord.originalDate || originalRecord.date,
+      };
 
+      try {
+        let updatedRecord: ExpenseRecordType | null = null;
+
+        if (primaryRecordId) {
+          updatedRecord = await updateExpense(primaryRecordId, updatePayload);
+        }
+
+        if (!updatedRecord) {
+          updatedRecord = await updateExpense(timestampRecordId, updatePayload);
+        }
+        
+        // updateExpense 완료 후 AsyncStorage 쓰기 완료 보장을 위한 추가 대기
+        await new Promise(resolve => setTimeout(resolve, 200));
+      } catch (_error) {
+        // updateExpense 실패 시에도 calendarData는 이미 저장되었으므로 계속 진행
+        // 하지만 사용자에게 알림을 줄 수도 있음
+      }
+      
+      // rebuildCalendarData 실행 (최신 데이터 반영 보장)
       await rebuildCalendarData();
+      
+      // rebuildCalendarData 완료 후 추가 지연 (데이터 동기화 보장)
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // 새로고침 이벤트 발생
       calendarRefreshEvent.emit();
 
       // 모달 닫기
       setShowPrepaymentModal(false);
-
-      console.log('[PREPAY] confirm:stored & refreshed');
       // 홈으로 이동 (선결제 날짜의 해당 커스텀 월)
       const [prepaidYear, prepaidMonth] = prepaidDateKey.split('-').map(Number);
       const prepaidDate = new Date(prepaidYear, prepaidMonth - 1, 1);
       const currentMonthStartDay = await loadMonthStartDay();
       const { year: targetYear, month: targetMonth } = getCustomMonthInfo(prepaidDate, currentMonthStartDay);
-      console.log('[PREPAY] confirm:navigate', { targetYear, targetMonth, prepaidDateKey });
       await goHomeWithFocus({ year: targetYear, month: targetMonth, targetDate: prepaidDateKey });
 
     } catch (error) {
@@ -1565,6 +1683,14 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             );
 
             recordsToSave.push(...upsertRecords);
+
+            if (typeof __DEV__ !== 'undefined' && __DEV__) {
+              // eslint-disable-next-line no-console
+              console.log('[expense][update:bulk-result]', {
+                deletedCount: deletedRecords.length,
+                upsertCount: upsertRecords.length,
+              });
+            }
 
             if (deletedRecords.length > 0) {
               await Promise.all(
@@ -2242,7 +2368,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
       // AsyncStorage에 저장
       await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
-      console.log('[REFUND] options:stored to AsyncStorage');
 
       // 환불 기록 업데이트
       try {
@@ -2252,10 +2377,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             isRefunded: true,
             amount: 0,
           });
-          console.log('[REFUND] record updated:', recordId);
         }
-      } catch (error) {
-        console.error('[REFUND] update error:', error);
+      } catch (_error) {
         // 에러가 발생해도 AsyncStorage 저장은 완료되었으므로 계속 진행
       }
       
@@ -2270,22 +2393,15 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       if (params.calendarYear && params.calendarMonth) {
         const recordDateTimeline = editData.date || date;
         const dateKeyTimeline = formatDateKey(recordDateTimeline);
-        console.log('[REFUND] options:navigate:timelineBranch', {
-          targetYear: Number(params.calendarYear),
-          targetMonth: Number(params.calendarMonth),
-          targetDate: dateKeyTimeline,
-        });
         await goHomeWithFocus({ year: Number(params.calendarYear), month: Number(params.calendarMonth), targetDate: dateKeyTimeline });
       } else {
         const recordDateHome = editData.date || date;
         const dateKeyHome = formatDateKey(recordDateHome);
         const [targetYear, targetMonth] = dateKeyHome.split('-').map(Number);
-        console.log('[REFUND] options:navigate:homeBranch', { targetYear, targetMonth, targetDate: dateKeyHome });
         await goHomeWithFocus({ year: targetYear, month: targetMonth, targetDate: dateKeyHome });
       }
       
-    } catch (error) {
-      console.error('[REFUND] error:', error);
+    } catch (_error) {
     } finally {
       setLoading(false);
     }
@@ -2385,22 +2501,18 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           prepaidDate: undefined,
           // originalDate는 원래 예정일로 유지 (변경하지 않음)
         });
-        console.log('[PREPAY] restore: record updated:', recordId);
-      } catch (error) {
-        console.error('[PREPAY] restore: update error:', error);
+      } catch (_error) {
         // 에러가 발생해도 AsyncStorage 저장은 완료되었으므로 계속 진행
       }
 
       // 모달 닫기
       setShowPrepaymentRestore(false);
 
-      console.log('[PREPAY] restore:stored & refreshed');
       // 홈으로 이동 (원래 기록일자의 해당 커스텀 월)
       const [originalYear, originalMonth] = originalDateKey.split('-').map(Number);
       const originalDate = new Date(originalYear, originalMonth - 1, 1);
       const currentMonthStartDay = await loadMonthStartDay();
       const { year: targetYear, month: targetMonth } = getCustomMonthInfo(originalDate, currentMonthStartDay);
-      console.log('[PREPAY] restore:navigate', { targetYear, targetMonth, originalDateKey });
       await goHomeWithFocus({ year: targetYear, month: targetMonth, targetDate: originalDateKey });
 
     } catch (error) {
@@ -2568,11 +2680,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               isRefunded: false,
               amount: restoredAmount,
             });
-            console.log('[REFUND] restore: record updated:', recordId);
           }
         }
-      } catch (error) {
-        console.error('[REFUND] restore: update error:', error);
+      } catch (_error) {
         // 에러가 발생해도 AsyncStorage 저장은 완료되었으므로 계속 진행
       }
       
@@ -2589,20 +2699,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       const recordDate = editData.date || date;
       const dateKey = formatDateKey(recordDate);
       if (params.calendarYear && params.calendarMonth) {
-        console.log('[REFUND] options:navigate:timelineBranch', {
-          targetYear: Number(params.calendarYear),
-          targetMonth: Number(params.calendarMonth),
-          targetDate: dateKey,
-        });
         await goHomeWithFocus({ year: Number(params.calendarYear), month: Number(params.calendarMonth), targetDate: dateKey });
       } else {
         const [targetYear, targetMonth] = dateKey.split('-').map(Number);
-        console.log('[REFUND] options:navigate:homeBranch', { targetYear, targetMonth, targetDate: dateKey });
         await goHomeWithFocus({ year: targetYear, month: targetMonth, targetDate: dateKey });
       }
       
-    } catch (error) {
-      console.error('[REFUND] restore error:', error);
+    } catch (_error) {
     } finally {
       setLoading(false);
     }
@@ -2706,15 +2809,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       const recordDateAfter = editData.date || date;
       const dateKeyAfter = formatDateKey(recordDateAfter);
       if (params.calendarYear && params.calendarMonth) {
-        console.log('[REFUND] options:navigate:timelineBranch', {
-          targetYear: Number(params.calendarYear),
-          targetMonth: Number(params.calendarMonth),
-          targetDate: dateKeyAfter,
-        });
         await goHomeWithFocus({ year: Number(params.calendarYear), month: Number(params.calendarMonth), targetDate: dateKeyAfter });
       } else {
         const [targetYear, targetMonth] = dateKeyAfter.split('-').map(Number);
-        console.log('[REFUND] options:navigate:homeBranch', { targetYear, targetMonth, targetDate: dateKeyAfter });
         await goHomeWithFocus({ year: targetYear, month: targetMonth, targetDate: dateKeyAfter });
       }
       
@@ -4087,9 +4184,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         <Text style={[styles.deleteConfirmText, { color: colors.textNeutral }]}>
           선결제 처리된 해당 기록을{'\n'}
           원래 할부 예정일인{'\n'}
-          {editData?.originalDate 
-            ? formatOriginalScheduledDate(editData.originalDate)
-            : '날짜'}로 복구 됩니다.
+          {formatOriginalScheduledDate(
+            (editData?.installmentOriginDate ||
+              editData?.originalDate ||
+              editData?.date ||
+              '').replace(/-/g, '.'),
+          ) || '날짜'}
+          로 복구 됩니다.
         </Text>
       </ModalPopup>
 
