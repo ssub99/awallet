@@ -12,10 +12,17 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.ssong.awallet",
+      "buildNumber": "1",
+      "googleServicesFile": "./ios/GoogleService-Info.plist",
       "infoPlist": {
+        "CFBundleDisplayName": "에이월렛",
+        "CFBundleName": "에이월렛",
         "NSUserNotificationsUsageDescription": "소비 기록 알림과 챌린지 리마인더를 받기 위해 알림 권한이 필요합니다.",
-        "ITSAppUsesNonExemptEncryption": false
-      }
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleShortVersionString": "1.0.0",
+        "CFBundleVersion": "1"
+      },
+      "runtimeVersion": "1.0.0"
     },
     "android": {
       "adaptiveIcon": {
@@ -27,9 +34,13 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.ssong.awallet",
+      "versionCode": 1,
       "permissions": [
         "android.permission.POST_NOTIFICATIONS"
-      ]
+      ],
+      "runtimeVersion": {
+        "policy": "appVersion"
+      }
     },
     "web": {
       "output": "static",
@@ -67,6 +78,7 @@
           "sounds": []
         }
       ],
+      "@react-native-firebase/app",
       "expo-web-browser"
     ],
     "experiments": {

@@ -7,6 +7,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useFirstLaunchNotificationPermission } from '@/hooks/use-notifications';
 import { checkEndedChallenges } from '@/utils/challenge-utils';
 import { cleanupOldSchedules, setupDailyReminder } from '@/utils/notification-scheduler';
+import { enableDebugMode, logEvent, setAnalyticsCollectionEnabled } from '@/utils/analytics';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
 import { Stack } from 'expo-router';
@@ -112,6 +113,34 @@ export default function RootLayout() {
       setupNotifications();
     }
   }, [permissionChecked]);
+
+  // Initialize Firebase Analytics
+  useEffect(() => {
+    const initAnalytics = async () => {
+      try {
+        // Analytics 수집 활성화
+        await setAnalyticsCollectionEnabled(true);
+        
+        // 개발 환경에서 DebugView 활성화 및 테스트 이벤트 전송
+        if (__DEV__) {
+          await enableDebugMode();
+          
+          // 앱 시작 이벤트도 전송
+          await logEvent('app_started', {
+            timestamp: Date.now(),
+          });
+        } else {
+          // 프로덕션 환경에서도 앱 시작 이벤트 전송
+          await logEvent('app_started', {
+            timestamp: Date.now(),
+          });
+        }
+      } catch (error) {
+        console.warn('Firebase Analytics 초기화 실패:', error);
+      }
+    };
+    initAnalytics();
+  }, []);
 
   return (
     <LoadingProvider>
