@@ -1,0 +1,105 @@
+require File.join(File.dirname(`node --print "require.resolve('expo/package.json')"`), "scripts/autolinking")
+require File.join(File.dirname(`node --print "require.resolve('react-native/package.json')"`), "scripts/react_native_pods")
+
+require 'json'
+podfile_properties = JSON.parse(File.read(File.join(__dir__, 'Podfile.properties.json'))) rescue {}
+
+def ccache_enabled?(podfile_properties)
+  # Environment variable takes precedence
+  return ENV['USE_CCACHE'] == '1' if ENV['USE_CCACHE']
+  
+  # Fall back to Podfile properties
+  podfile_properties['apple.ccacheEnabled'] == 'true'
+end
+
+ENV['RCT_NEW_ARCH_ENABLED'] ||= '0' if podfile_properties['newArchEnabled'] == 'false'
+ENV['EX_DEV_CLIENT_NETWORK_INSPECTOR'] ||= podfile_properties['EX_DEV_CLIENT_NETWORK_INSPECTOR']
+ENV['RCT_USE_RN_DEP'] ||= '1' if podfile_properties['ios.buildReactNativeFromSource'] != 'true' && podfile_properties['newArchEnabled'] != 'false'
+ENV['RCT_USE_PREBUILT_RNCORE'] ||= '1' if podfile_properties['ios.buildReactNativeFromSource'] != 'true' && podfile_properties['newArchEnabled'] != 'false'
+platform :ios, podfile_properties['ios.deploymentTarget'] || '15.1'
+
+prepare_react_native_project!
+
+target 'awallet' do
+  use_expo_modules!
+  
+  # Firebase Analytics without Ad ID support (for privacy compliance)
+  $RNFirebaseAnalyticsWithoutAdIdSupport = true
+
+  if ENV['EXPO_USE_COMMUNITY_AUTOLINKING'] == '1'
+    config_command = ['node', '-e', "process.argv=['', '', 'config'];require('@react-native-community/cli').run()"];
+  else
+    config_command = [
+      'npx',
+      'expo-modules-autolinking',
+      'react-native-config',
+      '--json',
+      '--platform',
+      'ios'
+    ]
+  end
+
+  config = use_native_modules!(config_command)
+
+  use_frameworks! :linkage => podfile_properties['ios.useFrameworks'].to_sym if podfile_properties['ios.useFrameworks']
+  use_frameworks! :linkage => ENV['USE_FRAMEWORKS'].to_sym if ENV['USE_FRAMEWORKS']
+  
+  # Enable modular headers globally for Firebase compatibility with static frameworks
+  use_modular_headers!
+  
+  # Explicitly set modular headers for GoogleUtilities (required for FirebaseCoreInternal)
+  pod 'GoogleUtilities', :modular_headers => true
+
+  use_react_native!(
+    :path => config[:reactNativePath],
+    :hermes_enabled => podfile_properties['expo.jsEngine'] == nil || podfile_properties['expo.jsEngine'] == 'hermes',
+    # An absolute path to your application root.
+    :app_path => "#{Pod::Config.instance.installation_root}/..",
+    :privacy_file_aggregation_enabled => podfile_properties['apple.privacyManifestAggregationEnabled'] != 'false',
+  )
+
+  post_install do |installer|
+    react_native_post_install(
+      installer,
+      config[:reactNativePath],
+      :mac_catalyst_enabled => false,
+      :ccache_enabled => ccache_enabled?(podfile_properties),
+    )
+
+    # Configure all pods for static frameworks compatibility
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |config|
+        # Enable modules for all pods (required for use_frameworks! :linkage => :static)
+        config.build_settings['CLANG_ENABLE_MODULES'] = 'YES'
+        config.build_settings['DEFINES_MODULE'] = 'YES'
+        
+        # Allow non-modular includes (needed for some Firebase dependencies)
+        config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
+        
+        # React Native 0.81.5 requires C++20 for concepts and other features
+        config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++20'
+        
+        # Fix React Native header search paths for Firebase modules
+        if ['RNFBAnalytics', 'RNFBApp'].include?(target.name)
+          existing_paths = config.build_settings['HEADER_SEARCH_PATHS'] || []
+          react_header_paths = [
+            '$(inherited)',
+            '"${PODS_CONFIGURATION_BUILD_DIR}/React-Core/React-Core.framework/Headers"',
+            '"${PODS_CONFIGURATION_BUILD_DIR}/React-Core/React-Core.framework/Headers/React"',
+            '"${PODS_ROOT}/Headers/Public/React-Core"',
+            '"${PODS_ROOT}/Headers/Public/React-Core/React"',
+            '"${PODS_ROOT}/React-Core-prebuilt/React.xcframework/Headers"',
+            '"${PODS_ROOT}/React-Core-prebuilt/React.xcframework/Headers/React"',
+          ]
+          config.build_settings['HEADER_SEARCH_PATHS'] = (existing_paths + react_header_paths).uniq
+          
+          # Ensure React-Core module map is found
+          config.build_settings['FRAMEWORK_SEARCH_PATHS'] ||= []
+          config.build_settings['FRAMEWORK_SEARCH_PATHS'] << '$(inherited)'
+          config.build_settings['FRAMEWORK_SEARCH_PATHS'] << '"${PODS_CONFIGURATION_BUILD_DIR}/React-Core"'
+          config.build_settings['FRAMEWORK_SEARCH_PATHS'].uniq!
+        end
+      end
+    end
+  end
+end
