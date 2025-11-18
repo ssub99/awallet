@@ -45,3 +45,9 @@ app-example
 !/ios/awallet.xcodeproj/project.pbxproj
 /android
 cursor-talk-to-figma-mcp/
+
+# Google Services (contains API keys)
+GoogleService-Info.plist
+ios/GoogleService-Info.plist
+ios/**/GoogleService-Info.plist
+android/app/google-services.json
