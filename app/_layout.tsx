@@ -66,7 +66,7 @@ export default function RootLayout() {
             }
           } catch (error) {
             // 업데이트 체크 실패해도 앱은 정상 실행
-            console.warn('OTA 업데이트 체크 실패:', error);
+            // 에러는 무시하고 계속 진행
           }
         }
         
