@@ -1,9 +1,30 @@
-import analytics from '@react-native-firebase/analytics';
+import Constants from 'expo-constants';
+
+// Expo Go 환경에서는 Firebase Analytics를 사용할 수 없음
+const isExpoGo = Constants.executionEnvironment === 'storeClient';
+
+let analytics: any = null;
+
+// Development build에서만 Firebase Analytics 로드
+if (!isExpoGo) {
+  try {
+    analytics = require('@react-native-firebase/analytics').default;
+  } catch (error) {
+    console.warn('[Analytics] Firebase Analytics 모듈을 로드할 수 없습니다:', error);
+  }
+}
 
 /**
  * Firebase Analytics 이벤트 로깅
  */
 export async function logEvent(eventName: string, params?: Record<string, any>): Promise<void> {
+  if (isExpoGo || !analytics) {
+    if (__DEV__) {
+      console.log(`📊 [Analytics] (Expo Go) Event logged: ${eventName}`, params || {});
+    }
+    return;
+  }
+  
   try {
     await analytics().logEvent(eventName, params);
     if (__DEV__) {
@@ -18,6 +39,13 @@ export async function logEvent(eventName: string, params?: Record<string, any>):
  * Firebase Analytics 수집 활성화/비활성화
  */
 export async function setAnalyticsCollectionEnabled(enabled: boolean): Promise<void> {
+  if (isExpoGo || !analytics) {
+    if (__DEV__) {
+      console.log(`📊 [Analytics] (Expo Go) Collection ${enabled ? 'enabled' : 'disabled'}`);
+    }
+    return;
+  }
+  
   try {
     await analytics().setAnalyticsCollectionEnabled(enabled);
     if (__DEV__) {
@@ -32,6 +60,13 @@ export async function setAnalyticsCollectionEnabled(enabled: boolean): Promise<v
  * 사용자 속성 설정
  */
 export async function setUserProperty(name: string, value: string | null): Promise<void> {
+  if (isExpoGo || !analytics) {
+    if (__DEV__) {
+      console.log(`📊 [Analytics] (Expo Go) User property set: ${name} = ${value}`);
+    }
+    return;
+  }
+  
   try {
     await analytics().setUserProperty(value, name);
     if (__DEV__) {
@@ -46,6 +81,13 @@ export async function setUserProperty(name: string, value: string | null): Promi
  * 사용자 ID 설정
  */
 export async function setUserId(userId: string | null): Promise<void> {
+  if (isExpoGo || !analytics) {
+    if (__DEV__) {
+      console.log(`📊 [Analytics] (Expo Go) User ID set: ${userId || '(null)'}`);
+    }
+    return;
+  }
+  
   try {
     await analytics().setUserId(userId);
     if (__DEV__) {
@@ -60,6 +102,13 @@ export async function setUserId(userId: string | null): Promise<void> {
  * 화면 추적
  */
 export async function logScreenView(screenName: string, screenClass?: string): Promise<void> {
+  if (isExpoGo || !analytics) {
+    if (__DEV__) {
+      console.log(`📊 [Analytics] (Expo Go) Screen view: ${screenName}`);
+    }
+    return;
+  }
+  
   try {
     await analytics().logScreenView({
       screen_name: screenName,
@@ -78,10 +127,26 @@ export async function logScreenView(screenName: string, screenClass?: string): P
  * iOS: Xcode Scheme에서 -FIRAnalyticsDebugEnabled 플래그 필요
  */
 export async function enableDebugMode(): Promise<void> {
+  if (isExpoGo) {
+    if (__DEV__) {
+      console.log('📊 [Analytics] Expo Go 환경에서는 DebugView를 사용할 수 없습니다.');
+    }
+    return;
+  }
+  
   try {
     if (__DEV__) {
       // Analytics 수집 활성화
       await setAnalyticsCollectionEnabled(true);
+      
+      if (!analytics) {
+        console.warn('📊 [Analytics] Firebase Analytics 모듈을 사용할 수 없습니다.');
+        return;
+      }
+      
+      // Firebase Analytics 초기화 확인
+      const analyticsInstance = analytics();
+      console.log('📊 [Analytics] Firebase Analytics 인스턴스:', analyticsInstance ? '✅ 초기화됨' : '❌ 초기화 실패');
       
       // 테스트 이벤트 발생 (DebugView 확인용)
       await logEvent('debug_view_test', {
@@ -89,12 +154,19 @@ export async function enableDebugMode(): Promise<void> {
         timestamp: Date.now(),
       });
       
+      // 추가 테스트 이벤트들
+      await logEvent('analytics_initialized', {
+        platform: 'ios',
+        timestamp: Date.now(),
+      });
+      
       console.log('✅ Firebase Analytics DebugView 활성화됨');
       console.log('📊 Firebase Console > Analytics > DebugView에서 이벤트를 확인하세요');
-      console.log('🔍 테스트 이벤트 "debug_view_test" 전송됨');
+      console.log('🔍 테스트 이벤트 "debug_view_test", "analytics_initialized" 전송됨');
+      console.log('⚠️  DebugView가 보이지 않으면 Xcode Scheme에 -FIRAnalyticsDebugEnabled 런타임 인자를 추가하세요');
     }
   } catch (error) {
-    console.warn('Analytics enableDebugMode error:', error);
+    console.error('❌ Analytics enableDebugMode error:', error);
   }
 }
 

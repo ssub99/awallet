@@ -17,7 +17,7 @@ import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { getCustomMonthInfo } from '@/utils/custom-month';
-import { createChallenges, type ChallengeRecord } from '@/utils/challenges';
+import { createChallenges, getAllChallenges, type ChallengeRecord } from '@/utils/challenges';
 import { generateRecordId, generateGroupId } from '@/utils/id-generator';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
@@ -42,14 +42,6 @@ export default function ChallengeCreateScreen() {
   const selectedDay = params.selectedDate 
     ? new Date(params.selectedDate).getDate()
     : new Date().getDate();
-
-  // 🔍 파라미터 로그
-  console.log('🔍 [챌린지 생성] 파라미터 확인:', {
-    selectedDate: params.selectedDate,
-    calendarYear: params.calendarYear,
-    calendarMonth: params.calendarMonth,
-    category: params.category
-  });
 
   // Form state
   const [startYear, setStartYear] = useState<number>(() => {
@@ -139,6 +131,23 @@ export default function ChallengeCreateScreen() {
     return category ? `${category.emoji} ${categoryName}` : categoryName;
   };
 
+  // 기간 겹침 체크 함수
+  const isDateRangeOverlapping = (
+    newStart: string,
+    newEnd: string,
+    existingStart: string,
+    existingEnd: string
+  ): boolean => {
+    // 날짜 문자열을 비교 가능한 형식으로 변환 (YYYY.MM.DD 형식)
+    const newStartDate = new Date(newStart.replace(/\./g, '-'));
+    const newEndDate = new Date(newEnd.replace(/\./g, '-'));
+    const existingStartDate = new Date(existingStart.replace(/\./g, '-'));
+    const existingEndDate = new Date(existingEnd.replace(/\./g, '-'));
+    
+    // 두 기간이 겹치는지 확인: (newStart <= existingEnd && newEnd >= existingStart)
+    return newStartDate <= existingEndDate && newEndDate >= existingStartDate;
+  };
+
   const handleConfirm = async () => {
     // 필수값 검증
     if (!params.category) {
@@ -155,30 +164,16 @@ export default function ChallengeCreateScreen() {
     try {
       const targetAmountNum = parseFloat(targetAmount.replace(/,/g, ''));
       const monthsToCreate = isRecurring ? recurringMonths : 1;
-      // 기존 챌린지 데이터 가져오기
-      // recurringId 생성 (그룹 식별자)
-      const recurringId = generateGroupId('recurring');
-
-      // 반복 개월 수만큼 챌린지 생성
+      
+      // 사용자가 선택한 시작 년월을 기준으로 계산
+      const baseYear = startYear;
+      const baseMonth = startMonth;
+      
+      // 새로 생성하려는 챌린지들의 기간 계산
       const newChallenges: ChallengeRecord[] = [];
       
-      // 사용자가 선택한 날짜가 속하는 커스텀 월 계산
-      const selectedDateObj = new Date(params.selectedDate?.replace(/\./g, '-') || '');
-      const customMonthInfo = getCustomMonthInfo(selectedDateObj, monthStartDay);
-      const baseYear = customMonthInfo.year;
-      const baseMonth = customMonthInfo.month;
-      
-      console.log('🔍 [챌린지 생성] 커스텀 월 계산:', {
-        selectedDate: params.selectedDate,
-        selectedDateObj: selectedDateObj.toISOString().split('T')[0],
-        monthStartDay,
-        customMonthInfo,
-        baseYear,
-        baseMonth
-      });
-      
       for (let i = 0; i < monthsToCreate; i++) {
-        // 커스텀 월 + i의 월 시작일 계산
+        // 선택한 시작 년월 + i의 월 시작일 계산
         const currentMonthStart = new Date(baseYear, baseMonth - 1 + i, monthStartDay);
         const challengeStartYear = currentMonthStart.getFullYear();
         const challengeStartMonth = currentMonthStart.getMonth() + 1;
@@ -205,7 +200,7 @@ export default function ChallengeCreateScreen() {
           endDate: challengeEndDateStr,
           targetAmount: targetAmountNum,
           createdAt: Date.now(),
-          recurringId: recurringId, // 모든 챌린지가 같은 recurringId 공유
+          recurringId: '', // 임시로 빈 값 (아직 생성 전)
           isDeleted: false,
           deletedAt: null,
           startMonth: startMonthLabel,
@@ -216,22 +211,35 @@ export default function ChallengeCreateScreen() {
         };
         
         newChallenges.push(challengeData);
-
       }
       
+      // 기존 챌린지 존재 여부 체크 (같은 카테고리)
+      const existingChallenges = await getAllChallenges();
+      const activeChallenges = existingChallenges.filter(
+        (challenge) => 
+          !challenge.isDeleted && 
+          challenge.category === params.category
+      );
+      
+      // 같은 카테고리의 활성 챌린지가 하나라도 존재하면 생성 불가
+      if (activeChallenges.length > 0) {
+        setToastMessage('선택하신 챌린지는 이미 생성되어 있습니다.');
+        setToastVisible(true);
+        setLoading(false);
+        return;
+      }
+      
+      // 중복이 없으면 recurringId 생성하고 챌린지 생성
+      const recurringId = generateGroupId('recurring');
+      newChallenges.forEach((challenge) => {
+        challenge.recurringId = recurringId;
+      });
+      
       await createChallenges(newChallenges);
-
-      console.log('📋 [챌린지 생성] 생성된 챌린지 목록:', newChallenges.map(c => `${c.startDate}~${c.endDate}`).join(', '));
       
       // 챌린지 현황으로 이동 (첫 번째 챌린지의 시작일이 속하는 년/월로 이동)
       const firstChallenge = newChallenges[0];
-      const [startYear, startMonth] = firstChallenge.startDate.split('.').map(Number);
-      
-      console.log('🔍 [챌린지 생성] 이동할 년/월:', {
-        firstChallengeStartDate: firstChallenge.startDate,
-        startYear,
-        startMonth
-      });
+      const [targetYear, targetMonth] = firstChallenge.startDate.split('.').map(Number);
 
       router.back();
       
@@ -239,8 +247,8 @@ export default function ChallengeCreateScreen() {
         router.replace({
           pathname: '/monthly-expense-timeline',
           params: {
-            year: startYear.toString(),
-            month: startMonth.toString(),
+            year: targetYear.toString(),
+            month: targetMonth.toString(),
             tab: 'challenge'
           },
         });
@@ -282,15 +290,6 @@ export default function ChallengeCreateScreen() {
               // 사용자가 선택한 년/월/일 정보를 카테고리 선택 화면으로 전달
               // selectedDay는 사용자가 선택한 날짜의 일자이므로 그대로 사용
               const selectedDateStr = `${startYear}.${String(startMonth).padStart(2, '0')}.${String(selectedDay).padStart(2, '0')}`;
-              
-              console.log('🔍 [챌린지 생성] 카테고리 선택으로 전달할 파라미터:', {
-                mode: 'challenge',
-                selectedDate: selectedDateStr,
-                calendarYear: startYear.toString(),
-                calendarMonth: startMonth.toString(),
-                selectedCategory: params.category,
-                selectedDay: selectedDay
-              });
               
               router.push({
                 pathname: '/expense-category',

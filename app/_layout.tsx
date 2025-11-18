@@ -118,28 +118,38 @@ export default function RootLayout() {
   useEffect(() => {
     const initAnalytics = async () => {
       try {
+        console.log('📊 [Analytics] Firebase Analytics 초기화 시작...');
+        
         // Analytics 수집 활성화
         await setAnalyticsCollectionEnabled(true);
+        console.log('📊 [Analytics] Analytics 수집 활성화 완료');
         
         // 개발 환경에서 DebugView 활성화 및 테스트 이벤트 전송
         if (__DEV__) {
+          console.log('📊 [Analytics] 개발 모드: DebugView 활성화 시도...');
           await enableDebugMode();
-          
-          // 앱 시작 이벤트도 전송
-          await logEvent('app_started', {
-            timestamp: Date.now(),
-          });
-        } else {
-          // 프로덕션 환경에서도 앱 시작 이벤트 전송
-          await logEvent('app_started', {
-            timestamp: Date.now(),
-          });
         }
+        
+        // 앱 시작 이벤트 전송
+        await logEvent('app_started', {
+          timestamp: Date.now(),
+          platform: 'ios',
+          environment: __DEV__ ? 'development' : 'production',
+        });
+        console.log('📊 [Analytics] app_started 이벤트 전송 완료');
+        
+        console.log('✅ Firebase Analytics 초기화 완료');
       } catch (error) {
-        console.warn('Firebase Analytics 초기화 실패:', error);
+        console.error('❌ Firebase Analytics 초기화 실패:', error);
       }
     };
-    initAnalytics();
+    
+    // 약간의 지연 후 초기화 (Firebase가 완전히 준비될 때까지)
+    const timer = setTimeout(() => {
+      initAnalytics();
+    }, 1000);
+    
+    return () => clearTimeout(timer);
   }, []);
 
   return (
@@ -147,26 +157,28 @@ export default function RootLayout() {
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <View style={{ flex: 1, backgroundColor: colors.background }} onLayout={onLayoutRootView}>
         <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-          {appIsReady ? (
-            <AppDataProvider enabled={splashFinished}>
-              <Stack>
-                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                <Stack.Screen name="(dev-tabs)" options={{ headerShown: false }} />
-                <Stack.Screen name="expense-category" options={{ headerShown: false }} />
-                <Stack.Screen name="expense-record" options={{ headerShown: false }} />
-                <Stack.Screen name="expense-edit" options={{ headerShown: false }} />
-                <Stack.Screen name="income-record" options={{ headerShown: false }} />
-                <Stack.Screen name="income-edit" options={{ headerShown: false }} />
-                <Stack.Screen name="challenge-create" options={{ headerShown: false }} />
-                <Stack.Screen name="challenge-edit" options={{ headerShown: false }} />
-                <Stack.Screen name="monthly-expense-timeline" options={{ headerShown: false }} />
-                <Stack.Screen name="month-start-day" options={{ headerShown: false }} />
-                <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-              </Stack>
-              <StatusBar style="auto" />
-              <GlobalProgressBar />
-            </AppDataProvider>
-          ) : null}
+          <AppDataProvider enabled={appIsReady && splashFinished}>
+            {appIsReady ? (
+              <>
+                <Stack>
+                  <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                  <Stack.Screen name="(dev-tabs)" options={{ headerShown: false }} />
+                  <Stack.Screen name="expense-category" options={{ headerShown: false }} />
+                  <Stack.Screen name="expense-record" options={{ headerShown: false }} />
+                  <Stack.Screen name="expense-edit" options={{ headerShown: false }} />
+                  <Stack.Screen name="income-record" options={{ headerShown: false }} />
+                  <Stack.Screen name="income-edit" options={{ headerShown: false }} />
+                  <Stack.Screen name="challenge-create" options={{ headerShown: false }} />
+                  <Stack.Screen name="challenge-edit" options={{ headerShown: false }} />
+                  <Stack.Screen name="monthly-expense-timeline" options={{ headerShown: false }} />
+                  <Stack.Screen name="month-start-day" options={{ headerShown: false }} />
+                  <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+                </Stack>
+                <StatusBar style="auto" />
+                <GlobalProgressBar />
+              </>
+            ) : null}
+          </AppDataProvider>
         </ThemeProvider>
       </View>
       </SafeAreaProvider>
