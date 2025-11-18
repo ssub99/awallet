@@ -16,7 +16,6 @@ import { monthStartEvent } from '@/hooks/use-month-start';
 import { getNotificationPermissionStatus, handleNotificationToggle } from '@/hooks/use-notifications';
 import { weekStartEvent } from '@/hooks/use-week-start';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Constants from 'expo-constants';
 import * as MailComposer from 'expo-mail-composer';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -212,7 +211,7 @@ export default function MyPageScreen() {
       }
       
       // Get app version
-      const appVersion = Constants.expoConfig?.version ?? '1.0.0';
+      const appVersion = '1.0.0';
       
       // Get OS version
       const osVersion = Platform.Version;
@@ -494,6 +493,7 @@ export default function MyPageScreen() {
               </Pressable>
             </View>
           )}
+
           </>
         </View>
       </ScrollView>

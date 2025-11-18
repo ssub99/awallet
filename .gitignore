@@ -41,13 +41,26 @@ app-example
 # generated native folders
 /ios/*
 !/ios/awallet.xcodeproj
+!/ios/Podfile
+!/ios/Podfile.lock
+!/ios/awallet
+/ios/awallet/*
+!/ios/awallet/Info.plist
+!/ios/awallet/*.entitlements
+!/ios/awallet/*.xcprivacy
+!/ios/awallet/AppDelegate.swift
+!/ios/awallet/*-Bridging-Header.h
+!/ios/awallet/*.storyboard
+!/ios/awallet/Images.xcassets
+!/ios/awallet/Supporting
 /ios/awallet.xcodeproj/*
 !/ios/awallet.xcodeproj/project.pbxproj
 /android
 cursor-talk-to-figma-mcp/
 
 # Google Services (contains API keys)
+# Note: ios/awallet/GoogleService-Info.plist is tracked for EAS Build
 GoogleService-Info.plist
 ios/GoogleService-Info.plist
-ios/**/GoogleService-Info.plist
+!ios/awallet/GoogleService-Info.plist
 android/app/google-services.json
