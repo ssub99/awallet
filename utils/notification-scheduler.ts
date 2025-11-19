@@ -245,6 +245,101 @@ export async function notifyChallengeSuccess(
 }
 
 /**
+ * 챌린지 성공 알림 취소
+ * 특정 챌린지의 스케줄된 성공 알림을 취소하고 마킹도 제거
+ */
+export async function cancelChallengeSuccessNotification(challengeId: string): Promise<void> {
+  try {
+    // 스케줄된 알림 중 해당 챌린지의 성공 알림 찾아서 취소
+    const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
+    
+    for (const notification of scheduledNotifications) {
+      if (
+        notification.content.data?.type === 'challenge_success' &&
+        notification.content.data?.challengeId === challengeId
+      ) {
+        await Notifications.cancelScheduledNotificationAsync(notification.identifier);
+      }
+    }
+    
+    // AsyncStorage 마킹도 제거
+    const sentKey = `challenge_success_${challengeId}`;
+    await AsyncStorage.removeItem(sentKey);
+  } catch (error) {
+    console.error('[notification-scheduler] Failed to cancel success notification:', error);
+  }
+}
+
+/**
+ * 챌린지 진행현황 알림 취소
+ * 특정 챌린지의 모든 진행현황 알림(10%, 30%, 50%, 70%, 90%)을 취소하고 마킹도 제거
+ */
+export async function cancelChallengeProgressNotifications(challengeId: string): Promise<void> {
+  try {
+    // 스케줄된 알림 중 해당 챌린지의 모든 진행현황 알림 찾아서 취소
+    const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
+    
+    for (const notification of scheduledNotifications) {
+      const notifChallengeId = notification.content.data?.challengeId;
+      const notifType = notification.content.data?.type;
+      
+      if (
+        notifType === 'challenge_progress' &&
+        notifChallengeId === challengeId
+      ) {
+        try {
+          await Notifications.cancelScheduledNotificationAsync(notification.identifier);
+        } catch (cancelError) {
+          console.error(`[notification-scheduler] 알림 취소 실패: ${notification.identifier}`, cancelError);
+        }
+      }
+    }
+    
+    // 모든 마일스톤의 AsyncStorage 마킹 제거
+    const milestones = [10, 30, 50, 70, 90];
+    for (const milestone of milestones) {
+      const sentKey = `challenge_progress_${challengeId}_${milestone}`;
+      await AsyncStorage.removeItem(sentKey);
+    }
+  } catch (error) {
+    console.error('[notification-scheduler] Failed to cancel progress notifications:', error);
+  }
+}
+
+/**
+ * 챌린지 실패 알림 취소
+ * 특정 챌린지의 스케줄된 실패 알림을 취소하고 마킹도 제거
+ */
+export async function cancelChallengeFailureNotification(challengeId: string): Promise<void> {
+  try {
+    // 스케줄된 알림 중 해당 챌린지의 실패 알림 찾아서 취소
+    const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
+    
+    for (const notification of scheduledNotifications) {
+      const notifChallengeId = notification.content.data?.challengeId;
+      const notifType = notification.content.data?.type;
+      
+      if (
+        notifType === 'challenge_failure' &&
+        notifChallengeId === challengeId
+      ) {
+        try {
+          await Notifications.cancelScheduledNotificationAsync(notification.identifier);
+        } catch (cancelError) {
+          console.error(`[notification-scheduler] 실패 알림 취소 실패: ${notification.identifier}`, cancelError);
+        }
+      }
+    }
+    
+    // AsyncStorage 마킹도 제거
+    const sentKey = `challenge_failure_${challengeId}`;
+    await AsyncStorage.removeItem(sentKey);
+  } catch (error) {
+    console.error('[notification-scheduler] Failed to cancel failure notification:', error);
+  }
+}
+
+/**
  * 4. 챌린지 실패 알림
  * 소비율 100% 첫 초과 시, 다음날 오전 9시 30분
  */

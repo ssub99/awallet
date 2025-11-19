@@ -509,10 +509,8 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
           style={[styles.testButton, { backgroundColor: '#2196F3' }]}
           onPress={async () => {
             try {
-              console.log('🔍 [진행현황 알림 확인] 시작');
               const challenges = await getAllChallenges();
               const activeChallenges = challenges.filter(c => !c.isDeleted);
-              console.log('🔍 [진행현황 알림 확인] 활성 챌린지 개수:', activeChallenges.length);
               
               if (activeChallenges.length === 0) {
                 alert('활성 챌린지가 없습니다.\n먼저 챌린지를 생성해주세요.');
@@ -523,25 +521,12 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
               const progressNotifications = scheduled.filter(
                 n => n.content.data?.type === 'challenge_progress'
               );
-              console.log('🔍 [진행현황 알림 확인] 스케줄된 진행현황 알림 개수:', progressNotifications.length);
-              console.log('🔍 [진행현황 알림 확인] 스케줄된 진행현황 알림 상세:', progressNotifications.map(n => ({
-                challengeId: n.content.data?.challengeId?.substring(0, 8),
-                percentage: n.content.data?.percentage,
-                triggerDate: n.trigger && 'date' in n.trigger ? new Date(n.trigger.date).toLocaleString('ko-KR') : 'unknown'
-              })));
               
               let result = `진행현황 알림: ${progressNotifications.length}개\n\n`;
               
               // 각 챌린지별 진행현황 알림 확인
               for (const challenge of activeChallenges) {
-                console.log(`🔍 [진행현황 알림 확인] 챌린지 처리 중: ${challenge.category} (${challenge.id.substring(0, 8)})`);
                 const status = await getChallengeStatus(challenge);
-                console.log(`🔍 [진행현황 알림 확인] 챌린지 상태:`, {
-                  category: challenge.category,
-                  currentAmount: status.currentAmount,
-                  percentage: status.percentage.toFixed(1),
-                  targetAmount: challenge.targetAmount
-                });
                 
                 result += `[${challenge.category}]\n`;
                 result += `  기간: ${challenge.startDate} ~ ${challenge.endDate}\n`;
@@ -569,12 +554,6 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
                   
                   const isInRange = status.percentage >= milestone && status.percentage < max;
                   
-                  console.log(`🔍 [진행현황 알림 확인] ${milestone}% 마일스톤:`, {
-                    hasNotification: hasProgressNotif,
-                    isInRange: isInRange,
-                    currentPercentage: status.percentage
-                  });
-                  
                   if (hasProgressNotif) {
                     const notif = progressNotifications.find(
                       n => {
@@ -588,14 +567,12 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
                     if (notif && notif.trigger && 'date' in notif.trigger) {
                       const triggerDate = new Date(notif.trigger.date);
                       progressAlerts.push(`  ${milestone}%: ✅ ${triggerDate.toLocaleString('ko-KR')}`);
-                      console.log(`🔍 [진행현황 알림 확인] ${milestone}% 알림 스케줄됨:`, triggerDate.toLocaleString('ko-KR'));
                     } else {
                       progressAlerts.push(`  ${milestone}%: ✅ 스케줄됨`);
                     }
                   } else {
                     if (isInRange) {
                       progressAlerts.push(`  ${milestone}%: ⚠️ 범위 내 (스케줄 안 됨)`);
-                      console.log(`🔍 [진행현황 알림 확인] ${milestone}% 범위 내인데 스케줄 안 됨`);
                     } else {
                       progressAlerts.push(`  ${milestone}%: ❌ 없음`);
                     }
@@ -604,7 +581,6 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
                 result += progressAlerts.join('\n') + '\n\n';
               }
               
-              console.log('🔍 [진행현황 알림 확인] 완료');
               alert(result);
             } catch (error) {
               console.error('[test] Failed to check progress notifications:', error);
@@ -621,10 +597,8 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
           style={[styles.testButton, { backgroundColor: '#FF5722', marginTop: 12 }]}
           onPress={async () => {
             try {
-              console.log('⚠️ [실패 알림 확인] 시작');
               const challenges = await getAllChallenges();
               const activeChallenges = challenges.filter(c => !c.isDeleted);
-              console.log('⚠️ [실패 알림 확인] 활성 챌린지 개수:', activeChallenges.length);
               
               if (activeChallenges.length === 0) {
                 alert('활성 챌린지가 없습니다.\n먼저 챌린지를 생성해주세요.');
@@ -635,26 +609,12 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
               const failureNotifications = scheduled.filter(
                 n => n.content.data?.type === 'challenge_failure'
               );
-              console.log('⚠️ [실패 알림 확인] 스케줄된 실패 알림 개수:', failureNotifications.length);
-              console.log('⚠️ [실패 알림 확인] 스케줄된 실패 알림 상세:', failureNotifications.map(n => ({
-                challengeId: n.content.data?.challengeId?.substring(0, 8),
-                percentage: n.content.data?.percentage,
-                triggerDate: n.trigger && 'date' in n.trigger ? new Date(n.trigger.date).toLocaleString('ko-KR') : 'unknown'
-              })));
               
               let result = `실패 알림: ${failureNotifications.length}개\n\n`;
               
               // 각 챌린지별 실패 알림 확인
               for (const challenge of activeChallenges) {
-                console.log(`⚠️ [실패 알림 확인] 챌린지 처리 중: ${challenge.category} (${challenge.id.substring(0, 8)})`);
                 const status = await getChallengeStatus(challenge);
-                console.log(`⚠️ [실패 알림 확인] 챌린지 상태:`, {
-                  category: challenge.category,
-                  currentAmount: status.currentAmount,
-                  percentage: status.percentage.toFixed(1),
-                  targetAmount: challenge.targetAmount,
-                  isOver100: status.percentage > 100
-                });
                 
                 result += `[${challenge.category}]\n`;
                 result += `  기간: ${challenge.startDate} ~ ${challenge.endDate}\n`;
@@ -664,7 +624,6 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
                 const hasFailureNotif = failureNotifications.some(
                   n => n.content.data?.challengeId === challenge.id
                 );
-                console.log(`⚠️ [실패 알림 확인] 실패 알림 스케줄 여부:`, hasFailureNotif);
                 
                 if (hasFailureNotif) {
                   const notif = failureNotifications.find(
@@ -673,14 +632,12 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
                   if (notif && notif.trigger && 'date' in notif.trigger) {
                     const triggerDate = new Date(notif.trigger.date);
                     result += `  실패 알림: ✅ ${triggerDate.toLocaleString('ko-KR')}\n`;
-                    console.log(`⚠️ [실패 알림 확인] 실패 알림 발송일:`, triggerDate.toLocaleString('ko-KR'));
                   } else {
                     result += `  실패 알림: ✅ 스케줄됨\n`;
                   }
                 } else {
                   if (status.percentage > 100) {
                     result += `  실패 알림: ⚠️ 범위 초과 (스케줄 안 됨)\n`;
-                    console.log(`⚠️ [실패 알림 확인] 100% 초과인데 스케줄 안 됨`);
                   } else {
                     result += `  실패 알림: ❌ 없음\n`;
                   }
@@ -688,7 +645,6 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
                 result += '\n';
               }
               
-              console.log('⚠️ [실패 알림 확인] 완료');
               alert(result);
             } catch (error) {
               console.error('[test] Failed to check failure notifications:', error);
@@ -705,10 +661,8 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
           style={[styles.testButton, { backgroundColor: '#4CAF50', marginTop: 12 }]}
           onPress={async () => {
             try {
-              console.log('🎉 [성공 알림 확인] 시작');
               const challenges = await getAllChallenges();
               const activeChallenges = challenges.filter(c => !c.isDeleted);
-              console.log('🎉 [성공 알림 확인] 활성 챌린지 개수:', activeChallenges.length);
               
               if (activeChallenges.length === 0) {
                 alert('활성 챌린지가 없습니다.\n먼저 챌린지를 생성해주세요.');
@@ -719,27 +673,12 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
               const successNotifications = scheduled.filter(
                 n => n.content.data?.type === 'challenge_success'
               );
-              console.log('🎉 [성공 알림 확인] 스케줄된 성공 알림 개수:', successNotifications.length);
-              console.log('🎉 [성공 알림 확인] 스케줄된 성공 알림 상세:', successNotifications.map(n => ({
-                challengeId: n.content.data?.challengeId?.substring(0, 8),
-                percentage: n.content.data?.percentage,
-                triggerDate: n.trigger && 'date' in n.trigger ? new Date(n.trigger.date).toLocaleString('ko-KR') : 'unknown'
-              })));
               
               let result = `성공 알림: ${successNotifications.length}개\n\n`;
               
               // 각 챌린지별 성공 알림 확인
               for (const challenge of activeChallenges) {
-                console.log(`🎉 [성공 알림 확인] 챌린지 처리 중: ${challenge.category} (${challenge.id.substring(0, 8)})`);
                 const status = await getChallengeStatus(challenge);
-                console.log(`🎉 [성공 알림 확인] 챌린지 상태:`, {
-                  category: challenge.category,
-                  currentAmount: status.currentAmount,
-                  percentage: status.percentage.toFixed(1),
-                  targetAmount: challenge.targetAmount,
-                  isUnder100: status.percentage <= 100,
-                  endDate: challenge.endDate
-                });
                 
                 result += `[${challenge.category}]\n`;
                 result += `  기간: ${challenge.startDate} ~ ${challenge.endDate}\n`;
@@ -749,7 +688,6 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
                 const hasSuccessNotif = successNotifications.some(
                   n => n.content.data?.challengeId === challenge.id
                 );
-                console.log(`🎉 [성공 알림 확인] 성공 알림 스케줄 여부:`, hasSuccessNotif);
                 
                 if (hasSuccessNotif) {
                   const notif = successNotifications.find(
@@ -758,23 +696,19 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
                   if (notif && notif.trigger && 'date' in notif.trigger) {
                     const triggerDate = new Date(notif.trigger.date);
                     result += `  성공 알림: ✅ ${triggerDate.toLocaleString('ko-KR')}\n`;
-                    console.log(`🎉 [성공 알림 확인] 성공 알림 발송일:`, triggerDate.toLocaleString('ko-KR'));
                   } else {
                     result += `  성공 알림: ✅ 스케줄됨\n`;
                   }
                 } else {
                   if (status.percentage > 100) {
                     result += `  성공 알림: ❌ 없음 (소비율 초과)\n`;
-                    console.log(`🎉 [성공 알림 확인] 100% 초과로 성공 알림 없음`);
                   } else {
                     result += `  성공 알림: ❌ 없음\n`;
-                    console.log(`🎉 [성공 알림 확인] 100% 이하인데 성공 알림 없음`);
                   }
                 }
                 result += '\n';
               }
               
-              console.log('🎉 [성공 알림 확인] 완료');
               alert(result);
             } catch (error) {
               console.error('[test] Failed to check success notifications:', error);

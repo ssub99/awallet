@@ -2248,6 +2248,14 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
       await rebuildCalendarData();
 
+      // 챌린지 알림 재계산 (삭제 후 소비율 변경 반영)
+      if (editData.category) {
+        const recordDateObj = new Date(editData.date || date);
+        triggerChallengeNotifications(editData.category, recordDateObj).catch(error => {
+          console.error('[expense-record] Failed to trigger challenge notifications after delete:', error);
+        });
+      }
+
       calendarRefreshEvent.emit();
       setShowDeleteConfirm(false);
       setShowRecurringDeleteConfirm(false);
@@ -2801,6 +2809,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       // AsyncStorage에 저장
       await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
       
+      // 챌린지 알림 재계산 (삭제 후 소비율 변경 반영)
+      if (editData.category) {
+        const recordDateObj = new Date(editData.date || date);
+        triggerChallengeNotifications(editData.category, recordDateObj).catch(error => {
+          console.error('[expense-record] Failed to trigger challenge notifications after delete:', error);
+        });
+      }
       
       // 모달 닫기
       setShowRecurringDeleteOptions(false);

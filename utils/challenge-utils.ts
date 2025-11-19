@@ -56,21 +56,30 @@ export async function getActiveChallengeByCategory(
 
 /**
  * 챌린지의 현재 소비금액 계산
+ * @param challenge 챌린지 데이터
+ * @param calendarData 캐시된 calendarData (선택적, 제공되지 않으면 AsyncStorage에서 로드)
  */
-export async function calculateChallengeAmount(challenge: ChallengeData): Promise<number> {
+export async function calculateChallengeAmount(
+  challenge: ChallengeData,
+  calendarData?: Record<string, any>
+): Promise<number> {
   try {
-    const storedData = await AsyncStorage.getItem('calendarData');
-    if (!storedData) return 0;
+    // calendarData가 제공되지 않으면 AsyncStorage에서 로드
+    let data = calendarData;
+    if (!data) {
+      const storedData = await AsyncStorage.getItem('calendarData');
+      if (!storedData) return 0;
+      data = JSON.parse(storedData);
+    }
 
-    const calendarData = JSON.parse(storedData);
     let totalAmount = 0;
 
     const startDate = new Date(challenge.startDate.replace(/\./g, '-'));
     const endDate = new Date(challenge.endDate.replace(/\./g, '-'));
 
-    Object.entries(calendarData).forEach(([dateString, data]: [string, any]) => {
-      if (data.records && Array.isArray(data.records)) {
-        data.records.forEach((record: any) => {
+    Object.entries(data).forEach(([dateString, dateData]: [string, any]) => {
+      if (dateData.records && Array.isArray(dateData.records)) {
+        dateData.records.forEach((record: any) => {
           if (record.type === 'expense' && record.category === challenge.category) {
             const itemDate = new Date(dateString);
             
@@ -92,9 +101,14 @@ export async function calculateChallengeAmount(challenge: ChallengeData): Promis
 
 /**
  * 챌린지 상태 계산
+ * @param challenge 챌린지 데이터
+ * @param calendarData 캐시된 calendarData (선택적, 제공되지 않으면 AsyncStorage에서 로드)
  */
-export async function getChallengeStatus(challenge: ChallengeData): Promise<ChallengeStatus> {
-  const currentAmount = await calculateChallengeAmount(challenge);
+export async function getChallengeStatus(
+  challenge: ChallengeData,
+  calendarData?: Record<string, any>
+): Promise<ChallengeStatus> {
+  const currentAmount = await calculateChallengeAmount(challenge, calendarData);
   const percentage = challenge.targetAmount > 0 ? (currentAmount / challenge.targetAmount) * 100 : 0;
   
   const today = new Date();
@@ -172,9 +186,9 @@ export async function checkActiveChallengesNotifications(): Promise<void> {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    console.log(`[checkActiveChallengesNotifications] 전체 챌린지 개수: ${challenges.length}`);
-    const activeChallenges = challenges.filter(c => !c.isDeleted);
-    console.log(`[checkActiveChallengesNotifications] 활성 챌린지 개수: ${activeChallenges.length}`);
+    // ✅ 성능 최적화: calendarData를 한 번만 로드하여 재사용
+    const storedData = await AsyncStorage.getItem('calendarData');
+    const calendarData = storedData ? JSON.parse(storedData) : {};
     
     // 1단계: 스케줄된 모든 챌린지 알림 확인 및 취소
     // getAllChallenges()에 없는 챌린지의 알림도 정리하기 위해 스케줄된 알림을 직접 확인
@@ -210,13 +224,8 @@ export async function checkActiveChallengesNotifications(): Promise<void> {
       }
     });
     
-    console.log(`[checkActiveChallengesNotifications] 스케줄된 진행현황 알림의 챌린지 ID 개수: ${progressNotifications.length > 0 ? new Set(progressNotifications.map(n => n.content.data?.challengeId)).size : 0}`);
-    console.log(`[checkActiveChallengesNotifications] 스케줄된 실패 알림의 챌린지 ID 개수: ${failureNotifications.length > 0 ? new Set(failureNotifications.map(n => n.content.data?.challengeId)).size : 0}`);
-    console.log(`[checkActiveChallengesNotifications] 스케줄된 성공 알림의 챌린지 ID 개수: ${successNotifications.length > 0 ? new Set(successNotifications.map(n => n.content.data?.challengeId)).size : 0}`);
-    
     // 모든 스케줄된 알림의 챌린지 ID에 대해 취소 실행
     for (const challengeId of scheduledChallengeIds) {
-      console.log(`[checkActiveChallengesNotifications] 취소 시작: ${challengeId.substring(0, 8)}`);
       await cancelChallengeProgressNotifications(challengeId);
       await cancelChallengeFailureNotification(challengeId);
       await cancelChallengeSuccessNotification(challengeId);
@@ -238,8 +247,8 @@ export async function checkActiveChallengesNotifications(): Promise<void> {
         continue;
       }
       
-      // 챌린지 상태 계산
-      const status = await getChallengeStatus(challenge);
+      // ✅ 성능 최적화: 캐시된 calendarData 재사용
+      const status = await getChallengeStatus(challenge, calendarData);
       
       // 진행현황 알림 체크 (10%, 30%, 50%, 70%, 90%)
       // 역순으로 체크하여 가장 높은 마일스톤부터 확인 (중복 방지)
@@ -252,7 +261,6 @@ export async function checkActiveChallengesNotifications(): Promise<void> {
         const isInRange = status.percentage >= milestone && status.percentage < max;
         
         if (isInRange) {
-          console.log(`[checkActiveChallengesNotifications] 스케줄링: ${challenge.category} - ${milestone}%`);
           await notifyChallengeProgress(challenge.category, status.percentage, challenge.id, milestone);
           // 한 번에 하나의 마일스톤만 처리 (triggerChallengeNotifications와 동일)
           break;
