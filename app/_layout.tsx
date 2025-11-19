@@ -6,7 +6,7 @@ import { AppDataProvider } from '@/contexts/app-data-context';
 import { LoadingProvider } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useFirstLaunchNotificationPermission } from '@/hooks/use-notifications';
-import { checkEndedChallenges } from '@/utils/challenge-utils';
+import { checkActiveChallengesNotifications, checkEndedChallenges } from '@/utils/challenge-utils';
 import { cleanupOldSchedules, setupDailyReminder } from '@/utils/notification-scheduler';
 import { enableDebugMode, logEvent, setAnalyticsCollectionEnabled } from '@/utils/analytics';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
@@ -119,6 +119,9 @@ export default function RootLayout() {
           
           // Setup daily reminder (8 PM every day)
           await setupDailyReminder();
+          
+          // Check active challenges for missing notifications (보완)
+          await checkActiveChallengesNotifications();
           
           // Check ended challenges (for success notifications)
           await checkEndedChallenges();
