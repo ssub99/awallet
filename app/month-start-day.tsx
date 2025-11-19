@@ -10,11 +10,13 @@ import { Icon } from '@/components/ui/icon';
 import { ThemeColors } from '@/constants/theme-colors';
 import { Typography } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { getCustomMonthInfo } from '@/utils/custom-month';
-import { createChallenges, getAllChallenges, softDeleteChallengesByRecurringId, type ChallengeRecord } from '@/utils/challenges';
-import { generateRecordId, generateGroupId } from '@/utils/id-generator';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { monthStartEvent } from '@/hooks/use-month-start';
+import { createChallenges, getAllChallenges, softDeleteChallengesByRecurringId, type ChallengeRecord } from '@/utils/challenges';
+import { getCustomMonthInfo } from '@/utils/custom-month';
+import { generateGroupId, generateRecordId } from '@/utils/id-generator';
+import { getChallengeStatus } from '@/utils/challenge-utils';
+import { cancelChallengeSuccessNotification, notifyChallengeSuccess, notifyChallengeProgress, notifyChallengeFailure, cancelChallengeProgressNotifications } from '@/utils/notification-scheduler';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
@@ -35,7 +37,6 @@ export default function MonthStartDayScreen() {
   // 챌린지 재생성 로직
   const regenerateChallengesForNewMonthStart = async (newMonthStartDay: number) => {
     try {
-      
       // 기존 챌린지 데이터 로드
       const existingChallenges = await getAllChallenges();
       const activeChallenges = existingChallenges.filter((challenge) => !challenge.isDeleted);
@@ -55,7 +56,12 @@ export default function MonthStartDayScreen() {
         challengeGroups.get(challenge.category)!.push(challenge);
       });
       
-      // 기존 챌린지들 비활성화 (soft delete)
+      // 기존 챌린지들의 성공 알림 취소 (soft delete 전에 수행)
+      for (const challenge of activeChallenges) {
+        await cancelChallengeSuccessNotification(challenge.id);
+      }
+      
+      // 기존 챌린지들 비활성화 (soft delete) - 단일 트랜잭션으로 처리
       const recurringIds = new Set<string>();
       activeChallenges.forEach((challenge) => {
         if (challenge.recurringId) {
@@ -64,9 +70,24 @@ export default function MonthStartDayScreen() {
       });
 
       if (recurringIds.size > 0) {
-        await Promise.all(
-          Array.from(recurringIds).map((recurringId) => softDeleteChallengesByRecurringId(recurringId))
-        );
+        // 단일 트랜잭션으로 모든 soft delete 처리 (race condition 방지)
+        const allChallenges = await getAllChallenges();
+        const deletedAt = new Date().toISOString();
+        const updatedChallenges = allChallenges.map((challenge) => {
+          if (challenge.recurringId && recurringIds.has(challenge.recurringId)) {
+            return {
+              ...challenge,
+              isDeleted: true,
+              deletedAt: deletedAt,
+              updatedAt: Date.now(),
+            };
+          }
+          return challenge;
+        });
+        
+        const CHALLENGE_STORAGE_KEY = 'challengeData';
+        const sorted = [...updatedChallenges].sort((a, b) => a.startDate.localeCompare(b.startDate));
+        await AsyncStorage.setItem(CHALLENGE_STORAGE_KEY, JSON.stringify(sorted));
       }
       
       // 새로운 챌린지들 생성
@@ -77,17 +98,13 @@ export default function MonthStartDayScreen() {
       const customMonthInfo = getCustomMonthInfo(today, newMonthStartDay);
       const baseYear = customMonthInfo.year;
       const baseMonth = customMonthInfo.month;
-      
-      
-      
+
       for (const [category, challenges] of challengeGroups) {
         // 해당 카테고리의 첫 번째 챌린지에서 목표 금액과 반복 개월 수 가져오기
         const firstChallenge = challenges[0];
         const targetAmount = firstChallenge.targetAmount;
         const recurringMonths = challenges.length;
-        
-        
-        
+
         // 새로운 recurringId 생성 (그룹 식별자)
         const newRecurringId = generateGroupId('recurring');
         
@@ -133,16 +150,66 @@ export default function MonthStartDayScreen() {
           };
           
           newChallenges.push(newChallenge);
-          
-          
+        }
+      }
+
+      if (newChallenges.length > 0) {
+        await createChallenges(newChallenges);
+        
+        // 각 새 챌린지에 대해 알림 스케줄링
+        for (const challenge of newChallenges) {
+          try {
+            const status = await getChallengeStatus(challenge);
+            const endDate = new Date(challenge.endDate.replace(/\./g, '-'));
+            
+            // 기존 진행현황 알림 모두 취소 (중복 방지)
+            await cancelChallengeProgressNotifications(challenge.id);
+            
+            // 진행현황 알림 스케줄링 (10%, 30%, 50%, 70%, 90%)
+            const milestones = [10, 30, 50, 70, 90];
+            for (let i = 0; i < milestones.length; i++) {
+              const milestone = milestones[i];
+              const max = i < milestones.length - 1 ? milestones[i + 1] : 100;
+              const isInRange = status.percentage >= milestone && status.percentage < max;
+              
+              if (isInRange) {
+                await notifyChallengeProgress(challenge.category, status.percentage, challenge.id, milestone);
+                break; // 한 번에 하나의 마일스톤만
+              }
+            }
+            
+            // 실패 알림 스케줄링 (100% 초과)
+            if (status.percentage > 100) {
+              await notifyChallengeFailure(challenge.category, status.percentage, challenge.id);
+            }
+            
+            // 성공 알림 스케줄링 (≤ 100%)
+            if (status.percentage <= 100) {
+              await notifyChallengeSuccess(
+                challenge.category,
+                status.percentage,
+                challenge.id,
+                endDate
+              );
+            }
+          } catch (error) {
+            console.error('[month-start-day] Failed to schedule notifications:', error);
+          }
         }
       }
       
-      if (newChallenges.length > 0) {
-        await createChallenges(newChallenges);
+      // 4. soft delete된 챌린지들을 하드 삭제 (찌꺼기 정리)
+      const allChallengesAfterCreation = await getAllChallenges();
+      const filteredActiveChallenges = allChallengesAfterCreation.filter(
+        (challenge) => challenge.isDeleted !== true
+      );
+      
+      // soft delete된 챌린지가 있으면 활성 챌린지만 저장 (하드 삭제)
+      if (filteredActiveChallenges.length !== allChallengesAfterCreation.length) {
+        const CHALLENGE_STORAGE_KEY = 'challengeData';
+        const sorted = [...filteredActiveChallenges].sort((a, b) => a.startDate.localeCompare(b.startDate));
+        await AsyncStorage.setItem(CHALLENGE_STORAGE_KEY, JSON.stringify(sorted));
       }
-      
-      
       
     } catch (error) {
       console.error('❌ 챌린지 재생성 중 오류:', error);

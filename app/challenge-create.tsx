@@ -19,6 +19,8 @@ import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { getCustomMonthInfo } from '@/utils/custom-month';
 import { createChallenges, getAllChallenges, type ChallengeRecord } from '@/utils/challenges';
 import { generateRecordId, generateGroupId } from '@/utils/id-generator';
+import { getChallengeStatus } from '@/utils/challenge-utils';
+import { notifyChallengeSuccess, notifyChallengeProgress, notifyChallengeFailure, cancelChallengeProgressNotifications } from '@/utils/notification-scheduler';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Keyboard, Pressable, ScrollView, StatusBar, StyleSheet, Text, TouchableWithoutFeedback, View } from 'react-native';
@@ -236,6 +238,48 @@ export default function ChallengeCreateScreen() {
       });
       
       await createChallenges(newChallenges);
+      
+      // 각 챌린지에 대해 알림 스케줄링
+      for (const challenge of newChallenges) {
+        try {
+          // 챌린지 상태 계산 (소비율 포함)
+          const status = await getChallengeStatus(challenge);
+          const endDate = new Date(challenge.endDate.replace(/\./g, '-'));
+          
+          // 기존 진행현황 알림 모두 취소 (중복 방지)
+          await cancelChallengeProgressNotifications(challenge.id);
+          
+          // 진행현황 알림 스케줄링 (10%, 30%, 50%, 70%, 90%)
+          const milestones = [10, 30, 50, 70, 90];
+          for (let i = 0; i < milestones.length; i++) {
+            const milestone = milestones[i];
+            const max = i < milestones.length - 1 ? milestones[i + 1] : 100;
+            const isInRange = status.percentage >= milestone && status.percentage < max;
+            
+            if (isInRange) {
+              await notifyChallengeProgress(challenge.category, status.percentage, challenge.id, milestone);
+              break; // 한 번에 하나의 마일스톤만
+            }
+          }
+          
+          // 실패 알림 스케줄링 (100% 초과)
+          if (status.percentage > 100) {
+            await notifyChallengeFailure(challenge.category, status.percentage, challenge.id);
+          }
+          
+          // 성공 알림 스케줄링 (≤ 100%)
+          if (status.percentage <= 100) {
+            await notifyChallengeSuccess(
+              challenge.category,
+              status.percentage,
+              challenge.id,
+              endDate
+            );
+          }
+        } catch (error) {
+          console.error('[challenge-create] Failed to schedule notifications:', error);
+        }
+      }
       
       // 챌린지 현황으로 이동 (첫 번째 챌린지의 시작일이 속하는 년/월로 이동)
       const firstChallenge = newChallenges[0];

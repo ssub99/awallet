@@ -5,7 +5,8 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { notifyChallengeFailure, notifyChallengeProgress, notifyChallengeSuccess } from './notification-scheduler';
+import * as Notifications from 'expo-notifications';
+import { notifyChallengeFailure, notifyChallengeProgress, notifyChallengeSuccess, cancelChallengeSuccessNotification, cancelChallengeProgressNotifications, cancelChallengeFailureNotification } from './notification-scheduler';
 import {
   getAllChallenges,
   type ChallengeRecord as ChallengeData,
@@ -128,20 +129,19 @@ export async function triggerChallengeNotifications(category: string, recordDate
     // 3. 알림 조건 체크 및 발송
     
     // 3-1. 진행현황 알림 (10%, 30%, 50%, 70%, 90%)
+    // 기존 진행현황 알림 모두 취소 (같은 날 여러 마일스톤 지나가도 최종 상태만 발송)
+    await cancelChallengeProgressNotifications(challenge.id);
+    
     const milestones = [10, 30, 50, 70, 90];
-    for (const milestone of milestones) {
-      const isInRange = status.percentage >= milestone && status.percentage < milestone + 5;
+    for (let i = 0; i < milestones.length; i++) {
+      const milestone = milestones[i];
+      const max = i < milestones.length - 1 ? milestones[i + 1] : 100;
+      const isInRange = status.percentage >= milestone && status.percentage < max;
       
       if (isInRange) {
-        // 현재 소비율이 마일스톤 ±5% 범위 내에 있으면 알림 고려
-        const sentKey = `challenge_progress_${challenge.id}_${milestone}`;
-        const alreadySent = await AsyncStorage.getItem(sentKey);
-        
-        if (!alreadySent) {
-          await notifyChallengeProgress(challenge.category, status.percentage, challenge.id, milestone);
-          // 알림 함수 내부에서 발송 기록 저장
-          break; // 한 번에 하나의 마일스톤만
-        }
+        // 현재 소비율이 마일스톤 범위 내에 있으면 알림 스케줄링
+        await notifyChallengeProgress(challenge.category, status.percentage, challenge.id, milestone);
+        break; // 한 번에 하나의 마일스톤만
       }
     }
     
@@ -151,6 +151,9 @@ export async function triggerChallengeNotifications(category: string, recordDate
       const alreadySent = await AsyncStorage.getItem(sentKey);
       
       if (!alreadySent) {
+        // 실패 알림 발송 전, 기존 성공 알림 취소
+        await cancelChallengeSuccessNotification(challenge.id);
+        
         await notifyChallengeFailure(challenge.category, status.percentage, challenge.id);
       }
     }
@@ -169,6 +172,57 @@ export async function checkActiveChallengesNotifications(): Promise<void> {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
+    console.log(`[checkActiveChallengesNotifications] 전체 챌린지 개수: ${challenges.length}`);
+    const activeChallenges = challenges.filter(c => !c.isDeleted);
+    console.log(`[checkActiveChallengesNotifications] 활성 챌린지 개수: ${activeChallenges.length}`);
+    
+    // 1단계: 스케줄된 모든 챌린지 알림 확인 및 취소
+    // getAllChallenges()에 없는 챌린지의 알림도 정리하기 위해 스케줄된 알림을 직접 확인
+    const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
+    const progressNotifications = scheduledNotifications.filter(
+      n => n.content.data?.type === 'challenge_progress'
+    );
+    const failureNotifications = scheduledNotifications.filter(
+      n => n.content.data?.type === 'challenge_failure'
+    );
+    const successNotifications = scheduledNotifications.filter(
+      n => n.content.data?.type === 'challenge_success'
+    );
+    
+    // 스케줄된 알림의 challengeId 수집 (진행현황 + 실패 + 성공)
+    const scheduledChallengeIds = new Set<string>();
+    progressNotifications.forEach(n => {
+      const challengeId = n.content.data?.challengeId;
+      if (challengeId) {
+        scheduledChallengeIds.add(challengeId);
+      }
+    });
+    failureNotifications.forEach(n => {
+      const challengeId = n.content.data?.challengeId;
+      if (challengeId) {
+        scheduledChallengeIds.add(challengeId);
+      }
+    });
+    successNotifications.forEach(n => {
+      const challengeId = n.content.data?.challengeId;
+      if (challengeId) {
+        scheduledChallengeIds.add(challengeId);
+      }
+    });
+    
+    console.log(`[checkActiveChallengesNotifications] 스케줄된 진행현황 알림의 챌린지 ID 개수: ${progressNotifications.length > 0 ? new Set(progressNotifications.map(n => n.content.data?.challengeId)).size : 0}`);
+    console.log(`[checkActiveChallengesNotifications] 스케줄된 실패 알림의 챌린지 ID 개수: ${failureNotifications.length > 0 ? new Set(failureNotifications.map(n => n.content.data?.challengeId)).size : 0}`);
+    console.log(`[checkActiveChallengesNotifications] 스케줄된 성공 알림의 챌린지 ID 개수: ${successNotifications.length > 0 ? new Set(successNotifications.map(n => n.content.data?.challengeId)).size : 0}`);
+    
+    // 모든 스케줄된 알림의 챌린지 ID에 대해 취소 실행
+    for (const challengeId of scheduledChallengeIds) {
+      console.log(`[checkActiveChallengesNotifications] 취소 시작: ${challengeId.substring(0, 8)}`);
+      await cancelChallengeProgressNotifications(challengeId);
+      await cancelChallengeFailureNotification(challengeId);
+      await cancelChallengeSuccessNotification(challengeId);
+    }
+    
+    // 2단계: 활성 챌린지만 재스케줄링
     for (const challenge of challenges) {
       if (challenge.isDeleted) {
         continue;
@@ -190,22 +244,18 @@ export async function checkActiveChallengesNotifications(): Promise<void> {
       // 진행현황 알림 체크 (10%, 30%, 50%, 70%, 90%)
       // 역순으로 체크하여 가장 높은 마일스톤부터 확인 (중복 방지)
       const milestones = [90, 70, 50, 30, 10];
-      for (const milestone of milestones) {
+      for (let i = 0; i < milestones.length; i++) {
+        const milestone = milestones[i];
+        // 역순이므로 max는 이전 마일스톤 (또는 100)
+        const max = i === 0 ? 100 : milestones[i - 1];
         // 현재 소비율이 마일스톤 범위 내에 있는지 확인 (triggerChallengeNotifications와 동일한 로직)
-        const isInRange = status.percentage >= milestone && status.percentage < milestone + 5;
+        const isInRange = status.percentage >= milestone && status.percentage < max;
         
         if (isInRange) {
-          const sentKey = `challenge_progress_${challenge.id}_${milestone}`;
-          const alreadySent = await AsyncStorage.getItem(sentKey);
-          
-          if (!alreadySent) {
-            await notifyChallengeProgress(challenge.category, status.percentage, challenge.id, milestone);
-            // 한 번에 하나의 마일스톤만 처리 (triggerChallengeNotifications와 동일)
-            break;
-          } else {
-            // 이미 발송된 경우에도 break (더 낮은 마일스톤은 체크하지 않음)
-            break;
-          }
+          console.log(`[checkActiveChallengesNotifications] 스케줄링: ${challenge.category} - ${milestone}%`);
+          await notifyChallengeProgress(challenge.category, status.percentage, challenge.id, milestone);
+          // 한 번에 하나의 마일스톤만 처리 (triggerChallengeNotifications와 동일)
+          break;
         }
       }
       
@@ -217,6 +267,17 @@ export async function checkActiveChallengesNotifications(): Promise<void> {
         if (!alreadySent) {
           await notifyChallengeFailure(challenge.category, status.percentage, challenge.id);
         }
+      }
+      
+      // 성공 알림 체크 (100% 이하)
+      if (status.percentage <= 100) {
+        const endDate = new Date(challenge.endDate.replace(/\./g, '-'));
+        await notifyChallengeSuccess(
+          challenge.category,
+          status.percentage,
+          challenge.id,
+          endDate
+        );
       }
     }
   } catch (error) {
