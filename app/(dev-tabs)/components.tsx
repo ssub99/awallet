@@ -22,7 +22,7 @@ import { Tab } from '@/components/ui/tab';
 import { Tag } from '@/components/ui/tag';
 import { Colors, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { cancelAllNotifications, clearChallengeNotificationMarks, getScheduledNotifications, sendTestNotification } from '@/utils/notification-scheduler';
+import { cancelAllNotifications, getScheduledNotifications, sendTestNotification } from '@/utils/notification-scheduler';
 import { storageCache } from '@/utils/storage-cache';
 import { useAppData } from '@/contexts/app-data-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -448,36 +448,12 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
           <Pressable
             style={[styles.testButtonSmall, { backgroundColor: colors.statusNegative }]}
             onPress={async () => {
-              const remaining = await cancelAllNotifications();
-              if (remaining.length > 0) {
-                const details = remaining.map(n => {
-                  const triggerType = n.trigger?.type || 'unknown';
-                  const identifier = n.identifier || 'no identifier';
-                  const title = n.content.title || 'no title';
-                  return `- ${title}\n  ID: ${identifier}\n  Type: ${triggerType}`;
-                }).join('\n\n');
-                alert(`알림 취소 완료\n남은 알림: ${remaining.length}개\n\n남은 알림 상세:\n${details}`);
-              } else {
-                alert('모든 예약 알림 취소됨');
-              }
+              await cancelAllNotifications();
+              alert('모든 예약 알림 취소됨');
             }}
           >
             <Text style={[styles.testButtonSmallText, { color: colors.staticWhite }]}>
               🗑️ 전체 취소
-            </Text>
-          </Pressable>
-        </View>
-        
-        <View style={styles.testButtonRow}>
-          <Pressable
-            style={[styles.testButtonSmall, { backgroundColor: '#ff9800' }]}
-            onPress={async () => {
-              await clearChallengeNotificationMarks();
-              alert('챌린지 알림 마킹 초기화 완료\n앱을 재시작하면 알림이 다시 스케줄됩니다.');
-            }}
-          >
-            <Text style={[styles.testButtonSmallText, { color: colors.staticWhite }]}>
-              🔄 알림 마킹 초기화
             </Text>
           </Pressable>
         </View>

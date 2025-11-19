@@ -116,29 +116,32 @@ export async function getChallengeStatus(challenge: ChallengeData): Promise<Chal
  */
 export async function triggerChallengeNotifications(category: string, recordDate: Date): Promise<void> {
   try {
+    console.log('🔔 [챌린지 알림] 트리거 시작:', { category, date: recordDate.toISOString() });
+    
     // 1. 해당 카테고리의 활성 챌린지 찾기
     const challenge = await getActiveChallengeByCategory(category, recordDate);
     if (!challenge) {
+
       return;
     }
 
     // 2. 챌린지 상태 계산
     const status = await getChallengeStatus(challenge);
+    console.log('📊 [챌린지 알림] 소비율:', `${status.percentage.toFixed(1)}%`);
     
     // 3. 알림 조건 체크 및 발송
     
     // 3-1. 진행현황 알림 (10%, 30%, 50%, 70%, 90%)
     const milestones = [10, 30, 50, 70, 90];
     for (const milestone of milestones) {
-      const isInRange = status.percentage >= milestone && status.percentage < milestone + 5;
-      
-      if (isInRange) {
+      if (status.percentage >= milestone && status.percentage < milestone + 5) {
         // 현재 소비율이 마일스톤 ±5% 범위 내에 있으면 알림 고려
         const sentKey = `challenge_progress_${challenge.id}_${milestone}`;
         const alreadySent = await AsyncStorage.getItem(sentKey);
         
         if (!alreadySent) {
-          await notifyChallengeProgress(challenge.category, status.percentage, challenge.id, milestone);
+
+          await notifyChallengeProgress(challenge.category, status.percentage, challenge.id);
           // 알림 함수 내부에서 발송 기록 저장
           break; // 한 번에 하나의 마일스톤만
         }
@@ -151,76 +154,13 @@ export async function triggerChallengeNotifications(category: string, recordDate
       const alreadySent = await AsyncStorage.getItem(sentKey);
       
       if (!alreadySent) {
+
         await notifyChallengeFailure(challenge.category, status.percentage, challenge.id);
       }
     }
 
   } catch (error) {
-  }
-}
 
-/**
- * 활성 챌린지의 누락된 알림 체크 및 발송 (앱 시작 시 실행)
- * 이미 저장된 소비 기록이 있어도 알림이 누락된 경우 보완
- */
-export async function checkActiveChallengesNotifications(): Promise<void> {
-  try {
-    const challenges = await getAllChallenges();
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    for (const challenge of challenges) {
-      if (challenge.isDeleted) {
-        continue;
-      }
-
-      const startDate = new Date(challenge.startDate.replace(/\./g, '-'));
-      const endDate = new Date(challenge.endDate.replace(/\./g, '-'));
-      startDate.setHours(0, 0, 0, 0);
-      endDate.setHours(0, 0, 0, 0);
-      
-      // 활성 챌린지만 체크
-      if (today < startDate || today > endDate) {
-        continue;
-      }
-      
-      // 챌린지 상태 계산
-      const status = await getChallengeStatus(challenge);
-      
-      // 진행현황 알림 체크 (10%, 30%, 50%, 70%, 90%)
-      // 역순으로 체크하여 가장 높은 마일스톤부터 확인 (중복 방지)
-      const milestones = [90, 70, 50, 30, 10];
-      for (const milestone of milestones) {
-        // 현재 소비율이 마일스톤 범위 내에 있는지 확인 (triggerChallengeNotifications와 동일한 로직)
-        const isInRange = status.percentage >= milestone && status.percentage < milestone + 5;
-        
-        if (isInRange) {
-          const sentKey = `challenge_progress_${challenge.id}_${milestone}`;
-          const alreadySent = await AsyncStorage.getItem(sentKey);
-          
-          if (!alreadySent) {
-            await notifyChallengeProgress(challenge.category, status.percentage, challenge.id, milestone);
-            // 한 번에 하나의 마일스톤만 처리 (triggerChallengeNotifications와 동일)
-            break;
-          } else {
-            // 이미 발송된 경우에도 break (더 낮은 마일스톤은 체크하지 않음)
-            break;
-          }
-        }
-      }
-      
-      // 실패 알림 체크 (100% 초과)
-      if (status.percentage > 100) {
-        const sentKey = `challenge_failure_${challenge.id}`;
-        const alreadySent = await AsyncStorage.getItem(sentKey);
-        
-        if (!alreadySent) {
-          await notifyChallengeFailure(challenge.category, status.percentage, challenge.id);
-        }
-      }
-    }
-  } catch (error) {
-    console.error('[challenge-utils] Failed to check active challenges notifications:', error);
   }
 }
 
@@ -242,14 +182,12 @@ export async function checkEndedChallenges(): Promise<void> {
       const endDate = new Date(challenge.endDate.replace(/\./g, '-'));
       endDate.setHours(0, 0, 0, 0);
       
-      // 종료일이 어제인 챌린지만 체크 (종료일 다음날 알림 발송)
       const yesterday = new Date(today);
       yesterday.setDate(yesterday.getDate() - 1);
       
       if (endDate.getTime() === yesterday.getTime()) {
         const status = await getChallengeStatus(challenge);
         
-        // 성공 조건: 소비율이 100% 이하
         if (status.percentage <= 100) {
           const sentKey = `challenge_success_${challenge.id}`;
           const alreadySent = await AsyncStorage.getItem(sentKey);

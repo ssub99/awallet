@@ -14,13 +14,8 @@ import * as Notifications from 'expo-notifications';
  */
 async function shouldSendNotification(): Promise<boolean> {
   try {
-    // 1. Check app setting (ensure default value exists)
-    let notificationsEnabled = await AsyncStorage.getItem('notificationsEnabled');
-    if (notificationsEnabled === null) {
-      notificationsEnabled = 'true';
-      await AsyncStorage.setItem('notificationsEnabled', JSON.stringify(true));
-    }
-
+    // 1. Check app setting
+    const notificationsEnabled = await AsyncStorage.getItem('notificationsEnabled');
     if (notificationsEnabled !== 'true') {
       return false;
     }
@@ -82,30 +77,11 @@ export async function setupDailyReminder(): Promise<void> {
       return;
     }
     
-    // ✅ 기존 일일 알림 확인 및 취소
-    const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
-    const existingDailyReminder = scheduledNotifications.find(
-      notification => 
-        notification.identifier === 'daily_expense_reminder' ||
-        notification.content.data?.type === 'expense_reminder' ||
-        notification.content.title === '오늘은 어떤 소비들을 하셨나요?'
-    );
-    
-    // 이미 일일 알림이 스케줄되어 있으면 새로 스케줄하지 않음
-    if (existingDailyReminder) {
-      return;
-    }
-    
-    // 기존 일일 알림 취소 (혹시 모를 경우를 대비)
-    try {
-      await Notifications.cancelScheduledNotificationAsync('daily_expense_reminder');
-    } catch (error) {
-      // Ignore if not found
-    }
+    // ✅ 기존 알림 취소 후 새로 스케줄링
+    await cancelAllNotifications();
     
     // Schedule notification for 8 PM daily
     await Notifications.scheduleNotificationAsync({
-      identifier: 'daily_expense_reminder',
       content: {
         title: '오늘은 어떤 소비들을 하셨나요?',
         body: '시작이 반! 소비 기록을 통해 차근차근 소비습관을 개선해 보세요!',
@@ -132,8 +108,7 @@ export async function setupDailyReminder(): Promise<void> {
 export async function notifyChallengeProgress(
   category: string,
   percentage: number,
-  challengeId: string,
-  milestone: number
+  challengeId: string
 ): Promise<void> {
   try {
     // Global check
@@ -142,22 +117,10 @@ export async function notifyChallengeProgress(
     }
     
     // Check if already sent for this milestone
-    const sentKey = `challenge_progress_${challengeId}_${milestone}`;
+    const sentKey = `challenge_progress_${challengeId}_${percentage}`;
     const alreadySent = await AsyncStorage.getItem(sentKey);
-    
     if (alreadySent) {
-      // Double check: verify if notification is actually scheduled
-      const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
-      const existingNotification = scheduledNotifications.find(
-        n => n.content.data?.challengeId === challengeId && 
-             n.content.data?.type === 'challenge_progress' &&
-             n.content.data?.percentage !== undefined
-      );
-      
-      // If notification exists, don't schedule again
-      if (existingNotification) {
-        return;
-      }
+      return;
     }
     
     // Schedule for next day 9:30 AM
@@ -259,27 +222,16 @@ export async function notifyChallengeFailure(
       return;
     }
     
-    // Only send if exceeded 100%
-    if (percentage <= 100) {
-      return;
-    }
-    
     // Check if already sent (only once when first exceeding 100%)
     const sentKey = `challenge_failure_${challengeId}`;
     const alreadySent = await AsyncStorage.getItem(sentKey);
-    
     if (alreadySent) {
-      // Double check: verify if notification is actually scheduled
-      const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
-      const existingNotification = scheduledNotifications.find(
-        n => n.content.data?.challengeId === challengeId && 
-             n.content.data?.type === 'challenge_failure'
-      );
-      
-      // If notification exists, don't schedule again
-      if (existingNotification) {
-        return;
-      }
+      return;
+    }
+    
+    // Only send if exceeded 100%
+    if (percentage <= 100) {
+      return;
     }
     
     // Schedule for next day 9:30 AM
@@ -312,56 +264,12 @@ export async function notifyChallengeFailure(
 
 /**
  * Cancel all scheduled notifications
- * Handles both one-time (DATE) and recurring (DAILY) notifications
- * Returns information about any remaining notifications
  */
-export async function cancelAllNotifications(): Promise<Array<Notifications.NotificationRequest>> {
+export async function cancelAllNotifications(): Promise<void> {
   try {
-    // Cancel all scheduled notifications
     await Notifications.cancelAllScheduledNotificationsAsync();
-    
-    // Return any remaining notifications (for debugging)
-    const remaining = await Notifications.getAllScheduledNotificationsAsync();
-    return remaining;
   } catch (error) {
-    // If error occurs, return whatever we can find
-    try {
-      const finalCheck = await Notifications.getAllScheduledNotificationsAsync();
-      return finalCheck;
-    } catch (e) {
-      return [];
-    }
-  }
-}
 
-/**
- * Clear all notification marks and cancel all scheduled notifications (for testing)
- * Removes all notification-related keys from AsyncStorage and cancels all scheduled notifications
- */
-export async function clearChallengeNotificationMarks(): Promise<void> {
-  try {
-    const keys = await AsyncStorage.getAllKeys();
-    
-    // 모든 알림 관련 키 찾기
-    const notificationKeys = keys.filter(key => 
-      key.startsWith('challenge_progress_') || 
-      key.startsWith('challenge_failure_') || 
-      key.startsWith('challenge_success_') ||
-      key.startsWith('daily_reminder_')
-    );
-    
-    if (notificationKeys.length > 0) {
-      await AsyncStorage.multiRemove(notificationKeys);
-      console.log(`✅ [알림 마킹] ${notificationKeys.length}개 마킹 삭제 완료`);
-    } else {
-      console.log('✅ [알림 마킹] 삭제할 마킹 없음');
-    }
-    
-    // 실제 스케줄된 알림도 모두 취소
-    await cancelAllNotifications();
-    console.log('✅ [알림 마킹] 모든 스케줄된 알림 취소 완료');
-  } catch (error) {
-    console.error('❌ [알림 마킹] 삭제 중 에러:', error);
   }
 }
 
