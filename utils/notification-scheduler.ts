@@ -168,7 +168,7 @@ export async function notifyChallengeProgress(
     await Notifications.scheduleNotificationAsync({
       content: {
         title: `[#${category}] 챌린지 진행현황`,
-        body: `${100 - percentage}% 남음. 오늘의 소비는 어떠셨나요?`,
+        body: `${Math.round(100 - percentage)}% 남음. 오늘의 소비는 어떠셨나요?`,
         data: { 
           type: 'challenge_progress',
           challengeId,
@@ -224,7 +224,7 @@ export async function notifyChallengeSuccess(
     await Notifications.scheduleNotificationAsync({
       content: {
         title: `[#${category}] 챌린지 성공! 🎉`,
-        body: `소비율 ${percentage.toFixed(1)}%, 축하드려요. 이 소비패턴을 유지하기 위해 챌린지를 지속해 보세요!`,
+        body: `소비율 ${Math.round(percentage)}%, 축하드려요. 이 소비패턴을 유지하기 위해 챌린지를 지속해 보세요!`,
         data: { 
           type: 'challenge_success',
           challengeId,
@@ -385,7 +385,7 @@ export async function notifyChallengeFailure(
     await Notifications.scheduleNotificationAsync({
       content: {
         title: `[#${category}] 목표 금액 초과 ⚠️`,
-        body: `소비율 ${percentage.toFixed(1)}%, 목표 소비금액을 초과하였습니다. 내역을 확인하시고 소비를 줄여보시는건 어떨까요?`,
+        body: `소비율 ${Math.round(percentage)}%, 목표 소비금액을 초과하였습니다. 내역을 확인하시고 소비를 줄여보시는건 어떨까요?`,
         data: { 
           type: 'challenge_failure',
           challengeId,

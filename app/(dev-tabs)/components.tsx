@@ -445,13 +445,16 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
               
               if (successNotifications.length > 0) {
                 const details = successNotifications.map(n => {
-                  const challengeId = n.content.data?.challengeId || 'unknown';
-                  const category = n.content.data?.category || 'unknown';
+                  const challengeId = n.content.data?.challengeId || 'ID 없음';
+                  // title에서 category 추출: "[#카테고리] 챌린지 성공! 🎉" 형식
+                  const title = n.content.title || '';
+                  const categoryMatch = title.match(/\[#(.+?)\]/);
+                  const category = categoryMatch ? categoryMatch[1] : '카테고리 없음';
                   const percentage = n.content.data?.percentage || 0;
                   const triggerDate = n.trigger && 'date' in n.trigger 
                     ? new Date(n.trigger.date).toLocaleString('ko-KR')
-                    : 'unknown';
-                  return `- ${n.content.title}\n  카테고리: ${category}\n  소비율: ${percentage.toFixed(1)}%\n  발송일: ${triggerDate}\n  ID: ${challengeId.substring(0, 8)}...`;
+                    : '발송일 없음';
+                  return `- ${title}\n  카테고리: ${category}\n  소비율: ${Math.round(percentage)}%\n  발송일: ${triggerDate}\n  ID: ${challengeId.substring(0, 8)}...`;
                 }).join('\n\n');
                 alert(`챌린지 성공 알림: ${successNotifications.length}개\n\n${details}`);
               } else {
@@ -531,7 +534,7 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
                 result += `[${challenge.category}]\n`;
                 result += `  기간: ${challenge.startDate} ~ ${challenge.endDate}\n`;
                 result += `  목표: ${challenge.targetAmount.toLocaleString()}원\n`;
-                result += `  현재: ${status.currentAmount.toLocaleString()}원 (${status.percentage.toFixed(1)}%)\n\n`;
+                result += `  현재: ${status.currentAmount.toLocaleString()}원 (${Math.round(status.percentage)}%)\n\n`;
                 
                 // 진행현황 알림 확인 (10%, 30%, 50%, 70%, 90%)
                 const milestones = [10, 30, 50, 70, 90];
@@ -594,6 +597,73 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
         </Pressable>
 
         <Pressable
+          style={[styles.testButton, { backgroundColor: '#9C27B0', marginTop: 12 }]}
+          onPress={async () => {
+            try {
+              const scheduled = await getScheduledNotifications();
+              const progressNotifications = scheduled.filter(
+                n => n.content.data?.type === 'challenge_progress'
+              );
+              
+              if (progressNotifications.length === 0) {
+                alert('스케줄된 진행현황 알림이 없습니다.');
+                return;
+              }
+              
+              let result = `진행현황 알림 내용 미리보기: ${progressNotifications.length}개\n\n`;
+              
+              for (const notif of progressNotifications) {
+                // title에서 category 추출: "[#카테고리] 챌린지 진행현황" 형식
+                const title = notif.content.title || '';
+                const categoryMatch = title.match(/\[#(.+?)\]/);
+                const category = categoryMatch ? categoryMatch[1] : (title ? '카테고리 추출 실패' : '제목 없음');
+                const challengeId = notif.content.data?.challengeId || 'ID 없음';
+                const percentage = notif.content.data?.percentage || 0;
+                const body = notif.content.body || '';
+                
+                // trigger 정보 확인
+                let triggerDate = '발송일 없음';
+                let triggerInfo = '';
+                if (notif.trigger) {
+                  if ('date' in notif.trigger && notif.trigger.date) {
+                    // DATE 타입 트리거 (진행현황 알림은 이것을 사용)
+                    triggerDate = new Date(notif.trigger.date).toLocaleString('ko-KR');
+                    triggerInfo = '스케줄됨 (아직 발송 안 됨)';
+                  } else if ('hour' in notif.trigger) {
+                    // DAILY 타입 트리거
+                    triggerDate = `매일 ${notif.trigger.hour}시 ${notif.trigger.minute}분`;
+                    triggerInfo = '반복 알림';
+                  } else {
+                    triggerInfo = `트리거 타입: ${notif.trigger.type || '알 수 없음'}`;
+                  }
+                } else {
+                  triggerInfo = '트리거 정보 없음';
+                }
+                
+                result += `[${category}]\n`;
+                result += `  제목: ${title || '(제목 없음)'}\n`;
+                result += `  내용: ${body || '(내용 없음)'}\n`;
+                result += `  소비율: ${Math.round(percentage)}%\n`;
+                result += `  예약 발송일: ${triggerDate}\n`;
+                if (triggerInfo) {
+                  result += `  상태: ${triggerInfo}\n`;
+                }
+                result += `  ID: ${challengeId.substring(0, 8)}...\n\n`;
+              }
+              
+              alert(result);
+            } catch (error) {
+              console.error('[test] Failed to preview notification content:', error);
+              alert('알림 내용 확인 중 오류가 발생했습니다.');
+            }
+          }}
+        >
+          <Text style={[styles.testButtonText, { color: colors.staticWhite }]}>
+            👁️ 진행현황 알림 내용 미리보기 (정수 확인)
+          </Text>
+        </Pressable>
+
+        <Pressable
           style={[styles.testButton, { backgroundColor: '#FF5722', marginTop: 12 }]}
           onPress={async () => {
             try {
@@ -619,7 +689,7 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
                 result += `[${challenge.category}]\n`;
                 result += `  기간: ${challenge.startDate} ~ ${challenge.endDate}\n`;
                 result += `  목표: ${challenge.targetAmount.toLocaleString()}원\n`;
-                result += `  현재: ${status.currentAmount.toLocaleString()}원 (${status.percentage.toFixed(1)}%)\n`;
+                result += `  현재: ${status.currentAmount.toLocaleString()}원 (${Math.round(status.percentage)}%)\n`;
                 
                 const hasFailureNotif = failureNotifications.some(
                   n => n.content.data?.challengeId === challenge.id
@@ -683,7 +753,7 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
                 result += `[${challenge.category}]\n`;
                 result += `  기간: ${challenge.startDate} ~ ${challenge.endDate}\n`;
                 result += `  목표: ${challenge.targetAmount.toLocaleString()}원\n`;
-                result += `  현재: ${status.currentAmount.toLocaleString()}원 (${status.percentage.toFixed(1)}%)\n`;
+                result += `  현재: ${status.currentAmount.toLocaleString()}원 (${Math.round(status.percentage)}%)\n`;
                 
                 const hasSuccessNotif = successNotifications.some(
                   n => n.content.data?.challengeId === challenge.id
