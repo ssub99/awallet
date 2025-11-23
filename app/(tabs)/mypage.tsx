@@ -199,7 +199,7 @@ export default function MyPageScreen() {
       
       if (!isAvailable) {
         // Fallback to mailto URL
-        const EMAIL = 'support@awallet.com';
+        const EMAIL = 'ssuby99@gmail.com';
         
         Alert.alert(
           '메일 앱 없음',
@@ -218,7 +218,7 @@ export default function MyPageScreen() {
       const osName = Platform.OS === 'ios' ? 'iOS' : Platform.OS === 'android' ? 'Android' : Platform.OS;
       
       // TODO: Replace with actual support email
-      const EMAIL = 'support@awallet.com';
+      const EMAIL = 'ssuby99@gmail.com';
       const SUBJECT = '[AWallet] 문의하기';
       const BODY = `안녕하세요,
 
