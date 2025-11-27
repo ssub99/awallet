@@ -250,20 +250,26 @@ export async function checkActiveChallengesNotifications(): Promise<void> {
       // ✅ 성능 최적화: 캐시된 calendarData 재사용
       const status = await getChallengeStatus(challenge, calendarData);
       
-      // 진행현황 알림 체크 (10%, 30%, 50%, 70%, 90%)
-      // 역순으로 체크하여 가장 높은 마일스톤부터 확인 (중복 방지)
-      const milestones = [90, 70, 50, 30, 10];
-      for (let i = 0; i < milestones.length; i++) {
-        const milestone = milestones[i];
-        // 역순이므로 max는 이전 마일스톤 (또는 100)
-        const max = i === 0 ? 100 : milestones[i - 1];
-        // 현재 소비율이 마일스톤 범위 내에 있는지 확인 (triggerChallengeNotifications와 동일한 로직)
-        const isInRange = status.percentage >= milestone && status.percentage < max;
-        
-        if (isInRange) {
-          await notifyChallengeProgress(challenge.category, status.percentage, challenge.id, milestone);
-          // 한 번에 하나의 마일스톤만 처리 (triggerChallengeNotifications와 동일)
-          break;
+      // ✅ 달성된 챌린지(100% 이상)는 진행현황 알림 불필요
+      if (status.percentage >= 100) {
+        // 실패 알림과 성공 알림만 체크하고 진행현황 알림은 건너뜀
+      } else {
+        // 진행현황 알림 체크 (10%, 30%, 50%, 70%, 90%)
+        // 역순으로 체크하여 가장 높은 마일스톤부터 확인 (중복 방지)
+        const milestones = [90, 70, 50, 30, 10];
+        for (let i = 0; i < milestones.length; i++) {
+          const milestone = milestones[i];
+          // 역순이므로 max는 이전 마일스톤 (또는 100)
+          const max = i === 0 ? 100 : milestones[i - 1];
+          // 현재 소비율이 마일스톤 범위 내에 있는지 확인 (triggerChallengeNotifications와 동일한 로직)
+          const isInRange = status.percentage >= milestone && status.percentage < max;
+          
+          if (isInRange) {
+            // notifyChallengeProgress() 함수 내부에서 alreadySent 체크를 하므로 여기서는 바로 호출
+            await notifyChallengeProgress(challenge.category, status.percentage, challenge.id, milestone);
+            // 한 번에 하나의 마일스톤만 처리 (triggerChallengeNotifications와 동일)
+            break;
+          }
         }
       }
       

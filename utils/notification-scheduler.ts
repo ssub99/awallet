@@ -141,23 +141,18 @@ export async function notifyChallengeProgress(
       return;
     }
     
+    // ✅ 달성된 챌린지(100% 이상)는 진행현황 알림 불필요
+    if (percentage >= 100) {
+      return;
+    }
+    
     // Check if already sent for this milestone
     const sentKey = `challenge_progress_${challengeId}_${milestone}`;
     const alreadySent = await AsyncStorage.getItem(sentKey);
     
+    // ✅ 이미 발송된 알림은 재스케줄링하지 않음 (발송된 알림은 스케줄 목록에서 사라지므로)
     if (alreadySent) {
-      // Double check: verify if notification is actually scheduled
-      const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
-      const existingNotification = scheduledNotifications.find(
-        n => n.content.data?.challengeId === challengeId && 
-             n.content.data?.type === 'challenge_progress' &&
-             n.content.data?.percentage !== undefined
-      );
-      
-      // If notification exists, don't schedule again
-      if (existingNotification) {
-        return;
-      }
+      return;
     }
     
     // Schedule for next day 9:30 AM
@@ -185,6 +180,7 @@ export async function notifyChallengeProgress(
     await AsyncStorage.setItem(sentKey, 'true');
     
   } catch (error) {
+    console.error('[notification-scheduler] Failed to schedule challenge progress notification:', error);
   }
 }
 
