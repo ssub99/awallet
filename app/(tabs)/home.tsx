@@ -9,6 +9,7 @@ import { CalendarMain } from '@/components/ui/calendar-main';
 import { Icon } from '@/components/ui/icon';
 import { MonthData, YearView, YearViewRef } from '@/components/ui/year-view';
 import { Colors, Typography } from '@/constants/theme';
+import { AtomicColors } from '@/constants/atomic-colors';
 import { useLoading } from '@/contexts/loading-context';
 import { useCreateSheetContext } from '@/contexts/create-sheet-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -78,7 +79,7 @@ export default function HomeScreen() {
         params: {
           year: currentYear.toString(),
           month: month.toString(),
-          tab: 'timeline',
+          tab: 'status',
         },
       });
 
@@ -441,24 +442,25 @@ export default function HomeScreen() {
             <View style={[styles.summaryContainer, { backgroundColor: colors.fill }]}> 
               <View style={styles.summaryRow}>
                 {/* Income Card */}
-                <View style={[styles.card, { backgroundColor: colors.staticWhite }]}> 
+                <Pressable 
+                  style={[styles.card, { backgroundColor: colors.staticWhite }]}
+                  onPress={() => {
+                    // 입금 기록 화면으로 이동 (카테고리 선택 없이 바로 기록)
+                    const targetDate = effectiveSelectedDate;
+                    router.push({
+                      pathname: '/income-record',
+                      params: {
+                        selectedDate: targetDate,
+                        calendarYear: currentYear.toString(),
+                        calendarMonth: currentMonth.toString(),
+                      },
+                    });
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="입금 기록하기"
+                > 
                   <Text style={[styles.cardLabel, { color: colors.textNeutral }]}> 
                     입금
-                  </Text>
-                  <Text 
-                    style={[styles.cardAmount, { color: '#05a234' }]}
-                    adjustsFontSizeToFit
-                    numberOfLines={1}
-                    minimumFontScale={0.5}
-                  >
-                    + {financialData.income.toLocaleString()}원
-                  </Text>
-                </View>
-
-                {/* Balance Card */}
-                <View style={[styles.card, { backgroundColor: colors.staticWhite }]}> 
-                  <Text style={[styles.cardLabel, { color: colors.textNeutral }]}> 
-                    잔액
                   </Text>
                   <Text 
                     style={[styles.cardAmount, { color: colors.text }]}
@@ -466,26 +468,75 @@ export default function HomeScreen() {
                     numberOfLines={1}
                     minimumFontScale={0.5}
                   >
+                    + {financialData.income.toLocaleString()}원
+                  </Text>
+                </Pressable>
+
+                {/* Balance Card */}
+                <Pressable 
+                  style={[styles.card, { backgroundColor: colors.staticWhite }]}
+                  onPress={() => {
+                    // 타임라인으로 이동
+                    router.push({
+                      pathname: '/monthly-expense-timeline',
+                      params: {
+                        year: currentYear.toString(),
+                        month: currentMonth.toString(),
+                      },
+                    });
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="월 타임라인 보기"
+                > 
+                  <Text style={[styles.cardLabel, { color: colors.textNeutral }]}> 
+                    잔액
+                  </Text>
+                  <Text 
+                    style={[styles.cardAmount, { 
+                      color: financialData.balance < 0 
+                        ? AtomicColors.red[500] 
+                        : AtomicColors.green[600]
+                    }]}
+                    adjustsFontSizeToFit
+                    numberOfLines={1}
+                    minimumFontScale={0.5}
+                  >
                     {financialData.balance.toLocaleString()}원
                   </Text>
-                </View>
+                </Pressable>
               </View>
 
               <View style={styles.summaryRow}>
                 {/* Expense Card */}
-                <View style={[styles.card, { backgroundColor: colors.staticWhite }]}> 
+                <Pressable 
+                  style={[styles.card, { backgroundColor: colors.staticWhite }]}
+                  onPress={() => {
+                    // 소비 카테고리 선택 화면으로 이동
+                    const targetDate = effectiveSelectedDate;
+                    router.push({
+                      pathname: '/expense-category',
+                      params: {
+                        selectedDate: targetDate,
+                        calendarYear: currentYear.toString(),
+                        calendarMonth: currentMonth.toString(),
+                      },
+                    });
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="소비 기록하기"
+                > 
                   <Text style={[styles.cardLabel, { color: colors.textNeutral }]}> 
                     소비
                   </Text>
                   <Text 
-                    style={[styles.cardAmount, { color: '#ef2a2a' }]}
+                    style={[styles.cardAmount, { color: colors.text }]}
                     adjustsFontSizeToFit
                     numberOfLines={1}
                     minimumFontScale={0.5}
                   >
                     - {financialData.expense.toLocaleString()}원
                   </Text>
-                </View>
+                </Pressable>
 
                 {/* Challenge Card */}
                 <Pressable 
