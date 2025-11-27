@@ -704,7 +704,10 @@ export default function MonthlyExpenseTimelineScreen() {
                                 numberOfLines={1}
                                 minimumFontScale={0.7}
                               >
-                                {item.amount.toLocaleString()}원
+                                {item.type === 'expense' 
+                                  ? `- ${item.amount.toLocaleString()}원`
+                                  : `+ ${item.amount.toLocaleString()}원`
+                                }
                               </Text>
                             </View>
                           </View>

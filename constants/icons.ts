@@ -17,6 +17,7 @@ export const IconCategories = {
   navigation: [
     'home',
     'mypage',
+    'setting',
     'arrowLeft',
     'arrowRight',
     'arrowUp',
@@ -104,6 +105,7 @@ export const IconDescriptions: Record<IconName, string> = {
   person: 'Person or user',
   profile: 'User profile',
   search: 'Search',
+  setting: 'Settings or configuration',
 };
 
 /**
@@ -147,7 +149,7 @@ export function getIconMetadata(name: IconName): IconMetadata {
   }
   
   // Check if has solid variant
-  const solidIcons: IconName[] = ['arrowDown', 'arrowUp', 'arrowLeft', 'arrowRight', 'delete', 'home', 'mypage'];
+  const solidIcons: IconName[] = ['arrowDown', 'arrowUp', 'arrowLeft', 'arrowRight', 'delete', 'home', 'mypage', 'setting'];
   const hasSolid = solidIcons.includes(name);
   
   return {

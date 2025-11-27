@@ -124,8 +124,28 @@ export default function IncomeRecordScreen() {
   
   // 금액 입력 시 처리하는 함수 (Input 컴포넌트에서 이미 포맷팅됨)
   const handleAmountChange = (text: string) => {
-    // Input 컴포넌트에서 이미 콤마 포맷팅이 적용되어 있으므로 그대로 사용
-    setAmount(text);
+    // 콤마 제거 후 숫자만 추출
+    const numbersOnly = text.replace(/,/g, '');
+    
+    // 빈 문자열이면 그대로 설정
+    if (!numbersOnly) {
+      setAmount('');
+      return;
+    }
+    
+    // 숫자로 변환
+    const num = parseInt(numbersOnly, 10);
+    
+    // 최대값 제한: 10억 (1,000,000,000)
+    const MAX_AMOUNT = 1000000000;
+    if (num > MAX_AMOUNT) {
+      // 최대값으로 제한
+      setAmount(MAX_AMOUNT.toLocaleString());
+      return;
+    }
+    
+    // 포맷팅된 값으로 설정
+    setAmount(num.toLocaleString());
   };
   const [date, setDate] = useState<string>(getInitialDate());
   const [memo, setMemo] = useState<string>('');

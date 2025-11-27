@@ -35,6 +35,7 @@ import MypageLine from '@/assets/images/icons/line/mypage.svg';
 import PersonLine from '@/assets/images/icons/line/person.svg';
 import ProfileLine from '@/assets/images/icons/line/profile.svg';
 import SearchLine from '@/assets/images/icons/line/search.svg';
+import SettingLine from '@/assets/images/icons/line/setting.svg';
 
 // Import solid SVGs
 import ArrowDownSolid from '@/assets/images/icons/solid/arrowDown.svg';
@@ -44,6 +45,7 @@ import ArrowUpSolid from '@/assets/images/icons/solid/arrowUp.svg';
 import DeleteSolid from '@/assets/images/icons/solid/delete.svg';
 import HomeSolid from '@/assets/images/icons/solid/home.svg';
 import MypageSolid from '@/assets/images/icons/solid/mypage.svg';
+import SettingSolid from '@/assets/images/icons/solid/setting.svg';
 
 /**
  * Available icon names (camelCase)
@@ -68,7 +70,8 @@ export type IconName =
   | 'mypage'
   | 'person'
   | 'profile'
-  | 'search';
+  | 'search'
+  | 'setting';
 
 /**
  * Icon variant types
@@ -80,7 +83,7 @@ export type IconVariant = 'line' | 'solid';
 /**
  * Icons available in solid variant
  */
-export type SolidIconName = 'arrowDown' | 'arrowLeft' | 'arrowRight' | 'arrowUp' | 'delete' | 'home' | 'mypage';
+export type SolidIconName = 'arrowDown' | 'arrowLeft' | 'arrowRight' | 'arrowUp' | 'delete' | 'home' | 'mypage' | 'setting';
 
 export interface IconProps {
   /**
@@ -141,6 +144,7 @@ const iconComponents = {
     person: PersonLine,
     profile: ProfileLine,
     search: SearchLine,
+    setting: SettingLine,
   },
   solid: {
     arrowDown: ArrowDownSolid,
@@ -150,13 +154,14 @@ const iconComponents = {
     delete: DeleteSolid,
     home: HomeSolid,
     mypage: MypageSolid,
+    setting: SettingSolid,
   },
 } as const;
 
 /**
  * Icons available in solid variant
  */
-const solidIcons = new Set<IconName>(['arrowDown', 'arrowLeft', 'arrowRight', 'arrowUp', 'delete', 'home', 'mypage']);
+const solidIcons = new Set<IconName>(['arrowDown', 'arrowLeft', 'arrowRight', 'arrowUp', 'delete', 'home', 'mypage', 'setting']);
 
 /**
  * Get icon component based on name and variant
