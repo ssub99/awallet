@@ -12,7 +12,8 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.ssong.awallet",
-      "buildNumber": "17",
+      "buildNumber": "20",
+      "userInterfaceStyle": "light",
       "googleServicesFile": "./ios/GoogleService-Info.plist",
       "infoPlist": {
         "CFBundleDisplayName": "에이월렛",
@@ -20,7 +21,7 @@
         "NSUserNotificationsUsageDescription": "소비 기록 알림과 챌린지 리마인더를 받기 위해 알림 권한이 필요합니다.",
         "ITSAppUsesNonExemptEncryption": false,
         "CFBundleShortVersionString": "1.0.0",
-        "CFBundleVersion": "17"
+        "CFBundleVersion": "20"
       },
       "runtimeVersion": "1.0.0"
     },
@@ -31,6 +32,7 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
+      "userInterfaceStyle": "light",
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.ssong.awallet",

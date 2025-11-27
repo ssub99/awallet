@@ -7,8 +7,12 @@
       "developmentClient": true,
       "distribution": "internal"
     },
-    "preview": {
-      "distribution": "internal"
+    "stage": {
+      "distribution": "internal",
+      "channel": "stage",
+      "ios": {
+        "buildConfiguration": "Release"
+      }
     },
     "production": {
       "distribution": "store",
@@ -19,6 +23,7 @@
     }
   },
   "submit": {
+    "stage": {},
     "production": {}
   }
 }
