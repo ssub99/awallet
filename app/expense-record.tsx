@@ -3574,7 +3574,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 </View>
               )}
               
-            {/* 메인 금액 입력 필드 (정기 지출 OFF이고 할부 옵션 OFF일 때만 표시) */}
+              {/* 메인 금액 입력 필드 (정기 지출 OFF이고 할부 옵션 OFF일 때만 표시) */}
               {!isRecurring && !isInstallment && (
                 <View>
                 <Input
@@ -3609,9 +3609,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                       if (mode === 'edit') {
                         // 일반 기록/정기/할부 모두 수정 시에는 소비 형태 변경 불가
                         if (editData?.isRecurring) {
-                          setRecurringToastMessage('정기 지출로 생성된 내역은 해제할 수 없습니다.');
+                        setRecurringToastMessage('정기 지출로 생성된 내역은 해제할 수 없습니다.');
                         } else if (editData?.isInstallment) {
-                          setRecurringToastMessage('할부 기록이므로 사용할 수 없습니다.');
+                        setRecurringToastMessage('할부 기록이므로 사용할 수 없습니다.');
                         } else {
                           setRecurringToastMessage('변경할 수 없습니다. 새로 생성해 주세요.');
                         }
@@ -3620,28 +3620,28 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                       }
                     }}
                   >
-                      <Switch
-                        value={isRecurring}
-                        onValueChange={(value) => {
+                    <Switch
+                      value={isRecurring}
+                      onValueChange={(value) => {
                           if (mode === 'edit') {
                             return;
                           }
-                          setIsRecurring(value);
-                          if (!value) {
-                            // 정기 지출 OFF 시 관련 상태 초기화
-                            setTotalMonths(2);
-                          } else {
-                            // 정기 지출 ON 시 할부 옵션 끄기 (상호 배타적)
-                            setIsInstallment(false);
-                            // 정기 지출 ON 시 선택한 날짜의 일자로 selectedDay 설정
-                            if (params.selectedDate) {
-                              const selectedDateObj = new Date(params.selectedDate);
-                              setSelectedDay(selectedDateObj.getDate());
-                            }
+                        setIsRecurring(value);
+                        if (!value) {
+                          // 정기 지출 OFF 시 관련 상태 초기화
+                          setTotalMonths(2);
+                        } else {
+                          // 정기 지출 ON 시 할부 옵션 끄기 (상호 배타적)
+                          setIsInstallment(false);
+                          // 정기 지출 ON 시 선택한 날짜의 일자로 selectedDay 설정
+                          if (params.selectedDate) {
+                            const selectedDateObj = new Date(params.selectedDate);
+                            setSelectedDay(selectedDateObj.getDate());
                           }
-                        }}
+                        }
+                      }}
                         disabled={mode === 'edit'}
-                      />
+                    />
                   </Pressable>
                 </View>
                 <Text style={[styles.recurringCaption, { color: colors.textAssistive }]}>
@@ -3664,10 +3664,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                         if (editData?.isInstallment) {
                           setRecurringToastMessage('할부를 해제할 수 없습니다. 새로 생성해 주세요.');
                         } else if (editData?.isRecurring) {
-                          setRecurringToastMessage('변경할 수 없습니다. 새로 생성해 주세요.');
+                        setRecurringToastMessage('변경할 수 없습니다. 새로 생성해 주세요.');
                         } else {
                           setRecurringToastMessage('변경할 수 없습니다. 새로 생성해 주세요.');
-                        }
+                      }
                         setShowRecurringToast(true);
                         return;
                       }

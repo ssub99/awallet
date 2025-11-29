@@ -152,7 +152,7 @@ export async function notifyChallengeProgress(
     
     // ✅ 이미 발송된 알림은 재스케줄링하지 않음 (발송된 알림은 스케줄 목록에서 사라지므로)
     if (alreadySent) {
-      return;
+        return;
     }
     
     // Schedule for next day 9:30 AM
