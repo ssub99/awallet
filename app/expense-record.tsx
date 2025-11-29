@@ -1409,9 +1409,20 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     const totalMonthsChanged = totalMonths !== (editData.totalMonths || 2);
     const installmentChanged = isInstallment !== (editData.isInstallment || false);
     const weekendOptionChanged = weekendOption !== (editData.weekendOption || 'weekend');
+    const paymentMethodChanged =
+      paymentMethod !== ((editData.paymentMethod as PaymentMethod | undefined) ?? 'credit');
 
-    return categoryChanged || amountChanged || dateChanged || memoChanged || 
-           recurringChanged || totalMonthsChanged || installmentChanged || weekendOptionChanged;
+    return (
+      categoryChanged ||
+      amountChanged ||
+      dateChanged ||
+      memoChanged ||
+      recurringChanged ||
+      totalMonthsChanged ||
+      installmentChanged ||
+      weekendOptionChanged ||
+      paymentMethodChanged
+    );
   };
 
   const handleConfirm = async () => {
@@ -3385,13 +3396,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 ]}
                 value={paymentMethod}
                 onValueChange={(val) => setPaymentMethod(val as PaymentMethod)}
-                disabled={mode === 'edit'}
-                onPressDisabled={() => {
-                  if (mode === 'edit') {
-                    setRecurringToastMessage('변경할 수 없습니다. 새로 생성해 주세요.');
-                    setShowRecurringToast(true);
-                  }
-                }}
               />
             </View>
 
@@ -3570,7 +3574,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 </View>
               )}
               
-              {/* 메인 금액 입력 필드 (정기 지출 OFF이고 할부 옵션 OFF일 때만 표시) */}
+            {/* 메인 금액 입력 필드 (정기 지출 OFF이고 할부 옵션 OFF일 때만 표시) */}
               {!isRecurring && !isInstallment && (
                 <View>
                 <Input
@@ -3602,45 +3606,46 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                   </Text>
                   <Pressable
                     onPress={() => {
-                      // 정기/할부 기록 수정 모드에서 disabled된 토글 클릭 시 토스트 표시
-                      const isDisabled = mode === 'edit' && (editData?.isRecurring || editData?.isInstallment);
-                      if (isDisabled && editData?.isRecurring) {
-                        setRecurringToastMessage('정기 지출로 생성된 내역은 해제할 수 없습니다.');
-                        setShowRecurringToast(true);
-                        return;
-                      }
-                      if (isDisabled && editData?.isInstallment) {
-                        setRecurringToastMessage('할부 기록이므로 사용할 수 없습니다.');
+                      if (mode === 'edit') {
+                        // 일반 기록/정기/할부 모두 수정 시에는 소비 형태 변경 불가
+                        if (editData?.isRecurring) {
+                          setRecurringToastMessage('정기 지출로 생성된 내역은 해제할 수 없습니다.');
+                        } else if (editData?.isInstallment) {
+                          setRecurringToastMessage('할부 기록이므로 사용할 수 없습니다.');
+                        } else {
+                          setRecurringToastMessage('변경할 수 없습니다. 새로 생성해 주세요.');
+                        }
                         setShowRecurringToast(true);
                         return;
                       }
                     }}
                   >
-                    <Switch
-                      value={isRecurring}
-                      onValueChange={(value) => {
-                        // disabled 상태가 아니면 정상 동작
-                        setIsRecurring(value);
-                        if (!value) {
-                          // 정기 지출 OFF 시 관련 상태 초기화
-                          setTotalMonths(2);
-                        } else {
-                          // 정기 지출 ON 시 할부 옵션 끄기 (상호 배타적)
-                          setIsInstallment(false);
-                          // 정기 지출 ON 시 선택한 날짜의 일자로 selectedDay 설정
-                          if (params.selectedDate) {
-                            const selectedDateObj = new Date(params.selectedDate);
-                            setSelectedDay(selectedDateObj.getDate());
-                            
+                      <Switch
+                        value={isRecurring}
+                        onValueChange={(value) => {
+                          if (mode === 'edit') {
+                            return;
                           }
-                        }
-                      }}
-                      disabled={mode === 'edit' && (editData?.isRecurring || editData?.isInstallment)}
-                    />
+                          setIsRecurring(value);
+                          if (!value) {
+                            // 정기 지출 OFF 시 관련 상태 초기화
+                            setTotalMonths(2);
+                          } else {
+                            // 정기 지출 ON 시 할부 옵션 끄기 (상호 배타적)
+                            setIsInstallment(false);
+                            // 정기 지출 ON 시 선택한 날짜의 일자로 selectedDay 설정
+                            if (params.selectedDate) {
+                              const selectedDateObj = new Date(params.selectedDate);
+                              setSelectedDay(selectedDateObj.getDate());
+                            }
+                          }
+                        }}
+                        disabled={mode === 'edit'}
+                      />
                   </Pressable>
                 </View>
                 <Text style={[styles.recurringCaption, { color: colors.textAssistive }]}>
-                  현재 월 기준 1년간 매달 같은 날에 기록합니다.
+                  현재 월 기준 매달 같은 날에 자동 기록합니다.
                 </Text>
               </View>
 
@@ -3655,15 +3660,14 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                   </Text>
                   <Pressable
                     onPress={() => {
-                      // 정기/할부 기록 수정 모드에서 disabled된 토글 클릭 시 토스트 표시
-                      const isDisabled = mode === 'edit' && (editData?.isRecurring || editData?.isInstallment);
-                      if (isDisabled && editData?.isRecurring) {
-                        setRecurringToastMessage('변경할 수 없습니다. 새로 생성해 주세요.');
-                        setShowRecurringToast(true);
-                        return;
-                      }
-                      if (isDisabled && editData?.isInstallment) {
-                        setRecurringToastMessage('할부를 해제할 수 없습니다. 새로 생성해 주세요.');
+                      if (mode === 'edit') {
+                        if (editData?.isInstallment) {
+                          setRecurringToastMessage('할부를 해제할 수 없습니다. 새로 생성해 주세요.');
+                        } else if (editData?.isRecurring) {
+                          setRecurringToastMessage('변경할 수 없습니다. 새로 생성해 주세요.');
+                        } else {
+                          setRecurringToastMessage('변경할 수 없습니다. 새로 생성해 주세요.');
+                        }
                         setShowRecurringToast(true);
                         return;
                       }
@@ -3672,7 +3676,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                     <Switch
                       value={isInstallment}
                       onValueChange={(value) => {
-                        // disabled 상태가 아니면 정상 동작
+                        if (mode === 'edit') {
+                          return;
+                        }
+
                         setIsInstallment(value);
                         if (value) {
                           // 할부 옵션 ON 시 정기 옵션 끄기 (상호 배타적)
@@ -3687,7 +3694,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                           setTotalMonths(2);
                         }
                       }}
-                      disabled={mode === 'edit' && (editData?.isRecurring || editData?.isInstallment)}
+                      disabled={mode === 'edit'}
                     />
                   </Pressable>
                 </View>
