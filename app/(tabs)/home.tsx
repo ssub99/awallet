@@ -20,7 +20,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { calendarRefreshEvent } from '@/hooks/calendar-events';
-import { Pressable, StyleSheet, Text, View, Animated } from 'react-native';
+import { AppState, AppStateStatus, Pressable, StyleSheet, Text, View, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function HomeScreen() {
@@ -32,6 +32,7 @@ export default function HomeScreen() {
   const { updateCalendarContext } = useCreateSheetContext();
   const { setLoading } = useLoading();
   const pendingOpsRef = useRef(0);
+  const appState = useRef<AppStateStatus>(AppState.currentState);
   const beginLoad = useCallback(() => {
     pendingOpsRef.current += 1;
     setLoading(true);
@@ -317,6 +318,51 @@ export default function HomeScreen() {
     init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isReady]);
+
+  // 앱이 백그라운드에서 포그라운드로 돌아올 때 날짜 변경 여부를 감지하여 오늘로 리셋
+  const handleAppStateChange = useCallback(
+    (nextAppState: AppStateStatus) => {
+      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+        const checkDateChange = async () => {
+          try {
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            const todayStr = `${year}-${month}-${day}`;
+
+            const lastUsedDate = await AsyncStorage.getItem('lastUsedDate');
+
+            if (!lastUsedDate) {
+              // 첫 사용 시에는 기준 날짜만 저장하고 기존 초기화 로직에 맡김
+              await AsyncStorage.setItem('lastUsedDate', todayStr);
+              return;
+            }
+
+            if (lastUsedDate !== todayStr) {
+              await resetToToday();
+              await AsyncStorage.setItem('lastUsedDate', todayStr);
+            }
+          } catch (error) {
+            
+          }
+        };
+
+        void checkDateChange();
+      }
+
+      appState.current = nextAppState;
+    },
+    [resetToToday]
+  );
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+
+    return () => {
+      subscription.remove();
+    };
+  }, [handleAppStateChange]);
 
   useEffect(() => {
     if (isContentReady) {

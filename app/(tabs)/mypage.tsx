@@ -367,7 +367,7 @@ export default function MyPageScreen() {
 
       {/* Top Navigation (shared component) - Figma main type (no arrow) */}
       <Animated.View style={{ opacity: isContentReady ? contentOpacity : 0 }}>
-      <TopNavigation type="main" title="마이페이지" />
+      <TopNavigation type="main" title="설정" />
       </Animated.View>
 
       <Animated.View style={{ flex: 1, opacity: isContentReady ? contentOpacity : 0 }}>

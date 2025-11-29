@@ -257,6 +257,7 @@ export default function MonthlyExpenseTimelineScreen() {
                       memo: record.memo,
                       amount: record.amount || 0,
                       timestamp: record.timestamp,
+                      paymentMethod: record.type === 'expense' ? (record.paymentMethod ?? 'credit') : undefined,
                       isRecurring: record.isRecurring,
                       weekendOption: record.weekendOption,
                       isPrepaid: record.isPrepaid,

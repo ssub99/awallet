@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { generateRecordId } from './id-generator';
 
+export type PaymentMethod = 'credit' | 'debit' | 'cash';
+
 export interface ExpenseRecord {
   id?: string; // UUID v4 (생성 시 자동 할당)
   type: 'expense';
@@ -9,6 +11,7 @@ export interface ExpenseRecord {
   memo?: string;
   date: string; // YYYY.MM.DD 형식
   timestamp: number;
+  paymentMethod?: PaymentMethod;
   isRecurring?: boolean;
   weekendOption?: 'friday' | 'monday' | 'weekend';
   recurringId?: string;
@@ -39,6 +42,7 @@ function normalizeExpense(record: ExpenseRecord): ExpenseRecord {
     type: 'expense',
     isDeleted: record.isDeleted ?? false,
     deletedAt: record.deletedAt ?? null,
+    paymentMethod: record.paymentMethod ?? 'credit',
   };
 }
 

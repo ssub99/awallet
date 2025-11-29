@@ -21,10 +21,11 @@ import { createChallenges, getAllChallenges, type ChallengeRecord } from '@/util
 import { generateRecordId, generateGroupId } from '@/utils/id-generator';
 import { getChallengeStatus } from '@/utils/challenge-utils';
 import { notifyChallengeSuccess, notifyChallengeProgress, notifyChallengeFailure, cancelChallengeProgressNotifications } from '@/utils/notification-scheduler';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Keyboard, Pressable, ScrollView, StatusBar, StyleSheet, Text, TouchableWithoutFeedback, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function ChallengeCreateScreen() {
   const colorScheme = useColorScheme();
@@ -76,6 +77,9 @@ export default function ChallengeCreateScreen() {
     getTime: () => new Date(startYear, startMonth - 1, selectedDay).getTime()
   }), [startYear, startMonth, selectedDay]);
   
+  // 카테고리 state (params.category를 초기값으로 사용)
+  const [category, setCategory] = useState<string>(params.category || '');
+  
   const [targetAmount, setTargetAmount] = useState<string>('');
   const [isRecurring, setIsRecurring] = useState<boolean>(false);
   const [recurringMonths, setRecurringMonths] = useState<number>(2);
@@ -84,6 +88,28 @@ export default function ChallengeCreateScreen() {
   const [monthStartDay, setMonthStartDay] = useState<number>(1);
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  
+  // 카테고리 선택 화면에서 돌아올 때 카테고리 업데이트
+  useFocusEffect(
+    useCallback(() => {
+      const updateCategory = async () => {
+        try {
+          // AsyncStorage에서 선택된 카테고리 확인 (카테고리 선택 화면에서 돌아온 경우)
+          const selectedCategoryFromStorage = await AsyncStorage.getItem('selectedCategory');
+          
+          if (selectedCategoryFromStorage) {
+            setCategory(selectedCategoryFromStorage);
+            // 사용 후 AsyncStorage에서 제거
+            await AsyncStorage.removeItem('selectedCategory');
+          }
+        } catch (error) {
+          console.error('[챌린지 생성] 카테고리 업데이트 중 오류:', error);
+        }
+      };
+      
+      updateCategory();
+    }, [])
+  );
   
   // 시작일 계산 메모 값은 사용하지 않아 제거 (lint 정리)
   
@@ -107,8 +133,14 @@ export default function ChallengeCreateScreen() {
     };
     
     loadMonthStart();
-
   }, []);
+  
+  // 초기 로드 시 params.category를 state에 설정
+  useEffect(() => {
+    if (params.category) {
+      setCategory(params.category);
+    }
+  }, [params.category]);
 
   // 금액 입력 시 소수점 제거하는 함수
   const handleAmountChange = (text: string) => {
@@ -152,7 +184,7 @@ export default function ChallengeCreateScreen() {
 
   const handleConfirm = async () => {
     // 필수값 검증
-    if (!params.category) {
+    if (!category) {
       setToastMessage('카테고리를 선택해 주세요.');
       setToastVisible(true);
       return;
@@ -197,7 +229,7 @@ export default function ChallengeCreateScreen() {
 
         const challengeData: ChallengeRecord = {
           id: generateRecordId(), // 각 챌린지마다 고유한 UUID
-          category: params.category,
+          category: category,
           startDate: challengeStartDate,
           endDate: challengeEndDateStr,
           targetAmount: targetAmountNum,
@@ -220,7 +252,7 @@ export default function ChallengeCreateScreen() {
       const activeChallenges = existingChallenges.filter(
         (challenge) => 
           !challenge.isDeleted && 
-          challenge.category === params.category
+          challenge.category === category
       );
       
       // 같은 카테고리의 활성 챌린지가 하나라도 존재하면 생성 불가
@@ -342,14 +374,14 @@ export default function ChallengeCreateScreen() {
                   selectedDate: selectedDateStr,
                   calendarYear: startYear.toString(),
                   calendarMonth: startMonth.toString(),
-                  selectedCategory: params.category
+                  selectedCategory: category
                 }
               });
             }}>
               <View style={[styles.card, { backgroundColor: colors.staticWhite }]}>
                 <View style={styles.categoryRow}>
                   <Text style={[styles.categoryText, { color: colors.text }]}>
-                    {params.category ? getCategoryWithEmoji(params.category) : '카테고리를 선택해주세요'}
+                    {category ? getCategoryWithEmoji(category) : '카테고리를 선택해주세요'}
                   </Text>
                   <Icon name="arrowRight" variant="line" size={24} color={colors.text} />
                 </View>

@@ -33,7 +33,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="create"
           options={{
-            title: '만들기',
+            title: '기록하기',
             tabBarIcon: () => (
               <Icon name="addTask" variant="line" size={28} color={colors.staticBlack} />
             ),
@@ -42,9 +42,9 @@ export default function TabLayout() {
         <Tabs.Screen
           name="mypage"
           options={{
-            title: '마이페이지',
+            title: '설정',
             tabBarIcon: ({ focused }) => (
-              <Icon name="mypage" variant={focused ? 'solid' : 'line'} size={28} color={colors.staticBlack} />
+              <Icon name="setting" variant={focused ? 'solid' : 'line'} size={28} color={colors.staticBlack} />
             ),
           }}
         />

@@ -4,7 +4,7 @@ import { GlobalProgressBar } from '@/components/ui/global-progress-bar';
 import { Colors } from '@/constants/theme';
 import { AppDataProvider } from '@/contexts/app-data-context';
 import { LoadingProvider } from '@/contexts/loading-context';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+// useColorScheme import 제거 - OS 강제 다크 모드 영향 방지를 위해 항상 'light' 사용
 import { useFirstLaunchNotificationPermission } from '@/hooks/use-notifications';
 import { checkActiveChallengesNotifications, checkEndedChallenges } from '@/utils/challenge-utils';
 import { cleanupOldSchedules, setupDailyReminder } from '@/utils/notification-scheduler';
@@ -34,10 +34,11 @@ export const unstable_settings = {
 };
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
+  // OS 강제 다크 모드 영향 방지를 위해 항상 'light'로 고정
+  const colorScheme: 'light' = 'light';
   const [splashFinished, setSplashFinished] = useState(false);
   const [appIsReady, setAppIsReady] = useState(false);
-  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const colors = Colors[colorScheme] as typeof Colors.light;
   
   // 스플래시 자동 숨김 방지 (컴포넌트 최상단에서 즉시 호출)
   // Promise를 반환하지만 await하지 않아도 됨 (백그라운드에서 실행)
@@ -177,7 +178,7 @@ export default function RootLayout() {
     <LoadingProvider>
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <View style={{ flex: 1, backgroundColor: colors.background }} onLayout={onLayoutRootView}>
-        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <ThemeProvider value={DefaultTheme}>
           <AppDataProvider enabled={appIsReady && splashFinished}>
             {appIsReady ? (
               <>
@@ -195,7 +196,7 @@ export default function RootLayout() {
                   <Stack.Screen name="month-start-day" options={{ headerShown: false }} />
                   <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
                 </Stack>
-                <StatusBar style="auto" />
+                <StatusBar style="dark" />
                 <GlobalProgressBar />
               </>
             ) : null}

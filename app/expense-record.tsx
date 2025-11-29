@@ -16,6 +16,7 @@ import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
 import { ModalPopup } from '@/components/ui/modal-popup';
 import { PrepaymentModal } from '@/components/ui/prepayment-modal';
 import { Radio } from '@/components/ui/radio';
+import { SegmentControls } from '@/components/ui/segment-controls';
 import { Selectbox } from '@/components/ui/selectbox';
 import { Switch } from '@/components/ui/switch';
 import { Toast } from '@/components/ui/toast';
@@ -26,7 +27,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { triggerChallengeNotifications } from '@/utils/challenge-utils';
 import { getCustomMonthInfo } from '@/utils/custom-month';
-import { createExpense, deleteExpense, deleteExpensesByGroup, updateExpense, type ExpenseRecord as ExpenseRecordType } from '@/utils/expenses';
+import { createExpense, deleteExpense, deleteExpensesByGroup, updateExpense, type ExpenseRecord as ExpenseRecordType, type PaymentMethod } from '@/utils/expenses';
 import { extractTimestampFromId, generateGroupId, generateRecordId } from '@/utils/id-generator';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
@@ -268,6 +269,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   };
   
   const [category, setCategory] = useState<string>(params.category || '');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('credit');
 
   interface GoHomeOptions {
     year: number;
@@ -619,6 +621,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       setIsInstallment(editData.isInstallment === true);
 
       setWeekendOption(editData.weekendOption || 'weekend');
+
+      // 결제 유형 초기값 설정 (기존 기록에는 없을 수 있으므로 기본값은 신용카드)
+      const initialPaymentMethod: PaymentMethod =
+        editData.paymentMethod === 'debit' || editData.paymentMethod === 'cash'
+          ? editData.paymentMethod
+          : 'credit';
+      setPaymentMethod(initialPaymentMethod);
       
       // 환불 처리된 기록인데 refundedAt이 없으면 AsyncStorage에서 찾아서 업데이트
       if (editData.isRefunded && !editData.refundedAt) {
@@ -1412,6 +1421,12 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       setShowCategoryToast(true);
       return;
     }
+
+    if (!paymentMethod) {
+      setRecurringToastMessage('결제 유형을 선택해 주세요.');
+      setShowRecurringToast(true);
+      return;
+    }
     
     const isRefundedRecord = mode === 'edit' && !!editData?.isRefunded;
     
@@ -1607,6 +1622,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         memo,
         date: actualDate,
         timestamp: newTimestamp,
+        paymentMethod,
         isRecurring,
         weekendOption: (isRecurring || isInstallment) ? weekendOption : undefined,
         recurringId: isRecurring ? recurringId : undefined, // 정기 기록 전용
@@ -3353,6 +3369,29 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 disabled={mode === 'edit' && (editData?.isRecurring || editData?.isInstallment)}
                 onPress={handleCategoryPress}
                 style={styles.categoryInput}
+              />
+            </View>
+
+            {/* 결제 유형 */}
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
+                결제 유형 <Text style={{ color: '#EF5252' }}>*</Text>
+              </Text>
+              <SegmentControls
+                options={[
+                  { label: '신용카드', value: 'credit' },
+                  { label: '체크카드', value: 'debit' },
+                  { label: '현금', value: 'cash' },
+                ]}
+                value={paymentMethod}
+                onValueChange={(val) => setPaymentMethod(val as PaymentMethod)}
+                disabled={mode === 'edit'}
+                onPressDisabled={() => {
+                  if (mode === 'edit') {
+                    setRecurringToastMessage('변경할 수 없습니다. 새로 생성해 주세요.');
+                    setShowRecurringToast(true);
+                  }
+                }}
               />
             </View>
 
