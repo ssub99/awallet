@@ -705,8 +705,13 @@ export default function MonthlyExpenseTimelineScreen() {
                                 numberOfLines={1}
                                 minimumFontScale={0.7}
                               >
-                                {item.type === 'expense' 
-                                  ? `- ${item.amount.toLocaleString()}원`
+                                {item.type === 'expense'
+                                  ? (
+                                    // 할부 처리된 환불 기록은 부호 없이 표기
+                                    item.isInstallment && item.isRefunded
+                                      ? `${item.amount.toLocaleString()}원`
+                                      : `- ${item.amount.toLocaleString()}원`
+                                    )
                                   : `+ ${item.amount.toLocaleString()}원`
                                 }
                               </Text>
