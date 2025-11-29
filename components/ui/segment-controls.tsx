@@ -54,6 +54,13 @@ export interface SegmentControlsProps {
   onPressDisabled?: () => void;
 
   /**
+   * Size variant
+   * - large: height 48, borderRadius 12 (default)
+   * - small: height 32, borderRadius 8
+   */
+  size?: 'large' | 'small';
+
+  /**
    * Container style override
    */
   style?: ViewStyle;
@@ -65,25 +72,46 @@ export function SegmentControls({
   onValueChange,
   disabled = false,
   onPressDisabled,
+  size = 'large',
   style,
 }: SegmentControlsProps) {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
 
+  // Size-based dimensions
+  const sizeConfig = size === 'small' 
+    ? { height: 32, borderRadius: 8 }
+    : { height: 48, borderRadius: 12 };
+
   // Base styles derived from theme (공통 스타일은 한 번만 계산)
   const baseSegmentStyle: ViewStyle = {
     ...styles.segment,
+    height: sizeConfig.height,
+    borderRadius: sizeConfig.borderRadius,
     backgroundColor: colors.staticWhite,
   };
 
+  // Size-based typography
   const baseTextStyle: TextStyle = {
-    ...(Typography.body2.r.regular as TextStyle),
+    ...(size === 'small' 
+      ? (Typography.body2.r.regular as TextStyle)
+      : ({
+          ...Typography.body2.r.regular,
+          fontSize: 16,
+          lineHeight: 24,
+        } as TextStyle)),
     textAlign: 'center',
     color: colors.textAssistive,
   };
 
   const activeTextStyle: TextStyle = {
-    ...(Typography.body2.r.bold as TextStyle),
+    ...(size === 'small'
+      ? (Typography.body2.r.bold as TextStyle)
+      : ({
+          ...Typography.body2.r.bold,
+          fontSize: 16,
+          lineHeight: 24,
+        } as TextStyle)),
     color: colors.primaryHeavy,
   };
 
@@ -110,6 +138,7 @@ export function SegmentControls({
         style={[
           styles.segmentGroup,
           {
+            borderRadius: sizeConfig.borderRadius,
             borderColor: colors.border,
           },
         ]}
@@ -180,10 +209,10 @@ export function SegmentControls({
             : null;
 
           const segmentBorderRadiusStyle: ViewStyle = {
-            borderTopLeftRadius: isFirst ? styles.segment.borderRadius : 0,
-            borderBottomLeftRadius: isFirst ? styles.segment.borderRadius : 0,
-            borderTopRightRadius: isLast ? styles.segment.borderRadius : 0,
-            borderBottomRightRadius: isLast ? styles.segment.borderRadius : 0,
+            borderTopLeftRadius: isFirst ? sizeConfig.borderRadius : 0,
+            borderBottomLeftRadius: isFirst ? sizeConfig.borderRadius : 0,
+            borderTopRightRadius: isLast ? sizeConfig.borderRadius : 0,
+            borderBottomRightRadius: isLast ? sizeConfig.borderRadius : 0,
           };
 
           return (

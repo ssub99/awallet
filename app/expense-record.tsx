@@ -3186,7 +3186,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.staticWhite }]} edges={['top']}>
-      <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
+      <StatusBar barStyle="dark-content" />
       
       <TopNavigation
         type="sub"
@@ -3201,7 +3201,11 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           style={styles.scrollView}
           contentContainerStyle={[
             styles.scrollContent, 
-            { paddingBottom: keyboardHeight > 0 ? keyboardHeight + 16 - insets.bottom : 16 }
+            { 
+              paddingBottom: keyboardHeight > 0 
+                ? keyboardHeight + 16 - insets.bottom 
+                : 16 // 메모와 하단 영역 사이 여백
+            }
           ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -3383,21 +3387,23 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               />
             </View>
 
-            {/* 결제 유형 */}
-            <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
-                결제 유형 <Text style={{ color: '#EF5252' }}>*</Text>
-              </Text>
-              <SegmentControls
-                options={[
-                  { label: '신용카드', value: 'credit' },
-                  { label: '체크카드', value: 'debit' },
-                  { label: '현금', value: 'cash' },
-                ]}
-                value={paymentMethod}
-                onValueChange={(val) => setPaymentMethod(val as PaymentMethod)}
-              />
-            </View>
+            {/* 결제 유형 - 수정 모드일 때만 기존 위치에 표시 */}
+            {mode === 'edit' && (
+              <View style={styles.section}>
+                <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
+                  결제 유형 <Text style={{ color: '#EF5252' }}>*</Text>
+                </Text>
+                <SegmentControls
+                  options={[
+                    { label: '신용', value: 'credit' },
+                    { label: '체크', value: 'debit' },
+                    { label: '현금', value: 'cash' },
+                  ]}
+                  value={paymentMethod}
+                  onValueChange={(val) => setPaymentMethod(val as PaymentMethod)}
+                />
+              </View>
+            )}
 
             {/* 날짜 */}
             <View style={styles.section}>
@@ -3788,85 +3794,119 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           </ScrollView>
         </View>
 
-        {/* 정기 기록 수정 시 기간 표기 및 수정 옵션 */}
+        {/* 하단 sticky 영역 - 생성 모드: 결제 유형, 수정 모드: 기간 행 */}
+        {mode === 'create' && (
+          <View style={[
+            styles.paymentTypeStickyContainer,
+            {
+              backgroundColor: '#ededed',
+            }
+          ]}>
+            <View style={styles.paymentTypeStickyContent}>
+              <Text style={[styles.paymentTypeStickyLabel, { color: colors.textNeutral }]}>
+                결제 유형
+              </Text>
+              <View style={styles.paymentTypeStickyControls}>
+                <SegmentControls
+                  options={[
+                    { label: '신용', value: 'credit' },
+                    { label: '체크', value: 'debit' },
+                    { label: '현금', value: 'cash' },
+                  ]}
+                  value={paymentMethod}
+                  onValueChange={(val) => setPaymentMethod(val as PaymentMethod)}
+                  size="small"
+                />
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* 기간 행 - 수정 모드일 때만 하단에 sticky로 표시 */}
+        {/* 정기 기록 수정 시 */}
         {mode === 'edit' && isRecurring && (
-          <View style={[{ backgroundColor: '#ededed' }]}>
-            <View style={styles.recurringSection}>
-              <View style={styles.recurringTitleRow}>
-                <Text style={[styles.switchLabel, { color: colors.text, fontSize: 14, fontWeight: '700' }]}>
-                  기간 : {(() => {
-                    if (editData?.isRecurring && editData?.recurringId) {
-                      // 정기기록의 실제 원본 시작일 사용
-                      const originalStartTimestamp = extractTimestampFromId(editData.recurringId) ?? (typeof editData.createdAt === 'number' ? editData.createdAt : editData.timestamp);
-                      const originalStartDate = new Date(originalStartTimestamp ?? Date.now());
-                      const originalStartDateStr = `${originalStartDate.getFullYear()}.${String(originalStartDate.getMonth() + 1).padStart(2, '0')}.${String(originalStartDate.getDate()).padStart(2, '0')}`;
-                      
-                      return getRecurringPeriod(originalStartDateStr, totalMonths);
-                    } else {
-                      // 신규 생성 시에는 현재 선택된 날짜 사용
-                      
-                      return getRecurringPeriod(date, totalMonths);
-                    }
-                  })()}
-                </Text>
-                <View style={styles.regularityEditRadioGroup}>
-                  <View style={styles.regularityEditRadio}>
-                    <Radio
-                      checked={editOption === 'all'}
-                      onPress={() => setEditOption('all')}
-                      label="전체 수정"
-                    />
-                  </View>
-                  <View style={styles.regularityEditRadio}>
-                    <Radio
-                      checked={editOption === 'today'}
-                      onPress={() => setEditOption('today')}
-                      label="오늘만 수정"
-                    />
-                  </View>
+          <View style={[
+            styles.periodStickyContainer,
+            {
+              backgroundColor: '#ededed',
+            }
+          ]}>
+            <View style={styles.periodStickyContent}>
+              <Text style={[styles.periodStickyLabel, { color: colors.text }]}>
+                기간 : {(() => {
+                  if (editData?.isRecurring && editData?.recurringId) {
+                    // 정기기록의 실제 원본 시작일 사용
+                    const originalStartTimestamp = extractTimestampFromId(editData.recurringId) ?? (typeof editData.createdAt === 'number' ? editData.createdAt : editData.timestamp);
+                    const originalStartDate = new Date(originalStartTimestamp ?? Date.now());
+                    const originalStartDateStr = `${originalStartDate.getFullYear()}.${String(originalStartDate.getMonth() + 1).padStart(2, '0')}.${String(originalStartDate.getDate()).padStart(2, '0')}`;
+                    
+                    return getRecurringPeriod(originalStartDateStr, totalMonths);
+                  } else {
+                    // 신규 생성 시에는 현재 선택된 날짜 사용
+                    
+                    return getRecurringPeriod(date, totalMonths);
+                  }
+                })()}
+              </Text>
+              <View style={styles.periodStickyRadioGroup}>
+                <View style={styles.periodStickyRadio}>
+                  <Radio
+                    checked={editOption === 'all'}
+                    onPress={() => setEditOption('all')}
+                    label="전체 수정"
+                  />
+                </View>
+                <View style={styles.periodStickyRadio}>
+                  <Radio
+                    checked={editOption === 'today'}
+                    onPress={() => setEditOption('today')}
+                    label="오늘만 수정"
+                  />
                 </View>
               </View>
             </View>
           </View>
         )}
 
-        {/* 할부 기록 수정 시 기간 표기 및 수정 옵션 */}
-        {/* 환불 처리된 할부 기록 또는 선결제 처리된 할부 기록에서는 하단 기간 영역을 표시하지 않음 */}
+        {/* 할부 기록 수정 시 기간 행 - 환불/선결제 처리된 경우 제외 */}
         {mode === 'edit' && isInstallment && !editData?.isRefunded && !editData?.isPrepaid && (
-          <View style={[{ backgroundColor: '#ededed' }]}>
-            <View style={styles.recurringSection}>
-              <View style={styles.recurringTitleRow}>
-                <Text style={[styles.switchLabel, { color: colors.text, fontSize: 14, fontWeight: '700' }]}>
-                  기간 : {(() => {
-                    if (editData?.isInstallment && editData?.installmentId) {
-                      // 할부기록의 실제 원본 시작일 사용
-                      const originalStartTimestamp = extractTimestampFromId(editData.installmentId) ?? (typeof editData.createdAt === 'number' ? editData.createdAt : editData.timestamp);
-                      const originalStartDate = new Date(originalStartTimestamp ?? Date.now());
-                      const originalStartDateStr = `${originalStartDate.getFullYear()}.${String(originalStartDate.getMonth() + 1).padStart(2, '0')}.${String(originalStartDate.getDate()).padStart(2, '0')}`;
-                      
-                      return getRecurringPeriod(originalStartDateStr, totalMonths);
-                    } else {
-                      // 신규 생성 시에는 현재 선택된 날짜 사용
-                      
-                      return getRecurringPeriod(date, totalMonths);
-                    }
-                  })()}
-                </Text>
-                <View style={styles.regularityEditRadioGroup}>
-                  <View style={styles.regularityEditRadio}>
-                    <Radio
-                      checked={editOption === 'all'}
-                      onPress={() => setEditOption('all')}
-                      label="전체 수정"
-                    />
-                  </View>
-                  <View style={styles.regularityEditRadio}>
-                    <Radio
-                      checked={editOption === 'today'}
-                      onPress={() => setEditOption('today')}
-                      label="오늘만 수정"
-                    />
-                  </View>
+          <View style={[
+            styles.periodStickyContainer,
+            {
+              backgroundColor: '#ededed',
+            }
+          ]}>
+            <View style={styles.periodStickyContent}>
+              <Text style={[styles.periodStickyLabel, { color: colors.text }]}>
+                기간 : {(() => {
+                  if (editData?.isInstallment && editData?.installmentId) {
+                    // 할부기록의 실제 원본 시작일 사용
+                    const originalStartTimestamp = extractTimestampFromId(editData.installmentId) ?? (typeof editData.createdAt === 'number' ? editData.createdAt : editData.timestamp);
+                    const originalStartDate = new Date(originalStartTimestamp ?? Date.now());
+                    const originalStartDateStr = `${originalStartDate.getFullYear()}.${String(originalStartDate.getMonth() + 1).padStart(2, '0')}.${String(originalStartDate.getDate()).padStart(2, '0')}`;
+                    
+                    return getRecurringPeriod(originalStartDateStr, totalMonths);
+                  } else {
+                    // 신규 생성 시에는 현재 선택된 날짜 사용
+                    
+                    return getRecurringPeriod(date, totalMonths);
+                  }
+                })()}
+              </Text>
+              <View style={styles.periodStickyRadioGroup}>
+                <View style={styles.periodStickyRadio}>
+                  <Radio
+                    checked={editOption === 'all'}
+                    onPress={() => setEditOption('all')}
+                    label="전체 수정"
+                  />
+                </View>
+                <View style={styles.periodStickyRadio}>
+                  <Radio
+                    checked={editOption === 'today'}
+                    onPress={() => setEditOption('today')}
+                    label="오늘만 수정"
+                  />
                 </View>
               </View>
             </View>
@@ -3878,7 +3918,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           styles.bottomButtonContainer, 
           { 
             backgroundColor: colors.staticWhite,
-            paddingBottom: 16 + insets.bottom 
+            paddingBottom: 16 + insets.bottom,
+            paddingTop: 16,
           }
         ]}>
           <Button onPress={handleConfirm}>
@@ -4573,6 +4614,43 @@ const styles = StyleSheet.create({
   bottomButtonContainer: {
     paddingHorizontal: 16,
     paddingTop: 16,
+  },
+  paymentTypeStickyContainer: {
+    paddingHorizontal: 16,
+    height: 48,
+    justifyContent: 'center',
+  },
+  paymentTypeStickyContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  paymentTypeStickyLabel: {
+    ...Typography.body2.r.bold,
+    fontSize: 16,
+  },
+  paymentTypeStickyControls: {
+    width: 190,
+  },
+  periodStickyContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+  },
+  periodStickyContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  periodStickyLabel: {
+    ...Typography.body2.r.bold,
+    fontSize: 16,
+  },
+  periodStickyRadioGroup: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  periodStickyRadio: {
+    // Radio 컴포넌트가 자체 스타일을 가지고 있으므로 추가 스타일 불필요
   },
   alertText: {
     ...Typography.body1.l.regular,
