@@ -17,8 +17,6 @@ import { getNotificationPermissionStatus, handleNotificationToggle } from '@/hoo
 import { weekStartEvent } from '@/hooks/use-week-start';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as MailComposer from 'expo-mail-composer';
-import * as Updates from 'expo-updates';
-import Constants from 'expo-constants';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Animated, AppState, AppStateStatus, BackHandler, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -38,14 +36,6 @@ export default function MyPageScreen() {
   const [monthStartDay, setMonthStartDay] = useState('1일');
   const [weekStartsSunday, setWeekStartsSunday] = useState(true);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [updateInfo, setUpdateInfo] = useState<{
-    isEnabled: boolean;
-    updateId: string | null;
-    channel: string | null;
-    runtimeVersion: string | null;
-    isExpoGo: boolean;
-    executionEnvironment: string;
-  } | null>(null);
 
   // Load settings from AsyncStorage on screen focus
   useFocusEffect(
@@ -74,17 +64,6 @@ export default function MyPageScreen() {
           if (startDay) setMonthStartDay(startDay);
           if (weekStart !== null) setWeekStartsSunday(JSON.parse(weekStart));
           if (notifications !== null) setNotificationsEnabled(JSON.parse(notifications));
-          
-          // OTA 업데이트 정보 로드
-          const isExpoGo = Constants.executionEnvironment === 'storeClient';
-          setUpdateInfo({
-            isEnabled: Updates.isEnabled,
-            updateId: Updates.updateId || null,
-            channel: Updates.channel || null,
-            runtimeVersion: Updates.runtimeVersion || null,
-            isExpoGo,
-            executionEnvironment: Constants.executionEnvironment || 'unknown',
-          });
         } catch (error) {
           console.error('설정 로드 중 오류:', error);
         } finally {
@@ -443,47 +422,6 @@ export default function MyPageScreen() {
             </View>
           </View>
 
-          {/* OTA Test Badge */}
-          <View style={[styles.card, { backgroundColor: colors.background }]}>
-            <View style={styles.menuRow}>
-              <Text style={[styles.menuLabel, { color: colors.text }]}>
-                ✅ OTA 업데이트 테스트 성공
-              </Text>
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>NEW</Text>
-              </View>
-            </View>
-          </View>
-
-          {/* OTA Debug Info */}
-          {updateInfo && (
-            <View style={[styles.card, { backgroundColor: colors.background }]}>
-              <Text style={[styles.settingLabel, { color: colors.text, marginBottom: 8, fontWeight: '600' }]}>
-                OTA 업데이트 상태
-              </Text>
-              <View style={styles.debugInfo}>
-                <Text style={[styles.debugText, { color: colors.textNeutral }]}>
-                  환경: {updateInfo.isExpoGo ? '❌ Expo Go (OTA 불가)' : '✅ 빌드 앱 (OTA 가능)'}
-                </Text>
-                <Text style={[styles.debugText, { color: colors.textNeutral }]}>
-                  Execution: {updateInfo.executionEnvironment}
-                </Text>
-                <Text style={[styles.debugText, { color: colors.textNeutral }]}>
-                  Enabled: {updateInfo.isEnabled ? '✅' : '❌'}
-                </Text>
-                <Text style={[styles.debugText, { color: colors.textNeutral }]}>
-                  Channel: {updateInfo.channel || 'N/A'}
-                </Text>
-                <Text style={[styles.debugText, { color: colors.textNeutral }]}>
-                  Runtime: {updateInfo.runtimeVersion || 'N/A'}
-                </Text>
-                <Text style={[styles.debugText, { color: colors.textNeutral }]}>
-                  Update ID: {updateInfo.updateId ? updateInfo.updateId.substring(0, 8) + '...' : 'N/A'}
-                </Text>
-              </View>
-            </View>
-          )}
-
           {/* Inquiry & Review Card */}
           <View style={[styles.card, { backgroundColor: colors.background }]}>
             {/* Inquiry */}
@@ -632,24 +570,5 @@ const styles = StyleSheet.create({
   },
   menuLabel: {
     ...Typography.body1.l.regular,
-  },
-  badge: {
-    backgroundColor: '#FF3B30',
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  badgeText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  debugInfo: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    gap: 4,
-  },
-  debugText: {
-    ...Typography.detail.r.regular,
   },
 });
