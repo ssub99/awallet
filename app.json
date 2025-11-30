@@ -14,7 +14,7 @@
       "bundleIdentifier": "com.ssong.awallet",
       "buildNumber": "27",
       "userInterfaceStyle": "light",
-      "googleServicesFile": "./ios/GoogleService-Info.plist",
+      "googleServicesFile": "./ios/awallet/GoogleService-Info.plist",
       "infoPlist": {
         "CFBundleDisplayName": "에이월렛",
         "CFBundleName": "에이월렛",
