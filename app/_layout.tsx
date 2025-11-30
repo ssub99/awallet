@@ -1,5 +1,6 @@
 import * as SplashScreen from 'expo-splash-screen';
 import * as Updates from 'expo-updates';
+import Constants from 'expo-constants';
 import { GlobalProgressBar } from '@/components/ui/global-progress-bar';
 import { Colors } from '@/constants/theme';
 import { AppDataProvider } from '@/contexts/app-data-context';
@@ -54,20 +55,18 @@ export default function RootLayout() {
         // 스플래시 자동 숨김 방지 (이미 위에서 호출했지만 안전을 위해 다시 호출)
         await SplashScreen.preventAutoHideAsync();
         
-        // OTA 업데이트 체크 및 적용 (프로덕션 빌드에서만)
-        if (!__DEV__ && Updates.isEnabled) {
+        // OTA 업데이트 체크 및 적용
+        const isExpoGo = Constants.executionEnvironment === 'storeClient';
+        if (!isExpoGo && Updates.isEnabled) {
           try {
             const update = await Updates.checkForUpdateAsync();
-            
             if (update.isAvailable) {
               await Updates.fetchUpdateAsync();
-              // 업데이트 다운로드 후 다음 앱 시작 시 적용되도록 재시작
               await Updates.reloadAsync();
-              return; // 재시작되므로 여기서 종료
+              return;
             }
           } catch (error) {
             // 업데이트 체크 실패해도 앱은 정상 실행
-            // 에러는 무시하고 계속 진행
           }
         }
         

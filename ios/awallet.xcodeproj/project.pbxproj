@@ -145,13 +145,13 @@
 				2C31C4EB195FEAC46ABBFB38 /* [Expo] Configure project */,
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
+				8EB54BA22ED81A4B00201C39 /* Set Expo Updates Channel */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
 				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
 				908657F057402EC0CBDD70F5 /* [CP] Embed Pods Frameworks */,
 				8EC270272ECC0DEC00A3AB93 /* Generate dSYMs for React Native frameworks */,
 				2AE5D8675208D81B6EE7AD20 /* [CP-User] [RNFB] Core Configuration */,
-				8EB54BA22ED81A4B00201C39 /* Set Expo Updates Channel */,
 			);
 			buildRules = (
 			);
@@ -357,8 +357,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Scheme별로 채널 설정\nif [ \"${EXPO_UPDATES_CHANNEL}\" == \"stage\" ]; then\n  /usr/libexec/PlistBuddy -c \"Set :EXUpdatesChannelId stage\" \"${SRCROOT}/awallet/Supporting/Expo.plist\"\nelif [ \"${EXPO_UPDATES_CHANNEL}\" == \"production\" ]; then\n  /usr/libexec/PlistBuddy -c \"Set :EXUpdatesChannelId production\" \"${SRCROOT}/awallet/Supporting/Expo.plist\"\nfi\n";
-		};
+			shellScript = "set -x\necho \"========== START Set Expo Updates Channel (RequestHeaders) ==========\"\necho \"현재 시간: $(date)\"\necho \"WORKSPACE: ${WORKSPACE}\"\necho \"SRCROOT: ${SRCROOT}\"\necho \"CONFIGURATION: ${CONFIGURATION}\"\necho \"EXPO_UPDATES_CHANNELS: ${EXPO_UPDATES_CHANNELS}\"\n\nCONFIG=\"${CONFIGURATION}\"\n\nif [ -n \"${EXPO_UPDATES_CHANNELS}\" ]; then\n  CHANNEL=\"${EXPO_UPDATES_CHANNELS}\"\n  echo \"✅ 빌드 설정에서 채널 사용: ${CHANNEL}\"\nelse\n  if [[ \"$CONFIG\" == *\"Debug\"* ]]; then\n    CHANNEL=\"stage\"\n  elif [[ \"$CONFIG\" == *\"Release\"* ]]; then\n    CHANNEL=\"production\"\n  else\n    CHANNEL=\"production\"\n  fi\n  echo \"✅ CONFIGURATION에서 채널 자동 결정: ${CHANNEL}\"\nfi\n\necho \"최종 결정된 채널: ${CHANNEL}\"\n\nSOURCE_PLIST=\"${SRCROOT}/awallet/Supporting/Expo.plist\"\necho \"소스 파일 경로: ${SOURCE_PLIST}\"\n\nif [ -f \"${SOURCE_PLIST}\" ]; then\n  echo \"✅ 소스 파일 존재 확인\"\n  \n  # EXUpdatesRequestHeaders 딕셔너리 확인 및 생성\n  /usr/libexec/PlistBuddy -c \"Print :EXUpdatesRequestHeaders\" \"${SOURCE_PLIST}\" >/dev/null 2>&1 || /usr/libexec/PlistBuddy -c \"Add :EXUpdatesRequestHeaders dict\" \"${SOURCE_PLIST}\"\n  \n  # expo-channel-name 설정\n  /usr/libexec/PlistBuddy -c \"Print :EXUpdatesRequestHeaders:expo-channel-name\" \"${SOURCE_PLIST}\" >/dev/null 2>&1\n  if [ $? -eq 0 ]; then\n    /usr/libexec/PlistBuddy -c \"Set :EXUpdatesRequestHeaders:expo-channel-name ${CHANNEL}\" \"${SOURCE_PLIST}\"\n  else\n    /usr/libexec/PlistBuddy -c \"Add :EXUpdatesRequestHeaders:expo-channel-name string ${CHANNEL}\" \"${SOURCE_PLIST}\"\n  fi\n  \n  # 검증\n  VERIFY=$(/usr/libexec/PlistBuddy -c \"Print :EXUpdatesRequestHeaders:expo-channel-name\" \"${SOURCE_PLIST}\" 2>&1)\n  echo \"✅ 채널 설정 완료. 검증값: ${VERIFY}\"\n  \n  # 기존 EXUpdatesChannelId 제거 (있으면)\n  /usr/libexec/PlistBuddy -c \"Delete :EXUpdatesChannelId\" \"${SOURCE_PLIST}\" 2>/dev/null || true\nelse\n  echo \"❌ 오류: 소스 파일을 찾을 수 없습니다: ${SOURCE_PLIST}\"\n  exit 1\nfi\n\necho \"========== END Set Expo Updates Channel ==========\"";		};
 		8EC270272ECC0DEC00A3AB93 /* Generate dSYMs for React Native frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
@@ -424,13 +423,14 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 23;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = RUL37NUWSS;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_BITCODE = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				EXPO_UPDATES_CHANNELS = stage;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
 					"FB_SONARKIT_ENABLED=1",
@@ -474,9 +474,10 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 23;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = RUL37NUWSS;
+				EXPO_UPDATES_CHANNELS = production;
 				INFOPLIST_FILE = awallet/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
