@@ -277,26 +277,34 @@ export default function ChallengeCreateScreen() {
           // 챌린지 상태 계산 (소비율 포함)
           const status = await getChallengeStatus(challenge);
           const endDate = new Date(challenge.endDate.replace(/\./g, '-'));
+          endDate.setHours(0, 0, 0, 0);
           
           // 기존 진행현황 알림 모두 취소 (중복 방지)
-          await cancelChallengeProgressNotifications(challenge.id);
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const isEndedByToday = today > endDate;
           
           // 진행현황 알림 스케줄링 (10%, 30%, 50%, 70%, 90%)
-          const milestones = [10, 30, 50, 70, 90];
-          for (let i = 0; i < milestones.length; i++) {
-            const milestone = milestones[i];
-            const max = i < milestones.length - 1 ? milestones[i + 1] : 100;
-            const isInRange = status.percentage >= milestone && status.percentage < max;
+          // 챌린지 종료 이후에는 진행현황 알림을 스케줄하지 않음
+          if (!isEndedByToday) {
+            await cancelChallengeProgressNotifications(challenge.id);
             
-            if (isInRange) {
-              await notifyChallengeProgress(challenge.category, status.percentage, challenge.id, milestone);
-              break; // 한 번에 하나의 마일스톤만
+            const milestones = [10, 30, 50, 70, 90];
+            for (let i = 0; i < milestones.length; i++) {
+              const milestone = milestones[i];
+              const max = i < milestones.length - 1 ? milestones[i + 1] : 100;
+              const isInRange = status.percentage >= milestone && status.percentage < max;
+              
+              if (isInRange) {
+                await notifyChallengeProgress(challenge.category, status.percentage, challenge.id, milestone);
+                break; // 한 번에 하나의 마일스톤만
+              }
             }
           }
           
           // 실패 알림 스케줄링 (100% 초과)
           if (status.percentage > 100) {
-            await notifyChallengeFailure(challenge.category, status.percentage, challenge.id);
+            await notifyChallengeFailure(challenge.category, status.percentage, challenge.id, endDate);
           }
           
           // 성공 알림 스케줄링 (≤ 100%)

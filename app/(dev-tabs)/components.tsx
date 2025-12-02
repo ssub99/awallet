@@ -695,16 +695,14 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
                   n => n.content.data?.challengeId === challenge.id
                 );
                 
+                // 종료일 기준으로 우리가 의도한 예약 발송일(종료일+1일 09:30)을 직접 계산
+                const endDateObj = new Date(challenge.endDate.replace(/\./g, '-'));
+                endDateObj.setDate(endDateObj.getDate() + 1);
+                endDateObj.setHours(9, 30, 0, 0);
+                const expectedTriggerText = endDateObj.toLocaleString('ko-KR');
+                
                 if (hasFailureNotif) {
-                  const notif = failureNotifications.find(
-                    n => n.content.data?.challengeId === challenge.id
-                  );
-                  if (notif && notif.trigger && 'date' in notif.trigger) {
-                    const triggerDate = new Date(notif.trigger.date);
-                    result += `  실패 알림: ✅ ${triggerDate.toLocaleString('ko-KR')}\n`;
-                  } else {
-                    result += `  실패 알림: ✅ 스케줄됨\n`;
-                  }
+                  result += `  실패 알림: ✅\n  예약 발송일(종료일+1일 09:30 기준): ${expectedTriggerText}\n`;
                 } else {
                   if (status.percentage > 100) {
                     result += `  실패 알림: ⚠️ 범위 초과 (스케줄 안 됨)\n`;
@@ -759,16 +757,14 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
                   n => n.content.data?.challengeId === challenge.id
                 );
                 
+                // 종료일 기준으로 우리가 의도한 예약 발송일(종료일+1일 09:30)을 직접 계산
+                const endDateObj = new Date(challenge.endDate.replace(/\./g, '-'));
+                endDateObj.setDate(endDateObj.getDate() + 1);
+                endDateObj.setHours(9, 30, 0, 0);
+                const expectedTriggerText = endDateObj.toLocaleString('ko-KR');
+                
                 if (hasSuccessNotif) {
-                  const notif = successNotifications.find(
-                    n => n.content.data?.challengeId === challenge.id
-                  );
-                  if (notif && notif.trigger && 'date' in notif.trigger) {
-                    const triggerDate = new Date(notif.trigger.date);
-                    result += `  성공 알림: ✅ ${triggerDate.toLocaleString('ko-KR')}\n`;
-                  } else {
-                    result += `  성공 알림: ✅ 스케줄됨\n`;
-                  }
+                  result += `  성공 알림: ✅\n  예약 발송일(종료일+1일 09:30 기준): ${expectedTriggerText}\n`;
                 } else {
                   if (status.percentage > 100) {
                     result += `  성공 알림: ❌ 없음 (소비율 초과)\n`;

@@ -139,36 +139,59 @@ export async function triggerChallengeNotifications(category: string, recordDate
 
     // 2. 챌린지 상태 계산
     const status = await getChallengeStatus(challenge);
+    const endDate = new Date(challenge.endDate.replace(/\./g, '-'));
+    endDate.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const isEndedByToday = today > endDate;
     
     // 3. 알림 조건 체크 및 발송
     
     // 3-1. 진행현황 알림 (10%, 30%, 50%, 70%, 90%)
-    // 기존 진행현황 알림 모두 취소 (같은 날 여러 마일스톤 지나가도 최종 상태만 발송)
-    await cancelChallengeProgressNotifications(challenge.id);
-    
-    const milestones = [10, 30, 50, 70, 90];
-    for (let i = 0; i < milestones.length; i++) {
-      const milestone = milestones[i];
-      const max = i < milestones.length - 1 ? milestones[i + 1] : 100;
-      const isInRange = status.percentage >= milestone && status.percentage < max;
+    // 챌린지가 종료된 이후에는 진행현황 알림을 더 이상 스케줄링하지 않음
+    if (!isEndedByToday) {
+      // 기존 진행현황 알림 모두 취소 (같은 날 여러 마일스톤 지나가도 최종 상태만 발송)
+      await cancelChallengeProgressNotifications(challenge.id);
       
-      if (isInRange) {
-        // 현재 소비율이 마일스톤 범위 내에 있으면 알림 스케줄링
-        await notifyChallengeProgress(challenge.category, status.percentage, challenge.id, milestone);
-        break; // 한 번에 하나의 마일스톤만
+      const milestones = [10, 30, 50, 70, 90];
+      for (let i = 0; i < milestones.length; i++) {
+        const milestone = milestones[i];
+        const max = i < milestones.length - 1 ? milestones[i + 1] : 100;
+        const isInRange = status.percentage >= milestone && status.percentage < max;
+        
+        if (isInRange) {
+          // 현재 소비율이 마일스톤 범위 내에 있으면 알림 스케줄링
+          await notifyChallengeProgress(challenge.category, status.percentage, challenge.id, milestone);
+          break; // 한 번에 하나의 마일스톤만
+        }
       }
     }
     
-    // 3-2. 실패 알림 (100% 첫 초과)
-    if (status.percentage > 100) {
-      const sentKey = `challenge_failure_${challenge.id}`;
-      const alreadySent = await AsyncStorage.getItem(sentKey);
-      
-      if (!alreadySent) {
+    // 3-2. 결과 알림 (성공 / 실패) - 챌린지당 최대 1회
+    const successKey = `challenge_success_${challenge.id}`;
+    const failureKey = `challenge_failure_${challenge.id}`;
+    const [successSent, failureSent] = await Promise.all([
+      AsyncStorage.getItem(successKey),
+      AsyncStorage.getItem(failureKey),
+    ]);
+    
+    const hasResultScheduled = !!successSent || !!failureSent;
+    
+    // 챌린지가 아직 종료되지 않았고, 성공/실패 알림이 한 번도 잡히지 않은 경우에만 스케줄링
+    if (!isEndedByToday && !hasResultScheduled) {
+      if (status.percentage > 100) {
+        // 실패 조건: 소비율 100% 초과
         // 실패 알림 발송 전, 기존 성공 알림 취소
         await cancelChallengeSuccessNotification(challenge.id);
-        
-        await notifyChallengeFailure(challenge.category, status.percentage, challenge.id);
+        await notifyChallengeFailure(challenge.category, status.percentage, challenge.id, endDate);
+      } else {
+        // 성공 조건: 소비율 100% 이하
+        await notifyChallengeSuccess(
+          challenge.category,
+          status.percentage,
+          challenge.id,
+          endDate
+        );
       }
     }
 
@@ -279,13 +302,12 @@ export async function checkActiveChallengesNotifications(): Promise<void> {
         const alreadySent = await AsyncStorage.getItem(sentKey);
         
         if (!alreadySent) {
-          await notifyChallengeFailure(challenge.category, status.percentage, challenge.id);
+          await notifyChallengeFailure(challenge.category, status.percentage, challenge.id, endDate);
         }
       }
       
       // 성공 알림 체크 (100% 이하)
       if (status.percentage <= 100) {
-        const endDate = new Date(challenge.endDate.replace(/\./g, '-'));
         await notifyChallengeSuccess(
           challenge.category,
           status.percentage,

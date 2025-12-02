@@ -337,12 +337,13 @@ export async function cancelChallengeFailureNotification(challengeId: string): P
 
 /**
  * 4. 챌린지 실패 알림
- * 소비율 100% 첫 초과 시, 다음날 오전 9시 30분
+ * 소비율 100% 첫 초과 시, 종료일 다음날 오전 9시 30분
  */
 export async function notifyChallengeFailure(
   category: string,
   percentage: number,
-  challengeId: string
+  challengeId: string,
+  endDate: Date
 ): Promise<void> {
   try {
     // Global check
@@ -373,10 +374,10 @@ export async function notifyChallengeFailure(
       }
     }
     
-    // Schedule for next day 9:30 AM
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(9, 30, 0, 0);
+    // Schedule for next day after end date, 9:30 AM
+    const notificationDate = new Date(endDate);
+    notificationDate.setDate(notificationDate.getDate() + 1);
+    notificationDate.setHours(9, 30, 0, 0);
     
     await Notifications.scheduleNotificationAsync({
       content: {
@@ -390,7 +391,7 @@ export async function notifyChallengeFailure(
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DATE,
-        date: tomorrow,
+        date: notificationDate,
       },
     });
     
