@@ -20,6 +20,7 @@ import { SegmentControls } from '@/components/ui/segment-controls';
 import { Selectbox } from '@/components/ui/selectbox';
 import { Switch } from '@/components/ui/switch';
 import { Toast } from '@/components/ui/toast';
+import { AtomicColors } from '@/constants/atomic-colors';
 import { Colors, Typography } from '@/constants/theme';
 import { useLoading } from '@/contexts/loading-context';
 import { calendarRefreshEvent } from '@/hooks/calendar-events';
@@ -3799,9 +3800,11 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           <View style={[
             styles.paymentTypeStickyContainer,
             {
-              backgroundColor: '#ededed',
+              backgroundColor: AtomicColors.neutral[100], // #f5f5f5
             }
           ]}>
+            {/* 상단 라인 */}
+            <View style={[styles.paymentTypeTopLine, { backgroundColor: colors.border }]} />
             <View style={styles.paymentTypeStickyContent}>
               <Text style={[styles.paymentTypeStickyLabel, { color: colors.textNeutral }]}>
                 결제 유형
@@ -3828,9 +3831,11 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           <View style={[
             styles.periodStickyContainer,
             {
-              backgroundColor: '#ededed',
+              backgroundColor: AtomicColors.neutral[100], // #f5f5f5
             }
           ]}>
+            {/* 상단 라인 */}
+            <View style={[styles.periodTopLine, { backgroundColor: colors.border }]} />
             <View style={styles.periodStickyContent}>
               <Text style={[styles.periodStickyLabel, { color: colors.text }]}>
                 기간 : {(() => {
@@ -3873,9 +3878,11 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           <View style={[
             styles.periodStickyContainer,
             {
-              backgroundColor: '#ededed',
+              backgroundColor: AtomicColors.neutral[100], // #f5f5f5
             }
           ]}>
+            {/* 상단 라인 */}
+            <View style={[styles.periodTopLine, { backgroundColor: colors.border }]} />
             <View style={styles.periodStickyContent}>
               <Text style={[styles.periodStickyLabel, { color: colors.text }]}>
                 기간 : {(() => {
@@ -4481,7 +4488,7 @@ const styles = StyleSheet.create({
   },
   section: {
     paddingHorizontal: 16,
-    paddingTop: 32,
+    paddingTop: 24,
     gap: 8,
   },
   sectionHeader: {
@@ -4620,6 +4627,13 @@ const styles = StyleSheet.create({
     height: 48,
     justifyContent: 'center',
   },
+  paymentTypeTopLine: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 1,
+  },
   paymentTypeStickyContent: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -4635,6 +4649,13 @@ const styles = StyleSheet.create({
   periodStickyContainer: {
     paddingHorizontal: 16,
     paddingVertical: 16,
+  },
+  periodTopLine: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 1,
   },
   periodStickyContent: {
     flexDirection: 'row',
