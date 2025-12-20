@@ -6,16 +6,17 @@
 
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Icon } from '@/components/ui/icon';
-import { EXPENSE_CATEGORIES } from '@/constants/categories';
+import { Toast } from '@/components/ui/toast';
+import { getExpenseCategories, type Category } from '@/constants/categories';
 import { Colors, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { applySavedOrder, loadCategoryOrder } from '@/utils/category-order';
+import { getAllChallenges } from '@/utils/challenges';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Toast } from '@/components/ui/toast';
-import { getAllChallenges } from '@/utils/challenges';
 
 export default function ExpenseCategoryScreen() {
   const colorScheme = useColorScheme();
@@ -34,6 +35,28 @@ export default function ExpenseCategoryScreen() {
   
   const [selectedCategory, setSelectedCategory] = useState<string>(
     params.selectedCategory || ''
+  );
+  
+  // 카테고리 리스트 (저장된 순서 적용)
+  const [categories, setCategories] = useState<Category[]>(getExpenseCategories());
+  
+  // 화면 진입 시 저장된 순서 불러와서 적용
+  useFocusEffect(
+    useCallback(() => {
+      const loadCategories = async () => {
+        const loadedCategories = getExpenseCategories();
+        const savedOrder = await loadCategoryOrder('expense');
+        
+        if (savedOrder && savedOrder.length > 0) {
+          const orderedCategories = applySavedOrder(loadedCategories, savedOrder);
+          setCategories(orderedCategories);
+        } else {
+          setCategories(loadedCategories);
+        }
+      };
+      
+      loadCategories();
+    }, [])
   );
   
   // 화면 진입 시에만 로그 출력
@@ -143,7 +166,7 @@ export default function ExpenseCategoryScreen() {
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
           >
-            {EXPENSE_CATEGORIES.map((category, index) => (
+            {categories.map((category, index) => (
               <View key={category.label}>
                 <Pressable
                   style={styles.categoryItem}
@@ -218,7 +241,7 @@ export default function ExpenseCategoryScreen() {
                 </Pressable>
                 
                 {/* Divider (마지막 항목 제외) */}
-                {index < EXPENSE_CATEGORIES.length - 1 && (
+                {index < categories.length - 1 && (
                   <View style={[styles.divider, { backgroundColor: colors.border }]} />
                 )}
               </View>

@@ -125,6 +125,7 @@ export function Input({
   onChangeText,
   onPress,
   placeholder,
+  keyboardType: externalKeyboardType,
   ...textInputProps
 }: InputProps) {
   // Default placeholder based on inputType
@@ -248,7 +249,6 @@ export function Input({
                 </Text>
               ) : (
                 <TextInput
-                  {...textInputProps}
                   ref={inputRef}
                   style={[
                     styles.input,
@@ -279,9 +279,10 @@ export function Input({
                   }}
                   multiline={variant === 'area'}
                   textAlignVertical={variant === 'area' ? 'top' : 'center'}
-                  keyboardType={inputType === 'number' ? 'number-pad' : 'default'}
+                  keyboardType={externalKeyboardType || (inputType === 'number' ? 'number-pad' : 'default')}
                   accessibilityLabel={finalPlaceholder}
                   accessibilityState={{ disabled }}
+                  {...textInputProps}
                 />
               )}
             </View>

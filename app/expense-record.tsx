@@ -3561,7 +3561,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                     unit="원"
                     value={amount || '0'}
                     onChangeText={handleAmountChange}
-                    keyboardType="numeric"
                     placeholder="0"
                     textAlign="right"
                     disabled={mode === 'edit' && (editData?.isRecurring || editData?.isInstallment)}
@@ -3590,7 +3589,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                   unit="원"
                   value={amount || '0'}
                   onChangeText={handleAmountChange}
-                  keyboardType="numeric"
                   placeholder="0"
                   textAlign="right"
                   

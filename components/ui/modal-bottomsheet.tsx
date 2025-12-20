@@ -130,7 +130,7 @@ export function ModalBottomsheet({
             useNativeDriver: true,
           }),
           Animated.timing(sheetTranslateY, {
-            toValue: 0,
+            toValue: 0, // 0으로 설정하여 화면 하단에 정확히 붙도록
             duration: 150,
             useNativeDriver: true,
           }),

@@ -491,7 +491,6 @@ export default function IncomeEditScreen() {
               unit="원"
               value={amount}
               onChangeText={handleAmountChange}
-              keyboardType="numeric"
               placeholder="0"
               textAlign="right"
               

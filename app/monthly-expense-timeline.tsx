@@ -8,15 +8,15 @@ import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Chip } from '@/components/ui/chip';
 import { Tab } from '@/components/ui/tab';
 import { Tag } from '@/components/ui/tag';
-import { EXPENSE_CATEGORIES } from '@/constants/categories';
+import { getExpenseCategories } from '@/constants/categories';
 import { Colors, Typography } from '@/constants/theme';
+import { useAppData } from '@/contexts/app-data-context';
 import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
-import { getCustomMonthRange, isDateInCustomMonth } from '@/utils/custom-month';
 import { getChallengesByDateRange } from '@/utils/challenges';
+import { getCustomMonthRange, isDateInCustomMonth } from '@/utils/custom-month';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useAppData } from '@/contexts/app-data-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -831,7 +831,7 @@ export default function MonthlyExpenseTimelineScreen() {
           ) : (
             <View style={styles.challengeList}>
               {challenges.map((challenge) => {
-                const categoryInfo = EXPENSE_CATEGORIES.find(cat => cat.label === challenge.category);
+                const categoryInfo = getExpenseCategories().find(cat => cat.label === challenge.category);
                 
                 // 안전한 targetAmount 처리
                 let targetAmount = 0;

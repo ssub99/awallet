@@ -11,6 +11,7 @@ import { getCategoriesByType, type CategoryType } from '@/constants/categories';
 import { ThemeColors } from '@/constants/theme-colors';
 import { Typography } from '@/constants/typography';
 import { applySavedOrder, loadCategoryOrder, saveCategoryOrder } from '@/utils/category-order';
+import { loadUserCategories } from '@/utils/user-categories';
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -204,8 +205,7 @@ export default function CategorySettingScreen() {
   const categoryType = (params.type as CategoryType) || 'expense';
   
   // 초기 카테고리 로드
-  const initialCategories = getCategoriesByType(categoryType);
-  const [categories, setCategories] = useState<Array<{ emoji: string; label: string; type: CategoryType }>>(initialCategories);
+  const [categories, setCategories] = useState<Array<{ emoji: string; label: string; type: CategoryType }>>([]);
   
   // 이전 인덱스를 추적하여 순서 변경 감지
   const previousIndexRef = useRef<number | null>(null);
@@ -229,7 +229,9 @@ export default function CategorySettingScreen() {
         
         // 드래그 중이 아닐 때만 카테고리 로드
         if (!isDraggingRef.current) {
-          const loadedCategories = getCategoriesByType(categoryType);
+          const builtInCategories = getCategoriesByType(categoryType);
+          const userCategories = await loadUserCategories(categoryType);
+          const loadedCategories = [...builtInCategories, ...userCategories];
           
           // 저장된 순서 불러오기
           const savedOrder = await loadCategoryOrder(categoryType);

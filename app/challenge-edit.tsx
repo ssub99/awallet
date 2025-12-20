@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { ModalPopup } from '@/components/ui/modal-popup';
 import { Switch } from '@/components/ui/switch';
 import { Toast } from '@/components/ui/toast';
-import { EXPENSE_CATEGORIES } from '@/constants/categories';
+import { getExpenseCategories } from '@/constants/categories';
 import { Colors, Typography } from '@/constants/theme';
 import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -187,7 +187,8 @@ export default function ChallengeEditScreen() {
 
   // 카테고리명에 이모지 추가하는 함수
   const getCategoryWithEmoji = (categoryName: string) => {
-    const category = EXPENSE_CATEGORIES.find(cat => cat.label === categoryName);
+    const expenseCategories = getExpenseCategories();
+    const category = expenseCategories.find(cat => cat.label === categoryName);
     return category ? `${category.emoji} ${categoryName}` : categoryName;
   };
 
@@ -499,7 +500,6 @@ export default function ChallengeEditScreen() {
               unit="원"
               value={targetAmount}
               onChangeText={handleAmountChange}
-              keyboardType="numeric"
               placeholder="0"
               textAlign="right"
             />

@@ -1,0 +1,709 @@
+/**
+ * Category Edit Screen
+ * 
+ * Screen for editing an existing expense or income category.
+ * Allows users to modify emoji and category name.
+ */
+
+import { TopNavigation } from '@/components/navigation/top-navigation';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
+import { ModalPopup } from '@/components/ui/modal-popup';
+import { Toast } from '@/components/ui/toast';
+import { getCategoriesByType, type CategoryType } from '@/constants/categories';
+import { Colors, Typography } from '@/constants/theme';
+import { loadUserCategories, updateUserCategory, deleteUserCategory, addUserCategory } from '@/utils/user-categories';
+import { FlashList } from '@shopify/flash-list';
+import type { FlashListRef } from '@shopify/flash-list';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getAllChallenges, softDeleteChallengesByRecurringId } from '@/utils/challenges';
+import * as Haptics from 'expo-haptics';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useMemo, useRef, useState, useEffect } from 'react';
+import { ActivityIndicator, Keyboard, Pressable, ScrollView, StatusBar, StyleSheet, Text, TouchableWithoutFeedback, View } from 'react-native';
+ 
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+
+// 이모지 카테고리 타입
+type EmojiCategory = 'recent' | 'people' | 'animals' | 'food' | 'activity' | 'travel' | 'objects' | 'symbols' | 'flags';
+
+// 이모지 카테고리별 목록 (category-create.tsx와 동일)
+const EMOJI_CATEGORIES: Record<EmojiCategory, string[]> = {
+  recent: ['✅', '💰', '💳', '🍚', '☕️', '🚊', '🏠'],
+  people: ['😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚', '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🤩', '🥳', '😏', '😒', '😞', '😔', '😟', '😕', '🙁', '😣', '😖', '😫', '😩', '🥺', '😢', '😭', '😤', '😠', '😡', '🤬', '🤯', '👤', '👥', '👶', '🧒', '👦', '👧', '🧑', '👱', '👨', '🧔', '👨‍🦰', '👨‍🦱', '👨‍🦳', '👨‍🦲', '👩', '👩‍🦰', '👩‍🦱', '👩‍🦳', '👩‍🦲', '🧓', '👴', '👵', '🙍', '🙍‍♂️', '🙍‍♀️', '🙎', '🙎‍♂️', '🙎‍♀️', '🙅', '🙅‍♂️', '🙅‍♀️', '🙆', '🙆‍♂️', '🙆‍♀️', '💁', '💁‍♂️', '💁‍♀️', '🙋', '🙋‍♂️', '🙋‍♀️', '🧏', '🧏‍♂️', '🧏‍♀️', '🤦', '🤦‍♂️', '🤦‍♀️', '🤷', '🤷‍♂️', '🤷‍♀️', '🙇', '🙇‍♂️', '🙇‍♀️', '🤦', '🤦‍♂️', '🤦‍♀️', '🤷', '🤷‍♂️', '🤷‍♀️', '🧑‍⚕️', '👨‍⚕️', '👩‍⚕️', '🧑‍🎓', '👨‍🎓', '👩‍🎓', '🧑‍🏫', '👨‍🏫', '👩‍🏫', '🧑‍⚖️', '👨‍⚖️', '👩‍⚖️', '🧑‍🌾', '👨‍🌾', '👩‍🌾', '🧑‍🍳', '👨‍🍳', '👩‍🍳', '🧑‍🔧', '👨‍🔧', '👩‍🔧', '🧑‍🏭', '👨‍🏭', '👩‍🏭', '🧑‍💼', '👨‍💼', '👩‍💼', '🧑‍🔬', '👨‍🔬', '👩‍🔬', '🧑‍💻', '👨‍💻', '👩‍💻', '🧑‍🎤', '👨‍🎤', '👩‍🎤', '🧑‍🎨', '👨‍🎨', '👩‍🎨', '🧑‍✈️', '👨‍✈️', '👩‍✈️', '🧑‍🚀', '👨‍🚀', '👩‍🚀', '🧑‍🚒', '👨‍🚒', '👩‍🚒', '👮', '👮‍♂️', '👮‍♀️', '🕵️', '🕵️‍♂️', '🕵️‍♀️', '💂', '💂‍♂️', '💂‍♀️', '🥷', '👷', '👷‍♂️', '👷‍♀️', '🤴', '👸', '👳', '👳‍♂️', '👳‍♀️', '👲', '🧕', '🤵', '👰', '🤰', '🤱', '👼', '🎅', '🤶', '🦸', '🦸‍♂️', '🦸‍♀️', '🦹', '🦹‍♂️', '🦹‍♀️', '🧙', '🧙‍♂️', '🧙‍♀️', '🧚', '🧚‍♂️', '🧚‍♀️', '🧛', '🧛‍♂️', '🧛‍♀️', '🧜', '🧜‍♂️', '🧜‍♀️', '🧝', '🧝‍♂️', '🧝‍♀️', '🧞', '🧞‍♂️', '🧞‍♀️', '🧟', '🧟‍♂️', '🧟‍♀️', '🧌', '💆', '💆‍♂️', '💆‍♀️', '💇', '💇‍♂️', '💇‍♀️', '🚶', '🚶‍♂️', '🚶‍♀️', '🧍', '🧍‍♂️', '🧍‍♀️', '🧎', '🧎‍♂️', '🧎‍♀️', '🏃', '🏃‍♂️', '🏃‍♀️', '💃', '🕺', '🕴️', '👯', '👯‍♂️', '👯‍♀️', '🧘', '🧘‍♂️', '🧘‍♀️', '🧗', '🧗‍♂️', '🧗‍♀️', '🤺', '🏇', '⛷️', '🏂', '🏌️', '🏌️‍♂️', '🏌️‍♀️', '🏄', '🏄‍♂️', '🏄‍♀️', '🚣', '🚣‍♂️', '🚣‍♀️', '🏊', '🏊‍♂️', '🏊‍♀️', '⛹️', '⛹️‍♂️', '⛹️‍♀️', '🏋️', '🏋️‍♂️', '🏋️‍♀️', '🚴', '🚴‍♂️', '🚴‍♀️', '🚵', '🚵‍♂️', '🚵‍♀️', '🤸', '🤸‍♂️', '🤸‍♀️', '🤼', '🤼‍♂️', '🤼‍♀️', '🤽', '🤽‍♂️', '🤽‍♀️', '🤾', '🤾‍♂️', '🤾‍♀️', '🤹', '🤹‍♂️', '🤹‍♀️', '🧘', '🧘‍♂️', '🧘‍♀️', '🛀', '🛌', '👭', '👫', '👬', '💏', '💑', '👪', '👨‍👩‍👧', '👨‍👩‍👧‍👦', '👨‍👩‍👦‍👦', '👨‍👩‍👧‍👧', '👩‍👩‍👦', '👩‍👩‍👧', '👩‍👩‍👧‍👦', '👩‍👩‍👦‍👦', '👩‍👩‍👧‍👧', '👨‍👨‍👦', '👨‍👨‍👧', '👨‍👨‍👧‍👦', '👨‍👨‍👦‍👦', '👨‍👨‍👧‍👧', '👩‍👦', '👩‍👧', '👩‍👧‍👦', '👩‍👦‍👦', '👩‍👧‍👧', '👨‍👦', '👨‍👧', '👨‍👧‍👦', '👨‍👦‍👦', '👨‍👧‍👧', '👪', '👨‍👩‍👧', '👨‍👩‍👧‍👦', '👨‍👩‍👦‍👦', '👨‍👩‍👧‍👧', '👩‍👩‍👦', '👩‍👩‍👧', '👩‍👩‍👧‍👦', '👩‍👩‍👦‍👦', '👩‍👩‍👧‍👧', '👨‍👨‍👦', '👨‍👨‍👧', '👨‍👨‍👧‍👦', '👨‍👨‍👦‍👦', '👨‍👨‍👧‍👧'],
+  animals: ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐽', '🐸', '🐵', '🙈', '🙉', '🙊', '🐒', '🐔', '🐧', '🐦', '🐤', '🐣', '🐥', '🦆', '🦅', '🦉', '🦇', '🐺', '🐗', '🐴', '🦄', '🐝', '🐛', '🦋', '🐌', '🐞', '🐜', '🦟', '🦗', '🕷', '🦂', '🐢', '🐍', '🦎', '🦖', '🦕', '🐙', '🦑', '🦐', '🦞', '🦀', '🐡', '🐠', '🐟', '🐬', '🐳', '🐋', '🦈', '🐊', '🐅', '🐆', '🦓', '🦍', '🦧', '🐘', '🦛', '🦏', '🐪', '🐫', '🦒', '🦘', '🦬', '🐃', '🐂', '🐄', '🐎', '🐖', '🐏', '🐑', '🦙', '🐐', '🦌', '🐕', '🐩', '🦮', '🐕‍🦺', '🐈', '🐈‍⬛', '🪶', '🦅', '🦆', '🦢', '🦩', '🦚', '🦜', '🐓', '🦃', '🦤', '🦉', '🦅', '🦆', '🦢', '🦩', '🦚', '🦜'],
+  food: ['🍏', '🍎', '🍐', '🍊', '🍋', '🍌', '🍉', '🍇', '🍓', '🍈', '🍒', '🍑', '🥭', '🍍', '🥥', '🥝', '🍅', '🍆', '🥑', '🥦', '🥬', '🥒', '🌶', '🌽', '🥕', '🥔', '🍠', '🥐', '🥯', '🍞', '🥖', '🥨', '🧀', '🥚', '🍳', '🥞', '🥓', '🥩', '🍗', '🍖', '🦴', '🌭', '🍔', '🍟', '🍕', '🥪', '🥙', '🌮', '🌯', '🥗', '🥘', '🥫', '🍝', '🍜', '🍲', '🍛', '🍣', '🍱', '🥟', '🦪', '🍤', '🍙', '🍚', '🍘', '🍥', '🥠', '🥮', '🍢', '🍡', '🍧', '🍨', '🍦', '🥧', '🧁', '🍰', '🎂', '🍮', '🍭', '🍬', '🍫', '🍿', '🍩', '🍪', '🌰', '🥜', '🍯', '🥛', '🍼', '🫖', '☕️', '🍵', '🧃', '🥤', '🧋', '🍶', '🍺', '🍻', '🥂', '🍷', '🥃', '🍸', '🍹', '🧉', '🍾', '🧊'],
+  activity: ['⚽️', '🏀', '🏈', '⚾️', '🥎', '🎾', '🏐', '🏉', '🥏', '🎱', '🏓', '🏸', '🥅', '🏒', '🏑', '🥍', '🏏', '🥊', '🥋', '🎽', '🛹', '🛷', '⛸', '🥌', '🎿', '⛷', '🏂', '🪂', '🏋️', '🤼', '🤸', '🤺', '⛹️', '🤾', '🏌️', '🏇', '🧘', '🏄', '🏊', '🤽', '🚣', '🧗', '🚵', '🚴', '🏆', '🥇', '🥈', '🥉', '🏅', '🎖', '🏵', '🎗', '🎫', '🎟', '🎪', '🤹', '🎭', '🩰', '🎨', '🎬', '🎤', '🎧', '🎼', '🎹', '🥁', '🎷', '🎺', '🎸', '🪕', '🎻', '🎲', '♟', '🎯', '🎳', '🎮', '🎰', '🧩'],
+  travel: ['🚗', '🚕', '🚙', '🚌', '🚎', '🏎', '🚓', '🚑', '🚒', '🚐', '🛻', '🚚', '🚛', '🚜', '🛴', '🚲', '🛵', '🏍', '🛺', '🚨', '🚔', '🚍', '🚘', '🚖', '🚡', '🚠', '🚟', '🚃', '🚋', '🚞', '🚝', '🚄', '🚅', '🚈', '🚂', '🚆', '🚇', '🚊', '🚉', '✈️', '🛫', '🛬', '🛩', '💺', '🚁', '🚟', '🚠', '🚡', '🛰', '🚀', '🛸', '🛎', '🧳', '⌛️', '⏳', '⌚️', '⏰', '⏱', '⏲', '🕰', '🕛', '🕧', '🕐', '🕜', '🕑', '🕝', '🕒', '🕞', '🕓', '🕟', '🕔', '🕠', '🕕', '🕡', '🕖', '🕢', '🕗', '🕣', '🕘', '🕤', '🕙', '🕥', '🕚', '🕦', '🌑', '🌒', '🌓', '🌔', '🌕', '🌖', '🌗', '🌘', '🌙', '🌚', '🌛', '🌜', '🌡', '☀️', '🌝', '🌞', '⭐', '🌟', '🌠', '☁️', '⛅', '⛈', '🌤', '🌥', '🌦', '🌧', '🌨', '🌩', '🌪', '🌫', '🌬', '🌀', '🌈', '🌂', '☂️', '☔', '⛱', '⚡', '❄️', '☃️', '⛄', '☄️', '🔥', '💧', '🌊'],
+  objects: ['⌚️', '📱', '📲', '💻', '⌨️', '🖥', '🖨', '🖱', '🖲', '🕹', '🗜', '💾', '💿', '📀', '📼', '📷', '📸', '📹', '🎥', '📽', '🎞', '📞', '☎️', '📟', '📠', '📺', '📻', '🎙', '🎚', '🎛', '⏱', '⏲', '⏰', '🕰', '⌛️', '⏳', '📡', '🔋', '🔌', '💡', '🔦', '🕯', '🧯', '🛢', '💸', '💵', '💴', '💶', '💷', '💰', '💳', '💎', '⚖️', '🛠', '🔧', '🔨', '⚒', '🛠', '⛏', '🔩', '⚙️', '🧰', '🧲', '🔫', '💣', '🧨', '🔪', '🗡', '⚔️', '🛡', '🚬', '⚰️', '⚱️', '🏺', '🔮', '📿', '🧿', '💈', '⚗️', '🔭', '🔬', '🕳', '💊', '💉', '🧬', '🦠', '🧫', '🧪', '🌡', '🧹', '🧺', '🧻', '🚽', '🚿', '🛁', '🛀', '🧼', '🧽', '🧴', '🛎', '🔑', '🗝', '🚪', '🪑', '🛋', '🛏', '🛌', '🧸', '🖼', '🛍', '🛒', '🎁', '🎈', '🎏', '🎀', '🪄', '🪅', '🪆', '🎊', '🎉', '🎎', '🏮', '🎐', '🧧', '✉️', '📩', '📨', '📧', '💌', '📥', '📤', '📦', '🏷', '📪', '📫', '📬', '📭', '📮', '📯', '📜', '📃', '📄', '📑', '🧾', '📊', '📈', '📉', '🗒', '🗓', '📆', '📅', '🗑', '📇', '🗃', '🗳', '🗄', '📋', '📁', '📂', '🗂', '🗞', '📰', '📓', '📔', '📒', '📕', '📗', '📘', '📙', '📚', '📖', '🔖', '🧷', '🔗', '📎', '🖇', '📐', '📏', '🧮', '📌', '📍', '✂️', '🖊', '🖋', '✒️', '🖌', '🖍', '📝', '✏️', '🔍', '🔎', '🔏', '🔐', '🔒', '🔓'],
+  symbols: ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔', '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '💟', '☮️', '✝️', '☪️', '🕉', '☸️', '✡️', '🔯', '🕎', '☯️', '☦️', '🛐', '⛎', '♈️', '♉️', '♊️', '♋️', '♌️', '♍️', '♎️', '♏️', '♐️', '♑️', '♒️', '♓️', '🆔', '⚛️', '🉑', '☢️', '☣️', '📴', '📳', '🈶', '🈚️', '🈸', '🈺', '🈷️', '✴️', '🆚', '💮', '🉐', '㊙️', '㊗️', '🈴', '🈵', '🈹', '🈲', '🅰️', '🅱️', '🆎', '🆑', '🅾️', '🆘', '❌', '⭕️', '🛑', '⛔️', '📛', '🚫', '💯', '💢', '♨️', '🚷', '🚯', '🚳', '🚱', '🔞', '📵', '🚭', '❗️', '❓', '❕', '❔', '‼️', '⁉️', '🔅', '🔆', '〽️', '⚠️', '🚸', '🔱', '⚜️', '🔰', '♻️', '✅', '🈯️', '💹', '❇️', '✳️', '❎', '🌐', '💠', 'Ⓜ️', '🌀', '💤', '🏧', '🚾', '♿️', '🅿️', '🈳', '🈂️', '🛂', '🛃', '🛄', '🛅', '🚹', '🚺', '🚼', '🚻', '🚮', '🎦', '📶', '🈁', '🔣', 'ℹ️', '🔤', '🔡', '🔠', '🆖', '🆗', '🆙', '🆒', '🆕', '🆓', '0️⃣', '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟', '🔢', '▶️', '⏸', '⏯', '⏹', '⏺', '⏭', '⏮', '⏩', '⏪', '⏫', '⏬', '◀️', '🔼', '🔽', '➡️', '⬅️', '⬆️', '⬇️', '↗️', '↘️', '↙️', '↖️', '↕️', '↔️', '↪️', '↩️', '⤴️', '⤵️', '🔀', '🔁', '🔂', '🔄', '🔃', '🎵', '🎶', '➕', '➖', '➗', '✖️', '💲', '💱', '™️', '©️', '®️', '〰️', '➰', '➿', '🔚', '🔙', '🔛', '🔜', '🔝', '✔️', '☑️', '🔘', '⚪️', '⚫️', '🔴', '🔵', '🟠', '🟡', '🟢', '🟣', '🟤', '⚫️', '🔶', '🔷', '🔸', '🔹', '🔺', '🔻', '💠', '🔘', '🔳', '🔲', '▪️', '▫️', '◾️', '◽️', '◼️', '◻️', '🟥', '🟧', '🟨', '🟩', '🟦', '🟪', '🟫', '⬛️', '⬜️', '🟨', '🟩', '🟦', '🟪', '🟫'],
+  flags: ['🏳️', '🏴', '🏁', '🚩', '🏳️‍🌈', '🏳️‍⚧️', '🇦🇨', '🇦🇩', '🇦🇪', '🇦🇫', '🇦🇬', '🇦🇮', '🇦🇱', '🇦🇲', '🇦🇴', '🇦🇶', '🇦🇷', '🇦🇸', '🇦🇹', '🇦🇺', '🇦🇼', '🇦🇽', '🇦🇿', '🇧🇦', '🇧🇧', '🇧🇩', '🇧🇪', '🇧🇫', '🇧🇬', '🇧🇭', '🇧🇮', '🇧🇯', '🇧🇱', '🇧🇲', '🇧🇳', '🇧🇴', '🇧🇶', '🇧🇷', '🇧🇸', '🇧🇹', '🇧🇻', '🇧🇼', '🇧🇾', '🇧🇿', '🇨🇦', '🇨🇨', '🇨🇩', '🇨🇫', '🇨🇬', '🇨🇭', '🇨🇮', '🇨🇰', '🇨🇱', '🇨🇲', '🇨🇳', '🇨🇴', '🇨🇵', '🇨🇷', '🇨🇺', '🇨🇻', '🇨🇼', '🇨🇽', '🇨🇾', '🇨🇿', '🇩🇪', '🇩🇬', '🇩🇯', '🇩🇰', '🇩🇲', '🇩🇴', '🇩🇿', '🇪🇦', '🇪🇨', '🇪🇪', '🇪🇬', '🇪🇭', '🇪🇷', '🇪🇸', '🇪🇹', '🇪🇺', '🇫🇮', '🇫🇯', '🇫🇰', '🇫🇲', '🇫🇴', '🇫🇷', '🇬🇦', '🇬🇧', '🇬🇩', '🇬🇪', '🇬🇫', '🇬🇬', '🇬🇭', '🇬🇮', '🇬🇱', '🇬🇲', '🇬🇳', '🇬🇵', '🇬🇶', '🇬🇷', '🇬🇸', '🇬🇹', '🇬🇺', '🇬🇼', '🇬🇾', '🇭🇰', '🇭🇲', '🇭🇳', '🇭🇷', '🇭🇹', '🇭🇺', '🇮🇩', '🇮🇪', '🇮🇱', '🇮🇲', '🇮🇳', '🇮🇴', '🇮🇶', '🇮🇷', '🇮🇸', '🇮🇹', '🇯🇪', '🇯🇲', '🇯🇴', '🇯🇵', '🇰🇪', '🇰🇬', '🇰🇭', '🇰🇮', '🇰🇲', '🇰🇳', '🇰🇵', '🇰🇷', '🇰🇼', '🇰🇾', '🇰🇿', '🇱🇦', '🇱🇧', '🇱🇨', '🇱🇮', '🇱🇰', '🇱🇷', '🇱🇸', '🇱🇹', '🇱🇺', '🇱🇻', '🇱🇾', '🇲🇦', '🇲🇨', '🇲🇩', '🇲🇪', '🇲🇫', '🇲🇬', '🇲🇭', '🇲🇰', '🇲🇱', '🇲🇲', '🇲🇳', '🇲🇴', '🇲🇵', '🇲🇶', '🇲🇷', '🇲🇸', '🇲🇹', '🇲🇺', '🇲🇻', '🇲🇼', '🇲🇽', '🇲🇾', '🇲🇿', '🇳🇦', '🇳🇨', '🇳🇪', '🇳🇫', '🇳🇬', '🇳🇮', '🇳🇱', '🇳🇴', '🇳🇵', '🇳🇷', '🇳🇺', '🇳🇿', '🇴🇲', '🇵🇦', '🇵🇪', '🇵🇫', '🇵🇬', '🇵🇭', '🇵🇰', '🇵🇱', '🇵🇲', '🇵🇳', '🇵🇷', '🇵🇸', '🇵🇹', '🇵🇼', '🇵🇾', '🇶🇦', '🇷🇪', '🇷🇴', '🇷🇸', '🇷🇺', '🇷🇼', '🇸🇦', '🇸🇧', '🇸🇨', '🇸🇩', '🇸🇪', '🇸🇬', '🇸🇭', '🇸🇮', '🇸🇯', '🇸🇰', '🇸🇱', '🇸🇲', '🇸🇳', '🇸🇴', '🇸🇷', '🇸🇸', '🇸🇹', '🇸🇻', '🇸🇽', '🇸🇾', '🇸🇿', '🇹🇦', '🇹🇨', '🇹🇩', '🇹🇫', '🇹🇬', '🇹🇭', '🇹🇯', '🇹🇰', '🇹🇱', '🇹🇲', '🇹🇳', '🇹🇴', '🇹🇷', '🇹🇹', '🇹🇻', '🇹🇼', '🇹🇿', '🇺🇦', '🇺🇬', '🇺🇲', '🇺🇸', '🇺🇾', '🇺🇿', '🇻🇦', '🇻🇨', '🇻🇪', '🇻🇬', '🇻🇮', '🇻🇳', '🇻🇺', '🇼🇫', '🇼🇸', '🇽🇰', '🇾🇪', '🇾🇹', '🇿🇦', '🇿🇲', '🇿🇼', '🏴‍☠️'],
+};
+
+// 카테고리 아이콘
+const CATEGORY_ICONS: Record<EmojiCategory, string> = {
+  recent: '⏰',
+  people: '😊',
+  animals: '🐻',
+  food: '🍔',
+  activity: '⚽️',
+  travel: '🏙️',
+  objects: '💡',
+  symbols: '🎶',
+  flags: '🚩',
+};
+
+// 카테고리 라벨
+const CATEGORY_LABELS: Record<EmojiCategory, string> = {
+  recent: '최근',
+  people: '표정 및 사람',
+  animals: '동물 및 자연',
+  food: '음식 및 음료',
+  activity: '활동',
+  travel: '여행 및 장소',
+  objects: '사물',
+  symbols: '기호',
+  flags: '깃발',
+};
+
+export default function CategoryEditScreen() {
+  const colors = Colors.light;
+  const router = useRouter();
+  const params = useLocalSearchParams<{ type?: string; emoji?: string; label?: string }>();
+  const insets = useSafeAreaInsets();
+  
+  const categoryType = (params.type as CategoryType) || 'expense';
+  const originalEmoji = params.emoji || '✅';
+  const originalLabel = params.label || '';
+  
+  const [categoryName, setCategoryName] = useState(originalLabel);
+  const [selectedEmoji, setSelectedEmoji] = useState(originalEmoji);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<EmojiCategory>('recent');
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [emojiVersion, setEmojiVersion] = useState(0);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [emojiGridReady, setEmojiGridReady] = useState(false);
+  const [pendingScrollCategory, setPendingScrollCategory] = useState<EmojiCategory | null>(null);
+  const emojiScrollViewRef = useRef<FlashListRef<{ category: EmojiCategory; columns: string[][] }> | null>(null);
+  const [emojiPickerMounted, setEmojiPickerMounted] = useState(false);
+  
+  // 카테고리 타입에 따라 타이틀 설정
+  const title = categoryType === 'expense' ? '지출 카테고리 편집' : '수입 카테고리 편집';
+  
+  // 이모지 피커를 첫 화면 진입 시 미리 마운트 (백그라운드에서)
+  useEffect(() => {
+    // 화면이 마운트되면 즉시 이모지 피커를 백그라운드에 마운트
+    setEmojiPickerMounted(true);
+  }, []);
+  
+  const handleBack = () => {
+    router.back();
+  };
+  
+  const handleEmojiPress = () => {
+    setShowEmojiPicker(true);
+    setSelectedCategory('recent');
+    setEmojiGridReady(true);
+    setPendingScrollCategory('recent');
+  };
+  
+  const handleEmojiSelect = (emoji: string) => {
+    setSelectedEmoji(emoji);
+    setShowEmojiPicker(false);
+    
+    // 최근 사용한 이모지를 recent 카테고리에 추가
+    if (!EMOJI_CATEGORIES.recent.includes(emoji)) {
+      EMOJI_CATEGORIES.recent.unshift(emoji);
+      if (EMOJI_CATEGORIES.recent.length > 20) {
+        EMOJI_CATEGORIES.recent.pop();
+      }
+      setEmojiVersion((v) => v + 1);
+    }
+  };
+  
+  const handleCategorySelect = (category: EmojiCategory) => {
+    setSelectedCategory(category);
+    const index = visibleEmojiCategories.findIndex((item) => item.category === category);
+    if (index >= 0) {
+      if (!emojiGridReady || !emojiScrollViewRef.current) {
+        if (!emojiGridReady) {
+          setEmojiGridReady(true);
+        }
+        setPendingScrollCategory(category);
+        return;
+      }
+      emojiScrollViewRef.current.scrollToIndex({
+        index,
+        animated: false,
+      });
+    }
+  };
+  
+  const getCurrentEmojis = () => {
+    return EMOJI_CATEGORIES[selectedCategory];
+  };
+  
+  // 모든 카테고리의 이모지를 열 단위로 나누기
+  const allEmojiCategories = useMemo(() => {
+    const rowsPerColumn = Math.ceil(264 / 48); // 264px 높이에 맞는 행 수 (48px = EMOJI_ITEM_SIZE)
+    const columnGap = 8; // 열 간 여백
+    const categories: Array<{ category: EmojiCategory; columns: string[][] }> = [];
+    const categoryKeys = Object.keys(EMOJI_CATEGORIES) as EmojiCategory[];
+    
+    categoryKeys.forEach((category) => {
+      const emojis = EMOJI_CATEGORIES[category];
+      const columns: string[][] = [];
+      
+      // 열 수 계산
+      const numColumns = Math.ceil(emojis.length / rowsPerColumn);
+      
+      // 각 열에 이모지 배치 (위에서 아래로 채우고, 한 열이 가득 차면 다음 열로)
+      for (let col = 0; col < numColumns; col++) {
+        const column: string[] = [];
+        for (let row = 0; row < rowsPerColumn; row++) {
+          const emojiIndex = col * rowsPerColumn + row;
+          if (emojiIndex < emojis.length) {
+            column.push(emojis[emojiIndex]);
+          }
+        }
+        if (column.length > 0) {
+          columns.push(column);
+        }
+      }
+      
+      categories.push({
+        category,
+        columns,
+      });
+    });
+    
+    return categories;
+  }, [emojiVersion]);
+  const visibleEmojiCategories = allEmojiCategories;
+
+  // 카테고리 폭/오프셋 캐시 (고정 폭 힌트)
+  const categoryLayouts = useMemo(() => {
+    const layouts: Array<{ size: number; offset: number }> = [];
+    let offset = 0;
+    visibleEmojiCategories.forEach((item, index) => {
+      const columns = item.columns.length;
+      const sectionWidth = columns * 48; // 열 간 가로 gap 없음
+      const gap = index < visibleEmojiCategories.length - 1 ? 8 : 0; // emojiGridContent gap
+      const size = sectionWidth + gap;
+      layouts.push({ size, offset });
+      offset += size;
+    });
+    return layouts;
+  }, [visibleEmojiCategories]);
+  useEffect(() => {
+    if (!emojiGridReady || !pendingScrollCategory || !emojiScrollViewRef.current) {
+      return;
+    }
+    const index = visibleEmojiCategories.findIndex((item) => item.category === pendingScrollCategory);
+    if (index >= 0) {
+      emojiScrollViewRef.current.scrollToIndex({
+        index,
+        animated: false,
+      });
+    }
+    setPendingScrollCategory(null);
+  }, [emojiGridReady, pendingScrollCategory, visibleEmojiCategories]);
+  
+  const handleUpdate = async () => {
+    // 유효성 검사
+    if (!categoryName.trim()) {
+      setToastMessage('카테고리 이름을 입력해주세요.');
+      setToastVisible(true);
+      return;
+    }
+    
+    // 중복 체크 (현재 카테고리 이름은 제외)
+    try {
+      const existingCategories = await loadUserCategories(categoryType);
+      const builtInCategories = getCategoriesByType(categoryType);
+      const allCategories = [...builtInCategories, ...existingCategories];
+      
+      const isDuplicate = allCategories.some(
+        cat => cat.label === categoryName.trim() && cat.label !== originalLabel
+      );
+      
+      if (isDuplicate) {
+        setToastMessage('이미 해당 카테고리의 이름이 존재합니다.');
+        setToastVisible(true);
+        return;
+      }
+      
+      const oldCategory = {
+        emoji: originalEmoji,
+        label: originalLabel,
+        type: categoryType,
+      };
+      
+      const newCategory = {
+        emoji: selectedEmoji,
+        label: categoryName.trim(),
+        type: categoryType,
+      };
+      
+      // 내장 카테고리인지 확인
+      const isBuiltIn = builtInCategories.some(
+        cat => cat.label === originalLabel
+      );
+      
+      if (isBuiltIn) {
+        // 내장 카테고리를 편집하면 사용자 카테고리로 추가
+        await addUserCategory(newCategory);
+      } else {
+        // 사용자 카테고리는 업데이트
+        await updateUserCategory(oldCategory, newCategory);
+      }
+      
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      
+      // 이전 화면으로 돌아가기
+      router.back();
+    } catch (error) {
+      console.error('카테고리 업데이트 실패:', error);
+      setToastMessage(error instanceof Error ? error.message : '카테고리 업데이트에 실패했습니다.');
+      setToastVisible(true);
+    }
+  };
+  
+  const handleDeletePress = () => {
+    // 내장 카테고리는 삭제할 수 없음
+    const builtInCategories = getCategoriesByType(categoryType);
+    const isBuiltIn = builtInCategories.some(
+      cat => cat.label === originalLabel
+    );
+    
+    if (isBuiltIn) {
+      setToastMessage('기본 카테고리는 삭제할 수 없습니다.');
+      setToastVisible(true);
+      return;
+    }
+    
+    // 컨펌 얼럿뷰 표시
+    setShowDeleteConfirm(true);
+  };
+  
+  const handleDeleteConfirm = async () => {
+    try {
+      const category = {
+        emoji: originalEmoji,
+        label: originalLabel,
+        type: categoryType,
+      };
+      
+      // 1. 관련 챌린지 삭제
+      const allChallenges = await getAllChallenges();
+      const relatedChallenges = allChallenges.filter(
+        challenge => challenge.category === originalLabel && !challenge.isDeleted
+      );
+      
+      for (const challenge of relatedChallenges) {
+        await softDeleteChallengesByRecurringId(challenge.recurringId);
+      }
+      
+      // 2. 관련 소비기록 삭제 (calendarData에서)
+      const storedData = await AsyncStorage.getItem('calendarData');
+      if (storedData) {
+        const calendarData = JSON.parse(storedData);
+        let hasChanges = false;
+        
+        Object.keys(calendarData).forEach(dateKey => {
+          if (calendarData[dateKey]?.records) {
+            const originalLength = calendarData[dateKey].records.length;
+            calendarData[dateKey].records = calendarData[dateKey].records.filter(
+              (record: any) => !(record.type === 'expense' && record.category === originalLabel)
+            );
+            
+            if (calendarData[dateKey].records.length !== originalLength) {
+              hasChanges = true;
+              
+              // 총액 재계산
+              let totalExpense = 0;
+              let totalIncome = 0;
+              calendarData[dateKey].records.forEach((record: any) => {
+                if (record?.type === 'expense' && record?.isRefunded !== true) {
+                  totalExpense += record?.amount || 0;
+                } else if (record?.type === 'income') {
+                  totalIncome += record?.amount || 0;
+                }
+              });
+              
+              calendarData[dateKey].totalExpense = totalExpense;
+              calendarData[dateKey].totalIncome = totalIncome;
+              
+              // 기록이 없고 입금도 없으면 날짜 키 삭제
+              if (calendarData[dateKey].records.length === 0 && totalIncome === 0) {
+                delete calendarData[dateKey];
+              }
+            }
+          }
+        });
+        
+        if (hasChanges) {
+          await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
+        }
+      }
+      
+      // 3. 카테고리 삭제
+      await deleteUserCategory(category);
+      
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      
+      // 컨펌 얼럿뷰 닫기
+      setShowDeleteConfirm(false);
+      
+      // 이전 화면으로 돌아가기
+      router.back();
+    } catch (error) {
+      console.error('카테고리 삭제 실패:', error);
+      setToastMessage(error instanceof Error ? error.message : '카테고리 삭제에 실패했습니다.');
+      setToastVisible(true);
+      setShowDeleteConfirm(false);
+    }
+  };
+  
+  const handleDeleteCancel = () => {
+    setShowDeleteConfirm(false);
+  };
+  
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+      <StatusBar barStyle="dark-content" />
+      
+      {/* Top Navigation */}
+      <TopNavigation
+        type="sub"
+        title={title}
+        showLeftIcon
+        onLeftIconPress={handleBack}
+      />
+      
+      {/* Content */}
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <View style={[styles.content, { backgroundColor: colors.fill }]}>
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Emoji Selection */}
+            <View style={styles.emojiSection}>
+              <Pressable
+                style={[styles.emojiButton, { borderColor: colors.border }]}
+                onPress={handleEmojiPress}
+                accessibilityRole="button"
+                accessibilityLabel="이모지 선택"
+              >
+                <Text style={styles.emojiText}>{selectedEmoji}</Text>
+              </Pressable>
+            </View>
+            
+            {/* Category Name Input */}
+            <View style={styles.inputSection}>
+              <View style={styles.inputHeader}>
+                <Text style={[styles.label, { color: colors.text }]}>
+                  카테고리 이름
+                </Text>
+                <Pressable
+                  onPress={handleDeletePress}
+                  accessibilityRole="button"
+                  accessibilityLabel="카테고리 삭제"
+                >
+                  <Text style={styles.deleteText}>삭제</Text>
+                </Pressable>
+              </View>
+              <Input
+                value={categoryName}
+                onChangeText={setCategoryName}
+                placeholder="이름 입력"
+                style={styles.input}
+                autoFocus={false}
+                maxLength={20}
+              />
+            </View>
+          </ScrollView>
+        </View>
+      </TouchableWithoutFeedback>
+      
+      {/* 하단 고정 버튼 */}
+      <View style={[
+        styles.bottomButtonContainer, 
+        { 
+          backgroundColor: colors.staticWhite,
+          paddingBottom: insets.bottom || 34,
+        }
+      ]}>
+        <Button onPress={handleUpdate}>
+          저장
+        </Button>
+      </View>
+      
+      {/* Emoji Picker Modal - 미리 마운트해두고 visible만 토글 */}
+      {emojiPickerMounted && (
+        <ModalBottomsheet
+          visible={showEmojiPicker}
+          title="카테고리 이모지 선택"
+          onClose={() => setShowEmojiPicker(false)}
+          contentStyle={styles.emojiPickerContent}
+          noPaddingBottom={true}
+        >
+        <View style={styles.emojiPickerContainer}>
+          <View style={styles.emojiPickerContentWrapper}>
+            {/* 왼쪽 카테고리 세로 리스트 */}
+            <View style={styles.categoryListContainer}>
+              <ScrollView
+                style={styles.categoryListScroll}
+                contentContainerStyle={styles.categoryListScrollContent}
+                showsVerticalScrollIndicator={false}
+                bounces={false}
+              >
+                {(Object.keys(EMOJI_CATEGORIES) as EmojiCategory[]).map((category) => (
+                  <Pressable
+                    key={category}
+                    style={[
+                      styles.categoryListItem,
+                      selectedCategory === category && styles.categoryListItemActive,
+                    ]}
+                    onPress={() => handleCategorySelect(category)}
+                    accessibilityRole="button"
+                    accessibilityLabel={CATEGORY_LABELS[category]}
+                  >
+                    <Text 
+                      style={[
+                        styles.categoryListItemText,
+                        selectedCategory === category && styles.categoryListItemTextActive,
+                      ]}
+                    >
+                      {CATEGORY_LABELS[category]}
+                    </Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+            
+            {/* 오른쪽 이모지 그리드 */}
+            <View style={{ width: '100%', height: 264 }}>
+            {emojiGridReady ? (
+              <FlashList<{ category: EmojiCategory; columns: string[][] }>
+                ref={emojiScrollViewRef}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                bounces={false}
+                data={visibleEmojiCategories}
+                contentContainerStyle={styles.emojiGridContent}
+                keyExtractor={(item) => item.category}
+                overrideItemLayout={(layout, _item, index) => {
+                  const info = categoryLayouts[index];
+                  const layoutAny = layout as unknown as { size: number; offset: number };
+                  layoutAny.size = info?.size ?? 0;
+                  layoutAny.offset = info?.offset ?? 0;
+                }}
+                renderItem={({ item: categoryData, index }) => (
+                  <View
+                    style={[
+                      styles.categorySection,
+                      // gap은 contentContainerStyle.gap(8)로 처리
+                    ]}
+                  >
+                    {categoryData.columns.map((column, colIndex) => (
+                      <View key={`${categoryData.category}-column-${colIndex}`} style={styles.emojiColumn}>
+                        {column.map((emoji, rowIndex) => (
+                          <Pressable
+                            key={`${categoryData.category}-${colIndex}-${rowIndex}`}
+                            style={styles.emojiItem}
+                            onPress={() => handleEmojiSelect(emoji)}
+                            accessibilityRole="button"
+                            accessibilityLabel={`이모지 ${emoji} 선택`}
+                          >
+                            <Text style={styles.emojiItemText}>{emoji}</Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    ))}
+                  </View>
+                )}
+              />
+            ) : null}
+              {!emojiGridReady && (
+                <View style={[styles.emojiGrid, styles.emojiGridSkeleton, { position: 'absolute', top: 0, left: 0 }]}>
+                  <ActivityIndicator />
+                </View>
+              )}
+            </View>
+          </View>
+          
+          {/* 홈 인디케이터 영역 */}
+          <View style={[styles.homeIndicatorContainer, { height: insets.bottom || 34 }]} />
+        </View>
+      </ModalBottomsheet>
+      )}
+      
+      {/* Delete Confirm Modal */}
+      <ModalPopup
+        visible={showDeleteConfirm}
+        confirmText="확인"
+        cancelText="취소"
+        onConfirm={handleDeleteConfirm}
+        onCancel={handleDeleteCancel}
+        closeOnBackdrop={true}
+        backdropInteractive={true}
+      >
+        <Text style={[styles.modalText, { color: colors.text }]}>
+          해당 카테고리에{'\n'}
+          설정된 기록들은 자동으로 삭제됩니다.{'\n'}
+          삭제하시겠어요 ?
+        </Text>
+      </ModalPopup>
+      
+      {/* Toast */}
+      <Toast
+        visible={toastVisible}
+        message={toastMessage}
+        onHide={() => setToastVisible(false)}
+      />
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  content: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 16,
+    paddingBottom: 16,
+  },
+  bottomButtonContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
+  emojiSection: {
+    alignItems: 'center',
+    marginTop: 24,
+    marginBottom: 32,
+  },
+  emojiButton: {
+    width: 128,
+    height: 128,
+    borderRadius: 96,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.light.staticWhite,
+  },
+  emojiText: {
+    fontSize: 40,
+    lineHeight: 48,
+  },
+  inputSection: {
+    marginBottom: 24,
+  },
+  inputHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  label: {
+    ...Typography.body1.l.bold,
+  },
+  input: {
+    marginTop: 0,
+  },
+  deleteText: {
+    ...Typography.body1.l.regular,
+    color: '#ef2a2a',
+  },
+  emojiPickerContent: {
+    padding: 8,
+  },
+  emojiPickerContainer: {
+    backgroundColor: Colors.light.staticWhite,
+  },
+  emojiPickerContentWrapper: {
+    height: 264,
+    flexDirection: 'row',
+  },
+  categoryListContainer: {
+    width: 92,
+    overflow: 'hidden',
+    marginRight: 16,
+  },
+  categoryListScroll: {
+    height: 264,
+  },
+  categoryListScrollContent: {
+    paddingTop: 0,
+  },
+  categoryListItem: {
+    height: 37,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+    paddingLeft: 12,
+    backgroundColor: Colors.light.staticWhite,
+    marginVertical: 2,
+  },
+  categoryListItemActive: {
+    backgroundColor: '#ededed',
+  },
+  categoryListItemText: {
+    ...Typography.body1.l.regular,
+    color: Colors.light.text,
+  },
+  categoryListItemTextActive: {
+    color: Colors.light.text,
+  },
+  emojiGrid: {
+    height: 264,
+    width: '100%',
+  },
+  emojiGridSkeleton: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+  },
+  emojiGridContent: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  categorySection: {
+    flexDirection: 'row',
+  },
+  emojiColumn: {
+    flexDirection: 'column',
+    gap: 8,
+  },
+  emojiItem: {
+    width: 48,
+    height: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emojiItemText: {
+    fontSize: 40,
+    lineHeight: 48,
+  },
+  homeIndicatorContainer: {
+    width: '100%',
+  },
+  modalText: {
+    ...Typography.body1.l.regular,
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+});
+

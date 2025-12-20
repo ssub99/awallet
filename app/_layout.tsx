@@ -1,21 +1,22 @@
-import * as SplashScreen from 'expo-splash-screen';
-import * as Updates from 'expo-updates';
-import Constants from 'expo-constants';
 import { GlobalProgressBar } from '@/components/ui/global-progress-bar';
 import { Colors } from '@/constants/theme';
 import { AppDataProvider } from '@/contexts/app-data-context';
 import { LoadingProvider } from '@/contexts/loading-context';
+import Constants from 'expo-constants';
+import * as SplashScreen from 'expo-splash-screen';
+import * as Updates from 'expo-updates';
 // useColorScheme import 제거 - OS 강제 다크 모드 영향 방지를 위해 항상 'light' 사용
 import { useFirstLaunchNotificationPermission } from '@/hooks/use-notifications';
+import { enableDebugMode, logEvent, setAnalyticsCollectionEnabled } from '@/utils/analytics';
 import { checkActiveChallengesNotifications, checkEndedChallenges } from '@/utils/challenge-utils';
 import { cleanupOldSchedules, setupDailyReminder } from '@/utils/notification-scheduler';
-import { enableDebugMode, logEvent, setAnalyticsCollectionEnabled } from '@/utils/analytics';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState, useCallback, useLayoutEffect } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import { View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 
@@ -174,35 +175,40 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <LoadingProvider>
-      <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-      <View style={{ flex: 1, backgroundColor: colors.background }} onLayout={onLayoutRootView}>
-        <ThemeProvider value={DefaultTheme}>
-          <AppDataProvider enabled={appIsReady && splashFinished}>
-            {appIsReady ? (
-              <>
-                <Stack>
-                  <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                  <Stack.Screen name="(dev-tabs)" options={{ headerShown: false }} />
-                  <Stack.Screen name="expense-category" options={{ headerShown: false }} />
-                  <Stack.Screen name="expense-record" options={{ headerShown: false }} />
-                  <Stack.Screen name="expense-edit" options={{ headerShown: false }} />
-                  <Stack.Screen name="income-record" options={{ headerShown: false }} />
-                  <Stack.Screen name="income-edit" options={{ headerShown: false }} />
-                  <Stack.Screen name="challenge-create" options={{ headerShown: false }} />
-                  <Stack.Screen name="challenge-edit" options={{ headerShown: false }} />
-                  <Stack.Screen name="monthly-expense-timeline" options={{ headerShown: false }} />
-                  <Stack.Screen name="month-start-day" options={{ headerShown: false }} />
-                  <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-                </Stack>
-                <StatusBar style="dark" />
-                <GlobalProgressBar />
-              </>
-            ) : null}
-          </AppDataProvider>
-        </ThemeProvider>
-      </View>
-      </SafeAreaProvider>
-    </LoadingProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <LoadingProvider>
+        <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+        <View style={{ flex: 1, backgroundColor: colors.background }} onLayout={onLayoutRootView}>
+          <ThemeProvider value={DefaultTheme}>
+            <AppDataProvider enabled={appIsReady && splashFinished}>
+              {appIsReady ? (
+                <>
+                  <Stack>
+                    <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                    <Stack.Screen name="(dev-tabs)" options={{ headerShown: false }} />
+                    <Stack.Screen name="expense-category" options={{ headerShown: false }} />
+                    <Stack.Screen name="expense-record" options={{ headerShown: false }} />
+                    <Stack.Screen name="expense-edit" options={{ headerShown: false }} />
+                    <Stack.Screen name="income-record" options={{ headerShown: false }} />
+                    <Stack.Screen name="income-edit" options={{ headerShown: false }} />
+                    <Stack.Screen name="challenge-create" options={{ headerShown: false }} />
+                    <Stack.Screen name="challenge-edit" options={{ headerShown: false }} />
+                    <Stack.Screen name="monthly-expense-timeline" options={{ headerShown: false }} />
+                    <Stack.Screen name="month-start-day" options={{ headerShown: false }} />
+                    <Stack.Screen name="category-setting" options={{ headerShown: false }} />
+                    <Stack.Screen name="category-create" options={{ headerShown: false }} />
+                    <Stack.Screen name="category-edit" options={{ headerShown: false }} />
+                    <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+                  </Stack>
+                  <StatusBar style="dark" />
+                  <GlobalProgressBar />
+                </>
+              ) : null}
+            </AppDataProvider>
+          </ThemeProvider>
+        </View>
+        </SafeAreaProvider>
+      </LoadingProvider>
+    </GestureHandlerRootView>
   );
 }

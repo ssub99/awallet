@@ -360,7 +360,7 @@ export default function MyPageScreen() {
           <View style={[styles.card, { backgroundColor: colors.background }]}>
             {/* Month Start Day */}
             <Pressable 
-              style={styles.settingRow}
+              style={[styles.settingRow, { height: 56 }]}
               onPress={handleMonthStartDayPress}
               accessibilityRole="button"
               accessibilityLabel="월 시작일 설정"
@@ -377,26 +377,61 @@ export default function MyPageScreen() {
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
             {/* Week Start Sunday */}
-            <View style={styles.settingRow}>
+            <View style={[styles.settingRow, { height: 56 }]}>
               <Text style={[styles.settingLabel, { color: colors.text }]}>
                 한주 일요일 시작
               </Text>
-              <Switch 
-                value={weekStartsSunday}
-                onValueChange={handleWeekStartChange}
-              />
+              <View style={styles.settingValue}>
+                <Switch 
+                  value={weekStartsSunday}
+                  onValueChange={handleWeekStartChange}
+                />
+              </View>
             </View>
 
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
             {/* Notifications */}
-            <View style={styles.settingRow}>
+            <View style={[styles.settingRow, { height: 56 }]}>
               <Text style={[styles.settingLabel, { color: colors.text }]}>알림 설정</Text>
-              <Switch 
-                value={notificationsEnabled}
-                onValueChange={handleNotificationsChange}
-              />
+              <View style={styles.settingValue}>
+                <Switch 
+                  value={notificationsEnabled}
+                  onValueChange={handleNotificationsChange}
+                />
+              </View>
             </View>
+          </View>
+
+          {/* Category Settings Card */}
+          <View style={[styles.card, { backgroundColor: colors.background }]}>
+            {/* Income Category Settings */}
+            <Pressable 
+              style={styles.menuRow}
+              onPress={() => {
+                router.push('/category-setting?type=income');
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="수입 카테고리 설정"
+            >
+              <Text style={[styles.menuLabel, { color: colors.text }]}>수입 카테고리 설정</Text>
+              <Icon name="arrowRight" size={24} color={colors.text} />
+            </Pressable>
+
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+            {/* Expense Category Settings */}
+            <Pressable 
+              style={styles.menuRow}
+              onPress={() => {
+                router.push('/category-setting?type=expense');
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="지출 카테고리 설정"
+            >
+              <Text style={[styles.menuLabel, { color: colors.text }]}>지출 카테고리 설정</Text>
+              <Icon name="arrowRight" size={24} color={colors.text} />
+            </Pressable>
           </View>
 
           {/* Inquiry & Review Card */}
@@ -522,7 +557,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 16,
     paddingHorizontal: 16,
-    minHeight: 56,
+    height: 56,
   },
   settingLabel: {
     ...Typography.body1.l.regular,

@@ -11,21 +11,20 @@ import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Toast } from '@/components/ui/toast';
-import { EXPENSE_CATEGORIES } from '@/constants/categories';
+import { getExpenseCategories } from '@/constants/categories';
 import { Colors, Typography } from '@/constants/theme';
 import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
-import { getCustomMonthInfo } from '@/utils/custom-month';
-import { createChallenges, getAllChallenges, type ChallengeRecord } from '@/utils/challenges';
-import { generateRecordId, generateGroupId } from '@/utils/id-generator';
 import { getChallengeStatus } from '@/utils/challenge-utils';
-import { notifyChallengeSuccess, notifyChallengeProgress, notifyChallengeFailure, cancelChallengeProgressNotifications } from '@/utils/notification-scheduler';
-import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
+import { createChallenges, getAllChallenges, type ChallengeRecord } from '@/utils/challenges';
+import { generateGroupId, generateRecordId } from '@/utils/id-generator';
+import { cancelChallengeProgressNotifications, notifyChallengeFailure, notifyChallengeProgress, notifyChallengeSuccess } from '@/utils/notification-scheduler';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Keyboard, Pressable, ScrollView, StatusBar, StyleSheet, Text, TouchableWithoutFeedback, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function ChallengeCreateScreen() {
   const colorScheme = useColorScheme();
@@ -161,7 +160,8 @@ export default function ChallengeCreateScreen() {
 
   // 카테고리명에 이모지 추가하는 함수
   const getCategoryWithEmoji = (categoryName: string) => {
-    const category = EXPENSE_CATEGORIES.find(cat => cat.label === categoryName);
+    const expenseCategories = getExpenseCategories();
+    const category = expenseCategories.find(cat => cat.label === categoryName);
     return category ? `${category.emoji} ${categoryName}` : categoryName;
   };
 
@@ -430,7 +430,6 @@ export default function ChallengeCreateScreen() {
               unit="원"
               value={targetAmount}
               onChangeText={handleAmountChange}
-              keyboardType="numeric"
               placeholder="0"
               textAlign="right"
             />

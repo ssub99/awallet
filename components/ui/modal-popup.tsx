@@ -204,7 +204,7 @@ export function ModalPopup({
       </Animated.View>
 
       {/* Modal Content */}
-      <View style={styles.container} pointerEvents={backdropInteractive ? 'auto' : 'none'}>
+      <View style={styles.container} pointerEvents={backdropInteractive ? 'box-none' : 'none'}>
         <Animated.View
           style={[
             styles.modal,
@@ -215,6 +215,7 @@ export function ModalPopup({
             },
             style,
           ]}
+          pointerEvents="auto"
         >
           {/* Title (Optional) */}
           {title && (
