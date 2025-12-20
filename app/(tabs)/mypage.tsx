@@ -259,46 +259,23 @@ export default function MyPageScreen() {
       let url = '';
       
       if (Platform.OS === 'ios') {
-        // iOS App Store review URL
-        if (__DEV__) {
-          // Development: Open Expo Go app review page
-          const EXPO_GO_APP_ID = '982107779';
-          url = `https://apps.apple.com/app/id${EXPO_GO_APP_ID}?action=write-review`;
-
-        } else {
-          // Production: Open AWallet app review page
-          // TODO: Replace with actual App Store Connect ID when app is published
-          const APP_ID = 'YOUR_APP_STORE_ID';
-          url = `https://apps.apple.com/app/id${APP_ID}?action=write-review`;
-        }
+        // iOS App Store review URL - Always use AWallet app ID
+        const APP_ID = '6755246069';
+        url = `https://apps.apple.com/app/id${APP_ID}?action=write-review`;
       } else if (Platform.OS === 'android') {
-        if (__DEV__) {
-          // Development: Open Expo Go app review page
-          const EXPO_GO_PACKAGE = 'host.exp.exponent';
-          url = `market://details?id=${EXPO_GO_PACKAGE}`;
-
-          // Fallback to web URL if Play Store app is not available
-          const canOpen = await Linking.canOpenURL(url);
-          if (!canOpen) {
-            url = `https://play.google.com/store/apps/details?id=${EXPO_GO_PACKAGE}`;
-          }
-        } else {
-          // Production: Open AWallet app review page
-          const PACKAGE_NAME = 'com.ssong.awallet';
-          url = `market://details?id=${PACKAGE_NAME}`;
-          
-          const canOpen = await Linking.canOpenURL(url);
-          if (!canOpen) {
-            url = `https://play.google.com/store/apps/details?id=${PACKAGE_NAME}`;
-          }
+        // Android Play Store review URL - Always use AWallet package name
+        const PACKAGE_NAME = 'com.ssong.awallet';
+        url = `market://details?id=${PACKAGE_NAME}`;
+        
+        const canOpen = await Linking.canOpenURL(url);
+        if (!canOpen) {
+          url = `https://play.google.com/store/apps/details?id=${PACKAGE_NAME}`;
         }
       } else {
         // Web or other platforms
         Alert.alert(
           '리뷰 작성',
-          __DEV__ 
-            ? 'Expo Go 앱 스토어 페이지로 이동합니다.'
-            : '앱 스토어에서 AWallet을 검색하여 리뷰를 남겨주세요!',
+          '앱 스토어에서 AWallet을 검색하여 리뷰를 남겨주세요!',
           [{ text: '확인' }]
         );
         return;
