@@ -2248,7 +2248,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         calendarData[dateKey].records.push({
           ...income,
           type: 'income',
-          category: '💰 입금',
+          category: income.category ?? '수입',
         });
         calendarData[dateKey].totalIncome += income.amount || 0;
       });

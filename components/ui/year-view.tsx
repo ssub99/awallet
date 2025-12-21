@@ -13,7 +13,7 @@ import * as Haptics from 'expo-haptics';
 
 export interface MonthData {
   month: number; // 1-12
-  income: number; // 입금 금액
+  income: number; // 수입 금액
   expense: number; // 소비 금액
 }
 
@@ -112,7 +112,7 @@ interface MonthCardProps {
 }
 
 function MonthCard({ data, colors, onPress }: MonthCardProps) {
-  // 입금대비 소비율 계산
+  // 수입대비 소비율 계산
   const calculateRatio = (): number => {
     if (data.income === 0) return 0;
     return (data.expense / data.income) * 100;
@@ -121,10 +121,10 @@ function MonthCard({ data, colors, onPress }: MonthCardProps) {
   const ratio = calculateRatio();
   const hasIncome = data.income > 0;
 
-  // 상태 판단 (입금 금액 기준)
+  // 상태 판단 (수입 금액 기준)
   const getStatus = () => {
     if (!hasIncome) {
-      // 입금 금액 없음 → NONE
+      // 수입 금액 없음 → NONE
       return { emoji: '🗑️', text: 'NONE', color: '#9E9E9E', textColor: '#f5f5f5' };
     }
     if (ratio <= 100) {
@@ -167,10 +167,10 @@ function MonthCard({ data, colors, onPress }: MonthCardProps) {
 
       {/* 정보 */}
       <View style={styles.cardInfo}>
-        {/* 입금대비 소비율 */}
+        {/* 수입대비 소비율 */}
         <View style={styles.infoLeft}>
           <Text style={[styles.infoLabel, { color: status.textColor }]}>
-            입금대비 소비율
+            수입대비 소비율
           </Text>
           <Text style={styles.infoValue}>
             {hasIncome ? formatRatio(ratio) : '0%'}

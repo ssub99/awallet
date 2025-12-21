@@ -57,8 +57,8 @@ export const EXPENSE_CATEGORIES: Category[] = [
  * Income Categories (새로 추가되는 카테고리는 수입으로 정의)
  */
 export const INCOME_CATEGORIES: Category[] = [
-  // 수입 카테고리는 사용자가 생성/편집할 수 있도록 빈 배열로 시작
-  // 추후 사용자가 추가한 카테고리들이 여기에 저장됨
+  { emoji: '💵', label: '수입', type: 'income' },
+  { emoji: '💰', label: '월급', type: 'income' },
 ];
 
 /**

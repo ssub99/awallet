@@ -8,19 +8,19 @@ import { TopNavigation } from '@/components/navigation/top-navigation';
 import { CalendarMain } from '@/components/ui/calendar-main';
 import { Icon } from '@/components/ui/icon';
 import { MonthData, YearView, YearViewRef } from '@/components/ui/year-view';
-import { Colors, Typography } from '@/constants/theme';
 import { AtomicColors } from '@/constants/atomic-colors';
-import { useLoading } from '@/contexts/loading-context';
+import { Colors, Typography } from '@/constants/theme';
+import { useAppData } from '@/contexts/app-data-context';
 import { useCreateSheetContext } from '@/contexts/create-sheet-context';
+import { useLoading } from '@/contexts/loading-context';
+import { calendarRefreshEvent } from '@/hooks/calendar-events';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
-import { useAppData } from '@/contexts/app-data-context';
 import { getCustomMonthInfo, isDateInCustomMonth } from '@/utils/custom-month';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { calendarRefreshEvent } from '@/hooks/calendar-events';
-import { AppState, AppStateStatus, Pressable, StyleSheet, Text, View, Animated } from 'react-native';
+import { Animated, AppState, AppStateStatus, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function HomeScreen() {
@@ -496,11 +496,12 @@ export default function HomeScreen() {
                 <Pressable 
                   style={[styles.card, { backgroundColor: colors.staticWhite }]}
                   onPress={() => {
-                    // 입금 기록 화면으로 이동 (카테고리 선택 없이 바로 기록)
+                    // 수입 기록: 카테고리 선택 → 기록
                     const targetDate = effectiveSelectedDate;
                     router.push({
-                      pathname: '/income-record',
+                      pathname: '/expense-category',
                       params: {
+                        type: 'income',
                         selectedDate: targetDate,
                         calendarYear: currentYear.toString(),
                         calendarMonth: currentMonth.toString(),
@@ -508,10 +509,10 @@ export default function HomeScreen() {
                     });
                   }}
                   accessibilityRole="button"
-                  accessibilityLabel="입금 기록하기"
+                  accessibilityLabel="수입 기록하기"
                 > 
                   <Text style={[styles.cardLabel, { color: colors.textNeutral }]}> 
-                    입금
+                    수입
                   </Text>
                   <Text 
                     style={[styles.cardAmount, { color: colors.text }]}

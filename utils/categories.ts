@@ -6,13 +6,13 @@
  * - 이후 모든 카테고리 CRUD는 이 유틸을 거쳐서 수행
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-  type Category,
-  type CategoryType,
-  EXPENSE_CATEGORIES,
-  INCOME_CATEGORIES,
+    type Category,
+    type CategoryType,
+    EXPENSE_CATEGORIES,
+    INCOME_CATEGORIES,
 } from '@/constants/categories';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { loadUserCategories } from './user-categories';
 
 const CATEGORY_STORAGE_PREFIX = 'categories_';
@@ -73,15 +73,29 @@ export async function loadCategories(type: CategoryType): Promise<Category[]> {
 
     const storageKey = getStorageKey(type);
     const stored = await AsyncStorage.getItem(storageKey);
+    const builtIn = getBuiltInCategories(type);
+    const builtInLabels = new Set(builtIn.map(cat => cat.label));
+    
     if (stored) {
       const parsed = JSON.parse(stored) as Category[];
       if (Array.isArray(parsed)) {
+        // 저장된 배열이 비어있거나 기본 카테고리가 포함되어 있지 않으면 기본 카테고리 추가
+        const hasBuiltInCategories = builtIn.length > 0 && parsed.some(cat => builtInLabels.has(cat.label));
+        
+        if (parsed.length === 0 || !hasBuiltInCategories) {
+          // 기본 카테고리가 없으면 추가 (기존 사용자 카테고리는 유지)
+          const legacyUserCategories = await loadUserCategories(type);
+          const userCreatedCategories = parsed.filter(cat => !builtInLabels.has(cat.label));
+          const merged = [...builtIn, ...userCreatedCategories, ...legacyUserCategories];
+          await AsyncStorage.setItem(storageKey, JSON.stringify(merged));
+          return merged;
+        }
+        
         return parsed;
       }
     }
 
     // 저장된 값이 없거나 파싱 실패 시 기본 + 사용자(레거시) 조합 반환
-    const builtIn = getBuiltInCategories(type);
     const legacyUserCategories = await loadUserCategories(type);
     const merged = [...builtIn, ...legacyUserCategories];
     await AsyncStorage.setItem(storageKey, JSON.stringify(merged));

@@ -1,16 +1,16 @@
 /**
- * Expense Category Selection Screen
+ * Category Selection Screen (지출/수입 공용)
  * 
- * Allows users to select a category for their expense record.
+ * Allows users to select a category for their expense or income record.
  */
 
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Icon } from '@/components/ui/icon';
 import { Toast } from '@/components/ui/toast';
 import { getCategoriesByType, type Category } from '@/constants/categories';
-import { loadCategories } from '@/utils/categories';
 import { Colors, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { loadCategories } from '@/utils/categories';
 import { applySavedOrder, loadCategoryOrder } from '@/utils/category-order';
 import { getAllChallenges } from '@/utils/challenges';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -32,7 +32,10 @@ export default function ExpenseCategoryScreen() {
     mode?: string;
     calendarYear?: string;
     calendarMonth?: string;
+    type?: string;
   }>();
+
+  const categoryType = (params.type === 'income' ? 'income' : 'expense') as 'income' | 'expense';
   
   const [selectedCategory, setSelectedCategory] = useState<string>(
     params.selectedCategory || ''
@@ -41,15 +44,15 @@ export default function ExpenseCategoryScreen() {
   // 카테고리 리스트 (저장된 순서 적용)
   const [categories, setCategories] = useState<Category[]>(() => {
     // 초기에는 기본 카테고리로 빠르게 표시
-    return getCategoriesByType('expense');
+    return getCategoriesByType(categoryType);
   });
   
   // 화면 진입 시 저장된 순서 불러와서 적용
   useFocusEffect(
     useCallback(() => {
       const loadCategoriesData = async () => {
-        const loadedCategories = await loadCategories('expense');
-        const savedOrder = await loadCategoryOrder('expense');
+        const loadedCategories = await loadCategories(categoryType);
+        const savedOrder = await loadCategoryOrder(categoryType);
         
         if (savedOrder && savedOrder.length > 0) {
           const orderedCategories = applySavedOrder(loadedCategories, savedOrder);
@@ -60,7 +63,7 @@ export default function ExpenseCategoryScreen() {
       };
       
       loadCategoriesData();
-    }, [])
+    }, [categoryType])
   );
   
   // 화면 진입 시에만 로그 출력
@@ -83,8 +86,8 @@ export default function ExpenseCategoryScreen() {
   // 챌린지 재선택 모드인지 확인 (챌린지 생성 화면에서 카테고리 재선택)
   const isChallengeReSelectMode = isChallengeMode && !!params.selectedCategory;
 
-  // 타이틀 통일: 모든 모드에서 "카테고리 선택"
-  const screenTitle = '카테고리 선택';
+  // 타이틀: 수입/지출 구분
+  const screenTitle = categoryType === 'income' ? '수입 카테고리 선택' : '카테고리 선택';
 
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
@@ -125,10 +128,10 @@ export default function ExpenseCategoryScreen() {
           setToastVisible(true);
         }
       } else {
-        // 신규 등록 모드: 소비 기록 상세 화면으로 이동 (카테고리와 선택된 날짜 전달)
-
+        // 신규 등록 모드: 지출/수입 기록 화면으로 이동 (카테고리와 선택된 날짜 전달)
+        const pathname = categoryType === 'income' ? '/income-record' : '/expense-record';
         router.push({
-          pathname: '/expense-record',
+          pathname,
           params: { 
             category: selectedCategory,
             selectedDate: params.selectedDate,
@@ -216,8 +219,9 @@ export default function ExpenseCategoryScreen() {
                     // (확인 버튼에서 중복 검증 수행)
                     // 신규 등록 모드일 때: 카테고리 선택 시 바로 다음 화면으로 이동
                     else if (!isEditMode && !isChallengeReSelectMode) {
+                      const targetPathname = categoryType === 'income' ? '/income-record' : '/expense-record';
                       router.push({
-                        pathname: '/expense-record',
+                        pathname: targetPathname,
                         params: { 
                           category: category.label,
                           selectedDate: params.selectedDate,

@@ -1,11 +1,11 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react';
-import { useRouter } from 'expo-router';
 import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
 import { Colors } from '@/constants/theme';
+import { Typography } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { createSheetEvent } from '@/utils/create-sheet-event';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { Typography } from '@/constants/typography';
+import { useRouter } from 'expo-router';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 interface CreateSheetContextValue {
   updateCalendarContext: (context: {
@@ -62,7 +62,8 @@ export const CreateSheetProvider = ({ children }: PropsWithChildren) => {
   );
 
   const handleIncomePress = useCallback(() => {
-    navigateWithDelay('/income-record', {
+    navigateWithDelay('/expense-category', {
+      type: 'income',
       selectedDate: calendarContext.selectedDate,
       calendarYear: calendarContext.calendarYear.toString(),
       calendarMonth: calendarContext.calendarMonth.toString(),
@@ -124,9 +125,9 @@ export const CreateSheetProvider = ({ children }: PropsWithChildren) => {
             style={[styles.option, { backgroundColor: colors.fill }]}
             onPress={handleIncomePress}
             accessibilityRole="button"
-            accessibilityLabel="입금 기록 화면으로 이동"
+            accessibilityLabel="수입 기록 화면으로 이동"
           >
-            <Text style={[styles.optionText, { color: colors.text }]}>💰 입금 기록</Text>
+            <Text style={[styles.optionText, { color: colors.text }]}>💰 수입 기록</Text>
           </Pressable>
 
           <Pressable
