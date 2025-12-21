@@ -8,7 +8,6 @@ import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Chip } from '@/components/ui/chip';
 import { Tab } from '@/components/ui/tab';
 import { Tag } from '@/components/ui/tag';
-import { getExpenseCategories } from '@/constants/categories';
 import { Colors, Typography } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';
 import { useLoading } from '@/contexts/loading-context';
@@ -16,6 +15,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { getChallengesByDateRange } from '@/utils/challenges';
 import { getCustomMonthRange, isDateInCustomMonth } from '@/utils/custom-month';
+import { loadCategories } from '@/utils/categories';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -826,7 +826,7 @@ export default function MonthlyExpenseTimelineScreen() {
           ) : (
             <View style={styles.challengeList}>
               {challenges.map((challenge) => {
-                const categoryInfo = getExpenseCategories().find(cat => cat.label === challenge.category);
+                const categoryEmoji = categoryEmojiMap[challenge.category];
                 
                 // 안전한 targetAmount 처리
                 let targetAmount = 0;
@@ -927,7 +927,7 @@ export default function MonthlyExpenseTimelineScreen() {
                       <View style={styles.challengeHeader}>
                         <View style={styles.challengeCategory}>
                           <Text style={[styles.challengeCategoryName, { color: colors.text }]}>
-                            {categoryInfo?.emoji || '📝'} {challenge.category}
+                            {categoryEmoji || '📝'} {challenge.category}
                           </Text>
                         </View>
                         <View style={styles.challengeStatusContainer}>
