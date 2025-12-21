@@ -32,7 +32,7 @@ type EmojiCategory = 'recent' | 'people' | 'animals' | 'food' | 'activity' | 'tr
 
 // 이모지 카테고리별 목록 (category-create.tsx와 동일)
 const EMOJI_CATEGORIES: Record<EmojiCategory, string[]> = {
-  recent: ['✅', '💰', '💳', '🍚', '☕️', '🚊', '🏠'],
+  recent: [], // 사용자가 선택한 이모지만 저장
   people: ['😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚', '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🤩', '🥳', '😏', '😒', '😞', '😔', '😟', '😕', '🙁', '😣', '😖', '😫', '😩', '🥺', '😢', '😭', '😤', '😠', '😡', '🤬', '🤯', '👤', '👥', '👶', '🧒', '👦', '👧', '🧑', '👱', '👨', '🧔', '👨‍🦰', '👨‍🦱', '👨‍🦳', '👨‍🦲', '👩', '👩‍🦰', '👩‍🦱', '👩‍🦳', '👩‍🦲', '🧓', '👴', '👵', '🙍', '🙍‍♂️', '🙍‍♀️', '🙎', '🙎‍♂️', '🙎‍♀️', '🙅', '🙅‍♂️', '🙅‍♀️', '🙆', '🙆‍♂️', '🙆‍♀️', '💁', '💁‍♂️', '💁‍♀️', '🙋', '🙋‍♂️', '🙋‍♀️', '🧏', '🧏‍♂️', '🧏‍♀️', '🤦', '🤦‍♂️', '🤦‍♀️', '🤷', '🤷‍♂️', '🤷‍♀️', '🙇', '🙇‍♂️', '🙇‍♀️', '🤦', '🤦‍♂️', '🤦‍♀️', '🤷', '🤷‍♂️', '🤷‍♀️', '🧑‍⚕️', '👨‍⚕️', '👩‍⚕️', '🧑‍🎓', '👨‍🎓', '👩‍🎓', '🧑‍🏫', '👨‍🏫', '👩‍🏫', '🧑‍⚖️', '👨‍⚖️', '👩‍⚖️', '🧑‍🌾', '👨‍🌾', '👩‍🌾', '🧑‍🍳', '👨‍🍳', '👩‍🍳', '🧑‍🔧', '👨‍🔧', '👩‍🔧', '🧑‍🏭', '👨‍🏭', '👩‍🏭', '🧑‍💼', '👨‍💼', '👩‍💼', '🧑‍🔬', '👨‍🔬', '👩‍🔬', '🧑‍💻', '👨‍💻', '👩‍💻', '🧑‍🎤', '👨‍🎤', '👩‍🎤', '🧑‍🎨', '👨‍🎨', '👩‍🎨', '🧑‍✈️', '👨‍✈️', '👩‍✈️', '🧑‍🚀', '👨‍🚀', '👩‍🚀', '🧑‍🚒', '👨‍🚒', '👩‍🚒', '👮', '👮‍♂️', '👮‍♀️', '🕵️', '🕵️‍♂️', '🕵️‍♀️', '💂', '💂‍♂️', '💂‍♀️', '🥷', '👷', '👷‍♂️', '👷‍♀️', '🤴', '👸', '👳', '👳‍♂️', '👳‍♀️', '👲', '🧕', '🤵', '👰', '🤰', '🤱', '👼', '🎅', '🤶', '🦸', '🦸‍♂️', '🦸‍♀️', '🦹', '🦹‍♂️', '🦹‍♀️', '🧙', '🧙‍♂️', '🧙‍♀️', '🧚', '🧚‍♂️', '🧚‍♀️', '🧛', '🧛‍♂️', '🧛‍♀️', '🧜', '🧜‍♂️', '🧜‍♀️', '🧝', '🧝‍♂️', '🧝‍♀️', '🧞', '🧞‍♂️', '🧞‍♀️', '🧟', '🧟‍♂️', '🧟‍♀️', '🧌', '💆', '💆‍♂️', '💆‍♀️', '💇', '💇‍♂️', '💇‍♀️', '🚶', '🚶‍♂️', '🚶‍♀️', '🧍', '🧍‍♂️', '🧍‍♀️', '🧎', '🧎‍♂️', '🧎‍♀️', '🏃', '🏃‍♂️', '🏃‍♀️', '💃', '🕺', '🕴️', '👯', '👯‍♂️', '👯‍♀️', '🧘', '🧘‍♂️', '🧘‍♀️', '🧗', '🧗‍♂️', '🧗‍♀️', '🤺', '🏇', '⛷️', '🏂', '🏌️', '🏌️‍♂️', '🏌️‍♀️', '🏄', '🏄‍♂️', '🏄‍♀️', '🚣', '🚣‍♂️', '🚣‍♀️', '🏊', '🏊‍♂️', '🏊‍♀️', '⛹️', '⛹️‍♂️', '⛹️‍♀️', '🏋️', '🏋️‍♂️', '🏋️‍♀️', '🚴', '🚴‍♂️', '🚴‍♀️', '🚵', '🚵‍♂️', '🚵‍♀️', '🤸', '🤸‍♂️', '🤸‍♀️', '🤼', '🤼‍♂️', '🤼‍♀️', '🤽', '🤽‍♂️', '🤽‍♀️', '🤾', '🤾‍♂️', '🤾‍♀️', '🤹', '🤹‍♂️', '🤹‍♀️', '🧘', '🧘‍♂️', '🧘‍♀️', '🛀', '🛌', '👭', '👫', '👬', '💏', '💑', '👪', '👨‍👩‍👧', '👨‍👩‍👧‍👦', '👨‍👩‍👦‍👦', '👨‍👩‍👧‍👧', '👩‍👩‍👦', '👩‍👩‍👧', '👩‍👩‍👧‍👦', '👩‍👩‍👦‍👦', '👩‍👩‍👧‍👧', '👨‍👨‍👦', '👨‍👨‍👧', '👨‍👨‍👧‍👦', '👨‍👨‍👦‍👦', '👨‍👨‍👧‍👧', '👩‍👦', '👩‍👧', '👩‍👧‍👦', '👩‍👦‍👦', '👩‍👧‍👧', '👨‍👦', '👨‍👧', '👨‍👧‍👦', '👨‍👦‍👦', '👨‍👧‍👧', '👪', '👨‍👩‍👧', '👨‍👩‍👧‍👦', '👨‍👩‍👦‍👦', '👨‍👩‍👧‍👧', '👩‍👩‍👦', '👩‍👩‍👧', '👩‍👩‍👧‍👦', '👩‍👩‍👦‍👦', '👩‍👩‍👧‍👧', '👨‍👨‍👦', '👨‍👨‍👧', '👨‍👨‍👧‍👦', '👨‍👨‍👦‍👦', '👨‍👨‍👧‍👧'],
   animals: ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐽', '🐸', '🐵', '🙈', '🙉', '🙊', '🐒', '🐔', '🐧', '🐦', '🐤', '🐣', '🐥', '🦆', '🦅', '🦉', '🦇', '🐺', '🐗', '🐴', '🦄', '🐝', '🐛', '🦋', '🐌', '🐞', '🐜', '🦟', '🦗', '🕷', '🦂', '🐢', '🐍', '🦎', '🦖', '🦕', '🐙', '🦑', '🦐', '🦞', '🦀', '🐡', '🐠', '🐟', '🐬', '🐳', '🐋', '🦈', '🐊', '🐅', '🐆', '🦓', '🦍', '🦧', '🐘', '🦛', '🦏', '🐪', '🐫', '🦒', '🦘', '🦬', '🐃', '🐂', '🐄', '🐎', '🐖', '🐏', '🐑', '🦙', '🐐', '🦌', '🐕', '🐩', '🦮', '🐕‍🦺', '🐈', '🐈‍⬛', '🪶', '🦅', '🦆', '🦢', '🦩', '🦚', '🦜', '🐓', '🦃', '🦤', '🦉', '🦅', '🦆', '🦢', '🦩', '🦚', '🦜'],
   food: ['🍏', '🍎', '🍐', '🍊', '🍋', '🍌', '🍉', '🍇', '🍓', '🍈', '🍒', '🍑', '🥭', '🍍', '🥥', '🥝', '🍅', '🍆', '🥑', '🥦', '🥬', '🥒', '🌶', '🌽', '🥕', '🥔', '🍠', '🥐', '🥯', '🍞', '🥖', '🥨', '🧀', '🥚', '🍳', '🥞', '🥓', '🥩', '🍗', '🍖', '🦴', '🌭', '🍔', '🍟', '🍕', '🥪', '🥙', '🌮', '🌯', '🥗', '🥘', '🥫', '🍝', '🍜', '🍲', '🍛', '🍣', '🍱', '🥟', '🦪', '🍤', '🍙', '🍚', '🍘', '🍥', '🥠', '🥮', '🍢', '🍡', '🍧', '🍨', '🍦', '🥧', '🧁', '🍰', '🎂', '🍮', '🍭', '🍬', '🍫', '🍿', '🍩', '🍪', '🌰', '🥜', '🍯', '🥛', '🍼', '🫖', '☕️', '🍵', '🧃', '🥤', '🧋', '🍶', '🍺', '🍻', '🥂', '🍷', '🥃', '🍸', '🍹', '🧉', '🍾', '🧊'],
@@ -95,8 +95,24 @@ export default function CategoryEditScreen() {
   // 카테고리 타입에 따라 타이틀 설정
   const title = categoryType === 'expense' ? '지출 카테고리 편집' : '수입 카테고리 편집';
   
-  // 이모지 피커를 첫 화면 진입 시 미리 마운트 (백그라운드에서)
+  // AsyncStorage에서 최근 이모지 로드
   useEffect(() => {
+    const loadRecentEmojis = async () => {
+      try {
+        const stored = await AsyncStorage.getItem('recentEmojis');
+        if (stored) {
+          const recentEmojis = JSON.parse(stored) as string[];
+          if (Array.isArray(recentEmojis)) {
+            EMOJI_CATEGORIES.recent = recentEmojis;
+            setEmojiVersion((v) => v + 1);
+          }
+        }
+      } catch (error) {
+        console.error('최근 이모지 로드 실패:', error);
+      }
+    };
+    
+    loadRecentEmojis();
     // 화면이 마운트되면 즉시 이모지 피커를 백그라운드에 마운트
     setEmojiPickerMounted(true);
   }, []);
@@ -112,16 +128,26 @@ export default function CategoryEditScreen() {
     setPendingScrollCategory('recent');
   };
   
-  const handleEmojiSelect = (emoji: string) => {
+  const handleEmojiSelect = async (emoji: string) => {
     setSelectedEmoji(emoji);
     setShowEmojiPicker(false);
     
-    // 최근 사용한 이모지를 recent 카테고리에 추가
+    // 최근 사용한 이모지를 recent 카테고리에 추가 (세로 3줄 최대 15개)
+    const maxRecentEmojis = 15; // 세로 3줄로 최대 15개
     if (!EMOJI_CATEGORIES.recent.includes(emoji)) {
       EMOJI_CATEGORIES.recent.unshift(emoji);
-      if (EMOJI_CATEGORIES.recent.length > 20) {
+      // 최대 15개를 초과하면 가장 오래된 이모지 제거
+      if (EMOJI_CATEGORIES.recent.length > maxRecentEmojis) {
         EMOJI_CATEGORIES.recent.pop();
       }
+      
+      // AsyncStorage에 저장
+      try {
+        await AsyncStorage.setItem('recentEmojis', JSON.stringify(EMOJI_CATEGORIES.recent));
+      } catch (error) {
+        console.error('최근 이모지 저장 실패:', error);
+      }
+      
       setEmojiVersion((v) => v + 1);
     }
   };
@@ -156,17 +182,27 @@ export default function CategoryEditScreen() {
     const categoryKeys = Object.keys(EMOJI_CATEGORIES) as EmojiCategory[];
     
     categoryKeys.forEach((category) => {
-      const emojis = EMOJI_CATEGORIES[category];
+      let emojis = EMOJI_CATEGORIES[category];
+      
+      // recent 카테고리는 세로 3줄(최대 15개)로 제한
+      if (category === 'recent') {
+        const maxRecentEmojis = 15; // 세로 3줄로 최대 15개
+        emojis = emojis.slice(0, maxRecentEmojis);
+      }
+      
       const columns: string[][] = [];
       
+      // recent 카테고리는 세로 3줄로 고정, 나머지는 기존 로직 사용
+      const effectiveRowsPerColumn = category === 'recent' ? 3 : rowsPerColumn;
+      
       // 열 수 계산
-      const numColumns = Math.ceil(emojis.length / rowsPerColumn);
+      const numColumns = Math.ceil(emojis.length / effectiveRowsPerColumn);
       
       // 각 열에 이모지 배치 (위에서 아래로 채우고, 한 열이 가득 차면 다음 열로)
       for (let col = 0; col < numColumns; col++) {
         const column: string[] = [];
-        for (let row = 0; row < rowsPerColumn; row++) {
-          const emojiIndex = col * rowsPerColumn + row;
+        for (let row = 0; row < effectiveRowsPerColumn; row++) {
+          const emojiIndex = col * effectiveRowsPerColumn + row;
           if (emojiIndex < emojis.length) {
             column.push(emojis[emojiIndex]);
           }
@@ -193,7 +229,7 @@ export default function CategoryEditScreen() {
     visibleEmojiCategories.forEach((item, index) => {
       const columns = item.columns.length;
       const sectionWidth = columns * 48; // 열 간 가로 gap 없음
-      const gap = index < visibleEmojiCategories.length - 1 ? 8 : 0; // emojiGridContent gap
+      const gap = index < visibleEmojiCategories.length - 1 ? 12 : 0; // emojiGridContent gap
       const size = sectionWidth + gap;
       layouts.push({ size, offset });
       offset += size;
@@ -579,7 +615,7 @@ export default function CategoryEditScreen() {
                   <View
                     style={[
                       styles.categorySection,
-                      // gap은 contentContainerStyle.gap(8)로 처리
+                      index < visibleEmojiCategories.length - 1 && { marginRight: 12 },
                     ]}
                   >
                     {categoryData.columns.map((column, colIndex) => (
@@ -748,7 +784,7 @@ const styles = StyleSheet.create({
   },
   emojiGridContent: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 12,
   },
   categorySection: {
     flexDirection: 'row',
