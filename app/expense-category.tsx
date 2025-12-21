@@ -7,7 +7,8 @@
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Icon } from '@/components/ui/icon';
 import { Toast } from '@/components/ui/toast';
-import { getExpenseCategories, type Category } from '@/constants/categories';
+import { getCategoriesByType, type Category } from '@/constants/categories';
+import { loadCategories } from '@/utils/categories';
 import { Colors, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { applySavedOrder, loadCategoryOrder } from '@/utils/category-order';
@@ -38,13 +39,16 @@ export default function ExpenseCategoryScreen() {
   );
   
   // 카테고리 리스트 (저장된 순서 적용)
-  const [categories, setCategories] = useState<Category[]>(getExpenseCategories());
+  const [categories, setCategories] = useState<Category[]>(() => {
+    // 초기에는 기본 카테고리로 빠르게 표시
+    return getCategoriesByType('expense');
+  });
   
   // 화면 진입 시 저장된 순서 불러와서 적용
   useFocusEffect(
     useCallback(() => {
       const loadCategories = async () => {
-        const loadedCategories = getExpenseCategories();
+        const loadedCategories = await loadCategories('expense');
         const savedOrder = await loadCategoryOrder('expense');
         
         if (savedOrder && savedOrder.length > 0) {

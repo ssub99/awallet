@@ -29,6 +29,7 @@ import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { triggerChallengeNotifications } from '@/utils/challenge-utils';
 import { getCustomMonthInfo } from '@/utils/custom-month';
 import { createExpense, deleteExpense, deleteExpensesByGroup, updateExpense, type ExpenseRecord as ExpenseRecordType, type PaymentMethod } from '@/utils/expenses';
+import { loadCategories } from '@/utils/categories';
 import { extractTimestampFromId, generateGroupId, generateRecordId } from '@/utils/id-generator';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
@@ -2938,36 +2939,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     }
   };
 
-  // 카테고리 이모지 찾기
-  const getCategoryEmoji = (label: string) => {
-    const categories: Record<string, string> = {
-      '식비': '🍚',
-      '배달음식': '🛵',
-      '카페/편의점/간식': '☕️',
-      '교통비': '🚊',
-      '주거비': '🏠',
-      '공과금': '📎',
-      '통신비': '☎️',
-      '쇼핑': '🛍️',
-      '미용': '💇🏻‍♂️',
-      '운동/헬스': '💪',
-      '구독 서비스': '📌',
-      '영화': '🎬',
-      '취미': '👨🏻‍💻',
-      '여행': '🧳',
-      '모임/술': '🍺',
-      '경조사/선물': '🎁',
-      '차량': '🚘',
-      '대출/이자': '🏦',
-      '보험': '🔖',
-      '적금': '💵',
-      '투자': '📈',
-      '세금': '⚖️',
-      '기타': '📝',
-    };
-    return categories[label] || '';
-  };
-
   // 할부 기록 환불 옵션별 기간 계산
   const getRefundPeriod = () => {
     if (!editData?.isInstallment) return '';
@@ -3183,7 +3154,28 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     }
   };
 
-  const categoryDisplay = category ? `${getCategoryEmoji(category)} ${category}` : '';
+  const [categoryEmojiMap, setCategoryEmojiMap] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    // 통합 카테고리 로드하여 이모지 매핑
+    loadCategories('expense')
+      .then((cats) => {
+        const map: Record<string, string> = {};
+        cats.forEach((cat) => {
+          map[cat.label] = cat.emoji;
+        });
+        setCategoryEmojiMap(map);
+      })
+      .catch(() => {
+        // 로드 실패 시 빈 맵 유지
+      });
+  }, []);
+
+  const getCategoryEmojiSafe = (label: string): string => {
+    return categoryEmojiMap[label] ?? '';
+  };
+
+  const categoryDisplay = category ? `${getCategoryEmojiSafe(category)} ${category}` : '';
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.staticWhite }]} edges={['top']}>

@@ -10,9 +10,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
 import { Toast } from '@/components/ui/toast';
-import { getCategoriesByType, type CategoryType } from '@/constants/categories';
+import { type CategoryType } from '@/constants/categories';
 import { Colors, Typography } from '@/constants/theme';
 import { addUserCategory, loadUserCategories } from '@/utils/user-categories';
+import { loadCategories } from '@/utils/categories';
 import type { FlashListRef } from '@shopify/flash-list';
 import { FlashList } from '@shopify/flash-list';
 import * as Haptics from 'expo-haptics';
@@ -219,8 +220,7 @@ export default function CategoryCreateScreen() {
     // 중복 체크
     try {
       const existingCategories = await loadUserCategories(categoryType);
-      const builtInCategories = getCategoriesByType(categoryType);
-      const allCategories = [...builtInCategories, ...existingCategories];
+      const allCategories = await loadCategories(categoryType);
       
       const isDuplicate = allCategories.some(
         cat => cat.label === categoryName.trim()

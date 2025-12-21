@@ -11,13 +11,15 @@ import { Input } from '@/components/ui/input';
 import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
 import { ModalPopup } from '@/components/ui/modal-popup';
 import { Toast } from '@/components/ui/toast';
-import { getCategoriesByType, type CategoryType } from '@/constants/categories';
+import { type CategoryType } from '@/constants/categories';
 import { Colors, Typography } from '@/constants/theme';
-import { loadUserCategories, updateUserCategory, deleteUserCategory, addUserCategory } from '@/utils/user-categories';
+import { loadCategories, saveCategories } from '@/utils/categories';
+import { renameExpenseCategory, deleteExpensesByCategory } from '@/utils/expenses';
+import { deleteChallengesByCategory, renameChallengeCategory } from '@/utils/challenges';
+import { loadCategoryOrder, saveCategoryOrder } from '@/utils/category-order';
 import { FlashList } from '@shopify/flash-list';
 import type { FlashListRef } from '@shopify/flash-list';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getAllChallenges, softDeleteChallengesByRecurringId } from '@/utils/challenges';
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useMemo, useRef, useState, useEffect } from 'react';
@@ -222,9 +224,7 @@ export default function CategoryEditScreen() {
     
     // 중복 체크 (현재 카테고리 이름은 제외)
     try {
-      const existingCategories = await loadUserCategories(categoryType);
-      const builtInCategories = getCategoriesByType(categoryType);
-      const allCategories = [...builtInCategories, ...existingCategories];
+      const allCategories = await loadCategories(categoryType);
       
       const isDuplicate = allCategories.some(
         cat => cat.label === categoryName.trim() && cat.label !== originalLabel
@@ -248,17 +248,24 @@ export default function CategoryEditScreen() {
         type: categoryType,
       };
       
-      // 내장 카테고리인지 확인
-      const isBuiltIn = builtInCategories.some(
-        cat => cat.label === originalLabel
+      // 카테고리 목록 업데이트 (통합 리스트에서 교체)
+      const nextCategories = allCategories.map((cat) =>
+        cat.label === originalLabel ? newCategory : cat
       );
-      
-      if (isBuiltIn) {
-        // 내장 카테고리를 편집하면 사용자 카테고리로 추가
-        await addUserCategory(newCategory);
-      } else {
-        // 사용자 카테고리는 업데이트
-        await updateUserCategory(oldCategory, newCategory);
+      await saveCategories(categoryType, nextCategories);
+
+      // 카테고리명 변경 시 참조 데이터 동기화
+      const labelChanged = originalLabel !== newCategory.label;
+      if (labelChanged) {
+        const tasks: Array<Promise<void>> = [
+          renameChallengeCategory(originalLabel, newCategory.label),
+          updateCalendarDataCategory(originalLabel, newCategory.label),
+          updateCategoryOrderLabel(categoryType, originalLabel, newCategory.label),
+        ];
+        if (categoryType === 'expense') {
+          tasks.push(renameExpenseCategory(originalLabel, newCategory.label));
+        }
+        await Promise.all(tasks);
       }
       
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -273,85 +280,27 @@ export default function CategoryEditScreen() {
   };
   
   const handleDeletePress = () => {
-    // 내장 카테고리는 삭제할 수 없음
-    const builtInCategories = getCategoriesByType(categoryType);
-    const isBuiltIn = builtInCategories.some(
-      cat => cat.label === originalLabel
-    );
-    
-    if (isBuiltIn) {
-      setToastMessage('기본 카테고리는 삭제할 수 없습니다.');
-      setToastVisible(true);
-      return;
-    }
-    
     // 컨펌 얼럿뷰 표시
     setShowDeleteConfirm(true);
   };
   
   const handleDeleteConfirm = async () => {
     try {
-      const category = {
-        emoji: originalEmoji,
-        label: originalLabel,
-        type: categoryType,
-      };
-      
-      // 1. 관련 챌린지 삭제
-      const allChallenges = await getAllChallenges();
-      const relatedChallenges = allChallenges.filter(
-        challenge => challenge.category === originalLabel && !challenge.isDeleted
-      );
-      
-      for (const challenge of relatedChallenges) {
-        await softDeleteChallengesByRecurringId(challenge.recurringId);
+      // 1) 참조 데이터 하드 삭제
+      const deleteTasks: Array<Promise<void>> = [
+        deleteChallengesByCategory(originalLabel),
+        removeCalendarDataByCategory(originalLabel),
+        removeCategoryFromOrder(categoryType, originalLabel),
+      ];
+      if (categoryType === 'expense') {
+        deleteTasks.push(deleteExpensesByCategory(originalLabel));
       }
-      
-      // 2. 관련 소비기록 삭제 (calendarData에서)
-      const storedData = await AsyncStorage.getItem('calendarData');
-      if (storedData) {
-        const calendarData = JSON.parse(storedData);
-        let hasChanges = false;
-        
-        Object.keys(calendarData).forEach(dateKey => {
-          if (calendarData[dateKey]?.records) {
-            const originalLength = calendarData[dateKey].records.length;
-            calendarData[dateKey].records = calendarData[dateKey].records.filter(
-              (record: any) => !(record.type === 'expense' && record.category === originalLabel)
-            );
-            
-            if (calendarData[dateKey].records.length !== originalLength) {
-              hasChanges = true;
-              
-              // 총액 재계산
-              let totalExpense = 0;
-              let totalIncome = 0;
-              calendarData[dateKey].records.forEach((record: any) => {
-                if (record?.type === 'expense' && record?.isRefunded !== true) {
-                  totalExpense += record?.amount || 0;
-                } else if (record?.type === 'income') {
-                  totalIncome += record?.amount || 0;
-                }
-              });
-              
-              calendarData[dateKey].totalExpense = totalExpense;
-              calendarData[dateKey].totalIncome = totalIncome;
-              
-              // 기록이 없고 입금도 없으면 날짜 키 삭제
-              if (calendarData[dateKey].records.length === 0 && totalIncome === 0) {
-                delete calendarData[dateKey];
-              }
-            }
-          }
-        });
-        
-        if (hasChanges) {
-          await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
-        }
-      }
-      
-      // 3. 카테고리 삭제
-      await deleteUserCategory(category);
+      await Promise.all(deleteTasks);
+
+      // 2) 카테고리 목록에서 제거
+      const allCategories = await loadCategories(categoryType);
+      const filtered = allCategories.filter((cat) => cat.label !== originalLabel);
+      await saveCategories(categoryType, filtered);
       
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       
@@ -370,6 +319,120 @@ export default function CategoryEditScreen() {
   
   const handleDeleteCancel = () => {
     setShowDeleteConfirm(false);
+  };
+
+  /**
+   * calendarData에 저장된 기록의 카테고리명을 일괄 변경
+   */
+  const updateCalendarDataCategory = async (oldLabel: string, newLabel: string) => {
+    const storedData = await AsyncStorage.getItem('calendarData');
+    if (!storedData) {
+      return;
+    }
+
+    const calendarData = JSON.parse(storedData);
+    let hasChanges = false;
+
+    Object.keys(calendarData).forEach(dateKey => {
+      if (calendarData[dateKey]?.records) {
+        calendarData[dateKey].records = calendarData[dateKey].records.map((record: any) => {
+          if (record?.category === oldLabel) {
+            hasChanges = true;
+            return { ...record, category: newLabel };
+          }
+          return record;
+        });
+      }
+    });
+
+    if (hasChanges) {
+      await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
+    }
+  };
+
+  /**
+   * calendarData에서 특정 카테고리 기록을 모두 삭제 (총액 재계산 포함)
+   */
+  const removeCalendarDataByCategory = async (label: string) => {
+    const storedData = await AsyncStorage.getItem('calendarData');
+    if (!storedData) {
+      return;
+    }
+
+    const calendarData = JSON.parse(storedData);
+    let hasChanges = false;
+
+    Object.keys(calendarData).forEach(dateKey => {
+      if (calendarData[dateKey]?.records) {
+        const originalLength = calendarData[dateKey].records.length;
+        calendarData[dateKey].records = calendarData[dateKey].records.filter(
+          (record: any) => !(record?.type === 'expense' && record?.category === label)
+        );
+
+        if (calendarData[dateKey].records.length !== originalLength) {
+          hasChanges = true;
+
+          // 총액 재계산
+          let totalExpense = 0;
+          let totalIncome = 0;
+          calendarData[dateKey].records.forEach((record: any) => {
+            if (record?.type === 'expense' && record?.isRefunded !== true) {
+              totalExpense += record?.amount || 0;
+            } else if (record?.type === 'income') {
+              totalIncome += record?.amount || 0;
+            }
+          });
+
+          calendarData[dateKey].totalExpense = totalExpense;
+          calendarData[dateKey].totalIncome = totalIncome;
+
+          // 기록이 없고 입금도 없으면 날짜 키 삭제
+          if (calendarData[dateKey].records.length === 0 && totalIncome === 0) {
+            delete calendarData[dateKey];
+          }
+        }
+      }
+    });
+
+    if (hasChanges) {
+      await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
+    }
+  };
+
+  /**
+   * 저장된 카테고리 순서에서 라벨을 변경
+   */
+  const updateCategoryOrderLabel = async (
+    type: CategoryType,
+    oldLabel: string,
+    newLabel: string
+  ) => {
+    const savedOrder = await loadCategoryOrder(type);
+    if (!savedOrder) {
+      return;
+    }
+    const nextOrderLabels = savedOrder.map((label) => (label === oldLabel ? newLabel : label));
+    const categories = await loadCategories(type);
+    const orderedCategories = nextOrderLabels
+      .map((label) => categories.find((cat) => cat.label === label))
+      .filter((cat): cat is { emoji: string; label: string; type: CategoryType } => Boolean(cat));
+    await saveCategoryOrder(type, orderedCategories);
+  };
+
+  /**
+   * 저장된 카테고리 순서에서 라벨을 제거
+   */
+  const removeCategoryFromOrder = async (type: CategoryType, label: string) => {
+    const savedOrder = await loadCategoryOrder(type);
+    if (!savedOrder) {
+      return;
+    }
+    const categories = await loadCategories(type);
+    const remainingLabels = savedOrder.filter((item) => item !== label);
+    const orderedCategories = remainingLabels
+      .map((l) => categories.find((cat) => cat.label === l))
+      .filter((cat): cat is { emoji: string; label: string; type: CategoryType } => Boolean(cat));
+    await saveCategoryOrder(type, orderedCategories);
   };
   
   return (

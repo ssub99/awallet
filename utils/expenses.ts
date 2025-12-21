@@ -193,6 +193,29 @@ export async function getAllExpenses(): Promise<ExpenseRecord[]> {
   return loadLocalExpenses();
 }
 
+/**
+ * 모든 지출 기록에서 카테고리명을 변경합니다.
+ */
+export async function renameExpenseCategory(
+  oldLabel: string,
+  newLabel: string
+): Promise<void> {
+  const expenses = await loadLocalExpenses();
+  const updated = expenses.map((expense) =>
+    expense.category === oldLabel ? { ...expense, category: newLabel } : expense
+  );
+  await persistExpenses(updated);
+}
+
+/**
+ * 특정 카테고리에 해당하는 지출 기록을 모두 삭제합니다.
+ */
+export async function deleteExpensesByCategory(categoryLabel: string): Promise<void> {
+  const expenses = await loadLocalExpenses();
+  const filtered = expenses.filter((expense) => expense.category !== categoryLabel);
+  await persistExpenses(filtered);
+}
+
 export async function clearAllExpenses(): Promise<void> {
   await AsyncStorage.removeItem(EXPENSE_STORAGE_KEY);
 }

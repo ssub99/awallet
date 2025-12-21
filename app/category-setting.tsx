@@ -8,10 +8,10 @@
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Icon } from '@/components/ui/icon';
 import { getCategoriesByType, type CategoryType } from '@/constants/categories';
+import { loadCategories } from '@/utils/categories';
 import { ThemeColors } from '@/constants/theme-colors';
 import { Typography } from '@/constants/typography';
 import { applySavedOrder, loadCategoryOrder, saveCategoryOrder } from '@/utils/category-order';
-import { loadUserCategories } from '@/utils/user-categories';
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -231,9 +231,7 @@ export default function CategorySettingScreen() {
         
         // 드래그 중이 아닐 때만 카테고리 로드
         if (!isDraggingRef.current) {
-          const builtInCategories = getCategoriesByType(categoryType);
-          const userCategories = await loadUserCategories(categoryType);
-          const loadedCategories = [...builtInCategories, ...userCategories];
+          const loadedCategories = await loadCategories(categoryType);
           
           // 저장된 순서 불러오기
           const savedOrder = await loadCategoryOrder(categoryType);

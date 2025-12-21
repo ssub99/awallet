@@ -11,7 +11,8 @@ import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Toast } from '@/components/ui/toast';
-import { getExpenseCategories } from '@/constants/categories';
+import { type Category } from '@/constants/categories';
+import { loadCategories } from '@/utils/categories';
 import { Colors, Typography } from '@/constants/theme';
 import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -159,8 +160,17 @@ export default function ChallengeCreateScreen() {
   };
 
   // 카테고리명에 이모지 추가하는 함수
+  const [expenseCategories, setExpenseCategories] = useState<Category[]>([]);
+
+  useEffect(() => {
+    loadCategories('expense')
+      .then(setExpenseCategories)
+      .catch(() => {
+        // 로드 실패 시 빈 배열 유지 (UI에서 기본 문자열만 표시)
+      });
+  }, []);
+
   const getCategoryWithEmoji = (categoryName: string) => {
-    const expenseCategories = getExpenseCategories();
     const category = expenseCategories.find(cat => cat.label === categoryName);
     return category ? `${category.emoji} ${categoryName}` : categoryName;
   };

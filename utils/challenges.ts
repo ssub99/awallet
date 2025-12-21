@@ -177,6 +177,29 @@ export async function hardDeleteChallengesByRecurringId(recurringId: string): Pr
   await saveLocalChallenges(filtered);
 }
 
+/**
+ * 모든 챌린지에서 카테고리명을 변경합니다.
+ */
+export async function renameChallengeCategory(
+  oldLabel: string,
+  newLabel: string
+): Promise<void> {
+  const challenges = await loadLocalChallenges();
+  const updated = challenges.map((challenge) =>
+    challenge.category === oldLabel ? { ...challenge, category: newLabel } : challenge
+  );
+  await saveLocalChallenges(updated);
+}
+
+/**
+ * 특정 카테고리를 사용하는 챌린지를 모두 삭제합니다.
+ */
+export async function deleteChallengesByCategory(categoryLabel: string): Promise<void> {
+  const challenges = await loadLocalChallenges();
+  const filtered = challenges.filter((challenge) => challenge.category !== categoryLabel);
+  await saveLocalChallenges(filtered);
+}
+
 export async function getChallengeById(id: string): Promise<ChallengeRecord | null> {
   if (!id) {
     return null;
