@@ -201,10 +201,17 @@ export async function renameExpenseCategory(
   newLabel: string
 ): Promise<void> {
   const expenses = await loadLocalExpenses();
-  const updated = expenses.map((expense) =>
-    expense.category === oldLabel ? { ...expense, category: newLabel } : expense
-  );
-  await persistExpenses(updated);
+  let changed = false;
+  const updated = expenses.map((expense) => {
+    if (expense.category === oldLabel) {
+      changed = true;
+      return { ...expense, category: newLabel };
+    }
+    return expense;
+  });
+  if (changed) {
+    await persistExpenses(updated);
+  }
 }
 
 /**
@@ -213,7 +220,9 @@ export async function renameExpenseCategory(
 export async function deleteExpensesByCategory(categoryLabel: string): Promise<void> {
   const expenses = await loadLocalExpenses();
   const filtered = expenses.filter((expense) => expense.category !== categoryLabel);
-  await persistExpenses(filtered);
+  if (filtered.length !== expenses.length) {
+    await persistExpenses(filtered);
+  }
 }
 
 export async function clearAllExpenses(): Promise<void> {

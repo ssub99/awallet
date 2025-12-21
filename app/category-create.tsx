@@ -210,9 +210,16 @@ export default function CategoryCreateScreen() {
   }, [emojiGridReady, pendingScrollCategory, visibleEmojiCategories]);
   
   const handleCreate = async () => {
+    const trimmedName = categoryName.trim();
+
     // 유효성 검사
-    if (!categoryName.trim()) {
+    if (!trimmedName) {
       setToastMessage('카테고리 이름을 입력해주세요.');
+      setToastVisible(true);
+      return;
+    }
+    if (trimmedName.length > 30) {
+      setToastMessage('카테고리 이름은 30자 이하로 입력해주세요.');
       setToastVisible(true);
       return;
     }
@@ -223,7 +230,7 @@ export default function CategoryCreateScreen() {
       const allCategories = await loadCategories(categoryType);
       
       const isDuplicate = allCategories.some(
-        cat => cat.label === categoryName.trim()
+        cat => cat.label === trimmedName
       );
       
       if (isDuplicate) {
@@ -235,7 +242,7 @@ export default function CategoryCreateScreen() {
       // 카테고리 생성
       const newCategory = {
         emoji: selectedEmoji,
-        label: categoryName.trim(),
+        label: trimmedName,
         type: categoryType,
       };
       

@@ -185,10 +185,17 @@ export async function renameChallengeCategory(
   newLabel: string
 ): Promise<void> {
   const challenges = await loadLocalChallenges();
-  const updated = challenges.map((challenge) =>
-    challenge.category === oldLabel ? { ...challenge, category: newLabel } : challenge
-  );
-  await saveLocalChallenges(updated);
+  let changed = false;
+  const updated = challenges.map((challenge) => {
+    if (challenge.category === oldLabel) {
+      changed = true;
+      return { ...challenge, category: newLabel };
+    }
+    return challenge;
+  });
+  if (changed) {
+    await saveLocalChallenges(updated);
+  }
 }
 
 /**
@@ -197,7 +204,9 @@ export async function renameChallengeCategory(
 export async function deleteChallengesByCategory(categoryLabel: string): Promise<void> {
   const challenges = await loadLocalChallenges();
   const filtered = challenges.filter((challenge) => challenge.category !== categoryLabel);
-  await saveLocalChallenges(filtered);
+  if (filtered.length !== challenges.length) {
+    await saveLocalChallenges(filtered);
+  }
 }
 
 export async function getChallengeById(id: string): Promise<ChallengeRecord | null> {
