@@ -204,8 +204,10 @@ export default function CategorySettingScreen() {
   
   const categoryType = (params.type as CategoryType) || 'expense';
   
-  // 초기 카테고리 로드
-  const [categories, setCategories] = useState<Array<{ emoji: string; label: string; type: CategoryType }>>([]);
+  // 초기 카테고리 로드 - 기본 카테고리를 즉시 표시하여 깜빡임 방지
+  const [categories, setCategories] = useState<Array<{ emoji: string; label: string; type: CategoryType }>>(() => {
+    return getCategoriesByType(categoryType);
+  });
   
   // 이전 인덱스를 추적하여 순서 변경 감지
   const previousIndexRef = useRef<number | null>(null);
@@ -241,42 +243,37 @@ export default function CategorySettingScreen() {
             const prevType = prevCategories[0]?.type;
             if (prevType !== categoryType) {
               // 저장된 순서가 있으면 적용
-              if (savedOrder) {
-                return applySavedOrder(loadedCategories, savedOrder);
-              }
-              return loadedCategories;
-            }
-            
-            // 카테고리가 없으면 저장된 순서 적용 또는 기본 순서
-            if (prevCategories.length === 0) {
               if (savedOrder && savedOrder.length > 0) {
                 return applySavedOrder(loadedCategories, savedOrder);
               }
               return loadedCategories;
             }
             
-            // 새 카테고리가 추가되었는지만 확인 (순서 변경은 무시)
+            // 현재 카테고리와 새로 로드된 카테고리 비교
             const currentLabels = new Set(prevCategories.map(c => c.label));
             const newLabels = new Set(loadedCategories.map(c => c.label));
             
-            // 새 카테고리가 추가되었거나 제거된 경우에만 업데이트
-            const hasNewCategory = Array.from(newLabels).some(label => !currentLabels.has(label));
-            const hasRemovedCategory = Array.from(currentLabels).some(label => !newLabels.has(label));
+            // 카테고리가 정확히 같은지 확인 (순서 제외)
+            const hasSameCategories = 
+              currentLabels.size === newLabels.size &&
+              Array.from(currentLabels).every(label => newLabels.has(label));
             
-            if (hasNewCategory || hasRemovedCategory) {
-              // 저장된 순서가 있으면 그것을 기준으로 새 카테고리 추가
-              if (savedOrder && savedOrder.length > 0) {
-                return applySavedOrder(loadedCategories, savedOrder);
-              }
-              // 저장된 순서가 없으면 기존 순서를 유지하면서 새 카테고리 추가
-              const orderedCategories = prevCategories
-                .filter(cat => newLabels.has(cat.label))
-                .concat(loadedCategories.filter(cat => !currentLabels.has(cat.label)));
-              return orderedCategories;
+            // 카테고리가 같고 저장된 순서가 없으면 순서 유지 (드래그로 변경된 순서 유지)
+            if (hasSameCategories && (!savedOrder || savedOrder.length === 0)) {
+              return prevCategories;
             }
             
-            // 순서는 유지하고 현재 상태 그대로 반환 (드래그로 변경된 순서 유지)
-            return prevCategories;
+            // 카테고리가 다르거나 저장된 순서가 있는 경우 업데이트
+            // 저장된 순서가 있으면 적용
+            if (savedOrder && savedOrder.length > 0) {
+              return applySavedOrder(loadedCategories, savedOrder);
+            }
+            
+            // 저장된 순서가 없으면 기존 순서를 유지하면서 새 카테고리 추가/제거
+            const orderedCategories = prevCategories
+              .filter(cat => newLabels.has(cat.label))
+              .concat(loadedCategories.filter(cat => !currentLabels.has(cat.label)));
+            return orderedCategories;
           });
         }
         
