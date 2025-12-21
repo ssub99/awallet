@@ -14,15 +14,16 @@ import { Toast } from '@/components/ui/toast';
 import { type CategoryType } from '@/constants/categories';
 import { Colors, Typography } from '@/constants/theme';
 import { loadCategories, saveCategories } from '@/utils/categories';
-import { renameExpenseCategory, deleteExpensesByCategory } from '@/utils/expenses';
-import { deleteChallengesByCategory, renameChallengeCategory } from '@/utils/challenges';
 import { loadCategoryOrder, saveCategoryOrder } from '@/utils/category-order';
-import { FlashList } from '@shopify/flash-list';
-import type { FlashListRef } from '@shopify/flash-list';
+import { deleteChallengesByCategory, renameChallengeCategory } from '@/utils/challenges';
+import { deleteExpensesByCategory, renameExpenseCategory } from '@/utils/expenses';
+import { deleteIncomesByCategory } from '@/utils/incomes';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { FlashListRef } from '@shopify/flash-list';
+import { FlashList } from '@shopify/flash-list';
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useMemo, useRef, useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Keyboard, Pressable, ScrollView, StatusBar, StyleSheet, Text, TouchableWithoutFeedback, View } from 'react-native';
  
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -337,6 +338,8 @@ export default function CategoryEditScreen() {
       ];
       if (categoryType === 'expense') {
         deleteTasks.push(deleteExpensesByCategory(originalLabel));
+      } else {
+        deleteTasks.push(deleteIncomesByCategory(originalLabel));
       }
       await Promise.all(deleteTasks);
 
@@ -344,7 +347,7 @@ export default function CategoryEditScreen() {
       const allCategories = await loadCategories(categoryType);
       const filtered = allCategories.filter((cat) => cat.label !== originalLabel);
       await saveCategories(categoryType, filtered);
-      
+
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       
       // 컨펌 얼럿뷰 닫기
@@ -409,7 +412,11 @@ export default function CategoryEditScreen() {
       if (calendarData[dateKey]?.records) {
         const originalLength = calendarData[dateKey].records.length;
         calendarData[dateKey].records = calendarData[dateKey].records.filter(
-          (record: any) => !(record?.type === 'expense' && record?.category === label)
+          (record: any) =>
+            !(
+              (record?.type === 'expense' || record?.type === 'income') &&
+              record?.category === label
+            )
         );
 
         if (calendarData[dateKey].records.length !== originalLength) {
@@ -429,8 +436,12 @@ export default function CategoryEditScreen() {
           calendarData[dateKey].totalExpense = totalExpense;
           calendarData[dateKey].totalIncome = totalIncome;
 
-          // 기록이 없고 입금도 없으면 날짜 키 삭제
-          if (calendarData[dateKey].records.length === 0 && totalIncome === 0) {
+          // 기록이 없고 총액 0이면 날짜 키 삭제
+          if (
+            calendarData[dateKey].records.length === 0 &&
+            totalIncome === 0 &&
+            totalExpense === 0
+          ) {
             delete calendarData[dateKey];
           }
         }

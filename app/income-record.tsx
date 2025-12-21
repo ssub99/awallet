@@ -13,30 +13,31 @@ import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
 import { ModalPopup } from '@/components/ui/modal-popup';
 import { Colors, Typography } from '@/constants/theme';
 import { useLoading } from '@/contexts/loading-context';
+import { calendarRefreshEvent } from '@/hooks/calendar-events';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
+import { loadCategories } from '@/utils/categories';
 import { getCustomMonthInfo } from '@/utils/custom-month';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { calendarRefreshEvent } from '@/hooks/calendar-events';
-import { createIncome, type IncomeRecord as IncomeRecordType } from '@/utils/incomes';
 import { generateRecordId } from '@/utils/id-generator';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { createIncome, type IncomeRecord as IncomeRecordType } from '@/utils/incomes';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Dimensions,
-  InteractionManager,
-  Keyboard,
-  NativeSyntheticEvent,
-  Platform,
-  Pressable,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInputKeyPressEventData,
-  View,
+    Dimensions,
+    InteractionManager,
+    Keyboard,
+    NativeSyntheticEvent,
+    Platform,
+    Pressable,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInputKeyPressEventData,
+    View,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /**
@@ -97,6 +98,7 @@ export default function IncomeRecordScreen() {
   const insets = useSafeAreaInsets();
   const { setLoading } = useLoading();
   const params = useLocalSearchParams<{ 
+    category?: string;
     selectedDate?: string;
     calendarYear?: string;
     calendarMonth?: string;
@@ -121,6 +123,7 @@ export default function IncomeRecordScreen() {
   };
   
   const [amount, setAmount] = useState<string>('');
+  const [category, setCategory] = useState<string>(params.category || '');
   
   // 금액 입력 시 처리하는 함수 (Input 컴포넌트에서 이미 포맷팅됨)
   const handleAmountChange = (text: string) => {
@@ -182,6 +185,7 @@ export default function IncomeRecordScreen() {
 
   // Alert state
   const [showAmountAlert, setShowAmountAlert] = useState<boolean>(false);
+  const [showCategoryAlert, setShowCategoryAlert] = useState<boolean>(false);
 
   // Scroll reference
   const scrollViewRef = useRef<ScrollView>(null);
@@ -259,8 +263,74 @@ export default function IncomeRecordScreen() {
     }, 350);
   };
 
+  const handleCategoryPress = () => {
+    Keyboard.dismiss();
+
+    router.push({
+      pathname: '/expense-category',
+      params: {
+        type: 'income',
+        selectedCategory: category,
+        selectedDate: params.selectedDate,
+        calendarYear: params.calendarYear,
+        calendarMonth: params.calendarMonth,
+        fromEdit: 'true',
+      },
+    });
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      const syncCategory = async () => {
+        try {
+          const selectedCategoryFromStorage = await AsyncStorage.getItem('selectedCategory');
+
+          if (selectedCategoryFromStorage) {
+            setCategory(selectedCategoryFromStorage);
+            await AsyncStorage.removeItem('selectedCategory');
+            return;
+          }
+
+          if (params.category) {
+            setCategory(params.category);
+          }
+        } catch {
+          if (params.category) {
+            setCategory(params.category);
+          }
+        }
+      };
+
+      syncCategory();
+    }, [params.category])
+  );
+
+  const [categoryEmojiMap, setCategoryEmojiMap] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    loadCategories('income')
+      .then((cats) => {
+        const map: Record<string, string> = {};
+        cats.forEach((cat) => {
+          map[cat.label] = cat.emoji;
+        });
+        setCategoryEmojiMap(map);
+      })
+      .catch(() => {
+        // ignore
+      });
+  }, []);
+
+  const getCategoryEmojiSafe = (label: string): string => categoryEmojiMap[label] ?? '';
+  const categoryDisplay = category ? `${getCategoryEmojiSafe(category)} ${category}` : '';
+
   const handleConfirm = async () => {
     // 필수값 검증
+    if (!category) {
+      setShowCategoryAlert(true);
+      return;
+    }
+
     if (!amount || amount === '0' || amount.trim() === '') {
       setShowAmountAlert(true);
       return;
@@ -268,7 +338,7 @@ export default function IncomeRecordScreen() {
     
     setLoading(true);
     try {
-      // 입금 기록 데이터 준비
+      // 수입 기록 데이터 준비
       const incomeAmount = parseFloat(amount.replace(/,/g, ''));
       const incomeTimestamp = Date.now();
 
@@ -277,6 +347,7 @@ export default function IncomeRecordScreen() {
         type: 'income',
         amount: incomeAmount,
         date,
+        category,
         memo,
         timestamp: incomeTimestamp,
       };
@@ -284,7 +355,7 @@ export default function IncomeRecordScreen() {
       try {
         await createIncome(incomeRecord);
       } catch (error) {
-        console.error('[입금 생성] 저장 실패:', error);
+        console.error('[수입 생성] 저장 실패:', error);
       }
       
       // AsyncStorage에서 기존 calendarData 가져오기
@@ -303,7 +374,7 @@ export default function IncomeRecordScreen() {
         };
       }
       
-      // 총 입금 금액 합산 (홈 화면용)
+      // 총 수입 금액 합산 (홈 화면용)
       calendarData[dateKey].totalIncome = (calendarData[dateKey].totalIncome || 0) + incomeRecord.amount;
       
       // 건별 기록 추가 (타임라인용)
@@ -311,7 +382,7 @@ export default function IncomeRecordScreen() {
       calendarData[dateKey].records.push({
         type: 'income',
         amount: incomeRecord.amount,
-        category: '💰 입금',
+        category: category || '수입',
         memo: incomeRecord.memo,
         timestamp: incomeTimestamp, // 기존 기록과 동일한 timestamp 사용
       });
@@ -332,14 +403,14 @@ export default function IncomeRecordScreen() {
       const targetYear = customMonthInfo.year;
       const targetMonth = customMonthInfo.month;
       
-      // Stack 정리: 입금 기록 제거하고 홈으로
+      // Stack 정리: 수입 기록 제거하고 홈으로
       await goHomeWithFocus({
         year: targetYear,
         month: targetMonth,
         targetDate: dateKey,
       });
     } catch (error) {
-      console.error('[입금 생성] error:', error);
+      console.error('[수입 생성] error:', error);
     } finally {
       setLoading(false);
     }
@@ -351,11 +422,11 @@ export default function IncomeRecordScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.staticWhite }]} edges={['top']}>
-      <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
+      <StatusBar barStyle="dark-content" />
       
       <TopNavigation
         type="sub"
-        title="입금 기록"
+        title="수입 기록"
         showLeftIcon
         onLeftIconPress={handleBack}
       />
@@ -371,6 +442,20 @@ export default function IncomeRecordScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
+            {/* 카테고리 */}
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
+                카테고리 <Text style={{ color: '#EF5252' }}>*</Text>
+              </Text>
+              <Input
+                value={categoryDisplay}
+                placeholder="카테고리 선택"
+                showRightArrow
+                buttonMode
+                onPress={handleCategoryPress}
+              />
+            </View>
+
             {/* 날짜 */}
             <View style={styles.section}>
               <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
@@ -456,7 +541,7 @@ export default function IncomeRecordScreen() {
       {showDatePicker && (
         <ModalBottomsheet
           visible={showDatePicker}
-          title="입금 기록일 선택"
+          title="수입 기록일 선택"
           onClose={handleDatePickerClose}
           closeOnBackdrop={true}
           contentStyle={styles.dateBottomsheetContent}
@@ -490,6 +575,17 @@ export default function IncomeRecordScreen() {
       >
         <Text style={[styles.alertText, { color: colors.text }]}>
           금액을 입력해 주세요.
+        </Text>
+      </ModalPopup>
+
+      {/* 카테고리 미선택 얼럿 */}
+      <ModalPopup
+        visible={showCategoryAlert}
+        onConfirm={() => setShowCategoryAlert(false)}
+        confirmText="확인"
+      >
+        <Text style={[styles.alertText, { color: colors.text }]}>
+          카테고리를 선택해 주세요.
         </Text>
       </ModalPopup>
     </SafeAreaView>

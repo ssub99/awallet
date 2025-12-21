@@ -1,10 +1,10 @@
-import React, { createContext, useContext, useEffect, useMemo, useState, useCallback, useRef } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLoading } from '@/contexts/loading-context';
 import { loadMonthStartDay, monthStartEvent } from '@/hooks/use-month-start';
+import { loadAllCategories } from '@/utils/categories';
 import { getAllExpenses, type ExpenseRecord } from '@/utils/expenses';
 import { getAllIncomes, type IncomeRecord } from '@/utils/incomes';
-import { loadAllCategories } from '@/utils/categories';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 export interface DayDataRecord {
   [date: string]: any;
@@ -53,7 +53,7 @@ export const AppDataProvider: React.FC<AppDataProviderProps> = ({ children, enab
         loadAllCategories(),
       ]);
       
-      // AsyncStorage에서 기존 데이터 로드 (입금, 챌린지 등)
+      // AsyncStorage에서 기존 데이터 로드 (수입, 챌린지 등)
       const localCalendarData = storedData ? JSON.parse(storedData) : {};
 
       // 현재 존재하는 카테고리 이름 집합 생성
@@ -73,8 +73,12 @@ export const AppDataProvider: React.FC<AppDataProviderProps> = ({ children, enab
             return false;
           }
           
-          // 삭제된 카테고리의 지출 레코드 제거
-          if (record?.type === 'expense' && record?.category && !validCategoryLabels.has(record.category)) {
+          // 삭제된 카테고리의 지출/수입 레코드 제거
+          if (
+            (record?.type === 'expense' || record?.type === 'income') &&
+            record?.category &&
+            !validCategoryLabels.has(record.category)
+          ) {
             return false;
           }
           
@@ -99,7 +103,7 @@ export const AppDataProvider: React.FC<AppDataProviderProps> = ({ children, enab
         }
       });
       
-      // 저장된 지출/입금 기록 조회
+      // 저장된 지출/수입 기록 조회
       let fetchedCalendarData: DayDataRecord = {};
       try {
         const [expenses, incomes] = await Promise.all([
@@ -158,7 +162,7 @@ export const AppDataProvider: React.FC<AppDataProviderProps> = ({ children, enab
           }
         });
         
-        // 입금 기록 병합
+        // 수입 기록 병합
         incomes.forEach((income: IncomeRecord) => {
           if (income.isDeleted) {
             return;
@@ -177,7 +181,7 @@ export const AppDataProvider: React.FC<AppDataProviderProps> = ({ children, enab
           fetchedCalendarData[dateKey].records.push({
             type: 'income',
             amount: income.amount,
-            category: '💰 입금',
+            category: income.category ?? '수입',
             memo: income.memo,
             date: income.date,
             timestamp: income.timestamp,
@@ -233,8 +237,12 @@ export const AppDataProvider: React.FC<AppDataProviderProps> = ({ children, enab
               return false;
             }
 
-            // 삭제된 카테고리의 지출 레코드 제거
-            if (record.type === 'expense' && record.category && !validCategoryLabels.has(record.category)) {
+            // 삭제된 카테고리의 지출/수입 레코드 제거
+            if (
+              (record.type === 'expense' || record.type === 'income') &&
+              record.category &&
+              !validCategoryLabels.has(record.category)
+            ) {
               return false;
             }
 
@@ -272,10 +280,14 @@ export const AppDataProvider: React.FC<AppDataProviderProps> = ({ children, enab
           return;
         }
 
-        // 삭제된 카테고리의 지출 레코드 제거
+        // 삭제된 카테고리의 지출/수입 레코드 제거
         const originalLength = bucket.records.length;
         bucket.records = bucket.records.filter((record: any) => {
-          if (record?.type === 'expense' && record?.category && !validCategoryLabels.has(record.category)) {
+          if (
+            (record?.type === 'expense' || record?.type === 'income') &&
+            record?.category &&
+            !validCategoryLabels.has(record.category)
+          ) {
             return false;
           }
           return true;

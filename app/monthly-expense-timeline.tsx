@@ -13,11 +13,11 @@ import { useAppData } from '@/contexts/app-data-context';
 import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
+import { loadCategories } from '@/utils/categories';
 import { getChallengesByDateRange } from '@/utils/challenges';
 import { getCustomMonthRange, isDateInCustomMonth } from '@/utils/custom-month';
-import { loadCategories } from '@/utils/categories';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -27,10 +27,10 @@ const useCategoryEmojiMap = () => {
   const [map, setMap] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    loadCategories('expense')
-      .then((cats) => {
+    Promise.all([loadCategories('expense'), loadCategories('income')])
+      .then(([expense, income]) => {
         const next: Record<string, string> = {};
-        cats.forEach((c) => {
+        [...expense, ...income].forEach((c) => {
           next[c.label] = c.emoji;
         });
         setMap(next);
@@ -666,7 +666,7 @@ export default function MonthlyExpenseTimelineScreen() {
 
                             }
 
-                            // 입금 기록인 경우 수정화면으로 이동
+                            // 수입 기록인 경우 수정화면으로 이동
                             router.push({
                               pathname: '/income-edit',
                               params: {
@@ -698,9 +698,20 @@ export default function MonthlyExpenseTimelineScreen() {
                               <Text 
                                 style={[styles.categoryText, { color: colors.text }]}
                               >
-                              {item.type === 'expense' && categoryEmojiMap[item.category]
-                                ? `${categoryEmojiMap[item.category]} ${item.category}`
-                                  : item.category}
+                                {(() => {
+                                  const label = item.category || '수입';
+                                  const emoji = categoryEmojiMap[label];
+                                  if (emoji) {
+                                    return `${emoji} ${label}`;
+                                  }
+                                  if (item.type === 'income') {
+                                    if (label === '수입' || label === '입금' || !label) {
+                                      return '💰 수입';
+                                    }
+                                    return label;
+                                  }
+                                  return label;
+                                })()}
                               </Text>
                             </View>
                             <View style={styles.amountContainer}>

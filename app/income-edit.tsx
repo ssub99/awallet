@@ -16,10 +16,11 @@ import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { getCustomMonthInfo } from '@/utils/custom-month';
+import { loadCategories } from '@/utils/categories';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { calendarRefreshEvent } from '@/hooks/calendar-events';
 import { updateIncome, softDeleteIncome } from '@/utils/incomes';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Dimensions,
@@ -118,6 +119,7 @@ export default function IncomeEditScreen() {
 
   // Form state - Initialize with existing data
   const [amount, setAmount] = useState<string>(recordData ? recordData.amount.toLocaleString() : '');
+  const [category, setCategory] = useState<string>(recordData?.category ?? '');
   const [date, setDate] = useState<string>(() => {
     if (dateKey) {
       // "2025-01-15" 형식을 "2025.01.15" 형식으로 변환
@@ -143,6 +145,7 @@ export default function IncomeEditScreen() {
     Keyboard.dismiss();
   }, []);
   const [monthStartDay, setMonthStartDay] = useState(1);
+  const [showCategoryAlert, setShowCategoryAlert] = useState(false);
 
   // Date picker state
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
@@ -237,6 +240,65 @@ export default function IncomeEditScreen() {
   };
 
   // amount auto-scroll removed per request
+  const handleCategoryPress = () => {
+    Keyboard.dismiss();
+
+    router.push({
+      pathname: '/expense-category',
+      params: {
+        type: 'income',
+        selectedCategory: category,
+        selectedDate: dateKey ? dateKey.replace(/-/g, '.') : undefined,
+        calendarYear: params.calendarYear,
+        calendarMonth: params.calendarMonth,
+        fromEdit: 'true',
+      },
+    });
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      const syncCategory = async () => {
+        try {
+          const selectedCategoryFromStorage = await AsyncStorage.getItem('selectedCategory');
+          if (selectedCategoryFromStorage) {
+            setCategory(selectedCategoryFromStorage);
+            await AsyncStorage.removeItem('selectedCategory');
+            return;
+          }
+
+          if (recordData?.category) {
+            setCategory(recordData.category);
+          }
+        } catch {
+          if (recordData?.category) {
+            setCategory(recordData.category);
+          }
+        }
+      };
+
+      syncCategory();
+    }, [recordData?.category])
+  );
+
+  const [categoryEmojiMap, setCategoryEmojiMap] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    loadCategories('income')
+      .then((cats) => {
+        const map: Record<string, string> = {};
+        cats.forEach((cat) => {
+          map[cat.label] = cat.emoji;
+        });
+        setCategoryEmojiMap(map);
+      })
+      .catch(() => {
+        // ignore
+      });
+  }, []);
+
+  const getCategoryEmojiSafe = (label: string): string => categoryEmojiMap[label] ?? '';
+  const categoryDisplay = category ? `${getCategoryEmojiSafe(category)} ${category}` : '';
 
   const handleMemoFocus = () => {
     // 메모 섹션 위치로 스크롤 (하단 버튼 제외)
@@ -256,6 +318,11 @@ export default function IncomeEditScreen() {
 
   const handleUpdate = async () => {
     // 필수값 검증
+    if (!category) {
+      setShowCategoryAlert(true);
+      return;
+    }
+
     if (!amount || amount === '0' || amount.trim() === '') {
       setShowAmountAlert(true);
       return;
@@ -280,13 +347,14 @@ export default function IncomeEditScreen() {
         await updateIncome(incomeId, {
           amount: newAmount,
           date,
+          category,
           memo,
         });
       } catch (error) {
-        console.error('[입금 수정] 저장 오류:', error);
+        console.error('[수입 수정] 저장 오류:', error);
       }
       
-      // 기존 날짜에서 총 입금 금액 차감 및 잔재 제거
+      // 기존 날짜에서 총 수입 금액 차감 및 잔재 제거
       if (calendarData[oldDateKey]) {
         calendarData[oldDateKey].totalIncome = Math.max(0, (calendarData[oldDateKey].totalIncome || 0) - oldAmount);
         
@@ -313,7 +381,7 @@ export default function IncomeEditScreen() {
         };
       }
       
-      // 총 입금 금액 추가
+      // 총 수입 금액 추가
       calendarData[newDateKey].totalIncome = (calendarData[newDateKey].totalIncome || 0) + newAmount;
       
       // 건별 기록 추가
@@ -321,7 +389,7 @@ export default function IncomeEditScreen() {
       calendarData[newDateKey].records.push({
         type: 'income',
         amount: newAmount,
-        category: '💰 입금',
+        category: category || '수입',
         memo: memo,
         timestamp: recordTimestamp,
       });
@@ -349,7 +417,7 @@ export default function IncomeEditScreen() {
         targetDate: newDateKey,
       });
     } catch (error) {
-      console.error('[입금 수정] error:', error);
+      console.error('[수입 수정] error:', error);
     } finally {
       setLoading(false);
     }
@@ -369,10 +437,10 @@ export default function IncomeEditScreen() {
       try {
         await softDeleteIncome(incomeId);
       } catch (error) {
-        console.error('[입금 삭제] 소프트 삭제 오류:', error);
+        console.error('[수입 삭제] 소프트 삭제 오류:', error);
       }
       
-      // 기존 날짜에서 총 입금 금액 차감 및 잔재 제거
+      // 기존 날짜에서 총 수입 금액 차감 및 잔재 제거
       if (calendarData[dateKey]) {
         calendarData[dateKey].totalIncome = Math.max(0, (calendarData[dateKey].totalIncome || 0) - oldAmount);
         
@@ -417,7 +485,7 @@ export default function IncomeEditScreen() {
         });
       }
     } catch (error) {
-      console.error('[입금 삭제] error:', error);
+      console.error('[수입 삭제] error:', error);
     } finally {
       setLoading(false);
     }
@@ -429,11 +497,11 @@ export default function IncomeEditScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.staticWhite }]} edges={['top']}>
-      <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
+      <StatusBar barStyle="dark-content" />
       
       <TopNavigation
         type="sub"
-        title="입금 내역 수정"
+        title="수입 내역 수정"
         showLeftIcon
         onLeftIconPress={handleBack}
       />
@@ -449,6 +517,20 @@ export default function IncomeEditScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
+          {/* 카테고리 */}
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
+              카테고리 <Text style={{ color: '#EF5252' }}>*</Text>
+            </Text>
+            <Input
+              value={categoryDisplay}
+              placeholder="카테고리 선택"
+              showRightArrow
+              buttonMode
+              onPress={handleCategoryPress}
+            />
+          </View>
+
           {/* 날짜 */}
           <View style={styles.section}>
             <View style={styles.dateHeader}>
@@ -541,7 +623,7 @@ export default function IncomeEditScreen() {
       {showDatePicker && (
         <ModalBottomsheet
           visible={showDatePicker}
-          title="입금 기록일 선택"
+          title="수입 기록일 선택"
           onClose={handleDatePickerClose}
           closeOnBackdrop={true}
           contentStyle={styles.dateBottomsheetContent}
@@ -578,6 +660,17 @@ export default function IncomeEditScreen() {
         </Text>
       </ModalPopup>
 
+      {/* 카테고리 미선택 얼럿 */}
+      <ModalPopup
+        visible={showCategoryAlert}
+        onConfirm={() => setShowCategoryAlert(false)}
+        confirmText="확인"
+      >
+        <Text style={[styles.alertText, { color: colors.text }]}>
+          카테고리를 선택해 주세요.
+        </Text>
+      </ModalPopup>
+
       {/* 삭제 확인 얼럿 */}
       <ModalPopup
         visible={showDeleteAlert}
@@ -587,7 +680,7 @@ export default function IncomeEditScreen() {
         cancelText="취소"
       >
         <Text style={[styles.alertText, { color: colors.text }]}>
-          입금 내역을 삭제하시겠습니까?
+          수입 내역을 삭제하시겠습니까?
         </Text>
       </ModalPopup>
     </SafeAreaView>

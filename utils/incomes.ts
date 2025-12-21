@@ -8,6 +8,7 @@ export interface IncomeRecord {
   type: 'income';
   amount: number;
   date: string; // YYYY.MM.DD
+  category?: string;
   memo?: string;
   timestamp: number;
   isDeleted?: boolean;
@@ -139,6 +140,17 @@ export async function getAllIncomes(): Promise<IncomeRecord[]> {
 
 export async function clearAllIncomes(): Promise<void> {
   await AsyncStorage.removeItem(INCOME_STORAGE_KEY);
+}
+
+/**
+ * 특정 카테고리에 해당하는 수입 기록을 모두 삭제합니다.
+ */
+export async function deleteIncomesByCategory(categoryLabel: string): Promise<void> {
+  const incomes = await loadLocalIncomes();
+  const filtered = incomes.filter((income) => income.category !== categoryLabel);
+  if (filtered.length !== incomes.length) {
+    await persistIncomes(filtered);
+  }
 }
 
 
