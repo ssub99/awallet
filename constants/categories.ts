@@ -89,13 +89,33 @@ export function getExpenseCategories(): Category[] {
 
 /**
  * Get category by label (searches both expense and income categories)
+ * (동기) 기본 카테고리 + 메모리 내 확장
  */
 export function getCategoryByLabel(label: string): Category | undefined {
   return getAllCategories().find(category => category.label === label);
 }
 
 /**
- * Get category emoji by label
+ * Async helpers for unified categories (includes persisted user categories)
+ * - 기존 동기 헬퍼를 유지하면서, 통합 카테고리를 조회해야 할 때 사용
+ */
+export async function getCategoryByLabelAsync(label: string): Promise<Category | undefined> {
+  const all = await import('@/utils/categories').then(mod => mod.loadAllCategories());
+  return all.find(category => category.label === label);
+}
+
+export async function getCategoryEmojiAsync(label: string): Promise<string> {
+  const found = await getCategoryByLabelAsync(label);
+  return found?.emoji ?? '';
+}
+
+export async function getCategoryTypeAsync(label: string): Promise<CategoryType | undefined> {
+  const found = await getCategoryByLabelAsync(label);
+  return found?.type;
+}
+
+/**
+ * (동기) Get category emoji by label
  */
 export function getCategoryEmoji(label: string): string {
   const category = getCategoryByLabel(label);
@@ -103,7 +123,7 @@ export function getCategoryEmoji(label: string): string {
 }
 
 /**
- * Get category type by label
+ * (동기) Get category type by label
  */
 export function getCategoryType(label: string): CategoryType | undefined {
   const category = getCategoryByLabel(label);

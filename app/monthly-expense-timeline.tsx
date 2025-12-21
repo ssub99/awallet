@@ -22,31 +22,25 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-// 카테고리별 이모지 매핑
-const CATEGORY_EMOJIS: Record<string, string> = {
-  '식비': '🍚',
-  '배달음식': '🛵',
-  '카페/편의점/간식': '☕️',
-  '교통비': '🚊',
-  '주거비': '🏠',
-  '공과금': '📎',
-  '통신비': '☎️',
-  '쇼핑': '🛍️',
-  '미용': '💇🏻‍♂️',
-  '운동/헬스': '💪',
-  '구독 서비스': '📌',
-  '영화': '🎬',
-  '취미': '👨🏻‍💻',
-  '여행': '🧳',
-  '모임/술': '🍺',
-  '경조사/선물': '🎁',
-  '차량': '🚘',
-  '대출/이자': '🏦',
-  '보험': '🔖',
-  '적금': '💵',
-  '투자': '📈',
-  '세금': '⚖️',
-  '기타': '📝',
+// 카테고리별 이모지 매핑 (통합 카테고리 로드)
+const useCategoryEmojiMap = () => {
+  const [map, setMap] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    loadCategories('expense')
+      .then((cats) => {
+        const next: Record<string, string> = {};
+        cats.forEach((c) => {
+          next[c.label] = c.emoji;
+        });
+        setMap(next);
+      })
+      .catch(() => {
+        // 로드 실패 시 빈 맵 유지
+      });
+  }, []);
+
+  return map;
 };
 
 interface TimelineItem {
@@ -85,6 +79,7 @@ interface ChallengeData {
 export default function MonthlyExpenseTimelineScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const categoryEmojiMap = useCategoryEmojiMap();
   const { setLoading } = useLoading();
   const pendingOpsRef = useRef(0);
   const beginLoad = useCallback(() => {
@@ -693,8 +688,8 @@ export default function MonthlyExpenseTimelineScreen() {
                               <Text 
                                 style={[styles.categoryText, { color: colors.text }]}
                               >
-                                {item.type === 'expense' && CATEGORY_EMOJIS[item.category]
-                                  ? `${CATEGORY_EMOJIS[item.category]} ${item.category}`
+                              {item.type === 'expense' && categoryEmojiMap[item.category]
+                                ? `${categoryEmojiMap[item.category]} ${item.category}`
                                   : item.category}
                               </Text>
                             </View>
@@ -801,7 +796,7 @@ export default function MonthlyExpenseTimelineScreen() {
                   <View style={[styles.categoryItemStatus, { backgroundColor: colors.staticWhite }]}>
                     <View style={styles.categorySection}>
                       <Text style={[styles.categoryName, { color: colors.text }]}>
-                        {CATEGORY_EMOJIS[item.category] || '📝'} {item.category}
+                        {categoryEmojiMap[item.category] || '📝'} {item.category}
                       </Text>
                       <Text style={[styles.categoryStatsText, { color: colors.text }]}>
                         {categoryFilter === 'recurring' 
