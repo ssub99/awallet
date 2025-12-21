@@ -12,8 +12,7 @@ import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
 import { Toast } from '@/components/ui/toast';
 import { type CategoryType } from '@/constants/categories';
 import { Colors, Typography } from '@/constants/theme';
-import { addUserCategory, loadUserCategories } from '@/utils/user-categories';
-import { loadCategories } from '@/utils/categories';
+import { loadCategories, saveCategories } from '@/utils/categories';
 import type { FlashListRef } from '@shopify/flash-list';
 import { FlashList } from '@shopify/flash-list';
 import * as Haptics from 'expo-haptics';
@@ -218,15 +217,14 @@ export default function CategoryCreateScreen() {
       setToastVisible(true);
       return;
     }
-    if (trimmedName.length > 30) {
-      setToastMessage('카테고리 이름은 30자 이하로 입력해주세요.');
+    if (trimmedName.length > 10) {
+      setToastMessage('카테고리 이름은 10자 이하로 입력해주세요.');
       setToastVisible(true);
       return;
     }
     
-    // 중복 체크
+    // 중복 체크 및 카테고리 생성
     try {
-      const existingCategories = await loadUserCategories(categoryType);
       const allCategories = await loadCategories(categoryType);
       
       const isDuplicate = allCategories.some(
@@ -246,7 +244,9 @@ export default function CategoryCreateScreen() {
         type: categoryType,
       };
       
-      await addUserCategory(newCategory);
+      // 통합 카테고리 리스트에 추가
+      const updatedCategories = [...allCategories, newCategory];
+      await saveCategories(categoryType, updatedCategories);
       
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       
@@ -303,7 +303,7 @@ export default function CategoryCreateScreen() {
                 placeholder="이름 입력"
                 style={styles.input}
                 autoFocus={false}
-                maxLength={20}
+                maxLength={10}
               />
             </View>
           </ScrollView>

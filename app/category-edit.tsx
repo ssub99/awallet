@@ -223,8 +223,8 @@ export default function CategoryEditScreen() {
       setToastVisible(true);
       return;
     }
-    if (trimmedName.length > 30) {
-      setToastMessage('카테고리 이름은 30자 이하로 입력해주세요.');
+    if (trimmedName.length > 10) {
+      setToastMessage('카테고리 이름은 10자 이하로 입력해주세요.');
       setToastVisible(true);
       return;
     }
@@ -495,7 +495,7 @@ export default function CategoryEditScreen() {
                 placeholder="이름 입력"
                 style={styles.input}
                 autoFocus={false}
-                maxLength={20}
+                maxLength={10}
               />
             </View>
           </ScrollView>

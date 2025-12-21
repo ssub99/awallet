@@ -204,9 +204,14 @@ export default function CategorySettingScreen() {
   
   const categoryType = (params.type as CategoryType) || 'expense';
   
-  // 초기 카테고리 로드 - 기본 카테고리를 즉시 표시하여 깜빡임 방지
+  // 간단한 메모리 캐시로 첫 진입 깜빡임 최소화
+  const categoriesCacheRef = useRef<Record<CategoryType, Array<{ emoji: string; label: string; type: CategoryType }> | null>>({
+    expense: null,
+    income: null,
+  });
+  // 캐시가 있으면 즉시 표시, 없으면 기본 카테고리로 즉시 표시(빈 상태 없음)
   const [categories, setCategories] = useState<Array<{ emoji: string; label: string; type: CategoryType }>>(() => {
-    return getCategoriesByType(categoryType);
+    return categoriesCacheRef.current[categoryType] ?? getCategoriesByType(categoryType);
   });
   
   // 이전 인덱스를 추적하여 순서 변경 감지
@@ -219,7 +224,7 @@ export default function CategorySettingScreen() {
   // 카테고리 로드 (화면 포커스 시)
   useFocusEffect(
     useCallback(() => {
-      const loadCategories = async () => {
+      const loadCategoriesData = async () => {
         // 드래그 종료 직후(3000ms 이내)에는 카테고리 로드하지 않음 (더 긴 시간으로 설정)
         const timeSinceLastDrag = Date.now() - lastDragEndTimeRef.current;
         if (timeSinceLastDrag < 3000) {
@@ -231,48 +236,18 @@ export default function CategorySettingScreen() {
         
         // 드래그 중이 아닐 때만 카테고리 로드
         if (!isDraggingRef.current) {
-          const loadedCategories = await loadCategories(categoryType);
-          
-          // 저장된 순서 불러오기
-          const savedOrder = await loadCategoryOrder(categoryType);
-          
-          setCategories((prevCategories) => {
-            // 카테고리 타입이 변경된 경우
-            const prevType = prevCategories[0]?.type;
-            if (prevType !== categoryType) {
-              // 저장된 순서가 있으면 적용
-              if (savedOrder && savedOrder.length > 0) {
-                return applySavedOrder(loadedCategories, savedOrder);
-              }
-              return loadedCategories;
-            }
-            
-            // 현재 카테고리와 새로 로드된 카테고리 비교
-            const currentLabels = new Set(prevCategories.map(c => c.label));
-            const newLabels = new Set(loadedCategories.map(c => c.label));
-            
-            // 카테고리가 정확히 같은지 확인 (순서 제외)
-            const hasSameCategories = 
-              currentLabels.size === newLabels.size &&
-              Array.from(currentLabels).every(label => newLabels.has(label));
-            
-            // 카테고리가 같고 저장된 순서가 없으면 순서 유지 (드래그로 변경된 순서 유지)
-            if (hasSameCategories && (!savedOrder || savedOrder.length === 0)) {
-              return prevCategories;
-            }
-            
-            // 카테고리가 다르거나 저장된 순서가 있는 경우 업데이트
-            // 저장된 순서가 있으면 적용
-            if (savedOrder && savedOrder.length > 0) {
-              return applySavedOrder(loadedCategories, savedOrder);
-            }
-            
-            // 저장된 순서가 없으면 기존 순서를 유지하면서 새 카테고리 추가/제거
-            const orderedCategories = prevCategories
-              .filter(cat => newLabels.has(cat.label))
-              .concat(loadedCategories.filter(cat => !currentLabels.has(cat.label)));
-            return orderedCategories;
-          });
+          const [loadedCategories, savedOrder] = await Promise.all([
+            loadCategories(categoryType),
+            loadCategoryOrder(categoryType),
+          ]);
+
+          const finalCategories =
+            savedOrder && savedOrder.length > 0
+              ? applySavedOrder(loadedCategories, savedOrder)
+              : loadedCategories;
+
+          categoriesCacheRef.current[categoryType] = finalCategories;
+          setCategories(finalCategories);
         }
         
         previousIndexRef.current = null;
@@ -280,7 +255,7 @@ export default function CategorySettingScreen() {
         dragStartIndexRef.current = null;
       };
       
-      loadCategories();
+      loadCategoriesData();
     }, [categoryType, params.type, loadCategoryOrder, applySavedOrder])
   );
 
@@ -368,6 +343,8 @@ export default function CategorySettingScreen() {
   // 드래그 아이템 렌더링
   const renderItem = useCallback(({ item, drag, isActive, getIndex }: RenderItemParams<{ emoji: string; label: string; type: CategoryType }>) => {
     const index = getIndex();
+    const categoriesLength = categories?.length ?? 0;
+    const isLast = typeof index === 'number' ? index >= categoriesLength - 1 : false;
     
     return (
       <CategoryItem
@@ -378,10 +355,10 @@ export default function CategorySettingScreen() {
         colors={colors}
         onCategoryPress={handleCategoryPress}
         onDragStart={handleDragStart}
-        showDivider={index !== undefined && index < categories.length - 1 && !isActive}
+        showDivider={!isLast && !isActive}
       />
     );
-  }, [colors, handleCategoryPress, handleDragStart, categories.length]);
+  }, [colors, handleCategoryPress, handleDragStart, categories?.length]);
 
   // Placeholder 렌더링 (드래그 중 원래 위치에 표시)
   const renderPlaceholder = useCallback(({ item }: { item: { emoji: string; label: string; type: CategoryType } }) => {

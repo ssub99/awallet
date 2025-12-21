@@ -255,20 +255,10 @@ export default function ChallengeEditScreen() {
 
       await softDeleteChallengesByRecurringId(recurringId);
 
-        setShowDeleteModal(false);
-        
-        // 챌린지 현황으로 이동
-        router.back();
-        setTimeout(() => {
-          router.replace({
-            pathname: '/monthly-expense-timeline',
-            params: {
-              year: new Date().getFullYear().toString(),
-              month: (new Date().getMonth() + 1).toString(),
-              tab: 'challenge'
-            },
-          });
-        }, 100);
+      setShowDeleteModal(false);
+      
+      // 현재 보고 있던 캘린더 위치 유지: 단순 back만 수행 (현재 시점으로 이동하지 않음)
+      router.back();
     } catch (error) {
       console.error('[챌린지 삭제] error:', error);
       Alert.alert('오류', '챌린지 삭제에 실패했습니다.');
@@ -389,8 +379,7 @@ export default function ChallengeEditScreen() {
   };
 
   return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.staticWhite }]} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.staticWhite }]} edges={['top']}>
         <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
       
         <TopNavigation
@@ -404,6 +393,8 @@ export default function ChallengeEditScreen() {
           <ScrollView 
             style={[styles.content, { backgroundColor: colors.fill }]}
             contentContainerStyle={styles.contentContainer}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
           >
           {/* 챌린지 정보 */}
           <View style={styles.section}>
@@ -602,8 +593,7 @@ export default function ChallengeEditScreen() {
           visible={showToast}
           onHide={() => setShowToast(false)}
         />
-      </SafeAreaView>
-    </TouchableWithoutFeedback>
+    </SafeAreaView>
   );
 }
 

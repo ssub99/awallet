@@ -474,7 +474,12 @@ export default function HomeScreen() {
           showDropdownArrow
           yearOptions={yearOptions}
           selectedYear={currentYear}
-          onYearChange={(year) => setCurrentYear(year)}
+          onYearChange={(year) => {
+            const minYear = yearOptions[0]?.value ?? year;
+            const maxYear = yearOptions[yearOptions.length - 1]?.value ?? year;
+            const clampedYear = Math.min(maxYear, Math.max(minYear, year));
+            setCurrentYear(clampedYear);
+          }}
           monthOptions={periodType === 'month' ? monthOptions : undefined}
           selectedMonth={periodType === 'month' ? currentMonth : undefined}
           onMonthChange={periodType === 'month' ? (month) => setCurrentMonth(month) : undefined}

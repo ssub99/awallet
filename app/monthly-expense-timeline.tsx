@@ -17,7 +17,7 @@ import { getChallengesByDateRange } from '@/utils/challenges';
 import { getCustomMonthRange, isDateInCustomMonth } from '@/utils/custom-month';
 import { loadCategories } from '@/utils/categories';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -327,6 +327,13 @@ export default function MonthlyExpenseTimelineScreen() {
         }
   }, [year, month, beginLoad, endLoad]);
 
+  // 화면 포커스 시마다 새로고침 (삭제/수정 후 복귀 시 반영)
+  useFocusEffect(
+    useCallback(() => {
+      refreshData();
+    }, [refreshData])
+  );
+
   // 데이터 변경 시에만 새로고침 (홈과 동일한 정책)
   const { dataVersion } = useAppData();
   useEffect(() => {
@@ -455,7 +462,10 @@ export default function MonthlyExpenseTimelineScreen() {
           yearOptions={yearOptions}
           selectedYear={year}
           onYearChange={(newYear) => {
-            setCurrentYear(newYear);
+            const minYear = yearOptions[0]?.value ?? newYear;
+            const maxYear = yearOptions[yearOptions.length - 1]?.value ?? newYear;
+            const clampedYear = Math.min(maxYear, Math.max(minYear, newYear));
+            setCurrentYear(clampedYear);
           }}
           monthOptions={monthOptions}
           selectedMonth={month}

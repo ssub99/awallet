@@ -111,13 +111,33 @@ export function DatePicker({
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
   
+  const clampToOptions = (value: number | undefined, options?: DatePickerOption[]) => {
+    if (!options || options.length === 0 || value === undefined) {
+      return value;
+    }
+    const min = options[0].value;
+    const max = options[options.length - 1].value;
+    return Math.min(max, Math.max(min, value));
+  };
+  
   // Temporary values for iOS (to handle cancel/confirm)
-  const [tempYear, setTempYear] = useState<number | undefined>(selectedYear);
-  const [tempMonth, setTempMonth] = useState<number | undefined>(selectedMonth);
-  const [tempDay, setTempDay] = useState<number | undefined>(selectedDay);
+  const [tempYear, setTempYear] = useState<number | undefined>(
+    clampToOptions(selectedYear, yearOptions)
+  );
+  const [tempMonth, setTempMonth] = useState<number | undefined>(
+    clampToOptions(selectedMonth, monthOptions)
+  );
+  const [tempDay, setTempDay] = useState<number | undefined>(
+    clampToOptions(selectedDay, dayOptions)
+  );
+  const tempYearRef = useRef<number | undefined>(tempYear);
+  const tempMonthRef = useRef<number | undefined>(tempMonth);
+  const tempDayRef = useRef<number | undefined>(tempDay);
   
   // 모달이 닫히는 중인지 추적 (prop 변경 무시하기 위함)
   const isClosingRef = useRef(false);
+  // 완료 시 적용 지연 타이머 (iOS wheel 관성 대비)
+  const applyTimerRef = useRef<NodeJS.Timeout | null>(null);
   
   // Animation values (same as TopNavigation)
   const dimOpacity = useRef(new Animated.Value(0)).current;
@@ -145,9 +165,21 @@ export function DatePicker({
         wasOpenRef.current = true;
         if (__DEV__) {
         }
-        if (selectedYear !== undefined) setTempYear(selectedYear);
-        if (selectedMonth !== undefined) setTempMonth(selectedMonth);
-        if (selectedDay !== undefined) setTempDay(selectedDay);
+        if (selectedYear !== undefined) {
+          const next = clampToOptions(selectedYear, yearOptions);
+          setTempYear(next);
+          tempYearRef.current = next;
+        }
+        if (selectedMonth !== undefined) {
+          const next = clampToOptions(selectedMonth, monthOptions);
+          setTempMonth(next);
+          tempMonthRef.current = next;
+        }
+        if (selectedDay !== undefined) {
+          const next = clampToOptions(selectedDay, dayOptions);
+          setTempDay(next);
+          tempDayRef.current = next;
+        }
       } else {
         if (__DEV__) {
         }
@@ -157,11 +189,17 @@ export function DatePicker({
       wasOpenRef.current = false;
       if (__DEV__) {
       }
-      setTempYear(selectedYear);
-      setTempMonth(selectedMonth);
-      setTempDay(selectedDay);
+      const nextYear = clampToOptions(selectedYear, yearOptions);
+      const nextMonth = clampToOptions(selectedMonth, monthOptions);
+      const nextDay = clampToOptions(selectedDay, dayOptions);
+      setTempYear(nextYear);
+      setTempMonth(nextMonth);
+      setTempDay(nextDay);
+      tempYearRef.current = nextYear;
+      tempMonthRef.current = nextMonth;
+      tempDayRef.current = nextDay;
     }
-  }, [selectedYear, selectedMonth, selectedDay, visible]);
+  }, [selectedYear, selectedMonth, selectedDay, visible, yearOptions, monthOptions, dayOptions]);
   
   // Animate picker open/close (same as TopNavigation)
   useEffect(() => {
@@ -226,53 +264,37 @@ export function DatePicker({
     try {
       // 먼저 닫기 플래그 설정 (prop 변경 무시)
       isClosingRef.current = true;
+      // 기존 적용 타이머가 있으면 취소
+      if (applyTimerRef.current) {
+        clearTimeout(applyTimerRef.current);
+        applyTimerRef.current = null;
+      }
       if (__DEV__) {
       }
       
-      // 먼저 모달을 닫기 (리렌더링 전에 터치 이벤트 처리 완료)
-      if (__DEV__) {
-      }
-      onClose();
-      if (__DEV__) {
-      }
-      
-      // 모달이 닫힌 후 상태 변경 (다음 프레임에서 실행)
-      setTimeout(() => {
-        if (__DEV__) {
-        }
+      // iOS wheel 관성으로 인한 값 변화를 흡수하기 위해 짧은 지연 후 적용
+      applyTimerRef.current = setTimeout(() => {
         try {
-          // Apply temp values to actual values
           if (onYearChange && tempYear !== undefined) {
-            if (__DEV__) {
-            }
             onYearChange(tempYear);
           }
           if (onMonthChange && tempMonth !== undefined) {
-            if (__DEV__) {
-            }
             onMonthChange(tempMonth);
           }
           if (onDayChange && tempDay !== undefined) {
-            if (__DEV__) {
-            }
             onDayChange(tempDay);
           }
-          if (__DEV__) {
-          }
-          
-          // 상태 변경 완료 후 플래그 리셋 (약간의 지연)
-          setTimeout(() => {
-            isClosingRef.current = false;
-            if (__DEV__) {
-            }
-          }, 100);
         } catch (error) {
           if (__DEV__) {
             console.error('❌ [DatePicker] 상태 변경 에러:', error);
           }
-          isClosingRef.current = false;
+        } finally {
+          onClose();
+          setTimeout(() => {
+            isClosingRef.current = false;
+          }, 100);
         }
-      }, 50); // 50ms 지연으로 모달 닫기 애니메이션이 시작되도록 함
+      }, 150); // 관성 마무리 대기 (150ms)
     } catch (error) {
       if (__DEV__) {
         console.error('❌ [DatePicker] handleDone 에러:', error);
@@ -289,6 +311,11 @@ export function DatePicker({
     try {
       // 먼저 닫기 플래그 설정 (prop 변경 무시)
       isClosingRef.current = true;
+      // 적용 타이머가 있으면 취소
+      if (applyTimerRef.current) {
+        clearTimeout(applyTimerRef.current);
+        applyTimerRef.current = null;
+      }
       if (__DEV__) {
       }
       
@@ -296,8 +323,6 @@ export function DatePicker({
       if (__DEV__) {
       }
       onClose();
-      if (__DEV__) {
-      }
       
       // 모달이 닫힌 후 temp 값을 원래 값으로 복원 (다음 프레임에서 실행)
       setTimeout(() => {
@@ -334,26 +359,38 @@ export function DatePicker({
   };
   
   const handleYearValueChange = (itemValue: number) => {
+    const clamped = clampToOptions(itemValue, yearOptions);
     if (Platform.OS === 'android') {
-      onYearChange?.(itemValue);
+      if (clamped !== undefined) {
+        onYearChange?.(clamped);
+      }
     } else {
-      setTempYear(itemValue);
+      setTempYear(clamped);
+      tempYearRef.current = clamped;
     }
   };
   
   const handleMonthValueChange = (itemValue: number) => {
+    const clamped = clampToOptions(itemValue, monthOptions);
     if (Platform.OS === 'android') {
-      onMonthChange?.(itemValue);
+      if (clamped !== undefined) {
+        onMonthChange?.(clamped);
+      }
     } else {
-      setTempMonth(itemValue);
+      setTempMonth(clamped);
+      tempMonthRef.current = clamped;
     }
   };
   
   const handleDayValueChange = (itemValue: number) => {
+    const clamped = clampToOptions(itemValue, dayOptions);
     if (Platform.OS === 'android') {
-      onDayChange?.(itemValue);
+      if (clamped !== undefined) {
+        onDayChange?.(clamped);
+      }
     } else {
-      setTempDay(itemValue);
+      setTempDay(clamped);
+      tempDayRef.current = clamped;
     }
   };
   

@@ -10,6 +10,12 @@ export interface ChallengeRecord {
   targetAmount: number;
   createdAt: number;
   recurringId: string;
+  /**
+   * Anchor date for recurring group (원본 생성 시점의 시작일을 유지)
+   * - 새로 생성 시 startDate로 설정
+   * - 월 시작일 변경에 따른 재생성 시에도 이 값을 그대로 유지
+   */
+  anchorStartDate?: string;
   isDeleted?: boolean;
   deletedAt?: string | null;
   // Optional legacy fields preserved for compatibility
@@ -28,6 +34,7 @@ function deriveMonthFromDate(dateString: string): string {
 function normalizeChallenge(record: ChallengeRecord): ChallengeRecord {
   return {
     ...record,
+    anchorStartDate: record.anchorStartDate ?? record.startDate,
     isDeleted: record.isDeleted ?? false,
     deletedAt: record.deletedAt ?? null,
     startMonth: record.startMonth ?? deriveMonthFromDate(record.startDate),

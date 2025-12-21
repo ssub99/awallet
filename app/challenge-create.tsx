@@ -242,6 +242,7 @@ export default function ChallengeCreateScreen() {
           category: category,
           startDate: challengeStartDate,
           endDate: challengeEndDateStr,
+          anchorStartDate: challengeStartDate, // 원본 앵커 유지
           targetAmount: targetAmountNum,
           createdAt: Date.now(),
           recurringId: '', // 임시로 빈 값 (아직 생성 전)

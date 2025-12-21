@@ -92,18 +92,19 @@ export default function MonthStartDayScreen() {
       
       // 새로운 챌린지들 생성
       const newChallenges: ChallengeRecord[] = [];
-      const today = new Date();
-      
-      // 오늘 날짜가 속하는 커스텀 월 정보 계산
-      const customMonthInfo = getCustomMonthInfo(today, newMonthStartDay);
-      const baseYear = customMonthInfo.year;
-      const baseMonth = customMonthInfo.month;
 
       for (const [category, challenges] of challengeGroups) {
+        // 시작월 계산을 위해 시작일 기준 오름차순 정렬
+        const sortedChallenges = [...challenges].sort((a, b) => a.startDate.localeCompare(b.startDate));
         // 해당 카테고리의 첫 번째 챌린지에서 목표 금액과 반복 개월 수 가져오기
-        const firstChallenge = challenges[0];
+        const firstChallenge = sortedChallenges[0];
         const targetAmount = firstChallenge.targetAmount;
-        const recurringMonths = challenges.length;
+        const recurringMonths = sortedChallenges.length;
+
+        // 원본 앵커(startDate 유지) 기준으로 새 월 시작일에 맞춘 커스텀 월 계산
+        const anchorDateStr = firstChallenge.anchorStartDate ?? firstChallenge.startDate;
+        const anchorDate = new Date(anchorDateStr.replace(/\./g, '-'));
+        const { year: baseYear, month: baseMonth } = getCustomMonthInfo(anchorDate, newMonthStartDay);
 
         // 새로운 recurringId 생성 (그룹 식별자)
         const newRecurringId = generateGroupId('recurring');
@@ -127,8 +128,8 @@ export default function MonthStartDayScreen() {
           const challengeEndDateStr = `${challengeEndYear}.${String(challengeEndMonth).padStart(2, '0')}.${String(challengeEndDay).padStart(2, '0')}`;
           
           const startMonthLabel = `${challengeStartYear}.${String(challengeStartMonth).padStart(2, '0')}`;
-        const endMonthLabel = `${challengeEndYear}.${String(challengeEndMonth).padStart(2, '0')}`;
-        const durationMonths = challenges.length;
+          const endMonthLabel = `${challengeEndYear}.${String(challengeEndMonth).padStart(2, '0')}`;
+          const durationMonths = sortedChallenges.length;
 
           const now = Date.now();
 
@@ -137,6 +138,7 @@ export default function MonthStartDayScreen() {
             category: category,
             startDate: challengeStartDate,
             endDate: challengeEndDateStr,
+            anchorStartDate: anchorDateStr, // 원본 앵커 유지
             targetAmount: targetAmount,
             createdAt: now,
             recurringId: newRecurringId,

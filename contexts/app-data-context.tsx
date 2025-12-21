@@ -4,6 +4,7 @@ import { useLoading } from '@/contexts/loading-context';
 import { loadMonthStartDay, monthStartEvent } from '@/hooks/use-month-start';
 import { getAllExpenses, type ExpenseRecord } from '@/utils/expenses';
 import { getAllIncomes, type IncomeRecord } from '@/utils/incomes';
+import { loadAllCategories } from '@/utils/categories';
 
 export interface DayDataRecord {
   [date: string]: any;
@@ -46,15 +47,19 @@ export const AppDataProvider: React.FC<AppDataProviderProps> = ({ children, enab
     refreshingRef.current = true;
     setLoading(true);
     try {
-      const [storedData, msd] = await Promise.all([
+      const [storedData, msd, allCategories] = await Promise.all([
         AsyncStorage.getItem('calendarData'),
         loadMonthStartDay(),
+        loadAllCategories(),
       ]);
       
       // AsyncStorage에서 기존 데이터 로드 (입금, 챌린지 등)
       const localCalendarData = storedData ? JSON.parse(storedData) : {};
 
-      // 로컬 데이터에서 삭제된 레코드 제거 및 총액 재계산
+      // 현재 존재하는 카테고리 이름 집합 생성
+      const validCategoryLabels = new Set(allCategories.map(cat => cat.label));
+
+      // 로컬 데이터에서 삭제된 레코드 및 삭제된 카테고리 레코드 제거 및 총액 재계산
       Object.keys(localCalendarData).forEach(dateKey => {
         const bucket = localCalendarData[dateKey];
         if (!bucket || !Array.isArray(bucket.records)) {
@@ -62,7 +67,19 @@ export const AppDataProvider: React.FC<AppDataProviderProps> = ({ children, enab
           return;
         }
 
-        bucket.records = bucket.records.filter((record: any) => record?.isDeleted !== true);
+        bucket.records = bucket.records.filter((record: any) => {
+          // isDeleted가 true인 레코드 제거
+          if (record?.isDeleted === true) {
+            return false;
+          }
+          
+          // 삭제된 카테고리의 지출 레코드 제거
+          if (record?.type === 'expense' && record?.category && !validCategoryLabels.has(record.category)) {
+            return false;
+          }
+          
+          return true;
+        });
 
         let totalExpense = 0;
         let totalIncome = 0;
@@ -216,6 +233,11 @@ export const AppDataProvider: React.FC<AppDataProviderProps> = ({ children, enab
               return false;
             }
 
+            // 삭제된 카테고리의 지출 레코드 제거
+            if (record.type === 'expense' && record.category && !validCategoryLabels.has(record.category)) {
+              return false;
+            }
+
             if (record.type === 'income') {
               return !fetchedIncomeTimestamps.has(record.timestamp);
             }
@@ -242,16 +264,50 @@ export const AppDataProvider: React.FC<AppDataProviderProps> = ({ children, enab
         }
       });
       
-      // 최종 정리: 잔재 제거 (기록이 없고 총액이 0인 날짜 키 삭제)
+      // 최종 정리: 삭제된 카테고리 레코드 제거, 총액 재계산, 잔재 제거
       Object.keys(mergedCalendarData).forEach((dateKey) => {
         const bucket = mergedCalendarData[dateKey];
-        const records = Array.isArray(bucket?.records) ? bucket.records : [];
-        const totalIncome = bucket?.totalIncome || 0;
-        const totalExpense = bucket?.totalExpense || 0;
-        if (records.length === 0 && totalIncome === 0 && totalExpense === 0) {
+        if (!bucket || !Array.isArray(bucket.records)) {
+          delete mergedCalendarData[dateKey];
+          return;
+        }
+
+        // 삭제된 카테고리의 지출 레코드 제거
+        const originalLength = bucket.records.length;
+        bucket.records = bucket.records.filter((record: any) => {
+          if (record?.type === 'expense' && record?.category && !validCategoryLabels.has(record.category)) {
+            return false;
+          }
+          return true;
+        });
+
+        // 총액 재계산 (삭제된 레코드가 있을 경우)
+        if (bucket.records.length !== originalLength) {
+          let totalExpense = 0;
+          let totalIncome = 0;
+          bucket.records.forEach((record: any) => {
+            if (record?.type === 'expense' && record?.isRefunded !== true) {
+              totalExpense += record?.amount || 0;
+            } else if (record?.type === 'income') {
+              totalIncome += record?.amount || 0;
+            }
+          });
+          bucket.totalExpense = totalExpense;
+          bucket.totalIncome = totalIncome;
+        }
+
+        // 기록이 없고 총액이 0인 날짜 키 삭제
+        if (bucket.records.length === 0 && bucket.totalIncome === 0 && bucket.totalExpense === 0) {
           delete mergedCalendarData[dateKey];
         }
       });
+      
+      // 필터링된 데이터를 AsyncStorage에 저장 (삭제된 카테고리 레코드 제거 반영)
+      try {
+        await AsyncStorage.setItem('calendarData', JSON.stringify(mergedCalendarData));
+      } catch (error) {
+        console.error('[app-data-context] Failed to save filtered calendar data:', error);
+      }
       
       setCalendarData(mergedCalendarData);
       setMonthStartDay(msd);

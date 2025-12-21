@@ -47,7 +47,7 @@ export default function ExpenseCategoryScreen() {
   // 화면 진입 시 저장된 순서 불러와서 적용
   useFocusEffect(
     useCallback(() => {
-      const loadCategories = async () => {
+      const loadCategoriesData = async () => {
         const loadedCategories = await loadCategories('expense');
         const savedOrder = await loadCategoryOrder('expense');
         
@@ -59,7 +59,7 @@ export default function ExpenseCategoryScreen() {
         }
       };
       
-      loadCategories();
+      loadCategoriesData();
     }, [])
   );
   
@@ -279,7 +279,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 40,
+    paddingBottom: 0,
   },
   categoryItem: {
     flexDirection: 'row',
