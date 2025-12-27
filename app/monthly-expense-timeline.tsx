@@ -814,7 +814,19 @@ export default function MonthlyExpenseTimelineScreen() {
             <View style={styles.categoryList}>
               {categoryExpenses.map((item, index) => (
                 <View key={item.category}>
-                  <View style={[styles.categoryItemStatus, { backgroundColor: colors.staticWhite }]}>
+                  <Pressable
+                    style={[styles.categoryItemStatus, { backgroundColor: colors.staticWhite }]}
+                    onPress={() => {
+                      router.push({
+                        pathname: '/expense-category-detail',
+                        params: {
+                          category: item.category,
+                          year: year.toString(),
+                          month: month.toString(),
+                        },
+                      });
+                    }}
+                  >
                     <View style={styles.categorySection}>
                       <Text style={[styles.categoryName, { color: colors.text }]}>
                         {categoryEmojiMap[item.category] || '📝'} {item.category}
@@ -826,7 +838,7 @@ export default function MonthlyExpenseTimelineScreen() {
                         }
                       </Text>
                     </View>
-                  </View>
+                  </Pressable>
                 </View>
               ))}
             </View>
