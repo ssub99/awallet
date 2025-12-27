@@ -193,6 +193,7 @@ export default function RootLayout() {
                     <Stack.Screen name="income-edit" options={{ headerShown: false }} />
                     <Stack.Screen name="challenge-create" options={{ headerShown: false }} />
                     <Stack.Screen name="challenge-edit" options={{ headerShown: false }} />
+                    <Stack.Screen name="challenge-detail" options={{ headerShown: false }} />
                     <Stack.Screen name="monthly-expense-timeline" options={{ headerShown: false }} />
                     <Stack.Screen name="month-start-day" options={{ headerShown: false }} />
                     <Stack.Screen name="category-setting" options={{ headerShown: false }} />

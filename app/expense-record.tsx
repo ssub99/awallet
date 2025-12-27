@@ -28,7 +28,8 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { triggerChallengeNotifications } from '@/utils/challenge-utils';
 import { getCustomMonthInfo } from '@/utils/custom-month';
-import { createExpense, deleteExpense, deleteExpensesByGroup, updateExpense, type ExpenseRecord as ExpenseRecordType, type PaymentMethod } from '@/utils/expenses';
+import { createExpense, deleteExpense, deleteExpensesByGroup, updateExpense, getAllExpenses, type ExpenseRecord as ExpenseRecordType, type PaymentMethod } from '@/utils/expenses';
+import { getAllIncomes } from '@/utils/incomes';
 import { loadCategories } from '@/utils/categories';
 import { extractTimestampFromId, generateGroupId, generateRecordId } from '@/utils/id-generator';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -314,10 +315,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       console.log('[NAV] goHomeWithFocus:navigation.reset:called');
 
       if (refresh) {
-        InteractionManager.runAfterInteractions(() => {
-          console.log('[NAV] goHomeWithFocus:emit refresh');
-          calendarRefreshEvent.emit();
-        });
+        // InteractionManager 제거 - 즉시 새로고침하여 지연 방지
+        console.log('[NAV] goHomeWithFocus:emit refresh');
+        calendarRefreshEvent.emit();
       }
     },
     [navigation]
@@ -2211,11 +2211,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
   const rebuildCalendarData = useCallback(async () => {
     try {
-      const [{ getAllExpenses }, { getAllIncomes }] = await Promise.all([
-        import('@/utils/expenses'),
-        import('@/utils/incomes'),
-      ]);
-
+      // 동적 import 제거 - 정적 import로 변경하여 번들링 지연 방지
       const [expenses, incomes] = await Promise.all([getAllExpenses(), getAllIncomes()]);
 
       const calendarData: Record<string, CalendarBucket> = {};
@@ -2305,13 +2301,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         });
       }
 
-      calendarRefreshEvent.emit();
       setShowDeleteConfirm(false);
       setShowRecurringDeleteConfirm(false);
 
       const recordDateKey = formatDateKey(editData.date || date);
       const [targetYear, targetMonth] = recordDateKey.split('-').map(Number);
 
+      // goHomeWithFocus 내부에서 refresh: true로 자동 새로고침되므로 중복 호출 제거
       if (params.calendarYear && params.calendarMonth) {
         await goHomeWithFocus({ year: Number(params.calendarYear), month: Number(params.calendarMonth), targetDate: recordDateKey });
       } else {

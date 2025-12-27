@@ -931,7 +931,7 @@ export default function MonthlyExpenseTimelineScreen() {
                 const status = getChallengeStatus();
                 
                 return (
-                  <Pressable 
+                    <Pressable 
                     key={challenge.id} 
                     style={[styles.challengeCard, { backgroundColor: colors.staticWhite }]}
                     onPress={() => {
@@ -944,7 +944,7 @@ export default function MonthlyExpenseTimelineScreen() {
                       isNavigating.current = true;
 
                       router.push({
-                        pathname: '/challenge-edit',
+                        pathname: '/challenge-detail',
                         params: {
                           challengeId: challenge.id
                         }

@@ -19,7 +19,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { getChallengeById, getChallengesByRecurringId, softDeleteChallengesByRecurringId, updateChallengesByRecurringId, type ChallengeRecord } from '@/utils/challenges';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Animated, Keyboard, Pressable, ScrollView, StatusBar, StyleSheet, Text, TouchableWithoutFeedback, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -28,6 +28,7 @@ export default function ChallengeEditScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
   const router = useRouter();
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const { setLoading } = useLoading();
   const params = useLocalSearchParams<{ 
@@ -257,8 +258,27 @@ export default function ChallengeEditScreen() {
 
       setShowDeleteModal(false);
       
-      // 현재 보고 있던 캘린더 위치 유지: 단순 back만 수행 (현재 시점으로 이동하지 않음)
-      router.back();
+      // 챌린지 현황으로 이동 (스택 리셋 - 소비기록 삭제와 동일한 방식)
+      // 스택의 루트부터 시작하여 챌린지 현황 화면만 남기도록 리셋
+      (navigation as any).reset({
+        index: 0,
+        routes: [
+          {
+            name: '(tabs)',
+            params: {
+              screen: 'home',
+            },
+          },
+          {
+            name: 'monthly-expense-timeline',
+            params: {
+              year: new Date().getFullYear().toString(),
+              month: (new Date().getMonth() + 1).toString(),
+              tab: 'challenge'
+            },
+          },
+        ],
+      });
     } catch (error) {
       console.error('[챌린지 삭제] error:', error);
       Alert.alert('오류', '챌린지 삭제에 실패했습니다.');
