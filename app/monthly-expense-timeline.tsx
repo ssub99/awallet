@@ -98,14 +98,16 @@ export default function MonthlyExpenseTimelineScreen() {
   // Navigation lock to prevent duplicate navigation
   const isNavigating = useRef(false);
 
-  // Year/Month options for picker
+  // Year/Month options for picker (홈 화면과 동일하게 ±10년)
   const yearOptions = useMemo(() => {
     const currentYear = new Date().getFullYear();
-    const years = [];
-    for (let i = currentYear - 5; i <= currentYear + 1; i++) {
-      years.push({ label: `${i}년`, value: i });
-    }
-    return years;
+    return Array.from({ length: 21 }, (_, i) => {
+      const year = currentYear - 10 + i;
+      return {
+        label: `${year}년`,
+        value: year,
+      };
+    });
   }, []);
 
   const monthOptions = useMemo(() => {
@@ -470,14 +472,8 @@ export default function MonthlyExpenseTimelineScreen() {
           monthOptions={monthOptions}
           selectedMonth={month}
           onMonthChange={(newMonth) => {
-            setCurrentMonth((prevMonth) => {
-              if (prevMonth === 12 && newMonth === 1) {
-                setCurrentYear((prevYear) => prevYear + 1);
-              } else if (prevMonth === 1 && newMonth === 12) {
-                setCurrentYear((prevYear) => prevYear - 1);
-              }
-              return newMonth;
-            });
+            // 홈 화면과 동일하게 단순화 - 년도/월을 독립적으로 변경
+            setCurrentMonth(newMonth);
           }}
         />
       </Animated.View>
