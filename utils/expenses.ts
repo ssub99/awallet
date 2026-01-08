@@ -21,6 +21,7 @@ export interface ExpenseRecord {
   totalMonths?: number; // 정기 기록 개월 수
   installmentMonths?: number; // 할부 기록 개월 수
   originalInstallment?: boolean;
+  recurringType?: string; // 정기 기록의 반복 타입 (매일, 매주, 2주, 3주, 4주, 매월, 2개월 마다, 4개월 마다, 6개월 마다, 주중, 주말)
   isPrepaid?: boolean;
   prepaidDate?: string; // YYYY.MM.DD 형식
   isRefunded?: boolean;
@@ -36,7 +37,7 @@ const EXPENSE_STORAGE_KEY = 'expenseData';
 const DATE_TOKEN_REGEX = /\./g;
 
 function normalizeExpense(record: ExpenseRecord): ExpenseRecord {
-  return {
+  const normalized = {
     ...record,
     id: record.id ?? generateRecordId(),
     type: 'expense',
@@ -44,6 +45,13 @@ function normalizeExpense(record: ExpenseRecord): ExpenseRecord {
     deletedAt: record.deletedAt ?? null,
     paymentMethod: record.paymentMethod ?? 'credit',
   };
+  
+  // 디버그: normalizeExpense 후 normalized.recurringType 확인
+  if (normalized.isRecurring) {
+    console.log('[NORMALIZE] normalized.recurringType:', normalized.recurringType, 'record.recurringType:', record.recurringType);
+  }
+  
+  return normalized;
 }
 
 function sortByTimestampDescending(records: ExpenseRecord[]): ExpenseRecord[] {
@@ -68,7 +76,13 @@ async function loadLocalExpenses(): Promise<ExpenseRecord[]> {
       return [];
     }
 
-    const parsed = JSON.parse(stored);
+    // recurringType이 null인 경우 undefined로 변환 (JSON.parse reviver)
+    const parsed = JSON.parse(stored, (key, value) => {
+      if (key === 'recurringType' && value === null) {
+        return undefined;
+      }
+      return value;
+    });
     if (!Array.isArray(parsed)) {
       return [];
     }
@@ -90,11 +104,29 @@ async function loadLocalExpenses(): Promise<ExpenseRecord[]> {
 async function persistExpenses(records: ExpenseRecord[]): Promise<void> {
   const normalized = records.map(normalizeExpense);
   const sorted = sortByTimestampDescending(normalized);
-  await AsyncStorage.setItem(EXPENSE_STORAGE_KEY, JSON.stringify(sorted));
+  // recurringType이 undefined인 경우 null로 변환하여 저장 (JSON.stringify는 undefined를 제거함)
+  const stringified = JSON.stringify(sorted, (key, value) => {
+    if (key === 'recurringType' && value === undefined) {
+      return null;
+    }
+    return value;
+  });
+  await AsyncStorage.setItem(EXPENSE_STORAGE_KEY, stringified);
 }
 
 export async function createExpense(record: ExpenseRecord): Promise<ExpenseRecord> {
+  // 디버그: createExpense에 전달된 record.recurringType 확인
+  if (record.isRecurring) {
+    console.log('[CREATE-EXPENSE] record.recurringType:', record.recurringType, 'record.id:', record.id);
+  }
+  
   const expense = normalizeExpense(record);
+  
+  // 디버그: normalizeExpense 후 expense.recurringType 확인
+  if (expense.isRecurring) {
+    console.log('[CREATE-EXPENSE] normalizeExpense 후 expense.recurringType:', expense.recurringType);
+  }
+  
   const existing = await loadLocalExpenses();
   const filtered = existing.filter(
     (item) =>
@@ -102,6 +134,12 @@ export async function createExpense(record: ExpenseRecord): Promise<ExpenseRecor
   );
   filtered.push(expense);
   await persistExpenses(filtered);
+  
+  // 디버그: persistExpenses 후 저장된 expense.recurringType 확인
+  if (expense.isRecurring) {
+    console.log('[CREATE-EXPENSE] persistExpenses 후 expense.recurringType:', expense.recurringType);
+  }
+  
   return expense;
 }
 

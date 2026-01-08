@@ -70,6 +70,185 @@ function getActualDayForMonth(year: number, month: number, desiredDay: number): 
   return Math.min(desiredDay, lastDayOfMonth);
 }
 
+/**
+ * 해당 년도 내에 있는지 확인
+ */
+function isWithinYear(dateString: string, targetYear: number): boolean {
+  const [year] = dateString.split('.').map(Number);
+  return year === targetYear;
+}
+
+/**
+ * recurringType에 따른 다음 날짜 계산
+ * @param currentDate 현재 날짜 (YYYY.MM.DD 형식)
+ * @param recurringType 반복 타입
+ * @param iteration 현재 반복 횟수 (0부터 시작, 현재는 사용하지 않음)
+ * @param startYear 시작 년도 (해당 년도 내에서만 생성)
+ * @returns 다음 날짜 (YYYY.MM.DD 형식) 또는 null (해당 년도 초과 시)
+ */
+function getNextRecurringDate(
+  currentDate: string,
+  recurringType: string,
+  iteration: number,
+  startYear: number
+): string | null {
+  const [year, month, day] = currentDate.split('.').map(Number);
+  const dateObj = new Date(year, month - 1, day);
+  
+  let nextDate: Date;
+  
+  switch (recurringType) {
+    case '매일':
+      nextDate = new Date(dateObj);
+      nextDate.setDate(dateObj.getDate() + 1);
+      break;
+    case '매주':
+      nextDate = new Date(dateObj);
+      nextDate.setDate(dateObj.getDate() + 7);
+      break;
+    case '2주':
+      nextDate = new Date(dateObj);
+      nextDate.setDate(dateObj.getDate() + 14);
+      break;
+    case '3주':
+      nextDate = new Date(dateObj);
+      nextDate.setDate(dateObj.getDate() + 21);
+      break;
+    case '4주':
+      nextDate = new Date(dateObj);
+      nextDate.setDate(dateObj.getDate() + 28);
+      break;
+    case '매월':
+      nextDate = new Date(dateObj);
+      nextDate.setMonth(dateObj.getMonth() + 1);
+      break;
+    case '2개월 마다':
+      nextDate = new Date(dateObj);
+      nextDate.setMonth(dateObj.getMonth() + 2);
+      break;
+    case '4개월 마다':
+      nextDate = new Date(dateObj);
+      nextDate.setMonth(dateObj.getMonth() + 4);
+      break;
+    case '6개월 마다':
+      nextDate = new Date(dateObj);
+      nextDate.setMonth(dateObj.getMonth() + 6);
+      break;
+    case '주중':
+      // 다음 평일 찾기 (월~금)
+      nextDate = new Date(dateObj);
+      nextDate.setDate(dateObj.getDate() + 1);
+      while (nextDate.getDay() === 0 || nextDate.getDay() === 6) {
+        nextDate.setDate(nextDate.getDate() + 1);
+      }
+      break;
+    case '주말':
+      // 다음 주말 찾기 (토~일)
+      nextDate = new Date(dateObj);
+      nextDate.setDate(dateObj.getDate() + 1);
+      while (nextDate.getDay() !== 0 && nextDate.getDay() !== 6) {
+        nextDate.setDate(nextDate.getDate() + 1);
+      }
+      break;
+    default:
+      // 기본값: 매월
+      nextDate = new Date(dateObj);
+      nextDate.setMonth(dateObj.getMonth() + 1);
+      break;
+  }
+  
+  // 해당 년도 내에 있는지 확인
+  const nextYear = nextDate.getFullYear();
+  if (nextYear > startYear) {
+    return null; // 해당 년도 초과
+  }
+  
+  const nextYearNum = nextDate.getFullYear();
+  const nextMonthNum = nextDate.getMonth() + 1;
+  const nextDayNum = nextDate.getDate();
+  
+  // 월말 처리
+  const actualDay = getActualDayForMonth(nextYearNum, nextMonthNum, nextDayNum);
+  
+  return `${nextYearNum}.${String(nextMonthNum).padStart(2, '0')}.${String(actualDay).padStart(2, '0')}`;
+}
+
+/**
+ * recurringType에 따른 반복 횟수 계산 (해당 년도 내에서)
+ * @param startDate 시작 날짜 (YYYY.MM.DD 형식)
+ * @param recurringType 반복 타입
+ * @returns 반복 횟수
+ */
+function calculateRecurringIterations(startDate: string, recurringType: string): number {
+  const [startYear, startMonth, startDay] = startDate.split('.').map(Number);
+  const startDateObj = new Date(startYear, startMonth - 1, startDay);
+  const endOfYear = new Date(startYear, 11, 31); // 12월 31일
+  
+  let iterations = 0;
+  let currentDate = new Date(startDateObj);
+  
+  // 시작일 포함하여 계산
+  while (currentDate <= endOfYear) {
+    iterations++;
+    
+    // 다음 날짜 계산
+    switch (recurringType) {
+      case '매일':
+        currentDate.setDate(currentDate.getDate() + 1);
+        break;
+      case '매주':
+        currentDate.setDate(currentDate.getDate() + 7);
+        break;
+      case '2주':
+        currentDate.setDate(currentDate.getDate() + 14);
+        break;
+      case '3주':
+        currentDate.setDate(currentDate.getDate() + 21);
+        break;
+      case '4주':
+        currentDate.setDate(currentDate.getDate() + 28);
+        break;
+      case '매월':
+        currentDate.setMonth(currentDate.getMonth() + 1);
+        break;
+      case '2개월 마다':
+        currentDate.setMonth(currentDate.getMonth() + 2);
+        break;
+      case '4개월 마다':
+        currentDate.setMonth(currentDate.getMonth() + 4);
+        break;
+      case '6개월 마다':
+        currentDate.setMonth(currentDate.getMonth() + 6);
+        break;
+      case '주중':
+        // 다음 평일 찾기
+        currentDate.setDate(currentDate.getDate() + 1);
+        while (currentDate <= endOfYear && (currentDate.getDay() === 0 || currentDate.getDay() === 6)) {
+          currentDate.setDate(currentDate.getDate() + 1);
+        }
+        break;
+      case '주말':
+        // 다음 주말 찾기
+        currentDate.setDate(currentDate.getDate() + 1);
+        while (currentDate <= endOfYear && currentDate.getDay() !== 0 && currentDate.getDay() !== 6) {
+          currentDate.setDate(currentDate.getDate() + 1);
+        }
+        break;
+      default:
+        // 기본값: 매월
+        currentDate.setMonth(currentDate.getMonth() + 1);
+        break;
+    }
+    
+    // 년도 초과 확인
+    if (currentDate.getFullYear() > startYear) {
+      break;
+    }
+  }
+  
+  return iterations;
+}
+
 // ===== 삭제 기능 유틸리티 함수들 =====
 
 /**
@@ -140,8 +319,18 @@ const calcPeriod = (editData: any, totalMonths: number) => {
 
 /**
  * 정기 기록의 마지막 날짜 계산
+ * @param startYear 시작 년도
+ * @param startMonth 시작 월
+ * @param totalMonths 총 개월 수
+ * @param recurringType 반복 타입 (선택적, 있으면 해당 년도 12월 31일까지)
  */
-const calcEndDate = (startYear: number, startMonth: number, totalMonths: number) => {
+const calcEndDate = (startYear: number, startMonth: number, totalMonths: number, recurringType?: string) => {
+  // recurringType이 있고, 매일/매주/2주/3주/4주/주중/주말인 경우 해당 년도 12월 31일까지
+  if (recurringType && ['매일', '매주', '2주', '3주', '4주', '주중', '주말'].includes(recurringType)) {
+    return { actualEndYear: startYear, actualEndMonth: 12 };
+  }
+  
+  // 기존 로직: totalMonths 기반 계산
   const actualEndYear = startYear + Math.floor((startMonth + totalMonths - 2) / 12);
   const actualEndMonth = ((startMonth + totalMonths - 2) % 12) + 1;
   return { actualEndYear, actualEndMonth };
@@ -228,12 +417,23 @@ const shouldDelete = (
 
 /**
  * 정기 기록의 기간을 계산하는 함수
+ * @param startDate 시작 날짜 (YYYY.MM.DD 형식)
+ * @param months 총 개월 수
+ * @param recurringType 반복 타입 (선택적, 있으면 해당 년도 12월까지)
  */
-function getRecurringPeriod(startDate: string, months: number): string {
+function getRecurringPeriod(startDate: string, months: number, recurringType?: string): string {
   const [year, month, day] = startDate.split('.').map(Number);
   const start = new Date(year, month - 1, day);
-  // ✅ 수정: months - 1을 빼서 정확한 개월 수 계산
-  const end = new Date(year, month - 1 + months - 1, day);
+  
+  let end: Date;
+  
+  // recurringType이 있고, 매일/매주/2주/3주/4주/주중/주말인 경우 해당 년도 12월까지
+  if (recurringType && ['매일', '매주', '2주', '3주', '4주', '주중', '주말'].includes(recurringType)) {
+    end = new Date(year, 11, 31); // 12월 31일
+  } else {
+    // 기존 로직: months - 1을 빼서 정확한 개월 수 계산
+    end = new Date(year, month - 1 + months - 1, day);
+  }
   
   const startStr = `${String(start.getFullYear()).slice(-2)}/${String(start.getMonth() + 1).padStart(2, '0')}`;
   const endStr = `${String(end.getFullYear()).slice(-2)}/${String(end.getMonth() + 1).padStart(2, '0')}`;
@@ -355,15 +555,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   };
   const [date, setDate] = useState<string>(getInitialDate());
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
-  
-  // date state 변경 감지
-  useEffect(() => {
-    // 날짜 변경 시 tempSelectedDate 동기화 (바텀시트가 닫힌 상태에서만)
-    if (showDatePicker) {
-      return;
-    }
-    setTempSelectedDate(date.replace(/\./g, '-'));
-  }, [date, showDatePicker]);
   const [memo, setMemo] = useState<string>('');
   const [isRecurring, setIsRecurring] = useState<boolean>(false);
   // 정기 기록과 할부 기록 모두에서 사용하는 기간 개월수 (상호 배타적)
@@ -373,6 +564,15 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   const [weekendOption, setWeekendOption] = useState<'weekend' | 'friday' | 'monday'>('weekend');
   // 정기 옵션의 반복 형태 (매일, 매주, 2주, 3주, 4주, 매월, 2개월 마다, 4개월 마다, 6개월 마다, 주중, 주말)
   const [recurringType, setRecurringType] = useState<string>('매월');
+  
+  // date state 변경 감지
+  useEffect(() => {
+    // 날짜 변경 시 tempSelectedDate 동기화 (바텀시트가 닫힌 상태에서만)
+    if (showDatePicker) {
+      return;
+    }
+    setTempSelectedDate(date.replace(/\./g, '-'));
+  }, [date, showDatePicker]);
   // 반복/할부 설정 바텀시트 표시 여부
   const [showRecurringInstallmentSheet, setShowRecurringInstallmentSheet] = useState<boolean>(false);
   const [monthStartDay, setMonthStartDay] = useState(1);
@@ -538,6 +738,14 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   // Edit mode: Initialize with edit data
   useEffect(() => {
     if (mode === 'edit' && editData) {
+      // 디버그: editData 전체 확인
+      console.log('[EDIT-INIT] editData 전체:', {
+        isRecurring: editData.isRecurring,
+        recurringType: editData.recurringType,
+        totalMonths: editData.totalMonths,
+        isInstallment: editData.isInstallment,
+        installmentMonths: editData.installmentMonths,
+      });
 
       setCategory(editData.category || '');
       // 금액에 콤마 포맷팅 적용
@@ -561,31 +769,51 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       }
       setMemo(editData.memo || '');
       setIsRecurring(editData.isRecurring || false);
-      // 정기 기록 개월수 설정
-      let finalRecurringMonths = editData.totalMonths || 2;
-      // 할부 기록 개월수 설정 (installmentMonths 우선, 없으면 totalMonths 사용)
-      let finalInstallmentMonths = editData.installmentMonths || editData.totalMonths || 2;
-
-      setTotalMonths(editData.isRecurring ? finalRecurringMonths : (editData.isInstallment ? finalInstallmentMonths : 2));
       
-      // 정기 기록의 경우 recurringType 초기화 (totalMonths 기반으로 추론)
+      // 정기 기록의 경우 recurringType 먼저 복원
       if (editData.isRecurring) {
-        const months = finalRecurringMonths;
-        if (months === 1) {
-          setRecurringType('매월');
-        } else if (months === 2) {
-          setRecurringType('2개월 마다');
-        } else if (months === 4) {
-          setRecurringType('4개월 마다');
-        } else if (months === 6) {
-          setRecurringType('6개월 마다');
+        // ✅ 새 구조: "기준 옵션 텍스트(recurringType)"는 절대값이다.
+        // - 있으면 그대로 사용하고,
+        // - 없으면 더 이상 totalMonths로 역추론해서 덮어쓰지 않는다.
+        // editData.recurringType이 명시적으로 있는지 확인 (undefined, null, 빈 문자열 모두 체크)
+        if (editData.recurringType && editData.recurringType.trim() !== '') {
+          // 디버그: 실제 저장된 recurringType 확인
+          console.log('[EDIT-INIT] editData.recurringType:', editData.recurringType, 'editData.totalMonths:', editData.totalMonths);
+          setRecurringType(editData.recurringType);
+
+          // 매월/개월 단위 옵션만 totalMonths와 동기화 (표시/계산용)
+          // 매일/매주/주중/주말 계열은 반복 로직이 recurringType 기반이라 totalMonths와 분리
+          if (editData.recurringType === '매월') {
+            setTotalMonths(1);
+          } else if (editData.recurringType === '2개월 마다') {
+            setTotalMonths(2);
+          } else if (editData.recurringType === '4개월 마다') {
+            setTotalMonths(4);
+          } else if (editData.recurringType === '6개월 마다') {
+            setTotalMonths(6);
+          } else {
+            // 매일, 매주, 2주, 3주, 4주, 주중, 주말:
+            // - recurringType 텍스트만 사용
+            // - totalMonths는 기존 값 유지(또는 기본값 2)지만, 기준 옵션 표기에는 절대 사용하지 않음
+            const finalRecurringMonths = editData.totalMonths || 2;
+            setTotalMonths(finalRecurringMonths);
+          }
         } else {
-          // 기본값: 매월 (12개월인 경우도 매월로 처리)
+          // 🔁 레거시 데이터 (recurringType이 저장되지 않았던 과거 기록)
+          // - totalMonths는 그대로 복원해서 기간 계산 등에만 사용
+          // - 기준 옵션 텍스트는 "역으로" 만들지 않고, 현재 state(기본값 '매월')를 유지
+          // ⚠️ 하지만 이 경우에도 기본값 '매월'을 명시적으로 설정 (표기 일관성)
           setRecurringType('매월');
+          const finalRecurringMonths = editData.totalMonths || 2;
+          setTotalMonths(finalRecurringMonths);
+          // ❌ 더 이상 여기서 totalMonths로 recurringType을 역추론하지 않음
         }
       } else {
-        // 정기 기록이 아닌 경우 기본값
-        setRecurringType('매월');
+        // 정기 기록이 아닌 경우
+        // 할부 기록 개월수 설정 (installmentMonths 우선, 없으면 totalMonths 사용)
+        let finalInstallmentMonths = editData.installmentMonths || editData.totalMonths || 2;
+        setTotalMonths(editData.isInstallment ? finalInstallmentMonths : 2);
+        setRecurringType('매월'); // 기본값
       }
       
       // 정기 기록: totalMonths가 없는 경우, recurringId로 관련 기록들을 찾아서 개월수 추론
@@ -785,7 +1013,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     editData: any,
     newRecord: any,
     actualDateKey: string,
-    monthlyAmount: number
+    monthlyAmount: number,
+    currentRecurringType?: string // 현재 선택된 recurringType 전달
   ): Promise<{
     deletedRecords: { id?: string; timestamp: number }[];
     upsertRecords: ExpenseRecordType[];
@@ -902,11 +1131,21 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     });
 
     // 2) 새 스케줄 정보 계산
-    const requestedTotalMonths = isInstallmentGroup
-      ? newRecord.installmentMonths ?? editData.installmentMonths ?? editData.totalMonths ?? 1
-      : newRecord.totalMonths ?? editData.totalMonths ?? 1;
-
-    const totalIterations = Math.max(1, requestedTotalMonths, preservedByTimestamp.size || 0);
+    let totalIterations: number;
+    
+    if (isRecurringGroup && currentRecurringType) {
+      // 정기 옵션: recurringType 기반으로 반복 횟수 계산
+      const baseDateStr = actualDateKey.replace(/-/g, '.');
+      totalIterations = calculateRecurringIterations(baseDateStr, currentRecurringType);
+      // 보존된 기록 수와 비교하여 더 큰 값 사용
+      totalIterations = Math.max(totalIterations, preservedByTimestamp.size || 0);
+    } else {
+      // 할부 옵션 또는 recurringType이 없는 경우: 기존 로직 사용
+      const requestedTotalMonths = isInstallmentGroup
+        ? newRecord.installmentMonths ?? editData.installmentMonths ?? editData.totalMonths ?? 1
+        : newRecord.totalMonths ?? editData.totalMonths ?? 1;
+      totalIterations = Math.max(1, requestedTotalMonths, preservedByTimestamp.size || 0);
+    }
 
     // 원래 시작일의 timestamp 추출
     // 1순위: groupId에서 추출 (원래 시작일의 timestamp가 ID에 포함됨)
@@ -959,12 +1198,58 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       totalIterations,
     });
 
-    const computeTargetDate = (index: number): { dot: string; key: string } => {
+    const computeTargetDate = (index: number): { dot: string; key: string } | null => {
+      // index가 0이면 baseDate 반환
+      if (index === 0) {
+        const baseDateStr = `${originalStartYear}.${String(originalStartMonth).padStart(2, '0')}.${String(baseDay).padStart(2, '0')}`;
+        const baseDateObj = new Date(originalStartYear, originalStartMonth - 1, baseDay);
+        const baseDayOfWeek = baseDateObj.getDay();
+        let adjustedBaseDate = baseDateStr;
+        if ((baseDayOfWeek === 0 || baseDayOfWeek === 6) && weekendOption !== 'weekend') {
+          adjustedBaseDate = getAdjustedWeekendDate(baseDateStr, weekendOption);
+        }
+        return { dot: adjustedBaseDate, key: adjustedBaseDate.replace(/\./g, '-') };
+      }
+      
+      // 정기 옵션인 경우 recurringType에 따라 날짜 계산
+      if (isRecurringGroup && currentRecurringType) {
+        // 시작 날짜
+        let currentDate = `${originalStartYear}.${String(originalStartMonth).padStart(2, '0')}.${String(baseDay).padStart(2, '0')}`;
+        
+        // index만큼 반복하여 날짜 계산 (index가 0이면 시작일 반환)
+        for (let j = 0; j < index; j++) {
+          const nextDate = getNextRecurringDate(currentDate, currentRecurringType, j, originalStartYear);
+          if (!nextDate) {
+            // 해당 년도 초과 시 null 반환
+            return null;
+          }
+          currentDate = nextDate;
+        }
+        
+        // 주말 조정
+        const [year, month, day] = currentDate.split('.').map(Number);
+        const futureDateObj = new Date(year, month - 1, day);
+        const futureDayOfWeek = futureDateObj.getDay();
+        let futureDate = currentDate;
+        if ((futureDayOfWeek === 0 || futureDayOfWeek === 6) && weekendOption !== 'weekend') {
+          futureDate = getAdjustedWeekendDate(futureDate, weekendOption);
+        }
+        
+        return { dot: futureDate, key: futureDate.replace(/\./g, '-') };
+      }
+      
+      // 할부 옵션 또는 기본 로직: 월 단위로 증가
       const target = new Date(baseDate);
       target.setMonth(baseDate.getMonth() + index);
 
       const futureYear = target.getFullYear();
       const futureMonth = target.getMonth() + 1;
+      
+      // 해당 년도 초과 시 null 반환
+      if (futureYear > originalStartYear) {
+        return null;
+      }
+      
       const actualDay = getActualDayForMonth(futureYear, futureMonth, baseDay);
 
       let futureDate = `${futureYear}.${String(futureMonth).padStart(2, '0')}.${String(actualDay).padStart(2, '0')}`;
@@ -995,6 +1280,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               record.installmentMonths = totalIterations;
             } else if (isRecurringGroup) {
               record.totalMonths = totalIterations;
+              // recurringType도 업데이트 (currentRecurringType이 있으면 사용)
+              if (currentRecurringType) {
+                record.recurringType = currentRecurringType;
+              }
             }
             return record;
           });
@@ -1008,23 +1297,32 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       }
 
       const targetDate = computeTargetDate(i);
+      
+      // 해당 년도 초과 시 중단
+      if (!targetDate) {
+        break;
+      }
 
-      if (!calendarData[targetDate.key]) {
-        calendarData[targetDate.key] = {
+      // targetDate가 null이 아님을 확인했으므로 이후 사용 가능
+      const targetDateKey = targetDate.key;
+      const targetDateDot = targetDate.dot;
+
+      if (!calendarData[targetDateKey]) {
+        calendarData[targetDateKey] = {
           totalExpense: 0,
           totalIncome: 0,
           records: [],
         };
       }
 
-      const bucket = calendarData[targetDate.key];
+      const bucket = calendarData[targetDateKey];
 
       const normalizedMonthlyAmount = Number.isFinite(monthlyAmount) ? monthlyAmount : 0;
 
       const generatedRecord = {
         ...newRecord,
         id: generateRecordId(),
-        date: targetDate.dot,
+        date: targetDateDot,
         timestamp: recordTimestamp,
         amount: normalizedMonthlyAmount,
         recurringId: isRecurringGroup ? groupId : undefined,
@@ -1034,9 +1332,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         totalMonths: isRecurringGroup ? totalIterations : undefined,
         installmentMonths: isInstallmentGroup ? totalIterations : undefined,
         originalInstallment: isInstallmentGroup && i === 0 ? true : undefined,
+        recurringType: isRecurringGroup ? (currentRecurringType || newRecord.recurringType) : undefined, // 정기 기록의 반복 타입 저장
         originalAmount: normalizedMonthlyAmount,
         originalCategory: category,
-        originalDate: targetDate.dot,
+        originalDate: targetDateDot,
         isPrepaid: false,
         isRefunded: false,
         installmentOriginDate: undefined,
@@ -1047,7 +1346,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
       // 재생성된 기록의 원래 날짜와 새 날짜를 비교
       const originalDateKey = originalDateByTimestamp.get(recordTimestamp);
-      if (originalDateKey && originalDateKey === targetDate.key) {
+      if (originalDateKey && originalDateKey === targetDateKey) {
         // 날짜가 동일한 경우에만 삭제 리스트에서 제거 (같은 위치에 재생성)
         deletedTimestampSet.delete(recordTimestamp);
         // deletedRecords에서도 제거
@@ -1651,6 +1950,11 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         monthlyAmount = expenseAmount;
       }
 
+      // 디버그: 생성 시점의 recurringType 확인
+      if (isRecurring) {
+        console.log('[CREATE] 저장 시점 recurringType:', recurringType, 'totalMonths:', totalMonths, 'isRecurring:', isRecurring);
+      }
+
       const newRecord = {
         id: recordId, // UUID
         type: 'expense' as const,
@@ -1669,6 +1973,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         totalMonths: isRecurring ? totalMonths : undefined, // 정기 기록 개월 수 저장
         installmentMonths: isInstallment ? totalMonths : undefined, // 할부 기록 개월 수 저장
         originalInstallment: isInstallment ? true : undefined, // 최초 생성 시 할부 설정 저장
+        recurringType: isRecurring ? recurringType : undefined, // 정기 기록의 반복 타입 저장
         // 원본 데이터 초기화: 최초 생성 시 현재 값 = 원본 값
         originalAmount: monthlyAmount,
         originalCategory: category,
@@ -1752,7 +2057,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               editData,
               newRecord,
               actualDateKey,
-              monthlyAmount
+              monthlyAmount,
+              recurringType // 현재 선택된 recurringType 전달
             );
 
             recordsToSave.push(...upsertRecords);
@@ -1852,6 +2158,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         }
       } else {
         // Create mode: Add new record
+        // 디버그: calendarData에 push하기 전 newRecord 확인
+        if (isRecurring) {
+          console.log('[CREATE] calendarData push 전 newRecord.recurringType:', newRecord.recurringType);
+        }
         calendarData[actualDateKey].records.push(newRecord);
         calendarData[actualDateKey].totalExpense = (calendarData[actualDateKey].totalExpense || 0) + monthlyAmount;
 
@@ -1868,32 +2178,69 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         futureMonthlyAmount = expenseAmount;
       }
         
-        
-        
-        // 원래 선택한 날짜를 기준으로 다음 달 계산
+        // 원래 선택한 날짜를 기준으로 다음 기록들 생성
         const [yearNum, monthNum, dayNum] = date.split('.').map(Number);
+        const startYear = yearNum;
         
+        // 정기 옵션인 경우 recurringType에 따라 반복 횟수 계산
+        let iterations: number;
+        if (isRecurring) {
+          // 정기 옵션: recurringType 기반으로 반복 횟수 계산
+          iterations = calculateRecurringIterations(date, recurringType);
+        } else {
+          // 할부 옵션: totalMonths 사용 (기존 로직 유지)
+          iterations = totalMonths;
+        }
         
-        for (let i = 1; i < totalMonths; i++) {
-          let futureMonth = monthNum + i;
-          let futureYear = yearNum;
+        let currentDate = date;
+        let iteration = 0;
+        
+        // 반복 생성 (시작일 제외, i=1부터 시작)
+        while (iteration < iterations - 1) {
+          iteration++;
           
-          // 월이 12를 넘으면 연도 증가
-          while (futureMonth > 12) {
-            futureMonth -= 12;
-            futureYear += 1;
+          // 다음 날짜 계산
+          let nextDate: string | null;
+          if (isRecurring) {
+            // 정기 옵션: recurringType에 따라 다음 날짜 계산
+            nextDate = getNextRecurringDate(currentDate, recurringType, iteration, startYear);
+            if (!nextDate) {
+              // 해당 년도 초과 시 중단
+              break;
+            }
+          } else {
+            // 할부 옵션: 월 단위로 증가 (기존 로직)
+            let futureMonth = monthNum + iteration;
+            let futureYear = yearNum;
+            
+            // 월이 12를 넘으면 연도 증가
+            while (futureMonth > 12) {
+              futureMonth -= 12;
+              futureYear += 1;
+            }
+            
+            // 해당 년도 초과 시 중단
+            if (futureYear > startYear) {
+              break;
+            }
+            
+            // 월말 처리: 해당 월의 실제 일자 계산
+            const actualDay = getActualDayForMonth(futureYear, futureMonth, dayNum);
+            
+            // 미래 날짜 생성
+            nextDate = `${futureYear}.${String(futureMonth).padStart(2, '0')}.${String(actualDay).padStart(2, '0')}`;
           }
           
-          // 월말 처리: 해당 월의 실제 일자 계산
-          const actualDay = getActualDayForMonth(futureYear, futureMonth, dayNum);
-          
-          // 미래 날짜 생성
-          let futureDate = `${futureYear}.${String(futureMonth).padStart(2, '0')}.${String(actualDay).padStart(2, '0')}`;
+          if (!nextDate) {
+            break;
+          }
           
           // 주말이면 조정 (단, 'weekend' 옵션이 아닐 때만)
-          const futureDateObj = new Date(futureYear, futureMonth - 1, actualDay);
+          const [nextYear, nextMonth, nextDay] = nextDate.split('.').map(Number);
+          const futureDateObj = new Date(nextYear, nextMonth - 1, nextDay);
           const futureDayOfWeek = futureDateObj.getDay();
           
+          let futureDate = nextDate;
           if ((futureDayOfWeek === 0 || futureDayOfWeek === 6) && weekendOption !== 'weekend') {
             futureDate = getAdjustedWeekendDate(futureDate, weekendOption);
           }
@@ -1910,12 +2257,12 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           }
           
           // 미래 기록 추가 (자동생성 표시)
-          calendarData[futureDateKey].records.push({
+          const futureRecord = {
             ...newRecord,
             id: generateRecordId(), // 각 기록마다 고유한 UUID
             amount: futureMonthlyAmount,
             date: futureDate,
-            timestamp: newTimestamp + i,
+            timestamp: newTimestamp + iteration,
             recurringId: isRecurring ? recurringId : undefined, // 정기 기록만
             installmentId: isInstallment ? installmentId : undefined, // 할부 기록만
             isAutoGenerated: true,
@@ -1923,13 +2270,24 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             totalMonths: isRecurring ? totalMonths : undefined, // 정기 기록 개월 수 저장
             installmentMonths: isInstallment ? totalMonths : undefined, // 할부 개월 수 저장
             originalInstallment: isInstallment, // 최초 생성 시 할부 설정 저장
+            recurringType: isRecurring ? recurringType : undefined, // 정기 기록의 반복 타입 저장
             // 자동 생성 기록도 원본 데이터 초기화 (생성 시점의 값)
             originalAmount: futureMonthlyAmount,
             originalCategory: category,
             originalDate: futureDate,
-          });
+          };
+          
+          // 디버그: 미래 기록 push 전 recurringType 확인
+          if (isRecurring) {
+            console.log('[CREATE] 미래 기록 push 전 futureRecord.recurringType:', futureRecord.recurringType);
+          }
+          
+          calendarData[futureDateKey].records.push(futureRecord);
           
           calendarData[futureDateKey].totalExpense = (calendarData[futureDateKey].totalExpense || 0) + futureMonthlyAmount;
+          
+          // 다음 반복을 위해 현재 날짜 업데이트
+          currentDate = futureDate;
         }
 
       }
@@ -1966,6 +2324,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                         totalMonths: record.totalMonths,
                         installmentMonths: record.installmentMonths,
                         originalInstallment: record.originalInstallment,
+                        recurringType: record.recurringType, // 정기 기록의 반복 타입 저장
                         originalAmount: record.originalAmount,
                         originalCategory: record.originalCategory,
                         originalDate: record.originalDate,
@@ -2032,6 +2391,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             memo,
             date: actualDate,
             timestamp: newTimestamp,
+            paymentMethod,
             isRecurring,
             weekendOption: (isRecurring || isInstallment) ? weekendOption : undefined,
             recurringId: isRecurring ? recurringId : undefined,
@@ -2041,6 +2401,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             totalMonths: isRecurring ? totalMonths : undefined,
             installmentMonths: isInstallment ? totalMonths : undefined,
             originalInstallment: isInstallment ? true : undefined,
+            recurringType: isRecurring ? recurringType : undefined, // 정기 기록의 반복 타입 저장
             // 원본 데이터 초기화: 최초 생성 시 현재 값 = 원본 값
             originalAmount: monthlyAmount,
             originalCategory: category,
@@ -2050,22 +2411,67 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           // 정기/할부 기록의 미래 기록들도 저장
           if ((isRecurring || isInstallment) && mode !== 'edit') {
             const [yearNum, monthNum, dayNum] = date.split('.').map(Number);
+            const startYear = yearNum;
             
-            for (let i = 1; i < totalMonths; i++) {
-              let futureMonth = monthNum + i;
-              let futureYear = yearNum;
+            // 정기 옵션인 경우 recurringType에 따라 반복 횟수 계산
+            let iterations: number;
+            if (isRecurring) {
+              // 정기 옵션: recurringType 기반으로 반복 횟수 계산
+              iterations = calculateRecurringIterations(date, recurringType);
+            } else {
+              // 할부 옵션: totalMonths 사용 (기존 로직 유지)
+              iterations = totalMonths;
+            }
+            
+            let currentDate = date;
+            let iteration = 0;
+            
+            // 반복 생성 (시작일 제외, i=1부터 시작)
+            while (iteration < iterations - 1) {
+              iteration++;
               
-              while (futureMonth > 12) {
-                futureMonth -= 12;
-                futureYear += 1;
+              // 다음 날짜 계산
+              let nextDate: string | null;
+              if (isRecurring) {
+                // 정기 옵션: recurringType에 따라 다음 날짜 계산
+                nextDate = getNextRecurringDate(currentDate, recurringType, iteration, startYear);
+                if (!nextDate) {
+                  // 해당 년도 초과 시 중단
+                  break;
+                }
+              } else {
+                // 할부 옵션: 월 단위로 증가 (기존 로직)
+                let futureMonth = monthNum + iteration;
+                let futureYear = yearNum;
+                
+                // 월이 12를 넘으면 연도 증가
+                while (futureMonth > 12) {
+                  futureMonth -= 12;
+                  futureYear += 1;
+                }
+                
+                // 해당 년도 초과 시 중단
+                if (futureYear > startYear) {
+                  break;
+                }
+                
+                // 월말 처리: 해당 월의 실제 일자 계산
+                const actualDay = getActualDayForMonth(futureYear, futureMonth, dayNum);
+                
+                // 미래 날짜 생성
+                nextDate = `${futureYear}.${String(futureMonth).padStart(2, '0')}.${String(actualDay).padStart(2, '0')}`;
               }
               
-              const actualDay = getActualDayForMonth(futureYear, futureMonth, dayNum);
-              let futureDate = `${futureYear}.${String(futureMonth).padStart(2, '0')}.${String(actualDay).padStart(2, '0')}`;
+              if (!nextDate) {
+                break;
+              }
               
-              const futureDateObj = new Date(futureYear, futureMonth - 1, actualDay);
+              // 주말이면 조정 (단, 'weekend' 옵션이 아닐 때만)
+              const [nextYear, nextMonth, nextDay] = nextDate.split('.').map(Number);
+              const futureDateObj = new Date(nextYear, nextMonth - 1, nextDay);
               const futureDayOfWeek = futureDateObj.getDay();
               
+              let futureDate = nextDate;
               if ((futureDayOfWeek === 0 || futureDayOfWeek === 6) && weekendOption !== 'weekend') {
                 futureDate = getAdjustedWeekendDate(futureDate, weekendOption);
               }
@@ -2081,7 +2487,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 category,
                 memo,
                 date: futureDate,
-                timestamp: newTimestamp + i,
+                timestamp: newTimestamp + iteration,
                 isRecurring,
                 weekendOption: (isRecurring || isInstallment) ? weekendOption : undefined,
                 recurringId: isRecurring ? recurringId : undefined,
@@ -2091,11 +2497,15 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 totalMonths: isRecurring ? totalMonths : undefined,
                 installmentMonths: isInstallment ? totalMonths : undefined,
                 originalInstallment: isInstallment ? true : undefined,
+                recurringType: isRecurring ? recurringType : undefined, // 정기 기록의 반복 타입 저장
                 // 자동 생성 기록도 원본 데이터 초기화 (생성 시점의 값)
                 originalAmount: futureMonthlyAmount,
                 originalCategory: category,
                 originalDate: futureDate,
               });
+              
+              // 다음 반복을 위해 현재 날짜 업데이트
+              currentDate = futureDate;
             }
           }
         }
@@ -2104,6 +2514,11 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         for (const record of recordsToSave) {
           try {
             const recordId = record.id || record.timestamp.toString(); // UUID 우선, fallback으로 timestamp
+            
+            // 디버그: recordsToSave의 record.recurringType 확인
+            if (record.isRecurring) {
+              console.log('[SAVE] recordsToSave record.recurringType:', record.recurringType, 'record.id:', record.id, 'record.timestamp:', record.timestamp);
+            }
             
             if (mode === 'edit' && editData) {
               // 수정 모드: 기록이 존재하는지 확인 후 업데이트 또는 생성
@@ -2117,13 +2532,25 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                   ...record,
                   date: record.date, // 명시적으로 date 포함
                 };
+                // 디버그: updateData의 recurringType 확인
+                if (record.isRecurring) {
+                  console.log('[SAVE] updateData.recurringType:', updateData.recurringType);
+                }
                 await updateExpense(recordId, updateData);
               } else {
                 // 기존 기록이 없으면 생성 (전체 수정 시 새로 생성된 기록)
+                // 디버그: createExpense에 전달하는 record.recurringType 확인
+                if (record.isRecurring) {
+                  console.log('[SAVE] createExpense record.recurringType:', record.recurringType);
+                }
                 await createExpense(record);
               }
             } else {
               // 생성 모드: 새로 생성
+              // 디버그: createExpense에 전달하는 record.recurringType 확인
+              if (record.isRecurring) {
+                console.log('[SAVE] createExpense record.recurringType:', record.recurringType);
+              }
               await createExpense(record);
             }
           } catch (error) {
@@ -2137,7 +2564,39 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       }
 
       // 6-1. AsyncStorage에 저장 (로컬 캐시)
-      await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
+      // JSON.stringify는 undefined 값을 제거하므로, recurringType을 명시적으로 포함시켜야 함
+      // calendarData를 깊은 복사하면서 recurringType이 undefined인 경우에도 명시적으로 포함
+      const calendarDataToSave = JSON.parse(JSON.stringify(calendarData, (key, value) => {
+        // recurringType이 undefined인 경우 null로 변환하여 저장
+        if (key === 'recurringType' && value === undefined) {
+          return null;
+        }
+        return value;
+      }));
+      
+      // 디버그: 저장 전 calendarData의 recurringType 확인
+      if (isRecurring) {
+        const firstRecord = calendarDataToSave[actualDateKey]?.records?.[0];
+        if (firstRecord) {
+          console.log('[CREATE] AsyncStorage 저장 전 calendarDataToSave[actualDateKey].records[0].recurringType:', firstRecord.recurringType);
+        }
+      }
+      
+      const stringified = JSON.stringify(calendarDataToSave);
+      // 디버그: stringify 직후 첫 번째 record의 recurringType 확인
+      if (isRecurring) {
+        const parsed = JSON.parse(stringified);
+        const firstRecord = parsed[actualDateKey]?.records?.[0];
+        if (firstRecord) {
+          console.log('[CREATE] stringify 직후 parsed[actualDateKey].records[0].recurringType:', firstRecord.recurringType);
+        }
+      }
+      
+      await AsyncStorage.setItem('calendarData', stringified);
+
+      // 6-1.5. rebuildCalendarData 실행 (expenseData에서 calendarData 재구성)
+      // 이렇게 하면 expenseData에 저장된 recurringType이 calendarData에 반영됨
+      await rebuildCalendarData();
 
       // 6-2. 챌린지 알림 트리거 (비동기이지만 대기하지 않음)
       if (category) {
@@ -2235,8 +2694,15 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
   const rebuildCalendarData = useCallback(async () => {
     try {
+      console.log('[REBUILD] rebuildCalendarData 시작');
       // 동적 import 제거 - 정적 import로 변경하여 번들링 지연 방지
       const [expenses, incomes] = await Promise.all([getAllExpenses(), getAllIncomes()]);
+      
+      // 디버그: getAllExpenses에서 가져온 첫 번째 정기 기록 확인
+      const firstRecurringExpense = expenses.find(e => e.isRecurring);
+      if (firstRecurringExpense) {
+        console.log('[REBUILD] getAllExpenses 첫 번째 정기 기록.recurringType:', firstRecurringExpense.recurringType, 'id:', firstRecurringExpense.id);
+      }
 
       const calendarData: Record<string, CalendarBucket> = {};
 
@@ -2248,10 +2714,23 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         if (!calendarData[dateKey]) {
           calendarData[dateKey] = { totalExpense: 0, totalIncome: 0, records: [] };
         }
-        calendarData[dateKey].records.push({
+        
+        // 디버그: rebuildCalendarData에서 expense.recurringType 확인
+        if (expense.isRecurring) {
+          console.log('[REBUILD] expense.recurringType:', expense.recurringType, 'expense.isRecurring:', expense.isRecurring, 'expense.totalMonths:', expense.totalMonths, 'expense.id:', expense.id);
+        }
+        
+        const recordToPush = {
           ...expense,
           type: 'expense',
-        });
+        };
+        
+        // 디버그: push 직전 recordToPush.recurringType 확인
+        if (expense.isRecurring) {
+          console.log('[REBUILD] push 직전 recordToPush.recurringType:', recordToPush.recurringType);
+        }
+        
+        calendarData[dateKey].records.push(recordToPush);
         if (!expense.isRefunded) {
           calendarData[dateKey].totalExpense += expense.amount || 0;
         }
@@ -2280,7 +2759,52 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         }
       });
 
-      await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
+      // 디버그: rebuildCalendarData 저장 직전 첫 번째 정기 기록 확인
+      const firstDateKey = Object.keys(calendarData)[0];
+      if (firstDateKey) {
+        const firstRecurringRecord = calendarData[firstDateKey].records.find((r: any) => r.isRecurring);
+        if (firstRecurringRecord) {
+          console.log('[REBUILD] 저장 직전 calendarData 첫 번째 정기 기록.recurringType:', firstRecurringRecord.recurringType);
+        }
+      }
+      
+      // recurringType이 undefined인 경우 null로 변환하여 저장 (JSON.stringify는 undefined를 제거함)
+      const stringified = JSON.stringify(calendarData, (key, value) => {
+        if (key === 'recurringType' && value === undefined) {
+          return null;
+        }
+        return value;
+      });
+      
+      // 디버그: 저장 직후 stringified에서 recurringType 확인
+      const parsedForDebug = JSON.parse(stringified);
+      const firstDateKeyDebug = Object.keys(parsedForDebug)[0];
+      if (firstDateKeyDebug) {
+        const firstRecurringRecordDebug = parsedForDebug[firstDateKeyDebug].records?.find((r: any) => r.isRecurring);
+        if (firstRecurringRecordDebug) {
+          console.log('[REBUILD] 저장 직후 stringified에서 recurringType:', firstRecurringRecordDebug.recurringType);
+        }
+      }
+      
+      await AsyncStorage.setItem('calendarData', stringified);
+      
+      // 디버그: AsyncStorage 저장 직후 읽어서 확인
+      const storedAfterSave = await AsyncStorage.getItem('calendarData');
+      if (storedAfterSave) {
+        const parsedAfterSave = JSON.parse(storedAfterSave, (key, value) => {
+          if (key === 'recurringType' && value === null) {
+            return undefined;
+          }
+          return value;
+        });
+        const firstDateKeyAfterSave = Object.keys(parsedAfterSave)[0];
+        if (firstDateKeyAfterSave) {
+          const firstRecurringRecordAfterSave = parsedAfterSave[firstDateKeyAfterSave].records?.find((r: any) => r.isRecurring);
+          if (firstRecurringRecordAfterSave) {
+            console.log('[REBUILD] AsyncStorage 저장 직후 읽은 recurringType:', firstRecurringRecordAfterSave.recurringType);
+          }
+        }
+      }
     } catch (error) {
       console.error('[calendar] Failed to rebuild calendar data:', error);
     }
@@ -3045,11 +3569,14 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   const getDeletePeriod = () => {
     if (!editData?.isRecurring) return '';
     
+    // editData에서 recurringType 가져오기 (없으면 현재 상태의 recurringType 사용)
+    const currentRecurringType = editData.recurringType || recurringType;
+    
     switch (deleteOption) {
       case 'all':
         // 전체 삭제 - 정기기록 원본 시작일 계산 필요
         const { startYear: allStartYear, startMonth: allStartMonth, totalMonths: allTotalMonths } = calcPeriod(editData, totalMonths);
-        const { actualEndYear: allActualEndYear, actualEndMonth: allActualEndMonth } = calcEndDate(allStartYear, allStartMonth, allTotalMonths);
+        const { actualEndYear: allActualEndYear, actualEndMonth: allActualEndMonth } = calcEndDate(allStartYear, allStartMonth, allTotalMonths, currentRecurringType);
         const allStartPeriod = `${String(allStartYear).slice(-2)}/${String(allStartMonth).padStart(2, '0')}`;
         const allEndPeriod = `${String(allActualEndYear).slice(-2)}/${String(allActualEndMonth).padStart(2, '0')}`;
         return `기간 : ${allStartPeriod} - ${allEndPeriod}`;
@@ -3064,7 +3591,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       case 'future':
         // 오늘 이후 삭제 - 정기기록 원본 시작일 계산 필요
         const { startYear: futureStartYear, startMonth: futureStartMonth, editYear: futureEditYear, editMonth: futureEditMonth, totalMonths: futureTotalMonths } = calcPeriod(editData, totalMonths);
-        const { actualEndYear: futureActualEndYear, actualEndMonth: futureActualEndMonth } = calcEndDate(futureStartYear, futureStartMonth, futureTotalMonths);
+        const { actualEndYear: futureActualEndYear, actualEndMonth: futureActualEndMonth } = calcEndDate(futureStartYear, futureStartMonth, futureTotalMonths, currentRecurringType);
         
         // 첫 번째 데이터(정기 기록 시작일)인지 확인
         const isFirstData = futureEditYear === futureStartYear && futureEditMonth === futureStartMonth;
@@ -3084,7 +3611,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       default:
         // 기본값 - 전체 삭제와 동일
         const { startYear: defaultStartYear, startMonth: defaultStartMonth, totalMonths: defaultTotalMonths } = calcPeriod(editData, totalMonths);
-        const { actualEndYear: defaultActualEndYear, actualEndMonth: defaultActualEndMonth } = calcEndDate(defaultStartYear, defaultStartMonth, defaultTotalMonths);
+        const { actualEndYear: defaultActualEndYear, actualEndMonth: defaultActualEndMonth } = calcEndDate(defaultStartYear, defaultStartMonth, defaultTotalMonths, currentRecurringType);
         const defaultStartPeriod = `${String(defaultStartYear).slice(-2)}/${String(defaultStartMonth).padStart(2, '0')}`;
         const defaultEndPeriod = `${String(defaultActualEndYear).slice(-2)}/${String(defaultActualEndMonth).padStart(2, '0')}`;
         return `기간 : ${defaultStartPeriod} - ${defaultEndPeriod}`;
@@ -3145,8 +3672,11 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             // 나머지 데이터에서는 현재 편집 중인 날짜부터 정기 기록의 실제 마지막까지 계산
             let futureMonths = 0;
             
+            // editData에서 recurringType 가져오기 (없으면 현재 상태의 recurringType 사용)
+            const currentRecurringType = editData.recurringType || recurringType;
+            
             // 유틸리티 함수 사용
-            const { actualEndYear, actualEndMonth } = calcEndDate(futureStartYear, futureStartMonth, futureTotalMonths);
+            const { actualEndYear, actualEndMonth } = calcEndDate(futureStartYear, futureStartMonth, futureTotalMonths, currentRecurringType);
             
             // 현재 편집 중인 날짜부터 정기 기록의 실제 마지막까지 계산
             for (let year = futureStartYear; year <= actualEndYear; year++) {
@@ -3587,11 +4117,12 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                     const originalStartDate = new Date(originalStartTimestamp ?? Date.now());
                     const originalStartDateStr = `${originalStartDate.getFullYear()}.${String(originalStartDate.getMonth() + 1).padStart(2, '0')}.${String(originalStartDate.getDate()).padStart(2, '0')}`;
                     
-                    return getRecurringPeriod(originalStartDateStr, totalMonths);
+                    // editData에서 recurringType 가져오기 (없으면 현재 상태의 recurringType 사용)
+                    const currentRecurringType = editData.recurringType || recurringType;
+                    return getRecurringPeriod(originalStartDateStr, totalMonths, currentRecurringType);
                   } else {
                     // 신규 생성 시에는 현재 선택된 날짜 사용
-                    
-                    return getRecurringPeriod(date, totalMonths);
+                    return getRecurringPeriod(date, totalMonths, recurringType);
                   }
                 })()}
               </Text>
@@ -3956,7 +4487,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                         }
                         setRecurringType(label);
                         // 정기 옵션의 반복 형태에 따른 totalMonths 매핑
-                        // 매일, 매주, 2주, 3주, 4주, 주중, 주말은 totalMonths와 별도 관리
+                        // 매일, 매주, 2주, 3주, 4주, 주중, 주말은 recurringType으로만 관리 (표기용, totalMonths와 무관)
                         // 매월, 2개월 마다, 4개월 마다, 6개월 마다는 totalMonths로 매핑
                         if (label === '매월') {
                           setTotalMonths(1);
@@ -3967,7 +4498,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                         } else if (label === '6개월 마다') {
                           setTotalMonths(6);
                         }
-                        // 매일, 매주, 2주, 3주, 4주, 주중, 주말은 recurringType으로만 관리
+                        // 매일, 매주, 2주, 3주, 4주, 주중, 주말은 recurringType에 텍스트만 저장 (표기용)
                       }}
                       style={styles.periodChip}
                     />

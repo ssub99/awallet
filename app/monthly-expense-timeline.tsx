@@ -52,6 +52,7 @@ interface TimelineItem {
   timestamp?: number;
   isRecurring?: boolean;
   weekendOption?: 'friday' | 'monday';
+  recurringType?: string; // 정기 기록 반복 타입 (매일, 매주, 2주, 3주, 4주, 매월, 2개월 마다, 4개월 마다, 6개월 마다, 주중, 주말)
   isPrepaid?: boolean;
   prepaidDate?: string; // 선결제 처리 날짜
   recurringId?: string;
@@ -227,7 +228,19 @@ export default function MonthlyExpenseTimelineScreen() {
           // 타임라인 데이터 새로고침
           const storedData = await AsyncStorage.getItem('calendarData');
           if (storedData) {
-            const calendarData = JSON.parse(storedData);
+            // recurringType이 null인 경우 undefined로 변환 (JSON.parse reviver)
+            const parsed = JSON.parse(storedData, (key, value) => {
+              if (key === 'recurringType' && value === null) {
+                return undefined;
+              }
+              return value;
+            });
+            // 디버그: 파싱 직후 첫 번째 record의 recurringType 확인
+            const firstDateKey = Object.keys(parsed)[0];
+            if (firstDateKey && parsed[firstDateKey]?.records?.[0]) {
+              console.log('[TIMELINE] 파싱 직후 첫 번째 record.recurringType:', parsed[firstDateKey].records[0].recurringType);
+            }
+            const calendarData = parsed;
             const items: TimelineItem[] = [];
             let includedDates: string[] = [];
             let excludedDates: string[] = [];
@@ -247,6 +260,11 @@ export default function MonthlyExpenseTimelineScreen() {
                     // isDeleted가 true인 기록 제외 (환불된 기록은 표시)
                     if (record.isDeleted) return;
                     
+                    // 디버그: calendarData에서 읽어온 record.recurringType 확인
+                    if (record.isRecurring) {
+                      console.log('[TIMELINE] calendarData에서 읽은 record.recurringType:', record.recurringType, 'record.isRecurring:', record.isRecurring, 'record.totalMonths:', record.totalMonths);
+                    }
+                    
                     items.push({
                       date: dateString,
                       type: record.type,
@@ -257,6 +275,7 @@ export default function MonthlyExpenseTimelineScreen() {
                       paymentMethod: record.type === 'expense' ? (record.paymentMethod ?? 'credit') : undefined,
                       isRecurring: record.isRecurring,
                       weekendOption: record.weekendOption,
+                      recurringType: record.recurringType,
                       isPrepaid: record.isPrepaid,
                       prepaidDate: record.prepaidDate, // 선결제 처리 날짜
                       recurringId: record.recurringId,
@@ -392,7 +411,13 @@ export default function MonthlyExpenseTimelineScreen() {
         // AsyncStorage에서 전체 데이터를 가져와서 챌린지 기간의 소비금액 계산
         const storedData = await AsyncStorage.getItem('calendarData');
         if (storedData) {
-          const calendarData = JSON.parse(storedData);
+          // recurringType이 null인 경우 undefined로 변환 (JSON.parse reviver)
+          const calendarData = JSON.parse(storedData, (key, value) => {
+            if (key === 'recurringType' && value === null) {
+              return undefined;
+            }
+            return value;
+          });
           
           Object.entries(calendarData).forEach(([dateString, data]: [string, any]) => {
             const itemDate = new Date(dateString);
@@ -580,7 +605,13 @@ export default function MonthlyExpenseTimelineScreen() {
                             try {
                               const storedData = await AsyncStorage.getItem('calendarData');
                               if (storedData) {
-                                const calendarData = JSON.parse(storedData);
+                                // recurringType이 null인 경우 undefined로 변환 (JSON.parse reviver)
+                                const calendarData = JSON.parse(storedData, (key, value) => {
+                                  if (key === 'recurringType' && value === null) {
+                                    return undefined;
+                                  }
+                                  return value;
+                                });
                                 const dateRecords = calendarData[date]?.records || [];
 
                                 // timestamp와 category, amount로 정확한 인덱스 찾기
@@ -631,7 +662,13 @@ export default function MonthlyExpenseTimelineScreen() {
                             try {
                               const storedData = await AsyncStorage.getItem('calendarData');
                               if (storedData) {
-                                const calendarData = JSON.parse(storedData);
+                                // recurringType이 null인 경우 undefined로 변환 (JSON.parse reviver)
+                                const calendarData = JSON.parse(storedData, (key, value) => {
+                                  if (key === 'recurringType' && value === null) {
+                                    return undefined;
+                                  }
+                                  return value;
+                                });
                                 const dateRecords = calendarData[date]?.records || [];
 
                                 // timestamp와 category, amount로 정확한 인덱스 찾기
