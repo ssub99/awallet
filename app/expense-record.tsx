@@ -9,8 +9,8 @@ import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Button } from '@/components/ui/button';
 import { BasicCalendarDaySelect } from '@/components/ui/calendar-day-basic';
 import { CalendarDaySelect } from '@/components/ui/calendar-day-select';
+import { Chip } from '@/components/ui/chip';
 import { DatePicker } from '@/components/ui/date-picker';
-import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
 import { ModalPopup } from '@/components/ui/modal-popup';
@@ -26,18 +26,17 @@ import { useLoading } from '@/contexts/loading-context';
 import { calendarRefreshEvent } from '@/hooks/calendar-events';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
+import { loadCategories } from '@/utils/categories';
 import { triggerChallengeNotifications } from '@/utils/challenge-utils';
 import { getCustomMonthInfo } from '@/utils/custom-month';
-import { createExpense, deleteExpense, deleteExpensesByGroup, updateExpense, getAllExpenses, type ExpenseRecord as ExpenseRecordType, type PaymentMethod } from '@/utils/expenses';
-import { getAllIncomes } from '@/utils/incomes';
-import { loadCategories } from '@/utils/categories';
+import { createExpense, deleteExpense, deleteExpensesByGroup, getAllExpenses, updateExpense, type ExpenseRecord as ExpenseRecordType, type PaymentMethod } from '@/utils/expenses';
 import { extractTimestampFromId, generateGroupId, generateRecordId } from '@/utils/id-generator';
+import { getAllIncomes } from '@/utils/incomes';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Dimensions,
-  InteractionManager,
   Keyboard,
   NativeSyntheticEvent,
   Platform,
@@ -47,7 +46,7 @@ import {
   StyleSheet,
   Text,
   TextInputKeyPressEventData,
-  View,
+  View
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -370,7 +369,12 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   // 정기 기록과 할부 기록 모두에서 사용하는 기간 개월수 (상호 배타적)
   const [totalMonths, setTotalMonths] = useState<number>(2); // 2개월~12개월
   const [isInstallment, setIsInstallment] = useState<boolean>(false); // 할부
+  const [hasSelectedInstallment, setHasSelectedInstallment] = useState<boolean>(false); // 할부 옵션을 한 번이라도 선택했는지 추적
   const [weekendOption, setWeekendOption] = useState<'weekend' | 'friday' | 'monday'>('weekend');
+  // 정기 옵션의 반복 형태 (매일, 매주, 2주, 3주, 4주, 매월, 2개월 마다, 4개월 마다, 6개월 마다, 주중, 주말)
+  const [recurringType, setRecurringType] = useState<string>('매월');
+  // 반복/할부 설정 바텀시트 표시 여부
+  const [showRecurringInstallmentSheet, setShowRecurringInstallmentSheet] = useState<boolean>(false);
   const [monthStartDay, setMonthStartDay] = useState(1);
   const [showDayPicker, setShowDayPicker] = useState<boolean>(false);
   const [tempSelectedDate, setTempSelectedDate] = useState<string>(date.replace(/\./g, '-'));
@@ -563,6 +567,26 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       let finalInstallmentMonths = editData.installmentMonths || editData.totalMonths || 2;
 
       setTotalMonths(editData.isRecurring ? finalRecurringMonths : (editData.isInstallment ? finalInstallmentMonths : 2));
+      
+      // 정기 기록의 경우 recurringType 초기화 (totalMonths 기반으로 추론)
+      if (editData.isRecurring) {
+        const months = finalRecurringMonths;
+        if (months === 1) {
+          setRecurringType('매월');
+        } else if (months === 2) {
+          setRecurringType('2개월 마다');
+        } else if (months === 4) {
+          setRecurringType('4개월 마다');
+        } else if (months === 6) {
+          setRecurringType('6개월 마다');
+        } else {
+          // 기본값: 매월 (12개월인 경우도 매월로 처리)
+          setRecurringType('매월');
+        }
+      } else {
+        // 정기 기록이 아닌 경우 기본값
+        setRecurringType('매월');
+      }
       
       // 정기 기록: totalMonths가 없는 경우, recurringId로 관련 기록들을 찾아서 개월수 추론
       if (editData.isRecurring && !editData.totalMonths && editData.recurringId) {
@@ -3400,97 +3424,57 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
                   날짜 <Text style={{ color: '#EF5252' }}>*</Text>
                 </Text>
-                {(isRecurring || isInstallment) && (
-                  <Text style={[styles.currentYearMonth, { color: colors.textAssistive }]}>
-                    {mode === 'edit' && (editData?.isRecurring || editData?.isInstallment) && (editData?.recurringId || editData?.installmentId) ? (
-                      // 수정 모드: 최초 생성년월 표시 (recurringId/installmentId는 timestamp)
-                      (() => {
-                        const idToUse = editData.isRecurring ? editData.recurringId : editData.installmentId;
-                        const originalTimestamp = extractTimestampFromId(idToUse) ?? (typeof editData.createdAt === 'number' ? editData.createdAt : editData.timestamp);
-                        const originalDate = new Date(originalTimestamp ?? Date.now());
-                        const originalYear = originalDate.getFullYear();
-                        const originalMonth = String(originalDate.getMonth() + 1).padStart(2, '0');
-                        return `최초 생성년월 : ${originalYear}/${originalMonth}`;
-                      })()
-                    ) : (
-                      // 생성 모드: 선택한 날짜의 년월 표시
-                      (() => {
-                        const [selectedYear, selectedMonth] = date.split('.').map(Number);
-                        return `선택한 생성년월 : ${selectedYear}/${String(selectedMonth).padStart(2, '0')}`;
-                      })()
-                    )}
+                <Pressable
+                  style={styles.recurringInstallmentButton}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    setShowRecurringInstallmentSheet(true);
+                  }}
+                >
+                  <Text style={[
+                    styles.recurringInstallmentButtonText, 
+                    { 
+                      color: (isRecurring || isInstallment) ? colors.primary : colors.textAssistive 
+                    }
+                  ]}>
+                    {(() => {
+                      if (isRecurring) {
+                        // 정기 지출: "정기지출 ・ [반복기간] ・ [주말옵션]"
+                        const weekendText = weekendOption === 'weekend' 
+                          ? '관계없이 주말 기록' 
+                          : weekendOption === 'friday' 
+                          ? '금주 금요일 기록' 
+                          : '차주 월요일 기록';
+                        return `정기지출 ・ ${recurringType} ・ ${weekendText}`;
+                      } else if (isInstallment) {
+                        // 할부: "할부 ・ [개월수]"
+                        return `할부 ・ ${totalMonths}개월`;
+                      }
+                      return '반복/할부 설정';
+                    })()}
                   </Text>
-                )}
+                </Pressable>
               </View>
-              {(isRecurring || isInstallment) ? (
-                <View style={[styles.recurringDateContainer, { backgroundColor: colors.staticWhite, borderColor: colors.border }]}>
-                  <View style={styles.recurringDateLeft}>
-                    <Text style={[styles.recurringDateLabel, { color: colors.text }]}>
-                      생성일 기준 매달
-                    </Text>
-                  </View>
-                  <View style={styles.recurringDateRight}>
-                    <Pressable
-                      style={styles.dayPickerButton}
-                      onPress={() => {
-                        Keyboard.dismiss();
-                        setShowDayPicker(true);
-                      }}
-                    >
-                      <Text style={[styles.dayPickerText, { color: colors.textAssistive }]}>
-                        {(() => {
-                          // 정기 지출 수정 모드: 실제 저장된 날짜 기준으로 요일 표시
-                          if (mode === 'edit' && editData?.isRecurring && date) {
-                            const [year, month, day] = date.split('.').map(Number);
-                            const dateObj = new Date(year, month - 1, day);
-                            const actualDayOfWeek = dateObj.getDay();
-                            const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
-                            const actualDayOfWeekLabel = weekdays[actualDayOfWeek];
-
-                            return `${day}일(${actualDayOfWeekLabel})`;
-                          }
-                          
-                          // 일반 모드: selectedDay 기준으로 요일 계산
-                          const today = new Date();
-                          const year = today.getFullYear();
-                          const month = today.getMonth() + 1;
-                          
-                          const dateObj = new Date(year, month - 1, selectedDay);
-                          const actualDayOfWeek = dateObj.getDay();
-                          const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
-                          const actualDayOfWeekLabel = weekdays[actualDayOfWeek];
-                          
-                          return `${selectedDay}일(${actualDayOfWeekLabel})`;
-                        })()}
-                      </Text>
-                      <Icon name="arrowRight" variant="line" size={24} color={colors.staticBlack} />
-                    </Pressable>
-                  </View>
-                </View>
-              ) : (
-                <Input
-                  variant="line"
-                  icon="calendarMonth"
-                  value={(() => {
-                    if (!date) return '';
-                    const [year, month, day] = date.split('.').map(d => parseInt(d, 10));
-                    if (isNaN(year) || isNaN(month) || isNaN(day)) return date;
-                    
-                    // 실제 날짜의 요일 계산 (수정하려는 날짜 기준)
-                    const dateObj = new Date(year, month - 1, day);
-                    const actualDayOfWeek = dateObj.getDay();
-                    const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
-                    const actualDayOfWeekLabel = weekdays[actualDayOfWeek];
-                    
-                    // 날짜 입력 필드 요일 계산
-                    
-                    return `${year}.${String(month).padStart(2, '0')}.${String(day).padStart(2, '0')}(${actualDayOfWeekLabel})`;
-                  })()}
-                  editable={false}
-                  placeholder="날짜 선택"
-                  onPress={handleDatePress}
-                />
-              )}
+              <Input
+                variant="line"
+                icon="calendarMonth"
+                value={(() => {
+                  if (!date) return '';
+                  const [year, month, day] = date.split('.').map(d => parseInt(d, 10));
+                  if (isNaN(year) || isNaN(month) || isNaN(day)) return date;
+                  
+                  // 실제 날짜의 요일 계산 (수정하려는 날짜 기준)
+                  const dateObj = new Date(year, month - 1, day);
+                  const actualDayOfWeek = dateObj.getDay();
+                  const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
+                  const actualDayOfWeekLabel = weekdays[actualDayOfWeek];
+                  
+                  return `${year}.${String(month).padStart(2, '0')}.${String(day).padStart(2, '0')}(${actualDayOfWeekLabel})`;
+                })()}
+                editable={false}
+                placeholder="날짜 선택"
+                onPress={handleDatePress}
+              />
             </View>
 
             {/* 금액 */}
@@ -3503,256 +3487,28 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 </Text>
               </View>
               
-              {/* 정기 지출 ON 또는 할부 옵션 ON 시 기간 설정과 금액 입력 필드를 한 행에 배치 */}
-              {(isRecurring || isInstallment) && (
-                <View style={styles.recurringAmountRow}>
-                  {/* 기간 설정 */}
-                  <Selectbox
-                    disabled={mode === 'edit' && (editData?.isRecurring || editData?.isInstallment)}
-                    options={[
-                      { label: '2개월', value: '2' },
-                      { label: '3개월', value: '3' },
-                      { label: '4개월', value: '4' },
-                      { label: '5개월', value: '5' },
-                      { label: '6개월', value: '6' },
-                      { label: '12개월', value: '12' },
-                    ]}
-                    value={totalMonths.toString()}
-                    placeholder="개월수 선택"
-                    title="개월 수 선택"
-                    onPress={() => {
-                      // 정기 기록 또는 할부 기록 수정 모드에서는 개월수 변경 불가
-                      const isDisabled = mode === 'edit' && (editData?.isRecurring || editData?.isInstallment);
+              {/* 금액 입력 필드 */}
+              <Input
+                variant="line"
+                inputType="number"
+                unit="원"
+                value={amount || '0'}
+                onChangeText={handleAmountChange}
+                placeholder="0"
+                textAlign="right"
+                disabled={mode === 'edit' && (editData?.isRecurring || editData?.isInstallment)}
+                onPress={() => {
+                  // 정기 기록 또는 할부 기록 수정 모드에서는 금액 변경 불가
+                  const isDisabled = mode === 'edit' && (editData?.isRecurring || editData?.isInstallment);
 
-                      if (isDisabled) {
-                        if (__DEV__) {
-                        }
-                        setRecurringToastMessage('변경할 수 없습니다. 새로 생성해 주세요.');
-                        setShowRecurringToast(true);
-                      }
-                      // Selectbox의 자체 모달을 사용하므로 추가 동작 불필요
-                    }}
-                    onValueChange={(value) => {
-                      if (mode !== 'edit' || !(editData?.isRecurring || editData?.isInstallment)) {
-                        if (__DEV__) {
-                        }
-                        setTotalMonths(parseInt(value, 10));
-                      }
-                    }}
-                    style={styles.periodSelectInput}
-                  />
-                  
-                  {/* 통합 금액 입력 필드 */}
-                  <Input
-                    variant="line"
-                    inputType="number"
-                    unit="원"
-                    value={amount || '0'}
-                    onChangeText={handleAmountChange}
-                    placeholder="0"
-                    textAlign="right"
-                    disabled={mode === 'edit' && (editData?.isRecurring || editData?.isInstallment)}
-                    onPress={() => {
-                      // 정기 기록 또는 할부 기록 수정 모드에서는 금액 변경 불가
-                      const isDisabled = mode === 'edit' && (editData?.isRecurring || editData?.isInstallment);
-
-                      if (isDisabled) {
-                        setRecurringToastMessage('변경할 수 없습니다. 새로 생성해 주세요.');
-                        setShowRecurringToast(true);
-                        return;
-                      }
-
-                    }}
-                    style={styles.installmentAmountInput}
-                  />
-                </View>
-              )}
-              
-              {/* 메인 금액 입력 필드 (정기 지출 OFF이고 할부 옵션 OFF일 때만 표시) */}
-              {!isRecurring && !isInstallment && (
-                <View>
-                <Input
-                  variant="line"
-                  inputType="number"
-                  unit="원"
-                  value={amount || '0'}
-                  onChangeText={handleAmountChange}
-                  placeholder="0"
-                  textAlign="right"
-                  
-                />
-                </View>
-              )}
+                  if (isDisabled) {
+                    setRecurringToastMessage('변경할 수 없습니다. 새로 생성해 주세요.');
+                    setShowRecurringToast(true);
+                    return;
+                  }
+                }}
+              />
             </View>
-
-          {/* 소비 형태 */}
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
-              소비 형태
-            </Text>
-            <View style={[styles.card, { backgroundColor: colors.staticWhite }]}>
-              {/* 정기 지출 여부 */}
-              <View style={styles.recurringSection}>
-                <View style={styles.recurringTitleRow}>
-                  <Text style={[styles.switchLabel, { color: colors.text }]}>
-                    정기 지출 여부
-                  </Text>
-                  <Pressable
-                    onPress={() => {
-                      if (mode === 'edit') {
-                        // 일반 기록/정기/할부 모두 수정 시에는 소비 형태 변경 불가
-                        if (editData?.isRecurring) {
-                        setRecurringToastMessage('정기 지출로 생성된 내역은 해제할 수 없습니다.');
-                        } else if (editData?.isInstallment) {
-                        setRecurringToastMessage('할부 기록이므로 사용할 수 없습니다.');
-                        } else {
-                          setRecurringToastMessage('변경할 수 없습니다. 새로 생성해 주세요.');
-                        }
-                        setShowRecurringToast(true);
-                        return;
-                      }
-                    }}
-                  >
-                    <Switch
-                      value={isRecurring}
-                      onValueChange={(value) => {
-                          if (mode === 'edit') {
-                            return;
-                          }
-                        setIsRecurring(value);
-                        if (!value) {
-                          // 정기 지출 OFF 시 관련 상태 초기화
-                          setTotalMonths(2);
-                        } else {
-                          // 정기 지출 ON 시 할부 옵션 끄기 (상호 배타적)
-                          setIsInstallment(false);
-                          // 정기 지출 ON 시 선택한 날짜의 일자로 selectedDay 설정
-                          if (params.selectedDate) {
-                            const selectedDateObj = new Date(params.selectedDate);
-                            setSelectedDay(selectedDateObj.getDate());
-                          }
-                        }
-                      }}
-                        disabled={mode === 'edit'}
-                    />
-                  </Pressable>
-                </View>
-                <Text style={[styles.recurringCaption, { color: colors.textAssistive }]}>
-                  현재 월 기준 매달 같은 날에 자동 기록합니다.
-                </Text>
-              </View>
-
-              {/* Divider */}
-              <View style={[styles.divider, { backgroundColor: colors.border }]} />
-
-              {/* 할부 여부 */}
-              <View style={styles.recurringSection}>
-                <View style={styles.recurringTitleRow}>
-                  <Text style={[styles.switchLabel, { color: colors.text }]}>
-                    할부 여부
-                  </Text>
-                  <Pressable
-                    onPress={() => {
-                      if (mode === 'edit') {
-                        if (editData?.isInstallment) {
-                          setRecurringToastMessage('할부를 해제할 수 없습니다. 새로 생성해 주세요.');
-                        } else if (editData?.isRecurring) {
-                        setRecurringToastMessage('변경할 수 없습니다. 새로 생성해 주세요.');
-                        } else {
-                          setRecurringToastMessage('변경할 수 없습니다. 새로 생성해 주세요.');
-                      }
-                        setShowRecurringToast(true);
-                        return;
-                      }
-                    }}
-                  >
-                    <Switch
-                      value={isInstallment}
-                      onValueChange={(value) => {
-                        if (mode === 'edit') {
-                          return;
-                        }
-
-                        setIsInstallment(value);
-                        if (value) {
-                          // 할부 옵션 ON 시 정기 옵션 끄기 (상호 배타적)
-                          setIsRecurring(false);
-                          // 할부 옵션 ON 시 선택한 날짜의 일자로 selectedDay 설정
-                          if (params.selectedDate) {
-                            const selectedDateObj = new Date(params.selectedDate);
-                            setSelectedDay(selectedDateObj.getDate());
-                          }
-                        } else {
-                          // 할부 옵션 OFF 시 관련 상태 초기화
-                          setTotalMonths(2);
-                        }
-                      }}
-                      disabled={mode === 'edit'}
-                    />
-                  </Pressable>
-                </View>
-                <Text style={[styles.recurringCaption, { color: colors.textAssistive }]}>
-                  할부 기간동안 해당 소비금액을 자동 기록합니다.
-                </Text>
-              </View>
-
-            </View>
-          </View>
-
-          {/* 기록일이 주말인 경우 (정기 지출 ON 또는 할부 옵션 ON이면 항상 표시) */}
-          {(isRecurring || isInstallment) && (
-            <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
-                기록일이 주말인 경우
-              </Text>
-              <View style={[styles.card, { backgroundColor: colors.staticWhite }]}>
-                {/* 관계없이 주말 기록 */}
-                <Pressable 
-                  style={styles.radioRow}
-                  onPress={() => setWeekendOption('weekend')}
-                >
-                  <Text style={styles.weekendOptionText}>관계없이 주말 기록</Text>
-                  <Radio
-                    checked={weekendOption === 'weekend'}
-                    onPress={() => setWeekendOption('weekend')}
-                    label={false}
-                  />
-                </Pressable>
-
-                {/* Divider */}
-                <View style={[styles.divider, { backgroundColor: colors.border }]} />
-
-                {/* 금주 금요일 기록 */}
-                <Pressable 
-                  style={styles.radioRow}
-                  onPress={() => setWeekendOption('friday')}
-                >
-                  <Text style={styles.weekendOptionText}>금주 금요일 기록</Text>
-                  <Radio
-                    checked={weekendOption === 'friday'}
-                    onPress={() => setWeekendOption('friday')}
-                    label={false}
-                  />
-                </Pressable>
-
-                {/* Divider */}
-                <View style={[styles.divider, { backgroundColor: colors.border }]} />
-
-                {/* 차주 월요일 기록 */}
-                <Pressable 
-                  style={styles.radioRow}
-                  onPress={() => setWeekendOption('monday')}
-                >
-                  <Text style={styles.weekendOptionText}>차주 월요일 기록</Text>
-                  <Radio
-                    checked={weekendOption === 'monday'}
-                    onPress={() => setWeekendOption('monday')}
-                    label={false}
-                  />
-                </Pressable>
-              </View>
-            </View>
-          )}
 
           {/* 메모 */}
           <View 
@@ -4029,6 +3785,308 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       ) : null}
 
       {/* 날짜 선택 바텀시트: PrepaymentModal 내부 extraOverlay로 이동 */}
+
+      {/* 반복/할부 설정 바텀시트 */}
+      <ModalBottomsheet
+        visible={showRecurringInstallmentSheet}
+        title="반복/할부 설정"
+        onClose={() => setShowRecurringInstallmentSheet(false)}
+        onConfirm={() => setShowRecurringInstallmentSheet(false)}
+        confirmText="확인"
+        closeOnBackdrop={true}
+        style={{ maxHeight: Dimensions.get('window').height * 0.8 }}
+        contentStyle={{ padding: 0 }}
+        noPaddingBottom={true}
+      >
+        <ScrollView 
+          style={[
+            styles.recurringInstallmentSheetInner, 
+            { 
+              backgroundColor: colors.fill,
+              height: Dimensions.get('window').height * 0.8 - 56 - insets.bottom, // 바텀시트 높이 80% - 네비게이션 56 - 홈 인디케이터
+            }
+          ]}
+          contentContainerStyle={styles.recurringInstallmentSheetScrollContent}
+          showsVerticalScrollIndicator={true}
+        >
+          {/* 소비 형태 */}
+          <View style={styles.sheetSection}>
+            <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
+              소비 형태
+            </Text>
+            <View style={[styles.card, { backgroundColor: colors.staticWhite }]}>
+              {/* 정기 지출 여부 */}
+              <View style={styles.recurringSection}>
+                <View style={styles.recurringTitleRow}>
+                  <Text style={[styles.switchLabel, { color: colors.text }]}>
+                    정기 지출 여부
+                  </Text>
+                  <Pressable
+                    onPress={() => {
+                      if (mode === 'edit') {
+                        // 일반 기록/정기/할부 모두 수정 시에는 소비 형태 변경 불가
+                        if (editData?.isRecurring) {
+                          setRecurringToastMessage('정기 지출로 생성된 내역은 해제할 수 없습니다.');
+                        } else if (editData?.isInstallment) {
+                          setRecurringToastMessage('할부 기록이므로 사용할 수 없습니다.');
+                        } else {
+                          setRecurringToastMessage('변경할 수 없습니다. 새로 생성해 주세요.');
+                        }
+                        setShowRecurringToast(true);
+                        return;
+                      }
+                    }}
+                  >
+                    <Switch
+                      value={isRecurring}
+                      onValueChange={(value) => {
+                        if (mode === 'edit') {
+                          return;
+                        }
+                        setIsRecurring(value);
+                        if (!value) {
+                          // 정기 지출 OFF 시 관련 상태 초기화
+                          setTotalMonths(2);
+                          // 정기 지출을 선택했던 기록 초기화 (할부 옵션이 선택된 적이 있으면 할부 Chip 유지)
+                          if (!hasSelectedInstallment) {
+                            setRecurringType('매월');
+                          }
+                        } else {
+                          // 정기 지출 ON 시 할부 옵션 끄기 (상호 배타적)
+                          setIsInstallment(false);
+                          setHasSelectedInstallment(false); // 정기 옵션 선택 시 할부 선택 기록 초기화
+                          // 정기 지출 ON 시 기본 반복기간을 매일로 설정
+                          setRecurringType('매일');
+                          // 정기 지출 ON 시 선택한 날짜의 일자로 selectedDay 설정
+                          if (params.selectedDate) {
+                            const selectedDateObj = new Date(params.selectedDate);
+                            setSelectedDay(selectedDateObj.getDate());
+                          }
+                        }
+                      }}
+                      disabled={mode === 'edit'}
+                    />
+                  </Pressable>
+                </View>
+                <Text style={[styles.recurringCaption, { color: colors.textAssistive }]}>
+                  현재 월 기준 매달 같은 날에 자동 기록합니다.
+                </Text>
+              </View>
+
+              {/* Divider */}
+              <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+              {/* 할부 여부 */}
+              <View style={styles.recurringSection}>
+                <View style={styles.recurringTitleRow}>
+                  <Text style={[styles.switchLabel, { color: colors.text }]}>
+                    할부 여부
+                  </Text>
+                  <Pressable
+                    onPress={() => {
+                      if (mode === 'edit') {
+                        if (editData?.isInstallment) {
+                          setRecurringToastMessage('할부를 해제할 수 없습니다. 새로 생성해 주세요.');
+                        } else if (editData?.isRecurring) {
+                          setRecurringToastMessage('변경할 수 없습니다. 새로 생성해 주세요.');
+                        } else {
+                          setRecurringToastMessage('변경할 수 없습니다. 새로 생성해 주세요.');
+                        }
+                        setShowRecurringToast(true);
+                        return;
+                      }
+                    }}
+                  >
+                    <Switch
+                      value={isInstallment}
+                      onValueChange={(value) => {
+                        if (mode === 'edit') {
+                          return;
+                        }
+
+                        setIsInstallment(value);
+                        if (value) {
+                          // 할부 옵션 ON 시 정기 옵션 끄기 (상호 배타적)
+                          setIsRecurring(false);
+                          setHasSelectedInstallment(true); // 할부 옵션을 선택했음을 기록
+                          // 할부 옵션 ON 시 선택한 날짜의 일자로 selectedDay 설정
+                          if (params.selectedDate) {
+                            const selectedDateObj = new Date(params.selectedDate);
+                            setSelectedDay(selectedDateObj.getDate());
+                          }
+                        } else {
+                          // 할부 옵션 OFF 시 Chip 값은 유지하고 상태만 disabled로 변경
+                          // (totalMonths 초기화하지 않음, disabled는 !isRecurring && !isInstallment 조건으로 자동 처리됨)
+                          // hasSelectedInstallment는 유지하여 할부 Chip이 계속 표시되도록 함
+                        }
+                      }}
+                      disabled={mode === 'edit'}
+                    />
+                  </Pressable>
+                </View>
+                <Text style={[styles.recurringCaption, { color: colors.textAssistive }]}>
+                  할부 기간동안 해당 소비금액을 자동 기록합니다.
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* 반복 기간 / 할부 기간 */}
+          <View style={styles.sheetSection}>
+            <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
+              {isInstallment ? '할부 기간' : '반복 기간'}
+            </Text>
+            <View style={styles.chipContainer}>
+              {isRecurring || (!isRecurring && !isInstallment && !hasSelectedInstallment) ? (
+                // 정기 옵션 ON 또는 디폴트 상태 (할부 옵션을 선택한 적이 없을 때): 매일, 매주, 2주, 3주, 4주, 매월, 2개월 마다, 4개월 마다, 6개월 마다, 주중, 주말
+                <>
+                  {['매일', '매주', '매월', '2주', '3주', '4주', '2개월 마다', '4개월 마다', '6개월 마다', '주중', '주말'].map((label) => (
+                    <Chip
+                      key={label}
+                      type="option"
+                      label={label}
+                      active={recurringType === label}
+                      disabled={!isRecurring && !isInstallment}
+                      onPress={() => {
+                        if (!isRecurring && !isInstallment) return;
+                        if (mode === 'edit' && editData?.isRecurring) {
+                          setRecurringToastMessage('변경할 수 없습니다. 새로 생성해 주세요.');
+                          setShowRecurringToast(true);
+                          return;
+                        }
+                        setRecurringType(label);
+                        // 정기 옵션의 반복 형태에 따른 totalMonths 매핑
+                        // 매일, 매주, 2주, 3주, 4주, 주중, 주말은 totalMonths와 별도 관리
+                        // 매월, 2개월 마다, 4개월 마다, 6개월 마다는 totalMonths로 매핑
+                        if (label === '매월') {
+                          setTotalMonths(1);
+                        } else if (label === '2개월 마다') {
+                          setTotalMonths(2);
+                        } else if (label === '4개월 마다') {
+                          setTotalMonths(4);
+                        } else if (label === '6개월 마다') {
+                          setTotalMonths(6);
+                        }
+                        // 매일, 매주, 2주, 3주, 4주, 주중, 주말은 recurringType으로만 관리
+                      }}
+                      style={styles.periodChip}
+                    />
+                  ))}
+                </>
+              ) : (
+                // 할부 옵션 ON 또는 할부 옵션을 선택했던 경우: 2개월, 3개월, 4개월, 5개월, 6개월, 7개월, 8개월, 9개월, 10개월, 11개월, 12개월
+                // 할부 옵션 OFF 시에도 할부 Chip을 disabled 상태로 표시하여 선택했던 값을 유지
+                <>
+                  {[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((months) => (
+                    <Chip
+                      key={months}
+                      type="option"
+                      label={`${months}개월`}
+                      active={totalMonths === months}
+                      disabled={!isRecurring && !isInstallment}
+                      onPress={() => {
+                        if (!isRecurring && !isInstallment) return;
+                        if (mode === 'edit' && editData?.isInstallment) {
+                          setRecurringToastMessage('변경할 수 없습니다. 새로 생성해 주세요.');
+                          setShowRecurringToast(true);
+                          return;
+                        }
+                        setTotalMonths(months);
+                      }}
+                      style={styles.periodChip}
+                    />
+                  ))}
+                </>
+              )}
+            </View>
+          </View>
+
+          {/* 기록일이 주말인 경우 */}
+          <View style={styles.sheetSection}>
+            <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
+              기록일이 주말인 경우
+            </Text>
+            <View style={[styles.card, { backgroundColor: colors.staticWhite }]}>
+              {/* 관계없이 주말 기록 */}
+              <Pressable 
+                style={styles.radioRow}
+                onPress={() => {
+                  if (!isRecurring && !isInstallment) return;
+                  setWeekendOption('weekend');
+                }}
+                disabled={!isRecurring && !isInstallment}
+              >
+                <Text style={[styles.weekendOptionText, { color: colors.text }]}>
+                  관계없이 주말 기록
+                </Text>
+                <Radio
+                  checked={weekendOption === 'weekend'}
+                  onPress={() => {
+                    if (!isRecurring && !isInstallment) return;
+                    setWeekendOption('weekend');
+                  }}
+                  label={false}
+                  disabled={!isRecurring && !isInstallment}
+                />
+              </Pressable>
+
+              {/* Divider */}
+              <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+              {/* 금주 금요일 기록 */}
+              <Pressable 
+                style={styles.radioRow}
+                onPress={() => {
+                  if (!isRecurring && !isInstallment) return;
+                  setWeekendOption('friday');
+                }}
+                disabled={!isRecurring && !isInstallment}
+              >
+                <Text style={[styles.weekendOptionText, { color: colors.text }]}>
+                  금주 금요일 기록
+                </Text>
+                <Radio
+                  checked={weekendOption === 'friday'}
+                  onPress={() => {
+                    if (!isRecurring && !isInstallment) return;
+                    setWeekendOption('friday');
+                  }}
+                  label={false}
+                  disabled={!isRecurring && !isInstallment}
+                />
+              </Pressable>
+
+              {/* Divider */}
+              <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+              {/* 차주 월요일 기록 */}
+              <Pressable 
+                style={styles.radioRow}
+                onPress={() => {
+                  if (!isRecurring && !isInstallment) return;
+                  setWeekendOption('monday');
+                }}
+                disabled={!isRecurring && !isInstallment}
+              >
+                <Text style={[styles.weekendOptionText, { color: colors.text }]}>
+                  차주 월요일 기록
+                </Text>
+                <Radio
+                  checked={weekendOption === 'monday'}
+                  onPress={() => {
+                    if (!isRecurring && !isInstallment) return;
+                    setWeekendOption('monday');
+                  }}
+                  label={false}
+                  disabled={!isRecurring && !isInstallment}
+                />
+              </Pressable>
+            </View>
+          </View>
+        </ScrollView>
+        {/* 홈 인디케이터 영역 (스크롤 뷰 밖에 배치) */}
+        <View style={{ height: insets.bottom }} />
+      </ModalBottomsheet>
 
       {/* 금액 미입력 얼럿 */}
       <ModalPopup
@@ -4491,6 +4549,29 @@ const styles = StyleSheet.create({
   categoryInput: {
     // Input 컴포넌트가 자체 스타일을 가지고 있으므로 추가 스타일 불필요
   },
+  dateInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  dateInput: {
+    flex: 1,
+  },
+  dateHeaderContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  recurringInstallmentButton: {
+    paddingVertical: 0,
+    paddingHorizontal: 4,
+  },
+  recurringInstallmentButtonText: {
+    ...Typography.body1.l.regular,
+    fontSize: 16,
+    lineHeight: 24,
+    textDecorationLine: 'underline',
+  },
   card: {
     borderRadius: 16,
     overflow: 'hidden',
@@ -4925,6 +5006,30 @@ const styles = StyleSheet.create({
   deleteOptionDivider: {
     height: 1,
     marginHorizontal: 20,
+  },
+  // 반복/할부 설정 바텀시트 스타일
+  recurringInstallmentSheetInner: {
+    backgroundColor: 'transparent',
+  },
+  recurringInstallmentSheetScrollContent: {
+    paddingHorizontal: 16,
+    paddingTop: 24,
+    paddingBottom: 32, // 하단 여백 32 (스크롤 가능한 영역 내에서 보이도록)
+    gap: 24,
+  },
+  sheetSection: {
+    gap: 8,
+  },
+  chipContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    width: '100%',
+  },
+  periodChip: {
+    marginBottom: 0,
+    width: '31.5%', // 3열로 균일하게 배치 (100% - 16*2 padding - 8*2 gap) / 3 ≈ 31.5%
+    height: 40, // Chip 높이 40으로 고정
   },
 });
 

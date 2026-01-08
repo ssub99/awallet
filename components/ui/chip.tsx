@@ -147,6 +147,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     minHeight: 37, // Figma design height
     // borderRadius is set dynamically based on type
+    // height can be overridden via style prop
   },
   textActive: {
     fontFamily: 'Pretendard',
