@@ -46,11 +46,6 @@ function normalizeExpense(record: ExpenseRecord): ExpenseRecord {
     paymentMethod: record.paymentMethod ?? 'credit',
   };
   
-  // 디버그: normalizeExpense 후 normalized.recurringType 확인
-  if (normalized.isRecurring) {
-    console.log('[NORMALIZE] normalized.recurringType:', normalized.recurringType, 'record.recurringType:', record.recurringType);
-  }
-  
   return normalized;
 }
 
@@ -115,17 +110,7 @@ async function persistExpenses(records: ExpenseRecord[]): Promise<void> {
 }
 
 export async function createExpense(record: ExpenseRecord): Promise<ExpenseRecord> {
-  // 디버그: createExpense에 전달된 record.recurringType 확인
-  if (record.isRecurring) {
-    console.log('[CREATE-EXPENSE] record.recurringType:', record.recurringType, 'record.id:', record.id);
-  }
-  
   const expense = normalizeExpense(record);
-  
-  // 디버그: normalizeExpense 후 expense.recurringType 확인
-  if (expense.isRecurring) {
-    console.log('[CREATE-EXPENSE] normalizeExpense 후 expense.recurringType:', expense.recurringType);
-  }
   
   const existing = await loadLocalExpenses();
   const filtered = existing.filter(
@@ -134,11 +119,6 @@ export async function createExpense(record: ExpenseRecord): Promise<ExpenseRecor
   );
   filtered.push(expense);
   await persistExpenses(filtered);
-  
-  // 디버그: persistExpenses 후 저장된 expense.recurringType 확인
-  if (expense.isRecurring) {
-    console.log('[CREATE-EXPENSE] persistExpenses 후 expense.recurringType:', expense.recurringType);
-  }
   
   return expense;
 }

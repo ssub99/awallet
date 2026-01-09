@@ -235,11 +235,6 @@ export default function MonthlyExpenseTimelineScreen() {
               }
               return value;
             });
-            // 디버그: 파싱 직후 첫 번째 record의 recurringType 확인
-            const firstDateKey = Object.keys(parsed)[0];
-            if (firstDateKey && parsed[firstDateKey]?.records?.[0]) {
-              console.log('[TIMELINE] 파싱 직후 첫 번째 record.recurringType:', parsed[firstDateKey].records[0].recurringType);
-            }
             const calendarData = parsed;
             const items: TimelineItem[] = [];
             let includedDates: string[] = [];
@@ -259,11 +254,6 @@ export default function MonthlyExpenseTimelineScreen() {
                   data.records.forEach((record: any, recordIndex: number) => {
                     // isDeleted가 true인 기록 제외 (환불된 기록은 표시)
                     if (record.isDeleted) return;
-                    
-                    // 디버그: calendarData에서 읽어온 record.recurringType 확인
-                    if (record.isRecurring) {
-                      console.log('[TIMELINE] calendarData에서 읽은 record.recurringType:', record.recurringType, 'record.isRecurring:', record.isRecurring, 'record.totalMonths:', record.totalMonths);
-                    }
                     
                     items.push({
                       date: dateString,

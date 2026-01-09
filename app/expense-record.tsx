@@ -738,15 +738,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   // Edit mode: Initialize with edit data
   useEffect(() => {
     if (mode === 'edit' && editData) {
-      // 디버그: editData 전체 확인
-      console.log('[EDIT-INIT] editData 전체:', {
-        isRecurring: editData.isRecurring,
-        recurringType: editData.recurringType,
-        totalMonths: editData.totalMonths,
-        isInstallment: editData.isInstallment,
-        installmentMonths: editData.installmentMonths,
-      });
-
       setCategory(editData.category || '');
       // 금액에 콤마 포맷팅 적용
       const initialAmount = editData.amount?.toString() || '';
@@ -777,8 +768,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         // - 없으면 더 이상 totalMonths로 역추론해서 덮어쓰지 않는다.
         // editData.recurringType이 명시적으로 있는지 확인 (undefined, null, 빈 문자열 모두 체크)
         if (editData.recurringType && editData.recurringType.trim() !== '') {
-          // 디버그: 실제 저장된 recurringType 확인
-          console.log('[EDIT-INIT] editData.recurringType:', editData.recurringType, 'editData.totalMonths:', editData.totalMonths);
           setRecurringType(editData.recurringType);
 
           // 매월/개월 단위 옵션만 totalMonths와 동기화 (표시/계산용)
@@ -1950,11 +1939,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         monthlyAmount = expenseAmount;
       }
 
-      // 디버그: 생성 시점의 recurringType 확인
-      if (isRecurring) {
-        console.log('[CREATE] 저장 시점 recurringType:', recurringType, 'totalMonths:', totalMonths, 'isRecurring:', isRecurring);
-      }
-
       const newRecord = {
         id: recordId, // UUID
         type: 'expense' as const,
@@ -2158,10 +2142,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         }
       } else {
         // Create mode: Add new record
-        // 디버그: calendarData에 push하기 전 newRecord 확인
-        if (isRecurring) {
-          console.log('[CREATE] calendarData push 전 newRecord.recurringType:', newRecord.recurringType);
-        }
         calendarData[actualDateKey].records.push(newRecord);
         calendarData[actualDateKey].totalExpense = (calendarData[actualDateKey].totalExpense || 0) + monthlyAmount;
 
@@ -2276,11 +2256,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             originalCategory: category,
             originalDate: futureDate,
           };
-          
-          // 디버그: 미래 기록 push 전 recurringType 확인
-          if (isRecurring) {
-            console.log('[CREATE] 미래 기록 push 전 futureRecord.recurringType:', futureRecord.recurringType);
-          }
           
           calendarData[futureDateKey].records.push(futureRecord);
           
@@ -2515,11 +2490,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           try {
             const recordId = record.id || record.timestamp.toString(); // UUID 우선, fallback으로 timestamp
             
-            // 디버그: recordsToSave의 record.recurringType 확인
-            if (record.isRecurring) {
-              console.log('[SAVE] recordsToSave record.recurringType:', record.recurringType, 'record.id:', record.id, 'record.timestamp:', record.timestamp);
-            }
-            
             if (mode === 'edit' && editData) {
               // 수정 모드: 기록이 존재하는지 확인 후 업데이트 또는 생성
               // 기존 기록 존재 여부 확인
@@ -2532,25 +2502,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                   ...record,
                   date: record.date, // 명시적으로 date 포함
                 };
-                // 디버그: updateData의 recurringType 확인
-                if (record.isRecurring) {
-                  console.log('[SAVE] updateData.recurringType:', updateData.recurringType);
-                }
                 await updateExpense(recordId, updateData);
               } else {
                 // 기존 기록이 없으면 생성 (전체 수정 시 새로 생성된 기록)
-                // 디버그: createExpense에 전달하는 record.recurringType 확인
-                if (record.isRecurring) {
-                  console.log('[SAVE] createExpense record.recurringType:', record.recurringType);
-                }
                 await createExpense(record);
               }
             } else {
               // 생성 모드: 새로 생성
-              // 디버그: createExpense에 전달하는 record.recurringType 확인
-              if (record.isRecurring) {
-                console.log('[SAVE] createExpense record.recurringType:', record.recurringType);
-              }
               await createExpense(record);
             }
           } catch (error) {
@@ -2574,24 +2532,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         return value;
       }));
       
-      // 디버그: 저장 전 calendarData의 recurringType 확인
-      if (isRecurring) {
-        const firstRecord = calendarDataToSave[actualDateKey]?.records?.[0];
-        if (firstRecord) {
-          console.log('[CREATE] AsyncStorage 저장 전 calendarDataToSave[actualDateKey].records[0].recurringType:', firstRecord.recurringType);
-        }
-      }
-      
       const stringified = JSON.stringify(calendarDataToSave);
-      // 디버그: stringify 직후 첫 번째 record의 recurringType 확인
-      if (isRecurring) {
-        const parsed = JSON.parse(stringified);
-        const firstRecord = parsed[actualDateKey]?.records?.[0];
-        if (firstRecord) {
-          console.log('[CREATE] stringify 직후 parsed[actualDateKey].records[0].recurringType:', firstRecord.recurringType);
-        }
-      }
-      
       await AsyncStorage.setItem('calendarData', stringified);
 
       // 6-1.5. rebuildCalendarData 실행 (expenseData에서 calendarData 재구성)
@@ -2694,15 +2635,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
   const rebuildCalendarData = useCallback(async () => {
     try {
-      console.log('[REBUILD] rebuildCalendarData 시작');
       // 동적 import 제거 - 정적 import로 변경하여 번들링 지연 방지
       const [expenses, incomes] = await Promise.all([getAllExpenses(), getAllIncomes()]);
-      
-      // 디버그: getAllExpenses에서 가져온 첫 번째 정기 기록 확인
-      const firstRecurringExpense = expenses.find(e => e.isRecurring);
-      if (firstRecurringExpense) {
-        console.log('[REBUILD] getAllExpenses 첫 번째 정기 기록.recurringType:', firstRecurringExpense.recurringType, 'id:', firstRecurringExpense.id);
-      }
 
       const calendarData: Record<string, CalendarBucket> = {};
 
@@ -2715,20 +2649,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           calendarData[dateKey] = { totalExpense: 0, totalIncome: 0, records: [] };
         }
         
-        // 디버그: rebuildCalendarData에서 expense.recurringType 확인
-        if (expense.isRecurring) {
-          console.log('[REBUILD] expense.recurringType:', expense.recurringType, 'expense.isRecurring:', expense.isRecurring, 'expense.totalMonths:', expense.totalMonths, 'expense.id:', expense.id);
-        }
-        
         const recordToPush = {
           ...expense,
           type: 'expense',
         };
-        
-        // 디버그: push 직전 recordToPush.recurringType 확인
-        if (expense.isRecurring) {
-          console.log('[REBUILD] push 직전 recordToPush.recurringType:', recordToPush.recurringType);
-        }
         
         calendarData[dateKey].records.push(recordToPush);
         if (!expense.isRefunded) {
@@ -2759,15 +2683,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         }
       });
 
-      // 디버그: rebuildCalendarData 저장 직전 첫 번째 정기 기록 확인
-      const firstDateKey = Object.keys(calendarData)[0];
-      if (firstDateKey) {
-        const firstRecurringRecord = calendarData[firstDateKey].records.find((r: any) => r.isRecurring);
-        if (firstRecurringRecord) {
-          console.log('[REBUILD] 저장 직전 calendarData 첫 번째 정기 기록.recurringType:', firstRecurringRecord.recurringType);
-        }
-      }
-      
       // recurringType이 undefined인 경우 null로 변환하여 저장 (JSON.stringify는 undefined를 제거함)
       const stringified = JSON.stringify(calendarData, (key, value) => {
         if (key === 'recurringType' && value === undefined) {
@@ -2776,35 +2691,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         return value;
       });
       
-      // 디버그: 저장 직후 stringified에서 recurringType 확인
-      const parsedForDebug = JSON.parse(stringified);
-      const firstDateKeyDebug = Object.keys(parsedForDebug)[0];
-      if (firstDateKeyDebug) {
-        const firstRecurringRecordDebug = parsedForDebug[firstDateKeyDebug].records?.find((r: any) => r.isRecurring);
-        if (firstRecurringRecordDebug) {
-          console.log('[REBUILD] 저장 직후 stringified에서 recurringType:', firstRecurringRecordDebug.recurringType);
-        }
-      }
-      
       await AsyncStorage.setItem('calendarData', stringified);
-      
-      // 디버그: AsyncStorage 저장 직후 읽어서 확인
-      const storedAfterSave = await AsyncStorage.getItem('calendarData');
-      if (storedAfterSave) {
-        const parsedAfterSave = JSON.parse(storedAfterSave, (key, value) => {
-          if (key === 'recurringType' && value === null) {
-            return undefined;
-          }
-          return value;
-        });
-        const firstDateKeyAfterSave = Object.keys(parsedAfterSave)[0];
-        if (firstDateKeyAfterSave) {
-          const firstRecurringRecordAfterSave = parsedAfterSave[firstDateKeyAfterSave].records?.find((r: any) => r.isRecurring);
-          if (firstRecurringRecordAfterSave) {
-            console.log('[REBUILD] AsyncStorage 저장 직후 읽은 recurringType:', firstRecurringRecordAfterSave.recurringType);
-          }
-        }
-      }
     } catch (error) {
       console.error('[calendar] Failed to rebuild calendar data:', error);
     }
