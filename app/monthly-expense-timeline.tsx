@@ -781,7 +781,13 @@ export default function MonthlyExpenseTimelineScreen() {
                               {!item.isInstallment && item.isPrepaid && (
                                 <Tag label="선납" status="positive" />
                               )}
-                              {!item.isInstallment && item.isRecurring && !item.isPrepaid && (
+                              {!item.isInstallment && item.isRefunded && (
+                                <Tag
+                                  label={item.isRecurring ? "정기·환불" : "일반·환불"}
+                                  status="normal"
+                                />
+                              )}
+                              {!item.isInstallment && item.isRecurring && !item.isPrepaid && !item.isRefunded && (
                                 <Tag label="정기" status="normal" />
                               )}
                             </View>
