@@ -150,6 +150,7 @@ export const AppDataProvider: React.FC<AppDataProviderProps> = ({ children, enab
             isPrepaid: expense.isPrepaid,
             prepaidDate: expense.prepaidDate,
             isRefunded: expense.isRefunded,
+            originalAmountBeforeRefund: expense.originalAmountBeforeRefund,
             originalAmount: expense.originalAmount,
             originalCategory: expense.originalCategory,
             originalDate: expense.originalDate,

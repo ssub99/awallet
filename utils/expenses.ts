@@ -29,6 +29,7 @@ export interface ExpenseRecord {
   isDeleted?: boolean;
   deletedAt?: string | null;
   originalAmount?: number; // 원본 금액
+  originalAmountBeforeRefund?: number; // 환불 직전 금액
   originalCategory?: string; // 원본 카테고리
   originalDate?: string; // 원본 날짜 (YYYY.MM.DD 형식) - 일반 기록: 처음 생성일, 선결제 기록: 원래 예정일
 }
