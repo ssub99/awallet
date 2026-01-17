@@ -669,9 +669,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     setShowWeekendOptionToast(false);
   }, [showToast, showWeekendOptionToast]);
   
-  // 정기 기록 수정 옵션
-  const [editOption, setEditOption] = useState<'all' | 'today'>('all'); // 'all': 전체 수정, 'today': 오늘만 수정
-  
   // 실제 존재하는 기록 개수 (삭제된 기록 제외)
   const [actualRecordCount, setActualRecordCount] = useState<number>(0);
   // 실제 존재하는 기록의 총 금액 (할부 기록 삭제 시 정확한 금액 계산용)
@@ -1840,14 +1837,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
     // 정기/할부 기록 수정모드에서 확인 모달 표시 (환불 기록, 선결제 기록은 제외)
     if (!isRefundedRecord && mode === 'edit' && (editData?.isRecurring || editData?.isInstallment) && !editData?.isPrepaid) {
-      let message = '';
-      if (editOption === 'all') {
-        message = '매달 마다 자동으로 기록되는\n데이터 모두를 수정하시겠어요?';
-      } else {
-        message = '매달 마다 자동으로 기록되는 데이터 중\n오늘 데이터만 수정하시겠어요?';
-      }
-      
-      setEditConfirmMessage(message);
+    setEditConfirmMessage('매달 마다 자동으로 기록되는 데이터 중\n오늘 데이터만 수정하시겠어요?');
       setShowEditConfirmModal(true);
       return;
     }
@@ -1960,25 +1950,25 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       
       // 3. 새 기록 추가
       // 오늘만 수정 모드에서는 기존 timestamp, id, recurringId 유지
-      const newTimestamp = (mode === 'edit' && editData && editOption === 'today') 
+      const newTimestamp = (mode === 'edit' && editData) 
         ? editData.timestamp 
         : new Date().getTime();
       
       // 고유 ID 생성 (UUID)
-      const recordId = (mode === 'edit' && editData && editOption === 'today')
+      const recordId = (mode === 'edit' && editData)
         ? editData.id
         : generateRecordId();
       
       // 정기 기록 전용 그룹 ID (recurring_UUID 형식)
       const recurringId = isRecurring 
-        ? ((mode === 'edit' && editData && editOption === 'today') 
+        ? ((mode === 'edit' && editData) 
           ? editData.recurringId 
           : generateGroupId('recurring'))
         : undefined;
 
       // 할부 기록 전용 그룹 ID (installment_UUID 형식)
       const installmentId = isInstallment 
-        ? ((mode === 'edit' && editData && editOption === 'today') 
+        ? ((mode === 'edit' && editData) 
           ? editData.installmentId
           : generateGroupId('installment'))
         : undefined;
@@ -2095,48 +2085,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           }
         } else if (editData.isRecurring || editData.isInstallment) {
           // 정기 기록 또는 할부 기록 수정 (선결제 기록 제외)
-          if (editOption === 'all') {
-            // 전체 수정: 기존 데이터 삭제 후 새로 생성
-            const { deletedRecords, upsertRecords } = await handleMultipleRecordsBulkUpdate(
-              calendarData,
-              editData,
-              newRecord,
-              actualDateKey,
-              monthlyAmount,
-              recurringType // 현재 선택된 recurringType 전달
-            );
+          // 개별 수정: 해당 건만 수정 (부모/자식 관계 유지)
+          // 할부 기록 수정 시에는 기존 금액을 사용하여 재할부 방지
+          const singleUpdateAmount = (editData.isInstallment && editData.originalInstallment) 
+            ? editData.amount  // 할부 기록은 기존 금액 사용
+            : monthlyAmount;    // 일반 기록은 새 금액 사용
 
-            recordsToSave.push(...upsertRecords);
-
-            if (typeof __DEV__ !== 'undefined' && __DEV__) {
-              // eslint-disable-next-line no-console
-              console.log('[expense][update:bulk-result]', {
-                deletedCount: deletedRecords.length,
-                upsertCount: upsertRecords.length,
-              });
-            }
-
-            if (deletedRecords.length > 0) {
-              await Promise.all(
-                deletedRecords.map(async ({ id, timestamp }) => {
-                  const deleteKey = typeof id === 'string' && id.length > 0 ? id : timestamp.toString();
-                  try {
-                    await deleteExpense(deleteKey);
-                  } catch (error) {
-                    console.error('[expense-record] Failed to delete expense during bulk update:', deleteKey, error);
-                  }
-                })
-              );
-            }
-          } else {
-            // 오늘만 수정: 해당 건만 수정 (부모/자식 관계 유지)
-            // 할부 기록 수정 시에는 기존 금액을 사용하여 재할부 방지
-            const singleUpdateAmount = (editData.isInstallment && editData.originalInstallment) 
-              ? editData.amount  // 할부 기록은 기존 금액 사용
-              : monthlyAmount;    // 일반 기록은 새 금액 사용
-
-            await handleSingleRecordUpdate(calendarData, editData, newRecord, actualDateKey, singleUpdateAmount);
-          }
+          await handleSingleRecordUpdate(calendarData, editData, newRecord, actualDateKey, singleUpdateAmount);
         } else {
           // 일반 기록 수정 (기존 로직)
           const originalDateKey = editData.date ? editData.date.replace(/\./g, '-') : actualDateKey;
@@ -2363,89 +2318,29 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         const recordsToSave: ExpenseRecordType[] = [];
         
         if (mode === 'edit' && editData) {
-          // 수정 모드
-          if ((editData.isRecurring || editData.isInstallment) && editOption === 'all') {
-            // 전체 수정: handleMultipleRecordsBulkUpdate에서 생성된 모든 기록 저장
-            // 전체 수정 시에는 editData의 원본 ID를 사용해야 함 (handleMultipleRecordsBulkUpdate에서 동일한 ID로 재생성함)
-            const idToUse = editData.isRecurring ? editData.recurringId : editData.installmentId;
-            if (idToUse) {
-              // calendarData에서 해당 ID로 생성된 모든 기록 찾기
-              Object.keys(calendarData).forEach(dateKey => {
-                if (calendarData[dateKey].records) {
-                  calendarData[dateKey].records.forEach((record: any) => {
-                    if (editData.isRecurring && record.recurringId === idToUse) {
-                      recordsToSave.push({
-                        type: 'expense',
-                        amount: record.amount,
-                        category: record.category,
-                        memo: record.memo,
-                        date: record.date,
-                        timestamp: record.timestamp,
-                        isRecurring: record.isRecurring,
-                        weekendOption: record.weekendOption,
-                        recurringId: record.recurringId,
-                        installmentId: record.installmentId,
-                        isAutoGenerated: record.isAutoGenerated || false,
-                        isInstallment: record.isInstallment,
-                        totalMonths: record.totalMonths,
-                        installmentMonths: record.installmentMonths,
-                        originalInstallment: record.originalInstallment,
-                        recurringType: record.recurringType, // 정기 기록의 반복 타입 저장
-                        originalAmount: record.originalAmount,
-                        originalCategory: record.originalCategory,
-                        originalDate: record.originalDate,
-                      });
-                    } else if (editData.isInstallment && record.installmentId === idToUse) {
-                      recordsToSave.push({
-                        type: 'expense',
-                        amount: record.amount,
-                        category: record.category,
-                        memo: record.memo,
-                        date: record.date, // 명시적으로 date 포함
-                        timestamp: record.timestamp,
-                        isRecurring: record.isRecurring,
-                        weekendOption: record.weekendOption,
-                        recurringId: record.recurringId,
-                        installmentId: record.installmentId,
-                        isAutoGenerated: record.isAutoGenerated || false,
-                        isInstallment: record.isInstallment,
-                        totalMonths: record.totalMonths,
-                        installmentMonths: record.installmentMonths,
-                        originalInstallment: record.originalInstallment,
-                        originalAmount: record.originalAmount,
-                        originalCategory: record.originalCategory,
-                        originalDate: record.originalDate,
-                      });
-                    }
-                  });
-                }
-              });
-            }
-          } else {
-            // 오늘만 수정 또는 일반 기록 수정: 수정된 기록만 저장
-            const updatedRecord: ExpenseRecordType = {
-              type: 'expense',
-              amount: monthlyAmount,
-              category,
-              memo,
-              date: actualDate,
-              timestamp: editData.timestamp, // 기존 timestamp 유지
-              isRecurring,
-              weekendOption: (isRecurring || isInstallment) ? weekendOption : undefined,
-              recurringId: isRecurring ? recurringId : undefined,
-              installmentId: isInstallment ? installmentId : undefined,
-              isAutoGenerated: false,
-              isInstallment: isInstallment ? true : undefined,
-              totalMonths: isRecurring ? totalMonths : undefined,
-              installmentMonths: isInstallment ? totalMonths : undefined,
-              originalInstallment: isInstallment ? true : undefined,
-              isPrepaid: editData.isPrepaid,
-              prepaidDate: editData.prepaidDate,
-              originalDate: editData.originalDate,
-              isRefunded: editData.isRefunded,
-            };
-            recordsToSave.push(updatedRecord);
-          }
+          // 수정 모드: 수정된 기록만 저장
+          const updatedRecord: ExpenseRecordType = {
+            type: 'expense',
+            amount: monthlyAmount,
+            category,
+            memo,
+            date: actualDate,
+            timestamp: editData.timestamp, // 기존 timestamp 유지
+            isRecurring,
+            weekendOption: (isRecurring || isInstallment) ? weekendOption : undefined,
+            recurringId: isRecurring ? recurringId : undefined,
+            installmentId: isInstallment ? installmentId : undefined,
+            isAutoGenerated: false,
+            isInstallment: isInstallment ? true : undefined,
+            totalMonths: isRecurring ? totalMonths : undefined,
+            installmentMonths: isInstallment ? totalMonths : undefined,
+            originalInstallment: isInstallment ? true : undefined,
+            isPrepaid: editData.isPrepaid,
+            prepaidDate: editData.prepaidDate,
+            originalDate: editData.originalDate,
+            isRefunded: editData.isRefunded,
+          };
+          recordsToSave.push(updatedRecord);
         } else {
           // 생성 모드: 새로 생성된 기록들 저장
           // 원본 기록
@@ -2664,28 +2559,19 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       // 오늘만 수정 모드에서는 날짜 변경 여부에 따라 이동
       // 전체 수정 모드에서는 최초 생성 날짜로 이동
       let targetDateKey = actualDateKey;
-      if (mode === 'edit' && editData && editOption === 'today') {
-        // 오늘만 수정: 날짜가 변경된 경우 변경된 날짜로 이동, 변경되지 않은 경우 원래 날짜로 이동
+      if (mode === 'edit' && editData) {
+        // 개별 수정: 날짜가 변경된 경우 변경된 날짜로 이동, 변경되지 않은 경우 원래 날짜로 이동
         const originalDateKey = editData.date ? editData.date.replace(/\./g, '-') : actualDateKey;
         const isDateChanged = originalDateKey !== actualDateKey;
         
         if (isDateChanged) {
-          // 날짜가 변경된 경우: 변경된 날짜로 이동하여 사용자가 변경사항을 확인할 수 있도록 함
           targetDateKey = actualDateKey;
-          
         } else {
-          // 날짜가 변경되지 않은 경우: 원래 날짜로 이동
           targetDateKey = originalDateKey;
-          
         }
-      } else if (mode === 'edit' && editData && editOption === 'all') {
-        // 전체 수정: 최초 생성 날짜로 이동
-        targetDateKey = actualDateKey;
-
       } else {
         // 생성 모드: 생성된 날짜로 이동
         targetDateKey = actualDateKey;
-
       }
       
       // 🔧 수정: 실제 저장된 날짜가 속한 커스텀 월로 이동
@@ -4101,102 +3987,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           </View>
         )}
 
-        {/* 기간 행 - 수정 모드일 때만 하단에 sticky로 표시 */}
-        {/* 정기 기록 수정 시 */}
-        {mode === 'edit' && isRecurring && (
-          <View style={[
-            styles.periodStickyContainer,
-            {
-              backgroundColor: AtomicColors.neutral[100], // #f5f5f5
-            }
-          ]}>
-            {/* 상단 라인 */}
-            <View style={[styles.periodTopLine, { backgroundColor: colors.border }]} />
-            <View style={styles.periodStickyContent}>
-              <Text style={[styles.periodStickyLabel, { color: colors.text }]}>
-                기간 : {(() => {
-                  if (editData?.isRecurring && editData?.recurringId) {
-                    // 정기기록의 실제 원본 시작일 사용
-                    const originalStartTimestamp = extractTimestampFromId(editData.recurringId) ?? (typeof editData.createdAt === 'number' ? editData.createdAt : editData.timestamp);
-                    const originalStartDate = new Date(originalStartTimestamp ?? Date.now());
-                    const originalStartDateStr = `${originalStartDate.getFullYear()}.${String(originalStartDate.getMonth() + 1).padStart(2, '0')}.${String(originalStartDate.getDate()).padStart(2, '0')}`;
-                    
-                    // editData에서 recurringType 가져오기 (없으면 현재 상태의 recurringType 사용)
-                    const currentRecurringType = editData.recurringType || recurringType;
-                    return getRecurringPeriod(originalStartDateStr, totalMonths, currentRecurringType);
-                  } else {
-                    // 신규 생성 시에는 현재 선택된 날짜 사용
-                    return getRecurringPeriod(date, totalMonths, recurringType);
-                  }
-                })()}
-              </Text>
-              <View style={styles.periodStickyRadioGroup}>
-                <View style={styles.periodStickyRadio}>
-                  <Radio
-                    checked={editOption === 'all'}
-                    onPress={() => setEditOption('all')}
-                    label="전체 수정"
-                  />
-                </View>
-                <View style={styles.periodStickyRadio}>
-                  <Radio
-                    checked={editOption === 'today'}
-                    onPress={() => setEditOption('today')}
-                    label="오늘만 수정"
-                  />
-                </View>
-              </View>
-            </View>
-          </View>
-        )}
-
-        {/* 할부 기록 수정 시 기간 행 - 환불/선결제 처리된 경우 제외 */}
-        {mode === 'edit' && isInstallment && !editData?.isRefunded && !editData?.isPrepaid && (
-          <View style={[
-            styles.periodStickyContainer,
-            {
-              backgroundColor: AtomicColors.neutral[100], // #f5f5f5
-            }
-          ]}>
-            {/* 상단 라인 */}
-            <View style={[styles.periodTopLine, { backgroundColor: colors.border }]} />
-            <View style={styles.periodStickyContent}>
-              <Text style={[styles.periodStickyLabel, { color: colors.text }]}>
-                기간 : {(() => {
-                  if (editData?.isInstallment && editData?.installmentId) {
-                    // 할부기록의 실제 원본 시작일 사용
-                    const originalStartTimestamp = extractTimestampFromId(editData.installmentId) ?? (typeof editData.createdAt === 'number' ? editData.createdAt : editData.timestamp);
-                    const originalStartDate = new Date(originalStartTimestamp ?? Date.now());
-                    const originalStartDateStr = `${originalStartDate.getFullYear()}.${String(originalStartDate.getMonth() + 1).padStart(2, '0')}.${String(originalStartDate.getDate()).padStart(2, '0')}`;
-                    
-                    return getRecurringPeriod(originalStartDateStr, totalMonths);
-                  } else {
-                    // 신규 생성 시에는 현재 선택된 날짜 사용
-                    
-                    return getRecurringPeriod(date, totalMonths);
-                  }
-                })()}
-              </Text>
-              <View style={styles.periodStickyRadioGroup}>
-                <View style={styles.periodStickyRadio}>
-                  <Radio
-                    checked={editOption === 'all'}
-                    onPress={() => setEditOption('all')}
-                    label="전체 수정"
-                  />
-                </View>
-                <View style={styles.periodStickyRadio}>
-                  <Radio
-                    checked={editOption === 'today'}
-                    onPress={() => setEditOption('today')}
-                    label="오늘만 수정"
-                  />
-                </View>
-              </View>
-            </View>
-          </View>
-        )}
-
         {/* 하단 스티키 버튼 */}
         <View style={[
           styles.bottomButtonContainer, 
@@ -5237,33 +5027,6 @@ const styles = StyleSheet.create({
   paymentTypeStickyControls: {
     width: 190,
   },
-  periodStickyContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-  },
-  periodTopLine: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 1,
-  },
-  periodStickyContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  periodStickyLabel: {
-    ...Typography.body2.r.bold,
-    fontSize: 16,
-  },
-  periodStickyRadioGroup: {
-    flexDirection: 'row',
-    gap: 16,
-  },
-  periodStickyRadio: {
-    // Radio 컴포넌트가 자체 스타일을 가지고 있으므로 추가 스타일 불필요
-  },
   alertText: {
     ...Typography.body1.l.regular,
     textAlign: 'center',
@@ -5435,33 +5198,6 @@ const styles = StyleSheet.create({
     ...Typography.body1.l.regular,
     textAlign: 'center',
     lineHeight: 24,
-  },
-  // 정기 기록 수정 옵션 스타일
-  regularityEditOptions: {
-    width: '100%',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    height: 48,
-    justifyContent: 'center',
-  },
-  regularityEditHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    height: '100%',
-  },
-  regularityPeriodText: {
-    ...Typography.body2.r.bold,
-    fontSize: 14,
-    lineHeight: 21,
-  },
-  regularityEditRadioGroup: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  regularityEditRadio: {
-    flexDirection: 'row',
-    alignItems: 'center',
   },
   // 정기 기록 삭제 옵션 모달 스타일
   deleteOptionsContainer: {
