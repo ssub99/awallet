@@ -99,7 +99,7 @@ export default function HomeScreen() {
   // 초기값은 임시로 설정하고, useFocusEffect에서 올바른 값으로 설정
   const [currentYear, setCurrentYear] = useState<number>(new Date().getFullYear());
   const [currentMonth, setCurrentMonth] = useState<number>(new Date().getMonth() + 1); // 1-12
-  
+
   // 앱 시작 시 저장된 설정 불러오기 및 params 처리
   useEffect(() => {
     const loadSettings = async () => {
