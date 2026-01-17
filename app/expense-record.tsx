@@ -17,12 +17,11 @@ import { ModalPopup } from '@/components/ui/modal-popup';
 import { PrepaymentModal } from '@/components/ui/prepayment-modal';
 import { Radio } from '@/components/ui/radio';
 import { SegmentControls } from '@/components/ui/segment-controls';
-import { Selectbox } from '@/components/ui/selectbox';
 import { Switch } from '@/components/ui/switch';
-import { Toast } from '@/components/ui/toast';
 import { AtomicColors } from '@/constants/atomic-colors';
 import { Colors, Typography } from '@/constants/theme';
 import { useLoading } from '@/contexts/loading-context';
+import { useToast } from '@/contexts/toast-context';
 import { calendarRefreshEvent } from '@/hooks/calendar-events';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
@@ -36,17 +35,17 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Dimensions,
-  Keyboard,
-  NativeSyntheticEvent,
-  Platform,
-  Pressable,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInputKeyPressEventData,
-  View
+    Dimensions,
+    Keyboard,
+    NativeSyntheticEvent,
+    Platform,
+    Pressable,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInputKeyPressEventData,
+    View
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -448,6 +447,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const { setLoading } = useLoading();
+  const { showToast } = useToast();
   const params = useLocalSearchParams<{ 
     category?: string; 
     selectedDate?: string;
@@ -612,6 +612,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   const [dateSelectToastMessage, setDateSelectToastMessage] = useState<string>('');
   const [showPrepaymentToast, setShowPrepaymentToast] = useState<boolean>(false);
   const [prepaymentToastMessage, setPrepaymentToastMessage] = useState<string>('');
+  const [showWeekendOptionToast, setShowWeekendOptionToast] = useState<boolean>(false);
   
   // 정기 기록 삭제 옵션 모달
   const [showRecurringDeleteOptions, setShowRecurringDeleteOptions] = useState<boolean>(false);
@@ -628,10 +629,45 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   // 선결제 모달
   const [showPrepaymentModal, setShowPrepaymentModal] = useState<boolean>(false);
   
-  // 토스트 state 변경 감지
   useEffect(() => {
-    // 토스트 표시 시 필요한 로직이 있다면 여기에 추가
-  }, [showRecurringToast]);
+    if (!showRecurringToast) {
+      return;
+    }
+    showToast(recurringToastMessage);
+    setShowRecurringToast(false);
+  }, [recurringToastMessage, showRecurringToast, showToast]);
+
+  useEffect(() => {
+    if (!showCategoryToast) {
+      return;
+    }
+    showToast(categoryToastMessage);
+    setShowCategoryToast(false);
+  }, [categoryToastMessage, showCategoryToast, showToast]);
+
+  useEffect(() => {
+    if (!showDateSelectToast) {
+      return;
+    }
+    showToast(dateSelectToastMessage);
+    setShowDateSelectToast(false);
+  }, [dateSelectToastMessage, showDateSelectToast, showToast]);
+
+  useEffect(() => {
+    if (!showPrepaymentToast) {
+      return;
+    }
+    showToast(prepaymentToastMessage);
+    setShowPrepaymentToast(false);
+  }, [prepaymentToastMessage, showPrepaymentToast, showToast]);
+
+  useEffect(() => {
+    if (!showWeekendOptionToast) {
+      return;
+    }
+    showToast('해당 단위는 주말 옵션을 적용할 수 없습니다.');
+    setShowWeekendOptionToast(false);
+  }, [showToast, showWeekendOptionToast]);
   
   // 정기 기록 수정 옵션
   const [editOption, setEditOption] = useState<'all' | 'today'>('all'); // 'all': 전체 수정, 'today': 오늘만 수정
@@ -1194,7 +1230,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         const baseDateObj = new Date(originalStartYear, originalStartMonth - 1, baseDay);
         const baseDayOfWeek = baseDateObj.getDay();
         let adjustedBaseDate = baseDateStr;
-        if ((baseDayOfWeek === 0 || baseDayOfWeek === 6) && weekendOption !== 'weekend') {
+        // 매일, 주중, 주말 반복 기간을 선택한 경우 주말 옵션 무시
+        const shouldIgnoreWeekendOption = isRecurringGroup && currentRecurringType && ['매일', '주중', '주말'].includes(currentRecurringType);
+        if ((baseDayOfWeek === 0 || baseDayOfWeek === 6) && weekendOption !== 'weekend' && !shouldIgnoreWeekendOption) {
           adjustedBaseDate = getAdjustedWeekendDate(baseDateStr, weekendOption);
         }
         return { dot: adjustedBaseDate, key: adjustedBaseDate.replace(/\./g, '-') };
@@ -1215,12 +1253,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           currentDate = nextDate;
         }
         
-        // 주말 조정
+        // 주말 조정 (매일, 주중, 주말 반복 기간을 선택한 경우 주말 옵션 무시)
+        const shouldIgnoreWeekendOption = ['매일', '주중', '주말'].includes(currentRecurringType);
         const [year, month, day] = currentDate.split('.').map(Number);
         const futureDateObj = new Date(year, month - 1, day);
         const futureDayOfWeek = futureDateObj.getDay();
         let futureDate = currentDate;
-        if ((futureDayOfWeek === 0 || futureDayOfWeek === 6) && weekendOption !== 'weekend') {
+        if ((futureDayOfWeek === 0 || futureDayOfWeek === 6) && weekendOption !== 'weekend' && !shouldIgnoreWeekendOption) {
           futureDate = getAdjustedWeekendDate(futureDate, weekendOption);
         }
         
@@ -1782,8 +1821,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       const dayOfWeek = dateObj.getDay();
       const isWeekendDay = dayOfWeek === 0 || dayOfWeek === 6;
       
+      // 매일, 주중, 주말 반복 기간을 선택한 경우 주말 옵션 무시
+      const shouldIgnoreWeekendOption = isRecurring && ['매일', '주중', '주말'].includes(recurringType);
       let checkActualDate = date;
-      if ((isRecurring || isInstallment) && isWeekendDay && weekendOption !== 'weekend') {
+      if ((isRecurring || isInstallment) && isWeekendDay && weekendOption !== 'weekend' && !shouldIgnoreWeekendOption) {
         checkActualDate = getAdjustedWeekendDate(date, weekendOption);
       }
       const checkActualDateKey = checkActualDate.replace(/\./g, '-');
@@ -1817,7 +1858,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     }
     
     // 정기 지출 또는 할부 옵션 + 주말인 경우 확인 모달 표시 ('관계없이 주말 기록' 제외)
-    if ((isRecurring || isInstallment) && isWeekend() && weekendOption !== 'weekend') {
+    // 매일, 주중, 주말 반복 기간을 선택한 경우 주말 옵션 무시하므로 모달 표시 안 함
+    const shouldIgnoreWeekendOption = isRecurring && ['매일', '주중', '주말'].includes(recurringType);
+    if ((isRecurring || isInstallment) && isWeekend() && weekendOption !== 'weekend' && !shouldIgnoreWeekendOption) {
       setShowWeekendConfirm(true);
       return;
     }
@@ -1847,12 +1890,30 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       const dateObj = new Date(year, month, day);
       const dayOfWeek = dateObj.getDay();
       const isWeekendDay = dayOfWeek === 0 || dayOfWeek === 6;
+      const isWeekday = !isWeekendDay;
 
-      if ((isRecurring || isInstallment) && isWeekendDay && weekendOption !== 'weekend') {
-        actualDate = getAdjustedWeekendDate(date, weekendOption);
+      // 엣지 케이스 처리: 반복 기간에 따라 시작일 조정
+      if (isRecurring && recurringType === '주중' && isWeekendDay) {
+        // 주말 날짜 선택 + 주중 반복: 차주 주중(월요일)부터 기록
+        const nextMonday = new Date(dateObj);
+        const daysUntilMonday = (8 - dayOfWeek) % 7; // 일요일(0)일 때 1일, 토요일(6)일 때 2일
+        nextMonday.setDate(nextMonday.getDate() + (daysUntilMonday === 0 ? 7 : daysUntilMonday));
+        actualDate = `${nextMonday.getFullYear()}.${String(nextMonday.getMonth() + 1).padStart(2, '0')}.${String(nextMonday.getDate()).padStart(2, '0')}`;
+      } else if (isRecurring && recurringType === '주말' && isWeekday) {
+        // 주중 날짜 선택 + 주말 반복: 금주 주말(토요일)부터 기록
+        const thisSaturday = new Date(dateObj);
+        const daysUntilSaturday = 6 - dayOfWeek; // 월요일(1)일 때 5일, 금요일(5)일 때 1일
+        thisSaturday.setDate(thisSaturday.getDate() + daysUntilSaturday);
+        actualDate = `${thisSaturday.getFullYear()}.${String(thisSaturday.getMonth() + 1).padStart(2, '0')}.${String(thisSaturday.getDate()).padStart(2, '0')}`;
+      } else {
+        // 매일, 주중, 주말 반복 기간을 선택한 경우 주말 옵션 무시
+        const shouldIgnoreWeekendOption = isRecurring && ['매일', '주중', '주말'].includes(recurringType);
+        if ((isRecurring || isInstallment) && isWeekendDay && weekendOption !== 'weekend' && !shouldIgnoreWeekendOption) {
+          actualDate = getAdjustedWeekendDate(date, weekendOption);
 
-      } else if ((isRecurring || isInstallment) && isWeekendDay && weekendOption === 'weekend') {
+        } else if ((isRecurring || isInstallment) && isWeekendDay && weekendOption === 'weekend') {
 
+        }
       }
       
       const actualDateKey = actualDate.replace(/\./g, '-');
@@ -2158,21 +2219,29 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         futureMonthlyAmount = expenseAmount;
       }
         
-        // 원래 선택한 날짜를 기준으로 다음 기록들 생성
-        const [yearNum, monthNum, dayNum] = date.split('.').map(Number);
+        // 엣지 케이스: 주말→주중 / 주중→주말 조정 여부
+        const isEdgeCaseAdjusted = isRecurring && (
+          (recurringType === '주중' && isWeekendDay) ||
+          (recurringType === '주말' && isWeekday)
+        );
+
+        // 기본은 기존 로직(조정된 actualDate 기준). 엣지 케이스만 원본 날짜 기준으로 계산
+        const startDateForIterations = isEdgeCaseAdjusted ? date : actualDate;
+        const [yearNum, monthNum, dayNum] = startDateForIterations.split('.').map(Number);
         const startYear = yearNum;
         
         // 정기 옵션인 경우 recurringType에 따라 반복 횟수 계산
         let iterations: number;
         if (isRecurring) {
-          // 정기 옵션: recurringType 기반으로 반복 횟수 계산
-          iterations = calculateRecurringIterations(date, recurringType);
+          // 정기 옵션: recurringType 기반으로 반복 횟수 계산 (엣지 케이스만 원본 날짜 기준)
+          iterations = calculateRecurringIterations(startDateForIterations, recurringType);
         } else {
           // 할부 옵션: totalMonths 사용 (기존 로직 유지)
           iterations = totalMonths;
         }
         
-        let currentDate = date;
+        // 반복 날짜 계산 시작점 (엣지 케이스만 원본 날짜 기준)
+        let currentDate = startDateForIterations;
         let iteration = 0;
         
         // 반복 생성 (시작일 제외, i=1부터 시작)
@@ -2215,13 +2284,35 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             break;
           }
           
+          // 엣지 케이스 처리: 첫 번째 반복 날짜가 actualDate와 겹치지 않도록 보장
+          // 원본 날짜 기준으로 계산했지만, 엣지 케이스로 조정된 경우 첫 반복 날짜가 actualDate 이하이면 한 번 더 건너뛰기
+          if (iteration === 1 && isRecurring && isEdgeCaseAdjusted) {
+            const [nextYearCheck, nextMonthCheck, nextDayCheck] = nextDate.split('.').map(Number);
+            const [actualYear, actualMonth, actualDay] = actualDate.split('.').map(Number);
+            const nextDateObj = new Date(nextYearCheck, nextMonthCheck - 1, nextDayCheck);
+            const actualDateObj = new Date(actualYear, actualMonth - 1, actualDay);
+            
+            // 첫 번째 반복 날짜가 actualDate 이하이면 한 번 더 건너뛰기
+            if (nextDateObj <= actualDateObj) {
+              // nextDate를 기준으로 다음 반복 날짜를 다시 계산
+              const nextNextDate = getNextRecurringDate(nextDate, recurringType, iteration, startYear);
+              if (!nextNextDate) {
+                // 다음 날짜가 없으면 중단
+                break;
+              }
+              nextDate = nextNextDate;
+            }
+          }
+          
           // 주말이면 조정 (단, 'weekend' 옵션이 아닐 때만)
+          // 매일, 주중, 주말 반복 기간을 선택한 경우 주말 옵션 무시
+          const shouldIgnoreWeekendOption = isRecurring && ['매일', '주중', '주말'].includes(recurringType);
           const [nextYear, nextMonth, nextDay] = nextDate.split('.').map(Number);
           const futureDateObj = new Date(nextYear, nextMonth - 1, nextDay);
           const futureDayOfWeek = futureDateObj.getDay();
           
           let futureDate = nextDate;
-          if ((futureDayOfWeek === 0 || futureDayOfWeek === 6) && weekendOption !== 'weekend') {
+          if ((futureDayOfWeek === 0 || futureDayOfWeek === 6) && weekendOption !== 'weekend' && !shouldIgnoreWeekendOption) {
             futureDate = getAdjustedWeekendDate(futureDate, weekendOption);
           }
           
@@ -2387,6 +2478,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           if ((isRecurring || isInstallment) && mode !== 'edit') {
             const [yearNum, monthNum, dayNum] = date.split('.').map(Number);
             const startYear = yearNum;
+            const isEdgeCaseAdjusted = isRecurring && (
+              (recurringType === '주중' && isWeekendDay) ||
+              (recurringType === '주말' && isWeekday)
+            );
             
             // 정기 옵션인 경우 recurringType에 따라 반복 횟수 계산
             let iterations: number;
@@ -2441,13 +2536,31 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 break;
               }
               
+              // 엣지 케이스 처리: 첫 번째 반복 날짜가 actualDate와 겹치지 않도록 보장
+              if (iteration === 1 && isRecurring && isEdgeCaseAdjusted) {
+                const [nextYearCheck, nextMonthCheck, nextDayCheck] = nextDate.split('.').map(Number);
+                const [actualYear, actualMonth, actualDay] = actualDate.split('.').map(Number);
+                const nextDateObj = new Date(nextYearCheck, nextMonthCheck - 1, nextDayCheck);
+                const actualDateObj = new Date(actualYear, actualMonth - 1, actualDay);
+                
+                if (nextDateObj <= actualDateObj) {
+                  const nextNextDate = getNextRecurringDate(nextDate, recurringType, iteration, startYear);
+                  if (!nextNextDate) {
+                    break;
+                  }
+                  nextDate = nextNextDate;
+                }
+              }
+              
               // 주말이면 조정 (단, 'weekend' 옵션이 아닐 때만)
+              // 매일, 주중, 주말 반복 기간을 선택한 경우 주말 옵션 무시
+              const shouldIgnoreWeekendOption = isRecurring && ['매일', '주중', '주말'].includes(recurringType);
               const [nextYear, nextMonth, nextDay] = nextDate.split('.').map(Number);
               const futureDateObj = new Date(nextYear, nextMonth - 1, nextDay);
               const futureDayOfWeek = futureDateObj.getDay();
               
               let futureDate = nextDate;
-              if ((futureDayOfWeek === 0 || futureDayOfWeek === 6) && weekendOption !== 'weekend') {
+              if ((futureDayOfWeek === 0 || futureDayOfWeek === 6) && weekendOption !== 'weekend' && !shouldIgnoreWeekendOption) {
                 futureDate = getAdjustedWeekendDate(futureDate, weekendOption);
               }
 
@@ -3857,7 +3970,11 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                     {(() => {
                       if (isRecurring) {
                         // 정기 지출: "정기지출 ・ [반복기간] ・ [주말옵션]"
-                        const weekendText = weekendOption === 'weekend' 
+                        // 매일, 주중, 주말 반복 기간을 선택한 경우 주말 옵션을 무시하므로 항상 '주말 관계없이 기록'으로 표시
+                        const shouldIgnoreWeekendOption = ['매일', '주중', '주말'].includes(recurringType);
+                        const weekendText = shouldIgnoreWeekendOption
+                          ? '주말 관계없이 기록'
+                          : weekendOption === 'weekend' 
                           ? '관계없이 주말 기록' 
                           : weekendOption === 'friday' 
                           ? '금주 금요일 기록' 
@@ -4154,13 +4271,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             </Pressable>
           </View>
         </ModalBottomsheet>
-            {/* Toast inside the same Modal to ensure it's on top */}
-            <Toast
-              visible={showDateSelectToast}
-              message={dateSelectToastMessage}
-              onHide={() => setShowDateSelectToast(false)}
-              zIndex={100005}
-            />
           </>
         ) : null}
       />
@@ -4430,6 +4540,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 style={styles.radioRow}
                 onPress={() => {
                   if (!isRecurring && !isInstallment) return;
+                  if (isRecurring && ['매일', '주중', '주말'].includes(recurringType)) {
+                    setShowWeekendOptionToast(true);
+                    return;
+                  }
                   setWeekendOption('weekend');
                 }}
                 disabled={!isRecurring && !isInstallment}
@@ -4441,10 +4555,14 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                   checked={weekendOption === 'weekend'}
                   onPress={() => {
                     if (!isRecurring && !isInstallment) return;
+                    if (isRecurring && ['매일', '주중', '주말'].includes(recurringType)) {
+                      setShowWeekendOptionToast(true);
+                      return;
+                    }
                     setWeekendOption('weekend');
                   }}
                   label={false}
-                  disabled={!isRecurring && !isInstallment}
+                  disabled={(!isRecurring && !isInstallment) || (isRecurring && ['매일', '주중', '주말'].includes(recurringType))}
                 />
               </Pressable>
 
@@ -4456,6 +4574,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 style={styles.radioRow}
                 onPress={() => {
                   if (!isRecurring && !isInstallment) return;
+                  if (isRecurring && ['매일', '주중', '주말'].includes(recurringType)) {
+                    setShowWeekendOptionToast(true);
+                    return;
+                  }
                   setWeekendOption('friday');
                 }}
                 disabled={!isRecurring && !isInstallment}
@@ -4467,10 +4589,14 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                   checked={weekendOption === 'friday'}
                   onPress={() => {
                     if (!isRecurring && !isInstallment) return;
+                    if (isRecurring && ['매일', '주중', '주말'].includes(recurringType)) {
+                      setShowWeekendOptionToast(true);
+                      return;
+                    }
                     setWeekendOption('friday');
                   }}
                   label={false}
-                  disabled={!isRecurring && !isInstallment}
+                  disabled={(!isRecurring && !isInstallment) || (isRecurring && ['매일', '주중', '주말'].includes(recurringType))}
                 />
               </Pressable>
 
@@ -4482,6 +4608,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 style={styles.radioRow}
                 onPress={() => {
                   if (!isRecurring && !isInstallment) return;
+                  if (isRecurring && ['매일', '주중', '주말'].includes(recurringType)) {
+                    setShowWeekendOptionToast(true);
+                    return;
+                  }
                   setWeekendOption('monday');
                 }}
                 disabled={!isRecurring && !isInstallment}
@@ -4493,10 +4623,14 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                   checked={weekendOption === 'monday'}
                   onPress={() => {
                     if (!isRecurring && !isInstallment) return;
+                    if (isRecurring && ['매일', '주중', '주말'].includes(recurringType)) {
+                      setShowWeekendOptionToast(true);
+                      return;
+                    }
                     setWeekendOption('monday');
                   }}
                   label={false}
-                  disabled={!isRecurring && !isInstallment}
+                  disabled={(!isRecurring && !isInstallment) || (isRecurring && ['매일', '주중', '주말'].includes(recurringType))}
                 />
               </Pressable>
             </View>
@@ -4810,34 +4944,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           변경된 내용이 없습니다.
         </Text>
       </ModalPopup>
-
-      {/* 정기 지출 해제 불가 토스트 */}
-      <Toast
-        visible={showRecurringToast}
-        message={recurringToastMessage}
-        onHide={() => setShowRecurringToast(false)}
-      />
-
-      {/* 카테고리 변경 불가 토스트 */}
-      <Toast
-        visible={showCategoryToast}
-        message={categoryToastMessage}
-        onHide={() => setShowCategoryToast(false)}
-      />
-
-      {/* 날짜 선택 제한 토스트 */}
-      <Toast
-        visible={showDateSelectToast}
-        message={dateSelectToastMessage}
-        onHide={() => setShowDateSelectToast(false)}
-      />
-
-      {/* 선결제 처리 토스트 */}
-      <Toast
-        visible={showPrepaymentToast}
-        message={prepaymentToastMessage}
-        onHide={() => setShowPrepaymentToast(false)}
-      />
 
       {/* 정기/할부 기록 수정 확인 모달 */}
       <ModalPopup

@@ -10,11 +10,11 @@ import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { ModalPopup } from '@/components/ui/modal-popup';
 import { Switch } from '@/components/ui/switch';
-import { Toast } from '@/components/ui/toast';
 import { type Category } from '@/constants/categories';
 import { loadCategories } from '@/utils/categories';
 import { Colors, Typography } from '@/constants/theme';
 import { useLoading } from '@/contexts/loading-context';
+import { useToast } from '@/contexts/toast-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { getChallengeById, getChallengesByRecurringId, softDeleteChallengesByRecurringId, updateChallengesByRecurringId, type ChallengeRecord } from '@/utils/challenges';
@@ -31,6 +31,7 @@ export default function ChallengeEditScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const { setLoading } = useLoading();
+  const { showToast } = useToast();
   const params = useLocalSearchParams<{ 
     challengeId?: string;
   }>();
@@ -49,22 +50,12 @@ export default function ChallengeEditScreen() {
   // Delete confirmation modal state
   const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
   
-  // Toast state
-  const [showToast, setShowToast] = useState<boolean>(false);
-  const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isContentReady, setIsContentReady] = useState(false);
   const contentOpacity = useRef(new Animated.Value(0)).current;
   
   // 토스트 표시 함수
   const showDisabledToast = () => {
-    setShowToast(true);
-    if (toastTimeoutRef.current) {
-      clearTimeout(toastTimeoutRef.current);
-    }
-    toastTimeoutRef.current = setTimeout(() => {
-      setShowToast(false);
-      toastTimeoutRef.current = null;
-    }, 2000);
+    showToast('변경할 수 없습니다. 새로 생성해 주세요.');
   };
 
   // Load challenge data
@@ -118,14 +109,6 @@ export default function ChallengeEditScreen() {
 
     loadChallengeData();
   }, [params.challengeId, setLoading]);
-
-  useEffect(() => {
-    return () => {
-      if (toastTimeoutRef.current) {
-        clearTimeout(toastTimeoutRef.current);
-      }
-    };
-  }, []);
 
   useEffect(() => {
     if (isContentReady) {
@@ -607,12 +590,6 @@ export default function ChallengeEditScreen() {
 
         </Animated.View>
         
-        {/* Toast */}
-        <Toast
-          message="변경할 수 없습니다. 새로 생성해 주세요."
-          visible={showToast}
-          onHide={() => setShowToast(false)}
-        />
     </SafeAreaView>
   );
 }

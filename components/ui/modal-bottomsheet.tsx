@@ -19,6 +19,7 @@ import {
     ViewStyle
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ToastHost } from '@/contexts/toast-context';
 import { Icon } from './icon';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -264,6 +265,7 @@ export function ModalBottomsheet({
             </View>
           </View>
         </Animated.View>
+        <ToastHost />
       </>
     );
   }
@@ -333,6 +335,7 @@ export function ModalBottomsheet({
           </View>
         </View>
       </Animated.View>
+      <ToastHost />
     </Modal>
   );
 }

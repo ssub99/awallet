@@ -9,9 +9,9 @@ import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
-import { Toast } from '@/components/ui/toast';
 import { type CategoryType } from '@/constants/categories';
 import { Colors, Typography } from '@/constants/theme';
+import { useToast } from '@/contexts/toast-context';
 import { loadCategories, saveCategories } from '@/utils/categories';
 import type { FlashListRef } from '@shopify/flash-list';
 import { FlashList } from '@shopify/flash-list';
@@ -67,6 +67,7 @@ const CATEGORY_LABELS: Record<EmojiCategory, string> = {
 export default function CategoryCreateScreen() {
   const colors = Colors.light;
   const router = useRouter();
+  const { showToast } = useToast();
   const params = useLocalSearchParams<{ type?: string }>();
   const insets = useSafeAreaInsets();
   
@@ -78,6 +79,14 @@ export default function CategoryCreateScreen() {
   const [selectedCategory, setSelectedCategory] = useState<EmojiCategory>('recent');
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+
+  useEffect(() => {
+    if (!toastVisible) {
+      return;
+    }
+    showToast(toastMessage);
+    setToastVisible(false);
+  }, [showToast, toastMessage, toastVisible]);
   const [emojiVersion, setEmojiVersion] = useState(0);
   const [emojiGridReady, setEmojiGridReady] = useState(false);
   const [pendingScrollCategory, setPendingScrollCategory] = useState<EmojiCategory | null>(null);
@@ -459,13 +468,6 @@ export default function CategoryCreateScreen() {
         </View>
       </ModalBottomsheet>
       )}
-      
-      {/* Toast */}
-      <Toast
-        visible={toastVisible}
-        message={toastMessage}
-        onHide={() => setToastVisible(false)}
-      />
     </SafeAreaView>
   );
 }

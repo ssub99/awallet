@@ -50,7 +50,8 @@ export function Radio({
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
 
   const handlePress = () => {
-    if (!disabled && onPress) {
+    // disabled 상태에서도 onPress를 호출하도록 변경 (토스트 표시 등을 위해)
+    if (onPress) {
       onPress();
     }
   };
@@ -80,6 +81,7 @@ export function Radio({
     <Pressable
       onPress={handlePress}
       disabled={disabled}
+      pointerEvents={disabled ? 'none' : 'auto'}
       style={[styles.container, style]}
       accessibilityRole="radio"
       accessibilityState={{ checked, disabled }}

@@ -6,9 +6,9 @@
 
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Icon } from '@/components/ui/icon';
-import { Toast } from '@/components/ui/toast';
 import { getCategoriesByType, type Category } from '@/constants/categories';
 import { Colors, Typography } from '@/constants/theme';
+import { useToast } from '@/contexts/toast-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadCategories } from '@/utils/categories';
 import { applySavedOrder, loadCategoryOrder } from '@/utils/category-order';
@@ -23,6 +23,7 @@ export default function ExpenseCategoryScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
   const router = useRouter();
+  const { showToast } = useToast();
   const params = useLocalSearchParams<{ 
     selectedCategory?: string; 
     fromEdit?: string; 
@@ -91,6 +92,14 @@ export default function ExpenseCategoryScreen() {
 
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+
+  useEffect(() => {
+    if (!toastVisible) {
+      return;
+    }
+    showToast(toastMessage);
+    setToastVisible(false);
+  }, [showToast, toastMessage, toastVisible]);
 
   const handleConfirm = async () => {
 
@@ -257,11 +266,6 @@ export default function ExpenseCategoryScreen() {
           </ScrollView>
         </View>
       </View>
-      <Toast
-        visible={toastVisible}
-        message={toastMessage}
-        onHide={() => setToastVisible(false)}
-      />
     </SafeAreaView>
   );
 }

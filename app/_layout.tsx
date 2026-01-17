@@ -2,6 +2,7 @@ import { GlobalProgressBar } from '@/components/ui/global-progress-bar';
 import { Colors } from '@/constants/theme';
 import { AppDataProvider } from '@/contexts/app-data-context';
 import { LoadingProvider } from '@/contexts/loading-context';
+import { ToastProvider } from '@/contexts/toast-context';
 import Constants from 'expo-constants';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Updates from 'expo-updates';
@@ -181,31 +182,33 @@ export default function RootLayout() {
         <View style={{ flex: 1, backgroundColor: colors.background }} onLayout={onLayoutRootView}>
           <ThemeProvider value={DefaultTheme}>
             <AppDataProvider enabled={appIsReady && splashFinished}>
-              {appIsReady ? (
-                <>
-                  <Stack>
-                    <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                    <Stack.Screen name="(dev-tabs)" options={{ headerShown: false }} />
-                    <Stack.Screen name="expense-category" options={{ headerShown: false }} />
-                    <Stack.Screen name="expense-record" options={{ headerShown: false }} />
-                    <Stack.Screen name="expense-edit" options={{ headerShown: false }} />
-                    <Stack.Screen name="income-record" options={{ headerShown: false }} />
-                    <Stack.Screen name="income-edit" options={{ headerShown: false }} />
-                    <Stack.Screen name="challenge-create" options={{ headerShown: false }} />
-                    <Stack.Screen name="challenge-edit" options={{ headerShown: false }} />
-                    <Stack.Screen name="challenge-detail" options={{ headerShown: false }} />
-                    <Stack.Screen name="monthly-expense-timeline" options={{ headerShown: false }} />
-                    <Stack.Screen name="month-start-day" options={{ headerShown: false }} />
-                    <Stack.Screen name="category-setting" options={{ headerShown: false }} />
-                    <Stack.Screen name="category-create" options={{ headerShown: false }} />
-                    <Stack.Screen name="category-edit" options={{ headerShown: false }} />
-                    <Stack.Screen name="expense-category-detail" options={{ headerShown: false }} />
-                    <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-                  </Stack>
-                  <StatusBar style="dark" />
-                  <GlobalProgressBar />
-                </>
-              ) : null}
+              <ToastProvider>
+                {appIsReady ? (
+                  <>
+                    <Stack>
+                      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                      <Stack.Screen name="(dev-tabs)" options={{ headerShown: false }} />
+                      <Stack.Screen name="expense-category" options={{ headerShown: false }} />
+                      <Stack.Screen name="expense-record" options={{ headerShown: false }} />
+                      <Stack.Screen name="expense-edit" options={{ headerShown: false }} />
+                      <Stack.Screen name="income-record" options={{ headerShown: false }} />
+                      <Stack.Screen name="income-edit" options={{ headerShown: false }} />
+                      <Stack.Screen name="challenge-create" options={{ headerShown: false }} />
+                      <Stack.Screen name="challenge-edit" options={{ headerShown: false }} />
+                      <Stack.Screen name="challenge-detail" options={{ headerShown: false }} />
+                      <Stack.Screen name="monthly-expense-timeline" options={{ headerShown: false }} />
+                      <Stack.Screen name="month-start-day" options={{ headerShown: false }} />
+                      <Stack.Screen name="category-setting" options={{ headerShown: false }} />
+                      <Stack.Screen name="category-create" options={{ headerShown: false }} />
+                      <Stack.Screen name="category-edit" options={{ headerShown: false }} />
+                      <Stack.Screen name="expense-category-detail" options={{ headerShown: false }} />
+                      <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+                    </Stack>
+                    <StatusBar style="dark" />
+                    <GlobalProgressBar />
+                  </>
+                ) : null}
+              </ToastProvider>
             </AppDataProvider>
           </ThemeProvider>
         </View>

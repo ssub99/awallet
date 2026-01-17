@@ -42,7 +42,7 @@ export function Toast({
   visible,
   onHide,
   style,
-  zIndex = 100003,
+  zIndex = 100010,
 }: ToastProps) {
   const opacity = useRef(new Animated.Value(0)).current;
   const insets = useSafeAreaInsets();
@@ -79,7 +79,9 @@ export function Toast({
     }
   }, [visible, onHide, opacity]);
 
-  if (!visible && (opacity as any)._value === 0) {
+  const shouldRender = visible || (opacity as any)._value > 0;
+
+  if (!shouldRender) {
     return null;
   }
 

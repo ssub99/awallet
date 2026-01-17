@@ -10,11 +10,11 @@ import { DatePicker } from '@/components/ui/date-picker';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Toast } from '@/components/ui/toast';
 import { type Category } from '@/constants/categories';
 import { loadCategories } from '@/utils/categories';
 import { Colors, Typography } from '@/constants/theme';
 import { useLoading } from '@/contexts/loading-context';
+import { useToast } from '@/contexts/toast-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { getChallengeStatus } from '@/utils/challenge-utils';
@@ -33,6 +33,7 @@ export default function ChallengeCreateScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { setLoading } = useLoading();
+  const { showToast } = useToast();
   const params = useLocalSearchParams<{ 
     category?: string;
     selectedDate?: string;
@@ -88,6 +89,14 @@ export default function ChallengeCreateScreen() {
   const [monthStartDay, setMonthStartDay] = useState<number>(1);
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+
+  useEffect(() => {
+    if (!toastVisible) {
+      return;
+    }
+    showToast(toastMessage);
+    setToastVisible(false);
+  }, [showToast, toastMessage, toastVisible]);
   
   // 카테고리 선택 화면에서 돌아올 때 카테고리 업데이트
   useFocusEffect(
@@ -549,12 +558,6 @@ export default function ChallengeCreateScreen() {
 
             setRecurringMonths(value);
           }}
-        />
-
-        <Toast
-          visible={toastVisible}
-          message={toastMessage}
-          onHide={() => setToastVisible(false)}
         />
 
       </SafeAreaView>
