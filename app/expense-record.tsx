@@ -685,6 +685,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   // Section/Input position tracking
   // Remove amount auto-scroll states per request
   const [memoSectionY, setMemoSectionY] = useState(0);
+  const [amountSectionY, setAmountSectionY] = useState(0);
+  const [amountSectionHeight, setAmountSectionHeight] = useState(0);
   const handleMemoChange = useCallback((text: string) => {
     setMemo(text.replace(/[\r\n]/g, ''));
   }, []);
@@ -1738,6 +1740,21 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         scrollViewRef.current?.scrollTo({ 
           y: memoSectionY - scrollOffset, 
           animated: true 
+        });
+      }
+    }, 350);
+  };
+
+  const handleAmountFocus = () => {
+    // 금액 섹션 위치로 스크롤 (하단 버튼 제외)
+    // 메모와 동일한 오프셋 기준 적용
+    setTimeout(() => {
+      if (amountSectionY > 0) {
+        const windowHeight = Dimensions.get('window').height;
+        const scrollOffset = windowHeight * 0.32; // 화면 높이의 32%
+        scrollViewRef.current?.scrollTo({
+          y: Math.max(0, amountSectionY - scrollOffset),
+          animated: true,
         });
       }
     }, 350);
@@ -4123,7 +4140,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                   <Text style={[
                     styles.recurringInstallmentButtonText, 
                     { 
-                      color: (isRecurring || isInstallment) ? colors.primary : colors.textAssistive 
+                      color: colors.textAssistive 
                     }
                   ]}>
                     {(() => {
@@ -4172,8 +4189,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             </View>
 
             {/* 금액 */}
-            <View 
+            <View
               style={styles.section}
+              onLayout={(event) => {
+                const layout = event.nativeEvent.layout;
+                setAmountSectionY(layout.y);
+                setAmountSectionHeight(layout.height);
+              }}
             >
               <View style={styles.sectionHeader}>
                 <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
@@ -4191,6 +4213,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 placeholder="0"
                 textAlign="right"
                 disabled={mode === 'edit' && editData?.isInstallment}
+                onFocus={handleAmountFocus}
                 onPress={() => {
                   // 할부 기록 수정 모드에서는 금액 변경 불가
                   const isDisabled = mode === 'edit' && editData?.isInstallment;
