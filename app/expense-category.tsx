@@ -106,7 +106,6 @@ export default function ExpenseCategoryScreen() {
     if (selectedCategory) {
       if (isEditMode) {
         // 수정 모드: 임시 저장소에 선택된 카테고리 저장하고 이전 화면으로 돌아가기
-
         await AsyncStorage.setItem('selectedCategory', selectedCategory);
 
         router.back();

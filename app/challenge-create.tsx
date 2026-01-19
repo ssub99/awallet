@@ -331,6 +331,7 @@ export default function ChallengeCreateScreen() {
     }, 0);
   }, [amountSectionY, isKeypadVisible]);
 
+
   // 카테고리명에 이모지 추가하는 함수
   const [expenseCategories, setExpenseCategories] = useState<Category[]>([]);
 
@@ -602,7 +603,7 @@ export default function ChallengeCreateScreen() {
                   selectedDate: selectedDateStr,
                   calendarYear: startYear.toString(),
                   calendarMonth: startMonth.toString(),
-                  selectedCategory: category
+                  selectedCategory: category,
                 }
               });
             }}>

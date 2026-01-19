@@ -369,18 +369,26 @@ export default function ChallengeEditScreen() {
         updatedAt: Date.now(),
       });
 
-      // 챌린지 현황으로 이동
-      router.back();
-      setTimeout(() => {
-        router.replace({
-          pathname: '/monthly-expense-timeline',
-          params: {
-            year: new Date().getFullYear().toString(),
-            month: (new Date().getMonth() + 1).toString(),
-            tab: 'challenge'
+      // 챌린지 현황으로 이동 (스택 리셋)
+      (navigation as any).reset({
+        index: 0,
+        routes: [
+          {
+            name: '(tabs)',
+            params: {
+              screen: 'home',
+            },
           },
-        });
-      }, 100);
+          {
+            name: 'monthly-expense-timeline',
+            params: {
+              year: new Date().getFullYear().toString(),
+              month: (new Date().getMonth() + 1).toString(),
+              tab: 'challenge',
+            },
+          },
+        ],
+      });
     } catch (error) {
       console.error('[챌린지 수정] error:', error);
       Alert.alert('오류', '챌린지 저장에 실패했습니다.');

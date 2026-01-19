@@ -385,6 +385,7 @@ export default function IncomeRecordScreen() {
     }, 0);
   }, [amountSectionY, isKeypadVisible]);
 
+
   const handleDatePress = () => {
     // 이미 열려있으면 무시
     if (showDatePicker) {
@@ -455,23 +456,27 @@ export default function IncomeRecordScreen() {
   useFocusEffect(
     useCallback(() => {
       const syncCategory = async () => {
+        let nextCategory: string | null = null;
         try {
           const selectedCategoryFromStorage = await AsyncStorage.getItem('selectedCategory');
 
           if (selectedCategoryFromStorage) {
             setCategory(selectedCategoryFromStorage);
             await AsyncStorage.removeItem('selectedCategory');
-            return;
+            nextCategory = selectedCategoryFromStorage;
           }
 
-          if (params.category) {
+          if (!selectedCategoryFromStorage && params.category) {
             setCategory(params.category);
+            nextCategory = params.category;
           }
         } catch {
           if (params.category) {
             setCategory(params.category);
+            nextCategory = params.category;
           }
         }
+
       };
 
       syncCategory();

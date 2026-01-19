@@ -6,6 +6,7 @@
  */
 
 import { TopNavigation } from '@/components/navigation/top-navigation';
+import { Accordion } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
 import { BasicCalendarDaySelect } from '@/components/ui/calendar-day-basic';
 import { CalendarDaySelect } from '@/components/ui/calendar-day-select';
@@ -16,7 +17,6 @@ import { Input } from '@/components/ui/input';
 import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
 import { ModalPopup } from '@/components/ui/modal-popup';
 import { PrepaymentModal } from '@/components/ui/prepayment-modal';
-import { Accordion } from '@/components/ui/accordion';
 import { Radio } from '@/components/ui/radio';
 import { SegmentControls } from '@/components/ui/segment-controls';
 import { Switch } from '@/components/ui/switch';
@@ -1130,6 +1130,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   useFocusEffect(
     useCallback(() => {
       const updateCategory = async () => {
+        let nextCategory: string | null = null;
 
         // AsyncStorage에서 선택된 카테고리 확인 (카테고리 선택 화면에서 돌아온 경우)
         try {
@@ -1141,23 +1142,27 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             setCategory(selectedCategoryFromStorage);
             // 사용 후 AsyncStorage에서 제거
             await AsyncStorage.removeItem('selectedCategory');
+            nextCategory = selectedCategoryFromStorage;
 
           } else if (params.category) {
             // URL 파라미터에서 카테고리 설정 (초기 로드 시)
 
             setCategory(params.category);
+            nextCategory = params.category;
           }
         } catch {
 
           // 에러 발생 시 URL 파라미터 사용
           if (params.category) {
             setCategory(params.category);
+            nextCategory = params.category;
           }
         }
+
       };
       
       updateCategory();
-    }, [params.category])
+    }, [mode, params.category])
   );
   
   // Check if selected date is weekend
@@ -1686,7 +1691,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       pathname: '/expense-category',
       params: { 
         selectedCategory: category,
-        fromEdit: 'true'
+        fromEdit: 'true',
       },
     });
   };
@@ -1923,6 +1928,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       }
     }, 350);
   };
+
 
   // 변경사항이 있는지 확인하는 함수
   const hasChanges = () => {
@@ -4128,7 +4134,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 return;
               }
               if (isMemoFocusedRef.current) {
-                handleKeypadDismiss(true);
+                handleKeypadDismiss();
                 return;
               }
               handleKeypadDismiss();
@@ -4546,7 +4552,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             >
               <BlurView
                 intensity={80}
-                tint={colorScheme === 'dark' ? 'dark' : 'light'}
+                tint="light"
                 style={styles.customKeypadBlur}
               >
                 <View
