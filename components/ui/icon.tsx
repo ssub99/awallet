@@ -32,6 +32,13 @@ import HomeLine from '@/assets/images/icons/line/home.svg';
 import InfoLine from '@/assets/images/icons/line/info.svg';
 import LockLine from '@/assets/images/icons/line/lock.svg';
 import MypageLine from '@/assets/images/icons/line/mypage.svg';
+import KeypadDeleteLine from '@/assets/images/icons/line/keypadDelete.svg';
+import OperationLine from '@/assets/images/icons/line/operation.svg';
+import OperationEqualLine from '@/assets/images/icons/line/operationEqual.svg';
+import OperationAdditionLine from '@/assets/images/icons/line/operationAddition.svg';
+import OperationDivisionLine from '@/assets/images/icons/line/operationDivision.svg';
+import OperationMultiplicationLine from '@/assets/images/icons/line/operationMultiplication.svg';
+import OperationSubtractionLine from '@/assets/images/icons/line/operationSubtraction.svg';
 import PersonLine from '@/assets/images/icons/line/person.svg';
 import ProfileLine from '@/assets/images/icons/line/profile.svg';
 import SearchLine from '@/assets/images/icons/line/search.svg';
@@ -66,8 +73,15 @@ export type IconName =
   | 'handle'
   | 'home'
   | 'info'
+  | 'keypadDelete'
   | 'lock'
   | 'mypage'
+  | 'operationAddition'
+  | 'operationDivision'
+  | 'operation'
+  | 'operationEqual'
+  | 'operationMultiplication'
+  | 'operationSubtraction'
   | 'person'
   | 'profile'
   | 'search'
@@ -139,8 +153,15 @@ const iconComponents = {
     handle: HandleLine,
     home: HomeLine,
     info: InfoLine,
+    keypadDelete: KeypadDeleteLine,
     lock: LockLine,
     mypage: MypageLine,
+    operationAddition: OperationAdditionLine,
+    operationDivision: OperationDivisionLine,
+    operation: OperationLine,
+    operationEqual: OperationEqualLine,
+    operationMultiplication: OperationMultiplicationLine,
+    operationSubtraction: OperationSubtractionLine,
     person: PersonLine,
     profile: ProfileLine,
     search: SearchLine,

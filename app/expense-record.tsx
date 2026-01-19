@@ -10,7 +10,9 @@ import { Button } from '@/components/ui/button';
 import { BasicCalendarDaySelect } from '@/components/ui/calendar-day-basic';
 import { CalendarDaySelect } from '@/components/ui/calendar-day-select';
 import { Chip } from '@/components/ui/chip';
+import { CustomKeypad, type ExpressionToken, type CustomKeypadOperator } from '@/components/ui/custom-keypad';
 import { DatePicker } from '@/components/ui/date-picker';
+import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
 import { ModalPopup } from '@/components/ui/modal-popup';
@@ -32,10 +34,13 @@ import { createExpense, deleteExpense, deleteExpensesByGroup, getAllExpenses, ge
 import { extractTimestampFromId, generateGroupId, generateRecordId } from '@/utils/id-generator';
 import { getAllIncomes } from '@/utils/incomes';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BlurView } from 'expo-blur';
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+    Animated,
     Dimensions,
+    Easing,
     Keyboard,
     NativeSyntheticEvent,
     Platform,
@@ -53,6 +58,8 @@ interface ExpenseRecordProps {
   mode?: 'create' | 'edit';
   editData?: any;
 }
+
+const KEYPAD_HEIGHT = 282;
 
 type CalendarBucket = {
   totalExpense: number;
@@ -528,6 +535,12 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     // 카테고리 변경 시 필요한 로직이 있다면 여기에 추가
   }, [category]);
   const [amount, setAmount] = useState<string>('');
+  const [amountExpression, setAmountExpression] = useState<ExpressionToken[]>([]);
+  const [isKeypadVisible, setIsKeypadVisible] = useState(false);
+  const [isKeypadMounted, setIsKeypadMounted] = useState(false);
+  const keypadTranslateY = useRef(new Animated.Value(KEYPAD_HEIGHT)).current;
+  const keypadBackdropOpacity = useRef(new Animated.Value(0)).current;
+  const [isMemoFocused, setIsMemoFocused] = useState(false);
   
   // 금액 입력 시 처리하는 함수 (Input 컴포넌트에서 이미 포맷팅됨)
   const handleAmountChange = (text: string) => {
@@ -554,6 +567,125 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     // 포맷팅된 값으로 설정
     setAmount(num.toLocaleString());
   };
+
+  const formatAmountDisplay = useCallback((raw: string) => {
+    if (!raw) return '0';
+    const numeric = Number(raw.replace(/,/g, ''));
+    if (!Number.isFinite(numeric)) return raw;
+    return numeric.toLocaleString();
+  }, []);
+
+  const getRgbaColor = useCallback((hex: string, opacity: number) => {
+    const normalized = hex.replace('#', '');
+    const r = parseInt(normalized.slice(0, 2), 16);
+    const g = parseInt(normalized.slice(2, 4), 16);
+    const b = parseInt(normalized.slice(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+  }, []);
+
+  const keypadTintColor = useMemo(
+    () => getRgbaColor(AtomicColors.neutral[300], 0.8),
+    [getRgbaColor]
+  );
+
+  const getOperatorIconName = useCallback((operator: CustomKeypadOperator) => {
+    switch (operator) {
+      case 'add':
+        return 'operationAddition';
+      case 'sub':
+        return 'operationSubtraction';
+      case 'mul':
+        return 'operationMultiplication';
+      case 'div':
+        return 'operationDivision';
+      default:
+        return null;
+    }
+  }, []);
+
+  const amountExpressionView = useMemo(() => {
+    const tokensToRender =
+      amountExpression.length > 0
+        ? amountExpression
+        : [{ type: 'number', value: amount.replace(/,/g, '') || '0' }];
+
+    return (
+      <ScrollView
+        horizontal
+        scrollEnabled={false}
+        pointerEvents="none"
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.amountExpression}
+      >
+        {tokensToRender.map((token, index) => {
+          if (token.type === 'number') {
+            return (
+              <Text key={`num-${index}`} style={[styles.amountExpressionText, { color: colors.text }]}>
+                {formatAmountDisplay(token.value)}
+              </Text>
+            );
+          }
+
+          const iconName = getOperatorIconName(token.value as CustomKeypadOperator);
+          if (!iconName) return null;
+
+          return (
+            <Icon
+              key={`op-${index}`}
+              name={iconName}
+              size={10}
+              color={colors.textNeutral}
+              accessibilityLabel="연산자"
+            />
+          );
+        })}
+      </ScrollView>
+    );
+  }, [amount, amountExpression, colors.text, colors.textNeutral, formatAmountDisplay, getOperatorIconName]);
+
+  useEffect(() => {
+    if (isKeypadVisible) {
+      setIsKeypadMounted(true);
+      keypadTranslateY.setValue(KEYPAD_HEIGHT);
+      keypadBackdropOpacity.setValue(0);
+      Animated.parallel([
+        Animated.timing(keypadTranslateY, {
+          toValue: 0,
+          duration: 300,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(keypadBackdropOpacity, {
+          toValue: 1,
+          duration: 100,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]).start();
+      return;
+    }
+
+    if (isKeypadMounted) {
+      Animated.parallel([
+        Animated.timing(keypadTranslateY, {
+          toValue: KEYPAD_HEIGHT,
+          duration: 300,
+          easing: Easing.in(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(keypadBackdropOpacity, {
+          toValue: 0,
+          duration: 100,
+          easing: Easing.in(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]).start(({ finished }) => {
+        if (finished) {
+          setIsKeypadMounted(false);
+        }
+      });
+    }
+  }, [isKeypadMounted, isKeypadVisible, keypadBackdropOpacity, keypadTranslateY]);
   const [date, setDate] = useState<string>(getInitialDate());
   const [displayDate, setDisplayDate] = useState<string>(getInitialDate());
   const [prepaymentDate, setPrepaymentDate] = useState<string>(getInitialDate());
@@ -1732,7 +1864,30 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   
   // amount auto-scroll removed per request
 
+  const handleKeypadDismiss = useCallback(() => {
+    if (!isKeypadVisible) return;
+    setIsKeypadVisible(false);
+    setAmountExpression([]);
+  }, [isKeypadVisible]);
+
+  const isScrollingRef = useRef(false);
+  const ignoreNextTouchEndRef = useRef(false);
+  const dismissTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isMemoFocusedRef = useRef(false);
+  const skipNextDismissRef = useRef(false);
+
+  const clearDismissTimeout = useCallback(() => {
+    if (dismissTimeoutRef.current) {
+      clearTimeout(dismissTimeoutRef.current);
+      dismissTimeoutRef.current = null;
+    }
+  }, []);
+
   const handleMemoFocus = () => {
+    clearDismissTimeout();
+    setIsMemoFocused(true);
+    isMemoFocusedRef.current = true;
+    handleKeypadDismiss();
     // 메모 섹션 위치로 스크롤 (하단 버튼 제외)
     // 기기 화면 높이에 비례하여 스크롤 오프셋 계산
     // 아이폰 13 미니(812pt)에서 216px이 최적 → 약 26.6%
@@ -3929,11 +4084,50 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             { 
               paddingBottom: keyboardHeight > 0 
                 ? keyboardHeight + 16 - insets.bottom 
+                : isKeypadVisible
+                ? KEYPAD_HEIGHT + 16 - insets.bottom
                 : 16 // 메모와 하단 영역 사이 여백
             }
           ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          onScrollBeginDrag={() => {
+            isScrollingRef.current = true;
+            clearDismissTimeout();
+            ignoreNextTouchEndRef.current = true;
+          }}
+          onScrollEndDrag={() => {
+            isScrollingRef.current = false;
+            setTimeout(() => {
+              ignoreNextTouchEndRef.current = false;
+            }, 0);
+          }}
+          onMomentumScrollEnd={() => {
+            isScrollingRef.current = false;
+            setTimeout(() => {
+              ignoreNextTouchEndRef.current = false;
+            }, 0);
+          }}
+          onTouchEnd={() => {
+            if (!isKeypadVisible) return;
+            clearDismissTimeout();
+            if (ignoreNextTouchEndRef.current) {
+              ignoreNextTouchEndRef.current = false;
+              return;
+            }
+            dismissTimeoutRef.current = setTimeout(() => {
+              if (isScrollingRef.current) return;
+              if (skipNextDismissRef.current) {
+                skipNextDismissRef.current = false;
+                return;
+              }
+              if (isMemoFocusedRef.current) {
+                handleKeypadDismiss(true);
+                return;
+              }
+              handleKeypadDismiss();
+            }, 0);
+          }}
         >
             {/* 소비 정보 - 수정 모드에서만 표시 */}
             {mode === 'edit' && (
@@ -4225,11 +4419,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 inputType="number"
                 unit="원"
                 value={amount || '0'}
+                valueRenderer={amountExpressionView}
                 onChangeText={handleAmountChange}
                 placeholder="0"
                 textAlign="right"
                 disabled={mode === 'edit' && (editData?.isInstallment || (!!editData?.isRefunded && !editData?.isInstallment))}
-                onFocus={handleAmountFocus}
+                editable={false}
+                caretHidden
                 onPress={() => {
                   // 환불/할부 기록 수정 모드에서는 금액 변경 불가
                   const isDisabled =
@@ -4241,6 +4437,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                     setShowRecurringToast(true);
                     return;
                   }
+                  skipNextDismissRef.current = false;
+                  if (isMemoFocused) {
+                    setIsMemoFocused(false);
+                  }
+                  handleAmountFocus();
+                  setIsKeypadVisible(true);
+                  Keyboard.dismiss();
                 }}
               />
             </View>
@@ -4264,6 +4467,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               maxLength={20}
               multiline
               onFocus={handleMemoFocus}
+              onBlur={() => {
+                setIsMemoFocused(false);
+                isMemoFocusedRef.current = false;
+              }}
               onKeyPress={handleMemoKeyPress}
               onSubmitEditing={handleMemoSubmitEditing}
               blurOnSubmit={false}
@@ -4315,6 +4522,45 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             {mode === 'edit' ? '저장' : '확인'}
           </Button>
         </View>
+
+        {isKeypadMounted && (
+          <View style={styles.customKeypadOverlay} pointerEvents="box-none">
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.customKeypadBackdrop,
+                { opacity: keypadBackdropOpacity },
+              ]}
+            />
+            <Animated.View
+              style={[
+                styles.customKeypadContainer,
+                { transform: [{ translateY: keypadTranslateY }] },
+              ]}
+            >
+              <BlurView
+                intensity={80}
+                tint={colorScheme === 'dark' ? 'dark' : 'light'}
+                style={styles.customKeypadBlur}
+              >
+                <View
+                  pointerEvents="none"
+                  style={[styles.customKeypadTint, { backgroundColor: keypadTintColor }]}
+                />
+                <CustomKeypad
+                  value={amount}
+                  onValueChange={handleAmountChange}
+                  onConfirm={(nextValue) => {
+                    handleAmountChange(nextValue);
+                    setIsKeypadVisible(false);
+                    setAmountExpression([]);
+                  }}
+                  onExpressionChange={setAmountExpression}
+                />
+              </BlurView>
+            </Animated.View>
+          </View>
+        )}
 
       
 
@@ -5196,6 +5442,29 @@ const styles = StyleSheet.create({
   scrollContent: {
     gap: 0,
   },
+  customKeypadOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    top: 0,
+    justifyContent: 'flex-end',
+  },
+  customKeypadBackdrop: {
+    flex: 1,
+  },
+  customKeypadBlur: {
+    width: '100%',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    overflow: 'hidden',
+  },
+  customKeypadTint: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  customKeypadContainer: {
+    width: '100%',
+  },
   section: {
     paddingHorizontal: 16,
     paddingTop: 24,
@@ -5431,6 +5700,16 @@ const styles = StyleSheet.create({
   },
   recurringAmountInput: {
     width: '100%',
+  },
+  amountExpression: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 6,
+  },
+  amountExpressionText: {
+    ...Typography.body1.l.bold,
   },
   installmentAmountContainer: {
     marginTop: 12,

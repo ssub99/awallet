@@ -13,7 +13,7 @@
 import { Icon, IconName } from '@/components/ui/icon';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import {
     Pressable,
     StyleSheet,
@@ -53,6 +53,11 @@ export interface InputProps extends Omit<TextInputProps, 'style'> {
    * Right text to display (for dayselect mode)
    */
   rightText?: string;
+
+  /**
+   * Right icon name (optional)
+   */
+  rightIcon?: IconName;
   
   /**
    * Show time display on the right (e.g., "2:53")
@@ -88,6 +93,11 @@ export interface InputProps extends Omit<TextInputProps, 'style'> {
    * Value
    */
   value?: string;
+
+  /**
+   * Custom value renderer (optional)
+   */
+  valueRenderer?: ReactNode;
   
   /**
    * Change handler
@@ -114,6 +124,7 @@ export function Input({
   icon,
   showRightArrow = false,
   rightText,
+  rightIcon,
   timeDisplay,
   unit,
   calendar = false,
@@ -122,6 +133,7 @@ export function Input({
   buttonMode = false,
   style,
   value = '',
+  valueRenderer,
   onChangeText,
   onPress,
   placeholder,
@@ -247,6 +259,10 @@ export function Input({
                 >
                   {hasValue ? value : finalPlaceholder}
                 </Text>
+              ) : valueRenderer ? (
+                <View style={styles.valueRenderer}>
+                  {valueRenderer}
+                </View>
               ) : (
                 <TextInput
                   ref={inputRef}
@@ -287,9 +303,20 @@ export function Input({
               )}
             </View>
 
-            {/* Right: Unit, Time Display, Right Text, or Arrow */}
-            {(unit || timeDisplay || rightText || showRightArrow) && (
+            {/* Right: Right Icon, Unit, Time Display, Right Text, or Arrow */}
+            {(unit || timeDisplay || rightText || rightIcon || showRightArrow) && (
               <View style={styles.rightSection}>
+                {/* Right Icon */}
+                {rightIcon && (
+                  <Icon
+                    name={rightIcon}
+                    variant="line"
+                    size={10}
+                    color={disabled ? colors.textDisabled : colors.textNeutral}
+                    style={styles.rightIcon}
+                  />
+                )}
+
                 {/* Unit (for number input) */}
                 {unit && inputType === 'number' && (
                   <Text style={[styles.unit, { color: disabled ? colors.textDisabled : colors.textAssistive, marginLeft: 4 }]}>
@@ -378,6 +405,9 @@ const styles = StyleSheet.create({
   inputArea: {
     height: 72, // containerArea (96px) - paddingVertical (12px * 2)
   },
+  valueRenderer: {
+    flex: 1,
+  },
   rightSection: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -402,6 +432,9 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   rightArrow: {
+    // Icon is 24x24
+  },
+  rightIcon: {
     // Icon is 24x24
   },
   calendarDate: {

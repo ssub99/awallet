@@ -1,0 +1,16 @@
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g clip-path="url(#clip0_699_11939)">
+<rect x="10" y="4" width="2" height="10" rx="1" transform="rotate(90 10 4)" fill="black"/>
+<rect x="24" y="4" width="2" height="10" rx="1" transform="rotate(90 24 4)" fill="black"/>
+<rect x="24" y="18" width="2" height="10" rx="1" transform="rotate(90 24 18)" fill="black"/>
+<rect x="6" y="10" width="2" height="10" rx="1" transform="rotate(-180 6 10)" fill="black"/>
+<path d="M7.80615 15.2906C8.19362 14.9031 8.82201 14.9031 9.20947 15.2906C9.5966 15.678 9.59683 16.3065 9.20947 16.6939L6.40283 19.4995L9.20947 22.3062C9.59661 22.6937 9.59683 23.3221 9.20947 23.7095C8.82212 24.0968 8.19364 24.0966 7.80615 23.7095L4.99951 20.9029L2.19385 23.7095C1.8065 24.0969 1.17802 24.0966 0.790527 23.7095C0.403066 23.322 0.403069 22.6936 0.790527 22.3062L3.59619 19.4995L0.790527 16.6939C0.403069 16.3064 0.403077 15.678 0.790527 15.2906C1.17799 14.9031 1.80638 14.9031 2.19385 15.2906L4.99951 18.0962L7.80615 15.2906Z" fill="black"/>
+<circle cx="19" cy="15.5" r="1.5" fill="black"/>
+<circle cx="19" cy="22.5" r="1.5" fill="black"/>
+</g>
+<defs>
+<clipPath id="clip0_699_11939">
+<rect width="24" height="24" fill="white"/>
+</clipPath>
+</defs>
+</svg>
