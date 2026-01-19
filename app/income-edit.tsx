@@ -7,10 +7,12 @@
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Button } from '@/components/ui/button';
 import { CalendarDaySelect } from '@/components/ui/calendar-day-select';
+import { CustomKeypad, type CustomKeypadOperator, type ExpressionToken } from '@/components/ui/custom-keypad';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
 import { ModalPopup } from '@/components/ui/modal-popup';
+import { AtomicColors } from '@/constants/atomic-colors';
 import { Colors, Typography } from '@/constants/theme';
 import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -20,10 +22,13 @@ import { loadCategories } from '@/utils/categories';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { calendarRefreshEvent } from '@/hooks/calendar-events';
 import { updateIncome, softDeleteIncome } from '@/utils/incomes';
+import { BlurView } from 'expo-blur';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Animated,
   Dimensions,
+  Easing,
   InteractionManager,
   Keyboard,
   NativeSyntheticEvent,
@@ -38,6 +43,8 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+
+const KEYPAD_HEIGHT = 282;
 
 /**
  * 요일 계산 함수
@@ -119,6 +126,11 @@ export default function IncomeEditScreen() {
 
   // Form state - Initialize with existing data
   const [amount, setAmount] = useState<string>(recordData ? recordData.amount.toLocaleString() : '');
+  const [amountExpression, setAmountExpression] = useState<ExpressionToken[]>([]);
+  const [isKeypadVisible, setIsKeypadVisible] = useState(false);
+  const [isKeypadMounted, setIsKeypadMounted] = useState(false);
+  const keypadTranslateY = useRef(new Animated.Value(KEYPAD_HEIGHT)).current;
+  const keypadBackdropOpacity = useRef(new Animated.Value(0)).current;
   const [category, setCategory] = useState<string>(recordData?.category ?? '');
   const [date, setDate] = useState<string>(() => {
     if (dateKey) {
@@ -171,7 +183,14 @@ export default function IncomeEditScreen() {
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   
   // Section position tracking
+  const [amountSectionY, setAmountSectionY] = useState(0);
   const [memoSectionY, setMemoSectionY] = useState(0);
+
+  const isScrollingRef = useRef(false);
+  const dismissTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ignoreNextTouchEndRef = useRef(false);
+  const skipNextDismissRef = useRef(false);
+  const isMemoFocusedRef = useRef(false);
   
   useEffect(() => {
     const keyboardWillShow = Keyboard.addListener(
@@ -192,6 +211,37 @@ export default function IncomeEditScreen() {
       keyboardWillHide.remove();
     };
   }, []);
+
+  const clearDismissTimeout = useCallback(() => {
+    if (dismissTimeoutRef.current) {
+      clearTimeout(dismissTimeoutRef.current);
+      dismissTimeoutRef.current = null;
+    }
+  }, []);
+
+  const handleKeypadDismiss = useCallback(() => {
+    setIsKeypadVisible(false);
+    setAmountExpression([]);
+  }, []);
+
+  const handleAmountFocus = useCallback(() => {
+    Keyboard.dismiss();
+    skipNextDismissRef.current = true;
+    isMemoFocusedRef.current = false;
+    if (!isKeypadVisible) {
+      setIsKeypadVisible(true);
+    }
+    setTimeout(() => {
+      if (amountSectionY > 0) {
+        const windowHeight = Dimensions.get('window').height;
+        const scrollOffset = windowHeight * 0.4; // 화면 높이의 40%
+        scrollViewRef.current?.scrollTo({
+          y: Math.max(0, amountSectionY - scrollOffset),
+          animated: true,
+        });
+      }
+    }, 0);
+  }, [amountSectionY, isKeypadVisible]);
 
   // 금액 입력 시 처리하는 함수 (Input 컴포넌트에서 이미 포맷팅됨)
   const handleAmountChange = (text: string) => {
@@ -218,6 +268,125 @@ export default function IncomeEditScreen() {
     // 포맷팅된 값으로 설정
     setAmount(num.toLocaleString());
   };
+
+  const formatAmountDisplay = useCallback((raw: string) => {
+    if (!raw) return '0';
+    const numeric = Number(raw.replace(/,/g, ''));
+    if (!Number.isFinite(numeric)) return raw;
+    return numeric.toLocaleString();
+  }, []);
+
+  const getRgbaColor = useCallback((hex: string, opacity: number) => {
+    const normalized = hex.replace('#', '');
+    const r = parseInt(normalized.slice(0, 2), 16);
+    const g = parseInt(normalized.slice(2, 4), 16);
+    const b = parseInt(normalized.slice(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+  }, []);
+
+  const keypadTintColor = useMemo(
+    () => getRgbaColor(AtomicColors.neutral[300], 0.8),
+    [getRgbaColor]
+  );
+
+  const getOperatorSymbol = useCallback((operator: CustomKeypadOperator) => {
+    switch (operator) {
+      case 'add':
+        return '+';
+      case 'sub':
+        return '-';
+      case 'mul':
+        return '×';
+      case 'div':
+        return '÷';
+      default:
+        return '';
+    }
+  }, []);
+
+  const amountExpressionView = useMemo(() => {
+    const tokensToRender =
+      amountExpression.length > 0
+        ? amountExpression
+        : [{ type: 'number', value: amount.replace(/,/g, '') || '0' }];
+
+    return (
+      <ScrollView
+        horizontal
+        scrollEnabled={false}
+        pointerEvents="none"
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.amountExpression}
+      >
+        {tokensToRender.map((token, index) => {
+          if (token.type === 'number') {
+            return (
+              <Text key={`num-${index}`} style={[styles.amountExpressionText, { color: colors.text }]}>
+                {formatAmountDisplay(token.value)}
+              </Text>
+            );
+          }
+
+          const symbol = getOperatorSymbol(token.value as CustomKeypadOperator);
+          if (!symbol) return null;
+
+          return (
+            <Text
+              key={`op-${index}`}
+              style={[styles.amountExpressionOperator, { color: colors.textNeutral }]}
+              accessibilityLabel="연산자"
+            >
+              {symbol}
+            </Text>
+          );
+        })}
+      </ScrollView>
+    );
+  }, [amount, amountExpression, colors.text, colors.textNeutral, formatAmountDisplay, getOperatorSymbol]);
+
+  useEffect(() => {
+    if (isKeypadVisible) {
+      setIsKeypadMounted(true);
+      keypadTranslateY.setValue(KEYPAD_HEIGHT);
+      keypadBackdropOpacity.setValue(0);
+      Animated.parallel([
+        Animated.timing(keypadTranslateY, {
+          toValue: 0,
+          duration: 300,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(keypadBackdropOpacity, {
+          toValue: 1,
+          duration: 100,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]).start();
+      return;
+    }
+
+    if (isKeypadMounted) {
+      Animated.parallel([
+        Animated.timing(keypadTranslateY, {
+          toValue: KEYPAD_HEIGHT,
+          duration: 300,
+          easing: Easing.in(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(keypadBackdropOpacity, {
+          toValue: 0,
+          duration: 100,
+          easing: Easing.in(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]).start(({ finished }) => {
+        if (finished) {
+          setIsKeypadMounted(false);
+        }
+      });
+    }
+  }, [isKeypadMounted, isKeypadVisible, keypadBackdropOpacity, keypadTranslateY]);
 
   const handleDatePress = () => {
     // 키패드가 열려있으면 닫기
@@ -301,6 +470,8 @@ export default function IncomeEditScreen() {
   const categoryDisplay = category ? `${getCategoryEmojiSafe(category)} ${category}` : '';
 
   const handleMemoFocus = () => {
+    isMemoFocusedRef.current = true;
+    handleKeypadDismiss();
     // 메모 섹션 위치로 스크롤 (하단 버튼 제외)
     // 기기 화면 높이에 비례하여 스크롤 오프셋 계산
     // 아이폰 13 미니(812pt)에서 216px이 최적 → 약 26.6%
@@ -512,10 +683,53 @@ export default function IncomeEditScreen() {
           style={styles.scrollView}
           contentContainerStyle={[
             styles.scrollContent, 
-            { paddingBottom: keyboardHeight > 0 ? keyboardHeight + 80 : 80 + insets.bottom }
+            { 
+              paddingBottom: keyboardHeight > 0 
+                ? keyboardHeight + 16 - insets.bottom 
+                : isKeypadVisible
+                ? KEYPAD_HEIGHT + 16 - insets.bottom
+                : 16
+            }
           ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          onScrollBeginDrag={() => {
+            isScrollingRef.current = true;
+            clearDismissTimeout();
+            ignoreNextTouchEndRef.current = true;
+          }}
+          onScrollEndDrag={() => {
+            isScrollingRef.current = false;
+            setTimeout(() => {
+              ignoreNextTouchEndRef.current = false;
+            }, 0);
+          }}
+          onMomentumScrollEnd={() => {
+            isScrollingRef.current = false;
+            setTimeout(() => {
+              ignoreNextTouchEndRef.current = false;
+            }, 0);
+          }}
+          onTouchEnd={() => {
+            if (!isKeypadVisible) return;
+            clearDismissTimeout();
+            if (ignoreNextTouchEndRef.current) {
+              ignoreNextTouchEndRef.current = false;
+              return;
+            }
+            dismissTimeoutRef.current = setTimeout(() => {
+              if (isScrollingRef.current) return;
+              if (skipNextDismissRef.current) {
+                skipNextDismissRef.current = false;
+                return;
+              }
+              if (isMemoFocusedRef.current) {
+                handleKeypadDismiss();
+                return;
+              }
+              handleKeypadDismiss();
+            }, 0);
+          }}
         >
           {/* 카테고리 */}
           <View style={styles.section}>
@@ -563,6 +777,10 @@ export default function IncomeEditScreen() {
           {/* 금액 */}
           <View 
             style={styles.section}
+            onLayout={(event) => {
+              const layout = event.nativeEvent.layout;
+              setAmountSectionY(layout.y);
+            }}
           >
             <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
               금액 <Text style={{ color: '#EF5252' }}>*</Text>
@@ -575,7 +793,10 @@ export default function IncomeEditScreen() {
               onChangeText={handleAmountChange}
               placeholder="0"
               textAlign="right"
-              
+              editable={false}
+              caretHidden
+              valueRenderer={amountExpressionView}
+              onPress={handleAmountFocus}
             />
           </View>
 
@@ -605,6 +826,45 @@ export default function IncomeEditScreen() {
           </View>
         </ScrollView>
       </View>
+
+      {isKeypadMounted && (
+        <View style={styles.customKeypadOverlay} pointerEvents="box-none">
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.customKeypadBackdrop,
+              { opacity: keypadBackdropOpacity },
+            ]}
+          />
+          <Animated.View
+            style={[
+              styles.customKeypadContainer,
+              { transform: [{ translateY: keypadTranslateY }] },
+            ]}
+          >
+            <BlurView
+              intensity={80}
+              tint={colorScheme === 'dark' ? 'dark' : 'light'}
+              style={styles.customKeypadBlur}
+            >
+              <View
+                pointerEvents="none"
+                style={[styles.customKeypadTint, { backgroundColor: keypadTintColor }]}
+              />
+              <CustomKeypad
+                value={amount}
+                onValueChange={handleAmountChange}
+                onConfirm={(nextValue) => {
+                  handleAmountChange(nextValue);
+                  setIsKeypadVisible(false);
+                  setAmountExpression([]);
+                }}
+                onExpressionChange={setAmountExpression}
+              />
+            </BlurView>
+          </Animated.View>
+        </View>
+      )}
 
       {/* 하단 고정 버튼 */}
       <View style={[
@@ -700,6 +960,31 @@ const styles = StyleSheet.create({
   scrollContent: {
     gap: 0,
   },
+  customKeypadOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    top: 0,
+    justifyContent: 'flex-end',
+    zIndex: 100,
+    elevation: 100,
+  },
+  customKeypadBackdrop: {
+    flex: 1,
+  },
+  customKeypadBlur: {
+    width: '100%',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    overflow: 'hidden',
+  },
+  customKeypadTint: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  customKeypadContainer: {
+    width: '100%',
+  },
   section: {
     paddingHorizontal: 16,
     paddingTop: 24,
@@ -756,5 +1041,18 @@ const styles = StyleSheet.create({
   alertText: {
     ...Typography.body1.l.regular,
     textAlign: 'center',
+  },
+  amountExpression: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 6,
+  },
+  amountExpressionText: {
+    ...Typography.body1.l.bold,
+  },
+  amountExpressionOperator: {
+    ...Typography.body1.l.bold,
   },
 });

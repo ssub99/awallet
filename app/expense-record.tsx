@@ -10,12 +10,13 @@ import { Button } from '@/components/ui/button';
 import { BasicCalendarDaySelect } from '@/components/ui/calendar-day-basic';
 import { CalendarDaySelect } from '@/components/ui/calendar-day-select';
 import { Chip } from '@/components/ui/chip';
-import { CustomKeypad, type ExpressionToken, type CustomKeypadOperator } from '@/components/ui/custom-keypad';
+import { CustomKeypad, type CustomKeypadOperator, type ExpressionToken } from '@/components/ui/custom-keypad';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Input } from '@/components/ui/input';
 import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
 import { ModalPopup } from '@/components/ui/modal-popup';
 import { PrepaymentModal } from '@/components/ui/prepayment-modal';
+import { Accordion } from '@/components/ui/accordion';
 import { Radio } from '@/components/ui/radio';
 import { SegmentControls } from '@/components/ui/segment-controls';
 import { Switch } from '@/components/ui/switch';
@@ -37,19 +38,19 @@ import { BlurView } from 'expo-blur';
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    Animated,
-    Dimensions,
-    Easing,
-    Keyboard,
-    NativeSyntheticEvent,
-    Platform,
-    Pressable,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInputKeyPressEventData,
-    View
+  Animated,
+  Dimensions,
+  Easing,
+  Keyboard,
+  NativeSyntheticEvent,
+  Platform,
+  Pressable,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInputKeyPressEventData,
+  View
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -695,9 +696,15 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   const [totalMonths, setTotalMonths] = useState<number>(2); // 2개월~12개월
   const [isInstallment, setIsInstallment] = useState<boolean>(false); // 할부
   const [hasSelectedInstallment, setHasSelectedInstallment] = useState<boolean>(false); // 할부 옵션을 한 번이라도 선택했는지 추적
+  const [isPeriodExpanded, setIsPeriodExpanded] = useState(false);
   const [weekendOption, setWeekendOption] = useState<'weekend' | 'friday' | 'monday'>('weekend');
   // 정기 옵션의 반복 형태 (매일, 매주, 2주, 3주, 4주, 매월, 2개월 마다, 4개월 마다, 6개월 마다, 주중, 주말)
   const [recurringType, setRecurringType] = useState<string>('매월');
+  const recurringPeriodOptions = useMemo(
+    () => ['매일', '매주', '매월', '2주', '3주', '4주', '2개월 마다', '4개월 마다', '6개월 마다', '주중', '주말'],
+    []
+  );
+  const installmentPeriodOptions = useMemo(() => [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], []);
   
   // date state 변경 감지
   useEffect(() => {
@@ -1908,7 +1915,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     setTimeout(() => {
       if (amountSectionY > 0) {
         const windowHeight = Dimensions.get('window').height;
-        const scrollOffset = windowHeight * 0.32; // 화면 높이의 32%
+        const scrollOffset = windowHeight * 0.4; // 화면 높이의 39.5%
         scrollViewRef.current?.scrollTo({
           y: Math.max(0, amountSectionY - scrollOffset),
           animated: true,
@@ -4819,7 +4826,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               {isRecurring || (!isRecurring && !isInstallment && !hasSelectedInstallment) ? (
                 // 정기 옵션 ON 또는 디폴트 상태 (할부 옵션을 선택한 적이 없을 때): 매일, 매주, 2주, 3주, 4주, 매월, 2개월 마다, 4개월 마다, 6개월 마다, 주중, 주말
                 <>
-                  {['매일', '매주', '매월', '2주', '3주', '4주', '2개월 마다', '4개월 마다', '6개월 마다', '주중', '주말'].map((label) => (
+                  {(isPeriodExpanded ? recurringPeriodOptions : recurringPeriodOptions.slice(0, 6)).map((label) => (
                     <Chip
                       key={label}
                       type="option"
@@ -4856,7 +4863,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 // 할부 옵션 ON 또는 할부 옵션을 선택했던 경우: 2개월, 3개월, 4개월, 5개월, 6개월, 7개월, 8개월, 9개월, 10개월, 11개월, 12개월
                 // 할부 옵션 OFF 시에도 할부 Chip을 disabled 상태로 표시하여 선택했던 값을 유지
                 <>
-                  {[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((months) => (
+                  {(isPeriodExpanded ? installmentPeriodOptions : installmentPeriodOptions.slice(0, 6)).map((months) => (
                     <Chip
                       key={months}
                       type="option"
@@ -4878,6 +4885,11 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 </>
               )}
             </View>
+            <Accordion
+              expanded={isPeriodExpanded}
+              onToggle={setIsPeriodExpanded}
+              disabled={!isRecurring && !isInstallment}
+            />
           </View>
 
           {/* 기록일이 주말인 경우 */}
@@ -5448,6 +5460,8 @@ const styles = StyleSheet.create({
     bottom: 0,
     top: 0,
     justifyContent: 'flex-end',
+    zIndex: 100,
+    elevation: 100,
   },
   customKeypadBackdrop: {
     flex: 1,

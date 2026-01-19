@@ -6,10 +6,12 @@
 
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Button } from '@/components/ui/button';
+import { CustomKeypad, type CustomKeypadOperator, type ExpressionToken } from '@/components/ui/custom-keypad';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
+import { AtomicColors } from '@/constants/atomic-colors';
 import { type Category } from '@/constants/categories';
 import { loadCategories } from '@/utils/categories';
 import { Colors, Typography } from '@/constants/theme';
@@ -22,10 +24,13 @@ import { createChallenges, getAllChallenges, type ChallengeRecord } from '@/util
 import { generateGroupId, generateRecordId } from '@/utils/id-generator';
 import { cancelChallengeProgressNotifications, notifyChallengeFailure, notifyChallengeProgress, notifyChallengeSuccess } from '@/utils/notification-scheduler';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BlurView } from 'expo-blur';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Keyboard, Pressable, ScrollView, StatusBar, StyleSheet, Text, TouchableWithoutFeedback, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, Dimensions, Easing, Keyboard, Pressable, ScrollView, StatusBar, StyleSheet, Text, TouchableWithoutFeedback, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+
+const KEYPAD_HEIGHT = 282;
 
 export default function ChallengeCreateScreen() {
   const colorScheme = useColorScheme();
@@ -82,6 +87,11 @@ export default function ChallengeCreateScreen() {
   const [category, setCategory] = useState<string>(params.category || '');
   
   const [targetAmount, setTargetAmount] = useState<string>('');
+  const [amountExpression, setAmountExpression] = useState<ExpressionToken[]>([]);
+  const [isKeypadVisible, setIsKeypadVisible] = useState(false);
+  const [isKeypadMounted, setIsKeypadMounted] = useState(false);
+  const keypadTranslateY = useRef(new Animated.Value(KEYPAD_HEIGHT)).current;
+  const keypadBackdropOpacity = useRef(new Animated.Value(0)).current;
   const [isRecurring, setIsRecurring] = useState<boolean>(false);
   const [recurringMonths, setRecurringMonths] = useState<number>(2);
   const [showYearMonthPicker, setShowYearMonthPicker] = useState<boolean>(false);
@@ -89,6 +99,11 @@ export default function ChallengeCreateScreen() {
   const [monthStartDay, setMonthStartDay] = useState<number>(1);
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const [amountSectionY, setAmountSectionY] = useState(0);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const isScrollingRef = useRef(false);
+  const dismissTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ignoreNextTouchEndRef = useRef(false);
 
   useEffect(() => {
     if (!toastVisible) {
@@ -167,6 +182,154 @@ export default function ChallengeCreateScreen() {
       setTargetAmount('');
     }
   };
+
+  const formatAmountDisplay = useCallback((raw: string) => {
+    if (!raw) return '0';
+    const numeric = Number(raw.replace(/,/g, ''));
+    if (!Number.isFinite(numeric)) return raw;
+    return numeric.toLocaleString();
+  }, []);
+
+  const getRgbaColor = useCallback((hex: string, opacity: number) => {
+    const normalized = hex.replace('#', '');
+    const r = parseInt(normalized.slice(0, 2), 16);
+    const g = parseInt(normalized.slice(2, 4), 16);
+    const b = parseInt(normalized.slice(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+  }, []);
+
+  const keypadTintColor = useMemo(
+    () => getRgbaColor(AtomicColors.neutral[300], 0.8),
+    [getRgbaColor]
+  );
+
+  const getOperatorSymbol = useCallback((operator: CustomKeypadOperator) => {
+    switch (operator) {
+      case 'add':
+        return '+';
+      case 'sub':
+        return '-';
+      case 'mul':
+        return '×';
+      case 'div':
+        return '÷';
+      default:
+        return '';
+    }
+  }, []);
+
+  const amountExpressionView = useMemo(() => {
+    const tokensToRender =
+      amountExpression.length > 0
+        ? amountExpression
+        : [{ type: 'number', value: targetAmount.replace(/,/g, '') || '0' }];
+
+    return (
+      <ScrollView
+        horizontal
+        scrollEnabled={false}
+        pointerEvents="none"
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.amountExpression}
+      >
+        {tokensToRender.map((token, index) => {
+          if (token.type === 'number') {
+            return (
+              <Text key={`num-${index}`} style={[styles.amountExpressionText, { color: colors.text }]}>
+                {formatAmountDisplay(token.value)}
+              </Text>
+            );
+          }
+
+          const symbol = getOperatorSymbol(token.value as CustomKeypadOperator);
+          if (!symbol) return null;
+
+          return (
+            <Text
+              key={`op-${index}`}
+              style={[styles.amountExpressionOperator, { color: colors.textNeutral }]}
+              accessibilityLabel="연산자"
+            >
+              {symbol}
+            </Text>
+          );
+        })}
+      </ScrollView>
+    );
+  }, [amountExpression, colors.text, colors.textNeutral, formatAmountDisplay, getOperatorSymbol, targetAmount]);
+
+  useEffect(() => {
+    if (isKeypadVisible) {
+      setIsKeypadMounted(true);
+      keypadTranslateY.setValue(KEYPAD_HEIGHT);
+      keypadBackdropOpacity.setValue(0);
+      Animated.parallel([
+        Animated.timing(keypadTranslateY, {
+          toValue: 0,
+          duration: 300,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(keypadBackdropOpacity, {
+          toValue: 1,
+          duration: 100,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]).start();
+      return;
+    }
+
+    if (isKeypadMounted) {
+      Animated.parallel([
+        Animated.timing(keypadTranslateY, {
+          toValue: KEYPAD_HEIGHT,
+          duration: 300,
+          easing: Easing.in(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(keypadBackdropOpacity, {
+          toValue: 0,
+          duration: 100,
+          easing: Easing.in(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]).start(({ finished }) => {
+        if (finished) {
+          setIsKeypadMounted(false);
+        }
+      });
+    }
+  }, [isKeypadMounted, isKeypadVisible, keypadBackdropOpacity, keypadTranslateY]);
+
+  const clearDismissTimeout = useCallback(() => {
+    if (dismissTimeoutRef.current) {
+      clearTimeout(dismissTimeoutRef.current);
+      dismissTimeoutRef.current = null;
+    }
+  }, []);
+
+  const handleKeypadDismiss = useCallback(() => {
+    setIsKeypadVisible(false);
+    setAmountExpression([]);
+  }, []);
+
+  const handleAmountFocus = useCallback(() => {
+    Keyboard.dismiss();
+    if (!isKeypadVisible) {
+      setIsKeypadVisible(true);
+    }
+    setTimeout(() => {
+      if (amountSectionY > 0) {
+        const windowHeight = Dimensions.get('window').height;
+        const scrollOffset = windowHeight * 0.4; // 화면 높이의 40%
+        scrollViewRef.current?.scrollTo({
+          y: Math.max(0, amountSectionY - scrollOffset),
+          animated: true,
+        });
+      }
+    }, 0);
+  }, [amountSectionY, isKeypadVisible]);
 
   // 카테고리명에 이모지 추가하는 함수
   const [expenseCategories, setExpenseCategories] = useState<Category[]>([]);
@@ -370,7 +533,10 @@ export default function ChallengeCreateScreen() {
   };
 
   return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+    <TouchableWithoutFeedback onPress={() => {
+      Keyboard.dismiss();
+      handleKeypadDismiss();
+    }}>
       <SafeAreaView style={[styles.container, { backgroundColor: colors.staticWhite }]} edges={['top']}>
         <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
       
@@ -382,8 +548,42 @@ export default function ChallengeCreateScreen() {
         />
 
         <ScrollView 
+          ref={scrollViewRef}
           style={[styles.content, { backgroundColor: colors.fill }]}
-          contentContainerStyle={styles.contentContainer}
+          contentContainerStyle={[
+            styles.contentContainer,
+            { paddingBottom: isKeypadVisible ? KEYPAD_HEIGHT + 16 - insets.bottom : 24 }
+          ]}
+          keyboardShouldPersistTaps="handled"
+          onScrollBeginDrag={() => {
+            isScrollingRef.current = true;
+            clearDismissTimeout();
+            ignoreNextTouchEndRef.current = true;
+          }}
+          onScrollEndDrag={() => {
+            isScrollingRef.current = false;
+            setTimeout(() => {
+              ignoreNextTouchEndRef.current = false;
+            }, 0);
+          }}
+          onMomentumScrollEnd={() => {
+            isScrollingRef.current = false;
+            setTimeout(() => {
+              ignoreNextTouchEndRef.current = false;
+            }, 0);
+          }}
+          onTouchEnd={() => {
+            if (!isKeypadVisible) return;
+            clearDismissTimeout();
+            if (ignoreNextTouchEndRef.current) {
+              ignoreNextTouchEndRef.current = false;
+              return;
+            }
+            dismissTimeoutRef.current = setTimeout(() => {
+              if (isScrollingRef.current) return;
+              handleKeypadDismiss();
+            }, 0);
+          }}
         >
           {/* 카테고리 */}
           <View style={styles.section}>
@@ -440,7 +640,13 @@ export default function ChallengeCreateScreen() {
           </View>
 
           {/* 목표 소비 금액 */}
-          <View style={styles.section}>
+          <View
+            style={styles.section}
+            onLayout={(event) => {
+              const layout = event.nativeEvent.layout;
+              setAmountSectionY(layout.y);
+            }}
+          >
             <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
               목표 소비 금액 <Text style={{ color: '#EF5252' }}>*</Text>
             </Text>
@@ -452,6 +658,10 @@ export default function ChallengeCreateScreen() {
               onChangeText={handleAmountChange}
               placeholder="0"
               textAlign="right"
+              editable={false}
+              caretHidden
+              valueRenderer={amountExpressionView}
+              onPress={handleAmountFocus}
             />
           </View>
 
@@ -508,6 +718,45 @@ export default function ChallengeCreateScreen() {
             </View>
           )}
         </ScrollView>
+
+        {isKeypadMounted && (
+          <View style={styles.customKeypadOverlay} pointerEvents="box-none">
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.customKeypadBackdrop,
+                { opacity: keypadBackdropOpacity },
+              ]}
+            />
+            <Animated.View
+              style={[
+                styles.customKeypadContainer,
+                { transform: [{ translateY: keypadTranslateY }] },
+              ]}
+            >
+              <BlurView
+                intensity={80}
+                tint={colorScheme === 'dark' ? 'dark' : 'light'}
+                style={styles.customKeypadBlur}
+              >
+                <View
+                  pointerEvents="none"
+                  style={[styles.customKeypadTint, { backgroundColor: keypadTintColor }]}
+                />
+                <CustomKeypad
+                  value={targetAmount}
+                  onValueChange={handleAmountChange}
+                  onConfirm={(nextValue) => {
+                    handleAmountChange(nextValue);
+                    setIsKeypadVisible(false);
+                    setAmountExpression([]);
+                  }}
+                  onExpressionChange={setAmountExpression}
+                />
+              </BlurView>
+            </Animated.View>
+          </View>
+        )}
 
         {/* 하단 고정 버튼 */}
         <View style={[
@@ -577,6 +826,31 @@ const styles = StyleSheet.create({
     paddingTop: 24,
     gap: 24,
     paddingBottom: 24,
+  },
+  customKeypadOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    top: 0,
+    justifyContent: 'flex-end',
+    zIndex: 100,
+    elevation: 100,
+  },
+  customKeypadBackdrop: {
+    flex: 1,
+  },
+  customKeypadBlur: {
+    width: '100%',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    overflow: 'hidden',
+  },
+  customKeypadTint: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  customKeypadContainer: {
+    width: '100%',
   },
   section: {
     gap: 8,
@@ -651,5 +925,18 @@ const styles = StyleSheet.create({
   bottomButtonContainer: {
     paddingHorizontal: 16,
     paddingTop: 16,
+  },
+  amountExpression: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 6,
+  },
+  amountExpressionText: {
+    ...Typography.body1.l.bold,
+  },
+  amountExpressionOperator: {
+    ...Typography.body1.l.bold,
   },
 });
