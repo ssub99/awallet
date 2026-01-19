@@ -155,6 +155,11 @@ const evaluateTokens = (tokens: ExpressionToken[]) => {
     }
   }
 
+  // 결과가 0보다 작으면 0으로 반환
+  if (result < 0) {
+    result = 0;
+  }
+
   return formatResultNumber(result);
 };
 
