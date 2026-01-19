@@ -260,6 +260,18 @@ export function CustomKeypad({
       return;
     }
 
+    if (tokens.length >= 3) {
+      const result = evaluateTokens(tokens);
+      const nextTokens = result
+        ? [
+            { type: 'number', value: result },
+            { type: 'operator', value: nextOperator },
+          ]
+        : [{ type: 'operator', value: nextOperator }];
+      emitState(nextTokens, nextOperator);
+      return;
+    }
+
     emitState([...tokens, { type: 'operator', value: nextOperator }], nextOperator);
   }, [emitState, operatorSelection, tokens]);
 

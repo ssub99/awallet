@@ -12,7 +12,6 @@ import { CalendarDaySelect } from '@/components/ui/calendar-day-select';
 import { Chip } from '@/components/ui/chip';
 import { CustomKeypad, type ExpressionToken, type CustomKeypadOperator } from '@/components/ui/custom-keypad';
 import { DatePicker } from '@/components/ui/date-picker';
-import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
 import { ModalPopup } from '@/components/ui/modal-popup';
@@ -588,18 +587,18 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     [getRgbaColor]
   );
 
-  const getOperatorIconName = useCallback((operator: CustomKeypadOperator) => {
+  const getOperatorSymbol = useCallback((operator: CustomKeypadOperator) => {
     switch (operator) {
       case 'add':
-        return 'operationAddition';
+        return '+';
       case 'sub':
-        return 'operationSubtraction';
+        return '-';
       case 'mul':
-        return 'operationMultiplication';
+        return '×';
       case 'div':
-        return 'operationDivision';
+        return '÷';
       default:
-        return null;
+        return '';
     }
   }, []);
 
@@ -626,22 +625,22 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             );
           }
 
-          const iconName = getOperatorIconName(token.value as CustomKeypadOperator);
-          if (!iconName) return null;
+          const symbol = getOperatorSymbol(token.value as CustomKeypadOperator);
+          if (!symbol) return null;
 
           return (
-            <Icon
+            <Text
               key={`op-${index}`}
-              name={iconName}
-              size={10}
-              color={colors.textNeutral}
+              style={[styles.amountExpressionOperator, { color: colors.textNeutral }]}
               accessibilityLabel="연산자"
-            />
+            >
+              {symbol}
+            </Text>
           );
         })}
       </ScrollView>
     );
-  }, [amount, amountExpression, colors.text, colors.textNeutral, formatAmountDisplay, getOperatorIconName]);
+  }, [amount, amountExpression, colors.text, colors.textNeutral, formatAmountDisplay, getOperatorSymbol]);
 
   useEffect(() => {
     if (isKeypadVisible) {
@@ -5709,6 +5708,9 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   amountExpressionText: {
+    ...Typography.body1.l.bold,
+  },
+  amountExpressionOperator: {
     ...Typography.body1.l.bold,
   },
   installmentAmountContainer: {
