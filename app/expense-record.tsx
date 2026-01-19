@@ -29,12 +29,12 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { loadCategories } from '@/utils/categories';
 import { triggerChallengeNotifications } from '@/utils/challenge-utils';
+import { cancelDailyReminder, rescheduleDailyReminderIfNeeded } from '@/utils/notification-scheduler';
 import { getCustomMonthInfo } from '@/utils/custom-month';
 import { createExpense, deleteExpense, deleteExpensesByGroup, getAllExpenses, getExpenseById, updateExpense, type ExpenseRecord as ExpenseRecordType, type PaymentMethod } from '@/utils/expenses';
 import { extractTimestampFromId, generateGroupId, generateRecordId } from '@/utils/id-generator';
 import { getAllIncomes } from '@/utils/incomes';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { BlurView } from 'expo-blur';
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -574,19 +574,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     if (!Number.isFinite(numeric)) return raw;
     return numeric.toLocaleString();
   }, []);
-
-  const getRgbaColor = useCallback((hex: string, opacity: number) => {
-    const normalized = hex.replace('#', '');
-    const r = parseInt(normalized.slice(0, 2), 16);
-    const g = parseInt(normalized.slice(2, 4), 16);
-    const b = parseInt(normalized.slice(4, 6), 16);
-    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
-  }, []);
-
-  const keypadTintColor = useMemo(
-    () => getRgbaColor(AtomicColors.neutral[300], 0.8),
-    [getRgbaColor]
-  );
 
   const getOperatorSymbol = useCallback((operator: CustomKeypadOperator) => {
     switch (operator) {
@@ -2332,6 +2319,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               const recordDateObj = new Date(actualDateKey);
               triggerChallengeNotifications(category, recordDateObj).catch((_error) => {});
             }
+            
+            // 소비 기록 저장 시 당일 알림 취소
+            cancelDailyReminder().catch((_error) => {});
 
             let targetDateKey = actualDateKey;
             const originalDateKey = editData.date ? editData.date.replace(/\./g, '-') : actualDateKey;
@@ -2809,6 +2799,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         });
       }
       
+      // 소비 기록 저장 시 당일 알림 취소
+      cancelDailyReminder().catch((_error) => {});
+      
       // 7. 홈으로 이동
       // 오늘만 수정 모드에서는 날짜 변경 여부에 따라 이동
       // 전체 수정 모드에서는 최초 생성 날짜로 이동
@@ -2992,6 +2985,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           console.error('[expense-record] Failed to trigger challenge notifications after delete:', error);
         });
       }
+      
+      // 소비 기록 삭제 시 당일 알림 재스케줄링 (오후 8시 전이면)
+      rescheduleDailyReminderIfNeeded().catch((_error) => {});
 
       setShowDeleteConfirm(false);
       setShowRecurringDeleteConfirm(false);
@@ -3734,6 +3730,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           console.error('[expense-record] Failed to trigger challenge notifications after delete:', error);
         });
       }
+      
+      // 소비 기록 삭제 시 당일 알림 재스케줄링 (오후 8시 전이면)
+      rescheduleDailyReminderIfNeeded().catch((_error) => {});
       
       // 모달 닫기
       setShowRecurringDeleteOptions(false);
@@ -4550,26 +4549,16 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 { transform: [{ translateY: keypadTranslateY }] },
               ]}
             >
-              <BlurView
-                intensity={80}
-                tint="light"
-                style={styles.customKeypadBlur}
-              >
-                <View
-                  pointerEvents="none"
-                  style={[styles.customKeypadTint, { backgroundColor: keypadTintColor }]}
-                />
-                <CustomKeypad
-                  value={amount}
-                  onValueChange={handleAmountChange}
-                  onConfirm={(nextValue) => {
-                    handleAmountChange(nextValue);
-                    setIsKeypadVisible(false);
-                    setAmountExpression([]);
-                  }}
-                  onExpressionChange={setAmountExpression}
-                />
-              </BlurView>
+              <CustomKeypad
+                value={amount}
+                onValueChange={handleAmountChange}
+                onConfirm={(nextValue) => {
+                  handleAmountChange(nextValue);
+                  setIsKeypadVisible(false);
+                  setAmountExpression([]);
+                }}
+                onExpressionChange={setAmountExpression}
+              />
             </Animated.View>
           </View>
         )}
@@ -5471,15 +5460,6 @@ const styles = StyleSheet.create({
   },
   customKeypadBackdrop: {
     flex: 1,
-  },
-  customKeypadBlur: {
-    width: '100%',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    overflow: 'hidden',
-  },
-  customKeypadTint: {
-    ...StyleSheet.absoluteFillObject,
   },
   customKeypadContainer: {
     width: '100%',

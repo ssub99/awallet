@@ -24,7 +24,6 @@ import { createChallenges, getAllChallenges, type ChallengeRecord } from '@/util
 import { generateGroupId, generateRecordId } from '@/utils/id-generator';
 import { cancelChallengeProgressNotifications, notifyChallengeFailure, notifyChallengeProgress, notifyChallengeSuccess } from '@/utils/notification-scheduler';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { BlurView } from 'expo-blur';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Dimensions, Easing, Keyboard, Pressable, ScrollView, StatusBar, StyleSheet, Text, TouchableWithoutFeedback, View } from 'react-native';
@@ -189,19 +188,6 @@ export default function ChallengeCreateScreen() {
     if (!Number.isFinite(numeric)) return raw;
     return numeric.toLocaleString();
   }, []);
-
-  const getRgbaColor = useCallback((hex: string, opacity: number) => {
-    const normalized = hex.replace('#', '');
-    const r = parseInt(normalized.slice(0, 2), 16);
-    const g = parseInt(normalized.slice(2, 4), 16);
-    const b = parseInt(normalized.slice(4, 6), 16);
-    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
-  }, []);
-
-  const keypadTintColor = useMemo(
-    () => getRgbaColor(AtomicColors.neutral[300], 0.8),
-    [getRgbaColor]
-  );
 
   const getOperatorSymbol = useCallback((operator: CustomKeypadOperator) => {
     switch (operator) {
@@ -455,55 +441,8 @@ export default function ChallengeCreateScreen() {
       
       await createChallenges(newChallenges);
       
-      // 각 챌린지에 대해 알림 스케줄링
-      for (const challenge of newChallenges) {
-        try {
-          // 챌린지 상태 계산 (소비율 포함)
-          const status = await getChallengeStatus(challenge);
-          const endDate = new Date(challenge.endDate.replace(/\./g, '-'));
-          endDate.setHours(0, 0, 0, 0);
-          
-          // 기존 진행현황 알림 모두 취소 (중복 방지)
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          const isEndedByToday = today > endDate;
-          
-          // 진행현황 알림 스케줄링 (10%, 30%, 50%, 70%, 90%)
-          // 챌린지 종료 이후에는 진행현황 알림을 스케줄하지 않음
-          if (!isEndedByToday) {
-            await cancelChallengeProgressNotifications(challenge.id);
-            
-            const milestones = [10, 30, 50, 70, 90];
-            for (let i = 0; i < milestones.length; i++) {
-              const milestone = milestones[i];
-              const max = i < milestones.length - 1 ? milestones[i + 1] : 100;
-              const isInRange = status.percentage >= milestone && status.percentage < max;
-              
-              if (isInRange) {
-                await notifyChallengeProgress(challenge.category, status.percentage, challenge.id, milestone);
-                break; // 한 번에 하나의 마일스톤만
-              }
-            }
-          }
-          
-          // 실패 알림 스케줄링 (100% 초과)
-          if (status.percentage > 100) {
-            await notifyChallengeFailure(challenge.category, status.percentage, challenge.id, endDate);
-          }
-          
-          // 성공 알림 스케줄링 (≤ 100%)
-          if (status.percentage <= 100) {
-            await notifyChallengeSuccess(
-              challenge.category,
-              status.percentage,
-              challenge.id,
-              endDate
-            );
-          }
-        } catch (error) {
-          console.error('[challenge-create] Failed to schedule notifications:', error);
-        }
-      }
+      // ✅ 챌린지 생성 시점에는 알림 스케줄링하지 않음
+      // 첫 소비 기록 저장 시 triggerChallengeNotifications()에서 알림이 트리거됨
       
       // 챌린지 현황으로 이동 (첫 번째 챌린지의 시작일이 속하는 년/월로 이동)
       const firstChallenge = newChallenges[0];
@@ -735,26 +674,16 @@ export default function ChallengeCreateScreen() {
                 { transform: [{ translateY: keypadTranslateY }] },
               ]}
             >
-              <BlurView
-                intensity={80}
-                tint={colorScheme === 'dark' ? 'dark' : 'light'}
-                style={styles.customKeypadBlur}
-              >
-                <View
-                  pointerEvents="none"
-                  style={[styles.customKeypadTint, { backgroundColor: keypadTintColor }]}
-                />
-                <CustomKeypad
-                  value={targetAmount}
-                  onValueChange={handleAmountChange}
-                  onConfirm={(nextValue) => {
-                    handleAmountChange(nextValue);
-                    setIsKeypadVisible(false);
-                    setAmountExpression([]);
-                  }}
-                  onExpressionChange={setAmountExpression}
-                />
-              </BlurView>
+              <CustomKeypad
+                value={targetAmount}
+                onValueChange={handleAmountChange}
+                onConfirm={(nextValue) => {
+                  handleAmountChange(nextValue);
+                  setIsKeypadVisible(false);
+                  setAmountExpression([]);
+                }}
+                onExpressionChange={setAmountExpression}
+              />
             </Animated.View>
           </View>
         )}
@@ -840,15 +769,6 @@ const styles = StyleSheet.create({
   },
   customKeypadBackdrop: {
     flex: 1,
-  },
-  customKeypadBlur: {
-    width: '100%',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    overflow: 'hidden',
-  },
-  customKeypadTint: {
-    ...StyleSheet.absoluteFillObject,
   },
   customKeypadContainer: {
     width: '100%',

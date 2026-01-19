@@ -22,7 +22,6 @@ import { loadCategories } from '@/utils/categories';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { calendarRefreshEvent } from '@/hooks/calendar-events';
 import { updateIncome, softDeleteIncome } from '@/utils/incomes';
-import { BlurView } from 'expo-blur';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -226,7 +225,7 @@ export default function IncomeEditScreen() {
 
   const handleAmountFocus = useCallback(() => {
     Keyboard.dismiss();
-    skipNextDismissRef.current = true;
+    skipNextDismissRef.current = false;
     isMemoFocusedRef.current = false;
     if (!isKeypadVisible) {
       setIsKeypadVisible(true);
@@ -275,19 +274,6 @@ export default function IncomeEditScreen() {
     if (!Number.isFinite(numeric)) return raw;
     return numeric.toLocaleString();
   }, []);
-
-  const getRgbaColor = useCallback((hex: string, opacity: number) => {
-    const normalized = hex.replace('#', '');
-    const r = parseInt(normalized.slice(0, 2), 16);
-    const g = parseInt(normalized.slice(2, 4), 16);
-    const b = parseInt(normalized.slice(4, 6), 16);
-    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
-  }, []);
-
-  const keypadTintColor = useMemo(
-    () => getRgbaColor(AtomicColors.neutral[300], 0.8),
-    [getRgbaColor]
-  );
 
   const getOperatorSymbol = useCallback((operator: CustomKeypadOperator) => {
     switch (operator) {
@@ -717,18 +703,16 @@ export default function IncomeEditScreen() {
               ignoreNextTouchEndRef.current = false;
               return;
             }
-            dismissTimeoutRef.current = setTimeout(() => {
-              if (isScrollingRef.current) return;
-              if (skipNextDismissRef.current) {
-                skipNextDismissRef.current = false;
-                return;
-              }
-              if (isMemoFocusedRef.current) {
-                handleKeypadDismiss();
-                return;
-              }
+            if (isScrollingRef.current) return;
+            if (skipNextDismissRef.current) {
+              skipNextDismissRef.current = false;
+              return;
+            }
+            if (isMemoFocusedRef.current) {
               handleKeypadDismiss();
-            }, 0);
+              return;
+            }
+            handleKeypadDismiss();
           }}
         >
           {/* 카테고리 */}
@@ -842,26 +826,16 @@ export default function IncomeEditScreen() {
               { transform: [{ translateY: keypadTranslateY }] },
             ]}
           >
-            <BlurView
-              intensity={80}
-              tint={colorScheme === 'dark' ? 'dark' : 'light'}
-              style={styles.customKeypadBlur}
-            >
-              <View
-                pointerEvents="none"
-                style={[styles.customKeypadTint, { backgroundColor: keypadTintColor }]}
-              />
-              <CustomKeypad
-                value={amount}
-                onValueChange={handleAmountChange}
-                onConfirm={(nextValue) => {
-                  handleAmountChange(nextValue);
-                  setIsKeypadVisible(false);
-                  setAmountExpression([]);
-                }}
-                onExpressionChange={setAmountExpression}
-              />
-            </BlurView>
+            <CustomKeypad
+              value={amount}
+              onValueChange={handleAmountChange}
+              onConfirm={(nextValue) => {
+                handleAmountChange(nextValue);
+                setIsKeypadVisible(false);
+                setAmountExpression([]);
+              }}
+              onExpressionChange={setAmountExpression}
+            />
           </Animated.View>
         </View>
       )}
@@ -972,15 +946,6 @@ const styles = StyleSheet.create({
   },
   customKeypadBackdrop: {
     flex: 1,
-  },
-  customKeypadBlur: {
-    width: '100%',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    overflow: 'hidden',
-  },
-  customKeypadTint: {
-    ...StyleSheet.absoluteFillObject,
   },
   customKeypadContainer: {
     width: '100%',

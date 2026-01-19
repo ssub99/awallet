@@ -68,17 +68,19 @@ export async function setupDailyReminder(): Promise<void> {
       return;
     }
     
+    // ✅ 앱 시작 시 소비 기록 상태 확인
+    // 소비 기록이 있으면 당일 알림 취소
+    if (await hasExpenseToday()) {
+      await cancelDailyReminder();
+      return;
+    }
+    
     // ✅ 중복 스케줄링 방지: 오늘 이미 스케줄되었는지 확인
     const today = new Date().toDateString();
     const scheduledKey = `daily_reminder_${today}`;
     const alreadyScheduled = await AsyncStorage.getItem(scheduledKey);
     
     if (alreadyScheduled) {
-      return;
-    }
-    
-    // Specific check: 소비 기록 유무
-    if (await hasExpenseToday()) {
       return;
     }
     
@@ -126,8 +128,141 @@ export async function setupDailyReminder(): Promise<void> {
 }
 
 /**
+ * 소비 기록 저장 시 당일 알림 취소
+ */
+export async function cancelDailyReminder(): Promise<void> {
+  try {
+    // Global check: 알림 설정 + 권한
+    if (!(await shouldSendNotification())) {
+      return;
+    }
+    
+    // 당일 알림 취소
+    try {
+      await Notifications.cancelScheduledNotificationAsync('daily_expense_reminder');
+    } catch (error) {
+      // Ignore if not found
+    }
+    
+    // 오늘 날짜의 스케줄링 마킹 제거
+    const today = new Date().toDateString();
+    const scheduledKey = `daily_reminder_${today}`;
+    await AsyncStorage.removeItem(scheduledKey);
+    
+  } catch (error) {
+    console.error('[notification-scheduler] Failed to cancel daily reminder:', error);
+  }
+}
+
+/**
+ * 소비 기록 삭제 시 당일 알림 재스케줄링 (오후 8시 전이면)
+ */
+export async function rescheduleDailyReminderIfNeeded(): Promise<void> {
+  try {
+    // Global check: 알림 설정 + 권한
+    if (!(await shouldSendNotification())) {
+      return;
+    }
+    
+    // 현재 시간 확인
+    const now = new Date();
+    const currentHour = now.getHours();
+    
+    // 오후 8시가 지났으면 스케줄링하지 않음
+    if (currentHour >= 20) {
+      return;
+    }
+    
+    // 소비 기록이 있으면 스케줄링하지 않음
+    if (await hasExpenseToday()) {
+      return;
+    }
+    
+    // 오늘 날짜의 스케줄링 마킹 확인
+    const today = new Date().toDateString();
+    const scheduledKey = `daily_reminder_${today}`;
+    const alreadyScheduled = await AsyncStorage.getItem(scheduledKey);
+    
+    if (alreadyScheduled) {
+      return;
+    }
+    
+    // 기존 일일 알림 확인
+    const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
+    const existingDailyReminder = scheduledNotifications.find(
+      notification => 
+        notification.identifier === 'daily_expense_reminder' ||
+        notification.content.data?.type === 'expense_reminder' ||
+        notification.content.title === '오늘은 어떤 소비들을 하셨나요?'
+    );
+    
+    // 이미 일일 알림이 스케줄되어 있으면 새로 스케줄하지 않음
+    if (existingDailyReminder) {
+      return;
+    }
+    
+    // 당일 오후 8시 알림 스케줄링
+    const today8PM = new Date();
+    today8PM.setHours(20, 0, 0, 0);
+    
+    // 이미 오후 8시가 지났으면 스케줄링하지 않음
+    if (today8PM.getTime() <= now.getTime()) {
+      return;
+    }
+    
+    await Notifications.scheduleNotificationAsync({
+      identifier: 'daily_expense_reminder',
+      content: {
+        title: '오늘은 어떤 소비들을 하셨나요?',
+        body: '시작이 반! 소비 기록을 통해 차근차근 소비습관을 개선해 보세요!',
+        data: { type: 'expense_reminder' },
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        date: today8PM,
+      },
+    });
+    
+    // 스케줄링 완료 마킹
+    await AsyncStorage.setItem(scheduledKey, 'true');
+    
+  } catch (error) {
+    console.error('[notification-scheduler] Failed to reschedule daily reminder:', error);
+  }
+}
+
+/**
+ * 챌린지에 소비 기록이 있는지 확인
+ */
+async function hasChallengeRecords(challengeId: string): Promise<boolean> {
+  try {
+    const storedData = await AsyncStorage.getItem('calendarData');
+    if (!storedData) return false;
+    
+    const calendarData = JSON.parse(storedData);
+    
+    // 모든 날짜의 기록을 확인하여 해당 챌린지 카테고리의 소비 기록이 있는지 체크
+    for (const [dateString, dateData] of Object.entries(calendarData)) {
+      if (dateData && typeof dateData === 'object' && dateData.records && Array.isArray(dateData.records)) {
+        const hasRecord = dateData.records.some((record: any) => {
+          return record.type === 'expense' && record.challengeId === challengeId;
+        });
+        if (hasRecord) {
+          return true;
+        }
+      }
+    }
+    
+    return false;
+  } catch (error) {
+    return false;
+  }
+}
+
+/**
  * 2. 챌린지 현황 알림
  * 소비율 10%, 30%, 50%, 70%, 90% 도달 시, 다음날 오전 9시 30분
+ * ✅ 소비 기록이 있는 경우에만 알림 스케줄링
  */
 export async function notifyChallengeProgress(
   category: string,
@@ -144,6 +279,32 @@ export async function notifyChallengeProgress(
     // ✅ 달성된 챌린지(100% 이상)는 진행현황 알림 불필요
     if (percentage >= 100) {
       return;
+    }
+    
+    // ✅ 소비 기록이 있는지 확인 (소비 기록이 없으면 알림 스케줄링하지 않음)
+    // challengeId로 직접 확인하기 어려우므로, 카테고리로 확인
+    const storedData = await AsyncStorage.getItem('calendarData');
+    if (storedData) {
+      const calendarData = JSON.parse(storedData);
+      let hasRecord = false;
+      
+      for (const [dateString, dateData] of Object.entries(calendarData)) {
+        if (dateData && typeof dateData === 'object' && dateData.records && Array.isArray(dateData.records)) {
+          const found = dateData.records.some((record: any) => {
+            return record.type === 'expense' && record.category === category;
+          });
+          if (found) {
+            hasRecord = true;
+            break;
+          }
+        }
+      }
+      
+      if (!hasRecord) {
+        return; // 소비 기록이 없으면 알림 스케줄링하지 않음
+      }
+    } else {
+      return; // calendarData가 없으면 소비 기록이 없는 것이므로 알림 스케줄링하지 않음
     }
     
     // Check if already sent for this milestone

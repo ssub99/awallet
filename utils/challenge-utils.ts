@@ -273,6 +273,25 @@ export async function checkActiveChallengesNotifications(): Promise<void> {
       // ✅ 성능 최적화: 캐시된 calendarData 재사용
       const status = await getChallengeStatus(challenge, calendarData);
       
+      // ✅ 소비 기록이 있는지 확인 (소비 기록이 없으면 알림 스케줄링하지 않음)
+      let hasRecord = false;
+      for (const [dateString, dateData] of Object.entries(calendarData)) {
+        if (dateData && typeof dateData === 'object' && dateData.records && Array.isArray(dateData.records)) {
+          const found = dateData.records.some((record: any) => {
+            return record.type === 'expense' && record.category === challenge.category;
+          });
+          if (found) {
+            hasRecord = true;
+            break;
+          }
+        }
+      }
+      
+      // 소비 기록이 없으면 알림 스케줄링하지 않음
+      if (!hasRecord) {
+        continue;
+      }
+      
       // ✅ 달성된 챌린지(100% 이상)는 진행현황 알림 불필요
       if (status.percentage >= 100) {
         // 실패 알림과 성공 알림만 체크하고 진행현황 알림은 건너뜀

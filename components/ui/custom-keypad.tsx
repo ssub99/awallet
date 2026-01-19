@@ -414,7 +414,6 @@ export function CustomKeypad({
               const isConfirm = key.type === 'confirm';
               const isAction = key.type === 'operator' || key.type === 'equal' || key.type === 'clear';
               const isDelete = key.type === 'delete';
-              const isDigit = key.type === 'digit';
               const buttonStyle = [
                 styles.keyButton,
                 key.compact && styles.keyButtonCompact,
@@ -426,7 +425,10 @@ export function CustomKeypad({
                   key={`key-${rowIndex}-${keyIndex}`}
                   style={({ pressed }) => [
                     ...buttonStyle,
-                    pressed && (isDigit ? styles.keyButtonDigitPressed : styles.keyButtonPressed),
+                    pressed &&
+                      (isConfirm
+                        ? { backgroundColor: colors.primaryHeavy }
+                        : styles.keyButtonPressed),
                   ]}
                   onPress={key.type === 'delete' ? handleDelete : () => handleKeyPress(key)}
                   onPressIn={key.type === 'delete' ? handleDeletePressIn : undefined}
@@ -443,9 +445,7 @@ export function CustomKeypad({
           </View>
         ))}
       </View>
-      <View style={styles.homeIndicator}>
-        <View style={styles.homeIndicatorLine} />
-      </View>
+      <View style={styles.homeIndicator} />
     </View>
   );
 }
@@ -456,7 +456,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     overflow: 'hidden',
-    backgroundColor: 'transparent',
+    backgroundColor: AtomicColors.neutral[300],
   },
   keypadSection: {
     paddingHorizontal: 8,
@@ -482,10 +482,7 @@ const styles = StyleSheet.create({
     backgroundColor: AtomicColors.coolNeutral[50],
   },
   keyButtonPressed: {
-    opacity: 0.7,
-  },
-  keyButtonDigitPressed: {
-    backgroundColor: AtomicColors.coolNeutral[100],
+    backgroundColor: AtomicColors.neutral[200],
   },
   numberText: {
     ...Typography.headline3.m.regular,
@@ -500,10 +497,5 @@ const styles = StyleSheet.create({
     height: 34,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  homeIndicatorLine: {
-    width: 135,
-    height: 1,
-    backgroundColor: AtomicColors.neutral[100],
   },
 });
