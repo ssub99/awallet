@@ -2,7 +2,7 @@
   "expo": {
     "name": "awallet",
     "slug": "awallet",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "당신의 현명한 소비 기록 awallet",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -12,7 +12,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.ssong.awallet",
-      "buildNumber": "27",
+      "buildNumber": "28",
       "userInterfaceStyle": "light",
       "googleServicesFile": "./ios/awallet/GoogleService-Info.plist",
       "infoPlist": {
@@ -20,10 +20,10 @@
         "CFBundleName": "에이월렛",
         "NSUserNotificationsUsageDescription": "소비 기록 알림과 챌린지 리마인더를 받기 위해 알림 권한이 필요합니다.",
         "ITSAppUsesNonExemptEncryption": false,
-        "CFBundleShortVersionString": "1.0.0",
-        "CFBundleVersion": "27"
+        "CFBundleShortVersionString": "1.0.1",
+        "CFBundleVersion": "28"
       },
-      "runtimeVersion": "1.0.0"
+      "runtimeVersion": "1.0.1"
     },
     "android": {
       "adaptiveIcon": {
@@ -91,7 +91,7 @@
       "url": "https://u.expo.dev/f33074c8-df40-4c61-bcfe-826b22dabd0a",
       "fallbackToCacheTimeout": 0,
       "checkAutomatically": "ON_LOAD",
-      "runtimeVersion": "1.0.0",
+      "runtimeVersion": "1.0.1",
       "channel": "production"
     },
     "extra": {

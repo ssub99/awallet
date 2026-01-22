@@ -17,6 +17,7 @@ import { calendarRefreshEvent } from '@/hooks/calendar-events';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { getCustomMonthInfo, isDateInCustomMonth } from '@/utils/custom-month';
+import { saveMonthlyExpenseToWidget } from '@/utils/widget-data-sync';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -458,6 +459,20 @@ export default function HomeScreen() {
       balance: totalIncome - totalExpense,
     };
   }, [currentYear, currentMonth, calendarData, monthStartDay]);
+
+  // 위젯에 이번달 소비금액 데이터 저장
+  useEffect(() => {
+    if (isReady && financialData) {
+      saveMonthlyExpenseToWidget(
+        financialData.expense,
+        financialData.income,
+        financialData.balance,
+        monthStartDay
+      ).catch((error) => {
+        console.error('[HomeScreen] Failed to save widget data:', error);
+      });
+    }
+  }, [financialData, monthStartDay, isReady]);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
