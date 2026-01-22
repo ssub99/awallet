@@ -22,6 +22,7 @@ import { loadCategories } from '@/utils/categories';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { calendarRefreshEvent } from '@/hooks/calendar-events';
 import { updateIncome, softDeleteIncome } from '@/utils/incomes';
+import { BlurView } from 'expo-blur';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -225,11 +226,15 @@ export default function IncomeEditScreen() {
 
   const handleAmountFocus = useCallback(() => {
     Keyboard.dismiss();
-    skipNextDismissRef.current = false;
+    skipNextDismissRef.current = true;
     isMemoFocusedRef.current = false;
     if (!isKeypadVisible) {
       setIsKeypadVisible(true);
     }
+    // skipNextDismissRef를 짧은 시간 후에 리셋하여 첫 번째 탭에서 바로 닫히도록 함
+    setTimeout(() => {
+      skipNextDismissRef.current = false;
+    }, 100);
     setTimeout(() => {
       if (amountSectionY > 0) {
         const windowHeight = Dimensions.get('window').height;
@@ -274,6 +279,19 @@ export default function IncomeEditScreen() {
     if (!Number.isFinite(numeric)) return raw;
     return numeric.toLocaleString();
   }, []);
+
+  const getRgbaColor = useCallback((hex: string, opacity: number) => {
+    const normalized = hex.replace('#', '');
+    const r = parseInt(normalized.slice(0, 2), 16);
+    const g = parseInt(normalized.slice(2, 4), 16);
+    const b = parseInt(normalized.slice(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+  }, []);
+
+  const keypadTintColor = useMemo(
+    () => getRgbaColor(AtomicColors.neutral[300], 0.8),
+    [getRgbaColor]
+  );
 
   const getOperatorSymbol = useCallback((operator: CustomKeypadOperator) => {
     switch (operator) {
@@ -826,16 +844,26 @@ export default function IncomeEditScreen() {
               { transform: [{ translateY: keypadTranslateY }] },
             ]}
           >
-            <CustomKeypad
-              value={amount}
-              onValueChange={handleAmountChange}
-              onConfirm={(nextValue) => {
-                handleAmountChange(nextValue);
-                setIsKeypadVisible(false);
-                setAmountExpression([]);
-              }}
-              onExpressionChange={setAmountExpression}
-            />
+            <BlurView
+              intensity={16}
+              tint="light"
+              style={styles.customKeypadBlur}
+            >
+              <View
+                pointerEvents="none"
+                style={[styles.customKeypadTint, { backgroundColor: keypadTintColor }]}
+              />
+              <CustomKeypad
+                value={amount}
+                onValueChange={handleAmountChange}
+                onConfirm={(nextValue) => {
+                  handleAmountChange(nextValue);
+                  setIsKeypadVisible(false);
+                  setAmountExpression([]);
+                }}
+                onExpressionChange={setAmountExpression}
+              />
+            </BlurView>
           </Animated.View>
         </View>
       )}
@@ -847,7 +875,13 @@ export default function IncomeEditScreen() {
           backgroundColor: colors.staticWhite,
           paddingBottom: 16 + insets.bottom 
         }
-      ]}>
+      ]}
+      onTouchEnd={() => {
+        if (isKeypadVisible) {
+          handleKeypadDismiss();
+        }
+      }}
+      >
         <Button onPress={handleUpdate}>
           저장
         </Button>
@@ -946,6 +980,15 @@ const styles = StyleSheet.create({
   },
   customKeypadBackdrop: {
     flex: 1,
+  },
+  customKeypadBlur: {
+    width: '100%',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    overflow: 'hidden',
+  },
+  customKeypadTint: {
+    ...StyleSheet.absoluteFillObject,
   },
   customKeypadContainer: {
     width: '100%',
