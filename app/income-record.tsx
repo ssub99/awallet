@@ -23,6 +23,7 @@ import { getCustomMonthInfo } from '@/utils/custom-month';
 import { generateRecordId } from '@/utils/id-generator';
 import { createIncome, type IncomeRecord as IncomeRecordType } from '@/utils/incomes';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BlurView } from 'expo-blur';
 import { useNavigation } from '@react-navigation/native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -168,6 +169,19 @@ export default function IncomeRecordScreen() {
     if (!Number.isFinite(numeric)) return raw;
     return numeric.toLocaleString();
   }, []);
+
+  const getRgbaColor = useCallback((hex: string, opacity: number) => {
+    const normalized = hex.replace('#', '');
+    const r = parseInt(normalized.slice(0, 2), 16);
+    const g = parseInt(normalized.slice(2, 4), 16);
+    const b = parseInt(normalized.slice(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+  }, []);
+
+  const keypadTintColor = useMemo(
+    () => getRgbaColor(AtomicColors.neutral[300], 0.8),
+    [getRgbaColor]
+  );
 
   const getOperatorSymbol = useCallback((operator: CustomKeypadOperator) => {
     switch (operator) {
@@ -635,16 +649,18 @@ export default function IncomeRecordScreen() {
               ignoreNextTouchEndRef.current = false;
               return;
             }
-            if (isScrollingRef.current) return;
-            if (skipNextDismissRef.current) {
-              skipNextDismissRef.current = false;
-              return;
-            }
-            if (isMemoFocusedRef.current) {
+            dismissTimeoutRef.current = setTimeout(() => {
+              if (isScrollingRef.current) return;
+              if (skipNextDismissRef.current) {
+                skipNextDismissRef.current = false;
+                return;
+              }
+              if (isMemoFocusedRef.current) {
+                handleKeypadDismiss();
+                return;
+              }
               handleKeypadDismiss();
-              return;
-            }
-            handleKeypadDismiss();
+            }, 0);
           }}
         >
             {/* 카테고리 */}
@@ -751,16 +767,26 @@ export default function IncomeRecordScreen() {
                 { transform: [{ translateY: keypadTranslateY }] },
               ]}
             >
-              <CustomKeypad
-                value={amount}
-                onValueChange={handleAmountChange}
-                onConfirm={(nextValue) => {
-                  handleAmountChange(nextValue);
-                  setIsKeypadVisible(false);
-                  setAmountExpression([]);
-                }}
-                onExpressionChange={setAmountExpression}
-              />
+              <BlurView
+                intensity={16}
+                tint="light"
+                style={styles.customKeypadBlur}
+              >
+                <View
+                  pointerEvents="none"
+                  style={[styles.customKeypadTint, { backgroundColor: keypadTintColor }]}
+                />
+                <CustomKeypad
+                  value={amount}
+                  onValueChange={handleAmountChange}
+                  onConfirm={(nextValue) => {
+                    handleAmountChange(nextValue);
+                    setIsKeypadVisible(false);
+                    setAmountExpression([]);
+                  }}
+                  onExpressionChange={setAmountExpression}
+                />
+              </BlurView>
             </Animated.View>
           </View>
         )}
@@ -865,6 +891,15 @@ const styles = StyleSheet.create({
   },
   customKeypadBackdrop: {
     flex: 1,
+  },
+  customKeypadBlur: {
+    width: '100%',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    overflow: 'hidden',
+  },
+  customKeypadTint: {
+    ...StyleSheet.absoluteFillObject,
   },
   customKeypadContainer: {
     width: '100%',

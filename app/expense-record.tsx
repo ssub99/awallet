@@ -18,6 +18,7 @@ import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
 import { ModalPopup } from '@/components/ui/modal-popup';
 import { PrepaymentModal } from '@/components/ui/prepayment-modal';
 import { Radio } from '@/components/ui/radio';
+import { BlurView } from 'expo-blur';
 import { SegmentControls } from '@/components/ui/segment-controls';
 import { Switch } from '@/components/ui/switch';
 import { AtomicColors } from '@/constants/atomic-colors';
@@ -29,28 +30,28 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { loadCategories } from '@/utils/categories';
 import { triggerChallengeNotifications } from '@/utils/challenge-utils';
-import { cancelDailyReminder, rescheduleDailyReminderIfNeeded } from '@/utils/notification-scheduler';
 import { getCustomMonthInfo } from '@/utils/custom-month';
 import { createExpense, deleteExpense, deleteExpensesByGroup, getAllExpenses, getExpenseById, updateExpense, type ExpenseRecord as ExpenseRecordType, type PaymentMethod } from '@/utils/expenses';
 import { extractTimestampFromId, generateGroupId, generateRecordId } from '@/utils/id-generator';
 import { getAllIncomes } from '@/utils/incomes';
+import { cancelDailyReminder, rescheduleDailyReminderIfNeeded } from '@/utils/notification-scheduler';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Animated,
-  Dimensions,
-  Easing,
-  Keyboard,
-  NativeSyntheticEvent,
-  Platform,
-  Pressable,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInputKeyPressEventData,
-  View
+    Animated,
+    Dimensions,
+    Easing,
+    Keyboard,
+    NativeSyntheticEvent,
+    Platform,
+    Pressable,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInputKeyPressEventData,
+    View
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -575,6 +576,19 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     return numeric.toLocaleString();
   }, []);
 
+  const getRgbaColor = useCallback((hex: string, opacity: number) => {
+    const normalized = hex.replace('#', '');
+    const r = parseInt(normalized.slice(0, 2), 16);
+    const g = parseInt(normalized.slice(2, 4), 16);
+    const b = parseInt(normalized.slice(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+  }, []);
+
+  const keypadTintColor = useMemo(
+    () => getRgbaColor(AtomicColors.neutral[300], 0.8),
+    [getRgbaColor]
+  );
+
   const getOperatorSymbol = useCallback((operator: CustomKeypadOperator) => {
     switch (operator) {
       case 'add':
@@ -596,6 +610,11 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         ? amountExpression
         : [{ type: 'number', value: amount.replace(/,/g, '') || '0' }];
 
+    // 할부/환불 기록 수정 모드에서 disabled 상태 확인
+    const isAmountDisabled = mode === 'edit' && (editData?.isInstallment || (!!editData?.isRefunded && !editData?.isInstallment));
+    const textColor = isAmountDisabled ? colors.textDisabled : colors.text;
+    const operatorColor = isAmountDisabled ? colors.textDisabled : colors.textNeutral;
+
     return (
       <ScrollView
         horizontal
@@ -607,7 +626,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         {tokensToRender.map((token, index) => {
           if (token.type === 'number') {
             return (
-              <Text key={`num-${index}`} style={[styles.amountExpressionText, { color: colors.text }]}>
+              <Text key={`num-${index}`} style={[styles.amountExpressionText, { color: textColor }]}>
                 {formatAmountDisplay(token.value)}
               </Text>
             );
@@ -619,7 +638,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           return (
             <Text
               key={`op-${index}`}
-              style={[styles.amountExpressionOperator, { color: colors.textNeutral }]}
+              style={[styles.amountExpressionOperator, { color: operatorColor }]}
               accessibilityLabel="연산자"
             >
               {symbol}
@@ -628,7 +647,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         })}
       </ScrollView>
     );
-  }, [amount, amountExpression, colors.text, colors.textNeutral, formatAmountDisplay, getOperatorSymbol]);
+  }, [amount, amountExpression, colors.text, colors.textDisabled, colors.textNeutral, formatAmountDisplay, getOperatorSymbol, mode, editData?.isInstallment, editData?.isRefunded]);
 
   useEffect(() => {
     if (isKeypadVisible) {
@@ -703,47 +722,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   }, [date, showDatePicker]);
   // 반복/할부 설정 바텀시트 표시 여부
   const [showRecurringInstallmentSheet, setShowRecurringInstallmentSheet] = useState<boolean>(false);
-  // 바텀시트 내부에서 사용할 임시 상태 (확인 버튼을 눌러야만 실제 상태에 반영)
-  const [tempIsRecurring, setTempIsRecurring] = useState<boolean>(false);
-  const [tempIsInstallment, setTempIsInstallment] = useState<boolean>(false);
-  const [tempRecurringType, setTempRecurringType] = useState<string>('매월');
-  const [tempTotalMonths, setTempTotalMonths] = useState<number>(2);
-  const [tempHasSelectedInstallment, setTempHasSelectedInstallment] = useState<boolean>(false);
-  const [tempSelectedDay, setTempSelectedDay] = useState<number>(() => {
-    if (mode === 'edit' && editData?.date) {
-      const editDate = new Date(editData.date);
-      return editDate.getDate();
-    }
-    return new Date().getDate();
-  });
-
-  // 바텀시트 내부에서 사용할 임시 weekendOption
-  const [tempWeekendOption, setTempWeekendOption] = useState<'weekend' | 'friday' | 'monday'>('weekend');
-
-  // 바텀시트가 열릴 때 현재 상태를 임시 상태로 복사
-  useEffect(() => {
-    if (showRecurringInstallmentSheet) {
-      setTempIsRecurring(isRecurring);
-      setTempIsInstallment(isInstallment);
-      setTempRecurringType(recurringType);
-      setTempTotalMonths(totalMonths);
-      setTempHasSelectedInstallment(hasSelectedInstallment);
-      setTempSelectedDay(selectedDay);
-      setTempWeekendOption(weekendOption);
-    }
-  }, [showRecurringInstallmentSheet, isRecurring, isInstallment, recurringType, totalMonths, hasSelectedInstallment, selectedDay, weekendOption]);
-
-  // 확인 버튼 클릭 시 임시 상태를 실제 상태에 적용
-  const handleRecurringInstallmentConfirm = useCallback(() => {
-    setIsRecurring(tempIsRecurring);
-    setIsInstallment(tempIsInstallment);
-    setRecurringType(tempRecurringType);
-    setTotalMonths(tempTotalMonths);
-    setHasSelectedInstallment(tempHasSelectedInstallment);
-    setSelectedDay(tempSelectedDay);
-    setWeekendOption(tempWeekendOption);
-    setShowRecurringInstallmentSheet(false);
-  }, [tempIsRecurring, tempIsInstallment, tempRecurringType, tempTotalMonths, tempHasSelectedInstallment, tempSelectedDay, tempWeekendOption]);
   const [monthStartDay, setMonthStartDay] = useState(1);
   const [showDayPicker, setShowDayPicker] = useState<boolean>(false);
   const [tempSelectedDate, setTempSelectedDate] = useState<string>(date.replace(/\./g, '-'));
@@ -1725,18 +1703,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   };
 
   const handleDatePress = () => {
-    // 수정 화면에서는 날짜 변경 불가
-    if (mode === 'edit') {
-      showToast('변경할 수 없습니다. 새로 생성해 주세요.');
-      return;
-    }
     // 이미 열려있으면 무시
     if (showDatePicker) {
       return;
     }
     // 키패드가 열려있으면 닫기
     Keyboard.dismiss();
-    // 일반 생성 흐름: 캘린더 바텀시트를 열어 날짜 선택
+    // 캘린더 바텀시트를 열어 날짜 선택 (생성/수정 모드 모두 허용)
     setTempSelectedDate(date.replace(/\./g, '-'));
     setShowDatePicker(true);
   };
@@ -4578,28 +4551,37 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         {isKeypadMounted && (
           <View style={styles.customKeypadOverlay} pointerEvents="box-none">
             <Animated.View
-              pointerEvents="none"
-              style={[
-                styles.customKeypadBackdrop,
-                { opacity: keypadBackdropOpacity },
-              ]}
-            />
-            <Animated.View
               style={[
                 styles.customKeypadContainer,
                 { transform: [{ translateY: keypadTranslateY }] },
               ]}
+              pointerEvents="box-none"
             >
-              <CustomKeypad
-                value={amount}
-                onValueChange={handleAmountChange}
-                onConfirm={(nextValue) => {
-                  handleAmountChange(nextValue);
-                  setIsKeypadVisible(false);
-                  setAmountExpression([]);
-                }}
-                onExpressionChange={setAmountExpression}
-              />
+              <BlurView
+                intensity={16}
+                tint="light"
+                style={styles.customKeypadBlur}
+              >
+                <View
+                  pointerEvents="none"
+                  style={[
+                    styles.customKeypadTint,
+                    { backgroundColor: keypadTintColor },
+                  ]}
+                />
+                <View style={styles.customKeypadContent} pointerEvents="auto">
+                  <CustomKeypad
+                    value={amount}
+                    onValueChange={handleAmountChange}
+                    onConfirm={(nextValue) => {
+                      handleAmountChange(nextValue);
+                      setIsKeypadVisible(false);
+                      setAmountExpression([]);
+                    }}
+                    onExpressionChange={setAmountExpression}
+                  />
+                </View>
+              </BlurView>
             </Animated.View>
           </View>
         )}
@@ -4713,7 +4695,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         visible={showRecurringInstallmentSheet}
         title="반복/할부 설정"
         onClose={() => setShowRecurringInstallmentSheet(false)}
-        onConfirm={handleRecurringInstallmentConfirm}
+        onConfirm={() => setShowRecurringInstallmentSheet(false)}
         confirmText="확인"
         closeOnBackdrop={true}
         style={{ maxHeight: Dimensions.get('window').height * 0.8 }}
@@ -4760,29 +4742,29 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                     }}
                   >
                     <Switch
-                      value={tempIsRecurring}
+                      value={isRecurring}
                       onValueChange={(value) => {
                         if (mode === 'edit') {
                           return;
                         }
-                        setTempIsRecurring(value);
+                        setIsRecurring(value);
                         if (!value) {
                           // 정기 지출 OFF 시 관련 상태 초기화
-                          setTempTotalMonths(2);
+                          setTotalMonths(2);
                           // 정기 지출을 선택했던 기록 초기화 (할부 옵션이 선택된 적이 있으면 할부 Chip 유지)
-                          if (!tempHasSelectedInstallment) {
-                            setTempRecurringType('매월');
+                          if (!hasSelectedInstallment) {
+                            setRecurringType('매월');
                           }
                         } else {
                           // 정기 지출 ON 시 할부 옵션 끄기 (상호 배타적)
-                          setTempIsInstallment(false);
-                          setTempHasSelectedInstallment(false); // 정기 옵션 선택 시 할부 선택 기록 초기화
+                          setIsInstallment(false);
+                          setHasSelectedInstallment(false); // 정기 옵션 선택 시 할부 선택 기록 초기화
                           // 정기 지출 ON 시 기본 반복기간을 매일로 설정
-                          setTempRecurringType('매일');
+                          setRecurringType('매일');
                           // 정기 지출 ON 시 선택한 날짜의 일자로 selectedDay 설정
                           if (params.selectedDate) {
                             const selectedDateObj = new Date(params.selectedDate);
-                            setTempSelectedDay(selectedDateObj.getDate());
+                            setSelectedDay(selectedDateObj.getDate());
                           }
                         }
                       }}
@@ -4820,21 +4802,21 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                     }}
                   >
                     <Switch
-                      value={tempIsInstallment}
+                      value={isInstallment}
                       onValueChange={(value) => {
                         if (mode === 'edit') {
                           return;
                         }
 
-                        setTempIsInstallment(value);
+                        setIsInstallment(value);
                         if (value) {
                           // 할부 옵션 ON 시 정기 옵션 끄기 (상호 배타적)
-                          setTempIsRecurring(false);
-                          setTempHasSelectedInstallment(true); // 할부 옵션을 선택했음을 기록
+                          setIsRecurring(false);
+                          setHasSelectedInstallment(true); // 할부 옵션을 선택했음을 기록
                           // 할부 옵션 ON 시 선택한 날짜의 일자로 selectedDay 설정
                           if (params.selectedDate) {
                             const selectedDateObj = new Date(params.selectedDate);
-                            setTempSelectedDay(selectedDateObj.getDate());
+                            setSelectedDay(selectedDateObj.getDate());
                           }
                         } else {
                           // 할부 옵션 OFF 시 Chip 값은 유지하고 상태만 disabled로 변경
@@ -4856,10 +4838,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           {/* 반복 기간 / 할부 기간 */}
           <View style={styles.sheetSection}>
             <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
-              {tempIsInstallment ? '할부 기간' : '반복 기간'}
+              {isInstallment ? '할부 기간' : '반복 기간'}
             </Text>
             <View style={styles.chipContainer}>
-              {tempIsRecurring || (!tempIsRecurring && !tempIsInstallment && !tempHasSelectedInstallment) ? (
+              {isRecurring || (!isRecurring && !isInstallment && !hasSelectedInstallment) ? (
                 // 정기 옵션 ON 또는 디폴트 상태 (할부 옵션을 선택한 적이 없을 때): 매일, 매주, 2주, 3주, 4주, 매월, 2개월 마다, 4개월 마다, 6개월 마다, 주중, 주말
                 <>
                   {(isPeriodExpanded ? recurringPeriodOptions : recurringPeriodOptions.slice(0, 6)).map((label) => (
@@ -4867,27 +4849,27 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                       key={label}
                       type="option"
                       label={label}
-                      active={tempRecurringType === label}
-                      disabled={!tempIsRecurring && !tempIsInstallment}
+                      active={recurringType === label}
+                      disabled={!isRecurring && !isInstallment}
                       onPress={() => {
-                        if (!tempIsRecurring && !tempIsInstallment) return;
+                        if (!isRecurring && !isInstallment) return;
                         if (mode === 'edit' && editData?.isRecurring) {
                           setRecurringToastMessage('변경할 수 없습니다. 새로 생성해 주세요.');
                           setShowRecurringToast(true);
                           return;
                         }
-                        setTempRecurringType(label);
+                        setRecurringType(label);
                         // 정기 옵션의 반복 형태에 따른 totalMonths 매핑
                         // 매일, 매주, 2주, 3주, 4주, 주중, 주말은 recurringType으로만 관리 (표기용, totalMonths와 무관)
                         // 매월, 2개월 마다, 4개월 마다, 6개월 마다는 totalMonths로 매핑
                         if (label === '매월') {
-                          setTempTotalMonths(1);
+                          setTotalMonths(1);
                         } else if (label === '2개월 마다') {
-                          setTempTotalMonths(2);
+                          setTotalMonths(2);
                         } else if (label === '4개월 마다') {
-                          setTempTotalMonths(4);
+                          setTotalMonths(4);
                         } else if (label === '6개월 마다') {
-                          setTempTotalMonths(6);
+                          setTotalMonths(6);
                         }
                         // 매일, 매주, 2주, 3주, 4주, 주중, 주말은 recurringType에 텍스트만 저장 (표기용)
                       }}
@@ -4904,16 +4886,16 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                       key={months}
                       type="option"
                       label={`${months}개월`}
-                      active={tempTotalMonths === months}
-                      disabled={!tempIsRecurring && !tempIsInstallment}
+                      active={totalMonths === months}
+                      disabled={!isRecurring && !isInstallment}
                       onPress={() => {
-                        if (!tempIsRecurring && !tempIsInstallment) return;
+                        if (!isRecurring && !isInstallment) return;
                         if (mode === 'edit' && editData?.isInstallment) {
                           setRecurringToastMessage('변경할 수 없습니다. 새로 생성해 주세요.');
                           setShowRecurringToast(true);
                           return;
                         }
-                        setTempTotalMonths(months);
+                        setTotalMonths(months);
                       }}
                       style={styles.periodChip}
                     />
@@ -4924,7 +4906,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             <Accordion
               expanded={isPeriodExpanded}
               onToggle={setIsPeriodExpanded}
-              disabled={!tempIsRecurring && !tempIsInstallment}
+              disabled={!isRecurring && !isInstallment}
             />
           </View>
 
@@ -4938,30 +4920,30 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               <Pressable 
                 style={styles.radioRow}
                 onPress={() => {
-                  if (!tempIsRecurring && !tempIsInstallment) return;
-                  if (tempIsRecurring && ['매일', '주중', '주말'].includes(tempRecurringType)) {
+                  if (!isRecurring && !isInstallment) return;
+                  if (isRecurring && ['매일', '주중', '주말'].includes(recurringType)) {
                     setShowWeekendOptionToast(true);
                     return;
                   }
-                  setTempWeekendOption('weekend');
+                  setWeekendOption('weekend');
                 }}
-                disabled={!tempIsRecurring && !tempIsInstallment}
+                disabled={!isRecurring && !isInstallment}
               >
                 <Text style={[styles.weekendOptionText, { color: colors.text }]}>
                   관계없이 주말 기록
                 </Text>
                 <Radio
-                  checked={tempWeekendOption === 'weekend'}
+                  checked={weekendOption === 'weekend'}
                   onPress={() => {
-                    if (!tempIsRecurring && !tempIsInstallment) return;
-                    if (tempIsRecurring && ['매일', '주중', '주말'].includes(tempRecurringType)) {
+                    if (!isRecurring && !isInstallment) return;
+                    if (isRecurring && ['매일', '주중', '주말'].includes(recurringType)) {
                       setShowWeekendOptionToast(true);
                       return;
                     }
-                    setTempWeekendOption('weekend');
+                    setWeekendOption('weekend');
                   }}
                   label={false}
-                  disabled={(!tempIsRecurring && !tempIsInstallment) || (tempIsRecurring && ['매일', '주중', '주말'].includes(tempRecurringType))}
+                  disabled={(!isRecurring && !isInstallment) || (isRecurring && ['매일', '주중', '주말'].includes(recurringType))}
                 />
               </Pressable>
 
@@ -4972,30 +4954,30 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               <Pressable 
                 style={styles.radioRow}
                 onPress={() => {
-                  if (!tempIsRecurring && !tempIsInstallment) return;
-                  if (tempIsRecurring && ['매일', '주중', '주말'].includes(tempRecurringType)) {
+                  if (!isRecurring && !isInstallment) return;
+                  if (isRecurring && ['매일', '주중', '주말'].includes(recurringType)) {
                     setShowWeekendOptionToast(true);
                     return;
                   }
-                  setTempWeekendOption('friday');
+                  setWeekendOption('friday');
                 }}
-                disabled={!tempIsRecurring && !tempIsInstallment}
+                disabled={!isRecurring && !isInstallment}
               >
                 <Text style={[styles.weekendOptionText, { color: colors.text }]}>
                   금주 금요일 기록
                 </Text>
                 <Radio
-                  checked={tempWeekendOption === 'friday'}
+                  checked={weekendOption === 'friday'}
                   onPress={() => {
-                    if (!tempIsRecurring && !tempIsInstallment) return;
-                    if (tempIsRecurring && ['매일', '주중', '주말'].includes(tempRecurringType)) {
+                    if (!isRecurring && !isInstallment) return;
+                    if (isRecurring && ['매일', '주중', '주말'].includes(recurringType)) {
                       setShowWeekendOptionToast(true);
                       return;
                     }
-                    setTempWeekendOption('friday');
+                    setWeekendOption('friday');
                   }}
                   label={false}
-                  disabled={(!tempIsRecurring && !tempIsInstallment) || (tempIsRecurring && ['매일', '주중', '주말'].includes(tempRecurringType))}
+                  disabled={(!isRecurring && !isInstallment) || (isRecurring && ['매일', '주중', '주말'].includes(recurringType))}
                 />
               </Pressable>
 
@@ -5006,30 +4988,30 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               <Pressable 
                 style={styles.radioRow}
                 onPress={() => {
-                  if (!tempIsRecurring && !tempIsInstallment) return;
-                  if (tempIsRecurring && ['매일', '주중', '주말'].includes(tempRecurringType)) {
+                  if (!isRecurring && !isInstallment) return;
+                  if (isRecurring && ['매일', '주중', '주말'].includes(recurringType)) {
                     setShowWeekendOptionToast(true);
                     return;
                   }
-                  setTempWeekendOption('monday');
+                  setWeekendOption('monday');
                 }}
-                disabled={!tempIsRecurring && !tempIsInstallment}
+                disabled={!isRecurring && !isInstallment}
               >
                 <Text style={[styles.weekendOptionText, { color: colors.text }]}>
                   차주 월요일 기록
                 </Text>
                 <Radio
-                  checked={tempWeekendOption === 'monday'}
+                  checked={weekendOption === 'monday'}
                   onPress={() => {
-                    if (!tempIsRecurring && !tempIsInstallment) return;
-                    if (tempIsRecurring && ['매일', '주중', '주말'].includes(tempRecurringType)) {
+                    if (!isRecurring && !isInstallment) return;
+                    if (isRecurring && ['매일', '주중', '주말'].includes(recurringType)) {
                       setShowWeekendOptionToast(true);
                       return;
                     }
-                    setTempWeekendOption('monday');
+                    setWeekendOption('monday');
                   }}
                   label={false}
-                  disabled={(!tempIsRecurring && !tempIsInstallment) || (tempIsRecurring && ['매일', '주중', '주말'].includes(tempRecurringType))}
+                  disabled={(!isRecurring && !isInstallment) || (isRecurring && ['매일', '주중', '주말'].includes(recurringType))}
                 />
               </Pressable>
             </View>
@@ -5446,9 +5428,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             value: day,
           };
         })}
-        selectedDay={tempSelectedDay}
+        selectedDay={selectedDay}
         onDayChange={(day) => {
-          setTempSelectedDay(day);
+          setSelectedDay(day);
           // 선택한 일자로 날짜 업데이트
           // 오늘만 수정 모드: 실제 저장된 날짜의 년월 기준으로 일자만 변경
           let year, month;
@@ -5499,8 +5481,17 @@ const styles = StyleSheet.create({
     zIndex: 100,
     elevation: 100,
   },
-  customKeypadBackdrop: {
-    flex: 1,
+  customKeypadBlur: {
+    width: '100%',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    overflow: 'hidden',
+  },
+  customKeypadTint: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  customKeypadContent: {
+    width: '100%',
   },
   customKeypadContainer: {
     width: '100%',

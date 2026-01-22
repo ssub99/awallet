@@ -155,11 +155,6 @@ const evaluateTokens = (tokens: ExpressionToken[]) => {
     }
   }
 
-  // 결과가 0보다 작으면 0으로 반환
-  if (result < 0) {
-    result = 0;
-  }
-
   return formatResultNumber(result);
 };
 
@@ -419,6 +414,7 @@ export function CustomKeypad({
               const isConfirm = key.type === 'confirm';
               const isAction = key.type === 'operator' || key.type === 'equal' || key.type === 'clear';
               const isDelete = key.type === 'delete';
+              const isDigit = key.type === 'digit';
               const buttonStyle = [
                 styles.keyButton,
                 key.compact && styles.keyButtonCompact,
@@ -430,10 +426,7 @@ export function CustomKeypad({
                   key={`key-${rowIndex}-${keyIndex}`}
                   style={({ pressed }) => [
                     ...buttonStyle,
-                    pressed &&
-                      (isConfirm
-                        ? { backgroundColor: colors.primaryHeavy }
-                        : styles.keyButtonPressed),
+                    pressed && (isDigit ? styles.keyButtonDigitPressed : styles.keyButtonPressed),
                   ]}
                   onPress={key.type === 'delete' ? handleDelete : () => handleKeyPress(key)}
                   onPressIn={key.type === 'delete' ? handleDeletePressIn : undefined}
@@ -450,7 +443,9 @@ export function CustomKeypad({
           </View>
         ))}
       </View>
-      <View style={styles.homeIndicator} />
+      <View style={styles.homeIndicator}>
+        <View style={styles.homeIndicatorLine} />
+      </View>
     </View>
   );
 }
@@ -461,7 +456,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     overflow: 'hidden',
-    backgroundColor: AtomicColors.neutral[300],
+    backgroundColor: 'transparent',
   },
   keypadSection: {
     paddingHorizontal: 8,
@@ -487,7 +482,10 @@ const styles = StyleSheet.create({
     backgroundColor: AtomicColors.coolNeutral[50],
   },
   keyButtonPressed: {
-    backgroundColor: AtomicColors.neutral[200],
+    opacity: 0.7,
+  },
+  keyButtonDigitPressed: {
+    backgroundColor: AtomicColors.coolNeutral[100],
   },
   numberText: {
     ...Typography.headline3.m.regular,
@@ -502,5 +500,10 @@ const styles = StyleSheet.create({
     height: 34,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  homeIndicatorLine: {
+    width: 135,
+    height: 1,
+    backgroundColor: AtomicColors.neutral[100],
   },
 });

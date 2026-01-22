@@ -24,6 +24,7 @@ import { createChallenges, getAllChallenges, type ChallengeRecord } from '@/util
 import { generateGroupId, generateRecordId } from '@/utils/id-generator';
 import { cancelChallengeProgressNotifications, notifyChallengeFailure, notifyChallengeProgress, notifyChallengeSuccess } from '@/utils/notification-scheduler';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BlurView } from 'expo-blur';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Dimensions, Easing, Keyboard, Pressable, ScrollView, StatusBar, StyleSheet, Text, TouchableWithoutFeedback, View } from 'react-native';
@@ -188,6 +189,19 @@ export default function ChallengeCreateScreen() {
     if (!Number.isFinite(numeric)) return raw;
     return numeric.toLocaleString();
   }, []);
+
+  const getRgbaColor = useCallback((hex: string, opacity: number) => {
+    const normalized = hex.replace('#', '');
+    const r = parseInt(normalized.slice(0, 2), 16);
+    const g = parseInt(normalized.slice(2, 4), 16);
+    const b = parseInt(normalized.slice(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+  }, []);
+
+  const keypadTintColor = useMemo(
+    () => getRgbaColor(AtomicColors.neutral[300], 0.8),
+    [getRgbaColor]
+  );
 
   const getOperatorSymbol = useCallback((operator: CustomKeypadOperator) => {
     switch (operator) {
@@ -674,16 +688,26 @@ export default function ChallengeCreateScreen() {
                 { transform: [{ translateY: keypadTranslateY }] },
               ]}
             >
-              <CustomKeypad
-                value={targetAmount}
-                onValueChange={handleAmountChange}
-                onConfirm={(nextValue) => {
-                  handleAmountChange(nextValue);
-                  setIsKeypadVisible(false);
-                  setAmountExpression([]);
-                }}
-                onExpressionChange={setAmountExpression}
-              />
+              <BlurView
+                intensity={16}
+                tint="light"
+                style={styles.customKeypadBlur}
+              >
+                <View
+                  pointerEvents="none"
+                  style={[styles.customKeypadTint, { backgroundColor: keypadTintColor }]}
+                />
+                <CustomKeypad
+                  value={targetAmount}
+                  onValueChange={handleAmountChange}
+                  onConfirm={(nextValue) => {
+                    handleAmountChange(nextValue);
+                    setIsKeypadVisible(false);
+                    setAmountExpression([]);
+                  }}
+                  onExpressionChange={setAmountExpression}
+                />
+              </BlurView>
             </Animated.View>
           </View>
         )}
@@ -769,6 +793,15 @@ const styles = StyleSheet.create({
   },
   customKeypadBackdrop: {
     flex: 1,
+  },
+  customKeypadBlur: {
+    width: '100%',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    overflow: 'hidden',
+  },
+  customKeypadTint: {
+    ...StyleSheet.absoluteFillObject,
   },
   customKeypadContainer: {
     width: '100%',
