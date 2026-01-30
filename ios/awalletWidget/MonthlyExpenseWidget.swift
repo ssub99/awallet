@@ -66,16 +66,17 @@ struct MonthlyExpenseProvider: TimelineProvider {
   }
 }
 
-// MARK: - Widget typography (홈/잠금 통일: 타이틀 14, 본문 18)
+// MARK: - Widget typography (홈/잠금 통일: 타이틀 12, 본문 21)
 private enum WidgetFont {
-  static let titleSize: CGFloat = 14
-  static let bodySize: CGFloat = 18
+  static let titleSize: CGFloat = 12
+  static let bodySize: CGFloat = 21
 }
 
-// MARK: - Widget 여백 (상하좌우)
+// MARK: - Widget 여백 (상하좌우, 타이틀-본문 간격)
 private enum WidgetPadding {
   static let horizontal: CGFloat = 16
-  static let vertical: CGFloat = 10
+  static let vertical: CGFloat = 8
+  static let titleBodySpacing: CGFloat = 4
 }
 
 // MARK: - View
@@ -102,7 +103,7 @@ struct MonthlyExpenseWidgetEntryView: View {
   // iOS 17+ containerBackground 사용 시 SpringBoard 호환성 개선 (시뮬레이터 크래시 완화 목적)
   @ViewBuilder
   private var homeScreenView: some View {
-    let content = VStack(alignment: .leading, spacing: 2) {
+    let content = VStack(alignment: .leading, spacing: WidgetPadding.titleBodySpacing) {
       Text("이번달 소비")
         .font(.system(size: WidgetFont.titleSize, weight: .medium))
         .foregroundColor(Color(white: 0.4))
@@ -130,7 +131,7 @@ struct MonthlyExpenseWidgetEntryView: View {
   // 잠금화면 - 사각 (라벨 + 금액, iOS 16+)
   @available(iOS 16.0, *)
   private var accessoryRectangularView: some View {
-    VStack(alignment: .leading, spacing: 2) {
+    VStack(alignment: .leading, spacing: WidgetPadding.titleBodySpacing) {
       Text("이번달 소비")
         .font(.system(size: WidgetFont.titleSize))
         .foregroundColor(.secondary)
