@@ -4271,24 +4271,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                               <Pressable 
                                 style={[styles.prepaymentRefundButton, { marginLeft: 0 }]}
                                 onPress={() => {
-                                  // 할부 기록일자 검증 (선결제 처리 시에만 적용)
-                                  if (editData?.date) {
-                                    // 할부 기록일자를 Date 객체로 변환
-                                    const recordDateStr = editData.date.replace(/\./g, '-');
-                                    const recordDate = new Date(recordDateStr);
-                                    const today = new Date();
-                                    // 날짜만 비교 (시간 제외)
-                                    today.setHours(0, 0, 0, 0);
-                                    recordDate.setHours(0, 0, 0, 0);
-                                    
-                                    // 할부 기록일자가 당일 또는 이전이면 토스트 표시
-                                    if (recordDate <= today) {
-                                      setPrepaymentToastMessage('당일 또는 이전 기록은 선납 적용이 불가합니다.');
-                                      setShowPrepaymentToast(true);
-                                      return;
-                                    }
-                                  }
-                                  // 검증 통과 시 선결제 모달 열기
+                                  // 선결제 모달 열기 (날짜 제한 없이 허용)
                                   // 선결제 모달 열 때 현재 일자로 날짜 초기화
                                   const today = new Date();
                                   const todayFormatted = `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, '0')}.${String(today.getDate()).padStart(2, '0')}`;
@@ -4622,11 +4605,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         <CalendarDaySelect
           selectedDate={tempSelectedDate}
                 autoCenterOnSelectedDate={false}
-                disablePastDates={true}
-                onInvalidPastDate={() => {
-                  setDateSelectToastMessage('금일 보다 이전일은 선택할 수 없습니다.');
-                  setShowDateSelectToast(true);
-                }}
+                disablePastDates={false}
           onDayPress={(dateString) => {
             setTempSelectedDate(dateString);
           }}
