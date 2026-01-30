@@ -59,6 +59,10 @@ app-example
 !/ios/awallet/*.storyboard
 !/ios/awallet/Images.xcassets
 !/ios/awallet/Supporting
+!/ios/awalletWidget/
+!/ios/awalletWidget/**
+!/ios/awalletStageWidget/
+!/ios/awalletStageWidget/**
 /ios/awallet.xcodeproj/*
 !/ios/awallet.xcodeproj/project.pbxproj
 /android
