@@ -17,10 +17,11 @@ import { calendarRefreshEvent } from '@/hooks/calendar-events';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { getCustomMonthInfo, isDateInCustomMonth } from '@/utils/custom-month';
+import { saveMonthlyExpenseToWidget } from '@/utils/widget-data-sync';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, AppState, AppStateStatus, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, AppState, AppStateStatus, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function HomeScreen() {
@@ -318,6 +319,28 @@ export default function HomeScreen() {
     init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isReady]);
+
+  // iOS 위젯에 이번달 소비 요약 데이터 동기화
+  useEffect(() => {
+    if (Platform.OS !== 'ios') {
+      return;
+    }
+
+    if (!isReady) {
+      return;
+    }
+
+    // financialData는 현재 커스텀 월 기준 합산 데이터
+    saveMonthlyExpenseToWidget(
+      financialData.expense,
+      financialData.income,
+      financialData.balance,
+      monthStartDay
+    ).catch((error) => {
+      // 위젯 연동 실패는 앱 주요 플로우를 막지 않도록 조용히 로깅만 수행
+      console.warn('[HomeScreen] Failed to sync monthly data to widget:', error);
+    });
+  }, [financialData, monthStartDay, isReady]);
 
   // 앱이 백그라운드에서 포그라운드로 돌아올 때 날짜 변경 여부를 감지하여 오늘로 리셋
   const handleAppStateChange = useCallback(

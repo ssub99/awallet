@@ -48,11 +48,13 @@ app-example
 !/ios/Podfile
 !/ios/Podfile.lock
 !/ios/awallet
+!/ios/WidgetDataSync.swift
 /ios/awallet/*
 !/ios/awallet/Info.plist
 !/ios/awallet/*.entitlements
 !/ios/awallet/*.xcprivacy
 !/ios/awallet/AppDelegate.swift
+!/ios/awallet/WidgetDataSync.m
 !/ios/awallet/*-Bridging-Header.h
 !/ios/awallet/*.storyboard
 !/ios/awallet/Images.xcassets

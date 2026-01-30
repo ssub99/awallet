@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 54;
+	objectVersion = 70;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -12,6 +12,10 @@
 		3D0A3631DE6C1F98C7ECD681 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0929219E7B8A156D06B81EFE /* ExpoModulesProvider.swift */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
 		517C89AFD34233D1D056F82B /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 3CE626B2D454B28EADA16D98 /* PrivacyInfo.xcprivacy */; };
+		8EAA703A2F2BAA3A00DB6CE3 /* WidgetDataSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EAA70392F2BAA3A00DB6CE3 /* WidgetDataSync.swift */; };
+		8EAA703B2F2BAA3A00DB6CE3 /* WidgetDataSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EAA70392F2BAA3A00DB6CE3 /* WidgetDataSync.swift */; };
+		8EAA70412F2BAA3B00DB6CE3 /* WidgetDataSync.m in Sources */ = {isa = PBXBuildFile; fileRef = 8EAA70402F2BAA3B00DB6CE3 /* WidgetDataSync.m */; };
+		8EAA70422F2BAA3B00DB6CE3 /* WidgetDataSync.m in Sources */ = {isa = PBXBuildFile; fileRef = 8EAA70402F2BAA3B00DB6CE3 /* WidgetDataSync.m */; };
 		8EB5A1C72F22227800044D63 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 		8EB5A1C82F22227800044D63 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0929219E7B8A156D06B81EFE /* ExpoModulesProvider.swift */; };
 		8EB5A1CA2F22227800044D63 /* libPods-awallet.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 70D25E8C596F28E10FBE4934 /* libPods-awallet.a */; };
@@ -20,10 +24,58 @@
 		8EB5A1CF2F22227800044D63 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
 		8EB5A1D02F22227800044D63 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = B3559F5509534AFDBE743BFF /* GoogleService-Info.plist */; };
 		8EB5A1D12F22227800044D63 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 3CE626B2D454B28EADA16D98 /* PrivacyInfo.xcprivacy */; };
+		8ED3A1042F2B565A009707D6 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8ED3A1032F2B565A009707D6 /* WidgetKit.framework */; };
+		8ED3A1062F2B565A009707D6 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8ED3A1052F2B565A009707D6 /* SwiftUI.framework */; };
+		8ED3A1172F2B565D009707D6 /* awalletWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8ED3A1022F2B565A009707D6 /* awalletWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		8ED3A13F2F2B569B009707D6 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8ED3A1032F2B565A009707D6 /* WidgetKit.framework */; };
+		8ED3A1402F2B569B009707D6 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8ED3A1052F2B565A009707D6 /* SwiftUI.framework */; };
+		8ED3A1512F2B569E009707D6 /* awalletStageWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8ED3A13E2F2B569B009707D6 /* awalletStageWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 		F12A3352EC7A42C384ED2E14 /* libPods-awallet.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 70D25E8C596F28E10FBE4934 /* libPods-awallet.a */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		8ED3A1152F2B565D009707D6 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 83CBB9F71A601CBA00E9B192 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8ED3A1012F2B565A009707D6;
+			remoteInfo = awalletWidgetExtension;
+		};
+		8ED3A14F2F2B569E009707D6 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 83CBB9F71A601CBA00E9B192 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8ED3A13D2F2B569B009707D6;
+			remoteInfo = awalletStageWidgetExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		8ED3A1182F2B565D009707D6 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				8ED3A1172F2B565D009707D6 /* awalletWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8ED3A1562F2B569E009707D6 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				8ED3A1512F2B569E009707D6 /* awalletStageWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		0929219E7B8A156D06B81EFE /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-awallet/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
@@ -33,8 +85,16 @@
 		3CE626B2D454B28EADA16D98 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = awallet/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		70D25E8C596F28E10FBE4934 /* libPods-awallet.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-awallet.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		777F80A0649A37E25716F8CA /* Pods-awallet.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-awallet.release.xcconfig"; path = "Target Support Files/Pods-awallet/Pods-awallet.release.xcconfig"; sourceTree = "<group>"; };
+		8EAA70392F2BAA3A00DB6CE3 /* WidgetDataSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetDataSync.swift; sourceTree = "<group>"; };
+		8EAA70402F2BAA3B00DB6CE3 /* WidgetDataSync.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = WidgetDataSync.m; path = awallet/WidgetDataSync.m; sourceTree = "<group>"; };
 		8EB5A1DC2F22227800044D63 /* awallet-stage.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "awallet-stage.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		8EB5A1EA2F2222A00044D63 /* Info-stage.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = "Info-stage.plist"; path = "awallet/Info-stage.plist"; sourceTree = "<group>"; };
+		8ED3A1022F2B565A009707D6 /* awalletWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = awalletWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		8ED3A1032F2B565A009707D6 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		8ED3A1052F2B565A009707D6 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		8ED3A11D2F2B5668009707D6 /* awalletWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = awalletWidgetExtension.entitlements; sourceTree = "<group>"; };
+		8ED3A13E2F2B569B009707D6 /* awalletStageWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = awalletStageWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		8ED3A1572F2B56AC009707D6 /* awalletStageWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = awalletStageWidgetExtension.entitlements; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = awallet/SplashScreen.storyboard; sourceTree = "<group>"; };
 		B3559F5509534AFDBE743BFF /* GoogleService-Info.plist */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = text.plist.xml; name = "GoogleService-Info.plist"; path = "awallet/GoogleService-Info.plist"; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
@@ -43,6 +103,36 @@
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = awallet/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* awallet-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "awallet-Bridging-Header.h"; path = "awallet/awallet-Bridging-Header.h"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		8EAA6C5D2F2B599300DB6CE3 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				AppIntent.swift,
+				awalletStageWidgetBundle.swift,
+				awalletStageWidgetLiveActivity.swift,
+				Info.plist,
+			);
+			target = 8ED3A13D2F2B569B009707D6 /* awalletStageWidgetExtension */;
+		};
+		8EAA6C5E2F2B599300DB6CE3 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				AppIntent.swift,
+				awalletWidget.swift,
+				awalletWidgetBundle.swift,
+				awalletWidgetControl.swift,
+				awalletWidgetLiveActivity.swift,
+				Info.plist,
+			);
+			target = 8ED3A1012F2B565A009707D6 /* awalletWidgetExtension */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		8ED3A1072F2B565A009707D6 /* awalletWidget */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (8EAA6C5E2F2B599300DB6CE3 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = awalletWidget; sourceTree = "<group>"; };
+		8ED3A1412F2B569B009707D6 /* awalletStageWidget */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (8EAA6C5D2F2B599300DB6CE3 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = awalletStageWidget; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		13B07F8C1A680F5B00A75B9A /* Frameworks */ = {
@@ -61,6 +151,24 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		8ED3A0FF2F2B565A009707D6 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8ED3A1062F2B565A009707D6 /* SwiftUI.framework in Frameworks */,
+				8ED3A1042F2B565A009707D6 /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8ED3A13B2F2B569B009707D6 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8ED3A1402F2B569B009707D6 /* SwiftUI.framework in Frameworks */,
+				8ED3A13F2F2B569B009707D6 /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -68,6 +176,8 @@
 			isa = PBXGroup;
 			children = (
 				F11748412D0307B40044C1D9 /* AppDelegate.swift */,
+				8EAA70392F2BAA3A00DB6CE3 /* WidgetDataSync.swift */,
+				8EAA70402F2BAA3B00DB6CE3 /* WidgetDataSync.m */,
 				F11748442D0722820044C1D9 /* awallet-Bridging-Header.h */,
 				BB2F792B24A3F905000567C9 /* Supporting */,
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
@@ -85,6 +195,8 @@
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
 				70D25E8C596F28E10FBE4934 /* libPods-awallet.a */,
+				8ED3A1032F2B565A009707D6 /* WidgetKit.framework */,
+				8ED3A1052F2B565A009707D6 /* SwiftUI.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -108,8 +220,12 @@
 		83CBB9F61A601CBA00E9B192 = {
 			isa = PBXGroup;
 			children = (
+				8ED3A1572F2B56AC009707D6 /* awalletStageWidgetExtension.entitlements */,
+				8ED3A11D2F2B5668009707D6 /* awalletWidgetExtension.entitlements */,
 				13B07FAE1A68108700A75B9A /* awallet */,
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
+				8ED3A1072F2B565A009707D6 /* awalletWidget */,
+				8ED3A1412F2B569B009707D6 /* awalletStageWidget */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
 				552C1E831258FDF3FAE37157 /* Pods */,
@@ -125,6 +241,8 @@
 			children = (
 				13B07F961A680F5B00A75B9A /* awallet.app */,
 				8EB5A1DC2F22227800044D63 /* awallet-stage.app */,
+				8ED3A1022F2B565A009707D6 /* awalletWidgetExtension.appex */,
+				8ED3A13E2F2B569B009707D6 /* awalletStageWidgetExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -172,10 +290,12 @@
 				908657F057402EC0CBDD70F5 /* [CP] Embed Pods Frameworks */,
 				8EC270272ECC0DEC00A3AB93 /* Generate dSYMs for React Native frameworks */,
 				2AE5D8675208D81B6EE7AD20 /* [CP-User] [RNFB] Core Configuration */,
+				8ED3A1182F2B565D009707D6 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				8ED3A1162F2B565D009707D6 /* PBXTargetDependency */,
 			);
 			name = awallet;
 			productName = awallet;
@@ -197,15 +317,61 @@
 				8EB5A1D42F22227800044D63 /* [CP] Embed Pods Frameworks */,
 				8EB5A1D52F22227800044D63 /* Generate dSYMs for React Native frameworks */,
 				8EB5A1D62F22227800044D63 /* [CP-User] [RNFB] Core Configuration */,
+				8ED3A1562F2B569E009707D6 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				8ED3A1502F2B569E009707D6 /* PBXTargetDependency */,
 			);
 			name = "awallet-stage";
 			productName = awallet;
 			productReference = 8EB5A1DC2F22227800044D63 /* awallet-stage.app */;
 			productType = "com.apple.product-type.application";
+		};
+		8ED3A1012F2B565A009707D6 /* awalletWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8ED3A11C2F2B565D009707D6 /* Build configuration list for PBXNativeTarget "awalletWidgetExtension" */;
+			buildPhases = (
+				8ED3A0FE2F2B565A009707D6 /* Sources */,
+				8ED3A0FF2F2B565A009707D6 /* Frameworks */,
+				8ED3A1002F2B565A009707D6 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				8ED3A1072F2B565A009707D6 /* awalletWidget */,
+			);
+			name = awalletWidgetExtension;
+			packageProductDependencies = (
+			);
+			productName = awalletWidgetExtension;
+			productReference = 8ED3A1022F2B565A009707D6 /* awalletWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		8ED3A13D2F2B569B009707D6 /* awalletStageWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8ED3A1532F2B569E009707D6 /* Build configuration list for PBXNativeTarget "awalletStageWidgetExtension" */;
+			buildPhases = (
+				8ED3A13A2F2B569B009707D6 /* Sources */,
+				8ED3A13B2F2B569B009707D6 /* Frameworks */,
+				8ED3A13C2F2B569B009707D6 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				8ED3A1412F2B569B009707D6 /* awalletStageWidget */,
+			);
+			name = awalletStageWidgetExtension;
+			packageProductDependencies = (
+			);
+			productName = awalletStageWidgetExtension;
+			productReference = 8ED3A13E2F2B569B009707D6 /* awalletStageWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -218,6 +384,12 @@
 				TargetAttributes = {
 					13B07F861A680F5B00A75B9A = {
 						LastSwiftMigration = 1250;
+					};
+					8ED3A1012F2B565A009707D6 = {
+						CreatedOnToolsVersion = 26.2;
+					};
+					8ED3A13D2F2B569B009707D6 = {
+						CreatedOnToolsVersion = 26.2;
 					};
 				};
 			};
@@ -236,6 +408,8 @@
 			targets = (
 				13B07F861A680F5B00A75B9A /* awallet */,
 				8EB5A1C02F22227800044D63 /* awallet-stage */,
+				8ED3A1012F2B565A009707D6 /* awalletWidgetExtension */,
+				8ED3A13D2F2B569B009707D6 /* awalletStageWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -262,6 +436,20 @@
 				8EB5A1CF2F22227800044D63 /* SplashScreen.storyboard in Resources */,
 				8EB5A1D02F22227800044D63 /* GoogleService-Info.plist in Resources */,
 				8EB5A1D12F22227800044D63 /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8ED3A1002F2B565A009707D6 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8ED3A13C2F2B569B009707D6 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -589,6 +777,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8EAA703B2F2BAA3A00DB6CE3 /* WidgetDataSync.swift in Sources */,
+				8EAA70422F2BAA3B00DB6CE3 /* WidgetDataSync.m in Sources */,
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
 				3D0A3631DE6C1F98C7ECD681 /* ExpoModulesProvider.swift in Sources */,
 			);
@@ -598,12 +788,41 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8EAA703A2F2BAA3A00DB6CE3 /* WidgetDataSync.swift in Sources */,
+				8EAA70412F2BAA3B00DB6CE3 /* WidgetDataSync.m in Sources */,
 				8EB5A1C72F22227800044D63 /* AppDelegate.swift in Sources */,
 				8EB5A1C82F22227800044D63 /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		8ED3A0FE2F2B565A009707D6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8ED3A13A2F2B569B009707D6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		8ED3A1162F2B565D009707D6 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 8ED3A1012F2B565A009707D6 /* awalletWidgetExtension */;
+			targetProxy = 8ED3A1152F2B565D009707D6 /* PBXContainerItemProxy */;
+		};
+		8ED3A1502F2B569E009707D6 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 8ED3A13D2F2B569B009707D6 /* awalletStageWidgetExtension */;
+			targetProxy = 8ED3A14F2F2B569E009707D6 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
@@ -910,6 +1129,196 @@
 			};
 			name = Release;
 		};
+		8ED3A1192F2B565D009707D6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CODE_SIGN_ENTITLEMENTS = awalletWidgetExtension.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = RUL37NUWSS;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = awalletWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = awalletWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ssong.awallet.awalletWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		8ED3A11A2F2B565D009707D6 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CODE_SIGN_ENTITLEMENTS = awalletWidgetExtension.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = RUL37NUWSS;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = awalletWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = awalletWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ssong.awallet.awalletWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		8ED3A1542F2B569E009707D6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CODE_SIGN_ENTITLEMENTS = awalletStageWidgetExtension.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = RUL37NUWSS;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = awalletStageWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "[Stage]에이월렛";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ssong.awallet.stage.awalletStageWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		8ED3A1552F2B569E009707D6 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CODE_SIGN_ENTITLEMENTS = awalletStageWidgetExtension.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = RUL37NUWSS;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = awalletStageWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "[Stage]에이월렛";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ssong.awallet.stage.awalletStageWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -936,6 +1345,24 @@
 			buildConfigurations = (
 				8EB5A1DA2F22227800044D63 /* Debug */,
 				8EB5A1DB2F22227800044D63 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		8ED3A11C2F2B565D009707D6 /* Build configuration list for PBXNativeTarget "awalletWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8ED3A1192F2B565D009707D6 /* Debug */,
+				8ED3A11A2F2B565D009707D6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		8ED3A1532F2B569E009707D6 /* Build configuration list for PBXNativeTarget "awalletStageWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8ED3A1542F2B569E009707D6 /* Debug */,
+				8ED3A1552F2B569E009707D6 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
