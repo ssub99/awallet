@@ -28,13 +28,14 @@ class WidgetDataSync: NSObject, RCTBridgeModule {
       return
     }
 
-    guard let expense = data["expense"] as? Double,
-          let income = data["income"] as? Double,
-          let balance = data["balance"] as? Double,
-          let monthStartDay = data["monthStartDay"] as? Int else {
-      reject("ERROR", "Invalid data format", nil)
+    // React Native 브릿지는 number를 NSNumber로 넘김. as? Double/Int는 실패하므로 NSNumber로 파싱.
+    guard let expense = (data["expense"] as? NSNumber)?.doubleValue,
+          let income = (data["income"] as? NSNumber)?.doubleValue,
+          let balance = (data["balance"] as? NSNumber)?.doubleValue else {
+      reject("ERROR", "Invalid data format (expense/income/balance)", nil)
       return
     }
+    let monthStartDay = (data["monthStartDay"] as? NSNumber)?.intValue ?? 1
 
     let expenseData = MonthlyExpenseData(
       expense: expense,
@@ -46,17 +47,19 @@ class WidgetDataSync: NSObject, RCTBridgeModule {
 
     do {
       let encoder = JSONEncoder()
+      encoder.dateEncodingStrategy = .deferredToDate
       let encoded = try encoder.encode(expenseData)
       sharedDefaults.set(encoded, forKey: "monthlyExpenseData")
       sharedDefaults.synchronize()
 
-      // Ask WidgetKit to refresh timelines for our widget kind.
-      // Use different kind values for stage and production to avoid conflicts.
+      // App Group 쓰기가 위젯 프로세스에 보이도록 짧은 지연 후 reload (iOS가 getTimeline 호출 시점을 늦출 수 있음)
       let bundleId = Bundle.main.bundleIdentifier ?? ""
       let widgetKind = bundleId.contains(".stage") ? "MonthlyExpenseWidgetStage" : "MonthlyExpenseWidget"
-      WidgetCenter.shared.reloadTimelines(ofKind: widgetKind)
-
-      resolve(nil)
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+        WidgetCenter.shared.reloadTimelines(ofKind: widgetKind)
+        WidgetCenter.shared.reloadAllTimelines()
+        resolve(nil)
+      }
     } catch {
       reject("ERROR", "Failed to encode data: \(error.localizedDescription)", error)
     }
@@ -64,7 +67,7 @@ class WidgetDataSync: NSObject, RCTBridgeModule {
 
   @objc
   static func requiresMainQueueSetup() -> Bool {
-    return false
+    return true
   }
 
   @objc

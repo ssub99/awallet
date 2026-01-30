@@ -11,12 +11,13 @@ import { useFirstLaunchNotificationPermission } from '@/hooks/use-notifications'
 import { enableDebugMode, logEvent, setAnalyticsCollectionEnabled } from '@/utils/analytics';
 import { checkActiveChallengesNotifications, checkEndedChallenges } from '@/utils/challenge-utils';
 import { cleanupOldSchedules, setupDailyReminder } from '@/utils/notification-scheduler';
+import { refreshWidgetWithCurrentMonth } from '@/utils/widget-data-sync';
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
-import { View } from 'react-native';
+import { AppState, AppStateStatus, Platform, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
@@ -136,6 +137,18 @@ export default function RootLayout() {
       setupNotifications();
     }
   }, [permissionChecked]);
+
+  // iOS: 앱이 백그라운드로 갈 때 위젯 동기화. reloadTimelines는 포그라운드에서만 반영되므로,
+  // 사용자가 홈/잠금화면으로 나가는 순간 한 번 더 쓰기+reload 요청하면 위젯이 갱신될 가능성이 높아짐.
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+    const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
+      if (next === 'background' || next === 'inactive') {
+        refreshWidgetWithCurrentMonth().catch(() => {});
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   // Initialize Firebase Analytics
   useEffect(() => {

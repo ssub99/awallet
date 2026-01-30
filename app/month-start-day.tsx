@@ -11,11 +11,12 @@ import { ThemeColors } from '@/constants/theme-colors';
 import { Typography } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { monthStartEvent } from '@/hooks/use-month-start';
-import { createChallenges, getAllChallenges, softDeleteChallengesByRecurringId, type ChallengeRecord } from '@/utils/challenges';
+import { getChallengeStatus } from '@/utils/challenge-utils';
+import { createChallenges, getAllChallenges, type ChallengeRecord } from '@/utils/challenges';
 import { getCustomMonthInfo } from '@/utils/custom-month';
 import { generateGroupId, generateRecordId } from '@/utils/id-generator';
-import { getChallengeStatus } from '@/utils/challenge-utils';
-import { cancelChallengeSuccessNotification, notifyChallengeSuccess, notifyChallengeProgress, notifyChallengeFailure, cancelChallengeProgressNotifications } from '@/utils/notification-scheduler';
+import { cancelChallengeProgressNotifications, cancelChallengeSuccessNotification, notifyChallengeFailure, notifyChallengeProgress, notifyChallengeSuccess } from '@/utils/notification-scheduler';
+import { refreshWidgetWithCurrentMonth } from '@/utils/widget-data-sync';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
@@ -271,6 +272,8 @@ export default function MonthStartDayScreen() {
           await regenerateChallengesForNewMonthStart(selectedDay);
           // Emit month start change
           monthStartEvent.emit(selectedDay);
+          // 위젯에 새 월 시작일 기준 소비 금액 반영
+          await refreshWidgetWithCurrentMonth().catch(() => {});
         } catch (error) {
           console.error('❌ 월 시작일 저장 중 오류:', error);
         }
@@ -294,11 +297,11 @@ export default function MonthStartDayScreen() {
         await regenerateChallengesForNewMonthStart(selectedDay);
         // Emit month start change
         monthStartEvent.emit(selectedDay);
-        
+        // 위젯에 새 월 시작일 기준 소비 금액 반영
+        await refreshWidgetWithCurrentMonth().catch(() => {});
       } catch (error) {
         console.error('❌ 월 시작일 저장 중 오류:', error);
       }
-    } else {
     }
     
     router.back();

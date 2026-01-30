@@ -18,7 +18,6 @@ import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
 import { ModalPopup } from '@/components/ui/modal-popup';
 import { PrepaymentModal } from '@/components/ui/prepayment-modal';
 import { Radio } from '@/components/ui/radio';
-import { BlurView } from 'expo-blur';
 import { SegmentControls } from '@/components/ui/segment-controls';
 import { Switch } from '@/components/ui/switch';
 import { AtomicColors } from '@/constants/atomic-colors';
@@ -35,7 +34,9 @@ import { createExpense, deleteExpense, deleteExpensesByGroup, getAllExpenses, ge
 import { extractTimestampFromId, generateGroupId, generateRecordId } from '@/utils/id-generator';
 import { getAllIncomes } from '@/utils/incomes';
 import { cancelDailyReminder, rescheduleDailyReminderIfNeeded } from '@/utils/notification-scheduler';
+import { refreshWidgetWithCurrentMonth } from '@/utils/widget-data-sync';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BlurView } from 'expo-blur';
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -2805,6 +2806,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       // 이렇게 하면 expenseData에 저장된 recurringType이 calendarData에 반영됨
       await rebuildCalendarData();
 
+      // 6-1.6. 위젯에 이번달 소비 즉시 반영 (동기화 완료 후 화면 전환)
+      await refreshWidgetWithCurrentMonth().catch(() => {});
+
       // 6-2. 챌린지 알림 트리거 (비동기이지만 대기하지 않음)
       if (category) {
         const recordDateObj = new Date(actualDateKey);
@@ -2991,6 +2995,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       }
 
       await rebuildCalendarData();
+
+      // 위젯에 이번달 소비 즉시 반영 (동기화 완료 후 화면 전환)
+      await refreshWidgetWithCurrentMonth().catch(() => {});
 
       // 챌린지 알림 재계산 (삭제 후 소비율 변경 반영)
       if (editData.category) {

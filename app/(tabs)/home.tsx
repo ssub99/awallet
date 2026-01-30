@@ -332,10 +332,10 @@ export default function HomeScreen() {
 
     // financialData는 현재 커스텀 월 기준 합산 데이터
     saveMonthlyExpenseToWidget(
-      financialData.expense,
-      financialData.income,
-      financialData.balance,
-      monthStartDay
+      Number(financialData.expense),
+      Number(financialData.income),
+      Number(financialData.balance),
+      Number(monthStartDay)
     ).catch((error) => {
       // 위젯 연동 실패는 앱 주요 플로우를 막지 않도록 조용히 로깅만 수행
       console.warn('[HomeScreen] Failed to sync monthly data to widget:', error);

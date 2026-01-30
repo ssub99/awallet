@@ -22,9 +22,10 @@ import { loadCategories } from '@/utils/categories';
 import { getCustomMonthInfo } from '@/utils/custom-month';
 import { generateRecordId } from '@/utils/id-generator';
 import { createIncome, type IncomeRecord as IncomeRecordType } from '@/utils/incomes';
+import { refreshWidgetWithCurrentMonth } from '@/utils/widget-data-sync';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { BlurView } from 'expo-blur';
 import { useNavigation } from '@react-navigation/native';
+import { BlurView } from 'expo-blur';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -567,6 +568,9 @@ export default function IncomeRecordScreen() {
       
       // AsyncStorage에 저장
       await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
+
+      // 위젯에 이번달 소비/수입 즉시 반영 (동기화 완료 후 화면 전환)
+      await refreshWidgetWithCurrentMonth().catch(() => {});
       
       // 🔧 수정: 실제 저장된 날짜가 속한 커스텀 월로 이동
       // 날짜 문자열을 로컬 타임존으로 파싱
