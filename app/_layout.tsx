@@ -58,8 +58,8 @@ export default function RootLayout() {
         // 스플래시 자동 숨김 방지 (이미 위에서 호출했지만 안전을 위해 다시 호출)
         await SplashScreen.preventAutoHideAsync();
         
-        // OTA 업데이트 체크 및 적용
-        const isExpoGo = Constants.executionEnvironment === 'storeClient';
+        // OTA 업데이트 체크 및 적용 (Expo Go만 제외, 스토어/스탠드얼론은 체크)
+        const isExpoGo = Constants.executionEnvironment === 'expoClient';
         if (!isExpoGo && Updates.isEnabled) {
           try {
             const update = await Updates.checkForUpdateAsync();
