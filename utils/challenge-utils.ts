@@ -99,6 +99,91 @@ export async function calculateChallengeAmount(
   }
 }
 
+const PROGRESS_MILESTONES = [10, 30, 50, 70, 90] as const;
+
+/**
+ * 특정 날짜(asOfDate) 기준으로 챌린지 소비금액 계산
+ * record 날짜 ≤ asOfDate 이고 챌린지 기간·카테고리 맞는 소비만 합산
+ */
+export function calculateChallengeAmountAsOfDate(
+  challenge: ChallengeData,
+  calendarData: Record<string, any>,
+  asOfDate: Date
+): number {
+  try {
+    let totalAmount = 0;
+    const startDate = new Date(challenge.startDate.replace(/\./g, '-'));
+    const endDate = new Date(challenge.endDate.replace(/\./g, '-'));
+    startDate.setHours(0, 0, 0, 0);
+    endDate.setHours(0, 0, 0, 0);
+    const asOf = new Date(asOfDate);
+    asOf.setHours(23, 59, 59, 999);
+
+    Object.entries(calendarData).forEach(([dateString, dateData]: [string, any]) => {
+      if (dateData?.records && Array.isArray(dateData.records)) {
+        const itemDate = new Date(dateString);
+        if (itemDate > asOf) return;
+        dateData.records.forEach((record: any) => {
+          if (record.type === 'expense' && record.category === challenge.category) {
+            if (itemDate >= startDate && itemDate <= endDate) {
+              totalAmount += record.amount || 0;
+            }
+          }
+        });
+      }
+    });
+    return totalAmount;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * 해당 마일스톤에 처음 들어선 날(해당 날짜) 반환
+ * 기간 내 해당 카테고리 기록이 있는 날만 날짜 순으로 순회해 [milestone, next)에 처음 들어선 날 반환
+ */
+export function getReferenceDateForMilestone(
+  challenge: ChallengeData,
+  milestone: number,
+  calendarData: Record<string, any>
+): Date | null {
+  try {
+    const startDate = new Date(challenge.startDate.replace(/\./g, '-'));
+    const endDate = new Date(challenge.endDate.replace(/\./g, '-'));
+    startDate.setHours(0, 0, 0, 0);
+    endDate.setHours(0, 0, 0, 0);
+    const targetAmount = challenge.targetAmount;
+    if (targetAmount <= 0) return null;
+
+    const recordDates: string[] = [];
+    Object.entries(calendarData).forEach(([dateString, dateData]: [string, any]) => {
+      if (dateData?.records && Array.isArray(dateData.records)) {
+        const itemDate = new Date(dateString);
+        if (itemDate >= startDate && itemDate <= endDate) {
+          const hasMatch = dateData.records.some(
+            (r: any) => r.type === 'expense' && r.category === challenge.category
+          );
+          if (hasMatch) recordDates.push(dateString);
+        }
+      }
+    });
+    recordDates.sort((a, b) => a.localeCompare(b));
+
+    const next = PROGRESS_MILESTONES.find((m) => m > milestone) ?? 100;
+    for (const dateString of recordDates) {
+      const asOfDate = new Date(dateString);
+      const amount = calculateChallengeAmountAsOfDate(challenge, calendarData, asOfDate);
+      const percentage = (amount / targetAmount) * 100;
+      if (percentage >= milestone && percentage < next) {
+        return new Date(dateString);
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * 챌린지 상태 계산
  * @param challenge 챌린지 데이터
@@ -126,8 +211,18 @@ export async function getChallengeStatus(
 }
 
 /**
+ * referenceDate+1일 9:30이 미래인지 여부
+ */
+export function isScheduleTimeInFuture(referenceDate: Date): boolean {
+  const scheduleAt = new Date(referenceDate);
+  scheduleAt.setDate(scheduleAt.getDate() + 1);
+  scheduleAt.setHours(9, 30, 0, 0);
+  return scheduleAt.getTime() > Date.now();
+}
+
+/**
  * 소비 기록 시 챌린지 알림 트리거
- * 소비 기록이 저장될 때 호출하여 조건에 맞는 알림 발송
+ * 소비 기록이 저장/삭제될 때 호출하여 조건에 맞는 알림 발송
  */
 export async function triggerChallengeNotifications(category: string, recordDate: Date): Promise<void> {
   try {
@@ -137,32 +232,34 @@ export async function triggerChallengeNotifications(category: string, recordDate
       return;
     }
 
-    // 2. 챌린지 상태 계산
-    const status = await getChallengeStatus(challenge);
+    // 2. calendarData 로드 (진행현황 referenceDate 계산에 필요)
+    const storedData = await AsyncStorage.getItem('calendarData');
+    const calendarData = storedData ? JSON.parse(storedData) : {};
+
+    // 3. 챌린지 상태 계산 (최신 calendarData 기준)
+    const status = await getChallengeStatus(challenge, calendarData);
     const endDate = new Date(challenge.endDate.replace(/\./g, '-'));
     endDate.setHours(0, 0, 0, 0);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const isEndedByToday = today > endDate;
     
-    // 3. 알림 조건 체크 및 발송
-    
-    // 3-1. 진행현황 알림 (10%, 30%, 50%, 70%, 90%)
+    // 4. 진행현황 알림 (10%, 30%, 50%, 70%, 90%)
     // 챌린지가 종료된 이후에는 진행현황 알림을 더 이상 스케줄링하지 않음
     if (!isEndedByToday) {
-      // 기존 진행현황 알림 모두 취소 (같은 날 여러 마일스톤 지나가도 최종 상태만 발송)
       await cancelChallengeProgressNotifications(challenge.id);
       
-      const milestones = [10, 30, 50, 70, 90];
-      for (let i = 0; i < milestones.length; i++) {
-        const milestone = milestones[i];
-        const max = i < milestones.length - 1 ? milestones[i + 1] : 100;
+      for (let i = 0; i < PROGRESS_MILESTONES.length; i++) {
+        const milestone = PROGRESS_MILESTONES[i];
+        const max = i < PROGRESS_MILESTONES.length - 1 ? PROGRESS_MILESTONES[i + 1] : 100;
         const isInRange = status.percentage >= milestone && status.percentage < max;
         
         if (isInRange) {
-          // 현재 소비율이 마일스톤 범위 내에 있으면 알림 스케줄링
-          await notifyChallengeProgress(challenge.category, status.percentage, challenge.id, milestone);
-          break; // 한 번에 하나의 마일스톤만
+          const referenceDate = getReferenceDateForMilestone(challenge, milestone, calendarData);
+          if (referenceDate && isScheduleTimeInFuture(referenceDate)) {
+            await notifyChallengeProgress(challenge.category, status.percentage, challenge.id, milestone, referenceDate);
+          }
+          break;
         }
       }
     }
@@ -296,21 +393,19 @@ export async function checkActiveChallengesNotifications(): Promise<void> {
       if (status.percentage >= 100) {
         // 실패 알림과 성공 알림만 체크하고 진행현황 알림은 건너뜀
       } else {
-      // 진행현황 알림 체크 (10%, 30%, 50%, 70%, 90%)
-      // 역순으로 체크하여 가장 높은 마일스톤부터 확인 (중복 방지)
-      const milestones = [90, 70, 50, 30, 10];
-      for (let i = 0; i < milestones.length; i++) {
-        const milestone = milestones[i];
-        // 역순이므로 max는 이전 마일스톤 (또는 100)
-        const max = i === 0 ? 100 : milestones[i - 1];
-        // 현재 소비율이 마일스톤 범위 내에 있는지 확인 (triggerChallengeNotifications와 동일한 로직)
-        const isInRange = status.percentage >= milestone && status.percentage < max;
-        
-        if (isInRange) {
-            // notifyChallengeProgress() 함수 내부에서 alreadySent 체크를 하므로 여기서는 바로 호출
-          await notifyChallengeProgress(challenge.category, status.percentage, challenge.id, milestone);
-          // 한 번에 하나의 마일스톤만 처리 (triggerChallengeNotifications와 동일)
-          break;
+        // 진행현황 알림: 해당 날짜(referenceDate)+1일 9:30이 미래일 때만 스케줄
+        const milestones = [90, 70, 50, 30, 10];
+        for (let i = 0; i < milestones.length; i++) {
+          const milestone = milestones[i];
+          const max = i === 0 ? 100 : milestones[i - 1];
+          const isInRange = status.percentage >= milestone && status.percentage < max;
+          
+          if (isInRange) {
+            const referenceDate = getReferenceDateForMilestone(challenge, milestone, calendarData);
+            if (referenceDate && isScheduleTimeInFuture(referenceDate)) {
+              await notifyChallengeProgress(challenge.category, status.percentage, challenge.id, milestone, referenceDate);
+            }
+            break;
           }
         }
       }

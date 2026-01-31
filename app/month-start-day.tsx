@@ -11,7 +11,7 @@ import { ThemeColors } from '@/constants/theme-colors';
 import { Typography } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { monthStartEvent } from '@/hooks/use-month-start';
-import { getChallengeStatus } from '@/utils/challenge-utils';
+import { getChallengeStatus, getReferenceDateForMilestone, isScheduleTimeInFuture } from '@/utils/challenge-utils';
 import { createChallenges, getAllChallenges, type ChallengeRecord } from '@/utils/challenges';
 import { getCustomMonthInfo } from '@/utils/custom-month';
 import { generateGroupId, generateRecordId } from '@/utils/id-generator';
@@ -159,31 +159,31 @@ export default function MonthStartDayScreen() {
       if (newChallenges.length > 0) {
         await createChallenges(newChallenges);
         
-        // 각 새 챌린지에 대해 알림 스케줄링
+        // 각 새 챌린지에 대해 알림 스케줄링 (calendarData 기준 referenceDate 사용)
+        const storedData = await AsyncStorage.getItem('calendarData');
+        const calendarData = storedData ? JSON.parse(storedData) : {};
         for (const challenge of newChallenges) {
           try {
-            const status = await getChallengeStatus(challenge);
+            const status = await getChallengeStatus(challenge, calendarData);
             const endDate = new Date(challenge.endDate.replace(/\./g, '-'));
             endDate.setHours(0, 0, 0, 0);
             const today = new Date();
             today.setHours(0, 0, 0, 0);
             const isEndedByToday = today > endDate;
             
-            // 기존 진행현황 알림 모두 취소 (중복 방지)
-            // 챌린지 종료 이후에는 진행현황 알림을 스케줄하지 않음
             if (!isEndedByToday) {
               await cancelChallengeProgressNotifications(challenge.id);
-              
-              // 진행현황 알림 스케줄링 (10%, 30%, 50%, 70%, 90%)
               const milestones = [10, 30, 50, 70, 90];
               for (let i = 0; i < milestones.length; i++) {
                 const milestone = milestones[i];
                 const max = i < milestones.length - 1 ? milestones[i + 1] : 100;
                 const isInRange = status.percentage >= milestone && status.percentage < max;
-                
                 if (isInRange) {
-                  await notifyChallengeProgress(challenge.category, status.percentage, challenge.id, milestone);
-                  break; // 한 번에 하나의 마일스톤만
+                  const referenceDate = getReferenceDateForMilestone(challenge, milestone, calendarData);
+                  if (referenceDate && isScheduleTimeInFuture(referenceDate)) {
+                    await notifyChallengeProgress(challenge.category, status.percentage, challenge.id, milestone, referenceDate);
+                  }
+                  break;
                 }
               }
             }

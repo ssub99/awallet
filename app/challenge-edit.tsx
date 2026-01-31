@@ -13,12 +13,13 @@ import { ModalPopup } from '@/components/ui/modal-popup';
 import { Switch } from '@/components/ui/switch';
 import { AtomicColors } from '@/constants/atomic-colors';
 import { type Category } from '@/constants/categories';
-import { loadCategories } from '@/utils/categories';
 import { Colors, Typography } from '@/constants/theme';
 import { useLoading } from '@/contexts/loading-context';
 import { useToast } from '@/contexts/toast-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
+import { loadCategories } from '@/utils/categories';
+import { cancelChallengeFailureNotification, cancelChallengeProgressNotifications, cancelChallengeSuccessNotification } from '@/utils/notification-scheduler';
 import { getChallengeById, getChallengesByRecurringId, softDeleteChallengesByRecurringId, updateChallengesByRecurringId, type ChallengeRecord } from '@/utils/challenges';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BlurView } from 'expo-blur';
@@ -408,7 +409,18 @@ export default function ChallengeEditScreen() {
         throw new Error('삭제할 챌린지를 찾을 수 없습니다.');
       }
 
+      // 삭제 전에 해당 recurringId로 삭제될 챌린지 ID 목록 확보 (푸시 취소용)
+      const challengesToDelete = await getChallengesByRecurringId(recurringId);
+      const challengeIds = challengesToDelete.map((c) => c.id);
+
       await softDeleteChallengesByRecurringId(recurringId);
+
+      // 해당 챌린지들에 스케줄된 푸시(진행현황·성공·실패) 전부 취소
+      for (const challengeId of challengeIds) {
+        await cancelChallengeProgressNotifications(challengeId);
+        await cancelChallengeSuccessNotification(challengeId);
+        await cancelChallengeFailureNotification(challengeId);
+      }
 
       setShowDeleteModal(false);
       

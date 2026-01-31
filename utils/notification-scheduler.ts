@@ -261,33 +261,29 @@ async function hasChallengeRecords(challengeId: string): Promise<boolean> {
 
 /**
  * 2. 챌린지 현황 알림
- * 소비율 10%, 30%, 50%, 70%, 90% 도달 시, 다음날 오전 9시 30분
+ * 소비율 10%, 30%, 50%, 70%, 90% 도달 시, 해당 날짜(referenceDate) 다음날 오전 9시 30분
  * ✅ 소비 기록이 있는 경우에만 알림 스케줄링
  */
 export async function notifyChallengeProgress(
   category: string,
   percentage: number,
   challengeId: string,
-  milestone: number
+  milestone: number,
+  referenceDate: Date
 ): Promise<void> {
   try {
-    // Global check
     if (!(await shouldSendNotification())) {
       return;
     }
     
-    // ✅ 달성된 챌린지(100% 이상)는 진행현황 알림 불필요
     if (percentage >= 100) {
       return;
     }
     
-    // ✅ 소비 기록이 있는지 확인 (소비 기록이 없으면 알림 스케줄링하지 않음)
-    // challengeId로 직접 확인하기 어려우므로, 카테고리로 확인
     const storedData = await AsyncStorage.getItem('calendarData');
     if (storedData) {
       const calendarData = JSON.parse(storedData);
       let hasRecord = false;
-      
       for (const [dateString, dateData] of Object.entries(calendarData)) {
         if (dateData && typeof dateData === 'object' && dateData.records && Array.isArray(dateData.records)) {
           const found = dateData.records.some((record: any) => {
@@ -299,29 +295,28 @@ export async function notifyChallengeProgress(
           }
         }
       }
-      
-      if (!hasRecord) {
-        return; // 소비 기록이 없으면 알림 스케줄링하지 않음
-      }
+      if (!hasRecord) return;
     } else {
-      return; // calendarData가 없으면 소비 기록이 없는 것이므로 알림 스케줄링하지 않음
+      return;
     }
     
-    // Check if already sent for this milestone
+    // 해당 날짜+1일 9:30이 이미 과거면 스케줄하지 않음 (이미 받은 푸시 재발송 방지)
+    const scheduleAt = new Date(referenceDate);
+    scheduleAt.setDate(scheduleAt.getDate() + 1);
+    scheduleAt.setHours(9, 30, 0, 0);
+    if (scheduleAt.getTime() <= Date.now()) {
+      return;
+    }
+    
     const sentKey = `challenge_progress_${challengeId}_${milestone}`;
     const alreadySent = await AsyncStorage.getItem(sentKey);
-    
-    // ✅ 이미 발송된 알림은 재스케줄링하지 않음 (발송된 알림은 스케줄 목록에서 사라지므로)
     if (alreadySent) {
-        return;
+      return;
     }
     
-    // Schedule for next day 9:30 AM
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(9, 30, 0, 0);
-    
+    const identifier = `challenge_progress_${challengeId}_${milestone}`;
     await Notifications.scheduleNotificationAsync({
+      identifier,
       content: {
         title: `[#${category}] 챌린지 진행현황`,
         body: `${Math.round(100 - percentage)}% 남음. 오늘의 소비는 어떠셨나요?`,
@@ -333,11 +328,10 @@ export async function notifyChallengeProgress(
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DATE,
-        date: tomorrow,
+        date: scheduleAt,
       },
     });
     
-    // Mark as sent
     await AsyncStorage.setItem(sentKey, 'true');
     
   } catch (error) {
