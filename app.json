@@ -21,9 +21,9 @@
         "NSUserNotificationsUsageDescription": "소비 기록 알림과 챌린지 리마인더를 받기 위해 알림 권한이 필요합니다.",
         "ITSAppUsesNonExemptEncryption": false,
         "CFBundleShortVersionString": "1.0.1",
-        "CFBundleVersion": "28"
+        "CFBundleVersion": "31"
       },
-      "runtimeVersion": "1.0.1"
+      "runtimeVersion": "1.0.2"
     },
     "android": {
       "adaptiveIcon": {
@@ -40,9 +40,7 @@
       "permissions": [
         "android.permission.POST_NOTIFICATIONS"
       ],
-      "runtimeVersion": {
-        "policy": "appVersion"
-      }
+      "runtimeVersion": "1.0.2"
     },
     "web": {
       "output": "static",
@@ -91,7 +89,7 @@
       "url": "https://u.expo.dev/f33074c8-df40-4c61-bcfe-826b22dabd0a",
       "fallbackToCacheTimeout": 0,
       "checkAutomatically": "ON_LOAD",
-      "runtimeVersion": "1.0.1",
+      "runtimeVersion": "1.0.2",
       "channel": "production"
     },
     "extra": {

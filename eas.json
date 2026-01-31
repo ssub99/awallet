@@ -14,6 +14,13 @@
         "buildConfiguration": "Release"
       }
     },
+    "stage-testflight": {
+      "distribution": "store",
+      "channel": "stage",
+      "ios": {
+        "buildConfiguration": "Release"
+      }
+    },
     "production": {
       "distribution": "store",
       "channel": "production",
