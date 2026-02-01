@@ -431,17 +431,27 @@ export default function ChallengeCreateScreen() {
         newChallenges.push(challengeData);
       }
       
-      // 기존 챌린지 존재 여부 체크 (같은 카테고리)
+      // 기존 챌린지 존재 여부 체크 (같은 카테고리 + 기간 겹침)
       const existingChallenges = await getAllChallenges();
       const activeChallenges = existingChallenges.filter(
-        (challenge) => 
-          !challenge.isDeleted && 
+        (challenge) =>
+          !challenge.isDeleted &&
           challenge.category === category
       );
-      
-      // 같은 카테고리의 활성 챌린지가 하나라도 존재하면 생성 불가
-      if (activeChallenges.length > 0) {
-        setToastMessage('선택하신 챌린지는 이미 생성되어 있습니다.');
+
+      const hasOverlap = newChallenges.some((newCh) =>
+        activeChallenges.some((existing) =>
+          isDateRangeOverlapping(
+            newCh.startDate,
+            newCh.endDate,
+            existing.startDate,
+            existing.endDate
+          )
+        )
+      );
+
+      if (hasOverlap) {
+        setToastMessage('해당 기간에 선택하신 챌린지가 이미 존재합니다.');
         setToastVisible(true);
         setLoading(false);
         return;

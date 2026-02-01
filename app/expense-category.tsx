@@ -12,7 +12,6 @@ import { useToast } from '@/contexts/toast-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadCategories } from '@/utils/categories';
 import { applySavedOrder, loadCategoryOrder } from '@/utils/category-order';
-import { getAllChallenges } from '@/utils/challenges';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
@@ -110,31 +109,9 @@ export default function ExpenseCategoryScreen() {
 
         router.back();
       } else if (isChallengeReSelectMode) {
-        // 챌린지 재선택 모드: 중복 챌린지 검증 후 챌린지 생성 화면으로 이동
-        try {
-          // 기존 챌린지 존재 여부 체크 (같은 카테고리)
-          const existingChallenges = await getAllChallenges();
-          const activeChallenges = existingChallenges.filter(
-            (challenge) => 
-              !challenge.isDeleted && 
-              challenge.category === selectedCategory
-          );
-          
-          // 같은 카테고리의 활성 챌린지가 하나라도 존재하면 생성 불가
-          if (activeChallenges.length > 0) {
-            setToastMessage('선택하신 챌린지는 이미 생성되어 있습니다.');
-            setToastVisible(true);
-            return;
-          }
-          
-          // 중복이 없으면 AsyncStorage에 저장하고 이전 화면으로 돌아가기 (화면 스택 쌓이지 않도록 back 사용)
-          await AsyncStorage.setItem('selectedCategory', selectedCategory);
-          router.back();
-        } catch (error) {
-          console.error('[카테고리 선택] 챌린지 검증 중 오류:', error);
-          setToastMessage('챌린지 검증 중 오류가 발생했습니다.');
-          setToastVisible(true);
-        }
+        // 챌린지 재선택 모드: 카테고리 저장 후 챌린지 생성 화면으로 복귀 (기간 겹침 검증은 challenge-create에서 수행)
+        await AsyncStorage.setItem('selectedCategory', selectedCategory);
+        router.back();
       } else {
         // 신규 등록 모드: 지출/수입 기록 화면으로 이동 (카테고리와 선택된 날짜 전달)
         const pathname = categoryType === 'income' ? '/income-record' : '/expense-record';
@@ -188,40 +165,17 @@ export default function ExpenseCategoryScreen() {
                   onPress={async () => {
                     setSelectedCategory(category.label);
                     
-                    // 챌린지 신규 선택 모드일 때: 중복 챌린지 검증 후 챌린지 생성 화면으로 이동
+                    // 챌린지 신규 선택 모드일 때: 챌린지 생성 화면으로 이동 (기간 겹침 검증은 challenge-create에서 수행)
                     if (isChallengeMode && !isChallengeReSelectMode) {
-                      try {
-                        // 기존 챌린지 존재 여부 체크 (같은 카테고리)
-                        const existingChallenges = await getAllChallenges();
-                        const activeChallenges = existingChallenges.filter(
-                          (challenge) => 
-                            !challenge.isDeleted && 
-                            challenge.category === category.label
-                        );
-                        
-                        // 같은 카테고리의 활성 챌린지가 하나라도 존재하면 생성 불가
-                        if (activeChallenges.length > 0) {
-                          setToastMessage('선택하신 챌린지는 이미 생성되어 있습니다.');
-                          setToastVisible(true);
-                          setSelectedCategory(''); // 선택 취소
-                          return;
-                        }
-                        
-                        // 중복이 없으면 챌린지 생성 화면으로 이동
-                        router.push({
-                          pathname: '/challenge-create',
-                          params: { 
-                            category: category.label,
-                            selectedDate: params.selectedDate,
-                            calendarYear: params.calendarYear,
-                            calendarMonth: params.calendarMonth
-                          },
-                        });
-                      } catch (error) {
-                        console.error('[카테고리 선택] 챌린지 검증 중 오류:', error);
-                        setToastMessage('챌린지 검증 중 오류가 발생했습니다.');
-                        setToastVisible(true);
-                      }
+                      router.push({
+                        pathname: '/challenge-create',
+                        params: {
+                          category: category.label,
+                          selectedDate: params.selectedDate,
+                          calendarYear: params.calendarYear,
+                          calendarMonth: params.calendarMonth
+                        },
+                      });
                     } 
                     // 챌린지 재선택 모드일 때: 선택만 하고 확인 버튼으로 이동
                     // (확인 버튼에서 중복 검증 수행)
