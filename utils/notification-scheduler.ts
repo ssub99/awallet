@@ -63,48 +63,22 @@ async function hasExpenseToday(): Promise<boolean> {
  */
 export async function setupDailyReminder(): Promise<void> {
   try {
+    // ✅ 항상 먼저 취소 → 최대 1개만 유지 (중복 푸시 방지)
+    await cancelDailyReminder();
+
     // Global check: 알림 설정 + 권한
     if (!(await shouldSendNotification())) {
       return;
     }
-    
-    // ✅ 앱 시작 시 소비 기록 상태 확인
-    // 소비 기록이 있으면 당일 알림 취소
+
+    // 소비 기록이 있으면 당일 알림 스케줄하지 않음
     if (await hasExpenseToday()) {
-      await cancelDailyReminder();
       return;
     }
-    
-    // ✅ 중복 스케줄링 방지: 오늘 이미 스케줄되었는지 확인
+
     const today = new Date().toDateString();
     const scheduledKey = `daily_reminder_${today}`;
-    const alreadyScheduled = await AsyncStorage.getItem(scheduledKey);
-    
-    if (alreadyScheduled) {
-      return;
-    }
-    
-    // ✅ 기존 일일 알림 확인 및 취소
-    const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
-    const existingDailyReminder = scheduledNotifications.find(
-      notification => 
-        notification.identifier === 'daily_expense_reminder' ||
-        notification.content.data?.type === 'expense_reminder' ||
-        notification.content.title === '오늘은 어떤 소비들을 하셨나요?'
-    );
-    
-    // 이미 일일 알림이 스케줄되어 있으면 새로 스케줄하지 않음
-    if (existingDailyReminder) {
-      return;
-    }
-    
-    // 기존 일일 알림 취소 (혹시 모를 경우를 대비)
-    try {
-      await Notifications.cancelScheduledNotificationAsync('daily_expense_reminder');
-    } catch (error) {
-      // Ignore if not found
-    }
-    
+
     // Schedule notification for 8 PM daily
     await Notifications.scheduleNotificationAsync({
       identifier: 'daily_expense_reminder',
@@ -159,57 +133,36 @@ export async function cancelDailyReminder(): Promise<void> {
  */
 export async function rescheduleDailyReminderIfNeeded(): Promise<void> {
   try {
+    // ✅ 항상 먼저 취소 → 최대 1개만 유지 (중복 푸시 방지)
+    await cancelDailyReminder();
+
     // Global check: 알림 설정 + 권한
     if (!(await shouldSendNotification())) {
       return;
     }
-    
-    // 현재 시간 확인
+
     const now = new Date();
     const currentHour = now.getHours();
-    
+
     // 오후 8시가 지났으면 스케줄링하지 않음
     if (currentHour >= 20) {
       return;
     }
-    
+
     // 소비 기록이 있으면 스케줄링하지 않음
     if (await hasExpenseToday()) {
       return;
     }
-    
-    // 오늘 날짜의 스케줄링 마킹 확인
+
     const today = new Date().toDateString();
     const scheduledKey = `daily_reminder_${today}`;
-    const alreadyScheduled = await AsyncStorage.getItem(scheduledKey);
-    
-    if (alreadyScheduled) {
-      return;
-    }
-    
-    // 기존 일일 알림 확인
-    const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
-    const existingDailyReminder = scheduledNotifications.find(
-      notification => 
-        notification.identifier === 'daily_expense_reminder' ||
-        notification.content.data?.type === 'expense_reminder' ||
-        notification.content.title === '오늘은 어떤 소비들을 하셨나요?'
-    );
-    
-    // 이미 일일 알림이 스케줄되어 있으면 새로 스케줄하지 않음
-    if (existingDailyReminder) {
-      return;
-    }
-    
-    // 당일 오후 8시 알림 스케줄링
     const today8PM = new Date();
     today8PM.setHours(20, 0, 0, 0);
-    
-    // 이미 오후 8시가 지났으면 스케줄링하지 않음
+
     if (today8PM.getTime() <= now.getTime()) {
       return;
     }
-    
+
     await Notifications.scheduleNotificationAsync({
       identifier: 'daily_expense_reminder',
       content: {
