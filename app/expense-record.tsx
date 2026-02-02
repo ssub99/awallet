@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { BasicCalendarDaySelect } from '@/components/ui/calendar-day-basic';
 import { CalendarDaySelect } from '@/components/ui/calendar-day-select';
 import { Chip } from '@/components/ui/chip';
-import { CustomKeypad, type CustomKeypadOperator, type ExpressionToken } from '@/components/ui/custom-keypad';
+import { CustomKeypad, getKeypadHeight, type CustomKeypadOperator, type ExpressionToken } from '@/components/ui/custom-keypad';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Input } from '@/components/ui/input';
 import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
@@ -52,6 +52,7 @@ import {
     StyleSheet,
     Text,
     TextInputKeyPressEventData,
+    useWindowDimensions,
     View
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -60,8 +61,6 @@ interface ExpenseRecordProps {
   mode?: 'create' | 'edit';
   editData?: any;
 }
-
-const KEYPAD_HEIGHT = 282;
 
 type CalendarBucket = {
   totalExpense: number;
@@ -455,6 +454,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   const router = useRouter();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
+  const KEYPAD_HEIGHT = getKeypadHeight(windowWidth);
   const { setLoading } = useLoading();
   const { showToast } = useToast();
   const params = useLocalSearchParams<{ 

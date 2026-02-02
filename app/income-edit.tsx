@@ -7,7 +7,7 @@
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Button } from '@/components/ui/button';
 import { CalendarDaySelect } from '@/components/ui/calendar-day-select';
-import { CustomKeypad, type CustomKeypadOperator, type ExpressionToken } from '@/components/ui/custom-keypad';
+import { CustomKeypad, getKeypadHeight, type CustomKeypadOperator, type ExpressionToken } from '@/components/ui/custom-keypad';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
@@ -39,12 +39,11 @@ import {
   StyleSheet,
   Text,
   TextInputKeyPressEventData,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-
-const KEYPAD_HEIGHT = 282;
 
 /**
  * 요일 계산 함수
@@ -68,6 +67,8 @@ export default function IncomeEditScreen() {
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
   const router = useRouter();
   const navigation = useNavigation();
+  const { width: windowWidth } = useWindowDimensions();
+  const KEYPAD_HEIGHT = getKeypadHeight(windowWidth);
   interface GoHomeOptions {
     year: number;
     month: number;
