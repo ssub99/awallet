@@ -71,7 +71,9 @@ function parseGeminiJson(text: string): ParseExpenseResponse | null {
 
 export async function POST(request: Request): Promise<Response> {
   try {
-    const apiKey = process.env.awallet_gemini_api;
+    // Vercel에서는 키 이름이 대문자로 주입될 수 있음
+    const apiKey =
+      process.env.awallet_gemini_api ?? process.env.AWALLET_GEMINI_API;
     if (!apiKey) {
       return Response.json(
         { error: 'awallet_gemini_api not configured' },

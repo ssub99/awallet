@@ -10,7 +10,7 @@
 |------|--------|------|
 | 1 | Vercel 계정 생성 / 로그인 | 사용자 |
 | 2 | 프로젝트를 Vercel에 연결 (Git 또는 CLI) | 사용자 |
-| 3 | 환경 변수 `GEMINI_API_KEY` 설정 | 사용자 |
+| 3 | 환경 변수 `awallet_gemini_api` 설정 (Preview 포함) | 사용자 |
 | 4 | 배포 후 함수 URL 확인 | 사용자 |
 | 5 | (선택) 빌드 스킵 설정 | 사용자 |
 
@@ -57,9 +57,9 @@ npx vercel
 
 1. Vercel 대시보드 → 해당 프로젝트 → **Settings** → **Environment Variables**
 2. 추가:
-   - **Name**: `GEMINI_API_KEY`
+   - **Name**: `awallet_gemini_api` (정확히 이 이름 사용)
    - **Value**: 위에서 복사한 API 키
-   - **Environment**: Production (및 Preview 원하면 선택)
+   - **Environment**: **Preview** 와 **Production** 둘 다 체크 (ing 등 브랜치 URL은 Preview라서 Preview 체크 필수)
 3. 저장 후 **재배포** 한 번 실행 (환경 변수 반영).
 
 **재배포 방법 (둘 중 하나):**
@@ -71,6 +71,12 @@ npx vercel
 
 1. **루트(/)만 열어서 404인지:** Vercel **Visit** 버튼은 보통 `https://프로젝트.vercel.app/` (루트)를 엽니다. 이 프로젝트는 **API만** 있어서 루트에는 페이지가 없고, **`/api/parse-expense`** 에만 동작합니다. 루트에서 404는 정상입니다. → **POST** `https://프로젝트.vercel.app/api/parse-expense` 로 테스트하세요 (curl 또는 Postman).
 2. **배포 브랜치에 api 폴더가 없을 때:** Vercel이 배포하는 브랜치(예: master)에 **api/** 폴더와 **vercel.json** 이 포함된 커밋이 푸시되어 있어야 합니다. `api/` 를 넣은 커밋이 **ing** 등 다른 브랜치에만 있으면, master 배포에는 API가 없어서 `/api/parse-expense` 도 404가 납니다. → **api/** 와 **vercel.json** 이 들어 있는 커밋을 **Production Branch**(예: master)에 푸시하거나 머지한 뒤 재배포하세요.
+
+**`awallet_gemini_api not configured` 가 나올 때:**
+
+1. **Preview 환경에 변수가 있는지 확인:** `ing` 브랜치 URL(`...-git-ing-...vercel.app`)은 **Preview** 배포입니다. **Settings → Environment Variables**에서 `awallet_gemini_api` 가 **Preview** 에 체크되어 있어야 합니다. (Production만 체크돼 있으면 Preview URL에서는 빈 값으로 나옵니다.)
+2. **이름 정확히 `awallet_gemini_api`** 인지 확인 (띄어쓰기 없음, 소문자).
+3. 저장 후 **Deployments** → 해당 배포 **⋯** → **Redeploy** 로 한 번 다시 배포.
 
 **테스트 단계에서 `ing` 브랜치로만 배포하고 싶을 때:**
 
