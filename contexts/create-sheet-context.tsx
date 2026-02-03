@@ -79,10 +79,10 @@ export const CreateSheetProvider = ({ children }: PropsWithChildren) => {
   }, [navigateWithDelay, calendarContext]);
 
   const handleChallengePress = useCallback(() => {
-    const challengeDate = calendarContext.selectedDate.replace(/-/g, '.');
     navigateWithDelay('/expense-category', {
       mode: 'challenge',
-      selectedDate: challengeDate,
+      // 캘린더에서 선택한 위치 그대로 사용 (소비 기록 생성과 동일한 로직)
+      selectedDate: calendarContext.selectedDate,
       calendarYear: calendarContext.calendarYear.toString(),
       calendarMonth: calendarContext.calendarMonth.toString(),
     });

@@ -11,6 +11,7 @@ import { Colors, Typography } from '@/constants/theme';
 import { useToast } from '@/contexts/toast-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadCategories } from '@/utils/categories';
+import { getAllChallenges, type ChallengeRecord } from '@/utils/challenges';
 import { applySavedOrder, loadCategoryOrder } from '@/utils/category-order';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
@@ -163,10 +164,69 @@ export default function ExpenseCategoryScreen() {
                 <Pressable
                   style={styles.categoryItem}
                   onPress={async () => {
-                    setSelectedCategory(category.label);
-                    
-                    // 챌린지 신규 선택 모드일 때: 챌린지 생성 화면으로 이동 (기간 겹침 검증은 challenge-create에서 수행)
+                    // 챌린지 신규 선택 모드일 때: 기존 챌린지 기간 겹침 체크 후, 문제 없으면 선택 + 생성 화면으로 이동
                     if (isChallengeMode && !isChallengeReSelectMode) {
+                      if (!params.selectedDate || !params.calendarYear || !params.calendarMonth) {
+                        setToastMessage('캘린더 위치 정보를 불러오지 못했습니다.');
+                        setToastVisible(true);
+                        return;
+                      }
+
+                      try {
+                        const year = parseInt(params.calendarYear, 10);
+                        const month = parseInt(params.calendarMonth, 10);
+
+                        // 선택된 월의 시작/끝 날짜 계산 (소비/챌린지 공통 로직과 동일한 방식 유지)
+                        const monthStartDate = new Date(year, month - 1, 1);
+                        const nextMonthStartDate = new Date(year, month, 1);
+                        const monthEndDate = new Date(nextMonthStartDate.getTime() - 24 * 60 * 60 * 1000);
+
+                        const startDateStr = `${monthStartDate.getFullYear()}.${String(monthStartDate.getMonth() + 1).padStart(2, '0')}.${String(monthStartDate.getDate()).padStart(2, '0')}`;
+                        const endDateStr = `${monthEndDate.getFullYear()}.${String(monthEndDate.getMonth() + 1).padStart(2, '0')}.${String(monthEndDate.getDate()).padStart(2, '0')}`;
+
+                        const isDateRangeOverlapping = (
+                          newStart: string,
+                          newEnd: string,
+                          existingStart: string,
+                          existingEnd: string
+                        ): boolean => {
+                          const newStartDate = new Date(newStart.replace(/\./g, '-'));
+                          const newEndDate = new Date(newEnd.replace(/\./g, '-'));
+                          const existingStartDate = new Date(existingStart.replace(/\./g, '-'));
+                          const existingEndDate = new Date(existingEnd.replace(/\./g, '-'));
+                          
+                          return newStartDate <= existingEndDate && newEndDate >= existingStartDate;
+                        };
+
+                        const allChallenges = await getAllChallenges();
+                        const activeChallenges: ChallengeRecord[] = allChallenges.filter(
+                          (ch) => !ch.isDeleted && ch.category === category.label
+                        );
+
+                        const hasOverlap = activeChallenges.some((existing) =>
+                          isDateRangeOverlapping(
+                            startDateStr,
+                            endDateStr,
+                            existing.startDate,
+                            existing.endDate
+                          )
+                        );
+
+                        if (hasOverlap) {
+                          setToastMessage('해당 기간에 선택하신 챌린지가 이미 존재합니다.');
+                          setToastVisible(true);
+                          return;
+                        }
+                      } catch (error) {
+                        console.error('[expense-category] Failed to check challenge overlap:', error);
+                        setToastMessage('챌린지 중복 여부 확인 중 오류가 발생했습니다.');
+                        setToastVisible(true);
+                        return;
+                      }
+
+                      // 중복이 없을 때만 선택 상태 반영
+                      setSelectedCategory(category.label);
+
                       router.push({
                         pathname: '/challenge-create',
                         params: {
@@ -181,6 +241,7 @@ export default function ExpenseCategoryScreen() {
                     // (확인 버튼에서 중복 검증 수행)
                     // 신규 등록 모드일 때: 카테고리 선택 시 바로 다음 화면으로 이동
                     else if (!isEditMode && !isChallengeReSelectMode) {
+                      setSelectedCategory(category.label);
                       const targetPathname = categoryType === 'income' ? '/income-record' : '/expense-record';
                       router.push({
                         pathname: targetPathname,

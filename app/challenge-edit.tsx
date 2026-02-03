@@ -174,16 +174,20 @@ export default function ChallengeEditScreen() {
     }
   };
 
-  // 금액 입력 시 처리하는 함수
+  // 금액 입력 시 처리하는 함수 (소비 기록과 동일한 상한선 적용)
   const handleAmountChange = (text: string) => {
     const numbersOnly = text.replace(/[^0-9]/g, '');
     
-    if (numbersOnly) {
-      const formattedAmount = Number(numbersOnly).toLocaleString();
-      setTargetAmount(formattedAmount);
-    } else {
+    if (!numbersOnly) {
       setTargetAmount('');
+      return;
     }
+
+    const num = parseInt(numbersOnly, 10);
+    const MAX_AMOUNT = 1000000000; // 10억
+    const clamped = Math.min(num, MAX_AMOUNT);
+
+    setTargetAmount(clamped.toLocaleString());
   };
 
   const formatAmountDisplay = useCallback((raw: string) => {
@@ -370,22 +374,19 @@ export default function ChallengeEditScreen() {
         updatedAt: Date.now(),
       });
 
-      // 챌린지 현황으로 이동 (스택 리셋)
+      // 챌린지 현황으로 이동 (스택 리셋) - 홈의 챌린지 탭만 남기기
+      const now = new Date();
       (navigation as any).reset({
         index: 0,
         routes: [
           {
             name: '(tabs)',
             params: {
-              screen: 'home',
-            },
-          },
-          {
-            name: 'monthly-expense-timeline',
-            params: {
-              year: new Date().getFullYear().toString(),
-              month: (new Date().getMonth() + 1).toString(),
-              tab: 'challenge',
+              screen: 'challenge',
+              params: {
+                year: now.getFullYear().toString(),
+                month: (now.getMonth() + 1).toString(),
+              },
             },
           },
         ],
@@ -424,23 +425,19 @@ export default function ChallengeEditScreen() {
 
       setShowDeleteModal(false);
       
-      // 챌린지 현황으로 이동 (스택 리셋 - 소비기록 삭제와 동일한 방식)
-      // 스택의 루트부터 시작하여 챌린지 현황 화면만 남기도록 리셋
+      // 챌린지 현황으로 이동 (스택 리셋) - 홈의 챌린지 탭만 남기기
+      const now = new Date();
       (navigation as any).reset({
         index: 0,
         routes: [
           {
             name: '(tabs)',
             params: {
-              screen: 'home',
-            },
-          },
-          {
-            name: 'monthly-expense-timeline',
-            params: {
-              year: new Date().getFullYear().toString(),
-              month: (new Date().getMonth() + 1).toString(),
-              tab: 'challenge'
+              screen: 'challenge',
+              params: {
+                year: now.getFullYear().toString(),
+                month: (now.getMonth() + 1).toString(),
+              },
             },
           },
         ],
@@ -585,35 +582,6 @@ export default function ChallengeEditScreen() {
             ]}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
-            onScrollBeginDrag={() => {
-              isScrollingRef.current = true;
-              clearDismissTimeout();
-              ignoreNextTouchEndRef.current = true;
-            }}
-            onScrollEndDrag={() => {
-              isScrollingRef.current = false;
-              setTimeout(() => {
-                ignoreNextTouchEndRef.current = false;
-              }, 0);
-            }}
-            onMomentumScrollEnd={() => {
-              isScrollingRef.current = false;
-              setTimeout(() => {
-                ignoreNextTouchEndRef.current = false;
-              }, 0);
-            }}
-            onTouchEnd={() => {
-              if (!isKeypadVisible) return;
-              clearDismissTimeout();
-              if (ignoreNextTouchEndRef.current) {
-                ignoreNextTouchEndRef.current = false;
-                return;
-              }
-              dismissTimeoutRef.current = setTimeout(() => {
-                if (isScrollingRef.current) return;
-                handleKeypadDismiss();
-              }, 0);
-            }}
           >
           {/* 챌린지 정보 */}
           <View style={styles.section}>

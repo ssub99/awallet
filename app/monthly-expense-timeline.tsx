@@ -14,7 +14,6 @@ import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { loadCategories } from '@/utils/categories';
-import { getChallengesByDateRange } from '@/utils/challenges';
 import { getCustomMonthRange, isDateInCustomMonth } from '@/utils/custom-month';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
@@ -141,7 +140,8 @@ export default function MonthlyExpenseTimelineScreen() {
   const month = currentMonth;
   
   // Tab state
-  const [activeTab, setActiveTab] = useState(params.tab || 'timeline');
+  const initialTab = params.tab === 'status' ? 'status' : 'timeline';
+  const [activeTab, setActiveTab] = useState<'timeline' | 'status'>(initialTab);
   
   // Timeline data
   const [timelineData, setTimelineData] = useState<TimelineItem[]>([]);
@@ -153,9 +153,6 @@ export default function MonthlyExpenseTimelineScreen() {
     amount: number;
     memo?: string;
   }[]>([]);
-  
-  // Challenge data
-  const [challenges, setChallenges] = useState<ChallengeData[]>([]);
   
   // Filter state for category view
   const [categoryFilter, setCategoryFilter] = useState<'all' | 'recurring'>('all');
@@ -299,34 +296,6 @@ export default function MonthlyExpenseTimelineScreen() {
             setTimelineData(items);
           }
 
-          // 챌린지 데이터 새로고침
-          try {
-            const { startDate: customStart, endDate: customEnd } = getCustomMonthRange(year, month, monthStart);
-
-            const formatChallengeDate = (dateObj: Date) => {
-              const challengeYear = dateObj.getFullYear();
-              const challengeMonth = String(dateObj.getMonth() + 1).padStart(2, '0');
-              const challengeDay = String(dateObj.getDate()).padStart(2, '0');
-              return `${challengeYear}.${challengeMonth}.${challengeDay}`;
-            };
-
-            const challengeRecords = await getChallengesByDateRange(
-              formatChallengeDate(customStart),
-              formatChallengeDate(customEnd)
-            );
-
-            const activeChallenges = challengeRecords.filter((challenge) => {
-              const [startY, startM, startD] = challenge.startDate.split('.').map(Number);
-              const challengeStartDate = new Date(startY, startM - 1, startD);
-              return isDateInCustomMonth(challengeStartDate, year, month, monthStart);
-            });
-
-            setChallenges(activeChallenges);
-          } catch (challengeError) {
-            console.error('[monthly-expense-timeline] Failed to load challenges:', challengeError);
-            setChallenges([]);
-          }
-          
           // 데이터 로드 완료 후 페이드인 준비
           setIsContentReady(true);
           hasAnimatedRef.current = true;
@@ -383,59 +352,6 @@ export default function MonthlyExpenseTimelineScreen() {
     return { income, expense };
   }, [timelineData]);
 
-  // Challenge amounts state
-  const [challengeAmounts, setChallengeAmounts] = useState<Record<string, number>>({});
-  
-  // Calculate challenge amounts from all data
-  useEffect(() => {
-    const calculateChallengeAmounts = async () => {
-      const amounts: Record<string, number> = {};
-      
-      for (const challenge of challenges) {
-        let totalAmount = 0;
-        
-        // 챌린지 시작일과 종료일을 Date 객체로 변환
-        const startDate = new Date(challenge.startDate.replace(/\./g, '-'));
-        const endDate = new Date(challenge.endDate.replace(/\./g, '-'));
-        
-        // AsyncStorage에서 전체 데이터를 가져와서 챌린지 기간의 소비금액 계산
-        const storedData = await AsyncStorage.getItem('calendarData');
-        if (storedData) {
-          // recurringType이 null인 경우 undefined로 변환 (JSON.parse reviver)
-          const calendarData = JSON.parse(storedData, (key, value) => {
-            if (key === 'recurringType' && value === null) {
-              return undefined;
-            }
-            return value;
-          });
-          
-          Object.entries(calendarData).forEach(([dateString, data]: [string, any]) => {
-            const itemDate = new Date(dateString);
-            
-            // 챌린지 기간 내의 데이터만 확인
-            if (itemDate >= startDate && itemDate <= endDate) {
-              if (data.records && Array.isArray(data.records)) {
-                data.records.forEach((record: any) => {
-                  // isDeleted가 true인 기록 제외 (환불된 기록도 제외 - 금액이 0이므로)
-                  if (record.isDeleted || record.isRefunded) return;
-                  
-                  if (record.type === 'expense' && record.category === challenge.category) {
-                    totalAmount += record.amount || 0;
-                  }
-                });
-              }
-            }
-          });
-        }
-        
-        amounts[challenge.id] = totalAmount;
-      }
-      
-      setChallengeAmounts(amounts);
-    };
-    
-    calculateChallengeAmounts();
-  }, [challenges]);
   
   // Group timeline items by date
   const groupedTimeline = useMemo(() => {
@@ -499,7 +415,6 @@ export default function MonthlyExpenseTimelineScreen() {
           options={[
             { label: '타임라인', value: 'timeline' },
             { label: '소비 현황', value: 'status' },
-            { label: '챌린지 현황', value: 'challenge' },
           ]}
           value={activeTab}
           onValueChange={setActiveTab}

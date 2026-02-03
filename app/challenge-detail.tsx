@@ -431,13 +431,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   listScrollContent: {
+    flexGrow: 1,
     paddingBottom: 32,
   },
   emptyContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 80,
   },
   emptyText: {
     ...Typography.body1.l.regular,
