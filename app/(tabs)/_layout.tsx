@@ -1,5 +1,6 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
+import { View, StyleSheet } from 'react-native';
 
 import { TabBar } from '@/components/navigation/tab-bar';
 import { Icon } from '@/components/ui/icon';
@@ -13,7 +14,8 @@ export default function TabLayout() {
 
   return (
     <CreateSheetProvider>
-      <Tabs
+      <View style={styles.wrapper}>
+        <Tabs
         initialRouteName="home"
         tabBar={(props) => <TabBar {...props} />}
         screenOptions={{
@@ -31,11 +33,11 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
-          name="create"
+          name="challenge"
           options={{
-            title: '기록하기',
-            tabBarIcon: () => (
-              <Icon name="addTask" variant="line" size={28} color={colors.staticBlack} />
+            title: '챌린지',
+            tabBarIcon: ({ focused }) => (
+              <Icon name="challenge" variant={focused ? 'solid' : 'line'} size={28} color={colors.staticBlack} />
             ),
           }}
         />
@@ -50,6 +52,12 @@ export default function TabLayout() {
         />
         
         {/* Hidden tabs - still accessible but not in bottom navigation */}
+        <Tabs.Screen
+          name="create"
+          options={{
+            href: null,
+          }}
+        />
         <Tabs.Screen
           name="index"
           options={{
@@ -81,6 +89,13 @@ export default function TabLayout() {
           }}
         />
       </Tabs>
+      </View>
     </CreateSheetProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  wrapper: {
+    flex: 1,
+  },
+});

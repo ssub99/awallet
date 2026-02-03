@@ -17,12 +17,14 @@ import { ViewStyle } from 'react-native';
 
 // Import line SVGs
 import AddTaskLine from '@/assets/images/icons/line/addTask.svg';
+import AddTaskFabLine from '@/assets/images/icons/line/addTaskFab.svg';
 import ArrowDownLine from '@/assets/images/icons/line/arrowDown.svg';
 import ArrowLeftLine from '@/assets/images/icons/line/arrowLeft.svg';
 import ArrowRightLine from '@/assets/images/icons/line/arrowRight.svg';
 import ArrowUpLine from '@/assets/images/icons/line/arrowUp.svg';
 import CalendarMonthLine from '@/assets/images/icons/line/calendarMonth.svg';
 import CalendarYearLine from '@/assets/images/icons/line/calendarYear.svg';
+import ChallengeLine from '@/assets/images/icons/line/challenge.svg';
 import CheckLine from '@/assets/images/icons/line/check.svg';
 import CheckboxIconLine from '@/assets/images/icons/line/checkboxIcon.svg';
 import CloseLine from '@/assets/images/icons/line/close.svg';
@@ -43,6 +45,7 @@ import PersonLine from '@/assets/images/icons/line/person.svg';
 import ProfileLine from '@/assets/images/icons/line/profile.svg';
 import SearchLine from '@/assets/images/icons/line/search.svg';
 import SettingLine from '@/assets/images/icons/line/setting.svg';
+import StarLine from '@/assets/images/icons/line/star.svg';
 
 // Import solid SVGs
 import ArrowDownSolid from '@/assets/images/icons/solid/arrowDown.svg';
@@ -51,6 +54,7 @@ import ArrowRightSolid from '@/assets/images/icons/solid/arrowRight.svg';
 import ArrowUpSolid from '@/assets/images/icons/solid/arrowUp.svg';
 import DeleteSolid from '@/assets/images/icons/solid/delete.svg';
 import HomeSolid from '@/assets/images/icons/solid/home.svg';
+import ChallengeSolid from '@/assets/images/icons/solid/challenge.svg';
 import MypageSolid from '@/assets/images/icons/solid/mypage.svg';
 import SettingSolid from '@/assets/images/icons/solid/setting.svg';
 
@@ -60,12 +64,14 @@ import SettingSolid from '@/assets/images/icons/solid/setting.svg';
  */
 export type IconName =
   | 'addTask'
+  | 'addTaskFab'
   | 'arrowDown'
   | 'arrowLeft'
   | 'arrowRight'
   | 'arrowUp'
   | 'calendarMonth'
   | 'calendarYear'
+  | 'challenge'
   | 'check'
   | 'checkboxIcon'
   | 'close'
@@ -85,7 +91,8 @@ export type IconName =
   | 'person'
   | 'profile'
   | 'search'
-  | 'setting';
+  | 'setting'
+  | 'star';
 
 /**
  * Icon variant types
@@ -97,7 +104,7 @@ export type IconVariant = 'line' | 'solid';
 /**
  * Icons available in solid variant
  */
-export type SolidIconName = 'arrowDown' | 'arrowLeft' | 'arrowRight' | 'arrowUp' | 'delete' | 'home' | 'mypage' | 'setting';
+export type SolidIconName = 'arrowDown' | 'arrowLeft' | 'arrowRight' | 'arrowUp' | 'challenge' | 'delete' | 'home' | 'mypage' | 'setting';
 
 export interface IconProps {
   /**
@@ -140,12 +147,14 @@ export interface IconProps {
 const iconComponents = {
   line: {
     addTask: AddTaskLine,
+    addTaskFab: AddTaskFabLine,
     arrowDown: ArrowDownLine,
     arrowLeft: ArrowLeftLine,
     arrowRight: ArrowRightLine,
     arrowUp: ArrowUpLine,
     calendarMonth: CalendarMonthLine,
     calendarYear: CalendarYearLine,
+    challenge: ChallengeLine,
     check: CheckLine,
     checkboxIcon: CheckboxIconLine,
     close: CloseLine,
@@ -166,12 +175,14 @@ const iconComponents = {
     profile: ProfileLine,
     search: SearchLine,
     setting: SettingLine,
+    star: StarLine,
   },
   solid: {
     arrowDown: ArrowDownSolid,
     arrowLeft: ArrowLeftSolid,
     arrowRight: ArrowRightSolid,
     arrowUp: ArrowUpSolid,
+    challenge: ChallengeSolid,
     delete: DeleteSolid,
     home: HomeSolid,
     mypage: MypageSolid,
@@ -182,7 +193,7 @@ const iconComponents = {
 /**
  * Icons available in solid variant
  */
-const solidIcons = new Set<IconName>(['arrowDown', 'arrowLeft', 'arrowRight', 'arrowUp', 'delete', 'home', 'mypage', 'setting']);
+const solidIcons = new Set<IconName>(['arrowDown', 'arrowLeft', 'arrowRight', 'arrowUp', 'challenge', 'delete', 'home', 'mypage', 'setting']);
 
 /**
  * Get icon component based on name and variant

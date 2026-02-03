@@ -49,6 +49,16 @@ export const IconCategories = {
     'calendarMonth',
     'calendarYear',
   ] as const,
+
+  /**
+   * Challenge / list icons
+   */
+  challenge: ['challenge'] as const,
+
+  /**
+   * Etc (star, etc.)
+   */
+  etc: ['star'] as const,
   
   /**
    * User and profile icons
@@ -100,6 +110,7 @@ export const IconDescriptions: Record<IconName, string> = {
   arrowUp: 'Arrow pointing up',
   calendarMonth: 'Monthly calendar',
   calendarYear: 'Yearly calendar',
+  challenge: 'Challenge or list',
   check: 'Checkmark',
   checkboxIcon: 'Checkbox checkmark icon',
   close: 'Close or dismiss',
@@ -120,6 +131,7 @@ export const IconDescriptions: Record<IconName, string> = {
   profile: 'User profile',
   search: 'Search',
   setting: 'Settings or configuration',
+  star: 'Star',
 };
 
 /**
@@ -163,7 +175,7 @@ export function getIconMetadata(name: IconName): IconMetadata {
   }
   
   // Check if has solid variant
-  const solidIcons: IconName[] = ['arrowDown', 'arrowUp', 'arrowLeft', 'arrowRight', 'delete', 'home', 'mypage', 'setting'];
+  const solidIcons: IconName[] = ['arrowDown', 'arrowUp', 'arrowLeft', 'arrowRight', 'challenge', 'delete', 'home', 'mypage', 'setting'];
   const hasSolid = solidIcons.includes(name);
   
   return {

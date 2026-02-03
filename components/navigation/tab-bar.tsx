@@ -26,11 +26,11 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const DOUBLE_TAP_DELAY = 500; // ms
 
   // Only show specific routes
-  // Production: home, create, mypage
-  // Development: home, create, mypage, components, icons
+  // Production: home, challenge, mypage
+  // Development: home, challenge, mypage, components, icons
   const allowedRoutes = __DEV__ 
-    ? ['home', 'create', 'mypage', 'components', 'icons']
-    : ['home', 'create', 'mypage'];
+    ? ['home', 'challenge', 'mypage', 'components', 'icons']
+    : ['home', 'challenge', 'mypage'];
   
   const visibleRoutes = state.routes.filter((route) => {
     return allowedRoutes.includes(route.name);

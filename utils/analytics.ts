@@ -10,7 +10,12 @@ if (isProduction) {
   try {
     analytics = require('@react-native-firebase/analytics').default;
   } catch (error) {
-    console.warn('[Analytics] Firebase Analytics 모듈을 로드할 수 없습니다:', error);
+    // Expo Go·개발빌드 등 네이티브 모듈 미연결 시 정상 동작. 프로덕션에서만 경고.
+    if (__DEV__) {
+      console.debug('[Analytics] Firebase Analytics 모듈을 로드할 수 없습니다 (개발 환경):', error);
+    } else {
+      console.warn('[Analytics] Firebase Analytics 모듈을 로드할 수 없습니다:', error);
+    }
   }
 }
 
@@ -31,7 +36,11 @@ export async function logEvent(eventName: string, params?: Record<string, any>):
       console.log(`📊 [Analytics] Event logged: ${eventName}`, params || {});
     }
   } catch (error) {
-    console.warn(`[Analytics] Failed to log event ${eventName}:`, error);
+    if (__DEV__) {
+      console.debug(`[Analytics] Failed to log event ${eventName} (개발 환경):`, error);
+    } else {
+      console.warn(`[Analytics] Failed to log event ${eventName}:`, error);
+    }
   }
 }
 
@@ -52,7 +61,11 @@ export async function setAnalyticsCollectionEnabled(enabled: boolean): Promise<v
       console.log(`📊 [Analytics] Collection ${enabled ? 'enabled' : 'disabled'}`);
     }
   } catch (error) {
-    console.warn('[Analytics] Failed to set collection enabled:', error);
+    if (__DEV__) {
+      console.debug('[Analytics] Failed to set collection enabled (개발 환경):', error);
+    } else {
+      console.warn('[Analytics] Failed to set collection enabled:', error);
+    }
   }
 }
 

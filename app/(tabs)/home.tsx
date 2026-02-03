@@ -16,17 +16,24 @@ import { useLoading } from '@/contexts/loading-context';
 import { calendarRefreshEvent } from '@/hooks/calendar-events';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
+import { useThemeColor } from '@/hooks/use-theme-color';
+import { createSheetEvent } from '@/utils/create-sheet-event';
 import { getCustomMonthInfo, isDateInCustomMonth } from '@/utils/custom-month';
 import { saveMonthlyExpenseToWidget } from '@/utils/widget-data-sync';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, AppState, AppStateStatus, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, AppState, AppStateStatus, Easing, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Circle, Defs, LinearGradient, Stop, Svg } from 'react-native-svg';
+
+const FAB_SIZE = 48;
+const FAB_OFFSET_ABOVE_TABS = 16;
 
 export default function HomeScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const iconWhite = useThemeColor({}, 'staticWhite');
   const navigation = useNavigation();
   const router = useRouter();
   const { calendarData, monthStartDay, refresh, isReady } = useAppData();
@@ -45,6 +52,11 @@ export default function HomeScreen() {
   const [isContentReady, setIsContentReady] = useState(false);
   const contentOpacity = useRef(new Animated.Value(0)).current;
   const hasAnimatedRef = useRef(false);
+
+  // Star 아이콘 애니메이션: isContentReady 후 2초 대기 → (스케일 다운·업 → 2초 대기 → 회전 2바퀴 → 5초 대기 → 리셋) 루프
+  const starScale = useRef(new Animated.Value(1)).current;
+  const starRotate = useRef(new Animated.Value(0)).current;
+  const starAnimationRunRef = useRef(false);
 
   // 소비 기록 완료 후 전달된 params 받기
   const params = useLocalSearchParams<{
@@ -67,6 +79,9 @@ export default function HomeScreen() {
   
   // 년도 화면에서 마지막으로 본 월 추적
   const lastYearViewMonth = useRef<number | null>(null);
+  // Shared year/month state for both TopNavigation and Calendar
+  const [currentYear, setCurrentYear] = useState<number>(new Date().getFullYear());
+  const [currentMonth, setCurrentMonth] = useState<number>(new Date().getMonth() + 1); // 1-12
   const handleYearMonthPress = useCallback(
     (month: number) => {
       if (isNavigating.current) {
@@ -93,13 +108,7 @@ export default function HomeScreen() {
   );
   
   // 사용되지 않는 오늘 날짜 유틸 제거 (기능 영향 없음)
-  
   const [selectedDate, setSelectedDate] = useState<string>('');
-  
-  // Shared year/month state for both TopNavigation and Calendar
-  // 초기값은 임시로 설정하고, useFocusEffect에서 올바른 값으로 설정
-  const [currentYear, setCurrentYear] = useState<number>(new Date().getFullYear());
-  const [currentMonth, setCurrentMonth] = useState<number>(new Date().getMonth() + 1); // 1-12
 
   // 앱 시작 시 저장된 설정 불러오기 및 params 처리
   useEffect(() => {
@@ -320,28 +329,6 @@ export default function HomeScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isReady]);
 
-  // iOS 위젯에 이번달 소비 요약 데이터 동기화
-  useEffect(() => {
-    if (Platform.OS !== 'ios') {
-      return;
-    }
-
-    if (!isReady) {
-      return;
-    }
-
-    // financialData는 현재 커스텀 월 기준 합산 데이터
-    saveMonthlyExpenseToWidget(
-      Number(financialData.expense),
-      Number(financialData.income),
-      Number(financialData.balance),
-      Number(monthStartDay)
-    ).catch((error) => {
-      // 위젯 연동 실패는 앱 주요 플로우를 막지 않도록 조용히 로깅만 수행
-      console.warn('[HomeScreen] Failed to sync monthly data to widget:', error);
-    });
-  }, [financialData, monthStartDay, isReady]);
-
   // 앱이 백그라운드에서 포그라운드로 돌아올 때 날짜 변경 여부를 감지하여 오늘로 리셋
   const handleAppStateChange = useCallback(
     (nextAppState: AppStateStatus) => {
@@ -400,6 +387,31 @@ export default function HomeScreen() {
     }
   }, [isContentReady, contentOpacity]);
 
+  // Star 애니메이션: 홈 로딩 2초 후 → (스케일 다운·업 → 2초 대기 → 회전 2바퀴 → 5초 대기 → 리셋) 루프 반복
+  useEffect(() => {
+    if (!isContentReady || starAnimationRunRef.current) return;
+    starAnimationRunRef.current = true;
+
+    Animated.sequence([
+      Animated.delay(2500),
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(starScale, { toValue: 0.6, duration: 200, useNativeDriver: true }),
+          Animated.timing(starScale, { toValue: 1.35, duration: 200, useNativeDriver: true }),
+          Animated.timing(starScale, { toValue: 1, duration: 200, useNativeDriver: true }),
+          Animated.delay(1500),
+          Animated.timing(starRotate, {
+            toValue: 720,
+            duration: 3000,
+            easing: Easing.inOut(Easing.cubic),
+            useNativeDriver: true,
+          }),
+          Animated.delay(5000),
+          Animated.timing(starRotate, { toValue: 0, duration: 0, useNativeDriver: true }),
+        ])
+      ),
+    ]).start();
+  }, [isContentReady, starScale, starRotate]);
 
   // Calculate year data from calendar data (based on custom month start day)
   const yearData: MonthData[] = useMemo(() => {
@@ -482,8 +494,30 @@ export default function HomeScreen() {
     };
   }, [currentYear, currentMonth, calendarData, monthStartDay]);
 
+  // iOS 위젯에 이번달 소비 요약 데이터 동기화
+  useEffect(() => {
+    if (Platform.OS !== 'ios') {
+      return;
+    }
+
+    if (!isReady) {
+      return;
+    }
+
+    // financialData는 현재 커스텀 월 기준 합산 데이터
+    saveMonthlyExpenseToWidget(
+      Number(financialData.expense),
+      Number(financialData.income),
+      Number(financialData.balance),
+      Number(monthStartDay)
+    ).catch((error) => {
+      // 위젯 연동 실패는 앱 주요 플로우를 막지 않도록 조용히 로깅만 수행
+      console.warn('[HomeScreen] Failed to sync monthly data to widget:', error);
+    });
+  }, [financialData, monthStartDay, isReady]);
 
   return (
+    <View style={styles.screenWrapper}>
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       
       {/* Top Navigation */}
@@ -614,25 +648,59 @@ export default function HomeScreen() {
                   </Text>
                 </Pressable>
 
-                {/* Challenge Card */}
+                {/* 소비 에이전트 Card - Figma 시안: 좌측 star 아이콘(그라데 원형 배경) */}
                 <Pressable 
                   style={[styles.card, { backgroundColor: colors.staticWhite }]}
-                  onPress={() => {
-                    // 챌린지 현황으로 이동
-                    router.push({
-                      pathname: '/monthly-expense-timeline',
-                      params: {
-                        year: currentYear.toString(),
-                        month: currentMonth.toString(),
-                        tab: 'challenge'
-                      }
-                    });
-                  }}
+                  onPress={() => createSheetEvent.emit()}
+                  accessibilityRole="button"
+                  accessibilityLabel="소비 에이전트"
                 >
-                  <Text style={[styles.cardLabel, { color: colors.textNeutral }]}> 
-                    챌린지 진행현황
+                  <View style={styles.agentCardIconWrap}>
+                    <Svg
+                      width={20}
+                      height={20}
+                      viewBox="0 0 20 20"
+                      style={{ position: 'absolute', left: 0, top: 0 }}
+                    >
+                      <Defs>
+                        <LinearGradient
+                          id="starCircleGradient"
+                          x1={0}
+                          y1={0}
+                          x2={20}
+                          y2={20}
+                          gradientUnits="userSpaceOnUse"
+                        >
+                          <Stop offset="0" stopColor="#8ca4dd" />
+                          <Stop offset="0.5625" stopColor="#3664ce" />
+                          <Stop offset="1" stopColor="#3664ce" />
+                        </LinearGradient>
+                      </Defs>
+                      <Circle cx={10} cy={10} r={10} fill="url(#starCircleGradient)" />
+                    </Svg>
+                    <Animated.View
+                      style={[
+                        styles.agentCardIconInner,
+                        {
+                          transform: [
+                            { scale: starScale },
+                            {
+                              rotate: starRotate.interpolate({
+                                inputRange: [0, 720],
+                                outputRange: ['0deg', '720deg'],
+                              }),
+                            },
+                          ],
+                        },
+                      ]}
+                    >
+                      <Icon name="star" variant="line" size={10} color={iconWhite} />
+                    </Animated.View>
+                  </View>
+                  <Text style={[styles.cardLabel, { color: colors.textNeutral, flex: 1 }]}> 
+                    소비 에이전트
                   </Text>
-                  <View style={styles.challengeIcon}>
+                  <View style={styles.agentCardArrow}>
                     <Icon name="arrowRight" variant="solid" size={24} color={colors.textAssistive} />
                   </View>
                 </Pressable>
@@ -701,12 +769,49 @@ export default function HomeScreen() {
       )}
 
     </SafeAreaView>
+      {/* FAB: 홈에서만 노출, 기록/챌린지 선택 바텀시트 오픈 */}
+      <Pressable
+        style={[
+          styles.fab,
+          styles.fabShadow,
+          {
+            backgroundColor: colors.primary,
+            // 탭 콘텐츠 영역 기준이므로 탭바 위 12px만 적용 (레이아웃에 둘 때와 동일한 시각 위치)
+            bottom: FAB_OFFSET_ABOVE_TABS,
+          },
+        ]}
+        onPress={() => createSheetEvent.emit()}
+        accessibilityRole="button"
+        accessibilityLabel="기록 또는 챌린지 선택"
+      >
+        <Icon name="addTaskFab" variant="line" size={24} color={iconWhite} />
+      </Pressable>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  screenWrapper: {
+    flex: 1,
+  },
   container: {
     flex: 1,
+  },
+  fab: {
+    position: 'absolute',
+    right: 16,
+    width: FAB_SIZE,
+    height: FAB_SIZE,
+    borderRadius: FAB_SIZE / 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fabShadow: {
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 8,
   },
   summaryContainer: {
     paddingHorizontal: 16,
@@ -735,13 +840,25 @@ const styles = StyleSheet.create({
     flex: 1, // Take remaining space
     textAlign: 'right',
   },
-  challengeIcon: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+  agentCardIconWrap: {
+    width: 20,
+    height: 20,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 'auto', // Push to right
+  },
+  agentCardIconInner: {
+    position: 'absolute',
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  agentCardArrow: {
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 
