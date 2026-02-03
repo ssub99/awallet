@@ -25,6 +25,9 @@ Symbols/
 # Metro
 .metro-health-check*
 
+# Vercel (local link/config)
+.vercel/
+
 # debug
 npm-debug.*
 yarn-debug.*
