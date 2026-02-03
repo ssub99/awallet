@@ -52,12 +52,13 @@ function buildPrompt(
 2. 결제 기본: credit. 체크/현금 요청 시 debit/cash. 기본값 지정 요청 시 기억.
 3. 날짜는 기준일 ${today} 기준. YYYY.MM.DD.
 4. 소비 외 질문→reply에 "소비 기록 관련해서만 답변드릴 수 있어요."
-5. 부족한 항목 있으면 reply에 요청. 카테고리 없으면 suggestedCategory(이모지+이름 10자 이내) 제안.
+5. 부족한 항목 있으면 reply에 요청. 카테고리 목록에 없거나 비어있으면 반드시 suggestedCategory 1개 제안(이모지+이름 10자).
 
 카테고리: ${categoryList}
+- 목록이 비어있거나 매칭 없으면 records[].category는 null, suggestedCategory는 반드시 채움(예: 옷→쇼핑).
 금액: 숫자만. 2만원→20000. paymentMethod: 신용/카드→credit, 체크/현금→debit/cash. 여러 건이면 records에 복수.
 
-JSON 형식: {"records":[{"category","date","amount","paymentMethod","memo"}],"suggestedCategory":null,"reply":null}
+JSON 형식: {"records":[{"category","date","amount","paymentMethod","memo"}],"suggestedCategory":null 또는 {"label","emoji"},"reply":null}
 reply는 사용자에게 할 말(부족한 항목 안내·거절 멘트 등) 있을 때만 문자열, 없으면 null.
 
 ${context}`;
