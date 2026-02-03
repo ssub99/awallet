@@ -481,6 +481,12 @@ export default function ChallengeCreateScreen() {
             { paddingBottom: isKeypadVisible ? KEYPAD_HEIGHT + 16 - insets.bottom : 24 }
           ]}
           keyboardShouldPersistTaps="handled"
+          onTouchEnd={() => {
+            // 수입/소비 기록과 동일하게, 본문 영역을 탭하면 커스텀 키패드를 닫는다.
+            if (!isKeypadVisible) return;
+            clearDismissTimeout();
+            handleKeypadDismiss();
+          }}
           onScrollBeginDrag={() => {
             isScrollingRef.current = true;
             clearDismissTimeout();
