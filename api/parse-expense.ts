@@ -63,6 +63,37 @@ reply는 사용자에게 할 말(부족한 항목 안내·거절 멘트 등) 있
 ${context}`;
 }
 
+const CATEGORY_LABEL_MAX_LEN = 10;
+
+function normalizeSuggestedCategory(
+  raw: unknown
+): { label: string; emoji: string } | null {
+  if (raw == null) return null;
+  if (
+    typeof raw === 'object' &&
+    'label' in (raw as object) &&
+    'emoji' in (raw as object)
+  ) {
+    const o = raw as { label?: unknown; emoji?: unknown };
+    const label = String(o.label ?? '').trim().slice(0, CATEGORY_LABEL_MAX_LEN);
+    const emoji = String(o.emoji ?? '').trim();
+    if (label && emoji) return { label, emoji };
+    return null;
+  }
+  const str =
+    typeof raw === 'string' ? raw : Array.isArray(raw) ? raw[0] : null;
+  if (typeof str !== 'string' || !str.trim()) return null;
+  const trimmed = str.trim();
+  const firstSpace = trimmed.indexOf(' ');
+  const hasEmojiPart = firstSpace > 0;
+  const emoji = hasEmojiPart ? trimmed.slice(0, firstSpace).trim() : '📁';
+  const label = (hasEmojiPart ? trimmed.slice(firstSpace) : trimmed)
+    .trim()
+    .slice(0, CATEGORY_LABEL_MAX_LEN);
+  if (!label) return null;
+  return { label, emoji: emoji || '📁' };
+}
+
 function parseGeminiJson(text: string): ParseExpenseResponse | null {
   const trimmed = text.trim();
   const jsonMatch = trimmed.match(/\{[\s\S]*\}/);
@@ -70,9 +101,10 @@ function parseGeminiJson(text: string): ParseExpenseResponse | null {
   try {
     const parsed = JSON.parse(jsonMatch[0]) as ParseExpenseResponse;
     if (!Array.isArray(parsed.records)) return null;
+    const rawSuggested = parsed.suggestedCategory ?? null;
     return {
       records: parsed.records,
-      suggestedCategory: parsed.suggestedCategory ?? null,
+      suggestedCategory: normalizeSuggestedCategory(rawSuggested),
       reply: parsed.reply ?? null,
     };
   } catch {
