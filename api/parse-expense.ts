@@ -71,10 +71,10 @@ function parseGeminiJson(text: string): ParseExpenseResponse | null {
 
 export async function POST(request: Request): Promise<Response> {
   try {
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.awallet_gemini_api;
     if (!apiKey) {
       return Response.json(
-        { error: 'GEMINI_API_KEY not configured' },
+        { error: 'awallet_gemini_api not configured' },
         { status: 500 }
       );
     }

@@ -78,8 +78,11 @@ npx vercel
 2. Vercel은 **Settings → Git → Production Branch** 에서 정한 브랜치만 “프로덕션 URL”로 배포함. 나머지 브랜치 푸시는 **Preview** 배포(브랜치별 URL)로 뜸.
 3. 따라서 `ing` 에 푸시하면:
    - **Production Branch 가 `ing` 이면** → `https://awallet.vercel.app` 에 배포됨 (테스트용으로 쓰면 됨)
-   - **Production Branch 가 `main` 등이면** → `ing` 푸시는 **Preview** 배포만 생성 (예: `https://awallet-git-ing-xxx.vercel.app`) → 이 Preview URL로 테스트하면 됨
-4. 정리: **커밋 푸시 → 그 푸시 기준으로 Vercel이 자동 배포**가 맞고, `ing` 에 푸시해두고 그 히스토리로 Vercel 배포해서 테스트하는 흐름이 맞음.
+   - **Production Branch 가 `main`/`master` 등이면** → `ing` 푸시는 **Preview** 배포만 생성 (예: `https://awallet-git-ing-xxx.vercel.app`) → 메인 URL은 안 바뀜
+4. **`ing` 푸시가 메인 URL에 반영되게 하려면:** **Production Branch** 를 **ing** 으로 바꾸고 저장. 그다음부터는 `ing` 푸시가 프로덕션 배포로 뜨고, 메인 도메인이 그걸 가리킴.
+   - **Production Branch 위치:** 프로젝트 **Settings** → **Git** 페이지에서 **Deploy Hooks가 아닌 위쪽**에 “Production Branch” 또는 “Production branch” 필드가 있음. 없으면 **Settings** → **Environments** 메뉴에서 같은 설정을 찾을 수 있음 (Vercel UI 버전에 따라 다름).
+5. **Deploy Hooks** 는 “이 URL로 GET 요청 보내면 해당 브랜치 배포 트리거”하는 기능이라, “어떤 브랜치 푸시가 프로덕션으로 갈지” 정하는 **Production Branch** 와는 다름.
+6. 정리: **디폴트 브랜치만 보는 게 아니라**, “프로덕션으로 쓸 브랜치”를 하나 정해 두는 것. 그걸 `ing` 으로 바꾸면 `ing` 푸시가 메인 URL에 배포됨.
 
 ### 3-3. 스테이지 / 프로덕션 환경 나누기
 
