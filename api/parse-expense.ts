@@ -53,6 +53,7 @@ function buildPrompt(
 3. 날짜는 기준일 ${today} 기준. YYYY.MM.DD.
 4. 소비 외 질문→reply에 "소비 기록 관련해서만 답변드릴 수 있어요."
 5. 부족한 항목 있으면 reply에 요청. 카테고리 목록에 없거나 비어있으면 반드시 suggestedCategory 1개 제안(이모지+이름 10자).
+6. 메모는 사용자가 별도로 요청할 때만 기록에 넣음.
 
 카테고리: ${categoryList}
 - 목록이 비어있거나 매칭 없으면 records[].category는 null, suggestedCategory는 반드시 채움(예: 옷→쇼핑).
