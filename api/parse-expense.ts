@@ -1,14 +1,10 @@
 /**
  * 에이전트: 사용자 메시지 → 지출 기록 제안 (Gemini API)
- * POST body: { message: string, history?: { role: 'user'|'assistant', content: string }[] }
- * Response: { records: { category, date, amount, paymentMethod?, memo? }[], suggestedCategory?: { label, emoji } }
+ * POST body: { message: string, history?: { role, content }[], categories?: string[], today?: string }
+ *   - categories: 해당 사용자의 카테고리 목록(라벨만). 없으면 [].
+ *   - today: 기준일 YYYY.MM.DD. 없으면 서버일자 사용.
+ * Response: { records, suggestedCategory?, reply? }
  */
-
-const EXPENSE_CATEGORY_LABELS = [
-  '식비', '배달음식', '카페/편의점/간식', '교통비', '주거비', '공과금', '통신비',
-  '쇼핑', '미용', '운동/헬스', '구독 서비스', '영화', '취미', '여행', '모임/술',
-  '경조사/선물', '차량', '대출/이자', '보험', '적금', '투자', '세금', '기타',
-] as const;
 
 const PAYMENT_METHODS = ['credit', 'debit', 'cash'] as const;
 type PaymentMethod = (typeof PAYMENT_METHODS)[number];
@@ -29,31 +25,42 @@ interface SuggestedCategory {
 interface ParseExpenseResponse {
   records: ExpenseRecordSuggestion[];
   suggestedCategory?: SuggestedCategory | null;
+  reply?: string | null;
 }
 
-function buildPrompt(message: string, history: { role: string; content: string }[]): string {
-  const historyText = history.length
-    ? history
-        .map((h) => `${h.role === 'user' ? '사용자' : 'AI'}: ${h.content}`)
-        .join('\n')
-    : '';
-  const context = historyText ? `\n\n이전 대화:\n${historyText}\n\n현재 사용자 메시지: ${message}` : message;
+const MAX_HISTORY_MESSAGES = 6;
 
-  return `당신은 가계부 앱의 지출 기록 추출기입니다. 사용자 메시지에서 지출 정보를 추출해 JSON으로만 답하세요.
+function buildPrompt(
+  message: string,
+  history: { role: string; content: string }[],
+  categories: string[],
+  today: string
+): string {
+  const limited = history.slice(-MAX_HISTORY_MESSAGES);
+  const historyText =
+    limited.length > 0
+      ? limited.map((h) => `${h.role === 'user' ? '사용자' : 'AI'}: ${h.content}`).join('\n')
+      : '';
+  const context = historyText ? `이전:\n${historyText}\n\n현재: ${message}` : message;
+  const categoryList =
+    categories.length > 0 ? categories.join(', ') : '(없음. suggestedCategory로만 제안)';
+
+  return `가계부 지출 추출. JSON만 출력.
 
 규칙:
-- 날짜는 반드시 YYYY.MM.DD 형식 (예: 2025.01.30). "어제"/"오늘"은 실제 날짜로 변환 (기준일은 오늘).
-- 금액은 숫자만 (단위 없이). "2만원" → 20000, "오천" → 5000.
-- 카테고리는 아래 목록에서 골라야 함. 없으면 suggestedCategory에 새 카테고리 제안 (label, emoji).
-- paymentMethod: "신용카드"/"카드" → credit, "체크"/"현금" → debit, "현금" → cash. 모르면 생략.
-- 한 메시지에 여러 건이면 records에 여러 개. "어제 오늘 각 2만원"이면 2건.
+1. 요청 없으면 생성/삭제 금지.
+2. 결제 기본: credit. 체크/현금 요청 시 debit/cash. 기본값 지정 요청 시 기억.
+3. 날짜는 기준일 ${today} 기준. YYYY.MM.DD.
+4. 소비 외 질문→reply에 "소비 기록 관련해서만 답변드릴 수 있어요."
+5. 부족한 항목 있으면 reply에 요청. 카테고리 없으면 suggestedCategory(이모지+이름 10자 이내) 제안.
 
-카테고리 목록: ${EXPENSE_CATEGORY_LABELS.join(', ')}
+카테고리: ${categoryList}
+금액: 숫자만. 2만원→20000. paymentMethod: 신용/카드→credit, 체크/현금→debit/cash. 여러 건이면 records에 복수.
 
-응답은 반드시 아래 JSON만 출력 (다른 설명 없이):
-{"records":[{"category":"식비","date":"2025.01.30","amount":20000,"paymentMethod":"credit","memo":""}],"suggestedCategory":null}
+JSON 형식: {"records":[{"category","date","amount","paymentMethod","memo"}],"suggestedCategory":null,"reply":null}
+reply는 사용자에게 할 말(부족한 항목 안내·거절 멘트 등) 있을 때만 문자열, 없으면 null.
 
-사용자 메시지: ${context}`;
+${context}`;
 }
 
 function parseGeminiJson(text: string): ParseExpenseResponse | null {
@@ -63,15 +70,26 @@ function parseGeminiJson(text: string): ParseExpenseResponse | null {
   try {
     const parsed = JSON.parse(jsonMatch[0]) as ParseExpenseResponse;
     if (!Array.isArray(parsed.records)) return null;
-    return parsed;
+    return {
+      records: parsed.records,
+      suggestedCategory: parsed.suggestedCategory ?? null,
+      reply: parsed.reply ?? null,
+    };
   } catch {
     return null;
   }
 }
 
+function getTodayString(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}.${m}.${d}`;
+}
+
 export async function POST(request: Request): Promise<Response> {
   try {
-    // Vercel에서는 키 이름이 대문자로 주입될 수 있음
     const apiKey =
       process.env.awallet_gemini_api ?? process.env.AWALLET_GEMINI_API;
     if (!apiKey) {
@@ -81,9 +99,19 @@ export async function POST(request: Request): Promise<Response> {
       );
     }
 
-    const body = await request.json();
+    const body = (await request.json()) as Record<string, unknown>;
     const message = typeof body?.message === 'string' ? body.message : '';
-    const history = Array.isArray(body?.history) ? body.history : [];
+    const rawHistory = Array.isArray(body?.history) ? body.history : [];
+    const history = rawHistory
+      .filter((h): h is { role: string; content: string } => typeof (h as { role?: unknown; content?: unknown })?.role === 'string' && typeof (h as { role?: unknown; content?: unknown })?.content === 'string')
+      .map((h) => ({ role: h.role, content: h.content }));
+    const categories = Array.isArray(body?.categories)
+      ? (body.categories as string[]).filter((c): c is string => typeof c === 'string')
+      : [];
+    const today =
+      typeof body?.today === 'string' && /^\d{4}\.\d{2}\.\d{2}$/.test(body.today)
+        ? body.today
+        : getTodayString();
 
     if (!message.trim()) {
       return Response.json(
@@ -92,7 +120,7 @@ export async function POST(request: Request): Promise<Response> {
       );
     }
 
-    const prompt = buildPrompt(message, history);
+    const prompt = buildPrompt(message, history, categories, today);
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${apiKey}`;
     const res = await fetch(url, {
       method: 'POST',
@@ -118,8 +146,7 @@ export async function POST(request: Request): Promise<Response> {
     const data = (await res.json()) as {
       candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
     };
-    const text =
-      data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
     const result = parseGeminiJson(text);
 
     if (!result) {
