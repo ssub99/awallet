@@ -29,6 +29,7 @@ import { Circle, Defs, LinearGradient, Stop, Svg } from 'react-native-svg';
 
 const FAB_SIZE = 48;
 const FAB_OFFSET_ABOVE_TABS = 16;
+const QUICK_INPUT_HEIGHT = 48;
 
 export default function HomeScreen() {
   const colorScheme = useColorScheme();
@@ -547,14 +548,13 @@ export default function HomeScreen() {
       {/* Conditional Content: Month View or Year View */}
       {periodType === 'month' ? (
         <Animated.View style={{ opacity: isContentReady ? contentOpacity : 0 }}>
-            {/* Financial Summary Cards */}
-            <View style={[styles.summaryContainer, { backgroundColor: colors.fill }]}> 
-              <View style={styles.summaryRow}>
-                {/* Income Card */}
-                <Pressable 
-                  style={[styles.card, { backgroundColor: colors.staticWhite }]}
+            {/* 월 현황 (UI only 변경): 입금/소비/잔액 3개를 한 카드에 정렬 */}
+            <View style={[styles.monthStatusWrap, { backgroundColor: colors.fill }]}>
+              <View style={[styles.monthStatusCard, { backgroundColor: colors.staticWhite }]}>
+                {/* 입금 */}
+                <Pressable
+                  style={styles.monthStatusItem}
                   onPress={() => {
-                    // 수입 기록: 카테고리 선택 → 기록
                     const targetDate = effectiveSelectedDate;
                     router.push({
                       pathname: '/expense-category',
@@ -568,12 +568,12 @@ export default function HomeScreen() {
                   }}
                   accessibilityRole="button"
                   accessibilityLabel="수입 기록하기"
-                > 
-                  <Text style={[styles.cardLabel, { color: colors.textNeutral }]}> 
-                    수입
+                >
+                  <Text style={[styles.monthStatusLabel, { color: colors.textNeutral }]}>
+                    입금
                   </Text>
-                  <Text 
-                    style={[styles.cardAmount, { color: colors.text }]}
+                  <Text
+                    style={[styles.monthStatusValue, { color: colors.text }]}
                     adjustsFontSizeToFit
                     numberOfLines={1}
                     minimumFontScale={0.5}
@@ -582,46 +582,12 @@ export default function HomeScreen() {
                   </Text>
                 </Pressable>
 
-                {/* Balance Card */}
-                <Pressable 
-                  style={[styles.card, { backgroundColor: colors.staticWhite }]}
-                  onPress={() => {
-                    // 타임라인으로 이동
-                    router.push({
-                      pathname: '/monthly-expense-timeline',
-                      params: {
-                        year: currentYear.toString(),
-                        month: currentMonth.toString(),
-                      },
-                    });
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel="월 타임라인 보기"
-                > 
-                  <Text style={[styles.cardLabel, { color: colors.textNeutral }]}> 
-                    잔액
-                  </Text>
-                  <Text 
-                    style={[styles.cardAmount, { 
-                      color: financialData.balance < 0 
-                        ? AtomicColors.red[500] 
-                        : AtomicColors.green[600]
-                    }]}
-                    adjustsFontSizeToFit
-                    numberOfLines={1}
-                    minimumFontScale={0.5}
-                  >
-                    {financialData.balance.toLocaleString()}원
-                  </Text>
-                </Pressable>
-              </View>
+                <View style={[styles.monthStatusDivider, { backgroundColor: colors.border }]} />
 
-              <View style={styles.summaryRow}>
-                {/* Expense Card */}
-                <Pressable 
-                  style={[styles.card, { backgroundColor: colors.staticWhite }]}
+                {/* 소비 */}
+                <Pressable
+                  style={styles.monthStatusItem}
                   onPress={() => {
-                    // 소비 카테고리 선택 화면으로 이동
                     const targetDate = effectiveSelectedDate;
                     router.push({
                       pathname: '/expense-category',
@@ -634,12 +600,12 @@ export default function HomeScreen() {
                   }}
                   accessibilityRole="button"
                   accessibilityLabel="소비 기록하기"
-                > 
-                  <Text style={[styles.cardLabel, { color: colors.textNeutral }]}> 
+                >
+                  <Text style={[styles.monthStatusLabel, { color: colors.textNeutral }]}>
                     소비
                   </Text>
-                  <Text 
-                    style={[styles.cardAmount, { color: colors.text }]}
+                  <Text
+                    style={[styles.monthStatusValue, { color: colors.text }]}
                     adjustsFontSizeToFit
                     numberOfLines={1}
                     minimumFontScale={0.5}
@@ -648,61 +614,42 @@ export default function HomeScreen() {
                   </Text>
                 </Pressable>
 
-                {/* 소비 에이전트 Card - Figma 시안: 좌측 star 아이콘(그라데 원형 배경) */}
-                <Pressable 
-                  style={[styles.card, { backgroundColor: colors.staticWhite }]}
-                  onPress={() => createSheetEvent.emit()}
+                <View style={[styles.monthStatusDivider, { backgroundColor: colors.border }]} />
+
+                {/* 잔액 */}
+                <Pressable
+                  style={styles.monthStatusItem}
+                  onPress={() => {
+                    router.push({
+                      pathname: '/monthly-expense-timeline',
+                      params: {
+                        year: currentYear.toString(),
+                        month: currentMonth.toString(),
+                      },
+                    });
+                  }}
                   accessibilityRole="button"
-                  accessibilityLabel="소비 에이전트"
+                  accessibilityLabel="월 타임라인 보기"
                 >
-                  <View style={styles.agentCardIconWrap}>
-                    <Svg
-                      width={20}
-                      height={20}
-                      viewBox="0 0 20 20"
-                      style={{ position: 'absolute', left: 0, top: 0 }}
-                    >
-                      <Defs>
-                        <LinearGradient
-                          id="starCircleGradient"
-                          x1={0}
-                          y1={0}
-                          x2={20}
-                          y2={20}
-                          gradientUnits="userSpaceOnUse"
-                        >
-                          <Stop offset="0" stopColor="#8ca4dd" />
-                          <Stop offset="0.5625" stopColor="#3664ce" />
-                          <Stop offset="1" stopColor="#3664ce" />
-                        </LinearGradient>
-                      </Defs>
-                      <Circle cx={10} cy={10} r={10} fill="url(#starCircleGradient)" />
-                    </Svg>
-                    <Animated.View
-                      style={[
-                        styles.agentCardIconInner,
-                        {
-                          transform: [
-                            { scale: starScale },
-                            {
-                              rotate: starRotate.interpolate({
-                                inputRange: [0, 720],
-                                outputRange: ['0deg', '720deg'],
-                              }),
-                            },
-                          ],
-                        },
-                      ]}
-                    >
-                      <Icon name="star" variant="line" size={10} color={iconWhite} />
-                    </Animated.View>
-                  </View>
-                  <Text style={[styles.cardLabel, { color: colors.textNeutral, flex: 1 }]}> 
-                    소비 에이전트
+                  <Text style={[styles.monthStatusLabel, { color: colors.textNeutral }]}>
+                    잔액
                   </Text>
-                  <View style={styles.agentCardArrow}>
-                    <Icon name="arrowRight" variant="solid" size={24} color={colors.textAssistive} />
-                  </View>
+                  <Text
+                    style={[
+                      styles.monthStatusValue,
+                      {
+                        color:
+                          financialData.balance < 0
+                            ? AtomicColors.red[500]
+                            : AtomicColors.green[600],
+                      },
+                    ]}
+                    adjustsFontSizeToFit
+                    numberOfLines={1}
+                    minimumFontScale={0.5}
+                  >
+                    {financialData.balance.toLocaleString()}원
+                  </Text>
                 </Pressable>
               </View>
             </View>
@@ -769,6 +716,66 @@ export default function HomeScreen() {
       )}
 
     </SafeAreaView>
+      {/* 간편입력 (UI only): 탭바 상단 중앙 */}
+      <View
+        style={[
+          styles.quickInput,
+          {
+            backgroundColor: colors.fill,
+            bottom: FAB_OFFSET_ABOVE_TABS,
+          },
+        ]}
+      >
+        <View style={styles.quickInputLeft}>
+          {/* 소비 에이전트 카드와 동일한 그라데이션 circle + star 애니메이션 */}
+          <View style={styles.agentCardIconWrap}>
+            <Svg
+              width={20}
+              height={20}
+              viewBox="0 0 20 20"
+              style={{ position: 'absolute', left: 0, top: 0 }}
+            >
+              <Defs>
+                <LinearGradient
+                  id="starCircleGradient"
+                  x1={0}
+                  y1={0}
+                  x2={20}
+                  y2={20}
+                  gradientUnits="userSpaceOnUse"
+                >
+                  <Stop offset="0" stopColor="#8ca4dd" />
+                  <Stop offset="0.5625" stopColor="#3664ce" />
+                  <Stop offset="1" stopColor="#3664ce" />
+                </LinearGradient>
+              </Defs>
+              <Circle cx={10} cy={10} r={10} fill="url(#starCircleGradient)" />
+            </Svg>
+            <Animated.View
+              style={[
+                styles.agentCardIconInner,
+                {
+                  transform: [
+                    { scale: starScale },
+                    {
+                      rotate: starRotate.interpolate({
+                        inputRange: [0, 720],
+                        outputRange: ['0deg', '720deg'],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            >
+              <Icon name="star" variant="line" size={10} color={iconWhite} />
+            </Animated.View>
+          </View>
+          <Text style={[styles.quickInputText, { color: colors.textNeutral }]}>간편입력</Text>
+        </View>
+        <View style={styles.quickInputArrow}>
+          <Icon name="arrowRight" variant="line" size={16} color={colors.textAssistive} />
+        </View>
+      </View>
       {/* FAB: 홈에서만 노출, 기록/챌린지 선택 바텀시트 오픈 */}
       <Pressable
         style={[
@@ -812,6 +819,61 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 12,
     elevation: 8,
+  },
+  quickInput: {
+    position: 'absolute',
+    height: QUICK_INPUT_HEIGHT,
+    borderRadius: QUICK_INPUT_HEIGHT / 2,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    gap: 12,
+    zIndex: 10,
+  },
+  quickInputLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  quickInputText: {
+    ...Typography.body2.r.medium,
+  },
+  quickInputArrow: {
+    width: 16,
+    height: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  monthStatusWrap: {
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  monthStatusCard: {
+    height: 78,
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+  },
+  monthStatusItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  monthStatusDivider: {
+    width: 1,
+    height: 16,
+  },
+  monthStatusLabel: {
+    ...Typography.body2.r.medium,
+    textAlign: 'center',
+  },
+  monthStatusValue: {
+    ...Typography.body1.l.bold,
+    textAlign: 'center',
   },
   summaryContainer: {
     paddingHorizontal: 16,
