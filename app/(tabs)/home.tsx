@@ -7,11 +7,14 @@
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { CalendarMain } from '@/components/ui/calendar-main';
 import { Icon } from '@/components/ui/icon';
+import { QuickInputShort } from '@/components/ui/quick-input-short';
+import { BlurView } from 'expo-blur';
 import { MonthData, YearView, YearViewRef } from '@/components/ui/year-view';
 import { AtomicColors } from '@/constants/atomic-colors';
 import { Colors, Typography } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';
 import { useCreateSheetContext } from '@/contexts/create-sheet-context';
+import { FAB_OFFSET_ABOVE_TABS, useQuickInputContext } from '@/contexts/quick-input-context';
 import { useLoading } from '@/contexts/loading-context';
 import { calendarRefreshEvent } from '@/hooks/calendar-events';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -24,12 +27,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, AppState, AppStateStatus, Easing, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Circle, Defs, LinearGradient, Stop, Svg } from 'react-native-svg';
 
 const FAB_SIZE = 48;
-const FAB_OFFSET_ABOVE_TABS = 16;
-const QUICK_INPUT_HEIGHT = 48;
 
 export default function HomeScreen() {
   const colorScheme = useColorScheme();
@@ -42,6 +43,9 @@ export default function HomeScreen() {
   const { setLoading } = useLoading();
   const pendingOpsRef = useRef(0);
   const appState = useRef<AppStateStatus>(AppState.currentState);
+  const insets = useSafeAreaInsets();
+  
+  const { isQuickInputVisible, showQuickInput } = useQuickInputContext();
   const beginLoad = useCallback(() => {
     pendingOpsRef.current += 1;
     setLoading(true);
@@ -73,6 +77,9 @@ export default function HomeScreen() {
   
   // Navigation lock to prevent duplicate navigation
   const isNavigating = useRef(false);
+
+  // 캘린더가 차지할 수 있는 높이 (FAB/간편입력과 겹치지 않게 flex로 남은 영역만 사용)
+  const [calendarContainerHeight, setCalendarContainerHeight] = useState<number | undefined>(undefined);
   
   // Top Navigation state
   const [periodType, setPeriodType] = useState<'year' | 'month'>('month');
@@ -375,6 +382,11 @@ export default function HomeScreen() {
     };
   }, [handleAppStateChange]);
 
+  const handleQuickInputPress = useCallback(
+    (shortBottomFromScreen: number) => showQuickInput(starScale, starRotate, shortBottomFromScreen),
+    [showQuickInput, starScale, starRotate]
+  );
+
   useEffect(() => {
     if (isContentReady) {
       contentOpacity.setValue(0);
@@ -547,7 +559,7 @@ export default function HomeScreen() {
 
       {/* Conditional Content: Month View or Year View */}
       {periodType === 'month' ? (
-        <Animated.View style={{ opacity: isContentReady ? contentOpacity : 0 }}>
+        <Animated.View style={[styles.monthViewContent, { opacity: isContentReady ? contentOpacity : 0 }]}>
             {/* 월 현황 (UI only 변경): 입금/소비/잔액 3개를 한 카드에 정렬 */}
             <View style={[styles.monthStatusWrap, { backgroundColor: colors.fill }]}>
               <View style={[styles.monthStatusCard, { backgroundColor: colors.staticWhite }]}>
@@ -654,9 +666,14 @@ export default function HomeScreen() {
               </View>
             </View>
 
-            {/* Calendar */}
-            <CalendarMain
-              selectedDate={selectedDate}
+            {/* Calendar: flex 1로 남은 영역만 쓰고, 측정한 높이를 넘겨 FAB/간편입력과 겹치지 않게 함 */}
+            <View
+              style={styles.calendarContainer}
+              onLayout={(e) => setCalendarContainerHeight(e.nativeEvent.layout.height)}
+            >
+              <CalendarMain
+                containerHeight={calendarContainerHeight}
+                selectedDate={selectedDate}
               onDayPress={(dateString) => {
                 // 이미 선택된 날짜를 다시 탭하면 월 소비현황으로 이동
                 if (selectedDate === dateString) {
@@ -699,7 +716,8 @@ export default function HomeScreen() {
                 setCurrentYear(year);
                 setCurrentMonth(month);
               }}
-            />
+              />
+            </View>
         </Animated.View>
       ) : (
         <>
@@ -716,66 +734,16 @@ export default function HomeScreen() {
       )}
 
     </SafeAreaView>
-      {/* 간편입력 (UI only): 탭바 상단 중앙 */}
-      <View
-        style={[
-          styles.quickInput,
-          {
-            backgroundColor: colors.fill,
-            bottom: FAB_OFFSET_ABOVE_TABS,
-          },
-        ]}
-      >
-        <View style={styles.quickInputLeft}>
-          {/* 소비 에이전트 카드와 동일한 그라데이션 circle + star 애니메이션 */}
-          <View style={styles.agentCardIconWrap}>
-            <Svg
-              width={20}
-              height={20}
-              viewBox="0 0 20 20"
-              style={{ position: 'absolute', left: 0, top: 0 }}
-            >
-              <Defs>
-                <LinearGradient
-                  id="starCircleGradient"
-                  x1={0}
-                  y1={0}
-                  x2={20}
-                  y2={20}
-                  gradientUnits="userSpaceOnUse"
-                >
-                  <Stop offset="0" stopColor="#8ca4dd" />
-                  <Stop offset="0.5625" stopColor="#3664ce" />
-                  <Stop offset="1" stopColor="#3664ce" />
-                </LinearGradient>
-              </Defs>
-              <Circle cx={10} cy={10} r={10} fill="url(#starCircleGradient)" />
-            </Svg>
-            <Animated.View
-              style={[
-                styles.agentCardIconInner,
-                {
-                  transform: [
-                    { scale: starScale },
-                    {
-                      rotate: starRotate.interpolate({
-                        inputRange: [0, 720],
-                        outputRange: ['0deg', '720deg'],
-                      }),
-                    },
-                  ],
-                },
-              ]}
-            >
-              <Icon name="star" variant="line" size={10} color={iconWhite} />
-            </Animated.View>
-          </View>
-          <Text style={[styles.quickInputText, { color: colors.textNeutral }]}>간편입력</Text>
-        </View>
-        <View style={styles.quickInputArrow}>
-          <Icon name="arrowRight" variant="line" size={16} color={colors.textAssistive} />
-        </View>
-      </View>
+      {/* 간편입력 버튼: 탭바 상단 중앙, 배경 블러 적용 (커스텀 키패드와 동일 패턴) */}
+      {!isQuickInputVisible && (
+        <QuickInputShort
+          bottom={FAB_OFFSET_ABOVE_TABS}
+          onPress={handleQuickInputPress}
+          starScale={starScale}
+          starRotate={starRotate}
+        />
+      )}
+
       {/* FAB: 홈에서만 노출, 기록/챌린지 선택 바텀시트 오픈 */}
       <Pressable
         style={[
@@ -820,30 +788,11 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 8,
   },
-  quickInput: {
-    position: 'absolute',
-    height: QUICK_INPUT_HEIGHT,
-    borderRadius: QUICK_INPUT_HEIGHT / 2,
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    gap: 12,
-    zIndex: 10,
+  monthViewContent: {
+    flex: 1,
   },
-  quickInputLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  quickInputText: {
-    ...Typography.body2.r.medium,
-  },
-  quickInputArrow: {
-    width: 16,
-    height: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+  calendarContainer: {
+    flex: 1,
   },
   monthStatusWrap: {
     paddingHorizontal: 12,
@@ -901,20 +850,6 @@ const styles = StyleSheet.create({
     ...Typography.body1.l.bold,
     flex: 1, // Take remaining space
     textAlign: 'right',
-  },
-  agentCardIconWrap: {
-    width: 20,
-    height: 20,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  agentCardIconInner: {
-    position: 'absolute',
-    width: 20,
-    height: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   agentCardArrow: {
     width: 24,

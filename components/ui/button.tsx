@@ -15,7 +15,7 @@
 import { Colors } from '@/constants/theme';
 import { Typography } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { Pressable, PressableProps, StyleSheet, Text, TextStyle, ViewStyle } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, PressableProps, StyleSheet, Text, TextStyle, View, ViewStyle } from 'react-native';
 
 export interface ButtonProps extends Omit<PressableProps, 'children'> {
   /**
@@ -46,6 +46,14 @@ export interface ButtonProps extends Omit<PressableProps, 'children'> {
   disabled?: boolean;
   
   /**
+   * Loading state
+   * 
+   * - Shows a progress indicator inside the button
+   * - Disables interaction while loading
+   */
+  loading?: boolean;
+  
+  /**
    * Button text content
    */
   children: React.ReactNode;
@@ -61,6 +69,7 @@ export function Button({
   type = 'solid',
   size = 'large',
   disabled = false,
+  loading = false,
   children,
   onPress,
   ...pressableProps
@@ -68,34 +77,65 @@ export function Button({
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
 
+  // 시각적 비활성 상태는 disabled prop만 따르고,
+  // 로딩 중에는 스타일은 유지하되 클릭만 막는다.
+  const isVisuallyDisabled = disabled;
+  const isPressDisabled = disabled || loading;
+
   const handlePress = () => {
-    if (!disabled) {
+    if (!isPressDisabled) {
       onPress();
     }
   };
 
   // Get button styles based on variant, type, size, and state
-  const buttonStyle = getButtonStyle(colors as any, variant, type, size, disabled);
-  const textStyle = getTextStyle(colors as any, variant, type, size, disabled);
+  const buttonStyle = getButtonStyle(colors as any, variant, type, size, isVisuallyDisabled);
+  const textStyle = getTextStyle(colors as any, variant, type, size, isVisuallyDisabled);
 
   return (
     <Pressable
       onPress={handlePress}
-      disabled={disabled}
+      disabled={isPressDisabled}
       style={({ pressed }) => [
         styles.base,
         buttonStyle.container,
         size === 'large' ? styles.large : styles.small,
-        pressed && !disabled && styles.pressed,
+        pressed && !isPressDisabled && styles.pressed,
       ]}
       accessibilityRole="button"
-      accessibilityState={{ disabled }}
+      accessibilityState={{ disabled: isPressDisabled }}
       accessibilityLabel={typeof children === 'string' ? children : undefined}
       {...pressableProps}
     >
-      <Text style={[textStyle, size === 'large' ? styles.textLarge : styles.textSmall]}>
-        {children}
-      </Text>
+      <View style={styles.content}>
+        {loading && (
+          <View style={styles.spinnerOverlay} pointerEvents="none">
+            <View style={styles.spinnerSize}>
+              <View style={Platform.OS === 'ios' ? styles.spinnerScale : undefined}>
+                <ActivityIndicator
+                  size={Platform.OS === 'android' ? 16 : 'small'}
+                  // 색상이 있는 솔리드 버튼(primary/negative)에서는 스피너를 흰색으로,
+                  // 회색 배경(assistive)이나 라인 타입은 플랫폼 기본 색상을 사용.
+                  color={
+                    type === 'solid' && (variant === 'primary' || variant === 'negative')
+                      ? colors.staticWhite
+                      : undefined
+                  }
+                />
+              </View>
+            </View>
+          </View>
+        )}
+        <Text
+          style={[
+            textStyle,
+            size === 'large' ? styles.textLarge : styles.textSmall,
+            loading && styles.textHidden,
+          ]}
+        >
+          {children}
+        </Text>
+      </View>
     </Pressable>
   );
 }
@@ -242,6 +282,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexDirection: 'row',
   },
+  content: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   large: {
     height: 48,
     paddingHorizontal: 24,
@@ -261,6 +305,28 @@ const styles = StyleSheet.create({
   textSmall: {
     ...Typography.button2.r.medium,
     textAlign: 'center',
+  },
+  spinnerOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  spinnerSize: {
+    width: 16,
+    height: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // iOS는 size에 숫자 미지원. 'small'(≈20pt)을 16pt로 보이게 스케일
+  spinnerScale: {
+    transform: [{ scale: 16 / 20 }],
+  },
+  textHidden: {
+    opacity: 0,
   },
   pressed: {
     opacity: 0.8,

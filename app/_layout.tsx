@@ -19,6 +19,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import { AppState, AppStateStatus, Platform, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 import 'react-native-reanimated';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 
@@ -190,7 +191,8 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <LoadingProvider>
+      <KeyboardProvider>
+        <LoadingProvider>
         <SafeAreaProvider initialMetrics={initialWindowMetrics}>
         <View style={{ flex: 1, backgroundColor: colors.background }} onLayout={onLayoutRootView}>
           <ThemeProvider value={DefaultTheme}>
@@ -226,7 +228,8 @@ export default function RootLayout() {
           </ThemeProvider>
         </View>
         </SafeAreaProvider>
-      </LoadingProvider>
+        </LoadingProvider>
+      </KeyboardProvider>
     </GestureHandlerRootView>
   );
 }

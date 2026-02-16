@@ -13,7 +13,7 @@
 import { Icon, IconName } from '@/components/ui/icon';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useRef, useState, type ReactNode } from 'react';
+import { forwardRef, useImperativeHandle, useRef, useState, type ReactNode } from 'react';
 import {
     Pressable,
     StyleSheet,
@@ -118,7 +118,7 @@ export interface InputProps extends Omit<TextInputProps, 'style'> {
 /**
  * Input Component
  */
-export function Input({
+export const Input = forwardRef<TextInput, InputProps>(function Input({
   variant = 'line',
   inputType = 'text',
   icon,
@@ -139,7 +139,7 @@ export function Input({
   placeholder,
   keyboardType: externalKeyboardType,
   ...textInputProps
-}: InputProps) {
+}, ref) {
   // Default placeholder based on inputType
   const defaultPlaceholder = inputType === 'number' ? '0' : '내용 입력';
   const finalPlaceholder = placeholder ?? defaultPlaceholder;
@@ -147,6 +147,9 @@ export function Input({
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
   
   const inputRef = useRef<TextInput>(null);
+  
+  // 외부 ref를 내부 inputRef에 연결
+  useImperativeHandle(ref, () => inputRef.current as TextInput);
   const [isFocused, setIsFocused] = useState(false);
   const hasValue = value && value.length > 0;
   const hasCalendarDate = calendar && calendarDate;
@@ -355,7 +358,7 @@ export function Input({
       </View>
     </Pressable>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {

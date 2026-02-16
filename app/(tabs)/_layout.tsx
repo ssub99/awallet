@@ -7,14 +7,16 @@ import { Icon } from '@/components/ui/icon';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { CreateSheetProvider } from '@/contexts/create-sheet-context';
+import { QuickInputProvider } from '@/contexts/quick-input-context';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
 
   return (
-    <CreateSheetProvider>
-      <View style={styles.wrapper}>
+    <QuickInputProvider>
+      <CreateSheetProvider>
+        <View style={styles.wrapper}>
         <Tabs
         initialRouteName="home"
         tabBar={(props) => <TabBar {...props} />}
@@ -89,8 +91,9 @@ export default function TabLayout() {
           }}
         />
       </Tabs>
-      </View>
-    </CreateSheetProvider>
+        </View>
+      </CreateSheetProvider>
+    </QuickInputProvider>
   );
 }
 

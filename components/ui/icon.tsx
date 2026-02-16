@@ -44,6 +44,7 @@ import OperationSubtractionLine from '@/assets/images/icons/line/operationSubtra
 import PersonLine from '@/assets/images/icons/line/person.svg';
 import ProfileLine from '@/assets/images/icons/line/profile.svg';
 import SearchLine from '@/assets/images/icons/line/search.svg';
+import SendLine from '@/assets/images/icons/line/send.svg';
 import SettingLine from '@/assets/images/icons/line/setting.svg';
 import StarLine from '@/assets/images/icons/line/star.svg';
 
@@ -52,6 +53,7 @@ import ArrowDownSolid from '@/assets/images/icons/solid/arrowDown.svg';
 import ArrowLeftSolid from '@/assets/images/icons/solid/arrowLeft.svg';
 import ArrowRightSolid from '@/assets/images/icons/solid/arrowRight.svg';
 import ArrowUpSolid from '@/assets/images/icons/solid/arrowUp.svg';
+import CancelSolid from '@/assets/images/icons/solid/cancel.svg';
 import DeleteSolid from '@/assets/images/icons/solid/delete.svg';
 import HomeSolid from '@/assets/images/icons/solid/home.svg';
 import ChallengeSolid from '@/assets/images/icons/solid/challenge.svg';
@@ -71,6 +73,7 @@ export type IconName =
   | 'arrowUp'
   | 'calendarMonth'
   | 'calendarYear'
+  | 'cancel'
   | 'challenge'
   | 'check'
   | 'checkboxIcon'
@@ -91,6 +94,7 @@ export type IconName =
   | 'person'
   | 'profile'
   | 'search'
+  | 'send'
   | 'setting'
   | 'star';
 
@@ -174,6 +178,7 @@ const iconComponents = {
     person: PersonLine,
     profile: ProfileLine,
     search: SearchLine,
+    send: SendLine,
     setting: SettingLine,
     star: StarLine,
   },
@@ -182,6 +187,7 @@ const iconComponents = {
     arrowLeft: ArrowLeftSolid,
     arrowRight: ArrowRightSolid,
     arrowUp: ArrowUpSolid,
+    cancel: CancelSolid,
     challenge: ChallengeSolid,
     delete: DeleteSolid,
     home: HomeSolid,
@@ -193,7 +199,7 @@ const iconComponents = {
 /**
  * Icons available in solid variant
  */
-const solidIcons = new Set<IconName>(['arrowDown', 'arrowLeft', 'arrowRight', 'arrowUp', 'challenge', 'delete', 'home', 'mypage', 'setting']);
+const solidIcons = new Set<IconName>(['arrowDown', 'arrowLeft', 'arrowRight', 'arrowUp', 'cancel', 'challenge', 'delete', 'home', 'mypage', 'setting']);
 
 /**
  * Get icon component based on name and variant

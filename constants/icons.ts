@@ -29,6 +29,7 @@ export const IconCategories = {
    */
   actions: [
     'addTask',
+    'cancel',
     'delete',
     'close',
     'check',
@@ -40,6 +41,7 @@ export const IconCategories = {
     'operation',
     'operationEqual',
     'search',
+    'send',
   ] as const,
   
   /**
@@ -110,6 +112,7 @@ export const IconDescriptions: Record<IconName, string> = {
   arrowUp: 'Arrow pointing up',
   calendarMonth: 'Monthly calendar',
   calendarYear: 'Yearly calendar',
+  cancel: 'Cancel or dismiss',
   challenge: 'Challenge or list',
   check: 'Checkmark',
   checkboxIcon: 'Checkbox checkmark icon',
@@ -130,6 +133,7 @@ export const IconDescriptions: Record<IconName, string> = {
   person: 'Person or user',
   profile: 'User profile',
   search: 'Search',
+  send: 'Send message',
   setting: 'Settings or configuration',
   star: 'Star',
 };
