@@ -89,21 +89,21 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     starRefs.current = null;
   }, []);
 
+  const handleSend = useCallback(() => {
+    hideQuickInput();
+  }, [hideQuickInput]);
+
+  const handleCancel = useCallback(() => {
+    setQuickInputText('');
+  }, []);
+
   // 백드롭 딤 애니메이션
   useEffect(() => {
-    if (isQuickInputVisible) {
-      RNAnimated.timing(quickInputBackdropOpacity, {
-        toValue: 1,
-        duration: 200,
-        useNativeDriver: true,
-      }).start();
-    } else {
-      RNAnimated.timing(quickInputBackdropOpacity, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      }).start();
-    }
+    RNAnimated.timing(quickInputBackdropOpacity, {
+      toValue: isQuickInputVisible ? 1 : 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
   }, [isQuickInputVisible, quickInputBackdropOpacity]);
 
   useEffect(() => {
@@ -160,14 +160,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                 placeholder="메세지 입력"
                 starScale={starScale}
                 starRotate={starRotate}
-                onSend={() => {
-                  // TODO: 전송 로직 구현
-                  hideQuickInput();
-                }}
-                onCancel={() => {
-                  // 취소 버튼: 컴포넌트를 닫지 않고 입력값만 초기화
-                  setQuickInputText('');
-                }}
+                onSend={handleSend}
+                onCancel={handleCancel}
               />
             </Animated.View>
           </View>

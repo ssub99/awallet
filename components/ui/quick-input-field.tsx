@@ -10,6 +10,7 @@ import { Colors, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { forwardRef, useImperativeHandle, useRef } from 'react';
 import {
+  Animated,
   Pressable,
   StyleSheet,
   Text,
@@ -77,8 +78,7 @@ export const QuickInputField = forwardRef<TextInput, QuickInputFieldProps>(
   ) {
     const colorScheme = useColorScheme();
     const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
-    const iconWhite = colors.staticWhite;
-    
+
     const inputRef = useRef<TextInput>(null);
     
     // 외부 ref를 내부 inputRef에 연결
@@ -132,7 +132,7 @@ export const QuickInputField = forwardRef<TextInput, QuickInputFieldProps>(
               accessibilityRole="button"
               accessibilityLabel="취소"
             >
-              <View style={styles.cancelIconBg}>
+              <View style={[styles.cancelIconBg, { backgroundColor: colors.fillStrong }]}>
                 <Icon name="cancel" variant="solid" size={24} />
               </View>
             </Pressable>
@@ -207,14 +207,6 @@ const styles = StyleSheet.create({
   placeholder: {
     ...Typography.body1.l.regular,
   },
-  iconWrap: {
-    width: 24,
-    height: 24,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
   input: {
     flex: 1,
     ...Typography.body1.l.regular,
@@ -236,7 +228,6 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: 'rgba(144, 146, 158, 0.16)',
     alignItems: 'center',
     justifyContent: 'center',
   },

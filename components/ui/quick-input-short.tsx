@@ -8,6 +8,9 @@ import { Animated, Dimensions, LayoutChangeEvent, Pressable, StyleSheet, Text, V
 import { QuickInputStar } from '@/components/ui/quick-input-star';
 
 const QUICK_INPUT_HEIGHT = 48;
+const FALLBACK_ESTIMATE = 64;
+const MIN_BOTTOM = 16;
+const MAX_BOTTOM_OFFSET = 80;
 
 /** measureInWindow 결과가 유효한지 검증 (레이아웃 미완료 시 0 등 반환) */
 function isValidMeasure(
@@ -20,6 +23,22 @@ function isValidMeasure(
   if (shortBottomFromScreen < 0 || shortBottomFromScreen > screenHeight - 20) return false;
   if (y < -100 || y > screenHeight + 100) return false;
   return true;
+}
+
+/** measureInWindow 결과로 shortBottom 계산, 유효하지 않으면 fallback 사용 */
+function resolveShortBottom(
+  screenHeight: number,
+  y: number,
+  height: number,
+  lastShortBottom: number | null,
+  fallbackBottom: number
+): number {
+  const shortBottomFromScreen = screenHeight - (y + height);
+  if (isValidMeasure(screenHeight, y, height, shortBottomFromScreen)) {
+    return shortBottomFromScreen;
+  }
+  if (lastShortBottom != null) return lastShortBottom;
+  return Math.max(MIN_BOTTOM, Math.min(screenHeight - MAX_BOTTOM_OFFSET, fallbackBottom));
 }
 
 interface QuickInputShortProps {
@@ -54,22 +73,18 @@ export function QuickInputShort({
     requestAnimationFrame(() => {
       containerRef.current?.measureInWindow((_x, y, _width, height) => {
         const screenHeight = Dimensions.get('window').height;
+        const resolved = resolveShortBottom(
+          screenHeight,
+          y,
+          height,
+          lastShortBottomRef.current,
+          bottom + FALLBACK_ESTIMATE
+        );
         const shortBottomFromScreen = screenHeight - (y + height);
-
         if (isValidMeasure(screenHeight, y, height, shortBottomFromScreen)) {
           lastShortBottomRef.current = shortBottomFromScreen;
-          onPress(shortBottomFromScreen);
-          return;
         }
-
-        if (lastShortBottomRef.current != null) {
-          onPress(lastShortBottomRef.current);
-          return;
-        }
-
-        const estimatedBottom = bottom + 64;
-        const safeFallback = Math.max(16, Math.min(screenHeight - 80, estimatedBottom));
-        onPress(safeFallback);
+        onPress(resolved);
       });
     });
   }, [onPress, bottom]);
