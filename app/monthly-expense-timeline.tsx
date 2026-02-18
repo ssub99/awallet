@@ -753,6 +753,11 @@ export default function MonthlyExpenseTimelineScreen() {
               <Text style={[styles.emptyText, { color: colors.textAssistive }]}>
                 {categoryFilter === 'all' ? '이번달 지출 내역이 없습니다.' : '정기 지출 내역이 없습니다.'}
               </Text>
+              {categoryFilter === 'all' && (
+                <Text style={[styles.emptyText, { color: colors.textAssistive }]}>
+                  0원
+                </Text>
+              )}
             </View>
           ) : (
             <View style={styles.categoryList}>

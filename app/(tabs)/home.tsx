@@ -531,6 +531,21 @@ export default function HomeScreen() {
     };
   }, [currentYear, currentMonth, calendarData, monthStartDay]);
 
+  const monthlyIncomeText = useMemo(() => {
+    const amount = Number(financialData.income) || 0;
+    return amount > 0 ? `+ ${amount.toLocaleString()}원` : '0원';
+  }, [financialData.income]);
+
+  const monthlyExpenseText = useMemo(() => {
+    const amount = Number(financialData.expense) || 0;
+    return amount > 0 ? `- ${amount.toLocaleString()}원` : '0원';
+  }, [financialData.expense]);
+
+  const monthlyBalanceText = useMemo(() => {
+    const amount = Number(financialData.balance) || 0;
+    return `${amount.toLocaleString()}원`;
+  }, [financialData.balance]);
+
   // iOS 위젯에 이번달 소비 요약 데이터 동기화
   useEffect(() => {
     if (Platform.OS !== 'ios') {
@@ -606,15 +621,13 @@ export default function HomeScreen() {
                   accessibilityLabel="수입 기록하기"
                 >
                   <Text style={[styles.monthStatusLabel, { color: colors.textNeutral }]}>
-                    입금
+                    수입
                   </Text>
                   <Text
                     style={[styles.monthStatusValue, { color: colors.text }]}
-                    adjustsFontSizeToFit
                     numberOfLines={1}
-                    minimumFontScale={0.5}
                   >
-                    + {financialData.income.toLocaleString()}원
+                    {monthlyIncomeText}
                   </Text>
                 </Pressable>
 
@@ -642,11 +655,9 @@ export default function HomeScreen() {
                   </Text>
                   <Text
                     style={[styles.monthStatusValue, { color: colors.text }]}
-                    adjustsFontSizeToFit
                     numberOfLines={1}
-                    minimumFontScale={0.5}
                   >
-                    - {financialData.expense.toLocaleString()}원
+                    {monthlyExpenseText}
                   </Text>
                 </Pressable>
 
@@ -680,11 +691,9 @@ export default function HomeScreen() {
                             : AtomicColors.green[600],
                       },
                     ]}
-                    adjustsFontSizeToFit
                     numberOfLines={1}
-                    minimumFontScale={0.5}
                   >
-                    {financialData.balance.toLocaleString()}원
+                    {monthlyBalanceText}
                   </Text>
                 </Pressable>
               </View>
