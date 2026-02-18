@@ -17,7 +17,10 @@ export interface QuickInputConfirmCardData {
   date: string;
   amount: string;
   paymentType: string;
-  repeatSetting: string;
+  /** 반복 설정: 1. 정기/할부/일반, 2. 기록 단위, 3. 주말 옵션 */
+  repeatOption1: string;
+  repeatOption2: string;
+  repeatOption3: string;
 }
 
 export interface QuickInputConfirmCardProps {
@@ -33,7 +36,7 @@ const ROW_LABELS = {
   date: '날짜',
   amount: '금액',
   paymentType: '결제 유형',
-  repeatSetting: '반복 설정',
+  repeatOption1: '반복 설정',
 } as const;
 
 function ConfirmRow({
@@ -98,16 +101,29 @@ export function QuickInputConfirmCard({ data, onConfirm, onCancel, addLoading = 
     ? `${data.categoryEmoji} ${data.category}`
     : data.category;
 
+  const title =
+    data.repeatOption1 === '정기 기록'
+      ? '정기 기록 생성'
+      : data.repeatOption1 === '할부 기록'
+        ? '할부 기록 생성'
+        : '일반 기록 생성';
+
   return (
     <Animated.View style={[styles.card, { backgroundColor: colors.staticWhite }, animatedStyle]}>
-      <Text style={[styles.title, { color: colors.textNeutral }]}>일반 기록 생성</Text>
+      <Text style={[styles.title, { color: colors.textNeutral }]}>{title}</Text>
       <View style={[styles.divider, { backgroundColor: colors.border }]} />
       <View style={styles.content}>
         <ConfirmRow label={ROW_LABELS.category} value={categoryDisplay} colors={colors} />
         <ConfirmRow label={ROW_LABELS.date} value={data.date} colors={colors} />
         <ConfirmRow label={ROW_LABELS.amount} value={data.amount} colors={colors} />
         <ConfirmRow label={ROW_LABELS.paymentType} value={data.paymentType} colors={colors} />
-        <ConfirmRow label={ROW_LABELS.repeatSetting} value={data.repeatSetting} colors={colors} />
+        <ConfirmRow
+          label={ROW_LABELS.repeatOption1}
+          value={[data.repeatOption1, data.repeatOption2, data.repeatOption3]
+            .filter(Boolean)
+            .join(' · ')}
+          colors={colors}
+        />
       </View>
       <View style={styles.buttonRow}>
         <Pressable
@@ -178,7 +194,7 @@ const styles = StyleSheet.create({
   },
   value: {
     ...Typography.body1.l.medium,
-    marginLeft: 16,
+    marginLeft: 8,
     flex: 1,
     textAlign: 'left',
   },

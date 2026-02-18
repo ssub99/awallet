@@ -15,6 +15,16 @@ interface ExpenseRecordSuggestion {
   amount: number;
   paymentMethod?: PaymentMethod;
   memo?: string;
+  /** 정기 기록 여부. 할부와 동시에 true 불가 */
+  isRecurring?: boolean;
+  /** 할부 기록 여부. 정기와 동시에 true 불가 */
+  isInstallment?: boolean;
+  /** 정기: 매일, 매주, 2주, 3주, 4주, 매월, 2개월 마다, 4개월 마다, 6개월 마다, 주중, 주말. 할부: 무시 */
+  recurringType?: string;
+  /** 정기: 해당 년도 내 반복 개월 수. 할부: 할부 개월 수(2~12) */
+  totalMonths?: number;
+  /** weekend=관계없이 주말, friday=금주 금요일, monday=차주 월요일. 매일/주중/주말 반복 시 무시 */
+  weekendOption?: 'weekend' | 'friday' | 'monday';
 }
 
 interface SuggestedCategory {
@@ -59,7 +69,17 @@ function buildPrompt(
 - 목록이 비어있거나 매칭 없으면 records[].category는 null, suggestedCategory는 반드시 채움(예: 옷→쇼핑).
 금액: 숫자만. 2만원→20000. paymentMethod: 신용/카드→credit, 체크/현금→debit/cash. 여러 건이면 records에 복수.
 
-JSON 형식: {"records":[{"category","date","amount","paymentMethod","memo"}],"suggestedCategory":null 또는 {"label","emoji"},"reply":null}
+반복/할부: **반드시** 사용자 메시지에서 정기(월세·구독·정기결제·매달·매월) 또는 할부(3개월 할부 등) 의도가 있으면 해당 필드를 채움.
+- 구독/매달/매월/월세/정기결제 → isRecurring: true, recurringType: "매월", totalMonths: 12, weekendOption: "weekend"
+- 할부 N개월 → isInstallment: true, totalMonths: N(2~12), weekendOption: "weekend"
+- 일반 지출 → isRecurring, isInstallment 모두 생략 또는 false
+- recurringType: 매일|매주|2주|3주|4주|매월|2개월 마다|4개월 마다|6개월 마다|주중|주말. 매달/매월/월세/구독이면 "매월".
+- totalMonths: 정기 매월이면 12. 할부면 개월수.
+- weekendOption: "weekend"|"friday"|"monday". 기본 "weekend". 주말 날짜+금요일 기록 원하면 "friday".
+
+예: "티빙 구독 8천원 매달" → {"category":"구독 서비스","date":"오늘","amount":8000,"isRecurring":true,"recurringType":"매월","totalMonths":12,"weekendOption":"weekend"}
+
+JSON 형식: {"records":[{"category","date","amount","paymentMethod","memo","isRecurring","isInstallment","recurringType","totalMonths","weekendOption"}],"suggestedCategory":null 또는 {"label","emoji"},"reply":null}
 reply는 사용자에게 할 말(부족한 항목 안내·거절 멘트 등) 있을 때만 문자열, 없으면 null.
 
 ${context}`;
@@ -96,6 +116,48 @@ function normalizeSuggestedCategory(
   return { label, emoji: emoji || '📁' };
 }
 
+function toBool(v: unknown): boolean {
+  if (v === true) return true;
+  if (v === 'true') return true;
+  if (v === 1) return true;
+  return false;
+}
+
+function toNum(v: unknown, def: number): number {
+  if (typeof v === 'number' && !isNaN(v)) return Math.round(v);
+  if (typeof v === 'string') {
+    const n = parseInt(v, 10);
+    if (!isNaN(n)) return n;
+  }
+  return def;
+}
+
+function normalizeRecord(raw: Record<string, unknown>): ExpenseRecordSuggestion {
+  const isRecurring = toBool(raw.isRecurring);
+  const isInstallment = toBool(raw.isInstallment);
+  const recurringType = typeof raw.recurringType === 'string' ? raw.recurringType : undefined;
+  const totalMonths = toNum(raw.totalMonths, isRecurring ? 12 : isInstallment ? 3 : 1);
+  const wo = raw.weekendOption;
+  const weekendOption =
+    wo === 'weekend' || wo === 'friday' || wo === 'monday' ? (wo as 'weekend' | 'friday' | 'monday') : 'weekend';
+
+  return {
+    category: typeof raw.category === 'string' ? raw.category : '',
+    date: typeof raw.date === 'string' ? raw.date : '',
+    amount: typeof raw.amount === 'number' ? raw.amount : toNum(raw.amount, 0),
+    paymentMethod:
+      raw.paymentMethod === 'credit' || raw.paymentMethod === 'debit' || raw.paymentMethod === 'cash'
+        ? raw.paymentMethod
+        : undefined,
+    memo: typeof raw.memo === 'string' ? raw.memo : undefined,
+    isRecurring: isRecurring || undefined,
+    isInstallment: isInstallment || undefined,
+    recurringType: isRecurring ? (recurringType || '매월') : undefined,
+    totalMonths: isRecurring || isInstallment ? totalMonths : undefined,
+    weekendOption: isRecurring || isInstallment ? weekendOption : undefined,
+  };
+}
+
 function parseGeminiJson(text: string): ParseExpenseResponse | null {
   const trimmed = text.trim();
   const jsonMatch = trimmed.match(/\{[\s\S]*\}/);
@@ -104,8 +166,11 @@ function parseGeminiJson(text: string): ParseExpenseResponse | null {
     const parsed = JSON.parse(jsonMatch[0]) as ParseExpenseResponse;
     if (!Array.isArray(parsed.records)) return null;
     const rawSuggested = parsed.suggestedCategory ?? null;
+    const records = parsed.records.map((r) =>
+      normalizeRecord(typeof r === 'object' && r != null ? (r as Record<string, unknown>) : {})
+    );
     return {
-      records: parsed.records,
+      records,
       suggestedCategory: normalizeSuggestedCategory(rawSuggested),
       reply: parsed.reply ?? null,
     };
@@ -181,13 +246,52 @@ export async function POST(request: Request): Promise<Response> {
       candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
     };
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-    const result = parseGeminiJson(text);
+    let result = parseGeminiJson(text);
 
     if (!result) {
       return Response.json(
         { error: 'Failed to parse AI response' },
         { status: 502 }
       );
+    }
+
+    // 메시지 기반 fallback: 구독/매달/매월 등이 있는데 AI가 isRecurring을 안 준 경우
+    const msg = message.toLowerCase();
+    const hasRecurringHint =
+      /구독|매달|매월|월세|정기|매주|매일/.test(msg) || /subscription|monthly|recurring/.test(msg);
+    const hasInstallmentHint = /할부|\d+개월\s*할부/.test(msg);
+    if (result.records.length > 0) {
+      const first = result.records[0] as ExpenseRecordSuggestion;
+      if (hasRecurringHint && !first.isRecurring && !first.isInstallment) {
+        result = {
+          ...result,
+          records: [
+            {
+              ...first,
+              isRecurring: true,
+              recurringType: first.recurringType || '매월',
+              totalMonths: first.totalMonths ?? 12,
+              weekendOption: first.weekendOption ?? 'weekend',
+            },
+            ...result.records.slice(1),
+          ],
+        };
+      } else if (hasInstallmentHint && !first.isRecurring && !first.isInstallment) {
+        const match = msg.match(/(\d+)개월/);
+        const months = match ? Math.min(12, Math.max(2, parseInt(match[1], 10) || 3)) : 3;
+        result = {
+          ...result,
+          records: [
+            {
+              ...first,
+              isInstallment: true,
+              totalMonths: first.totalMonths ?? months,
+              weekendOption: first.weekendOption ?? 'weekend',
+            },
+            ...result.records.slice(1),
+          ],
+        };
+      }
     }
 
     return Response.json(result);

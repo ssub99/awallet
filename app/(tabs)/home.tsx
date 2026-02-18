@@ -16,7 +16,7 @@ import { useAppData } from '@/contexts/app-data-context';
 import { useCreateSheetContext } from '@/contexts/create-sheet-context';
 import { FAB_OFFSET_ABOVE_TABS, useQuickInputContext } from '@/contexts/quick-input-context';
 import { useLoading } from '@/contexts/loading-context';
-import { calendarRefreshEvent } from '@/hooks/calendar-events';
+import { applyPendingCalendarTargetEvent, calendarRefreshEvent } from '@/hooks/calendar-events';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { useThemeColor } from '@/hooks/use-theme-color';
@@ -246,6 +246,28 @@ export default function HomeScreen() {
   useEffect(() => {
     const unsub = calendarRefreshEvent.subscribe(() => {
       refresh();
+    });
+    return unsub;
+  }, [refresh]);
+
+  // 간편입력 등: 홈에 있을 때 해당 날짜로 포커스 적용
+  useEffect(() => {
+    const unsub = applyPendingCalendarTargetEvent.subscribe(async () => {
+      try {
+        const raw = await AsyncStorage.getItem('pendingCalendarTarget');
+        if (!raw) return;
+        const parsed = JSON.parse(raw) as { year?: number; month?: number; targetDate?: string };
+        if (parsed?.year != null && parsed?.month != null && parsed?.targetDate) {
+          setCurrentYear(parsed.year);
+          setCurrentMonth(parsed.month);
+          setSelectedDate(parsed.targetDate);
+          setPeriodType('month');
+          await AsyncStorage.removeItem('pendingCalendarTarget');
+          await refresh();
+        }
+      } catch {
+        // ignore
+      }
     });
     return unsub;
   }, [refresh]);

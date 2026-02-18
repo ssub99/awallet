@@ -165,3 +165,141 @@ export function getDayOfWeekLabel(year: number, month: number, day: number): str
   const date = new Date(year, month - 1, day);
   return weekdays[date.getDay()];
 }
+
+/**
+ * recurringType에 따른 다음 날짜 계산 (정기/할부 기록 생성용)
+ */
+export function getNextRecurringDate(
+  currentDate: string,
+  recurringType: string,
+  _iteration: number,
+  startYear: number
+): string | null {
+  const [year, month, day] = currentDate.split('.').map(Number);
+  const dateObj = new Date(year, month - 1, day);
+  let nextDate: Date;
+
+  switch (recurringType) {
+    case '매일':
+      nextDate = new Date(dateObj);
+      nextDate.setDate(dateObj.getDate() + 1);
+      break;
+    case '매주':
+      nextDate = new Date(dateObj);
+      nextDate.setDate(dateObj.getDate() + 7);
+      break;
+    case '2주':
+      nextDate = new Date(dateObj);
+      nextDate.setDate(dateObj.getDate() + 14);
+      break;
+    case '3주':
+      nextDate = new Date(dateObj);
+      nextDate.setDate(dateObj.getDate() + 21);
+      break;
+    case '4주':
+      nextDate = new Date(dateObj);
+      nextDate.setDate(dateObj.getDate() + 28);
+      break;
+    case '매월':
+      nextDate = new Date(dateObj);
+      nextDate.setMonth(dateObj.getMonth() + 1);
+      break;
+    case '2개월 마다':
+      nextDate = new Date(dateObj);
+      nextDate.setMonth(dateObj.getMonth() + 2);
+      break;
+    case '4개월 마다':
+      nextDate = new Date(dateObj);
+      nextDate.setMonth(dateObj.getMonth() + 4);
+      break;
+    case '6개월 마다':
+      nextDate = new Date(dateObj);
+      nextDate.setMonth(dateObj.getMonth() + 6);
+      break;
+    case '주중':
+      nextDate = new Date(dateObj);
+      nextDate.setDate(dateObj.getDate() + 1);
+      while (nextDate.getDay() === 0 || nextDate.getDay() === 6) {
+        nextDate.setDate(nextDate.getDate() + 1);
+      }
+      break;
+    case '주말':
+      nextDate = new Date(dateObj);
+      nextDate.setDate(dateObj.getDate() + 1);
+      while (nextDate.getDay() !== 0 && nextDate.getDay() !== 6) {
+        nextDate.setDate(nextDate.getDate() + 1);
+      }
+      break;
+    default:
+      nextDate = new Date(dateObj);
+      nextDate.setMonth(dateObj.getMonth() + 1);
+      break;
+  }
+
+  if (nextDate.getFullYear() > startYear) return null;
+  const nextYearNum = nextDate.getFullYear();
+  const nextMonthNum = nextDate.getMonth() + 1;
+  const nextDayNum = nextDate.getDate();
+  const actualDay = getActualDayForMonth(nextYearNum, nextMonthNum, nextDayNum);
+  return `${nextYearNum}.${String(nextMonthNum).padStart(2, '0')}.${String(actualDay).padStart(2, '0')}`;
+}
+
+/**
+ * recurringType에 따른 반복 횟수 계산 (해당 년도 내)
+ */
+export function calculateRecurringIterations(startDate: string, recurringType: string): number {
+  const [startYear, startMonth, startDay] = startDate.split('.').map(Number);
+  const startDateObj = new Date(startYear, startMonth - 1, startDay);
+  const endOfYear = new Date(startYear, 11, 31);
+  let iterations = 0;
+  let currentDate = new Date(startDateObj);
+
+  while (currentDate <= endOfYear) {
+    iterations++;
+    switch (recurringType) {
+      case '매일':
+        currentDate.setDate(currentDate.getDate() + 1);
+        break;
+      case '매주':
+        currentDate.setDate(currentDate.getDate() + 7);
+        break;
+      case '2주':
+        currentDate.setDate(currentDate.getDate() + 14);
+        break;
+      case '3주':
+        currentDate.setDate(currentDate.getDate() + 21);
+        break;
+      case '4주':
+        currentDate.setDate(currentDate.getDate() + 28);
+        break;
+      case '매월':
+        currentDate.setMonth(currentDate.getMonth() + 1);
+        break;
+      case '2개월 마다':
+        currentDate.setMonth(currentDate.getMonth() + 2);
+        break;
+      case '4개월 마다':
+        currentDate.setMonth(currentDate.getMonth() + 4);
+        break;
+      case '6개월 마다':
+        currentDate.setMonth(currentDate.getMonth() + 6);
+        break;
+      case '주중':
+        currentDate.setDate(currentDate.getDate() + 1);
+        while (currentDate <= endOfYear && (currentDate.getDay() === 0 || currentDate.getDay() === 6)) {
+          currentDate.setDate(currentDate.getDate() + 1);
+        }
+        break;
+      case '주말':
+        currentDate.setDate(currentDate.getDate() + 1);
+        while (currentDate <= endOfYear && currentDate.getDay() !== 0 && currentDate.getDay() !== 6) {
+          currentDate.setDate(currentDate.getDate() + 1);
+        }
+        break;
+      default:
+        currentDate.setMonth(currentDate.getMonth() + 1);
+        break;
+    }
+  }
+  return iterations;
+}
