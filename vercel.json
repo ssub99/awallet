@@ -1,6 +1,7 @@
 {
   "version": 2,
-  "buildCommand": "echo 'skip'",
+  "buildCommand": "mkdir -p public",
+  "outputDirectory": "public",
   "functions": {
     "api/parse-expense.ts": {
       "memory": 256,
