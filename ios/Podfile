@@ -20,7 +20,7 @@ platform :ios, podfile_properties['ios.deploymentTarget'] || '15.1'
 
 prepare_react_native_project!
 
-target 'awallet' do
+abstract_target 'awallet-common' do
   use_expo_modules!
   use_modular_headers!
 
@@ -49,6 +49,12 @@ target 'awallet' do
     :app_path => "#{Pod::Config.instance.installation_root}/..",
     :privacy_file_aggregation_enabled => podfile_properties['apple.privacyManifestAggregationEnabled'] != 'false',
   )
+
+  target 'awallet' do
+  end
+
+  target 'awallet-stage' do
+  end
 
   post_install do |installer|
     react_native_post_install(

@@ -758,8 +758,8 @@ export default function HomeScreen() {
       )}
 
     </SafeAreaView>
-      {/* 간편입력: 1.0.3 이상에서만 노출 (구버전 OTA 시 크래시 방지) */}
-      {isAtLeastVersion(Constants.expoConfig?.version, QUICK_INPUT_MIN_VERSION) && (
+      {/* 간편입력: 월 캘린더에서만 노출 + 1.0.3 이상에서만 노출 (구버전 OTA 시 크래시 방지) */}
+      {periodType === 'month' && isAtLeastVersion(Constants.expoConfig?.version, QUICK_INPUT_MIN_VERSION) && (
         <View
           style={[
             styles.quickInputShortWrap,
