@@ -21,9 +21,11 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { createSheetEvent } from '@/utils/create-sheet-event';
+import { isAtLeastVersion, QUICK_INPUT_MIN_VERSION } from '@/utils/app-version';
 import { getCustomMonthInfo, isDateInCustomMonth } from '@/utils/custom-month';
 import { saveMonthlyExpenseToWidget } from '@/utils/widget-data-sync';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, AppState, AppStateStatus, Easing, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -756,14 +758,22 @@ export default function HomeScreen() {
       )}
 
     </SafeAreaView>
-      {/* 간편입력 버튼: 탭바 상단 중앙, 배경 블러 적용 (커스텀 키패드와 동일 패턴) */}
-      {!isQuickInputVisible && (
-        <QuickInputShort
-          bottom={FAB_OFFSET_ABOVE_TABS}
-          onPress={handleQuickInputPress}
-          starScale={starScale}
-          starRotate={starRotate}
-        />
+      {/* 간편입력: 1.0.3 이상에서만 노출 (구버전 OTA 시 크래시 방지) */}
+      {isAtLeastVersion(Constants.expoConfig?.version, QUICK_INPUT_MIN_VERSION) && (
+        <View
+          style={[
+            styles.quickInputShortWrap,
+            isQuickInputVisible && styles.quickInputShortHidden,
+          ]}
+          pointerEvents={isQuickInputVisible ? 'none' : 'auto'}
+        >
+          <QuickInputShort
+            bottom={FAB_OFFSET_ABOVE_TABS}
+            onPress={handleQuickInputPress}
+            starScale={starScale}
+            starRotate={starRotate}
+          />
+        </View>
       )}
 
       {/* FAB: 홈에서만 노출, 기록/챌린지 선택 바텀시트 오픈 */}
@@ -809,6 +819,18 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 12,
     elevation: 8,
+  },
+  quickInputShortWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  quickInputShortHidden: {
+    opacity: 0,
   },
   monthViewContent: {
     flex: 1,

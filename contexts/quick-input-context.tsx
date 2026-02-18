@@ -16,6 +16,7 @@ import { useAppData } from '@/contexts/app-data-context';
 import { useToast } from '@/contexts/toast-context';
 import { applyPendingCalendarTargetEvent } from '@/hooks/calendar-events';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
+import { isAtLeastVersion, QUICK_INPUT_MIN_VERSION } from '@/utils/app-version';
 import { getCustomMonthInfo } from '@/utils/custom-month';
 import { refreshWidgetWithCurrentMonth } from '@/utils/widget-data-sync';
 import {
@@ -28,6 +29,7 @@ import {
 import { createExpense, type ExpenseRecord, type PaymentMethod } from '@/utils/expenses';
 import { generateGroupId, generateRecordId } from '@/utils/id-generator';
 import { loadCategories } from '@/utils/categories';
+import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
 import type { TextInput } from 'react-native';
@@ -199,7 +201,6 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const [confirmCardData, setConfirmCardData] = useState<QuickInputConfirmCardData | null>(null);
   const [isQuickInputSendLoading, setIsQuickInputSendLoading] = useState(false);
   const [isQuickInputConfirmAdding, setIsQuickInputConfirmAdding] = useState(false);
-  const starRefs = useRef<{ starScale: AnimatedValue; starRotate: AnimatedValue } | null>(null);
   const shortBottomFromScreen = useSharedValue(KEYBOARD_GAP);
   const lastShortBottomRef = useRef<number>(KEYBOARD_GAP);
   const pendingRecordRef = useRef<PendingParseRecord | null>(null);
@@ -212,6 +213,10 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const quickInputRef = useRef<TextInput>(null);
   const quickInputBackdropOpacity = useRef(new RNAnimated.Value(0)).current;
   const sendLoadingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** 숏/롱 동일 애니메이션: 부모 starScale/starRotate 공유. 새로고침 시 크래시 방지를 위해 fallback 보유 */
+  const starRefs = useRef<{ starScale: AnimatedValue; starRotate: AnimatedValue } | null>(null);
+  const overlayStarScale = useRef(new RNAnimated.Value(1)).current;
+  const overlayStarRotate = useRef(new RNAnimated.Value(0)).current;
 
   // 키보드와 동일한 duration으로 애니메이션하여 겹침/엇박자 감소
   const animatedBottom = useSharedValue(KEYBOARD_GAP);
@@ -245,6 +250,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }));
 
   const showQuickInput = useCallback((starScale: AnimatedValue, starRotate: AnimatedValue, shortBottom?: number) => {
+    if (!isAtLeastVersion(Constants.expoConfig?.version, QUICK_INPUT_MIN_VERSION)) return;
     starRefs.current = { starScale, starRotate };
     const bottom = shortBottom ?? KEYBOARD_GAP;
     lastShortBottomRef.current = bottom;
@@ -263,14 +269,16 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       sendLoadingTimerRef.current = null;
     }
     Keyboard.dismiss();
+    overlayStarScale.stopAnimation();
+    overlayStarRotate.stopAnimation();
+    starRefs.current = null;
     setIsQuickInputVisible(false);
     setQuickInputText('');
     setConfirmCardData(null);
     pendingRecordRef.current = null;
     setIsQuickInputSendLoading(false);
     setIsQuickInputConfirmAdding(false);
-    starRefs.current = null;
-  }, []);
+  }, [overlayStarScale, overlayStarRotate]);
 
   const handleSend = useCallback(async () => {
     if (!quickInputText.trim()) return;
@@ -591,6 +599,37 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     return () => cancelAnimationFrame(id);
   }, [isQuickInputVisible]);
 
+  /** 부모 starScale/starRotate → overlay 값 동기화. 오버레이는 overlay 값만 사용해 새로고침 크래시 방지 */
+  useEffect(() => {
+    if (!isQuickInputVisible) return;
+    const refs = starRefs.current;
+    if (!refs) return;
+    const { starScale, starRotate } = refs;
+    const subScale = starScale.addListener(({ value }) => overlayStarScale.setValue(value));
+    const subRotate = starRotate.addListener(({ value }) => overlayStarRotate.setValue(value));
+    return () => {
+      try {
+        starScale.removeListener(subScale);
+      } catch {
+        /* 부모 언마운트 시 무시 */
+      }
+      try {
+        starRotate.removeListener(subRotate);
+      } catch {
+        /* 부모 언마운트 시 무시 */
+      }
+    };
+  }, [isQuickInputVisible, overlayStarScale, overlayStarRotate]);
+
+  // 언마운트 시 정리: 새로고침 등으로 Provider가 unmount될 때 크래시 방지
+  useEffect(() => {
+    return () => {
+      starRefs.current = null;
+      overlayStarScale.stopAnimation();
+      overlayStarRotate.stopAnimation();
+    };
+  }, [overlayStarScale, overlayStarRotate]);
+
   const value = useMemo<QuickInputContextValue>(
     () => ({
       isQuickInputVisible,
@@ -602,46 +641,43 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     [isQuickInputVisible, showQuickInput, hideQuickInput, quickInputText, setQuickInputTextTruncated]
   );
 
-  const starScale = starRefs.current?.starScale;
-  const starRotate = starRefs.current?.starRotate;
-
   return (
     <QuickInputContext.Provider value={value}>
       <View style={styles.root}>
         {children}
-        {isQuickInputVisible && starScale != null && starRotate != null && (
+        {isQuickInputVisible && (
           <View style={styles.overlay} pointerEvents="box-none">
-            <RNAnimated.View
-              pointerEvents="auto"
-              style={[styles.backdrop, { opacity: quickInputBackdropOpacity }]}
-            >
-              <Pressable style={StyleSheet.absoluteFill} onPress={hideQuickInput} />
-            </RNAnimated.View>
-            {confirmCardData != null && (
-              <View style={[styles.confirmCardContainer, { top: insets.top + 16 }]}>
-                <QuickInputConfirmCard
-                  data={confirmCardData}
-                  onConfirm={handleConfirmCardAdd}
-                  onCancel={handleConfirmCardCancel}
-                  addLoading={isQuickInputConfirmAdding}
+              <RNAnimated.View
+                pointerEvents="auto"
+                style={[styles.backdrop, { opacity: quickInputBackdropOpacity }]}
+              >
+                <Pressable style={StyleSheet.absoluteFill} onPress={hideQuickInput} />
+              </RNAnimated.View>
+              {confirmCardData != null && (
+                <View style={[styles.confirmCardContainer, { top: insets.top + 16 }]}>
+                  <QuickInputConfirmCard
+                    data={confirmCardData}
+                    onConfirm={handleConfirmCardAdd}
+                    onCancel={handleConfirmCardCancel}
+                    addLoading={isQuickInputConfirmAdding}
+                  />
+                </View>
+              )}
+              <Animated.View style={[styles.container, containerAnimatedStyle]}>
+                <QuickInputField
+                  ref={quickInputRef}
+                  value={quickInputText}
+                  onChangeText={setQuickInputTextTruncated}
+                  placeholder="메세지 입력(카테고리, 날짜, 금액)"
+                  starScale={overlayStarScale}
+                  starRotate={overlayStarRotate}
+                  onSend={handleSend}
+                  onCancel={handleCancel}
+                  sendLoading={isQuickInputSendLoading}
+                  sendDisabled={confirmCardData != null}
                 />
-              </View>
-            )}
-            <Animated.View style={[styles.container, containerAnimatedStyle]}>
-              <QuickInputField
-                ref={quickInputRef}
-                value={quickInputText}
-                onChangeText={setQuickInputTextTruncated}
-                placeholder="메세지 입력(카테고리, 날짜, 금액)"
-                starScale={starScale}
-                starRotate={starRotate}
-                onSend={handleSend}
-                onCancel={handleCancel}
-                sendLoading={isQuickInputSendLoading}
-                sendDisabled={confirmCardData != null}
-              />
-            </Animated.View>
-          </View>
+              </Animated.View>
+            </View>
         )}
       </View>
     </QuickInputContext.Provider>

@@ -239,6 +239,7 @@ const styles = StyleSheet.create({
   cancelButton: {
     width: 24,
     height: 24,
+    marginLeft: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
