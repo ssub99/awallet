@@ -10,7 +10,9 @@ import { Colors, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { forwardRef, useImperativeHandle, useRef } from 'react';
 import {
+  ActivityIndicator,
   Animated,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -57,6 +59,15 @@ export interface QuickInputFieldProps extends Omit<TextInputProps, 'style'> {
    */
   starRotate?: Animated.Value;
 
+  /**
+   * 전송 중 로딩 여부. true일 때 보내기 버튼에 로딩 인디케이터 표시
+   */
+  sendLoading?: boolean;
+
+  /**
+   * 보내기 버튼 비활성화 여부. true면 확인 카드 등으로 기록 생성 후 추가 전송 방지
+   */
+  sendDisabled?: boolean;
 }
 
 /**
@@ -72,6 +83,8 @@ export const QuickInputField = forwardRef<TextInput, QuickInputFieldProps>(
       placeholder = '메세지 입력',
       starScale,
       starRotate,
+      sendLoading = false,
+      sendDisabled = false,
       ...textInputProps
     },
     ref
@@ -139,32 +152,37 @@ export const QuickInputField = forwardRef<TextInput, QuickInputFieldProps>(
           )}
         </View>
         
-        {/* Send Button - 입력 여부에 따라 disabled / primary 상태 */}
+        {/* Send Button - 입력 여부/로딩/확인 카드 표시 시 disabled */}
         <View style={[styles.sendButtonWrapper, { backgroundColor: colors.staticWhite }]}>
           <View
             style={[
               styles.sendButton,
               {
-                // Button 컴포넌트 disabled 스타일과 동일한 패턴 사용
-                backgroundColor: hasValue ? colors.primary : colors.fillDisabled,
+                backgroundColor: hasValue && !sendDisabled ? colors.primary : colors.fillDisabled,
               },
             ]}
           >
             <Pressable
               style={styles.sendButtonContent}
               onPress={onSend}
-              disabled={!hasValue}
+              disabled={!hasValue || sendLoading || sendDisabled}
               accessibilityRole="button"
-              accessibilityLabel="전송"
-              accessibilityState={{ disabled: !hasValue }}
+              accessibilityLabel={sendLoading ? '전송 중' : '전송'}
+              accessibilityState={{ disabled: !hasValue || sendLoading || sendDisabled }}
             >
-              {/* Send 아이콘 */}
-              <Icon
-                name="send"
-                variant="line"
-                size={24}
-                color={hasValue ? colors.staticWhite : colors.textDisabled}
-              />
+              {sendLoading ? (
+                <ActivityIndicator
+                  size={Platform.OS === 'android' ? 20 : 'small'}
+                  color={colors.staticWhite}
+                />
+              ) : (
+                <Icon
+                  name="send"
+                  variant="line"
+                  size={24}
+                  color={hasValue && !sendDisabled ? colors.staticWhite : colors.textDisabled}
+                />
+              )}
             </Pressable>
           </View>
         </View>

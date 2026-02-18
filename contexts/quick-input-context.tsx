@@ -9,10 +9,13 @@
  * 애니메이션하여 겹침/엇박자 감소.
  */
 
+import { QuickInputConfirmCard, type QuickInputConfirmCardData } from '@/components/ui/quick-input-confirm-card';
 import { QuickInputField } from '@/components/ui/quick-input-field';
+import { useToast } from '@/contexts/toast-context';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
 import type { TextInput } from 'react-native';
 import { Keyboard, Pressable, Animated as RNAnimated, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useKeyboardHandler } from 'react-native-keyboard-controller';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
@@ -33,14 +36,20 @@ const QuickInputContext = createContext<QuickInputContextValue | undefined>(unde
 const KEYBOARD_GAP = 16;
 
 export const QuickInputProvider = ({ children }: PropsWithChildren) => {
+  const insets = useSafeAreaInsets();
+  const { showToast } = useToast();
   const [isQuickInputVisible, setIsQuickInputVisible] = useState(false);
   const [quickInputText, setQuickInputText] = useState('');
+  const [confirmCardData, setConfirmCardData] = useState<QuickInputConfirmCardData | null>(null);
+  const [isQuickInputSendLoading, setIsQuickInputSendLoading] = useState(false);
+  const [isQuickInputConfirmAdding, setIsQuickInputConfirmAdding] = useState(false);
   const starRefs = useRef<{ starScale: AnimatedValue; starRotate: AnimatedValue } | null>(null);
   const shortBottomFromScreen = useSharedValue(KEYBOARD_GAP);
   const lastShortBottomRef = useRef<number>(KEYBOARD_GAP);
 
   const quickInputRef = useRef<TextInput>(null);
   const quickInputBackdropOpacity = useRef(new RNAnimated.Value(0)).current;
+  const sendLoadingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 키보드와 동일한 duration으로 애니메이션하여 겹침/엇박자 감소
   const animatedBottom = useSharedValue(KEYBOARD_GAP);
@@ -83,15 +92,58 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }, []);
 
   const hideQuickInput = useCallback(() => {
+    if (sendLoadingTimerRef.current) {
+      clearTimeout(sendLoadingTimerRef.current);
+      sendLoadingTimerRef.current = null;
+    }
     Keyboard.dismiss();
     setIsQuickInputVisible(false);
     setQuickInputText('');
+    setConfirmCardData(null);
+    setIsQuickInputSendLoading(false);
+    setIsQuickInputConfirmAdding(false);
     starRefs.current = null;
   }, []);
 
   const handleSend = useCallback(() => {
-    hideQuickInput();
-  }, [hideQuickInput]);
+    if (!quickInputText.trim()) return;
+    if (confirmCardData != null) {
+      showToast('먼저 생성한 기록을 확인해 주세요.');
+      return;
+    }
+    if (sendLoadingTimerRef.current) return;
+    setIsQuickInputSendLoading(true);
+    // TODO: 실제 API 호출로 교체. 현재는 로딩 후 확인 카드 표시만 시뮬레이션
+    const delayMs = 800;
+    sendLoadingTimerRef.current = setTimeout(() => {
+      sendLoadingTimerRef.current = null;
+      setIsQuickInputSendLoading(false);
+      setConfirmCardData({
+        category: '식비',
+        categoryEmoji: '🍚',
+        date: '2026년 02월 01일(일)',
+        amount: '20,000원',
+        paymentType: '신용카드',
+        repeatSetting: '안함',
+      });
+    }, delayMs);
+  }, [quickInputText, confirmCardData, showToast]);
+
+  const handleConfirmCardAdd = useCallback(() => {
+    setIsQuickInputConfirmAdding(true);
+    // TODO: 실제 기록 생성 API 호출로 교체
+    const delayMs = 800;
+    setTimeout(() => {
+      setIsQuickInputConfirmAdding(false);
+      setConfirmCardData(null);
+      hideQuickInput();
+      showToast('기록 생성이 완료되었습니다.');
+    }, delayMs);
+  }, [hideQuickInput, showToast]);
+
+  const handleConfirmCardCancel = useCallback(() => {
+    setConfirmCardData(null);
+  }, []);
 
   const handleCancel = useCallback(() => {
     setQuickInputText('');
@@ -152,6 +204,16 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
             >
               <Pressable style={StyleSheet.absoluteFill} onPress={hideQuickInput} />
             </RNAnimated.View>
+            {confirmCardData != null && (
+              <View style={[styles.confirmCardContainer, { top: insets.top + 16 }]}>
+                <QuickInputConfirmCard
+                  data={confirmCardData}
+                  onConfirm={handleConfirmCardAdd}
+                  onCancel={handleConfirmCardCancel}
+                  addLoading={isQuickInputConfirmAdding}
+                />
+              </View>
+            )}
             <Animated.View style={[styles.container, containerAnimatedStyle]}>
               <QuickInputField
                 ref={quickInputRef}
@@ -162,6 +224,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                 starRotate={starRotate}
                 onSend={handleSend}
                 onCancel={handleCancel}
+                sendLoading={isQuickInputSendLoading}
+                sendDisabled={confirmCardData != null}
               />
             </Animated.View>
           </View>
@@ -193,6 +257,12 @@ const styles = StyleSheet.create({
   backdrop: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  confirmCardContainer: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    zIndex: 102,
   },
   container: {
     position: 'absolute',
