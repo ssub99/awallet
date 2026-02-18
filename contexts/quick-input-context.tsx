@@ -26,7 +26,7 @@ import {
   getDayOfWeekLabel,
   getNextRecurringDate,
 } from '@/utils/expense-calculations';
-import { createExpense, type ExpenseRecord, type PaymentMethod } from '@/utils/expenses';
+import { createExpensesBatch, type ExpenseRecord, type PaymentMethod } from '@/utils/expenses';
 import { generateGroupId, generateRecordId } from '@/utils/id-generator';
 import { loadCategories } from '@/utils/categories';
 import Constants from 'expo-constants';
@@ -209,6 +209,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   /** 토큰 비용 절감: 비기록 연속 횟수, 잠금 해제 시각 */
   const nonRecordCountRef = useRef(0);
   const lockEndTimeRef = useRef<number>(0);
+  /** 간헐적 중복 탭/중복 실행 방지용 in-flight lock */
+  const isConfirmAddInFlightRef = useRef(false);
 
   const quickInputRef = useRef<TextInput>(null);
   const quickInputBackdropOpacity = useRef(new RNAnimated.Value(0)).current;
@@ -369,19 +371,31 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }, [quickInputText, confirmCardData, showToast]);
 
   const handleConfirmCardAdd = useCallback(async () => {
+    if (isConfirmAddInFlightRef.current || isQuickInputConfirmAdding) {
+      return;
+    }
+
     const pending = pendingRecordRef.current;
     if (!pending) {
       setConfirmCardData(null);
       hideQuickInput();
       return;
     }
+
+    isConfirmAddInFlightRef.current = true;
     setIsQuickInputConfirmAdding(true);
+
     try {
       const dateStr = pending.date;
       const [y, m, d] = dateStr.split('.');
       const year = parseInt(y ?? '0', 10);
       const month = parseInt(m ?? '0', 10);
       const day = parseInt(d ?? '0', 10);
+      if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+        showToast('날짜 형식을 확인해 주세요.');
+        return;
+      }
+
       const dateObj = new Date(year, month - 1, day);
       const dayOfWeek = dateObj.getDay();
       const isWeekendDay = dayOfWeek === 0 || dayOfWeek === 6;
@@ -416,7 +430,12 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       const recurringId = isRecurring ? generateGroupId('recurring') : undefined;
       const installmentId = isInstallment ? generateGroupId('installment') : undefined;
 
-      const expenseAmount = pending.amount;
+      const expenseAmount = Number(pending.amount);
+      if (!Number.isFinite(expenseAmount) || expenseAmount <= 0) {
+        showToast('금액을 확인해 주세요.');
+        return;
+      }
+
       let monthlyAmount: number;
       if (isInstallment) {
         const baseAmount = Math.floor(expenseAmount / totalMonths);
@@ -527,9 +546,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         }
       }
 
-      for (const record of recordsToSave) {
-        await createExpense(record);
-      }
+      await createExpensesBatch(recordsToSave);
       await refresh();
       await refreshWidgetWithCurrentMonth().catch(() => {});
 
@@ -559,8 +576,9 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       showToast('기록 저장에 실패했습니다.');
     } finally {
       setIsQuickInputConfirmAdding(false);
+      isConfirmAddInFlightRef.current = false;
     }
-  }, [hideQuickInput, refresh, showToast]);
+  }, [hideQuickInput, isQuickInputConfirmAdding, refresh, showToast]);
 
   const handleConfirmCardCancel = useCallback(() => {
     setConfirmCardData(null);

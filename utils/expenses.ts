@@ -124,6 +124,47 @@ export async function createExpense(record: ExpenseRecord): Promise<ExpenseRecor
   return expense;
 }
 
+export async function createExpensesBatch(records: ExpenseRecord[]): Promise<ExpenseRecord[]> {
+  if (records.length === 0) {
+    return [];
+  }
+
+  const normalizedIncoming = records.map(normalizeExpense);
+  const incomingIds = new Set<string>();
+  const incomingTimestamps = new Set<number>();
+  const dedupedIncoming: ExpenseRecord[] = [];
+
+  for (const record of normalizedIncoming) {
+    const id = record.id ?? '';
+    const hasDuplicateId = id.length > 0 && incomingIds.has(id);
+    const hasDuplicateTimestamp = incomingTimestamps.has(record.timestamp);
+    if (hasDuplicateId || hasDuplicateTimestamp) {
+      continue;
+    }
+
+    if (id.length > 0) {
+      incomingIds.add(id);
+    }
+    incomingTimestamps.add(record.timestamp);
+    dedupedIncoming.push(record);
+  }
+
+  if (dedupedIncoming.length === 0) {
+    return [];
+  }
+
+  const existing = await loadLocalExpenses();
+  const filteredExisting = existing.filter((item) => {
+    if (item.id && incomingIds.has(item.id)) {
+      return false;
+    }
+    return !incomingTimestamps.has(item.timestamp);
+  });
+
+  await persistExpenses([...filteredExisting, ...dedupedIncoming]);
+  return dedupedIncoming;
+}
+
 export async function updateExpense(
   id: string,
   updates: Partial<ExpenseRecord>,
