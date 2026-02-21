@@ -25,6 +25,9 @@ export interface ExpenseRecord {
   isPrepaid?: boolean;
   prepaidDate?: string; // YYYY.MM.DD 형식
   isRefunded?: boolean;
+  isSettled?: boolean;
+  settledAt?: string;
+  originalAmountBeforeSettlement?: number;
   installmentOriginDate?: string; // 할부 기록 원본 예정일 (선결제 시 사용)
   isDeleted?: boolean;
   deletedAt?: string | null;

@@ -44,6 +44,7 @@ import {
     Dimensions,
     Easing,
     Keyboard,
+    Modal,
     NativeSyntheticEvent,
     Platform,
     Pressable,
@@ -532,6 +533,11 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     },
     [navigation]
   );
+
+  const goTimelineWithFocus = useCallback(async (_dateKey: string) => {
+    calendarRefreshEvent.emit();
+    router.back();
+  }, [router]);
   
   // 카테고리 state 변경 감지
   useEffect(() => {
@@ -613,7 +619,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         : [{ type: 'number', value: amount.replace(/,/g, '') || '0' }];
 
     // 할부/환불 기록 수정 모드에서 disabled 상태 확인
-    const isAmountDisabled = mode === 'edit' && (editData?.isInstallment || (!!editData?.isRefunded && !editData?.isInstallment));
+    const isAmountDisabled =
+      mode === 'edit' &&
+      (
+        editData?.isInstallment ||
+        (!!editData?.isRefunded && !editData?.isInstallment) ||
+        !!editData?.isSettled
+      );
     const textColor = isAmountDisabled ? colors.textDisabled : colors.text;
     const operatorColor = isAmountDisabled ? colors.textDisabled : colors.textNeutral;
 
@@ -797,13 +809,106 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   
   // 환불 처리 복구 모달
   const [showRefundRestore, setShowRefundRestore] = useState<boolean>(false);
+  // 결산 처리 복구 모달
+  const [showSettlementRestore, setShowSettlementRestore] = useState<boolean>(false);
   // 일반 기록 환불 처리 확인 모달
   const [showSingleRefundConfirm, setShowSingleRefundConfirm] = useState<boolean>(false);
   // 선결제 처리 복구 모달
   const [showPrepaymentRestore, setShowPrepaymentRestore] = useState<boolean>(false);
   // 선결제 모달
   const [showPrepaymentModal, setShowPrepaymentModal] = useState<boolean>(false);
-  
+  // 결산 처리 안내 모달
+  const [showSettlementConfirmModal, setShowSettlementConfirmModal] = useState<boolean>(false);
+  // 정산 처리 드롭다운 메뉴 (선결제/환불/결산)
+  const [showSettlementMenu, setShowSettlementMenu] = useState<boolean>(false);
+  const [settlementMenuLayout, setSettlementMenuLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const settlementButtonRef = useRef<View>(null);
+  const settlementActionLockRef = useRef<boolean>(false);
+
+  const settlementBaseAmount = useMemo(() => {
+    const parsedAmount = amount ? Number(amount.replace(/,/g, '')) : NaN;
+    if (!Number.isNaN(parsedAmount)) {
+      return parsedAmount;
+    }
+    return Number(editData?.amount ?? 0);
+  }, [amount, editData?.amount]);
+
+  const settlementAmountText = useMemo(() => `${settlementBaseAmount.toLocaleString()}원`, [settlementBaseAmount]);
+  const settlementRestoreAmountText = useMemo(() => {
+    const restoredAmount = Number(editData?.originalAmountBeforeSettlement ?? editData?.amount ?? 0);
+    return `${restoredAmount.toLocaleString()}원`;
+  }, [editData?.amount, editData?.originalAmountBeforeSettlement]);
+
+  const settlementPeriodText = useMemo(() => {
+    const sourceDate = editData?.date || date;
+    if (!sourceDate) {
+      return '';
+    }
+
+    if (sourceDate.includes('.')) {
+      const [yearStr, monthStr, dayStr] = sourceDate.split('.');
+      const year = Number(yearStr);
+      const month = Number(monthStr);
+      const day = Number(dayStr);
+      const parsedDate = new Date(year, month - 1, day);
+      return `기간 : ${yearStr}.${monthStr}.${dayStr}(${getWeekdayLabel(parsedDate)})`;
+    }
+
+    if (sourceDate.includes('-')) {
+      const [yearStr, monthStr, dayStr] = sourceDate.split('-');
+      const year = Number(yearStr);
+      const month = Number(monthStr);
+      const day = Number(dayStr);
+      const parsedDate = new Date(year, month - 1, day);
+      return `기간 : ${yearStr}.${monthStr}.${dayStr}(${getWeekdayLabel(parsedDate)})`;
+    }
+
+    return `기간 : ${sourceDate}`;
+  }, [date, editData?.date]);
+
+  const applySettlementAction = useCallback((label: '선결제' | '환불' | '결산') => {
+    if (label === '선결제') {
+      const today = new Date();
+      const todayFormatted = `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, '0')}.${String(today.getDate()).padStart(2, '0')}`;
+      setPrepaymentDate(todayFormatted);
+      setTempSelectedDate(todayFormatted.replace(/\./g, '-'));
+      setShowPrepaymentModal(true);
+      return;
+    }
+
+    if (label === '환불') {
+      if (editData?.isRecurring || editData?.isInstallment) {
+        setShowRefundOptions(true);
+      } else {
+        setShowSingleRefundConfirm(true);
+      }
+      return;
+    }
+
+    setShowSettlementConfirmModal(true);
+  }, [editData?.isInstallment, editData?.isRecurring]);
+
+  const handleSettlementMenuSelect = useCallback((label: '선결제' | '환불' | '결산') => {
+    if (settlementActionLockRef.current) {
+      return;
+    }
+    settlementActionLockRef.current = true;
+    setShowSettlementMenu(false);
+    setSettlementMenuLayout(null);
+    requestAnimationFrame(() => {
+      applySettlementAction(label);
+      // 다음 프레임에서 잠금 해제하여 중복 탭/이벤트를 방지
+      requestAnimationFrame(() => {
+        settlementActionLockRef.current = false;
+      });
+    });
+  }, [applySettlementAction]);
+
   useEffect(() => {
     if (!showRecurringToast) {
       return;
@@ -1884,12 +1989,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
       // 모달 닫기
       setShowPrepaymentModal(false);
-      // 홈으로 이동 (선결제 날짜의 해당 커스텀 월)
-      const [prepaidYear, prepaidMonth] = prepaidDateKey.split('-').map(Number);
-      const prepaidDate = new Date(prepaidYear, prepaidMonth - 1, 1);
-      const currentMonthStartDay = await loadMonthStartDay();
-      const { year: targetYear, month: targetMonth } = getCustomMonthInfo(prepaidDate, currentMonthStartDay);
-      await goHomeWithFocus({ year: targetYear, month: targetMonth, targetDate: prepaidDateKey });
+      showToast('선결제 처리가 정상적으로 되었습니다.');
+      await goTimelineWithFocus(prepaidDateKey);
 
     } catch (error) {
       console.error('선결제 처리 중 오류:', error);
@@ -2990,6 +3091,55 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     }
   }, []);
 
+  const syncExpenseRecord = useCallback(
+    async (record: any, updates: Partial<ExpenseRecordType>) => {
+      const primaryId = typeof record?.id === 'string' && record.id.length > 0 ? record.id : null;
+      const timestampId =
+        typeof record?.timestamp === 'number' ? record.timestamp.toString() : null;
+
+      let updated: ExpenseRecordType | null = null;
+      if (primaryId) {
+        try {
+          updated = await updateExpense(primaryId, updates);
+        } catch {
+          updated = null;
+        }
+      }
+      if (!updated && timestampId) {
+        try {
+          updated = await updateExpense(timestampId, updates);
+        } catch {
+          updated = null;
+        }
+      }
+      if (updated) {
+        return updated;
+      }
+
+      // update 경로에서 못 찾는 레거시/파생 기록은 생성(upsert 유사)으로 보강
+      const fallbackRecord: ExpenseRecordType = {
+        ...(record as ExpenseRecordType),
+        ...updates,
+        type: 'expense',
+        amount: Number((updates.amount ?? record?.amount) ?? 0),
+        date: String(record?.date ?? ''),
+        timestamp: Number(record?.timestamp ?? 0),
+        category: String(record?.category ?? ''),
+      };
+
+      if (!fallbackRecord.date || !fallbackRecord.timestamp || !fallbackRecord.category) {
+        return null;
+      }
+
+      try {
+        return await createExpense(fallbackRecord);
+      } catch {
+        return null;
+      }
+    },
+    [],
+  );
+
   const handleBack = () => {
     router.back();
   };
@@ -3111,13 +3261,85 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
       const recordDate = editData.date || date;
       const dateKey = formatDateKey(recordDate);
-      if (params.calendarYear && params.calendarMonth) {
-        await goHomeWithFocus({ year: Number(params.calendarYear), month: Number(params.calendarMonth), targetDate: dateKey });
-      } else {
-        const [targetYear, targetMonth] = dateKey.split('-').map(Number);
-        await goHomeWithFocus({ year: targetYear, month: targetMonth, targetDate: dateKey });
-      }
+      showToast('환불 처리가 정상적으로 되었습니다.');
+      await goTimelineWithFocus(dateKey);
     } finally {
+      setLoading(false);
+    }
+  };
+
+  // 일반 기록 단일 결산 처리
+  const handleSingleRecordSettlement = async () => {
+    if (mode !== 'edit' || !editData) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const storedData = await AsyncStorage.getItem('calendarData');
+      const calendarData = storedData ? JSON.parse(storedData) : {};
+      const originalDateKey = editData.date ? editData.date.replace(/\./g, '-') : '';
+      if (!originalDateKey || !calendarData[originalDateKey]?.records) {
+        return;
+      }
+
+      const recordIndex = calendarData[originalDateKey].records.findIndex(
+        (r: any) => r.id === editData.id || r.timestamp === editData.timestamp
+      );
+      if (recordIndex === -1) {
+        return;
+      }
+
+      const record = calendarData[originalDateKey].records[recordIndex];
+      if (record.isSettled) {
+        return;
+      }
+
+      const currentAmount = Number(record.amount || 0);
+      const settledAt = new Date().toISOString();
+      record.originalAmountBeforeSettlement =
+        typeof record.originalAmountBeforeSettlement === 'number'
+          ? record.originalAmountBeforeSettlement
+          : currentAmount;
+      record.isSettled = true;
+      record.settledAt = settledAt;
+      record.amount = 0;
+
+      calendarData[originalDateKey].totalExpense = Math.max(
+        0,
+        (calendarData[originalDateKey].totalExpense || 0) - currentAmount,
+      );
+
+      await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
+
+      const syncedSettlement = await syncExpenseRecord(record, {
+        isSettled: true,
+        settledAt,
+        originalAmountBeforeSettlement: record.originalAmountBeforeSettlement,
+        amount: 0,
+      });
+      if (!syncedSettlement) {
+        // expenseData 동기화가 실패하면 rebuild 시 결산 플래그 유실 가능성이 커서 중단
+        return;
+      }
+
+      await rebuildCalendarData();
+      calendarRefreshEvent.emit();
+
+      // 현재 화면 즉시 반영
+      setAmount('0');
+      editData.amount = 0;
+      editData.isSettled = true;
+      editData.settledAt = settledAt;
+      if (typeof editData.originalAmountBeforeSettlement !== 'number') {
+        editData.originalAmountBeforeSettlement = currentAmount;
+      }
+
+      const dateKey = formatDateKey(editData.date || date);
+      showToast('결산 처리가 정상적으로 되었습니다.');
+      await goTimelineWithFocus(dateKey);
+    } finally {
+      setShowSettlementConfirmModal(false);
       setLoading(false);
     }
   };
@@ -3252,18 +3474,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       
       // 모달 닫기
       setShowRefundOptions(false);
-      
-      // 타임라인에서 왔으면 타임라인으로, 아니면 홈으로 이동
-      if (params.calendarYear && params.calendarMonth) {
-        const recordDateTimeline = editData.date || date;
-        const dateKeyTimeline = formatDateKey(recordDateTimeline);
-        await goHomeWithFocus({ year: Number(params.calendarYear), month: Number(params.calendarMonth), targetDate: dateKeyTimeline });
-      } else {
-        const recordDateHome = editData.date || date;
-        const dateKeyHome = formatDateKey(recordDateHome);
-        const [targetYear, targetMonth] = dateKeyHome.split('-').map(Number);
-        await goHomeWithFocus({ year: targetYear, month: targetMonth, targetDate: dateKeyHome });
-      }
+      const dateKey = formatDateKey(editData.date || date);
+      showToast('환불 처리가 정상적으로 되었습니다.');
+      await goTimelineWithFocus(dateKey);
       
     } catch (_error) {
     } finally {
@@ -3370,13 +3583,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
       // 모달 닫기
       setShowPrepaymentRestore(false);
-
-      // 홈으로 이동 (원래 기록일자의 해당 커스텀 월)
-      const [originalYear, originalMonth] = originalDateKey.split('-').map(Number);
-      const originalDate = new Date(originalYear, originalMonth - 1, 1);
-      const currentMonthStartDay = await loadMonthStartDay();
-      const { year: targetYear, month: targetMonth } = getCustomMonthInfo(originalDate, currentMonthStartDay);
-      await goHomeWithFocus({ year: targetYear, month: targetMonth, targetDate: originalDateKey });
+      showToast('복구 처리가 정상적으로 되었습니다.');
+      await goTimelineWithFocus(originalDateKey);
 
     } catch (error) {
       console.error('선결제 처리 복구 중 오류:', error);
@@ -3562,12 +3770,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       
         const recordDate = editData.date || date;
         const dateKey = formatDateKey(recordDate);
-        if (params.calendarYear && params.calendarMonth) {
-          await goHomeWithFocus({ year: Number(params.calendarYear), month: Number(params.calendarMonth), targetDate: dateKey });
-        } else {
-          const [targetYear, targetMonth] = dateKey.split('-').map(Number);
-          await goHomeWithFocus({ year: targetYear, month: targetMonth, targetDate: dateKey });
-        }
+        showToast('복구 처리가 정상적으로 되었습니다.');
+        await goTimelineWithFocus(dateKey);
       } else if (editData.isRecurring) {
         const originalDateKey = editData.date ? editData.date.replace(/\./g, '-') : '';
         if (!originalDateKey || !calendarData[originalDateKey]?.records) {
@@ -3617,12 +3821,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         setShowRefundRestore(false);
 
         const dateKey = formatDateKey(editData.date || date);
-        if (params.calendarYear && params.calendarMonth) {
-          await goHomeWithFocus({ year: Number(params.calendarYear), month: Number(params.calendarMonth), targetDate: dateKey });
-        } else {
-          const [targetYear, targetMonth] = dateKey.split('-').map(Number);
-          await goHomeWithFocus({ year: targetYear, month: targetMonth, targetDate: dateKey });
-        }
+        showToast('복구 처리가 정상적으로 되었습니다.');
+        await goTimelineWithFocus(dateKey);
       } else {
         const originalDateKey = editData.date ? editData.date.replace(/\./g, '-') : '';
         if (!originalDateKey || !calendarData[originalDateKey]?.records) {
@@ -3665,15 +3865,68 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         setShowRefundRestore(false);
 
         const dateKey = formatDateKey(editData.date || date);
-        if (params.calendarYear && params.calendarMonth) {
-          await goHomeWithFocus({ year: Number(params.calendarYear), month: Number(params.calendarMonth), targetDate: dateKey });
-        } else {
-          const [targetYear, targetMonth] = dateKey.split('-').map(Number);
-          await goHomeWithFocus({ year: targetYear, month: targetMonth, targetDate: dateKey });
-        }
+        showToast('복구 처리가 정상적으로 되었습니다.');
+        await goTimelineWithFocus(dateKey);
       }
       
     } catch (_error) {
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 결산 처리 복구 로직
+  const handleSettlementRestore = async () => {
+    if (mode !== 'edit' || !editData || !editData.isSettled) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const storedData = await AsyncStorage.getItem('calendarData');
+      const calendarData = storedData ? JSON.parse(storedData) : {};
+      const originalDateKey = editData.date ? editData.date.replace(/\./g, '-') : '';
+      if (!originalDateKey || !calendarData[originalDateKey]?.records) {
+        return;
+      }
+
+      const recordIndex = calendarData[originalDateKey].records.findIndex(
+        (r: any) => r.id === editData.id || r.timestamp === editData.timestamp,
+      );
+      if (recordIndex === -1) {
+        return;
+      }
+
+      const record = calendarData[originalDateKey].records[recordIndex];
+      const backupAmount = record.originalAmountBeforeSettlement
+        ?? editData.originalAmountBeforeSettlement
+        ?? 0;
+      const restoredAmount = Number(backupAmount);
+
+      record.isSettled = false;
+      delete record.settledAt;
+      delete record.originalAmountBeforeSettlement;
+      record.amount = restoredAmount;
+      calendarData[originalDateKey].totalExpense = (calendarData[originalDateKey].totalExpense || 0) + restoredAmount;
+
+      await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
+
+      const syncedRestore = await syncExpenseRecord(record, {
+        isSettled: false,
+        settledAt: undefined,
+        originalAmountBeforeSettlement: undefined,
+        amount: restoredAmount,
+      });
+      if (!syncedRestore) {
+        return;
+      }
+
+      await rebuildCalendarData();
+      calendarRefreshEvent.emit();
+
+      setShowSettlementRestore(false);
+      showToast('복구 처리가 정상적으로 되었습니다.');
+      await goTimelineWithFocus(originalDateKey);
     } finally {
       setLoading(false);
     }
@@ -3800,6 +4053,19 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
   // 환불 처리날짜 포맷 함수
   const formatRefundDate = (dateString: string): string => {
+    try {
+      const date = new Date(dateString);
+      const year = String(date.getFullYear()).slice(-2);
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}/${month}/${day}`;
+    } catch {
+      return '';
+    }
+  };
+
+  // 결산 처리날짜 포맷 함수
+  const formatSettlementDate = (dateString: string): string => {
     try {
       const date = new Date(dateString);
       const year = String(date.getFullYear()).slice(-2);
@@ -4286,43 +4552,49 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                               </Text>
                             </Pressable>
                           </>
-                        ) : (
-                          // 일반 할부 기록인 경우: 선결제/환불 처리 버튼 표시
+                        ) : editData?.isSettled ? (
+                          // 결산 처리된 경우: 결산 처리날짜와 복구 버튼 표시
                           <>
                             <Text style={[styles.prepaymentRefundLabel, { color: colors.textAssistive }]}>
-                              선결제·환불 미적용
+                              결산 처리날짜 : {editData?.settledAt
+                                ? formatSettlementDate(editData.settledAt)
+                                : formatSettlementDate(new Date().toISOString())
+                              }
                             </Text>
-                            <View style={styles.prepaymentRefundActions}>
-                              <Pressable 
+                            <Pressable
+                              style={styles.prepaymentRefundButton}
+                              onPress={() => {
+                                setShowSettlementRestore(true);
+                              }}
+                            >
+                              <Text style={[styles.prepaymentRefundText, { color: colors.textAssistive }]}>
+                                결산 처리 복구
+                              </Text>
+                            </Pressable>
+                          </>
+                        ) : (
+                          // 일반 할부 기록인 경우: 정산 처리 버튼 표시 (선결제/환불/결산 드롭다운)
+                          <>
+                            <Text style={[styles.prepaymentRefundLabel, { color: colors.textAssistive }]}>
+                              선결제·환불·결산 미적용
+                            </Text>
+                            <View ref={settlementButtonRef} collapsable={false}>
+                              <Pressable
                                 style={[styles.prepaymentRefundButton, { marginLeft: 0 }]}
                                 onPress={() => {
-                                  // 선결제 모달 열기 (날짜 제한 없이 허용)
-                                  // 선결제 모달 열 때 현재 일자로 날짜 초기화
-                                  const today = new Date();
-                                  const todayFormatted = `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, '0')}.${String(today.getDate()).padStart(2, '0')}`;
-                                  setPrepaymentDate(todayFormatted);
-                                  setTempSelectedDate(todayFormatted.replace(/\./g, '-'));
-                                  setShowPrepaymentModal(true);
+                                  settlementButtonRef.current?.measureInWindow((x, y, width, height) => {
+                                    const { width: screenWidth } = Dimensions.get('window');
+                                    const menuWidth = 250;
+                                    let left = x + width - menuWidth;
+                                    if (left < 16) left = 16;
+                                    if (left + menuWidth > screenWidth - 16) left = screenWidth - menuWidth - 16;
+                                    setSettlementMenuLayout({ x: left, y: y + height, width: menuWidth, height });
+                                    setShowSettlementMenu(true);
+                                  });
                                 }}
                               >
                                 <Text style={[styles.prepaymentRefundText, { color: colors.textAssistive }]}>
-                                  선결제 처리
-                                </Text>
-                              </Pressable>
-                              <Pressable 
-                                style={styles.prepaymentRefundButton}
-                                onPress={() => {
-                                  if (editData?.isRecurring || editData?.isInstallment) {
-                                    // 환불 처리 모달 열기 (정기/할부)
-                                    setShowRefundOptions(true);
-                                    return;
-                                  }
-                                  // 일반 기록: 단일 환불 처리
-                                  setShowSingleRefundConfirm(true);
-                                }}
-                              >
-                                <Text style={[styles.prepaymentRefundText, { color: colors.textAssistive }]}>
-                                  환불 처리
+                                  정산 처리
                                 </Text>
                               </Pressable>
                             </View>
@@ -4472,14 +4744,25 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 onChangeText={handleAmountChange}
                 placeholder="0"
                 textAlign="right"
-                disabled={mode === 'edit' && (editData?.isInstallment || (!!editData?.isRefunded && !editData?.isInstallment))}
+                disabled={
+                  mode === 'edit' &&
+                  (
+                    editData?.isInstallment ||
+                    (!!editData?.isRefunded && !editData?.isInstallment) ||
+                    !!editData?.isSettled
+                  )
+                }
                 editable={false}
                 caretHidden
                 onPress={() => {
                   // 환불/할부 기록 수정 모드에서는 금액 변경 불가
                   const isDisabled =
                     mode === 'edit' &&
-                    (editData?.isInstallment || (!!editData?.isRefunded && !editData?.isInstallment));
+                    (
+                      editData?.isInstallment ||
+                      (!!editData?.isRefunded && !editData?.isInstallment) ||
+                      !!editData?.isSettled
+                    );
 
                   if (isDisabled) {
                     setRecurringToastMessage('변경할 수 없습니다. 새로 생성해 주세요.');
@@ -4611,6 +4894,85 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         )}
 
       
+
+      {/* 정산 처리 드롭다운 메뉴 (선결제/환불/결산) - iOS 스타일 */}
+      <Modal
+        visible={showSettlementMenu}
+        transparent
+        animationType="none"
+        onRequestClose={() => {
+          setShowSettlementMenu(false);
+          setSettlementMenuLayout(null);
+        }}
+      >
+        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => {
+              setShowSettlementMenu(false);
+              setSettlementMenuLayout(null);
+            }}
+          />
+          {settlementMenuLayout && (
+            <View
+              style={[
+                styles.settlementDropdownMenuContainer,
+                {
+                  left: settlementMenuLayout.x,
+                  top: settlementMenuLayout.y + 4,
+                  width: settlementMenuLayout.width,
+                },
+              ]}
+              pointerEvents="box-none"
+            >
+              <View style={styles.settlementDropdownMenuPanel}>
+                <View style={styles.settlementDropdownMenuClip}>
+                  {Platform.OS === 'ios' ? (
+                    <BlurView intensity={100} tint="light" style={styles.settlementDropdownMenuBlur}>
+                      {/* Liquid Glass: 반투명 하이라이트 + 가장자리 쉰 */}
+                      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                        <View style={[StyleSheet.absoluteFill, styles.settlementDropdownMenuGlassOverlay]} />
+                        <View style={styles.settlementDropdownMenuGlassSheen} />
+                      </View>
+                      {(['선결제', '환불', '결산'] as const).map((label, index) => (
+                        <Pressable
+                          key={label}
+                          style={[
+                            styles.settlementDropdownMenuItem,
+                            index < 2 && styles.settlementDropdownMenuItemBorder,
+                          ]}
+                          onPress={() => handleSettlementMenuSelect(label)}
+                        >
+                          <Text style={[styles.settlementDropdownMenuLabel, { color: colors.text }]}>
+                            {label}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </BlurView>
+                  ) : (
+                    <View style={[styles.settlementDropdownMenuBlur, { backgroundColor: 'rgba(253, 253, 253, 0.98)' }]}>
+                      {(['선결제', '환불', '결산'] as const).map((label, index) => (
+                        <Pressable
+                          key={label}
+                          style={[
+                            styles.settlementDropdownMenuItem,
+                            index < 2 && styles.settlementDropdownMenuItemBorder,
+                          ]}
+                          onPress={() => handleSettlementMenuSelect(label)}
+                        >
+                          <Text style={[styles.settlementDropdownMenuLabel, { color: colors.text }]}>
+                            {label}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              </View>
+            </View>
+          )}
+        </View>
+      </Modal>
 
       {/* 카테고리 미선택 얼럿 */}
       <PrepaymentModal
@@ -5181,6 +5543,68 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         </View>
       </ModalPopup>
 
+      {/* 결산 처리 안내 모달 */}
+      <ModalPopup
+        visible={showSettlementConfirmModal}
+        title="결산 처리 안내"
+        onConfirm={handleSingleRecordSettlement}
+        onCancel={() => setShowSettlementConfirmModal(false)}
+        confirmText="확인"
+        cancelText="취소"
+      >
+        <View style={styles.deleteOptionsContainer}>
+          <Text style={[styles.deleteOptionsDescription, { color: colors.textNeutral }]}>
+            선택하신 사항에 따라{'\n'}해당 소비내역을 마감하여{'\n'}결산 처리한 내역이 반영 됩니다.
+          </Text>
+
+          <View style={[styles.settlementInfoCard, { backgroundColor: colors.fill }]}>
+            <View style={styles.settlementTopRow}>
+              <Text style={[styles.recurringCategory, { color: colors.text }]}>
+                {categoryDisplay || '카테고리'}
+              </Text>
+              <Text style={[styles.recurringAmount, { color: colors.text }]}>
+                {settlementAmountText}
+              </Text>
+            </View>
+
+            <View style={[styles.settlementDivider, { backgroundColor: colors.border }]} />
+
+            <View style={[styles.settlementSubRow, styles.settlementSubRowSpacing]}>
+              <Text style={[styles.recurringPeriod, { color: colors.textAssistive }]}>
+                소비
+              </Text>
+              <Text style={[styles.recurringPeriod, { color: colors.textAssistive }]}>
+                - {settlementAmountText}
+              </Text>
+            </View>
+            <View style={styles.settlementSubRow}>
+              <Text style={[styles.recurringPeriod, { color: colors.textAssistive }]}>
+                결산
+              </Text>
+              <Text style={[styles.recurringPeriod, { color: colors.textAssistive }]}>
+                + {settlementAmountText}
+              </Text>
+            </View>
+
+            <View style={[styles.settlementDivider, { backgroundColor: colors.border }]} />
+
+            <View style={styles.settlementTopRow}>
+              <Text style={[styles.recurringCategory, { color: colors.text }]}>
+                최종 정산
+              </Text>
+              <Text style={[styles.recurringAmount, { color: colors.text }]}>
+                0원
+              </Text>
+            </View>
+            <View style={styles.recurringPeriodRow}>
+              <Text style={[styles.recurringPeriod, { color: colors.textAssistive }]}>
+                {settlementPeriodText}
+              </Text>
+            </View>
+          </View>
+        </View>
+      </ModalPopup>
+
       {/* 환불 처리 옵션 모달 */}
       <ModalPopup
         visible={showRefundOptions}
@@ -5348,6 +5772,38 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           환불 처리된 해당 기록을{'\n'}
           최초 {getRecordTypeLabel()} 기록일로 복구가 진행됩니다.
         </Text>
+      </ModalPopup>
+
+      {/* 결산 처리 복구 모달 */}
+      <ModalPopup
+        visible={showSettlementRestore}
+        title="결산 처리 복구 안내"
+        onConfirm={async () => { await handleSettlementRestore(); }}
+        onCancel={() => setShowSettlementRestore(false)}
+        confirmText="확인"
+        cancelText="취소"
+      >
+        <View style={styles.deleteOptionsContainer}>
+          <Text style={[styles.deleteOptionsDescription, { color: colors.textNeutral }]}>
+            결산 처리된 해당 기록을{'\n'}
+            최초 소비내역 상태로 복구가 진행됩니다.
+          </Text>
+          <View style={[styles.recurringInfoCard, { backgroundColor: colors.fill }]}>
+            <View style={styles.recurringInfoRow}>
+              <Text style={[styles.recurringCategory, { color: colors.text }]}>
+                {categoryDisplay || '카테고리'}
+              </Text>
+              <Text style={[styles.recurringAmount, { color: colors.text }]}>
+                {settlementRestoreAmountText}
+              </Text>
+            </View>
+            <View style={styles.recurringPeriodRow}>
+              <Text style={[styles.recurringPeriod, { color: colors.textAssistive }]}>
+                {settlementPeriodText}
+              </Text>
+            </View>
+          </View>
+        </View>
       </ModalPopup>
 
       {/* 변경사항 없음 모달 */}
@@ -5842,6 +6298,58 @@ const styles = StyleSheet.create({
     ...Typography.body1.l.regular,
     textDecorationLine: 'underline',
   },
+  settlementDropdownMenuContainer: {
+    position: 'absolute',
+  },
+  settlementDropdownMenuPanel: {
+    borderRadius: 12,
+    minWidth: 250,
+    // Liquid Glass: 가장자리 쉰 + 드롭다운 그림자 (x0, y8, blur 16, #000 10%)
+    ...(Platform.OS === 'ios' && {
+      borderWidth: 1,
+      borderColor: 'rgba(255, 255, 255, 0.35)',
+      shadowColor: '#000000',
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.1,
+      shadowRadius: 16,
+    }),
+    ...(Platform.OS === 'android' && { elevation: 12 }),
+  },
+  settlementDropdownMenuClip: {
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  settlementDropdownMenuBlur: {
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  settlementDropdownMenuGlassOverlay: {
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
+    borderRadius: 12,
+  },
+  settlementDropdownMenuGlassSheen: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+  },
+  settlementDropdownMenuItem: {
+    height: 44,
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+  settlementDropdownMenuItemBorder: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(0, 0, 0, 0.12)',
+  },
+  settlementDropdownMenuLabel: {
+    ...Typography.body1.l.regular,
+    fontSize: 17,
+  },
   expenseCategory: {
     ...Typography.body1.l.bold,
     fontSize: 21,
@@ -5901,6 +6409,29 @@ const styles = StyleSheet.create({
     ...Typography.body2.r.regular,
     fontSize: 14,
     lineHeight: 21,
+  },
+  settlementInfoCard: {
+    borderRadius: 16,
+    padding: 16,
+    gap: 0,
+  },
+  settlementTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  settlementSubRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  settlementSubRowSpacing: {
+    marginBottom: 4,
+  },
+  settlementDivider: {
+    height: 1,
+    width: '100%',
+    marginVertical: 12,
   },
   deleteOptionsList: {
     borderRadius: 16,

@@ -43,6 +43,7 @@ const useCategoryEmojiMap = () => {
 };
 
 interface TimelineItem {
+  id?: string;
   date: string; // YYYY-MM-DD
   type: 'income' | 'expense';
   category: string;
@@ -64,6 +65,9 @@ interface TimelineItem {
   originalInstallment?: boolean; // 최초 생성 시 할부 설정
   totalMonths?: number; // 정기 기록 개월 수
   isRefunded?: boolean; // 환불 여부
+  isSettled?: boolean; // 결산 여부
+  settledAt?: string; // 결산 처리 날짜
+  originalAmountBeforeSettlement?: number; // 결산 전 원금
 }
 
 interface ChallengeData {
@@ -253,6 +257,7 @@ export default function MonthlyExpenseTimelineScreen() {
                     if (record.isDeleted) return;
                     
                     items.push({
+                      id: record.id,
                       date: dateString,
                       type: record.type,
                       category: record.category || '기타',
@@ -274,7 +279,10 @@ export default function MonthlyExpenseTimelineScreen() {
                       isInstallment: record.isInstallment,
                       originalInstallment: record.originalInstallment,
                       totalMonths: record.totalMonths,
-                      isRefunded: record.isRefunded // 환불 여부 추가
+                      isRefunded: record.isRefunded, // 환불 여부
+                      isSettled: record.isSettled,
+                      settledAt: record.settledAt,
+                      originalAmountBeforeSettlement: record.originalAmountBeforeSettlement,
                     });
                   });
                 }
@@ -377,7 +385,12 @@ export default function MonthlyExpenseTimelineScreen() {
   };
   
   const handleBackPress = useCallback(() => {
-    router.back();
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+    // 스택이 없는 진입(reset 진입)에서는 홈 탭으로 안전 이동
+    router.replace('/(tabs)/home');
   }, [router]);
   
   return (
@@ -681,28 +694,40 @@ export default function MonthlyExpenseTimelineScreen() {
                                 {item.memo ? item.memo.replace(/\n/g, ' ') : ' '}
                               </Text>
                               {/* 태그 표시 */}
-                              {item.isInstallment && item.isPrepaid && (
+                              {item.isInstallment && item.isSettled && (
+                                <Tag
+                                  label="할부·결산"
+                                  status="negative"
+                                />
+                              )}
+                              {item.isInstallment && item.isPrepaid && !item.isSettled && (
                                 <Tag 
                                   label="할부·선결제" 
                                   status="positive" 
                                 />
                               )}
-                              {item.isInstallment && !item.isPrepaid && (
+                              {item.isInstallment && !item.isPrepaid && !item.isSettled && (
                                 <Tag 
                                   label={item.isRefunded ? "할부·환불" : "할부"} 
                                   status="negative" 
                                 />
                               )}
-                              {!item.isInstallment && item.isPrepaid && (
+                              {!item.isInstallment && item.isSettled && (
+                                <Tag
+                                  label={item.isRecurring ? "정기·결산" : "일반·결산"}
+                                  status="normal"
+                                />
+                              )}
+                              {!item.isInstallment && item.isPrepaid && !item.isSettled && (
                                 <Tag label="선납" status="positive" />
                               )}
-                              {!item.isInstallment && item.isRefunded && (
+                              {!item.isInstallment && item.isRefunded && !item.isSettled && (
                                 <Tag
                                   label={item.isRecurring ? "정기·환불" : "일반·환불"}
                                   status="normal"
                                 />
                               )}
-                              {!item.isInstallment && item.isRecurring && !item.isPrepaid && !item.isRefunded && (
+                              {!item.isInstallment && item.isRecurring && !item.isPrepaid && !item.isRefunded && !item.isSettled && (
                                 <Tag label="정기" status="normal" />
                               )}
                             </View>
