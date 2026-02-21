@@ -16,7 +16,12 @@ import { useAppData } from '@/contexts/app-data-context';
 import { useCreateSheetContext } from '@/contexts/create-sheet-context';
 import { FAB_OFFSET_ABOVE_TABS, useQuickInputContext } from '@/contexts/quick-input-context';
 import { useLoading } from '@/contexts/loading-context';
-import { applyPendingCalendarTargetEvent, calendarRefreshEvent } from '@/hooks/calendar-events';
+import {
+  applyPendingCalendarTargetEvent,
+  calendarRefreshEvent,
+  consumeLatestPendingCalendarTarget,
+  getLatestPendingCalendarTarget,
+} from '@/hooks/calendar-events';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { useThemeColor } from '@/hooks/use-theme-color';
@@ -35,6 +40,7 @@ import { Circle, Defs, LinearGradient, Stop, Svg } from 'react-native-svg';
 const FAB_SIZE = 48;
 
 export default function HomeScreen() {
+  const initialPendingTarget = getLatestPendingCalendarTarget();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
   const iconWhite = useThemeColor({}, 'staticWhite');
@@ -90,8 +96,12 @@ export default function HomeScreen() {
   // 년도 화면에서 마지막으로 본 월 추적
   const lastYearViewMonth = useRef<number | null>(null);
   // Shared year/month state for both TopNavigation and Calendar
-  const [currentYear, setCurrentYear] = useState<number>(new Date().getFullYear());
-  const [currentMonth, setCurrentMonth] = useState<number>(new Date().getMonth() + 1); // 1-12
+  const [currentYear, setCurrentYear] = useState<number>(
+    initialPendingTarget?.year ?? new Date().getFullYear(),
+  );
+  const [currentMonth, setCurrentMonth] = useState<number>(
+    initialPendingTarget?.month ?? (new Date().getMonth() + 1),
+  ); // 1-12
   const handleYearMonthPress = useCallback(
     (month: number) => {
       if (isNavigating.current) {
@@ -118,13 +128,54 @@ export default function HomeScreen() {
   );
   
   // 사용되지 않는 오늘 날짜 유틸 제거 (기능 영향 없음)
-  const [selectedDate, setSelectedDate] = useState<string>('');
+  const [selectedDate, setSelectedDate] = useState<string>(initialPendingTarget?.targetDate ?? '');
+
+  const applyPendingCalendarTarget = useCallback(async () => {
+    try {
+      const inMemoryTarget = consumeLatestPendingCalendarTarget();
+      if (inMemoryTarget?.year != null && inMemoryTarget?.month != null && inMemoryTarget?.targetDate) {
+        setCurrentYear(inMemoryTarget.year);
+        setCurrentMonth(inMemoryTarget.month);
+        setSelectedDate(inMemoryTarget.targetDate);
+        setPeriodType('month');
+        await refresh();
+        return;
+      }
+
+      const raw = await AsyncStorage.getItem('pendingCalendarTarget');
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { year?: number; month?: number; targetDate?: string };
+      if (parsed?.year != null && parsed?.month != null && parsed?.targetDate) {
+        setCurrentYear(parsed.year);
+        setCurrentMonth(parsed.month);
+        setSelectedDate(parsed.targetDate);
+        setPeriodType('month');
+        await AsyncStorage.removeItem('pendingCalendarTarget');
+        await refresh();
+      }
+    } catch {
+      // ignore
+    }
+  }, [refresh]);
 
   // 앱 시작 시 저장된 설정 불러오기 및 params 처리
   useEffect(() => {
     const loadSettings = async () => {
       try {
         beginLoad();
+        // 0) 메모리 pending 타겟이 있으면 최우선 적용 후 종료
+        if (
+          initialPendingTarget?.year != null &&
+          initialPendingTarget?.month != null &&
+          initialPendingTarget?.targetDate
+        ) {
+          setCurrentYear(initialPendingTarget.year);
+          setCurrentMonth(initialPendingTarget.month);
+          setSelectedDate(initialPendingTarget.targetDate);
+          setPeriodType('month');
+          return;
+        }
+
         // 0) pending 타겟이 있으면 최우선 적용 후 종료
         try {
           const raw = await AsyncStorage.getItem('pendingCalendarTarget');
@@ -254,25 +305,26 @@ export default function HomeScreen() {
 
   // 간편입력 등: 홈에 있을 때 해당 날짜로 포커스 적용
   useEffect(() => {
-    const unsub = applyPendingCalendarTargetEvent.subscribe(async () => {
-      try {
-        const raw = await AsyncStorage.getItem('pendingCalendarTarget');
-        if (!raw) return;
-        const parsed = JSON.parse(raw) as { year?: number; month?: number; targetDate?: string };
-        if (parsed?.year != null && parsed?.month != null && parsed?.targetDate) {
-          setCurrentYear(parsed.year);
-          setCurrentMonth(parsed.month);
-          setSelectedDate(parsed.targetDate);
-          setPeriodType('month');
-          await AsyncStorage.removeItem('pendingCalendarTarget');
-          await refresh();
-        }
-      } catch {
-        // ignore
+    const unsub = applyPendingCalendarTargetEvent.subscribe(async (target) => {
+      if (target?.year != null && target?.month != null && target?.targetDate) {
+        setCurrentYear(target.year);
+        setCurrentMonth(target.month);
+        setSelectedDate(target.targetDate);
+        setPeriodType('month');
+        return;
       }
+      await applyPendingCalendarTarget();
     });
     return unsub;
-  }, [refresh]);
+  }, [applyPendingCalendarTarget]);
+
+  // 타임라인에서 스와이프/백으로 복귀해도 pending 타겟을 항상 반영
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      void applyPendingCalendarTarget();
+    });
+    return unsubscribe;
+  }, [applyPendingCalendarTarget, navigation]);
 
   // 년도 화면에 진입할 때와 스크롤 애니메이션 처리
   useEffect(() => {

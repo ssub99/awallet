@@ -131,6 +131,7 @@ export const AppDataProvider: React.FC<AppDataProviderProps> = ({ children, enab
           
           // 지출 기록 추가
           fetchedCalendarData[dateKey].records.push({
+            id: expense.id,
             type: 'expense',
             amount: expense.amount,
             category: expense.category,
@@ -150,6 +151,9 @@ export const AppDataProvider: React.FC<AppDataProviderProps> = ({ children, enab
             isPrepaid: expense.isPrepaid,
             prepaidDate: expense.prepaidDate,
             isRefunded: expense.isRefunded,
+            isSettled: expense.isSettled,
+            settledAt: expense.settledAt,
+            originalAmountBeforeSettlement: expense.originalAmountBeforeSettlement,
             originalAmountBeforeRefund: expense.originalAmountBeforeRefund,
             originalAmount: expense.originalAmount,
             originalCategory: expense.originalCategory,

@@ -13,6 +13,7 @@ import { useAppData } from '@/contexts/app-data-context';
 import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
+import { applyPendingCalendarTargetEvent, setLatestPendingCalendarTarget } from '@/hooks/calendar-events';
 import { loadCategories } from '@/utils/categories';
 import { getCustomMonthRange, isDateInCustomMonth } from '@/utils/custom-month';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -142,6 +143,20 @@ export default function MonthlyExpenseTimelineScreen() {
   
   const year = currentYear;
   const month = currentMonth;
+
+  // 스와이프 뒤로가기를 포함한 모든 복귀 경로에서 홈 월 컨텍스트 유지
+  useEffect(() => {
+    const targetDate = `${year}-${String(month).padStart(2, '0')}-01`;
+    setLatestPendingCalendarTarget({ year, month, targetDate });
+    // 실시간 동기화: 타임라인 월 변경 즉시 홈의 월 컨텍스트도 갱신
+    applyPendingCalendarTargetEvent.emit({ year, month, targetDate });
+    void AsyncStorage.setItem(
+      'pendingCalendarTarget',
+      JSON.stringify({ year, month, targetDate }),
+    ).catch(() => {
+      // ignore
+    });
+  }, [year, month]);
   
   // Tab state
   const initialTab = params.tab === 'status' ? 'status' : 'timeline';
@@ -385,13 +400,35 @@ export default function MonthlyExpenseTimelineScreen() {
   };
   
   const handleBackPress = useCallback(() => {
-    if (router.canGoBack()) {
-      router.back();
-      return;
-    }
-    // 스택이 없는 진입(reset 진입)에서는 홈 탭으로 안전 이동
-    router.replace('/(tabs)/home');
-  }, [router]);
+    void (async () => {
+      const targetDate = `${year}-${String(month).padStart(2, '0')}-01`;
+      setLatestPendingCalendarTarget({ year, month, targetDate });
+      // 홈 화면이 이미 마운트되어 있으면 즉시 상태를 맞춰 점프를 제거
+      applyPendingCalendarTargetEvent.emit({ year, month, targetDate });
+      try {
+        await AsyncStorage.setItem(
+          'pendingCalendarTarget',
+          JSON.stringify({ year, month, targetDate }),
+        );
+      } catch {
+        // ignore
+      }
+
+      if (router.canGoBack()) {
+        router.back();
+        return;
+      }
+      // 스택이 없는 진입에서도 홈 월 컨텍스트를 유지하도록 파라미터 전달
+      router.replace({
+        pathname: '/(tabs)/home',
+        params: {
+          targetYear: year.toString(),
+          targetMonth: month.toString(),
+          targetDate,
+        },
+      });
+    })();
+  }, [month, router, year]);
   
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
@@ -674,8 +711,8 @@ export default function MonthlyExpenseTimelineScreen() {
                               >
                                 {item.type === 'expense'
                                   ? (
-                                    // 할부 처리된 환불 기록은 부호 없이 표기
-                                    item.isInstallment && item.isRefunded
+                                    // 결산/할부 환불 기록은 부호 없이 표기
+                                    item.isSettled || (item.isInstallment && item.isRefunded)
                                       ? `${item.amount.toLocaleString()}원`
                                       : `- ${item.amount.toLocaleString()}원`
                                     )
