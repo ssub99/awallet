@@ -849,6 +849,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   } | null>(null);
   const settlementButtonRef = useRef<View>(null);
   const settlementActionLockRef = useRef<boolean>(false);
+  const settlementMenuOpacity = useRef(new Animated.Value(0)).current;
+  const settlementMenuScale = useRef(new Animated.Value(0.94)).current;
 
   const settlementBaseAmount = useMemo(() => {
     const parsedAmount = amount ? Number(amount.replace(/,/g, '')) : NaN;
@@ -913,21 +915,71 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     setShowSettlementConfirmModal(true);
   }, [editData?.isInstallment, editData?.isRecurring]);
 
-  const handleSettlementMenuSelect = useCallback((label: '선결제' | '환불' | '결산') => {
-    if (settlementActionLockRef.current) {
-      return;
-    }
-    settlementActionLockRef.current = true;
-    setShowSettlementMenu(false);
-    setSettlementMenuLayout(null);
-    requestAnimationFrame(() => {
-      applySettlementAction(label);
-      // 다음 프레임에서 잠금 해제하여 중복 탭/이벤트를 방지
-      requestAnimationFrame(() => {
-        settlementActionLockRef.current = false;
+  const closeSettlementMenu = useCallback(
+    (onClosed?: () => void) => {
+      Animated.parallel([
+        Animated.timing(settlementMenuOpacity, {
+          toValue: 0,
+          duration: 100,
+          useNativeDriver: true,
+          easing: Easing.in(Easing.cubic),
+        }),
+        Animated.timing(settlementMenuScale, {
+          toValue: 0.94,
+          duration: 100,
+          useNativeDriver: true,
+          easing: Easing.in(Easing.cubic),
+        }),
+      ]).start(({ finished }) => {
+        if (finished) {
+          setShowSettlementMenu(false);
+          setSettlementMenuLayout(null);
+          onClosed?.();
+        }
       });
-    });
-  }, [applySettlementAction]);
+    },
+    [settlementMenuOpacity, settlementMenuScale]
+  );
+
+  const handleSettlementMenuSelect = useCallback(
+    (label: '선결제' | '환불' | '결산') => {
+      if (settlementActionLockRef.current) {
+        return;
+      }
+      settlementActionLockRef.current = true;
+      closeSettlementMenu(() => {
+        requestAnimationFrame(() => {
+          applySettlementAction(label);
+          requestAnimationFrame(() => {
+            settlementActionLockRef.current = false;
+          });
+        });
+      });
+    },
+    [applySettlementAction, closeSettlementMenu]
+  );
+
+  // 정산 처리 드롭다운 등장 애니메이션
+  useEffect(() => {
+    if (showSettlementMenu && settlementMenuLayout) {
+      settlementMenuOpacity.setValue(0);
+      settlementMenuScale.setValue(0.94);
+      Animated.parallel([
+        Animated.timing(settlementMenuOpacity, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+          easing: Easing.out(Easing.cubic),
+        }),
+        Animated.timing(settlementMenuScale, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+          easing: Easing.out(Easing.cubic),
+        }),
+      ]).start();
+    }
+  }, [showSettlementMenu, settlementMenuLayout, settlementMenuOpacity, settlementMenuScale]);
 
   useEffect(() => {
     if (!showRecurringToast) {
@@ -5068,18 +5120,12 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         visible={showSettlementMenu}
         transparent
         animationType="none"
-        onRequestClose={() => {
-          setShowSettlementMenu(false);
-          setSettlementMenuLayout(null);
-        }}
+        onRequestClose={() => closeSettlementMenu()}
       >
         <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
           <Pressable
             style={StyleSheet.absoluteFill}
-            onPress={() => {
-              setShowSettlementMenu(false);
-              setSettlementMenuLayout(null);
-            }}
+            onPress={() => closeSettlementMenu()}
           />
           {settlementMenuLayout && (
             <View
@@ -5093,7 +5139,15 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               ]}
               pointerEvents="box-none"
             >
-              <View style={styles.settlementDropdownMenuPanel}>
+              <Animated.View
+                style={[
+                  styles.settlementDropdownMenuPanel,
+                  {
+                    opacity: settlementMenuOpacity,
+                    transform: [{ scale: settlementMenuScale }],
+                  },
+                ]}
+              >
                 <View style={styles.settlementDropdownMenuClip}>
                   {Platform.OS === 'ios' ? (
                     <BlurView intensity={100} tint="light" style={styles.settlementDropdownMenuBlur}>
@@ -5136,7 +5190,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                     </View>
                   )}
                 </View>
-              </View>
+              </Animated.View>
             </View>
           )}
         </View>
