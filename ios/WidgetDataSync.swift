@@ -4,6 +4,8 @@ import WidgetKit
 
 @objc(WidgetDataSync)
 class WidgetDataSync: NSObject, RCTBridgeModule {
+  private let revealStateKey = "monthlyExpenseRevealState"
+  private let revealUntilKey = "monthlyExpenseRevealUntil"
 
   /// App Group identifier is chosen based on the current bundle id.
   /// - Production app:  com.ssong.awallet              → group.com.ssong.awallet
@@ -63,6 +65,27 @@ class WidgetDataSync: NSObject, RCTBridgeModule {
     } catch {
       reject("ERROR", "Failed to encode data: \(error.localizedDescription)", error)
     }
+  }
+
+  @objc
+  func clearMonthlyExpenseRevealState(
+    resolver resolve: @escaping RCTPromiseResolveBlock,
+    rejecter reject: @escaping RCTPromiseRejectBlock
+  ) {
+    guard let sharedDefaults = UserDefaults(suiteName: appGroupIdentifier) else {
+      reject("ERROR", "Failed to access App Group UserDefaults", nil)
+      return
+    }
+
+    sharedDefaults.set(false, forKey: revealStateKey)
+    sharedDefaults.removeObject(forKey: revealUntilKey)
+    sharedDefaults.synchronize()
+
+    let bundleId = Bundle.main.bundleIdentifier ?? ""
+    let widgetKind = bundleId.contains(".stage") ? "MonthlyExpenseWidgetStage" : "MonthlyExpenseWidget"
+    WidgetCenter.shared.reloadTimelines(ofKind: widgetKind)
+    WidgetCenter.shared.reloadAllTimelines()
+    resolve(nil)
   }
 
   @objc

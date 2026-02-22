@@ -17,7 +17,7 @@ import {
   getGeneralNotificationsEnabled,
   setupDailyReminder,
 } from '@/utils/notification-scheduler';
-import { refreshWidgetWithCurrentMonth } from '@/utils/widget-data-sync';
+import { refreshWidgetWithCurrentMonth, resetMonthlyExpenseMaskInWidget } from '@/utils/widget-data-sync';
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
 import { Stack } from 'expo-router';
@@ -159,7 +159,11 @@ export default function RootLayout() {
   // 사용자가 홈/잠금화면으로 나가는 순간 한 번 더 쓰기+reload 요청하면 위젯이 갱신될 가능성이 높아짐.
   useEffect(() => {
     if (Platform.OS !== 'ios') return;
+    resetMonthlyExpenseMaskInWidget().catch(() => {});
     const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
+      if (next === 'active') {
+        resetMonthlyExpenseMaskInWidget().catch(() => {});
+      }
       if (next === 'background' || next === 'inactive') {
         refreshWidgetWithCurrentMonth().catch(() => {});
       }

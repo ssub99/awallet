@@ -1,5 +1,6 @@
 import WidgetKit
 import SwiftUI
+import AppIntents
 
 // MARK: - Shared model (must match WidgetDataSync.swift)
 struct MonthlyExpenseData: Codable {
@@ -16,10 +17,17 @@ private var appGroupIdentifier: String {
   return "group.com.ssong.awallet.stage"
 }
 
+private let revealStateKey = "monthlyExpenseRevealState"
+private let revealUntilKey = "monthlyExpenseRevealUntil"
+private let widgetKind = "MonthlyExpenseWidgetStage"
+private let monthlyExpenseDeepLink = "awallet:///"
+private let revealDuration: TimeInterval = 5
+
 // MARK: - Timeline Entry
 struct MonthlyExpenseEntry: TimelineEntry {
   let date: Date
   let data: MonthlyExpenseData?
+  let isRevealed: Bool
 }
 
 // MARK: - Provider
@@ -33,7 +41,8 @@ struct MonthlyExpenseProvider: TimelineProvider {
         balance: 180000.0,
         monthStartDay: 1,
         lastUpdated: Date()
-      )
+      ),
+      isRevealed: false
     )
   }
 
@@ -43,11 +52,23 @@ struct MonthlyExpenseProvider: TimelineProvider {
   }
 
   func getTimeline(in context: Context, completion: @escaping (Timeline<MonthlyExpenseEntry>) -> Void) {
-    let entry = loadEntry() ?? MonthlyExpenseEntry(date: Date(), data: nil)
+    let entry = loadEntry() ?? MonthlyExpenseEntry(date: Date(), data: nil, isRevealed: false)
 
-    // 단순히 현재 시점 기준 30분 후에 다시 요청되도록 설정
-    let refreshDate = Calendar.current.date(byAdding: .minute, value: 30, to: Date()) ?? Date().addingTimeInterval(1800)
-    let timeline = Timeline(entries: [entry], policy: .after(refreshDate))
+    let now = Date()
+    let entries: [MonthlyExpenseEntry]
+    let refreshDate: Date
+
+    if entry.isRevealed {
+      // 공개 상태: 지금(공개) + 5초 후(마스킹) 두 엔트리로 전달 → 시스템이 시간 되면 자동 전환
+      let maskedEntry = MonthlyExpenseEntry(date: now.addingTimeInterval(revealDuration), data: entry.data, isRevealed: false)
+      entries = [entry, maskedEntry]
+      refreshDate = now.addingTimeInterval(revealDuration + 1)
+    } else {
+      entries = [entry]
+      refreshDate = Calendar.current.date(byAdding: .minute, value: 30, to: now) ?? now.addingTimeInterval(1800)
+    }
+
+    let timeline = Timeline(entries: entries, policy: .after(refreshDate))
     completion(timeline)
   }
 
@@ -63,7 +84,30 @@ struct MonthlyExpenseProvider: TimelineProvider {
       return nil
     }
 
-    return MonthlyExpenseEntry(date: Date(), data: decoded)
+    let revealUntil = defaults.double(forKey: revealUntilKey)
+    let isRevealed = defaults.bool(forKey: revealStateKey) && revealUntil > Date().timeIntervalSince1970
+    if !isRevealed {
+      defaults.set(false, forKey: revealStateKey)
+      defaults.removeObject(forKey: revealUntilKey)
+    }
+    return MonthlyExpenseEntry(date: Date(), data: decoded, isRevealed: isRevealed)
+  }
+}
+
+@available(iOS 17.0, *)
+struct RevealMonthlyExpenseIntent: AppIntent {
+  static var title: LocalizedStringResource = "Reveal Monthly Expense"
+
+  func perform() async throws -> some IntentResult {
+    guard let defaults = UserDefaults(suiteName: appGroupIdentifier) else {
+      return .result()
+    }
+
+    defaults.set(true, forKey: revealStateKey)
+    defaults.set(Date().addingTimeInterval(revealDuration).timeIntervalSince1970, forKey: revealUntilKey)
+    defaults.synchronize()
+    WidgetCenter.shared.reloadTimelines(ofKind: widgetKind)
+    return .result()
   }
 }
 
@@ -86,73 +130,65 @@ struct MonthlyExpenseWidgetEntryView: View {
   @Environment(\.widgetFamily) var family
 
   var body: some View {
-    if #available(iOS 16.0, *) {
-      switch family {
-      case .accessoryRectangular:
-        accessoryRectangularView
-      case .accessoryInline:
-        accessoryInlineView
-      default:
-        homeScreenView
-      }
-    } else {
-      homeScreenView
-    }
-  }
-
-  // 홈 화면 (systemSmall / systemMedium)
-  // iOS 17+ containerBackground 사용 시 SpringBoard 호환성 개선 (시뮬레이터 크래시 완화 목적)
-  @ViewBuilder
-  private var homeScreenView: some View {
-    let content = VStack(alignment: .leading, spacing: WidgetPadding.titleBodySpacing) {
-      Text("이번달 소비")
-        .font(.system(size: WidgetFont.titleSize, weight: .medium))
-        .foregroundColor(Color(white: 0.4))
-
-      Text(formattedExpenseText)
-        .font(.system(size: WidgetFont.bodySize, weight: .bold))
-        .foregroundColor(.black)
-        .lineLimit(1)
-        .minimumScaleFactor(0.5)
-    }
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-    .padding(EdgeInsets(top: WidgetPadding.vertical, leading: WidgetPadding.horizontal, bottom: WidgetPadding.vertical, trailing: WidgetPadding.horizontal))
-
-    if #available(iOS 17.0, *) {
-      content
-        .containerBackground(for: .widget) { Color.white }
-    } else {
-      ZStack(alignment: .leading) {
-        Color.white
-        content
-      }
+    switch family {
+    case .accessoryRectangular:
+      accessoryRectangularView
+    case .accessoryInline:
+      accessoryInlineView
+    default:
+      accessoryRectangularView
     }
   }
 
   // 잠금화면 - 사각 (라벨 + 금액, iOS 16+)
-  @available(iOS 16.0, *)
   private var accessoryRectangularView: some View {
     VStack(alignment: .leading, spacing: WidgetPadding.titleBodySpacing) {
       Text("이번달 소비")
         .font(.system(size: WidgetFont.titleSize))
         .foregroundColor(.secondary)
-      Text(formattedExpenseText)
-        .font(.system(size: WidgetFont.bodySize, weight: .semibold))
-        .lineLimit(1)
-        .minimumScaleFactor(0.5)
+      amountView
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     .padding(EdgeInsets(top: WidgetPadding.vertical, leading: WidgetPadding.horizontal, bottom: WidgetPadding.vertical, trailing: WidgetPadding.horizontal))
   }
 
   // 잠금화면 - 인라인 (한 줄, iOS 16+)
-  @available(iOS 16.0, *)
   private var accessoryInlineView: some View {
-    Label(formattedExpenseText, systemImage: "wonsign.circle.fill")
-      .font(.system(size: WidgetFont.bodySize, weight: .medium))
-      .lineLimit(1)
-      .minimumScaleFactor(0.5)
-      .padding(.horizontal, WidgetPadding.horizontal)
+    HStack(spacing: 4) {
+      Image(systemName: "wonsign.circle.fill")
+      amountView
+    }
+    .font(.system(size: WidgetFont.bodySize, weight: .medium))
+    .lineLimit(1)
+    .minimumScaleFactor(0.5)
+    .padding(.horizontal, WidgetPadding.horizontal)
+  }
+
+  @ViewBuilder
+  private var amountView: some View {
+    if entry.isRevealed, let destination = URL(string: monthlyExpenseDeepLink) {
+      Link(destination: destination) {
+        Text(formattedExpenseText)
+          .font(.system(size: WidgetFont.bodySize, weight: .semibold))
+          .lineLimit(1)
+          .minimumScaleFactor(0.5)
+      }
+    } else if #available(iOS 17.0, *) {
+      Button(intent: RevealMonthlyExpenseIntent()) {
+        Text(formattedExpenseText)
+          .font(.system(size: WidgetFont.bodySize, weight: .semibold))
+          .lineLimit(1)
+          .minimumScaleFactor(0.5)
+          .blur(radius: 8)
+      }
+      .buttonStyle(.plain)
+    } else {
+      Text(formattedExpenseText)
+        .font(.system(size: WidgetFont.bodySize, weight: .semibold))
+        .lineLimit(1)
+        .minimumScaleFactor(0.5)
+        .blur(radius: 8)
+    }
   }
 
   /// 홈/사각용: 천 단위 구분 포맷 (예: 120,000원), 정수만 표기
@@ -176,21 +212,9 @@ struct MonthlyExpenseWidgetEntryView: View {
 struct MonthlyExpenseWidget: Widget {
   // NOTE: WidgetDataSync.swift에서 reloadTimelines(ofKind:)에 사용하는 kind 값과 일치해야 합니다.
   // Stage 위젯은 별도의 kind를 사용하여 프로덕션과 구분합니다.
-  private let kind: String = "MonthlyExpenseWidgetStage"
+  private let kind: String = widgetKind
 
-  /// iOS 16+ 에서만 잠금화면(accessory) 패밀리 포함
-  private static var supportedFamilies: [WidgetFamily] {
-    if #available(iOS 16.0, *) {
-      return Self.familiesWithAccessory
-    } else {
-      return [.systemSmall, .systemMedium]
-    }
-  }
-
-  @available(iOS 16.0, *)
-  private static var familiesWithAccessory: [WidgetFamily] {
-    [.systemSmall, .systemMedium, .accessoryRectangular, .accessoryInline]
-  }
+  private static let supportedFamilies: [WidgetFamily] = [.accessoryRectangular, .accessoryInline]
 
   var body: some WidgetConfiguration {
     StaticConfiguration(kind: kind, provider: MonthlyExpenseProvider()) { entry in
