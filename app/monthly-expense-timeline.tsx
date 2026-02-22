@@ -143,10 +143,35 @@ export default function MonthlyExpenseTimelineScreen() {
   
   const year = currentYear;
   const month = currentMonth;
+  const initialYearParam = params.year ? parseInt(params.year, 10) : undefined;
+  const initialMonthParam = params.month ? parseInt(params.month, 10) : undefined;
+
+  const defaultTargetDate = useMemo(
+    () => `${year}-${String(month).padStart(2, '0')}-01`,
+    [year, month]
+  );
+  const targetDateFromSelection = useMemo(() => {
+    const selectedDateParam = params.selectedDate;
+    const hasValidSelectedDate =
+      typeof selectedDateParam === 'string' &&
+      /^\d{4}-\d{2}-\d{2}$/.test(selectedDateParam);
+
+    // 홈에서 전달받은 최초 선택 날짜는 최초 진입 월에서만 유지하고,
+    // 타임라인 내부에서 월을 바꾼 경우에는 현재 월 1일 기준으로 복귀 컨텍스트를 맞춘다.
+    if (
+      hasValidSelectedDate &&
+      initialYearParam === year &&
+      initialMonthParam === month
+    ) {
+      return selectedDateParam;
+    }
+
+    return defaultTargetDate;
+  }, [defaultTargetDate, initialMonthParam, initialYearParam, month, params.selectedDate, year]);
 
   // 스와이프 뒤로가기를 포함한 모든 복귀 경로에서 홈 월 컨텍스트 유지
   useEffect(() => {
-    const targetDate = `${year}-${String(month).padStart(2, '0')}-01`;
+    const targetDate = targetDateFromSelection;
     setLatestPendingCalendarTarget({ year, month, targetDate });
     // 실시간 동기화: 타임라인 월 변경 즉시 홈의 월 컨텍스트도 갱신
     applyPendingCalendarTargetEvent.emit({ year, month, targetDate });
@@ -156,7 +181,7 @@ export default function MonthlyExpenseTimelineScreen() {
     ).catch(() => {
       // ignore
     });
-  }, [year, month]);
+  }, [year, month, targetDateFromSelection]);
   
   // Tab state
   const initialTab = params.tab === 'status' ? 'status' : 'timeline';
@@ -401,7 +426,7 @@ export default function MonthlyExpenseTimelineScreen() {
   
   const handleBackPress = useCallback(() => {
     void (async () => {
-      const targetDate = `${year}-${String(month).padStart(2, '0')}-01`;
+      const targetDate = targetDateFromSelection;
       setLatestPendingCalendarTarget({ year, month, targetDate });
       // 홈 화면이 이미 마운트되어 있으면 즉시 상태를 맞춰 점프를 제거
       applyPendingCalendarTargetEvent.emit({ year, month, targetDate });
@@ -428,7 +453,7 @@ export default function MonthlyExpenseTimelineScreen() {
         },
       });
     })();
-  }, [month, router, year]);
+  }, [month, router, targetDateFromSelection, year]);
   
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>

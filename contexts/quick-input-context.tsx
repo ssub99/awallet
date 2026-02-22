@@ -77,13 +77,209 @@ interface PendingParseRecord {
   weekendOption?: 'weekend' | 'friday' | 'monday';
 }
 
+function toPendingParseRecord(value: unknown): PendingParseRecord | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  const rawDate = candidate.date;
+  const rawAmount = candidate.amount;
+  const rawCategory = candidate.category;
+  const rawPaymentMethod = candidate.paymentMethod;
+  const rawMemo = candidate.memo;
+  const rawRecurringType = candidate.recurringType;
+  const rawWeekendOption = candidate.weekendOption;
+
+  const date = typeof rawDate === 'string' ? rawDate : '';
+  const amount = typeof rawAmount === 'number' ? rawAmount : Number(rawAmount);
+  const category = typeof rawCategory === 'string' ? rawCategory : null;
+  const paymentMethod =
+    rawPaymentMethod === 'credit' || rawPaymentMethod === 'debit' || rawPaymentMethod === 'cash'
+      ? rawPaymentMethod
+      : undefined;
+  const memo = typeof rawMemo === 'string' ? rawMemo : undefined;
+  const recurringType = typeof rawRecurringType === 'string' ? rawRecurringType : undefined;
+  const weekendOption =
+    rawWeekendOption === 'weekend' || rawWeekendOption === 'friday' || rawWeekendOption === 'monday'
+      ? rawWeekendOption
+      : undefined;
+
+  if (!Number.isFinite(amount)) {
+    return null;
+  }
+
+  return {
+    category,
+    date,
+    amount,
+    paymentMethod,
+    memo,
+    isRecurring: candidate.isRecurring as PendingParseRecord['isRecurring'],
+    isInstallment: candidate.isInstallment as PendingParseRecord['isInstallment'],
+    recurringType,
+    totalMonths: typeof candidate.totalMonths === 'number' ? candidate.totalMonths : Number(candidate.totalMonths),
+    weekendOption,
+  };
+}
+
+function normalizeApiRecords(records: unknown): PendingParseRecord[] {
+  if (Array.isArray(records)) {
+    return records
+      .map((item) => toPendingParseRecord(item))
+      .filter((item): item is PendingParseRecord => item != null);
+  }
+
+  const single = toPendingParseRecord(records);
+  return single ? [single] : [];
+}
+
+function parsePendingDate(date: string): { year: number; month: number; day: number } | null {
+  const matched = date.match(/^(\d{4})\.(\d{2})\.(\d{2})$/);
+  if (!matched) {
+    return null;
+  }
+
+  const year = parseInt(matched[1], 10);
+  const month = parseInt(matched[2], 10);
+  const day = parseInt(matched[3], 10);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+    return null;
+  }
+  if (month < 1 || month > 12 || day < 1 || day > 31) {
+    return null;
+  }
+
+  const parsed = new Date(year, month - 1, day);
+  const isSameDate =
+    parsed.getFullYear() === year &&
+    parsed.getMonth() === month - 1 &&
+    parsed.getDate() === day;
+  if (!isSameDate) {
+    return null;
+  }
+
+  return { year, month, day };
+}
+
+type RequiredField = 'category' | 'date' | 'amount';
+
+function requiredFieldToast(field: RequiredField): string {
+  switch (field) {
+    case 'category':
+      return '카테고리를 기입해 주세요.';
+    case 'date':
+      return '날짜를 기입해 주세요.';
+    case 'amount':
+      return '금액을 기입해 주세요.';
+    default:
+      return '입력값을 확인해 주세요.';
+  }
+}
+
+function isValidCalendarDate(year: number, month: number, day: number): boolean {
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+    return false;
+  }
+  if (month < 1 || month > 12 || day < 1 || day > 31) {
+    return false;
+  }
+  const date = new Date(year, month - 1, day);
+  return (
+    date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day
+  );
+}
+
+function hasInvalidDateToken(message: string): boolean {
+  const nowYear = new Date().getFullYear();
+
+  const ymdDotMatches = message.matchAll(/(\d{4})\.(\d{1,2})\.(\d{1,2})/g);
+  for (const match of ymdDotMatches) {
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    if (!isValidCalendarDate(year, month, day)) {
+      return true;
+    }
+  }
+
+  const ymdSlashMatches = message.matchAll(/(\d{4})\/(\d{1,2})\/(\d{1,2})/g);
+  for (const match of ymdSlashMatches) {
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    if (!isValidCalendarDate(year, month, day)) {
+      return true;
+    }
+  }
+
+  const mdKoreanMatches = message.matchAll(/(\d{1,2})월\s*(\d{1,2})일/g);
+  for (const match of mdKoreanMatches) {
+    const month = Number(match[1]);
+    const day = Number(match[2]);
+    if (!isValidCalendarDate(nowYear, month, day)) {
+      return true;
+    }
+  }
+
+  const mdDotMatches = message.matchAll(/(?:^|[^\d])(\d{1,2})\.(\d{1,2})(?:[^\d]|$)/g);
+  for (const match of mdDotMatches) {
+    const month = Number(match[1]);
+    const day = Number(match[2]);
+    if (!isValidCalendarDate(nowYear, month, day)) {
+      return true;
+    }
+  }
+
+  const mdSlashMatches = message.matchAll(/(?:^|[^\d])(\d{1,2})\/(\d{1,2})(?:[^\d]|$)/g);
+  for (const match of mdSlashMatches) {
+    const month = Number(match[1]);
+    const day = Number(match[2]);
+    if (!isValidCalendarDate(nowYear, month, day)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function resolveMessageValidationToast(message: string, categoryLabels: string[]): string | null {
+  const normalizedMessage = message.trim();
+  const hasCategory = categoryLabels.some((label) => normalizedMessage.includes(label));
+  const hasDate =
+    /\d{4}[.\-/]\d{1,2}[.\-/]\d{1,2}/.test(normalizedMessage) ||
+    /\d{1,2}월\s*\d{1,2}일/.test(normalizedMessage) ||
+    /\d{1,2}[.\-/]\d{1,2}/.test(normalizedMessage) ||
+    /오늘|어제|그제|내일|모레/.test(normalizedMessage);
+  const hasAmount =
+    /(\d[\d,]*)\s*원/.test(normalizedMessage) ||
+    /(\d[\d,]*)\s*(만원|천원|백원)/.test(normalizedMessage);
+
+  const noCategory = !hasCategory;
+  const noDate = !hasDate;
+  const noAmount = !hasAmount;
+
+  if (noCategory && noDate && noAmount) {
+    return '지출하신 소비내역을 입력해 주세요.';
+  }
+
+  if (hasDate && hasInvalidDateToken(normalizedMessage)) {
+    return '올바른 날짜를 기입해 주세요.';
+  }
+
+  if (noCategory) return requiredFieldToast('category');
+  if (noDate) return requiredFieldToast('date');
+  if (noAmount) return requiredFieldToast('amount');
+  return null;
+}
+
 function formatDateDisplay(dateStr: string): string {
-  const parts = dateStr.split('.');
-  if (parts.length !== 3) return dateStr;
-  const [y, m, d] = parts;
-  const year = parseInt(y!, 10);
-  const month = parseInt(m!, 10);
-  const day = parseInt(d!, 10);
+  const parsed = parsePendingDate(dateStr);
+  if (!parsed) return dateStr;
+  const { year, month, day } = parsed;
+  const y = String(year);
   const dayLabel = getDayOfWeekLabel(year, month, day);
   return `${y}년 ${month}월 ${day}일(${dayLabel})`;
 }
@@ -124,6 +320,10 @@ function normalizePendingRecord(r: PendingParseRecord): PendingParseRecord {
         ? (r.weekendOption === 'friday' || r.weekendOption === 'monday' ? r.weekendOption : 'weekend')
         : undefined,
   };
+}
+
+function isValidPendingDate(date: unknown): date is string {
+  return typeof date === 'string' && parsePendingDate(date) != null;
 }
 
 /** 메시지에서 정기/할부 의도 추론 후 record에 반영 (API 미반환 시 클라이언트 fallback) */
@@ -214,7 +414,6 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
 
   const quickInputRef = useRef<TextInput>(null);
   const quickInputBackdropOpacity = useRef(new RNAnimated.Value(0)).current;
-  const sendLoadingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** 숏/롱 동일 애니메이션: 부모 starScale/starRotate 공유. 새로고침 시 크래시 방지를 위해 fallback 보유 */
   const starRefs = useRef<{ starScale: AnimatedValue; starRotate: AnimatedValue } | null>(null);
   const overlayStarScale = useRef(new RNAnimated.Value(1)).current;
@@ -226,9 +425,13 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     {
       onStart: (e) => {
         'worklet';
-        const target = e.height + KEYBOARD_GAP;
-        if (e.height > 0) {
-          const rawDuration = e.duration > 0 && e.duration <= 1000 ? e.duration : 250;
+        const keyboardHeight = Number.isFinite(e.height) ? e.height : 0;
+        const target = keyboardHeight + KEYBOARD_GAP;
+        if (keyboardHeight > 0) {
+          const rawDuration =
+            Number.isFinite(e.duration) && e.duration > 0 && e.duration <= 1000
+              ? e.duration
+              : 250;
           const duration = rawDuration * 0.89;
           animatedBottom.value = withTiming(target, {
             duration,
@@ -241,7 +444,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       },
       onEnd: (e) => {
         'worklet';
-        animatedBottom.value = e.height + KEYBOARD_GAP;
+        const keyboardHeight = Number.isFinite(e.height) ? e.height : 0;
+        animatedBottom.value = keyboardHeight + KEYBOARD_GAP;
       },
     },
     []
@@ -254,7 +458,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const showQuickInput = useCallback((starScale: AnimatedValue, starRotate: AnimatedValue, shortBottom?: number) => {
     if (!isAtLeastVersion(Constants.expoConfig?.version, QUICK_INPUT_MIN_VERSION)) return;
     starRefs.current = { starScale, starRotate };
-    const bottom = shortBottom ?? KEYBOARD_GAP;
+    const bottom = Number.isFinite(shortBottom) ? Math.max(KEYBOARD_GAP, shortBottom) : KEYBOARD_GAP;
     lastShortBottomRef.current = bottom;
     shortBottomFromScreen.value = bottom;
     animatedBottom.value = bottom;
@@ -266,10 +470,6 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }, []);
 
   const hideQuickInput = useCallback(() => {
-    if (sendLoadingTimerRef.current) {
-      clearTimeout(sendLoadingTimerRef.current);
-      sendLoadingTimerRef.current = null;
-    }
     Keyboard.dismiss();
     overlayStarScale.stopAnimation();
     overlayStarRotate.stopAnimation();
@@ -305,7 +505,6 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     }
     rateLimitTimestampsRef.current = [...timestamps, now];
 
-    if (sendLoadingTimerRef.current) return;
     setIsQuickInputSendLoading(true);
 
     try {
@@ -327,14 +526,19 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       };
 
       if (!res.ok) {
-        showToast(data?.reply ?? '요청 처리에 실패했습니다.');
+        showToast(data?.reply ?? '요청에 실패했습니다. 다시 시도해 주세요.');
         return;
       }
 
-      const records = data.records ?? [];
+      const records = normalizeApiRecords(data.records);
       const suggested = data.suggestedCategory;
 
       if (records.length === 0) {
+        const validationToast = resolveMessageValidationToast(message, categories);
+        if (validationToast) {
+          showToast(validationToast);
+          return;
+        }
         nonRecordCountRef.current += 1;
         if (nonRecordCountRef.current >= NON_RECORD_LOCK_THRESHOLD) {
           lockEndTimeRef.current = Date.now() + NON_RECORD_LOCK_MS;
@@ -344,8 +548,25 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       }
 
       nonRecordCountRef.current = 0;
-      const firstRaw = records[0] as PendingParseRecord;
-      const first = applyMessageFallback(firstRaw, message);
+      const first = applyMessageFallback(records[0], message);
+      const parsedAmount = Number(first.amount);
+      const normalizedCategory = typeof first.category === 'string' ? first.category.trim() : '';
+      if (!normalizedCategory) {
+        showToast(requiredFieldToast('category'));
+        return;
+      }
+      if (!isValidPendingDate(first.date) || !Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+        if (!isValidPendingDate(first.date)) {
+          showToast('올바른 날짜를 기입해 주세요.');
+          return;
+        }
+        if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+          showToast(requiredFieldToast('amount'));
+          return;
+        }
+        showToast('인식된 기록 정보를 다시 확인해 주세요.');
+        return;
+      }
       pendingRecordRef.current = first;
 
       const categoryLabel = first.category ?? suggested?.label ?? '기타';
@@ -356,14 +577,14 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         category: categoryLabel,
         categoryEmoji: categoryEmoji || undefined,
         date: formatDateDisplay(first.date),
-        amount: formatAmount(first.amount),
+        amount: formatAmount(parsedAmount),
         paymentType: paymentMethodToLabel(first.paymentMethod),
         repeatOption1: getRepeatOption1(first),
         repeatOption2: getRepeatOption2(first),
         repeatOption3: getRepeatOption3(first),
       });
     } catch {
-      showToast('요청 처리에 실패했습니다.');
+      showToast('요청에 실패했습니다. 다시 시도해 주세요.');
       // 토큰 비용 절감: 실패 시 자동 재시도 없음 (사용자가 다시 보내기 시에만 재요청)
     } finally {
       setIsQuickInputSendLoading(false);
@@ -381,20 +602,17 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       hideQuickInput();
       return;
     }
-
     isConfirmAddInFlightRef.current = true;
     setIsQuickInputConfirmAdding(true);
 
     try {
       const dateStr = pending.date;
-      const [y, m, d] = dateStr.split('.');
-      const year = parseInt(y ?? '0', 10);
-      const month = parseInt(m ?? '0', 10);
-      const day = parseInt(d ?? '0', 10);
-      if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
-        showToast('날짜 형식을 확인해 주세요.');
+      const parsedDate = parsePendingDate(dateStr);
+      if (!parsedDate) {
+        showToast('올바른 날짜를 기입해 주세요.');
         return;
       }
+      const { year, month, day } = parsedDate;
 
       const dateObj = new Date(year, month - 1, day);
       const dayOfWeek = dateObj.getDay();

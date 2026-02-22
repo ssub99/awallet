@@ -10,7 +10,13 @@ import * as Updates from 'expo-updates';
 import { useFirstLaunchNotificationPermission } from '@/hooks/use-notifications';
 import { enableDebugMode, logEvent, setAnalyticsCollectionEnabled } from '@/utils/analytics';
 import { checkActiveChallengesNotifications, checkEndedChallenges } from '@/utils/challenge-utils';
-import { cleanupOldSchedules, setupDailyReminder } from '@/utils/notification-scheduler';
+import {
+  cancelDailyReminder,
+  cleanupOldSchedules,
+  getChallengeNotificationsEnabled,
+  getGeneralNotificationsEnabled,
+  setupDailyReminder,
+} from '@/utils/notification-scheduler';
 import { refreshWidgetWithCurrentMonth } from '@/utils/widget-data-sync';
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
@@ -120,15 +126,25 @@ export default function RootLayout() {
         try {
           // ✅ 오래된 스케줄 마킹 정리
           await cleanupOldSchedules();
-          
+
+          const [generalEnabled, challengeEnabled] = await Promise.all([
+            getGeneralNotificationsEnabled(),
+            getChallengeNotificationsEnabled(),
+          ]);
+
           // Setup daily reminder (8 PM every day)
-          await setupDailyReminder();
-          
-          // Check active challenges for missing notifications (보완)
-          await checkActiveChallengesNotifications();
-          
-          // Check ended challenges (for success notifications)
-          await checkEndedChallenges();
+          if (generalEnabled) {
+            await setupDailyReminder();
+          } else {
+            // OFF 상태에서는 앱 시작 시 잔여 일반 알림을 강제 정리
+            await cancelDailyReminder();
+          }
+
+          // Check challenge notification schedules only when challenge notifications are ON
+          if (challengeEnabled) {
+            await checkActiveChallengesNotifications();
+            await checkEndedChallenges();
+          }
 
         } catch (error) {
           console.error('알림 설정 중 오류:', error);
@@ -217,6 +233,7 @@ export default function RootLayout() {
                       <Stack.Screen name="category-create" options={{ headerShown: false }} />
                       <Stack.Screen name="category-edit" options={{ headerShown: false }} />
                       <Stack.Screen name="expense-category-detail" options={{ headerShown: false }} />
+                      <Stack.Screen name="notification-setting" options={{ headerShown: false }} />
                       <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
                     </Stack>
                     <StatusBar style="dark" />

@@ -13,19 +13,17 @@ import { Typography } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { monthStartEvent } from '@/hooks/use-month-start';
-import { getNotificationPermissionStatus, handleNotificationToggle } from '@/hooks/use-notifications';
 import { weekStartEvent } from '@/hooks/use-week-start';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as MailComposer from 'expo-mail-composer';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Animated, AppState, AppStateStatus, BackHandler, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Animated, BackHandler, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function MyPageScreen() {
   const colorScheme = useColorScheme();
   const colors = ThemeColors[colorScheme ?? 'light'];
-  const appState = useRef(AppState.currentState);
   const router = useRouter();
   const { setLoading } = useLoading();
   const hasInitializedRef = useRef(false);   // 마이페이지 최초 진입 1회만 로드
@@ -35,7 +33,6 @@ export default function MyPageScreen() {
   // Settings state
   const [monthStartDay, setMonthStartDay] = useState('1일');
   const [weekStartsSunday, setWeekStartsSunday] = useState(true);
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
   // Load settings from AsyncStorage on screen focus
   useFocusEffect(
@@ -55,15 +52,13 @@ export default function MyPageScreen() {
             // 이미 초기화된 경우, 바로 컨텐츠 표시 유지
             setIsContentReady(true);
           }
-          const [startDay, weekStart, notifications] = await Promise.all([
+          const [startDay, weekStart] = await Promise.all([
             AsyncStorage.getItem('monthStartDay'),
             AsyncStorage.getItem('weekStartsSunday'),
-            AsyncStorage.getItem('notificationsEnabled'),
           ]);
 
           if (startDay) setMonthStartDay(startDay);
           if (weekStart !== null) setWeekStartsSunday(JSON.parse(weekStart));
-          if (notifications !== null) setNotificationsEnabled(JSON.parse(notifications));
         } catch (error) {
           console.error('설정 로드 중 오류:', error);
         } finally {
@@ -103,51 +98,6 @@ export default function MyPageScreen() {
     return unsub;
   }, []);
 
-  // Sync notification setting with system permission when app becomes active
-  useEffect(() => {
-    const syncNotificationSetting = async () => {
-      try {
-        const permissionStatus = await getNotificationPermissionStatus();
-        const savedSetting = await AsyncStorage.getItem('notificationsEnabled');
-        const currentSetting = savedSetting !== null ? JSON.parse(savedSetting) : true;
-
-        // If permission is granted but setting is off, turn it on automatically
-        if (permissionStatus === 'granted' && !currentSetting) {
-
-          setNotificationsEnabled(true);
-          await AsyncStorage.setItem('notificationsEnabled', JSON.stringify(true));
-        }
-        // If permission is denied but setting is on, turn it off automatically
-        else if (permissionStatus === 'denied' && currentSetting) {
-
-          setNotificationsEnabled(false);
-          await AsyncStorage.setItem('notificationsEnabled', JSON.stringify(false));
-        }
-      } catch (error) {
-        console.error('설정 저장 중 오류:', error);
-
-      }
-    };
-
-    const handleAppStateChange = (nextAppState: AppStateStatus) => {
-      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-        // App has come to foreground - sync notification setting
-
-        syncNotificationSetting();
-      }
-      appState.current = nextAppState;
-    };
-
-    const subscription = AppState.addEventListener('change', handleAppStateChange);
-
-    // Also sync on mount
-    syncNotificationSetting();
-
-    return () => {
-      subscription.remove();
-    };
-  }, []);
-
   // Save settings to AsyncStorage
   const handleWeekStartChange = async (value: boolean) => {
     setWeekStartsSunday(value);
@@ -162,29 +112,6 @@ export default function MyPageScreen() {
 
     }
   };
-
-  const handleNotificationsChange = async (value: boolean) => {
-    // Check notification permission before enabling
-    const shouldEnable = await handleNotificationToggle(value);
-    
-    if (!shouldEnable) {
-      // Permission denied or not granted - don't enable the setting
-
-      return;
-    }
-    
-    // Permission granted or turning off - update setting
-    setNotificationsEnabled(value);
-    try {
-      await AsyncStorage.setItem('notificationsEnabled', JSON.stringify(value));
-
-    } catch (error) {
-      console.error('설정 저장 중 오류:', error);
-
-    }
-  };
-
-  
 
   const handleMonthStartDayPress = () => {
 
@@ -348,14 +275,13 @@ export default function MyPageScreen() {
       </Animated.View>
 
       <Animated.View style={{ flex: 1, opacity: isContentReady ? contentOpacity : 0 }}>
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
         {/* Background */}
         <View style={[styles.background, { backgroundColor: colors.fill }]}>
-          <>
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
           {/* Settings Card */}
           <View style={[styles.card, { backgroundColor: colors.background }]}>
             {/* Month Start Day */}
@@ -392,15 +318,19 @@ export default function MyPageScreen() {
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
             {/* Notifications */}
-            <View style={[styles.settingRow, { height: 56 }]}>
+            <Pressable
+              style={[styles.settingRow, { height: 56 }]}
+              onPress={() => {
+                router.push('/notification-setting');
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="알림 설정"
+            >
               <Text style={[styles.settingLabel, { color: colors.text }]}>알림 설정</Text>
               <View style={styles.settingValue}>
-                <Switch 
-                  value={notificationsEnabled}
-                  onValueChange={handleNotificationsChange}
-                />
+                <Icon name="arrowRight" size={24} color={colors.text} />
               </View>
-            </View>
+            </Pressable>
           </View>
 
           {/* Category Settings Card */}
@@ -505,10 +435,8 @@ export default function MyPageScreen() {
               </Pressable>
             </View>
           )}
-
-          </>
+          </ScrollView>
         </View>
-      </ScrollView>
       </Animated.View>
 
     </SafeAreaView>
@@ -531,7 +459,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    flexGrow: 1,
+    paddingBottom: 16,
+    gap: 16,
   },
 
   // Background
@@ -539,8 +468,6 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingTop: 16,
     paddingHorizontal: 16,
-    paddingBottom: 16,
-    gap: 16,
   },
 
   // Card

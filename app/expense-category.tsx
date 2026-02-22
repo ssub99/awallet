@@ -253,6 +253,10 @@ export default function ExpenseCategoryScreen() {
                         },
                       });
                     }
+                    // 수정 모드일 때: 카테고리 선택 상태만 반영하고 상단 확인 버튼으로 저장
+                    else if (isEditMode) {
+                      setSelectedCategory(category.label);
+                    }
                   }}
                   accessibilityRole="button"
                   accessibilityLabel={`${category.label} 선택`}
