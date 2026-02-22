@@ -15,7 +15,6 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { monthStartEvent } from '@/hooks/use-month-start';
 import { weekStartEvent } from '@/hooks/use-week-start';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as MailComposer from 'expo-mail-composer';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Animated, BackHandler, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -119,62 +118,35 @@ export default function MyPageScreen() {
   };
 
   const handleInquiryPress = async () => {
+    const EMAIL = 'ssuby99@gmail.com';
+    // CRLF(\r\n)로 줄바꿈해 써드파티 메일 앱에서도 본문 줄바꿈이 유지되도록 함
+    const body = [
+      '안녕하세요, 문의 내용을 작성해주세요.',
+      '',
+      '- App version : ',
+      '- OS version : ',
+    ].join('\r\n');
+    const subject = '[AWallet] 문의하기';
 
     try {
-      // Check if mail composer is available
-      const isAvailable = await MailComposer.isAvailableAsync();
-      
-      if (!isAvailable) {
-        // Fallback to mailto URL
-        const EMAIL = 'ssuby99@gmail.com';
-        
+      // mailto: 사용 시 시스템 설정의 기본 메일 앱(써드파티 포함)이 열림
+      const mailtoUrl = `mailto:${EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      const canOpen = await Linking.canOpenURL(mailtoUrl);
+
+      if (canOpen) {
+        await Linking.openURL(mailtoUrl);
+      } else {
         Alert.alert(
           '메일 앱 없음',
           '기기에 메일 앱이 설정되어 있지 않습니다.\n\n아래 이메일로 직접 문의해주세요:\n' + EMAIL,
           [{ text: '확인' }]
         );
-
-        return;
-      }
-      
-      // Get app version
-      const appVersion = '1.0.0';
-      
-      // Get OS version
-      const osVersion = Platform.Version;
-      const osName = Platform.OS === 'ios' ? 'iOS' : Platform.OS === 'android' ? 'Android' : Platform.OS;
-      
-      // TODO: Replace with actual support email
-      const EMAIL = 'ssuby99@gmail.com';
-      const SUBJECT = '[AWallet] 문의하기';
-      const BODY = `안녕하세요,
-
-문의 내용을 작성해주세요.
-
----
-앱 버전: ${appVersion}
-플랫폼: ${osName} ${osVersion}`;
-      
-      // Open mail composer with pre-filled content
-      const result = await MailComposer.composeAsync({
-        recipients: [EMAIL],
-        subject: SUBJECT,
-        body: BODY,
-      });
-      
-      if (result.status === 'sent') {
-
-      } else if (result.status === 'saved') {
-
-      } else if (result.status === 'cancelled') {
-
       }
     } catch (error) {
-      console.error('설정 저장 중 오류:', error);
-
+      console.error('문의하기 메일 열기 오류:', error);
       Alert.alert(
         '오류',
-        '메일을 작성하는 중 문제가 발생했습니다.',
+        '메일을 여는 중 문제가 발생했습니다.',
         [{ text: '확인' }]
       );
     }
