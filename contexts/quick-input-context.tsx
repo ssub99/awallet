@@ -12,6 +12,7 @@
 import { QuickInputConfirmCard, type QuickInputConfirmCardData } from '@/components/ui/quick-input-confirm-card';
 import { QuickInputField } from '@/components/ui/quick-input-field';
 import { PARSE_EXPENSE_API_URL } from '@/constants/api';
+import { getRandomQuickInputPlaceholder } from '@/constants/quick-input-placeholders';
 import { useAppData } from '@/contexts/app-data-context';
 import { useToast } from '@/contexts/toast-context';
 import { applyPendingCalendarTargetEvent } from '@/hooks/calendar-events';
@@ -55,7 +56,7 @@ const QuickInputContext = createContext<QuickInputContextValue | undefined>(unde
 const KEYBOARD_GAP = 16;
 
 /** 토큰 비용 절감: 메시지 최대 길이(자). 초과 시 요청 거부 */
-const MAX_MESSAGE_LENGTH = 30;
+const MAX_MESSAGE_LENGTH = 100;
 /** 토큰 비용 절감: 호출 간격 제한 (ms). 이 시간 내 최대 RATE_LIMIT_MAX_REQUESTS회만 허용 */
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_REQUESTS = 5;
@@ -398,6 +399,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const { refresh } = useAppData();
   const [isQuickInputVisible, setIsQuickInputVisible] = useState(false);
   const [quickInputText, setQuickInputText] = useState('');
+  const [quickInputPlaceholder, setQuickInputPlaceholder] = useState(getRandomQuickInputPlaceholder);
   const [confirmCardData, setConfirmCardData] = useState<QuickInputConfirmCardData | null>(null);
   const [isQuickInputSendLoading, setIsQuickInputSendLoading] = useState(false);
   const [isQuickInputConfirmAdding, setIsQuickInputConfirmAdding] = useState(false);
@@ -462,6 +464,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     lastShortBottomRef.current = bottom;
     shortBottomFromScreen.value = bottom;
     animatedBottom.value = bottom;
+    setQuickInputPlaceholder(getRandomQuickInputPlaceholder());
     setIsQuickInputVisible(true);
   }, []);
 
@@ -904,7 +907,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                   ref={quickInputRef}
                   value={quickInputText}
                   onChangeText={setQuickInputTextTruncated}
-                  placeholder="메세지 입력(카테고리, 날짜, 금액)"
+                  placeholder={quickInputPlaceholder}
                   starScale={overlayStarScale}
                   starRotate={overlayStarRotate}
                   onSend={handleSend}

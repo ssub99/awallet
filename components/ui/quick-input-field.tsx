@@ -129,7 +129,11 @@ export const QuickInputField = forwardRef<TextInput, QuickInputFieldProps>(
               />
               {!hasValue && (
                 <View style={styles.placeholderWrap} pointerEvents="none">
-                  <Text style={[styles.placeholder, { color: colors.textAssistive }]}>
+                  <Text
+                    style={[styles.placeholder, { color: colors.textAssistive }]}
+                    numberOfLines={1}
+                    ellipsizeMode="clip"
+                  >
                     {placeholder}
                   </Text>
                 </View>
