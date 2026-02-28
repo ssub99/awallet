@@ -174,20 +174,26 @@ struct MonthlyExpenseWidgetEntryView: View {
       }
     } else if #available(iOS 17.0, *) {
       Button(intent: RevealMonthlyExpenseIntent()) {
-        Text(formattedExpenseText)
-          .font(.system(size: WidgetFont.bodySize, weight: .semibold))
-          .lineLimit(1)
-          .minimumScaleFactor(0.5)
-          .blur(radius: 8)
+        maskedAmountPlaceholder
       }
       .buttonStyle(.plain)
     } else {
-      Text(formattedExpenseText)
-        .font(.system(size: WidgetFont.bodySize, weight: .semibold))
-        .lineLimit(1)
-        .minimumScaleFactor(0.5)
-        .blur(radius: 8)
+      maskedAmountPlaceholder
     }
+  }
+
+  /// 금액 표시 영역만 둥근 사각형 안에서만 블러(머티리얼)처럼 보이게 처리
+  private var maskedAmountPlaceholder: some View {
+    Text(formattedExpenseText)
+      .font(.system(size: WidgetFont.bodySize, weight: .semibold))
+      .lineLimit(1)
+      .minimumScaleFactor(0.5)
+      .foregroundStyle(.clear)
+      .background(
+        RoundedRectangle(cornerRadius: 4, style: .continuous)
+          .fill(.thinMaterial)
+          .opacity(0.8)
+      )
   }
 
   /// 홈/사각용: 천 단위 구분 포맷 (예: 120,000원), 정수만 표기
