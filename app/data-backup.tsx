@@ -12,18 +12,12 @@ import { useLoading } from '@/contexts/loading-context';
 import { useToast } from '@/contexts/toast-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { refreshWidgetWithCurrentMonth } from '@/utils/widget-data-sync';
-import {
-  BACKUP_FILE_EXTENSION,
-  restoreFromFile,
-  writeBackupToFile,
-  writeExcelToFile,
-  XLSX_FILE_EXTENSION,
-} from '@/utils/backup';
 import { resetAppData } from '@/utils/reset-app-data';
-import * as DocumentPicker from 'expo-document-picker';
-import * as MailComposer from 'expo-mail-composer';
-import * as Sharing from 'expo-sharing';
 import { useRouter } from 'expo-router';
+
+/** 확장자 검사용 (백업 모듈은 버튼 탭 시 동적 로드하여 OTA 진입 크래시 방지) */
+const BACKUP_FILE_EXTENSION = '.awbak';
+const XLSX_FILE_EXTENSION = '.xlsx';
 import { useCallback, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -35,15 +29,16 @@ const SHARE_DIALOG_TITLE = '데이터 백업 파일 보내기';
 
 /**
  * 백업 파일을 시스템 공유 시트로 연다.
- * - 기본 메일 앱이면 해당 앱, 써드파티 메일 앱을 기본으로 설정해 두었으면 그 앱으로 전달된다.
- * - 공유 불가 시(시뮬레이터 등) 메일 컴포저로 폴백한다.
- * - 공유/메일 모두 불가 시 onUnavailable 호출.
+ * - Sharing/MailComposer는 네이티브 모듈이므로 화면 로드 시 크래시 방지를 위해 동적 로드.
  */
 async function openShareOrMail(
   filePath: string,
   mimeType: string,
   onUnavailable?: (title: string, message: string) => void,
 ): Promise<void> {
+  const Sharing = await import('expo-sharing');
+  const MailComposer = await import('expo-mail-composer');
+
   const sharingAvailable = await Sharing.isAvailableAsync();
   if (sharingAvailable) {
     await Sharing.shareAsync(filePath, {
@@ -95,6 +90,7 @@ export default function DataBackupScreen() {
   const handleBackupExcel = useCallback(async () => {
     setLoading(true);
     try {
+      const { writeExcelToFile } = await import('@/utils/backup');
       const path = await writeExcelToFile();
       await openBackupShare(
         path,
@@ -114,6 +110,7 @@ export default function DataBackupScreen() {
   const handleBackupDedicated = useCallback(async () => {
     setLoading(true);
     try {
+      const { writeBackupToFile } = await import('@/utils/backup');
       const path = await writeBackupToFile();
       await openBackupShare(path, 'application/octet-stream', (_title, message) => {
         showToast(message);
@@ -148,6 +145,7 @@ export default function DataBackupScreen() {
 
   const handleRestore = useCallback(async () => {
     try {
+      const DocumentPicker = await import('expo-document-picker');
       const result = await DocumentPicker.getDocumentAsync({
         type: [
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -166,6 +164,7 @@ export default function DataBackupScreen() {
 
       setLoading(true);
       try {
+        const { restoreFromFile } = await import('@/utils/backup');
         await restoreFromFile(uri);
         await refresh();
         await refreshWidgetWithCurrentMonth().catch(() => {});
