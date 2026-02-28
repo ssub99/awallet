@@ -388,6 +388,19 @@ export default function MyPageScreen() {
             </Pressable>
           </View>
 
+          {/* Data backup/restore (Figma: Frame 65) */}
+          <View style={[styles.card, { backgroundColor: colors.background }]}>
+            <Pressable
+              style={styles.menuRowSingle}
+              onPress={() => router.push('/data-backup')}
+              accessibilityRole="button"
+              accessibilityLabel="데이터 백업/복원"
+            >
+              <Text style={[styles.menuLabel, { color: colors.text }]}>데이터 백업/복원</Text>
+              <Icon name="arrowRight" size={24} color={colors.text} />
+            </Pressable>
+          </View>
+
           {/* Test Environment Card (only in __DEV__) */}
           {__DEV__ && (
             <View style={[styles.card, { backgroundColor: colors.background }]}>
@@ -431,6 +444,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
+    paddingTop: 16,
     paddingBottom: 16,
     gap: 16,
   },
@@ -438,7 +452,6 @@ const styles = StyleSheet.create({
   // Background
   background: {
     flex: 1,
-    paddingTop: 16,
     paddingHorizontal: 16,
   },
 
@@ -478,6 +491,14 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 16,
     minHeight: 56,
+  },
+  menuRowSingle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    minHeight: 58,
   },
   menuLabel: {
     ...Typography.body1.l.regular,
