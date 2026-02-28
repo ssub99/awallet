@@ -80,10 +80,6 @@ export default function DataBackupScreen() {
   const { refresh } = useAppData();
 
   const [showResetConfirmModal, setShowResetConfirmModal] = useState(false);
-  const [showResetErrorModal, setShowResetErrorModal] = useState(false);
-  const [showBackupErrorModal, setShowBackupErrorModal] = useState(false);
-  const [backupErrorTitle, setBackupErrorTitle] = useState('');
-  const [backupErrorMessage, setBackupErrorMessage] = useState('');
 
   const openBackupShare = useCallback(
     async (
@@ -103,40 +99,32 @@ export default function DataBackupScreen() {
       await openBackupShare(
         path,
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        (title, message) => {
-          setBackupErrorTitle(title);
-          setBackupErrorMessage(message);
-          setShowBackupErrorModal(true);
+        (_title, message) => {
+          showToast(message);
         },
       );
     } catch (error) {
       console.error('[data-backup] 엑셀 백업/공유 오류:', error);
-      setBackupErrorTitle('백업 실패');
-      setBackupErrorMessage('엑셀 파일 백업 또는 보내기 열기에 실패했습니다. 다시 시도해 주세요.');
-      setShowBackupErrorModal(true);
+      showToast('백업이 실패했습니다. 다시 시도해 주세요.');
     } finally {
       setLoading(false);
     }
-  }, [setLoading, openBackupShare]);
+  }, [setLoading, openBackupShare, showToast]);
 
   const handleBackupDedicated = useCallback(async () => {
     setLoading(true);
     try {
       const path = await writeBackupToFile();
-      await openBackupShare(path, 'application/octet-stream', (title, message) => {
-        setBackupErrorTitle(title);
-        setBackupErrorMessage(message);
-        setShowBackupErrorModal(true);
+      await openBackupShare(path, 'application/octet-stream', (_title, message) => {
+        showToast(message);
       });
     } catch (error) {
       console.error('[data-backup] 전용파일 백업/공유 오류:', error);
-      setBackupErrorTitle('백업 실패');
-      setBackupErrorMessage('전용 파일 백업 또는 보내기 열기에 실패했습니다. 다시 시도해 주세요.');
-      setShowBackupErrorModal(true);
+      showToast('백업이 실패했습니다. 다시 시도해 주세요.');
     } finally {
       setLoading(false);
     }
-  }, [setLoading, openBackupShare]);
+  }, [setLoading, openBackupShare, showToast]);
 
   const handleFullReset = useCallback(() => {
     setShowResetConfirmModal(true);
@@ -152,7 +140,7 @@ export default function DataBackupScreen() {
       showToast('정상적으로 초기화가 완료 되었습니다.');
     } catch (error) {
       console.error('[data-backup] 전체 초기화 오류:', error);
-      setShowResetErrorModal(true);
+      showToast('초기화 중 오류가 발생했습니다. 다시 시도해 주세요.');
     } finally {
       setLoading(false);
     }
@@ -172,11 +160,7 @@ export default function DataBackupScreen() {
       const { uri, name } = result.assets[0];
       const lower = (name ?? uri).toLowerCase();
       if (!lower.endsWith(XLSX_FILE_EXTENSION) && !lower.endsWith(BACKUP_FILE_EXTENSION)) {
-        setBackupErrorTitle('복원 실패');
-        setBackupErrorMessage(
-          '지원하는 형식은 엑셀(.xlsx)과 전용 백업(.awbak) 파일입니다.',
-        );
-        setShowBackupErrorModal(true);
+        showToast('.xlsx와 .awbak 외 확장자는 지원하지 않습니다.');
         return;
       }
 
@@ -188,19 +172,13 @@ export default function DataBackupScreen() {
         showToast('정상적으로 복원이 되었습니다.');
       } catch (error) {
         console.error('[data-backup] 복원 오류:', error);
-        setBackupErrorTitle('복원 실패');
-        setBackupErrorMessage(
-          error instanceof Error ? error.message : '복원 중 오류가 발생했습니다. 다시 시도해 주세요.',
-        );
-        setShowBackupErrorModal(true);
+        showToast('오류가 발생했습니다. 다시 시도해 주세요.');
       } finally {
         setLoading(false);
       }
     } catch (pickError) {
       console.error('[data-backup] 파일 선택 오류:', pickError);
-      setBackupErrorTitle('복원 실패');
-      setBackupErrorMessage('파일을 선택할 수 없습니다. 다시 시도해 주세요.');
-      setShowBackupErrorModal(true);
+      showToast('파일을 선택할 수 없습니다. 다시 시도해 주세요.');
     }
   }, [setLoading, refresh, showToast]);
 
@@ -295,24 +273,6 @@ export default function DataBackupScreen() {
         onCancel={() => setShowResetConfirmModal(false)}
         confirmText="확인"
         onConfirm={runResetAndClose}
-      />
-
-      {/* 전체 초기화 실패 */}
-      <ModalPopup
-        visible={showResetErrorModal}
-        title="초기화 실패"
-        message="초기화 중 오류가 발생했습니다. 다시 시도해 주세요."
-        confirmText="확인"
-        onConfirm={() => setShowResetErrorModal(false)}
-      />
-
-      {/* 백업/복원 실패 · 공유·이메일 불가 */}
-      <ModalPopup
-        visible={showBackupErrorModal}
-        title={backupErrorTitle}
-        message={backupErrorMessage}
-        confirmText="확인"
-        onConfirm={() => setShowBackupErrorModal(false)}
       />
 
     </SafeAreaView>

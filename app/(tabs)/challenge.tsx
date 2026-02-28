@@ -24,6 +24,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     Animated,
     GestureResponderEvent,
+    InteractionManager,
     PanResponder,
     PanResponderGestureState,
     Pressable,
@@ -228,39 +229,43 @@ export default function ChallengeTabScreen() {
     }
   }, [isContentReady, contentOpacity]);
 
+  // reset() 직후 언마운트·마운트가 겹치지 않도록 무거운 계산을 인터랙션 종료 후로 지연
   useEffect(() => {
-    const calculateChallengeAmounts = async () => {
-      const amounts: Record<string, number> = {};
-      for (const challenge of challenges) {
-        let totalAmount = 0;
-        const startDate = new Date(challenge.startDate.replace(/\./g, '-'));
-        const endDate = new Date(challenge.endDate.replace(/\./g, '-'));
-        const storedData = await AsyncStorage.getItem('calendarData');
-        if (storedData) {
-          const calendarData = JSON.parse(storedData, (key: string, value: unknown) => {
-            if (key === 'recurringType' && value === null) return undefined;
-            return value;
-          });
-          Object.entries(calendarData).forEach(([dateString, data]: [string, unknown]) => {
-            const itemDate = new Date(dateString);
-            if (itemDate >= startDate && itemDate <= endDate && data && typeof data === 'object' && 'records' in data) {
-              const records = (data as { records?: unknown[] }).records;
-              if (Array.isArray(records)) {
-                records.forEach((record: { isDeleted?: boolean; isRefunded?: boolean; type?: string; category?: string; amount?: number }) => {
-                  if (record.isDeleted || record.isRefunded) return;
-                  if (record.type === 'expense' && record.category === challenge.category) {
-                    totalAmount += record.amount || 0;
-                  }
-                });
+    const task = InteractionManager.runAfterInteractions(() => {
+      const calculateChallengeAmounts = async () => {
+        const amounts: Record<string, number> = {};
+        for (const challenge of challenges) {
+          let totalAmount = 0;
+          const startDate = new Date(challenge.startDate.replace(/\./g, '-'));
+          const endDate = new Date(challenge.endDate.replace(/\./g, '-'));
+          const storedData = await AsyncStorage.getItem('calendarData');
+          if (storedData) {
+            const calendarData = JSON.parse(storedData, (key: string, value: unknown) => {
+              if (key === 'recurringType' && value === null) return undefined;
+              return value;
+            });
+            Object.entries(calendarData).forEach(([dateString, data]: [string, unknown]) => {
+              const itemDate = new Date(dateString);
+              if (itemDate >= startDate && itemDate <= endDate && data && typeof data === 'object' && 'records' in data) {
+                const records = (data as { records?: unknown[] }).records;
+                if (Array.isArray(records)) {
+                  records.forEach((record: { isDeleted?: boolean; isRefunded?: boolean; type?: string; category?: string; amount?: number }) => {
+                    if (record.isDeleted || record.isRefunded) return;
+                    if (record.type === 'expense' && record.category === challenge.category) {
+                      totalAmount += record.amount || 0;
+                    }
+                  });
+                }
               }
-            }
-          });
+            });
+          }
+          amounts[challenge.id] = totalAmount;
         }
-        amounts[challenge.id] = totalAmount;
-      }
-      setChallengeAmounts(amounts);
-    };
-    calculateChallengeAmounts();
+        setChallengeAmounts(amounts);
+      };
+      calculateChallengeAmounts();
+    });
+    return () => task.cancel();
   }, [challenges]);
 
   // 오늘 날짜 기준으로, 커스텀 월 시작일을 반영한 년/월로 이동

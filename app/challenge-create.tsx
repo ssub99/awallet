@@ -427,22 +427,25 @@ export default function ChallengeCreateScreen() {
       const firstChallenge = newChallenges[0];
       const [targetYear, targetMonth] = firstChallenge.startDate.split('.').map(Number);
 
-      // 스택을 초기화하고 홈의 챌린지 탭만 남기기 (뒤로가기/스와이프 불가능)
-      (navigation as any).reset({
-        index: 0,
-        routes: [
-          {
-            name: '(tabs)',
-            params: {
-              screen: 'challenge',
+      // 키패드·언마운트와 reset 타이밍 분리: 키패드 닫고 짧은 지연 후 reset
+      Keyboard.dismiss();
+      setTimeout(() => {
+        (navigation as any).reset({
+          index: 0,
+          routes: [
+            {
+              name: '(tabs)',
               params: {
-                year: targetYear.toString(),
-                month: targetMonth.toString(),
+                screen: 'challenge',
+                params: {
+                  year: targetYear.toString(),
+                  month: targetMonth.toString(),
+                },
               },
             },
-          },
-        ],
-      });
+          ],
+        });
+      }, 50);
     } catch (error) {
       console.error('[챌린지 생성] error:', error);
     } finally {

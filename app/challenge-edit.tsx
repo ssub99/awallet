@@ -374,23 +374,26 @@ export default function ChallengeEditScreen() {
         updatedAt: Date.now(),
       });
 
-      // 챌린지 현황으로 이동 (스택 리셋) - 홈의 챌린지 탭만 남기기
+      // 키패드·언마운트와 reset 타이밍 분리: 키패드 닫고 짧은 지연 후 reset
+      Keyboard.dismiss();
       const now = new Date();
-      (navigation as any).reset({
-        index: 0,
-        routes: [
-          {
-            name: '(tabs)',
-            params: {
-              screen: 'challenge',
+      setTimeout(() => {
+        (navigation as any).reset({
+          index: 0,
+          routes: [
+            {
+              name: '(tabs)',
               params: {
-                year: now.getFullYear().toString(),
-                month: (now.getMonth() + 1).toString(),
+                screen: 'challenge',
+                params: {
+                  year: now.getFullYear().toString(),
+                  month: (now.getMonth() + 1).toString(),
+                },
               },
             },
-          },
-        ],
-      });
+          ],
+        });
+      }, 50);
     } catch (error) {
       console.error('[챌린지 수정] error:', error);
       Alert.alert('오류', '챌린지 저장에 실패했습니다.');
@@ -424,24 +427,27 @@ export default function ChallengeEditScreen() {
       }
 
       setShowDeleteModal(false);
-      
-      // 챌린지 현황으로 이동 (스택 리셋) - 홈의 챌린지 탭만 남기기
+
+      // 키패드·언마운트와 reset 타이밍 분리: 키패드 닫고 짧은 지연 후 reset
+      Keyboard.dismiss();
       const now = new Date();
-      (navigation as any).reset({
-        index: 0,
-        routes: [
-          {
-            name: '(tabs)',
-            params: {
-              screen: 'challenge',
+      setTimeout(() => {
+        (navigation as any).reset({
+          index: 0,
+          routes: [
+            {
+              name: '(tabs)',
               params: {
-                year: now.getFullYear().toString(),
-                month: (now.getMonth() + 1).toString(),
+                screen: 'challenge',
+                params: {
+                  year: now.getFullYear().toString(),
+                  month: (now.getMonth() + 1).toString(),
+                },
               },
             },
-          },
-        ],
-      });
+          ],
+        });
+      }, 50);
     } catch (error) {
       console.error('[챌린지 삭제] error:', error);
       Alert.alert('오류', '챌린지 삭제에 실패했습니다.');
