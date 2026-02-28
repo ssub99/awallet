@@ -30,37 +30,60 @@ const SHARE_DIALOG_TITLE = '데이터 백업 파일 보내기';
 /**
  * 백업 파일을 시스템 공유 시트로 연다.
  * - Sharing/MailComposer는 네이티브 모듈이므로 화면 로드 시 크래시 방지를 위해 동적 로드.
+ * - Expo Go 등 네이티브 모듈이 없으면 onUnavailable로 안내.
  */
 async function openShareOrMail(
   filePath: string,
   mimeType: string,
   onUnavailable?: (title: string, message: string) => void,
 ): Promise<void> {
-  const Sharing = await import('expo-sharing');
-  const MailComposer = await import('expo-mail-composer');
+  const fallbackMessage =
+    '공유 기능을 사용할 수 없습니다. 개발 빌드(실기기)에서 이용해 주세요.';
 
-  const sharingAvailable = await Sharing.isAvailableAsync();
-  if (sharingAvailable) {
-    await Sharing.shareAsync(filePath, {
-      mimeType: Platform.OS === 'android' ? mimeType : undefined,
-      dialogTitle: Platform.OS === 'android' ? SHARE_DIALOG_TITLE : undefined,
+  try {
+    const Sharing = await import('expo-sharing');
+    const MailComposer = await import('expo-mail-composer');
+
+    const isAvailableAsync = Sharing.isAvailableAsync ?? Sharing.default?.isAvailableAsync;
+    const shareAsync = Sharing.shareAsync ?? Sharing.default?.shareAsync;
+    if (typeof isAvailableAsync !== 'function' || typeof shareAsync !== 'function') {
+      onUnavailable?.('공유/이메일 사용 불가', fallbackMessage);
+      return;
+    }
+
+    const sharingAvailable = await isAvailableAsync();
+    if (sharingAvailable) {
+      await shareAsync(filePath, {
+        mimeType: Platform.OS === 'android' ? mimeType : undefined,
+        dialogTitle: Platform.OS === 'android' ? SHARE_DIALOG_TITLE : undefined,
+      });
+      return;
+    }
+
+    const mailIsAvailable = MailComposer.isAvailableAsync ?? MailComposer.default?.isAvailableAsync;
+    const composeAsync = MailComposer.composeAsync ?? MailComposer.default?.composeAsync;
+    if (typeof mailIsAvailable !== 'function' || typeof composeAsync !== 'function') {
+      onUnavailable?.('공유/이메일 사용 불가', fallbackMessage);
+      return;
+    }
+
+    const mailAvailable = await mailIsAvailable();
+    if (!mailAvailable) {
+      onUnavailable?.(
+        '공유/이메일 사용 불가',
+        '이 기기에서 파일을 보낼 수 없습니다. 메일 앱이 설정되어 있는지 확인해 주세요.',
+      );
+      return;
+    }
+    await composeAsync({
+      subject: EMAIL_SUBJECT_BACKUP,
+      body: EMAIL_BODY_BACKUP,
+      attachments: [filePath],
     });
-    return;
+  } catch (err) {
+    console.error('[data-backup] openShareOrMail:', err);
+    onUnavailable?.('공유/이메일 사용 불가', fallbackMessage);
   }
-
-  const mailAvailable = await MailComposer.isAvailableAsync();
-  if (!mailAvailable) {
-    onUnavailable?.(
-      '공유/이메일 사용 불가',
-      '이 기기에서 파일을 보낼 수 없습니다. 메일 앱이 설정되어 있는지 확인해 주세요.',
-    );
-    return;
-  }
-  await MailComposer.composeAsync({
-    subject: EMAIL_SUBJECT_BACKUP,
-    body: EMAIL_BODY_BACKUP,
-    attachments: [filePath],
-  });
 }
 
 const RESET_CONFIRM_MESSAGE =
@@ -146,7 +169,12 @@ export default function DataBackupScreen() {
   const handleRestore = useCallback(async () => {
     try {
       const DocumentPicker = await import('expo-document-picker');
-      const result = await DocumentPicker.getDocumentAsync({
+      const getDocumentAsync = DocumentPicker.getDocumentAsync ?? DocumentPicker.default?.getDocumentAsync;
+      if (typeof getDocumentAsync !== 'function') {
+        showToast('문서 선택 기능을 사용할 수 없습니다. 개발 빌드(실기기)에서 이용해 주세요.');
+        return;
+      }
+      const result = await getDocumentAsync({
         type: [
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
           'application/octet-stream',
@@ -177,7 +205,15 @@ export default function DataBackupScreen() {
       }
     } catch (pickError) {
       console.error('[data-backup] 파일 선택 오류:', pickError);
-      showToast('파일을 선택할 수 없습니다. 다시 시도해 주세요.');
+      const isNativeModuleMissing =
+        pickError instanceof Error &&
+        (pickError.message.includes('Cannot find native module') ||
+          pickError.message.includes('is not a function'));
+      showToast(
+        isNativeModuleMissing
+          ? '문서 선택 기능을 사용할 수 없습니다. 개발 빌드(실기기)에서 이용해 주세요.'
+          : '파일을 선택할 수 없습니다. 다시 시도해 주세요.',
+      );
     }
   }, [setLoading, refresh, showToast]);
 
