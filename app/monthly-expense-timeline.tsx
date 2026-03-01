@@ -625,8 +625,8 @@ export default function MonthlyExpenseTimelineScreen() {
 
       {/* 본문 */}
       <View style={styles.timelineBodyWrap}>
-      {/* 날짜 선택: 해당 월 시작일~마지막일만 스크롤 (월 전환 제스처 제외) */}
-      <Animated.View style={[styles.weekRowWrap, { opacity: contentOpacity }]}>
+      {/* 날짜 선택: 해당 월 시작일~마지막일만 스크롤 - 고정 (애니메이션 제외) */}
+      <View style={styles.weekRowWrap}>
         <View style={[styles.weekRow, { backgroundColor: colors.fill }]}>
           <ScrollView
             ref={dateStripScrollRef}
@@ -688,12 +688,12 @@ export default function MonthlyExpenseTimelineScreen() {
             })}
           </ScrollView>
         </View>
-      </Animated.View>
+      </View>
       
       {/* 월 소비합계 + 타임라인: 좌우 스와이프로 월 변경 */}
       <View style={styles.timelineSwipeArea} {...timelinePanResponder.panHandlers}>
-      {/* Month Summary */}
-      <Animated.View style={{ opacity: contentOpacity }}>
+      {/* Month Summary - 고정 (애니메이션 제외) */}
+      <View>
         <View style={[styles.summaryContainer, { backgroundColor: colors.background }]}>
           <Text style={[styles.summaryMonth, { color: colors.staticBlack }]}>
             {(() => {
@@ -734,9 +734,11 @@ export default function MonthlyExpenseTimelineScreen() {
         </View>
         {/* Figma: 월 소비 합계 영역 하단 라인 디바이더 (Line/Normal, rgba(144,146,158,0.16)) */}
         <View style={[styles.summaryBottomDivider, { backgroundColor: colors.border }]} />
-      </Animated.View>
+        {/* 박스 디바이더 - 월 소비 합계 하단 고정 */}
+        <View style={styles.headerDivider} />
+      </View>
       
-      {/* Timeline Content (headerDivider는 스크롤과 함께 이동) */}
+      {/* Timeline Content - 로딩 완료 시 페이드인 (리스트만) */}
       <Animated.View style={{ opacity: contentOpacity, flex: 1 }}>
         <ScrollView
           ref={timelineScrollRef}
@@ -746,7 +748,6 @@ export default function MonthlyExpenseTimelineScreen() {
             Object.keys(groupedTimeline).length === 0 && styles.scrollContentEmpty,
           ]}
         >
-        <View style={styles.headerDivider} />
         {Object.keys(groupedTimeline).length === 0 ? (
           <View style={styles.emptyContainer}>
             <Text style={[styles.emptyText, { color: colors.textAssistive }]}>
