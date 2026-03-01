@@ -14,6 +14,12 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
+import {
+  type Category,
+  EXPENSE_CATEGORIES,
+  INCOME_CATEGORIES,
+} from '@/constants/categories';
+import { loadCategories, saveCategories } from '@/utils/categories';
 import { getAllExpenses, replaceAllExpenses, type ExpenseRecord, type PaymentMethod } from '@/utils/expenses';
 import { getAllIncomes, replaceAllIncomes, type IncomeRecord } from '@/utils/incomes';
 import * as XLSX from 'xlsx-js-style';
@@ -24,6 +30,11 @@ export const BACKUP_FILE_EXTENSION = '.awbak';
 export const CSV_FILE_EXTENSION = '.csv';
 export const XLSX_FILE_EXTENSION = '.xlsx';
 const BACKUP_VERSION = 1;
+
+/** 엑셀 복원 시 필수 항목 공백/형식 오류 시 throw되는 메시지 (화면에서 토스트 문구 분기용) */
+export const RESTORE_VALIDATION_ERROR = 'RESTORE_VALIDATION_FAILED';
+/** 백업 파일 버전이 앱보다 높을 때 throw (화면에서 토스트 문구 분기용) */
+export const BACKUP_VERSION_TOO_NEW_ERROR = 'BACKUP_VERSION_TOO_NEW';
 
 /** CSV 헤더 (양식: 날짜, 카테고리, 수입/소비, 금액, 유형, 메모) */
 const CSV_HEADER = '날짜,카테고리,수입/소비,금액,유형,메모';
@@ -38,6 +49,9 @@ export interface BackupPayload {
   exportedAt: string; // ISO 8601
   expenses: ExpenseRecord[];
   incomes: IncomeRecord[];
+  /** 수입/소비 카테고리 설정 (복원 시 초기화된 카테고리를 덮어씀). 없으면 기존 .awbak 호환 */
+  categoriesExpense?: Category[];
+  categoriesIncome?: Category[];
 }
 
 /** recurringType undefined → null (JSON 저장 시) */
@@ -57,15 +71,22 @@ function jsonReviver(_key: string, value: unknown): unknown {
 }
 
 /**
- * 현재 저장된 소비/입금 데이터로 백업 페이로드를 만듭니다.
+ * 현재 저장된 소비/입금 데이터와 카테고리(수입·소비) 설정으로 백업 페이로드를 만듭니다.
  */
 export async function createBackupPayload(): Promise<BackupPayload> {
-  const [expenses, incomes] = await Promise.all([getAllExpenses(), getAllIncomes()]);
+  const [expenses, incomes, categoriesExpense, categoriesIncome] = await Promise.all([
+    getAllExpenses(),
+    getAllIncomes(),
+    loadCategories('expense'),
+    loadCategories('income'),
+  ]);
   return {
     version: BACKUP_VERSION,
     exportedAt: new Date().toISOString(),
     expenses,
     incomes,
+    categoriesExpense,
+    categoriesIncome,
   };
 }
 
@@ -87,8 +108,22 @@ export function serializeBackupPayload(payload: BackupPayload): string {
   return JSON.stringify(payload, jsonReplacer);
 }
 
+/** 카테고리 배열인지 검증 (옵션: 없어도 됨) */
+function isCategoryArray(value: unknown): value is Category[] {
+  if (!Array.isArray(value)) return false;
+  return value.every(
+    (item) =>
+      item &&
+      typeof item === 'object' &&
+      typeof (item as Category).label === 'string' &&
+      typeof (item as Category).emoji === 'string' &&
+      ((item as Category).type === 'expense' || (item as Category).type === 'income'),
+  );
+}
+
 /**
  * JSON 문자열을 백업 페이로드로 파싱합니다. 검증 실패 시 null.
+ * categoriesExpense/categoriesIncome은 없으면 무시(기존 .awbak 호환).
  */
 export function parseBackupPayload(json: string): BackupPayload | null {
   try {
@@ -103,7 +138,10 @@ export function parseBackupPayload(json: string): BackupPayload | null {
       Array.isArray((raw as BackupPayload).expenses) &&
       Array.isArray((raw as BackupPayload).incomes)
     ) {
-      return raw as BackupPayload;
+      const payload = raw as BackupPayload;
+      if (payload.categoriesExpense !== undefined && !isCategoryArray(payload.categoriesExpense)) return null;
+      if (payload.categoriesIncome !== undefined && !isCategoryArray(payload.categoriesIncome)) return null;
+      return payload;
     }
   } catch {
     return null;
@@ -145,11 +183,18 @@ export async function restoreFromBackupFile(fileUri: string): Promise<void> {
   }
 
   if (payload.version > BACKUP_VERSION) {
-    throw new Error('이 백업 파일은 더 최신 앱 버전에서 만든 것입니다. 앱을 업데이트한 뒤 다시 시도해 주세요.');
+    throw new Error(BACKUP_VERSION_TOO_NEW_ERROR);
   }
 
   const expenses = Array.isArray(payload.expenses) ? payload.expenses : [];
   const incomes = Array.isArray(payload.incomes) ? payload.incomes : [];
+
+  if (payload.categoriesExpense?.length) {
+    await saveCategories('expense', payload.categoriesExpense);
+  }
+  if (payload.categoriesIncome?.length) {
+    await saveCategories('income', payload.categoriesIncome);
+  }
 
   await Promise.all([
     replaceAllExpenses(expenses),
@@ -343,28 +388,57 @@ export function getCsvBackupFileName(): string {
   return `수입소비내역-${y}-${m}-${d}${CSV_FILE_EXTENSION}`;
 }
 
-/** XLSX 시트용 헤더 라벨 */
-const XLSX_HEADER_LABELS = ['날짜', '카테고리', '수입/소비', '금액', '유형', '메모'];
+/** XLSX 시트용 헤더 라벨 (좌측 기록 테이블 + 빈 열 한 칸 + 우측 카테고리 참조 테이블) */
+const XLSX_HEADER_LABELS = [
+  '날짜',
+  '카테고리',
+  '수입/소비',
+  '금액',
+  '유형',
+  '메모',
+  '', // 메모와 카테고리 표 사이 한 칸 띄움
+  '소비 카테고리',
+  '수입 카테고리',
+];
 
 /** 엑셀 기본 폰트: 맑은 고딕 12 */
 const XLSX_DEFAULT_FONT = { name: '맑은 고딕', sz: 12 };
 
-/** 첫 행(헤더) 스타일: 옅은 회색 배경 + 맑은 고딕 12 + 볼드 */
+/** 좌측 기록 테이블 헤더 스타일: 옅은 회색 배경 + 맑은 고딕 12 + 볼드 */
 const XLSX_HEADER_CELL_STYLE = {
   fill: { patternType: 'solid' as const, fgColor: { rgb: 'FFE8E8E8' } },
   font: { ...XLSX_DEFAULT_FONT, bold: true },
 };
 
-/** 헤더 행(스타일 포함) — aoa_to_sheet에 넣을 첫 행 */
+/** 우측 카테고리 테이블 헤더 스타일: #FDF2D0 배경 + 가운데 정렬 */
+const XLSX_CATEGORY_HEADER_STYLE = {
+  fill: { patternType: 'solid' as const, fgColor: { rgb: 'FFFDF2D0' } },
+  font: { ...XLSX_DEFAULT_FONT, bold: true },
+  alignment: { horizontal: 'center' as const, vertical: 'center' as const },
+};
+
+/** 우측 카테고리 테이블 본문 셀 스타일: 배경 없음 + 가운데 정렬 */
+const XLSX_CATEGORY_CELL_STYLE = {
+  font: XLSX_DEFAULT_FONT,
+  alignment: { horizontal: 'center' as const, vertical: 'center' as const },
+};
+
+/** G열(메모와 카테고리 표 사이 빈 칸): 텍스트·배경 없음 */
+const XLSX_GAP_CELL_STYLE = { font: XLSX_DEFAULT_FONT };
+
+/** 헤더 행(스타일 포함) — aoa_to_sheet에 넣을 첫 행 (9열: 데이터 6 + 빈칸 1 + 카테고리 2) */
 function buildXlsxHeaderRow(): { v: string; t: string; s: object }[] {
-  return XLSX_HEADER_LABELS.map((label) => ({
-    v: label,
-    t: 's',
-    s: XLSX_HEADER_CELL_STYLE,
-  }));
+  const dataLabels = XLSX_HEADER_LABELS.slice(0, 6);
+  const gapAndCategoryLabels = XLSX_HEADER_LABELS.slice(6, 9);
+  return [
+    ...dataLabels.map((label) => ({ v: label, t: 's' as const, s: XLSX_HEADER_CELL_STYLE })),
+    { v: gapAndCategoryLabels[0], t: 's' as const, s: XLSX_GAP_CELL_STYLE },
+    { v: gapAndCategoryLabels[1], t: 's' as const, s: XLSX_CATEGORY_HEADER_STYLE },
+    { v: gapAndCategoryLabels[2], t: 's' as const, s: XLSX_CATEGORY_HEADER_STYLE },
+  ];
 }
 
-/** 엑셀 열 너비(문자 수): 카테고리 16, 메모 24 */
+/** 엑셀 열 너비(문자 수): 기록 6열 + 빈칸 1 + 카테고리 2열 */
 const XLSX_COL_WIDTHS = [
   { wch: 12 }, // 날짜
   { wch: 16 }, // 카테고리
@@ -372,6 +446,9 @@ const XLSX_COL_WIDTHS = [
   { wch: 12 }, // 금액
   { wch: 8 },  // 유형
   { wch: 24 }, // 메모
+  { wch: 6 },  // 빈 칸 (메모와 카테고리 표 사이)
+  { wch: 18 }, // 소비 카테고리
+  { wch: 18 }, // 수입 카테고리
 ];
 
 /** 날짜 열 서식 (yyyy.mm.dd) */
@@ -456,22 +533,42 @@ export async function writeExcelToFile(): Promise<string> {
   const wb = XLSX.utils.book_new();
   const DATE_COL = 0;
   const AMOUNT_COL = 3;
-  const COLS = 6;
+  const DATA_COLS = 6;
+  const COLS = 9; // 데이터 6 + 빈칸 1 + 카테고리 2
+  const CATEGORY_COL_START = 7;
+  const maxCategoryRows = Math.max(EXPENSE_CATEGORIES.length, INCOME_CATEGORIES.length);
 
   for (const year of years) {
-    const rows = yearToRows.get(year)!;
-    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const rawRows = yearToRows.get(year)!;
+    const extendedRows: (string | number | { v: string; t: string; s: object })[][] = [
+      buildXlsxHeaderRow(),
+    ];
+    const maxRows = Math.max(rawRows.length - 1, maxCategoryRows);
+    for (let i = 1; i <= maxRows; i++) {
+      const dataRow = rawRows[i] as (string | number)[] | undefined;
+      const dataCells = dataRow ? dataRow.slice(0, DATA_COLS) : Array(DATA_COLS).fill('');
+      const expenseLabel = i <= EXPENSE_CATEGORIES.length ? EXPENSE_CATEGORIES[i - 1].label : '';
+      const incomeLabel = i <= INCOME_CATEGORIES.length ? INCOME_CATEGORIES[i - 1].label : '';
+      extendedRows.push([...dataCells, '', expenseLabel, incomeLabel]);
+    }
+
+    const ws = XLSX.utils.aoa_to_sheet(extendedRows);
     ws['!cols'] = XLSX_COL_WIDTHS;
 
     const dataCellFont = { font: XLSX_DEFAULT_FONT };
 
-    for (let r = 1; r < rows.length; r++) {
-      for (let c = 0; c < COLS; c++) {
+    for (let r = 1; r < extendedRows.length; r++) {
+      for (let c = 0; c < DATA_COLS; c++) {
         const ref = XLSX.utils.encode_cell({ r, c });
         if (ws[ref]) ws[ref].s = { ...dataCellFont };
       }
-      const dateVal = rows[r][DATE_COL];
-      const dateSerial = typeof dateVal === 'string' ? dateStringToExcelSerial(dateVal) : Number(dateVal);
+      for (let c = CATEGORY_COL_START; c < COLS; c++) {
+        const ref = XLSX.utils.encode_cell({ r, c });
+        if (ws[ref]) ws[ref].s = XLSX_CATEGORY_CELL_STYLE;
+      }
+      const dateVal = extendedRows[r][DATE_COL];
+      const dateSerial =
+        typeof dateVal === 'string' ? dateStringToExcelSerial(dateVal) : Number(dateVal);
       if (Number.isFinite(dateSerial) && dateSerial > 0) {
         const ref = XLSX.utils.encode_cell({ r, c: DATE_COL });
         ws[ref] = { t: 'n', v: dateSerial, s: { numFmt: XLSX_DATE_NUMFMT, ...dataCellFont } };
@@ -500,9 +597,22 @@ export function getExcelBackupFileName(): string {
   return `${y}-${m}-${d}${XLSX_FILE_EXTENSION}`;
 }
 
+/** YYYY.MM.DD 형식 여부 확인 (필수 항목 검증용) */
+const DATE_PATTERN = /^\d{4}\.\d{2}\.\d{2}$/;
+function isValidDateString(s: string): boolean {
+  return s.length > 0 && DATE_PATTERN.test(s);
+}
+
+/** 유형(소비) 허용 값: 공백 또는 신용/체크/현금 */
+function isValidPaymentType(s: string): boolean {
+  const v = s.trim();
+  return v === '' || v === CSV_PAYMENT_CREDIT || v === CSV_PAYMENT_DEBIT || v === CSV_PAYMENT_CASH;
+}
+
 /**
  * XLSX 파일(base64)을 파싱하여 expenses, incomes 배열로 변환합니다.
  * 모든 시트를 합쳐서 복원합니다.
+ * 필수 항목(수입/소비, 날짜, 카테고리, 금액, 유형)에 공백 또는 형식에 맞지 않는 데이터가 있으면 복원 중단을 위해 throw.
  */
 export function parseXlsxContent(base64: string): { expenses: ExpenseRecord[]; incomes: IncomeRecord[] } | null {
   try {
@@ -542,7 +652,21 @@ export function parseXlsxContent(base64: string): { expenses: ExpenseRecord[]; i
             ? rawAmount
             : Number(get(amountCol).replace(/,/g, ''));
         const memo = memoCol >= 0 ? get(memoCol) : '';
-        if (!dateStr || !category || Number.isNaN(amount) || amount < 0) continue;
+        const paymentStr = paymentCol >= 0 ? get(paymentCol) : '';
+
+        const rowEmpty =
+          typeVal === '' && get(dateCol) === '' && category === '' && get(amountCol) === '' && paymentStr === '';
+        if (rowEmpty) continue;
+
+        const typeValid = typeVal === CSV_TYPE_INCOME || typeVal === CSV_TYPE_EXPENSE;
+        const dateValid = isValidDateString(dateStr);
+        const categoryValid = category.length > 0;
+        const amountValid = Number.isFinite(amount) && amount >= 0;
+        const paymentValid = typeVal !== CSV_TYPE_EXPENSE || isValidPaymentType(paymentStr);
+
+        if (!typeValid || !dateValid || !categoryValid || !amountValid || !paymentValid) {
+          throw new Error(RESTORE_VALIDATION_ERROR);
+        }
 
         const timestamp = timestampBase++;
         if (typeVal === CSV_TYPE_INCOME) {
@@ -571,7 +695,8 @@ export function parseXlsxContent(base64: string): { expenses: ExpenseRecord[]; i
 
     if (allExpenses.length === 0 && allIncomes.length === 0) return null;
     return { expenses: allExpenses, incomes: allIncomes };
-  } catch {
+  } catch (err) {
+    if (err instanceof Error && err.message === RESTORE_VALIDATION_ERROR) throw err;
     return null;
   }
 }
@@ -596,7 +721,7 @@ export async function restoreFromFile(fileUri: string): Promise<void> {
       await AsyncStorage.removeItem(CALENDAR_DATA_KEY);
       return;
     }
-    throw new Error('XLSX 파일 내용을 읽을 수 없습니다. 형식(날짜,카테고리,수입/소비,금액,유형,메모)을 확인해 주세요.');
+    throw new Error(RESTORE_VALIDATION_ERROR);
   }
 
   const content = await FileSystem.readAsStringAsync(fileUri, {
@@ -609,7 +734,7 @@ export async function restoreFromFile(fileUri: string): Promise<void> {
     const payload = parseBackupPayload(trimmed);
     if (payload) {
       if (payload.version > BACKUP_VERSION) {
-        throw new Error('이 백업 파일은 더 최신 앱 버전에서 만든 것입니다. 앱을 업데이트한 뒤 다시 시도해 주세요.');
+        throw new Error(BACKUP_VERSION_TOO_NEW_ERROR);
       }
       await Promise.all([
         replaceAllExpenses(Array.isArray(payload.expenses) ? payload.expenses : []),

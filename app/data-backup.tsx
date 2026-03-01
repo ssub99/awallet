@@ -89,6 +89,15 @@ async function openShareOrMail(
 const RESET_CONFIRM_MESSAGE =
   '전체 데이터를 초기화 하시겠어요?\n생성된 데이터가 모두 초기화 되고\n초기 상태로 설정 됩니다.';
 
+/** 엑셀파일 백업/복원 유의사항 (Figma 시안 문구, 항목별 배열) */
+const EXCEL_BACKUP_NOTICE_ITEMS = [
+  '카테고리의 종류는 편의대로 커스텀하여 적용이 가능합니다. (단, 백업 기록의 카테고리가 에이월렛의 카테고리가 일치하도록 편집되어야 함.)',
+  '엑셀파일(.xlsx)로 백업/복원 시 서비스 내의 카테고리와 일치하도록 해야 정상적으로 복원 됩니다.',
+  '공백이 존재하거나 항목들의 데이터 형식이 일치하지 않으면 복원이 진행되지 않습니다. 정확하게 입력해야만 복원이 진행되오니 내역을 꼼꼼히 확인해 주세요.',
+  '시트 또는 데이터에 특수문자는 허용하지 않으니 유의하시어 작성하시길 권장드립니다.',
+  '엑셀파일(.xlsx)로 백업/복원하는 경우 정기/할부 및 정산 기능을 적용할 수 없음을 안내드립니다. 정확하게 일치하는 복원을 원하시는 경우 전용파일(.awbak)을 이용하시는 것을 권장드립니다.',
+];
+
 export default function DataBackupScreen() {
   const colorScheme = useColorScheme();
   const colors = ThemeColors[colorScheme ?? 'light'];
@@ -199,7 +208,15 @@ export default function DataBackupScreen() {
         showToast('정상적으로 복원이 되었습니다.');
       } catch (error) {
         console.error('[data-backup] 복원 오류:', error);
-        showToast('오류가 발생했습니다. 다시 시도해 주세요.');
+        const errMsg = error instanceof Error ? error.message : '';
+        const isValidationError = errMsg === 'RESTORE_VALIDATION_FAILED';
+        const isVersionTooNew = errMsg === 'BACKUP_VERSION_TOO_NEW';
+        const message = isValidationError
+          ? '파일을 다시 확인해 주세요.'
+          : isVersionTooNew
+            ? '최신버전으로 업데이트 후 재시도 해주세요.'
+            : '오류가 발생했습니다. 다시 시도해 주세요.';
+        showToast(message);
       } finally {
         setLoading(false);
       }
@@ -235,48 +252,73 @@ export default function DataBackupScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* Section: 백업/복원 */}
-          <View style={styles.sectionBlock}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              백업/복원
-            </Text>
-            <View style={[styles.card, { backgroundColor: colors.background }]}>
-              <Pressable
-                style={styles.menuRow}
-                onPress={handleBackupDedicated}
-                accessibilityRole="button"
-                accessibilityLabel="데이터 백업하기 전용파일"
-              >
-                <Text style={[styles.menuLabel, { color: colors.text }]}>
-                  데이터 백업하기(전용파일)
-                </Text>
-                <Icon name="arrowRight" size={24} color={colors.text} />
-              </Pressable>
-              <View style={[styles.divider, { backgroundColor: colors.border }]} />
-              <Pressable
-                style={styles.menuRow}
-                onPress={handleBackupExcel}
-                accessibilityRole="button"
-                accessibilityLabel="데이터 백업하기 엑셀파일"
-              >
-                <Text style={[styles.menuLabel, { color: colors.text }]}>
-                  데이터 백업하기(엑셀파일)
-                </Text>
-                <Icon name="arrowRight" size={24} color={colors.text} />
-              </Pressable>
-              <View style={[styles.divider, { backgroundColor: colors.border }]} />
-              <Pressable
-                style={styles.menuRow}
-                onPress={handleRestore}
-                accessibilityRole="button"
-                accessibilityLabel="데이터 복원하기"
-              >
-                <Text style={[styles.menuLabel, { color: colors.text }]}>
-                  데이터 복원하기
-                </Text>
-                <Icon name="arrowRight" size={24} color={colors.text} />
-              </Pressable>
+          {/* 백업/복원 + 유의사항: 두 섹션 간 gap 16 */}
+          <View style={styles.backupNoticeGroup}>
+            {/* Section: 백업/복원 */}
+            <View style={styles.sectionBlock}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                백업/복원
+              </Text>
+              <View style={[styles.card, { backgroundColor: colors.background }]}>
+                <Pressable
+                  style={styles.menuRow}
+                  onPress={handleBackupDedicated}
+                  accessibilityRole="button"
+                  accessibilityLabel="데이터 백업하기 전용파일"
+                >
+                  <Text style={[styles.menuLabel, { color: colors.text }]}>
+                    데이터 백업하기(전용파일)
+                  </Text>
+                  <Icon name="arrowRight" size={24} color={colors.text} />
+                </Pressable>
+                <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                <Pressable
+                  style={styles.menuRow}
+                  onPress={handleBackupExcel}
+                  accessibilityRole="button"
+                  accessibilityLabel="데이터 백업하기 엑셀파일"
+                >
+                  <Text style={[styles.menuLabel, { color: colors.text }]}>
+                    데이터 백업하기(엑셀파일)
+                  </Text>
+                  <Icon name="arrowRight" size={24} color={colors.text} />
+                </Pressable>
+                <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                <Pressable
+                  style={styles.menuRow}
+                  onPress={handleRestore}
+                  accessibilityRole="button"
+                  accessibilityLabel="데이터 복원하기"
+                >
+                  <Text style={[styles.menuLabel, { color: colors.text }]}>
+                    데이터 복원하기
+                  </Text>
+                  <Icon name="arrowRight" size={24} color={colors.text} />
+                </Pressable>
+              </View>
             </View>
+
+            {/* Section: 엑셀파일 백업/복원 유의사항 */}
+            <View style={styles.sectionBlock}>
+            <View style={[styles.card, { backgroundColor: colors.background }]}>
+              <View style={styles.noticeBlock}>
+                <Text
+                  style={[styles.noticeTitle, { color: colors.text }]}
+                  accessibilityRole="header"
+                >
+                  엑셀파일(.xlsx) 백업/복원 유의사항
+                </Text>
+                <View style={styles.noticeList}>
+                  {EXCEL_BACKUP_NOTICE_ITEMS.map((item, index) => (
+                    <View key={index} style={styles.noticeItem}>
+                      <Text style={[styles.noticeBullet, { color: colors.textNeutral }]}>•</Text>
+                      <Text style={[styles.noticeBody, { color: colors.textNeutral }]}>{item}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            </View>
+          </View>
           </View>
 
           {/* Section: 기타 */}
@@ -355,5 +397,33 @@ const styles = StyleSheet.create({
   divider: {
     height: 1,
     marginHorizontal: 16,
+  },
+  backupNoticeGroup: {
+    gap: 16,
+  },
+  noticeBlock: {
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  noticeTitle: {
+    ...Typography.body2.r.bold,
+  },
+  noticeList: {
+    gap: 4,
+  },
+  noticeItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+  },
+  noticeBullet: {
+    ...Typography.body2.r.regular,
+    lineHeight: 21,
+  },
+  noticeBody: {
+    ...Typography.body2.r.regular,
+    lineHeight: 21,
+    flex: 1,
   },
 });
