@@ -292,6 +292,13 @@ export async function clearAllExpenses(): Promise<void> {
   await AsyncStorage.removeItem(EXPENSE_STORAGE_KEY);
 }
 
+/**
+ * 복원용: 전체 지출 데이터를 주어진 배열로 교체합니다.
+ */
+export async function replaceAllExpenses(records: ExpenseRecord[]): Promise<void> {
+  await persistExpenses(records);
+}
+
 export async function deleteExpensesByGroup(params: {
   recurringId?: string | null;
   installmentId?: string | null;

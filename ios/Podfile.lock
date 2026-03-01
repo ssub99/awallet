@@ -39,6 +39,8 @@ PODS:
     - ExpoModulesCore
   - ExpoBlur (15.0.8):
     - ExpoModulesCore
+  - ExpoDocumentPicker (14.0.8):
+    - ExpoModulesCore
   - ExpoFileSystem (19.0.17):
     - ExpoModulesCore
   - ExpoFont (14.0.9):
@@ -84,6 +86,8 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
+  - ExpoSharing (14.0.8):
+    - ExpoModulesCore
   - ExpoSplashScreen (31.0.10):
     - ExpoModulesCore
   - ExpoSymbols (1.0.7):
@@ -2301,6 +2305,7 @@ DEPENDENCIES:
   - Expo (from `../node_modules/expo`)
   - ExpoAsset (from `../node_modules/expo-asset/ios`)
   - ExpoBlur (from `../node_modules/expo-blur/ios`)
+  - ExpoDocumentPicker (from `../node_modules/expo-document-picker/ios`)
   - ExpoFileSystem (from `../node_modules/expo-file-system/ios`)
   - ExpoFont (from `../node_modules/expo-font/ios`)
   - ExpoHaptics (from `../node_modules/expo-haptics/ios`)
@@ -2310,6 +2315,7 @@ DEPENDENCIES:
   - ExpoLinking (from `../node_modules/expo-linking/ios`)
   - ExpoMailComposer (from `../node_modules/expo-mail-composer/ios`)
   - ExpoModulesCore (from `../node_modules/expo-modules-core`)
+  - ExpoSharing (from `../node_modules/expo-sharing/ios`)
   - ExpoSplashScreen (from `../node_modules/expo-splash-screen/ios`)
   - ExpoSymbols (from `../node_modules/expo-symbols/ios`)
   - ExpoSystemUI (from `../node_modules/expo-system-ui/ios`)
@@ -2437,6 +2443,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-asset/ios"
   ExpoBlur:
     :path: "../node_modules/expo-blur/ios"
+  ExpoDocumentPicker:
+    :path: "../node_modules/expo-document-picker/ios"
   ExpoFileSystem:
     :path: "../node_modules/expo-file-system/ios"
   ExpoFont:
@@ -2455,6 +2463,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-mail-composer/ios"
   ExpoModulesCore:
     :path: "../node_modules/expo-modules-core"
+  ExpoSharing:
+    :path: "../node_modules/expo-sharing/ios"
   ExpoSplashScreen:
     :path: "../node_modules/expo-splash-screen/ios"
   ExpoSymbols:
@@ -2639,6 +2649,7 @@ SPEC CHECKSUMS:
   Expo: fb09185d798c2876a4c5ca89a5c6b8b72b6dbecf
   ExpoAsset: 9ba6fbd677fb8e241a3899ac00fa735bc911eadf
   ExpoBlur: b90747a3f22a8b6ceffd9cb0dc41a4184efdc656
+  ExpoDocumentPicker: 7cd9e71a0f66fb19eb0a586d6f26eee1284692e0
   ExpoFileSystem: b79eadbda7b7f285f378f95f959cc9313a1c9c61
   ExpoFont: cf9d90ec1d3b97c4f513211905724c8171f82961
   ExpoHaptics: 807476b0c39e9d82b7270349d6487928ce32df84
@@ -2648,6 +2659,7 @@ SPEC CHECKSUMS:
   ExpoLinking: f051f28e50ea9269ff539317c166adec81d9342d
   ExpoMailComposer: f513efa3833a7dbd64065e54d5d61585b43fd9b2
   ExpoModulesCore: aa1a8e103d41de84baa5d7c6b98314e2230f1eef
+  ExpoSharing: 0d983394ed4a80334bab5a0d5384f75710feb7e8
   ExpoSplashScreen: cbb839de72110dea1851dd3e85080b7923af2540
   ExpoSymbols: 1ae04ce686de719b9720453b988d8bc5bf776c68
   ExpoSystemUI: 2761aa6875849af83286364811d46e8ed8ea64c7

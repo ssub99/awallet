@@ -42,7 +42,6 @@ export const QUICK_INPUT_PLACEHOLDERS_INSTALLMENT: readonly string[] = [
   'TV를 오늘 70만원 12개월 할부로 샀어.',
   '세탁기 어제 50만원 12개월 할부로 샀어.',
   '침대 오늘 60만원 3개월 할부로 샀어.',
-  '전자레인지 30만원 6개월 할부로 샀어.',
   '공기청정기 어제 40만 3개월 할부 샀어.',
 ] as const;
 

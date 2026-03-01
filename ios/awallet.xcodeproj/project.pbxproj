@@ -19,6 +19,7 @@
 		8EAA70412F2BAA3B00DB6CE3 /* WidgetDataSync.m in Sources */ = {isa = PBXBuildFile; fileRef = 8EAA70402F2BAA3B00DB6CE3 /* WidgetDataSync.m */; };
 		8EAA70422F2BAA3B00DB6CE3 /* WidgetDataSync.m in Sources */ = {isa = PBXBuildFile; fileRef = 8EAA70402F2BAA3B00DB6CE3 /* WidgetDataSync.m */; };
 		8EB5A1C72F22227800044D63 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
+		9A1B2C3D4E5F60718293A4B5 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1B2C3D4E5F60718293A4B6 /* SceneDelegate.swift */; };
 		8EB5A1CD2F22227800044D63 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
 		8EB5A1CE2F22227800044D63 /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		8EB5A1CF2F22227800044D63 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
@@ -33,6 +34,7 @@
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
 		C135B80FD53B5E07F156F8D8 /* libPods-awallet-common-awallet-stage.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 506DCA7A03F526BDD536E8FD /* libPods-awallet-common-awallet-stage.a */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
+		9A1B2C3D4E5F60718293A4B7 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1B2C3D4E5F60718293A4B6 /* SceneDelegate.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -107,6 +109,7 @@
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = awallet/AppDelegate.swift; sourceTree = "<group>"; };
+		9A1B2C3D4E5F60718293A4B6 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SceneDelegate.swift; path = awallet/SceneDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* awallet-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "awallet-Bridging-Header.h"; path = "awallet/awallet-Bridging-Header.h"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -204,6 +207,7 @@
 			isa = PBXGroup;
 			children = (
 				F11748412D0307B40044C1D9 /* AppDelegate.swift */,
+				9A1B2C3D4E5F60718293A4B6 /* SceneDelegate.swift */,
 				8EAA70392F2BAA3A00DB6CE3 /* WidgetDataSync.swift */,
 				8EAA70402F2BAA3B00DB6CE3 /* WidgetDataSync.m */,
 				F11748442D0722820044C1D9 /* awallet-Bridging-Header.h */,
@@ -848,6 +852,7 @@
 				8EAA703B2F2BAA3A00DB6CE3 /* WidgetDataSync.swift in Sources */,
 				8EAA70422F2BAA3B00DB6CE3 /* WidgetDataSync.m in Sources */,
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
+				9A1B2C3D4E5F60718293A4B7 /* SceneDelegate.swift in Sources */,
 				14A0666E9C97748E2051DF0A /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -859,6 +864,7 @@
 				8EAA703A2F2BAA3A00DB6CE3 /* WidgetDataSync.swift in Sources */,
 				8EAA70412F2BAA3B00DB6CE3 /* WidgetDataSync.m in Sources */,
 				8EB5A1C72F22227800044D63 /* AppDelegate.swift in Sources */,
+				9A1B2C3D4E5F60718293A4B5 /* SceneDelegate.swift in Sources */,
 				318431E3C7E498C0A96FB002 /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

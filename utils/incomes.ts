@@ -143,6 +143,13 @@ export async function clearAllIncomes(): Promise<void> {
 }
 
 /**
+ * 복원용: 전체 수입 데이터를 주어진 배열로 교체합니다.
+ */
+export async function replaceAllIncomes(records: IncomeRecord[]): Promise<void> {
+  await persistIncomes(records);
+}
+
+/**
  * 특정 카테고리에 해당하는 수입 기록을 모두 삭제합니다.
  */
 export async function deleteIncomesByCategory(categoryLabel: string): Promise<void> {

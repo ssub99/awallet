@@ -11,14 +11,22 @@
       "distribution": "internal",
       "channel": "stage",
       "ios": {
-        "buildConfiguration": "Release"
+        "buildConfiguration": "Release",
+        "buildNumber": "10"
+      },
+      "android": {
+        "versionCode": 10
       }
     },
     "stage-testflight": {
       "distribution": "store",
       "channel": "stage",
       "ios": {
-        "buildConfiguration": "Release"
+        "buildConfiguration": "Release",
+        "buildNumber": "10"
+      },
+      "android": {
+        "versionCode": 10
       }
     },
     "production": {
