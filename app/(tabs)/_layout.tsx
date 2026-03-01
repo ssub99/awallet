@@ -1,13 +1,13 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { TabBar } from '@/components/navigation/tab-bar';
 import { Icon } from '@/components/ui/icon';
 import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { CreateSheetProvider } from '@/contexts/create-sheet-context';
 import { QuickInputProvider } from '@/contexts/quick-input-context';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
@@ -37,7 +37,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="challenge"
           options={{
-            title: '챌린지',
+            title: '챌린지∙통계',
             tabBarIcon: ({ focused }) => (
               <Icon name="challenge" variant={focused ? 'solid' : 'line'} size={28} color={colors.staticBlack} />
             ),

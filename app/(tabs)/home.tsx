@@ -112,7 +112,7 @@ export default function HomeScreen() {
       isNavigating.current = true;
 
       router.push({
-        pathname: '/monthly-expense-timeline',
+        pathname: '/(tabs)/challenge',
         params: {
           year: currentYear.toString(),
           month: month.toString(),
@@ -715,20 +715,21 @@ export default function HomeScreen() {
 
                 <View style={[styles.monthStatusDivider, { backgroundColor: colors.border }]} />
 
-                {/* 잔액 */}
+                {/* 잔액 - 탭 시 챌린지·통계 탭 리포트 > 소비 리포트로 이동 */}
                 <Pressable
                   style={styles.monthStatusItem}
                   onPress={() => {
                     router.push({
-                      pathname: '/monthly-expense-timeline',
+                      pathname: '/(tabs)/challenge',
                       params: {
                         year: currentYear.toString(),
                         month: currentMonth.toString(),
+                        tab: 'status',
                       },
                     });
                   }}
                   accessibilityRole="button"
-                  accessibilityLabel="월 타임라인 보기"
+                  accessibilityLabel="챌린지 통계 소비 리포트 보기"
                 >
                   <Text style={[styles.monthStatusLabel, { color: colors.textNeutral }]}>
                     잔액

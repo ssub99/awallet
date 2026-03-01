@@ -6,6 +6,8 @@
  */
 
 import { TopNavigation } from '@/components/navigation/top-navigation';
+import { Button } from '@/components/ui/button';
+import { Chip } from '@/components/ui/chip';
 import { Icon } from '@/components/ui/icon';
 import { Colors, Typography } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';
@@ -20,7 +22,7 @@ import { createSheetEvent } from '@/utils/create-sheet-event';
 import { getCustomMonthInfo, getCustomMonthRange, isDateInCustomMonth } from '@/utils/custom-month';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     Animated,
     GestureResponderEvent,
@@ -31,12 +33,27 @@ import {
     ScrollView,
     StyleSheet,
     Text,
+    useWindowDimensions,
     View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const FAB_SIZE = 48;
 const FAB_OFFSET_ABOVE_TABS = 16;
+
+/** 월 변경 시 페이드 아웃/인 애니메이션 (챌린지·리포트·타임라인 동일) */
+const MONTH_CHANGE_FADE_OUT_DURATION = 150;
+const MONTH_CHANGE_FADE_IN_DURATION = 200;
+
+/** 소비 현황(이번달 지출 순위/정기 지출)용 타임라인 아이템 - monthly-expense-timeline과 동일 */
+interface TrendTimelineItem {
+  date: string;
+  type: 'income' | 'expense';
+  category: string;
+  memo?: string;
+  amount: number;
+  isRecurring?: boolean;
+}
 
 interface ChallengeData {
   id: string;
@@ -114,10 +131,21 @@ const MonthSwitcher: React.FC<MonthSwitcherProps> = ({
   );
 };
 
+type TopTabId = 'challenge' | 'report';
+type ReportSubTabId = 'score' | 'trend';
+
+const REPORT_SCORE_CARD_MIN = 280;
+const REPORT_SCORE_CARD_MAX = 454;
+
 export default function ChallengeTabScreen() {
+  const { height: windowHeight } = useWindowDimensions();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
   const iconWhite = useThemeColor({}, 'staticWhite');
+  const [activeTopTab, setActiveTopTab] = useState<TopTabId>('challenge');
+  const [reportSubTab, setReportSubTab] = useState<ReportSubTabId>('score');
+  const [trendTimelineData, setTrendTimelineData] = useState<TrendTimelineItem[]>([]);
+  const [trendCategoryFilter, setTrendCategoryFilter] = useState<'all' | 'recurring'>('all');
   const categoryEmojiMap = useCategoryEmojiMap();
   const { setLoading } = useLoading();
   const { updateCalendarContext } = useCreateSheetContext();
@@ -134,7 +162,7 @@ export default function ChallengeTabScreen() {
   const navigation = useNavigation();
   const isNavigating = useRef(false);
 
-  const params = useLocalSearchParams<{ year?: string; month?: string }>();
+  const params = useLocalSearchParams<{ year?: string; month?: string; tab?: string }>();
 
   const [monthStartDay, setMonthStartDay] = useState(1);
   const now = new Date();
@@ -145,11 +173,45 @@ export default function ChallengeTabScreen() {
   const year = currentYear;
   const month = currentMonth;
 
+  // 홈 잔액/년도 월 카드 탭 시 리포트 > 소비 리포트로 열기 + 해당 년/월로 동기화
+  const appliedStatusParam = useRef(false);
+  useEffect(() => {
+    if (params.tab === 'status' && !appliedStatusParam.current) {
+      setActiveTopTab('report');
+      setReportSubTab('score');
+      appliedStatusParam.current = true;
+    }
+  }, [params.tab]);
+
+  // 홈에서 넘긴 year/month가 있으면 해당 연·월로 표시 (탭 재진입 시에도 동기화)
+  useEffect(() => {
+    const paramYear = params.year ? parseInt(params.year, 10) : undefined;
+    const paramMonth = params.month ? parseInt(params.month, 10) : undefined;
+    if (paramYear != null && !Number.isNaN(paramYear)) {
+      setCurrentYear(paramYear);
+    }
+    if (paramMonth != null && !Number.isNaN(paramMonth) && paramMonth >= 1 && paramMonth <= 12) {
+      setCurrentMonth(paramMonth);
+    }
+  }, [params.year, params.month]);
+
   const [challenges, setChallenges] = useState<ChallengeData[]>([]);
   const [challengeAmounts, setChallengeAmounts] = useState<Record<string, number>>({});
   const [isContentReady, setIsContentReady] = useState(false);
   const contentOpacity = useRef(new Animated.Value(0)).current;
   const hasAnimatedRef = useRef(false);
+
+  // 리포트 탭 월 변경 시 페이드 아웃/인 (타임라인과 동일) - 점수 박스는 항상 표시, 애니메이션만 적용
+  const reportContentOpacity = useRef(new Animated.Value(1)).current;
+  const [reportTrendContentReady, setReportTrendContentReady] = useState(false);
+  const prevReportMonthRef = useRef<{ year: number; month: number } | null>(null);
+  const reportNeedsFadeInRef = useRef(false);
+
+  // 챌린지 탭 월 변경 시 페이드 아웃/인 (리포트·타임라인과 동일)
+  const prevChallengeMonthRef = useRef<{ year: number; month: number } | null>(null);
+  const challengeRefreshedForRef = useRef<{ year: number; month: number } | null>(null);
+  const challengeMonthChangeInProgressRef = useRef(false);
+  const challengeDidFadeInRef = useRef(false);
 
   const refreshData = useCallback(async () => {
     beginLoad();
@@ -182,15 +244,37 @@ export default function ChallengeTabScreen() {
 
       setIsContentReady(true);
       hasAnimatedRef.current = true;
+      challengeRefreshedForRef.current = { year, month };
+      if (challengeMonthChangeInProgressRef.current) {
+        challengeMonthChangeInProgressRef.current = false;
+        challengeDidFadeInRef.current = true;
+        contentOpacity.setValue(0);
+        Animated.timing(contentOpacity, {
+          toValue: 1,
+          duration: MONTH_CHANGE_FADE_IN_DURATION,
+          useNativeDriver: true,
+        }).start();
+      }
     } catch (err) {
       console.error('[challenge-tab] Failed to load challenges:', err);
       setChallenges([]);
       setIsContentReady(true);
       hasAnimatedRef.current = true;
+      challengeRefreshedForRef.current = { year, month };
+      if (challengeMonthChangeInProgressRef.current) {
+        challengeMonthChangeInProgressRef.current = false;
+        challengeDidFadeInRef.current = true;
+        contentOpacity.setValue(0);
+        Animated.timing(contentOpacity, {
+          toValue: 1,
+          duration: MONTH_CHANGE_FADE_IN_DURATION,
+          useNativeDriver: true,
+        }).start();
+      }
     } finally {
       endLoad();
     }
-  }, [year, month, beginLoad, endLoad]);
+  }, [year, month, beginLoad, endLoad, contentOpacity]);
 
   useFocusEffect(
     useCallback(() => {
@@ -202,6 +286,67 @@ export default function ChallengeTabScreen() {
   useEffect(() => {
     refreshData();
   }, [dataVersion, year, month, refreshData]);
+
+  // 소비 현황(이번달 지출 순위/정기 지출)용 타임라인 데이터 - 월 상세현황과 동일 로직
+  useEffect(() => {
+    let cancelled = false;
+    setReportTrendContentReady(false);
+    const load = async () => {
+      const monthStart = await loadMonthStartDay();
+      if (cancelled) return;
+      const storedData = await AsyncStorage.getItem('calendarData');
+      if (!storedData || cancelled) return;
+      const calendarData = JSON.parse(storedData, (key: string, value: unknown) => {
+        if (key === 'recurringType' && value === null) return undefined;
+        return value;
+      }) as Record<string, { records?: Array<{ type?: string; category?: string; amount?: number; memo?: string; isRecurring?: boolean; isDeleted?: boolean }> }>;
+      const items: TrendTimelineItem[] = [];
+      Object.entries(calendarData).forEach(([dateString, data]) => {
+        const [y, m, d] = dateString.split('-').map(Number);
+        const date = new Date(y, m - 1, d);
+        if (!isDateInCustomMonth(date, year, month, monthStart) || !data?.records) return;
+        data.records.forEach((record) => {
+          if (record.isDeleted || record.type !== 'expense') return;
+          items.push({
+            date: dateString,
+            type: 'expense',
+            category: record.category || '기타',
+            amount: record.amount || 0,
+            memo: record.memo,
+            isRecurring: record.isRecurring,
+          });
+        });
+      });
+      if (!cancelled) {
+        setTrendTimelineData(items);
+        setReportTrendContentReady(true);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [year, month, dataVersion]);
+
+  // 이번달 지출 순위 / 정기 지출 집계 (monthly-expense-timeline과 동일)
+  const trendCategoryExpenses = useMemo(() => {
+    const categoryMap = new Map<string, { count: number; amount: number; memo?: string }>();
+    trendTimelineData.forEach((item) => {
+      if (trendCategoryFilter === 'recurring' && !item.isRecurring) return;
+      if (trendCategoryFilter === 'all' && item.isRecurring) return;
+      const category = item.category || '기타';
+      const amount = item.amount || 0;
+      if (categoryMap.has(category)) {
+        const existing = categoryMap.get(category)!;
+        existing.count += 1;
+        existing.amount += amount;
+        if (item.memo && !existing.memo) existing.memo = item.memo;
+      } else {
+        categoryMap.set(category, { count: 1, amount, memo: item.memo });
+      }
+    });
+    return Array.from(categoryMap.entries())
+      .map(([category, data]) => ({ category, count: data.count, amount: data.amount, memo: data.memo }))
+      .sort((a, b) => b.amount - a.amount);
+  }, [trendTimelineData, trendCategoryFilter]);
 
   // 챌린지 탭에서 FAB를 열 때도, 홈과 동일하게 현재 보고 있는 년/월 정보를 공유
   useEffect(() => {
@@ -215,19 +360,127 @@ export default function ChallengeTabScreen() {
     });
   }, [currentYear, currentMonth, updateCalendarContext]);
 
-  // 페이드인 애니메이션
+  // 페이드인 애니메이션 (챌린지 월 변경 시에는 refreshData에서 페이드인 처리)
   useEffect(() => {
     if (isContentReady) {
+      if (challengeDidFadeInRef.current) {
+        challengeDidFadeInRef.current = false;
+        return;
+      }
       contentOpacity.setValue(0);
       Animated.timing(contentOpacity, {
         toValue: 1,
-        duration: 200,
+        duration: MONTH_CHANGE_FADE_IN_DURATION,
         useNativeDriver: true,
       }).start();
     } else {
       contentOpacity.setValue(0);
     }
   }, [isContentReady, contentOpacity]);
+
+  // 챌린지 탭: 월 변경 감지 → 페이드아웃, 로딩 완료 시 페이드인 (리포트·타임라인과 동일)
+  useEffect(() => {
+    if (activeTopTab !== 'challenge') return;
+    const prev = prevChallengeMonthRef.current;
+    if (prev === null) {
+      prevChallengeMonthRef.current = { year, month };
+      return;
+    }
+    if (prev.year !== year || prev.month !== month) {
+      prevChallengeMonthRef.current = { year, month };
+      challengeRefreshedForRef.current = null;
+      challengeMonthChangeInProgressRef.current = true;
+      Animated.timing(contentOpacity, {
+        toValue: 0,
+        duration: MONTH_CHANGE_FADE_OUT_DURATION,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (finished && (challengeRefreshedForRef.current?.year !== year || challengeRefreshedForRef.current?.month !== month)) {
+          setIsContentReady(false);
+        }
+      });
+    }
+  }, [activeTopTab, year, month, contentOpacity]);
+
+  // 리포트 탭: 월 변경 감지 → 페이드아웃, 로딩 완료 시 페이드인 (타임라인과 동일)
+  useEffect(() => {
+    if (activeTopTab !== 'report') return;
+    const prev = prevReportMonthRef.current;
+    if (prev === null) {
+      prevReportMonthRef.current = { year, month };
+      return;
+    }
+    if (prev.year !== year || prev.month !== month) {
+      prevReportMonthRef.current = { year, month };
+      reportNeedsFadeInRef.current = true;
+      setReportTrendContentReady(false);
+      Animated.timing(reportContentOpacity, {
+        toValue: 0,
+        duration: MONTH_CHANGE_FADE_OUT_DURATION,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (finished) {
+          // 소비 리포트: 점수 박스는 데이터 없어도 항상 표시 → 페이드아웃 직후 페이드인
+          // 소비 현황: 트렌드 로딩 완료 시 별도 effect에서 페이드인
+          if (reportSubTab === 'score') {
+            reportContentOpacity.setValue(0);
+            Animated.timing(reportContentOpacity, {
+              toValue: 1,
+              duration: MONTH_CHANGE_FADE_IN_DURATION,
+              useNativeDriver: true,
+            }).start();
+          }
+        }
+      });
+    }
+  }, [activeTopTab, year, month, reportSubTab, reportContentOpacity]);
+
+  // 리포트 탭(소비 현황): 트렌드 로딩 완료 시 페이드인
+  // 소비 리포트(점수 박스)는 월 변경 시 페이드아웃 콜백에서 바로 페이드인
+  useEffect(() => {
+    if (activeTopTab !== 'report' || reportSubTab !== 'trend') return;
+    if (!reportTrendContentReady) {
+      reportContentOpacity.setValue(0);
+      return;
+    }
+    reportNeedsFadeInRef.current = false;
+    reportContentOpacity.setValue(0);
+    Animated.timing(reportContentOpacity, {
+      toValue: 1,
+      duration: MONTH_CHANGE_FADE_IN_DURATION,
+      useNativeDriver: true,
+    }).start();
+  }, [activeTopTab, reportSubTab, reportTrendContentReady, reportContentOpacity]);
+
+  // 리포트 탭 진입 시 prevReportMonthRef 초기화 (첫 진입 시 페이드아웃 방지)
+  useEffect(() => {
+    if (activeTopTab === 'report' && prevReportMonthRef.current === null) {
+      prevReportMonthRef.current = { year, month };
+    }
+    if (activeTopTab !== 'report') {
+      prevReportMonthRef.current = null;
+    }
+  }, [activeTopTab, year, month]);
+
+  // 챌린지 탭 진입 시 prevChallengeMonthRef 초기화 (첫 진입 시 페이드아웃 방지)
+  useEffect(() => {
+    if (activeTopTab === 'challenge' && prevChallengeMonthRef.current === null) {
+      prevChallengeMonthRef.current = { year, month };
+    }
+    if (activeTopTab !== 'challenge') {
+      prevChallengeMonthRef.current = null;
+    }
+  }, [activeTopTab, year, month]);
+
+  // 소비 리포트: 점수 박스는 데이터 없어도 항상 표시 → 트렌드→스코어 전환 시 opacity 1 (월 변경 애니메이션과 충돌 방지)
+  const prevReportSubTabRef = useRef<ReportSubTabId | null>(null);
+  useEffect(() => {
+    if (activeTopTab === 'report' && prevReportSubTabRef.current === 'trend' && reportSubTab === 'score') {
+      reportContentOpacity.setValue(1);
+    }
+    if (activeTopTab === 'report') prevReportSubTabRef.current = reportSubTab;
+    else prevReportSubTabRef.current = null;
+  }, [activeTopTab, reportSubTab, reportContentOpacity]);
 
   // reset() 직후 언마운트·마운트가 겹치지 않도록 무거운 계산을 인터랙션 종료 후로 지연
   useEffect(() => {
@@ -311,6 +564,12 @@ export default function ChallengeTabScreen() {
     });
   }, []);
 
+  // 점수 박스 높이: 디바이스 높이의 52% 기준, min/max로 범위 제한
+  const reportScoreCardHeight = useMemo(() => {
+    const height = windowHeight * 0.52;
+    return Math.round(Math.max(REPORT_SCORE_CARD_MIN, Math.min(REPORT_SCORE_CARD_MAX, height)));
+  }, [windowHeight]);
+
   // Horizontal swipe to change month (left: prev, right: next)
   const panResponder = useRef(
     PanResponder.create({
@@ -337,20 +596,217 @@ export default function ChallengeTabScreen() {
   return (
     <View style={styles.screenWrapper}>
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-        <Animated.View style={{ opacity: isContentReady ? contentOpacity : 0 }}>
-          <TopNavigation type="main" title="챌린지" />
-        </Animated.View>
+        <View>
+          <TopNavigation
+            type="main"
+            title="챌린지"
+            tabs={[
+              { id: 'challenge', label: '챌린지' },
+              { id: 'report', label: '리포트' },
+            ]}
+            activeTabId={activeTopTab}
+            onTabChange={(id) => setActiveTopTab(id as TopTabId)}
+          />
+        </View>
 
-        <Animated.View
-          style={[
-            styles.content,
-            {
-              backgroundColor: colors.fill,
-              opacity: isContentReady ? contentOpacity : 0,
-            },
-          ]}
+        <View
+          style={[styles.content, { backgroundColor: colors.fill }]}
           {...panResponder.panHandlers}
         >
+          {activeTopTab === 'report' ? (
+            <View style={[styles.reportContent, { backgroundColor: colors.backgroundAlt }]}>
+              {/* 서브 탭: 소비 리포트 | 소비 현황 (Figma tab) */}
+              <View style={[styles.reportSubTabBar, { backgroundColor: colors.staticWhite }]}>
+                <Pressable
+                  style={styles.reportSubTab}
+                  onPress={() => setReportSubTab('score')}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: reportSubTab === 'score' }}
+                  accessibilityLabel="소비 리포트"
+                >
+                  <Text
+                    style={[
+                      reportSubTab === 'score' ? styles.reportSubTabTextActive : styles.reportSubTabTextInactive,
+                      { color: reportSubTab === 'score' ? colors.text : colors.textAssistive },
+                    ]}
+                  >
+                    소비 리포트
+                  </Text>
+                  {reportSubTab === 'score' && (
+                    <View style={[styles.reportSubTabIndicator, { backgroundColor: colors.primary }]} />
+                  )}
+                </Pressable>
+                <Pressable
+                  style={styles.reportSubTab}
+                  onPress={() => setReportSubTab('trend')}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: reportSubTab === 'trend' }}
+                  accessibilityLabel="소비 현황"
+                >
+                  <Text
+                    style={[
+                      reportSubTab === 'trend' ? styles.reportSubTabTextActive : styles.reportSubTabTextInactive,
+                      { color: reportSubTab === 'trend' ? colors.text : colors.textAssistive },
+                    ]}
+                  >
+                    소비 현황
+                  </Text>
+                  {reportSubTab === 'trend' && (
+                    <View style={[styles.reportSubTabIndicator, { backgroundColor: colors.primary }]} />
+                  )}
+                </Pressable>
+              </View>
+              <View style={[styles.reportSubTabDivider, { backgroundColor: colors.border }]} />
+
+              {reportSubTab === 'score' ? (
+                <ScrollView
+                  style={[styles.reportScroll, { backgroundColor: colors.fill }]}
+                  contentContainerStyle={styles.reportScrollContent}
+                  showsVerticalScrollIndicator={false}
+                >
+                  {/* 월 스위처 카드 (Frame 208) - 고정 */}
+                  <View style={[styles.reportMonthCard, { backgroundColor: colors.staticWhite }]}>
+                    <Pressable
+                      onPress={handlePrevMonth}
+                      style={styles.reportMonthArrow}
+                      accessibilityRole="button"
+                      accessibilityLabel="이전 달"
+                    >
+                      <Icon name="arrowLeft" variant="solid" size={24} color={colors.textAssistive} />
+                    </Pressable>
+                    <View style={styles.reportMonthTextWrap}>
+                      <Text style={[styles.reportMonthText, { color: colors.text }]}>
+                        {year}년 {String(month).padStart(2, '0')}월
+                      </Text>
+                    </View>
+                    <Pressable
+                      onPress={handleNextMonth}
+                      style={styles.reportMonthArrow}
+                      accessibilityRole="button"
+                      accessibilityLabel="다음 달"
+                    >
+                      <Icon name="arrowRight" variant="solid" size={24} color={colors.textAssistive} />
+                    </Pressable>
+                  </View>
+
+                  {/* 점수 카드 (Frame 226) - 본문: 로딩 완료 시 페이드인 */}
+                  <Animated.View style={{ opacity: reportContentOpacity }}>
+                  <View
+                    style={[
+                      styles.reportScoreCard,
+                      { backgroundColor: colors.staticWhite, minHeight: reportScoreCardHeight },
+                    ]}
+                  >
+                    <Text style={[styles.reportScoreLabel, { color: colors.textAssistive }]}>
+                      이번달 소비 점수는?
+                    </Text>
+                    <View style={styles.reportScoreValueRow}>
+                      <Text style={[styles.reportScoreValue, { color: colors.text }]}>?</Text>
+                      <Text style={[styles.reportScoreUnit, { color: colors.text }]}>점</Text>
+                    </View>
+                    <Text style={[styles.reportScoreMessage, { color: colors.textNeutral }]}>
+                      오늘 벌써 2건의 기록이 쌓였어요.{'\n'}한 건만 더 적으면{'\n'}소비 진단을 진행할 수 있어요.
+                    </Text>
+                    <Button
+                      variant="primary"
+                      type="solid"
+                      size="large"
+                      onPress={() => {}}
+                    >
+                      점수 확인하기
+                    </Button>
+                  </View>
+                  </Animated.View>
+                </ScrollView>
+              ) : (
+                <ScrollView
+                  style={[styles.reportScroll, { backgroundColor: colors.fill }]}
+                  contentContainerStyle={styles.reportScrollContent}
+                  showsVerticalScrollIndicator={false}
+                >
+                  {/* 년월 박스 - 소비 리포트 탭과 동일 (좌우 화살표만 월 변경) */}
+                  <View style={[styles.reportMonthCard, { backgroundColor: colors.staticWhite }]}>
+                    <Pressable
+                      onPress={handlePrevMonth}
+                      style={styles.reportMonthArrow}
+                      accessibilityRole="button"
+                      accessibilityLabel="이전 달"
+                    >
+                      <Icon name="arrowLeft" variant="solid" size={24} color={colors.textAssistive} />
+                    </Pressable>
+                    <View style={styles.reportMonthTextWrap}>
+                      <Text style={[styles.reportMonthText, { color: colors.text }]}>
+                        {year}년 {String(month).padStart(2, '0')}월
+                      </Text>
+                    </View>
+                    <Pressable
+                      onPress={handleNextMonth}
+                      style={styles.reportMonthArrow}
+                      accessibilityRole="button"
+                      accessibilityLabel="다음 달"
+                    >
+                      <Icon name="arrowRight" variant="solid" size={24} color={colors.textAssistive} />
+                    </Pressable>
+                  </View>
+                  {/* 이번달 지출 순위 / 정기 지출 칩 - 고정 */}
+                  <View style={styles.trendFilterContainer}>
+                    <Chip
+                      label="이번달 지출 순위"
+                      active={trendCategoryFilter === 'all'}
+                      onPress={() => setTrendCategoryFilter('all')}
+                    />
+                    <Chip
+                      label="정기 지출"
+                      active={trendCategoryFilter === 'recurring'}
+                      onPress={() => setTrendCategoryFilter('recurring')}
+                    />
+                  </View>
+                  {/* 순위 리스트 - 로딩 완료 시 페이드인 */}
+                  <Animated.View style={{ opacity: reportContentOpacity }}>
+                  {trendCategoryExpenses.length === 0 ? (
+                    <View style={styles.placeholderContainer}>
+                      <Text style={[styles.placeholderText, { color: colors.textAssistive }]}>
+                        {trendCategoryFilter === 'all' ? '이번달 지출 내역이 없습니다.' : '정기 지출 내역이 없습니다.'}
+                      </Text>
+                    </View>
+                  ) : (
+                    <View style={styles.trendCategoryList}>
+                      {trendCategoryExpenses.map((item) => (
+                        <Pressable
+                          key={item.category}
+                          style={[styles.trendCategoryItem, { backgroundColor: colors.staticWhite }]}
+                          onPress={() => {
+                            router.push({
+                              pathname: '/expense-category-detail',
+                              params: {
+                                category: item.category,
+                                year: year.toString(),
+                                month: month.toString(),
+                              },
+                            });
+                          }}
+                          accessibilityRole="button"
+                          accessibilityLabel={`${item.category} 상세`}
+                        >
+                          <View style={styles.trendCategorySection}>
+                            <Text style={[styles.trendCategoryName, { color: colors.text }]}>
+                              {categoryEmojiMap[item.category] || '📝'} {item.category}
+                            </Text>
+                            <Text style={[styles.trendCategoryStats, { color: colors.text }]}>
+                              {`${item.count}건 · ${item.amount.toLocaleString()}원`}
+                            </Text>
+                          </View>
+                        </Pressable>
+                      ))}
+                    </View>
+                  )}
+                  </Animated.View>
+                </ScrollView>
+              )}
+            </View>
+          ) : (
+            <>
+          {/* 날짜 박스 - 고정 */}
           <MonthSwitcher
             year={year}
             month={month}
@@ -361,6 +817,8 @@ export default function ChallengeTabScreen() {
             assistiveColor={colors.textAssistive}
           />
 
+          {/* 챌린지 카드 리스트 - 로딩 완료 시 페이드인 */}
+          <Animated.View style={{ flex: 1, opacity: isContentReady ? contentOpacity : 0 }}>
           <ScrollView
             style={styles.scrollContainer}
             contentContainerStyle={styles.scrollContent}
@@ -501,7 +959,10 @@ export default function ChallengeTabScreen() {
             </View>
           )}
           </ScrollView>
-        </Animated.View>
+          </Animated.View>
+            </>
+          )}
+        </View>
       </SafeAreaView>
 
       <Pressable
@@ -589,6 +1050,149 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     ...Typography.body1.l.regular,
+  },
+  placeholderContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    minHeight: 320,
+  },
+  placeholderText: {
+    ...Typography.body1.l.regular,
+    fontSize: 16,
+  },
+  reportContent: {
+    flex: 1,
+    backgroundColor: Colors.light.backgroundAlt,
+  },
+  reportSubTabBar: {
+    flexDirection: 'row',
+    height: 56,
+    paddingHorizontal: 16,
+  },
+  reportSubTab: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  reportSubTabTextActive: {
+    ...Typography.body1.l.bold,
+  },
+  reportSubTabTextInactive: {
+    ...Typography.body1.l.medium,
+  },
+  reportSubTabIndicator: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+  },
+  reportSubTabDivider: {
+    height: 1,
+    width: '100%',
+  },
+  reportScroll: {
+    flex: 1,
+  },
+  reportScrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 24,
+  },
+  reportMonthCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    height: 56,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    marginBottom: 16,
+  },
+  reportMonthArrow: {
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  reportMonthTextWrap: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  reportMonthText: {
+    ...Typography.body1.l.bold,
+  },
+  reportScoreCard: {
+    width: '100%',
+    // minHeight는 디바이스 높이에 따라 동적으로 적용 (reportScoreCardHeight)
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reportScoreLabel: {
+    ...Typography.body2.r.medium,
+    marginBottom: 16,
+  },
+  reportScoreValueRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginBottom: 24,
+  },
+  reportScoreValue: {
+    ...Typography.headline1.xl.bold,
+    fontSize: 32,
+    lineHeight: 48,
+  },
+  reportScoreUnit: {
+    ...Typography.body1.l.bold,
+    marginLeft: 4,
+  },
+  reportScoreMessage: {
+    ...Typography.body1.l.regular,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  trendFilterContainer: {
+    flexDirection: 'row',
+    paddingTop: 0,
+    paddingBottom: 16,
+    gap: 8,
+  },
+  trendCategoryList: {
+    paddingBottom: 20,
+  },
+  trendCategoryItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    marginBottom: 8,
+  },
+  trendCategorySection: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 4,
+    flex: 1,
+  },
+  trendCategoryName: {
+    fontSize: 16,
+    fontFamily: 'Pretendard',
+    fontWeight: '700',
+    lineHeight: 24,
+    flex: 1,
+  },
+  trendCategoryStats: {
+    fontSize: 16,
+    fontFamily: 'Pretendard',
+    fontWeight: '700',
+    lineHeight: 24,
   },
   challengeList: {
     paddingHorizontal: 16,

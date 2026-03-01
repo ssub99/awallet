@@ -22,10 +22,27 @@ export interface TopNavigationProps {
   
   /**
    * Title text
-   * - main: Menu name (left aligned, Bold 21)
+   * - main: Used as single menu label when tabs not provided; or sub title
    * - sub: Title (center aligned, Bold 16)
    */
   title: string;
+  
+  /**
+   * Main type only. Menu items as tabs (same structure for 1 or 2+).
+   * When length is 1, pressing the menu does nothing.
+   * When length >= 2, pressing switches tab and calls onTabChange.
+   */
+  tabs?: { id: string; label: string }[];
+  
+  /**
+   * Main type only. Active tab id when using tabs. Defaults to first tab id.
+   */
+  activeTabId?: string;
+  
+  /**
+   * Main type only. Called when user selects another tab (tabs.length >= 2).
+   */
+  onTabChange?: (id: string) => void;
   
   /**
    * Show date display
@@ -125,6 +142,9 @@ export interface TopNavigationProps {
 export function TopNavigation({
   type = 'main',
   title,
+  tabs: tabsProp,
+  activeTabId,
+  onTabChange,
   showDay = false,
   dateText,
   showLeftIcon = false,
@@ -146,6 +166,11 @@ export function TopNavigation({
 }: TopNavigationProps) {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  
+  // Main type: unified tab structure (1 or 2+ items)
+  const effectiveTabs = tabsProp ?? [{ id: 'default', label: title }];
+  const activeId = activeTabId ?? effectiveTabs[0]?.id ?? 'default';
+  const isSingleTab = effectiveTabs.length <= 1;
   
   // Year/Month Picker state
   const [showMonthPicker, setShowMonthPicker] = useState(false);
@@ -171,7 +196,6 @@ export function TopNavigation({
     }
   };
 
-
   // Animate period toggle slide (switch-like animation)
   useEffect(() => {
     Animated.spring(periodSlideX, {
@@ -183,12 +207,29 @@ export function TopNavigation({
   }, [periodType, periodSlideX]);
 
   const handleDropdownPress = () => {
-    // 년도만 선택하거나 년도/월 선택
     if (yearOptions && yearOptions.length > 0) {
       setShowMonthPicker(true);
     } else if (onDropdownPress) {
       onDropdownPress();
     }
+  };
+
+  const handleMainTabPress = (id: string) => {
+    if (isSingleTab) {
+      // 메뉴 1개: 탭 텍스트 누름 → 아무 동작 없음 (드롭다운만 별도 처리)
+      return;
+    }
+    if (id !== activeId) {
+      onTabChange?.(id);
+    }
+  };
+
+  const handleMainTabOrDropdownPress = (id: string) => {
+    if (id === activeId && showDropdownArrow) {
+      handleDropdownPress();
+      return;
+    }
+    handleMainTabPress(id);
   };
 
   return (
@@ -209,20 +250,47 @@ export function TopNavigation({
             </Pressable>
           )}
 
-          {/* Main Type: Title/Date with dropdown arrow */}
+          {/* Main Type: Tabs (1 or 2+), same structure. 1 tab + no dropdown → no press. */}
           {type === 'main' && (
-            <Pressable
-              onPress={showDropdownArrow ? handleDropdownPress : undefined}
-              disabled={!showDropdownArrow}
-              style={styles.mainTitleContainer}
-            >
-              <Text style={[styles.mainTitle, { color: colors.text }]}>
-                {showDay && dateText ? dateText : title}
-              </Text>
-              {showDropdownArrow && (
-                <Icon name="arrowDown" variant="solid" size={24} color={colors.textAssistive} />
-              )}
-            </Pressable>
+            <View style={styles.mainTabsRow}>
+              {effectiveTabs.map((tab) => {
+                const isActive = tab.id === activeId;
+                const displayLabel = showDay && dateText && isActive ? dateText : tab.label;
+                const canPressDropdown = isActive && showDropdownArrow;
+                const hasPress = !isSingleTab || canPressDropdown;
+                const content = (
+                  <>
+                    <Text
+                      style={[
+                        styles.mainTitle,
+                        { color: isActive ? colors.text : colors.textAssistive },
+                      ]}
+                    >
+                      {displayLabel}
+                    </Text>
+                    {showDropdownArrow && isActive && (
+                      <Icon name="arrowDown" variant="solid" size={24} color={colors.textAssistive} />
+                    )}
+                  </>
+                );
+                return hasPress ? (
+                  <Pressable
+                    key={tab.id}
+                    onPress={() => handleMainTabOrDropdownPress(tab.id)}
+                    style={styles.mainTitleContainer}
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected: isActive }}
+                    accessibilityLabel={displayLabel}
+                  >
+                    {content}
+                  </Pressable>
+                ) : (
+                  <View key={tab.id} style={styles.mainTitleContainer} accessibilityLabel={displayLabel}>
+                    {content}
+                  </View>
+                );
+              })}
+            </View>
           )}
         </View>
 
@@ -349,6 +417,11 @@ const styles = StyleSheet.create({
   leftSection: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  mainTabsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   iconButton: {
     width: 32,

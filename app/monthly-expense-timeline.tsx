@@ -5,8 +5,6 @@
  */
 
 import { TopNavigation } from '@/components/navigation/top-navigation';
-import { Chip } from '@/components/ui/chip';
-import { Tab } from '@/components/ui/tab';
 import { Tag } from '@/components/ui/tag';
 import { Colors, Typography } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';
@@ -19,7 +17,18 @@ import { getCustomMonthRange, isDateInCustomMonth } from '@/utils/custom-month';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Animated,
+  Dimensions,
+  GestureResponderEvent,
+  PanResponder,
+  PanResponderGestureState,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 // 카테고리별 이모지 매핑 (통합 카테고리 로드)
@@ -99,9 +108,6 @@ export default function MonthlyExpenseTimelineScreen() {
   }, [setLoading]);
   const router = useRouter();
   const [monthStartDay, setMonthStartDay] = useState(1);
-  
-  // Navigation lock to prevent duplicate navigation
-  const isNavigating = useRef(false);
 
   // Year/Month options for picker (홈 화면과 동일하게 ±10년)
   const yearOptions = useMemo(() => {
@@ -169,9 +175,117 @@ export default function MonthlyExpenseTimelineScreen() {
     return defaultTargetDate;
   }, [defaultTargetDate, initialMonthParam, initialYearParam, month, params.selectedDate, year]);
 
+  // 날짜 선택 UI에서 선택한 날짜 — 탭 시 갱신, 최초 진입 시 params와 동기화
+  const [pickedDateForWeek, setPickedDateForWeek] = useState(targetDateFromSelection);
+  const prevMonthRef = useRef<{ year: number; month: number } | null>(null);
+  /** 월 변경 직후 refreshData가 포커스를 설정할 때까지 1일 보정 effect가 개입하지 않도록 */
+  const pendingMonthFocusRef = useRef(false);
+  /** 진입/월 전환 시 false(애니메이션 없음), 날짜 탭 시 true(애니메이션) */
+  const scrollAnimatedRef = useRef(false);
+
+  // 월 변경 감지: 반드시 targetDateFromSelection effect보다 먼저 실행되어야 함
+  // (targetDateFromSelection이 1일로 덮어쓰는 것을 막기 위해 pendingMonthFocusRef를 선설정)
+  useEffect(() => {
+    const prev = prevMonthRef.current;
+    if (prev === null) {
+      prevMonthRef.current = { year, month };
+      return;
+    }
+    if (prev.year !== year || prev.month !== month) {
+      prevMonthRef.current = { year, month };
+      pendingMonthFocusRef.current = true;
+      // 스와이프/월 변경 시 페이드아웃
+      Animated.timing(contentOpacity, {
+        toValue: 0,
+        duration: 150,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [year, month]);
+
+  // 최초 진입 시 params와 동기화. 월 변경 직후는 refreshData가 마지막 기록일로 설정하므로 건너뜀
+  useEffect(() => {
+    if (pendingMonthFocusRef.current) return;
+    scrollAnimatedRef.current = false;
+    shouldScrollTimelineToDateRef.current = true; // 홈에서 진입 시 선택 날짜로 타임라인 스크롤
+    setPickedDateForWeek(targetDateFromSelection);
+  }, [targetDateFromSelection]);
+
+  // 해당 월(커스텀 월 시작일 기준) 시작일~마지막일 전체 날짜 배열
+  const monthDates = useMemo(() => {
+    const { startDate, endDate } = getCustomMonthRange(year, month, monthStartDay);
+    const out: string[] = [];
+    const cur = new Date(startDate);
+    while (cur <= endDate) {
+      const y = cur.getFullYear();
+      const m = String(cur.getMonth() + 1).padStart(2, '0');
+      const d = String(cur.getDate()).padStart(2, '0');
+      out.push(`${y}-${m}-${d}`);
+      cur.setDate(cur.getDate() + 1);
+    }
+    return out;
+  }, [year, month, monthStartDay]);
+
+  const weekDayLabels = ['일', '월', '화', '수', '목', '금', '토'];
+
+  const dateStripScrollRef = useRef<ScrollView>(null);
+  const timelineScrollRef = useRef<ScrollView>(null);
+  const DATE_CELL_WIDTH = 42;
+  /** 날짜 스트립 스크롤 애니메이션 duration (ms) - 타임라인 스크롤 완료 후 포커스 이동 시 사용 */
+  const DATE_STRIP_SCROLL_DURATION_MS = 400;
+  const dateStripScrollXRef = useRef(0);
+  /** 타임라인 날짜 섹션별 레이아웃 (스크롤 기반 포커스용) */
+  const dateSectionLayoutsRef = useRef<Map<string, { top: number; height: number }>>(new Map());
+  /** 날짜 탭/초기 진입 시 타임라인 스크롤 필요 */
+  const shouldScrollTimelineToDateRef = useRef(false);
+
+  // 선택일이 해당 월 범위에 없으면 첫날로 보정 (월 변경 직후는 refreshData에서 한 번만 설정하므로 제외)
+  useEffect(() => {
+    if (monthDates.length === 0 || monthDates.includes(pickedDateForWeek) || pendingMonthFocusRef.current) return;
+    scrollAnimatedRef.current = false;
+    setPickedDateForWeek(monthDates[0]);
+  }, [monthDates, pickedDateForWeek]);
+
+  // 선택일 변경 시 해당 날짜가 가운데로 오도록 가로 스크롤
+  const dateStripScrollAnimRef = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const idx = monthDates.indexOf(pickedDateForWeek);
+    if (idx < 0 || !dateStripScrollRef.current) return;
+    const viewportWidth = Dimensions.get('window').width;
+    const paddingHorizontal = 16;
+    const cellCenterInContent = paddingHorizontal + idx * DATE_CELL_WIDTH + DATE_CELL_WIDTH / 2;
+    const contentWidth = paddingHorizontal * 2 + monthDates.length * DATE_CELL_WIDTH;
+    const maxScroll = Math.max(0, contentWidth - viewportWidth);
+    const x = Math.max(0, Math.min(cellCenterInContent - viewportWidth / 2, maxScroll));
+    const animated = scrollAnimatedRef.current;
+    scrollAnimatedRef.current = true;
+
+    if (animated) {
+      const fromX = dateStripScrollXRef.current;
+      if (Math.abs(fromX - x) < 1) return; // 거의 같은 위치면 스킵
+      dateStripScrollAnimRef.setValue(0);
+      const listenerId = dateStripScrollAnimRef.addListener(({ value }) => {
+        const currentX = fromX + (x - fromX) * value;
+        dateStripScrollRef.current?.scrollTo({ x: currentX, animated: false });
+        dateStripScrollXRef.current = currentX;
+      });
+      Animated.timing(dateStripScrollAnimRef, {
+        toValue: 1,
+        duration: DATE_STRIP_SCROLL_DURATION_MS,
+        useNativeDriver: false,
+      }).start(({ finished }) => {
+        dateStripScrollAnimRef.removeListener(listenerId);
+        if (finished) dateStripScrollXRef.current = x;
+      });
+    } else {
+      dateStripScrollRef.current.scrollTo({ x, animated: false });
+      dateStripScrollXRef.current = x;
+    }
+  }, [pickedDateForWeek, monthDates, dateStripScrollAnimRef]);
+
   // 스와이프 뒤로가기를 포함한 모든 복귀 경로에서 홈 월 컨텍스트 유지
   useEffect(() => {
-    const targetDate = targetDateFromSelection;
+    const targetDate = pickedDateForWeek;
     setLatestPendingCalendarTarget({ year, month, targetDate });
     // 실시간 동기화: 타임라인 월 변경 즉시 홈의 월 컨텍스트도 갱신
     applyPendingCalendarTargetEvent.emit({ year, month, targetDate });
@@ -181,92 +295,24 @@ export default function MonthlyExpenseTimelineScreen() {
     ).catch(() => {
       // ignore
     });
-  }, [year, month, targetDateFromSelection]);
-  
-  // Tab state
-  const initialTab = params.tab === 'status' ? 'status' : 'timeline';
-  const [activeTab, setActiveTab] = useState<'timeline' | 'status'>(initialTab);
+  }, [year, month, pickedDateForWeek]);
   
   // Timeline data
   const [timelineData, setTimelineData] = useState<TimelineItem[]>([]);
   
-  // Category expense data
-  const [categoryExpenses, setCategoryExpenses] = useState<{
-    category: string;
-    count: number;
-    amount: number;
-    memo?: string;
-  }[]>([]);
-  
-  // Filter state for category view
-  const [categoryFilter, setCategoryFilter] = useState<'all' | 'recurring'>('all');
-  
-  // 페이드인 효과를 위한 state
   const [isContentReady, setIsContentReady] = useState(false);
   const contentOpacity = useRef(new Animated.Value(0)).current;
   const hasAnimatedRef = useRef(false);
-  
-  // Removed: Timeline data loading moved to useFocusEffect below
-
-  // Calculate category expenses from timeline data
-  useEffect(() => {
-    
-    const categoryMap = new Map<string, { count: number; amount: number; memo?: string }>();
-    
-    timelineData.forEach((item) => {
-      if (item.type === 'expense') {
-        // Filter by type if needed
-        if (categoryFilter === 'recurring' && !item.isRecurring) return;
-        if (categoryFilter === 'all' && item.isRecurring) return;
-        
-        const category = item.category || '기타';
-        const amount = item.amount || 0;
-        
-        if (categoryMap.has(category)) {
-          const existing = categoryMap.get(category)!;
-          existing.count += 1;
-          existing.amount += amount;
-          if (item.memo && !existing.memo) {
-            existing.memo = item.memo;
-          }
-        } else {
-          categoryMap.set(category, {
-            count: 1,
-            amount: amount,
-            memo: item.memo
-          });
-        }
-      }
-    });
-    
-    // Convert to array and sort by amount (descending)
-    const expenses = Array.from(categoryMap.entries())
-      .map(([category, data]) => ({
-        category,
-        count: data.count,
-        amount: data.amount,
-        memo: data.memo
-      }))
-      .sort((a, b) => b.amount - a.amount);
-
-    setCategoryExpenses(expenses);
-  }, [timelineData, categoryFilter, year, month, monthStartDay]);
-
-  // Load challenge data - REMOVED (useFocusEffect에서 처리)
-
   // 데이터 새로고침 함수
   const refreshData = useCallback(async () => {
         beginLoad();
+        setIsContentReady(false);
+        let loadedItems: TimelineItem[] = [];
         try {
-          if (!hasAnimatedRef.current) {
-            setIsContentReady(false);
-          }
-          
-          // Load month start day
+          // 1. 월 시작일 로드
           const monthStart = await loadMonthStartDay();
-          setMonthStartDay(monthStart);
           
-          // 타임라인 데이터 새로고침
+          // 2. 타임라인 데이터 로드
           const storedData = await AsyncStorage.getItem('calendarData');
           if (storedData) {
             // recurringType이 null인 경우 undefined로 변환 (JSON.parse reviver)
@@ -340,16 +386,59 @@ export default function MonthlyExpenseTimelineScreen() {
               if (dateCompare !== 0) return dateCompare;
               return (b.timestamp || 0) - (a.timestamp || 0);
             });
-            
-            setTimelineData(items);
+            loadedItems = items;
           }
 
-          // 데이터 로드 완료 후 페이드인 준비
+          // 3. 모든 데이터 로드 완료 후 한 번에 state 갱신 (날짜영역·월소비합계·타임라인 리스트 동시 반영)
+          setMonthStartDay(monthStart);
+          setTimelineData(loadedItems);
+
+          // 월 변경 직후: 데이터가 있는 마지막날로 포커스 (없으면 1일), 한 번에 설정하여 스크롤이 로딩 전에 완료되도록
+          if (pendingMonthFocusRef.current) {
+            const { startDate, endDate } = getCustomMonthRange(year, month, monthStart);
+            const datesThisMonth: string[] = [];
+            const cur = new Date(startDate);
+            while (cur <= endDate) {
+              const y = cur.getFullYear();
+              const m = String(cur.getMonth() + 1).padStart(2, '0');
+              const d = String(cur.getDate()).padStart(2, '0');
+              datesThisMonth.push(`${y}-${m}-${d}`);
+              cur.setDate(cur.getDate() + 1);
+            }
+            const datesWithRecord = [...new Set(loadedItems.map((i) => i.date))].sort();
+            const lastWithRecord = datesWithRecord.length > 0 ? datesWithRecord[datesWithRecord.length - 1]! : null;
+            const focusDate = lastWithRecord ?? datesThisMonth[0]!;
+            scrollAnimatedRef.current = false;
+            setPickedDateForWeek(focusDate);
+            pendingMonthFocusRef.current = false;
+            // 포커스 스크롤 적용 후 페이드인
+            requestAnimationFrame(() => {
+              setIsContentReady(true);
+              hasAnimatedRef.current = true;
+              Animated.timing(contentOpacity, {
+                toValue: 1,
+                duration: 200,
+                useNativeDriver: true,
+              }).start();
+            });
+          } else {
+            // 데이터 로드 완료 후 페이드인
+            setIsContentReady(true);
+            hasAnimatedRef.current = true;
+            Animated.timing(contentOpacity, {
+              toValue: 1,
+              duration: 200,
+              useNativeDriver: true,
+            }).start();
+          }
+        } catch {
           setIsContentReady(true);
           hasAnimatedRef.current = true;
-        } catch {
-          setIsContentReady(true); // 에러 발생 시에도 페이드인 처리
-          hasAnimatedRef.current = true;
+          Animated.timing(contentOpacity, {
+            toValue: 1,
+            duration: 200,
+            useNativeDriver: true,
+          }).start();
         } finally {
           endLoad();
         }
@@ -370,20 +459,6 @@ export default function MonthlyExpenseTimelineScreen() {
 
   // 전역 이벤트 구독은 컨텍스트에서 처리하므로 제거 (중복 새로고침 방지)
 
-  // 페이드인 애니메이션 처리
-  useEffect(() => {
-    if (isContentReady) {
-      contentOpacity.setValue(0);
-      Animated.timing(contentOpacity, {
-        toValue: 1,
-        duration: 200,
-        useNativeDriver: true,
-      }).start();
-    } else {
-      contentOpacity.setValue(0);
-    }
-  }, [isContentReady, contentOpacity]);
-  
   // Calculate monthly totals
   const monthlyTotals = useMemo(() => {
     let income = 0;
@@ -414,7 +489,34 @@ export default function MonthlyExpenseTimelineScreen() {
     
     return groups;
   }, [timelineData]);
-  
+
+  // 월/데이터 변경 시 레이아웃 캐시 초기화 (이전 월 레이아웃으로 잘못 매칭되는 것 방지)
+  const timelineDateKeysRef = useRef<string>('');
+  useEffect(() => {
+    const keys = Object.keys(groupedTimeline).join(',');
+    if (timelineDateKeysRef.current !== keys) {
+      timelineDateKeysRef.current = keys;
+      dateSectionLayoutsRef.current.clear();
+    }
+  }, [groupedTimeline]);
+
+  // 날짜 탭/초기 진입 시: 해당 날짜 섹션이 뷰포트 최상단에 오도록 타임라인 스크롤 (기록이 있는 날짜만)
+  useEffect(() => {
+    if (!shouldScrollTimelineToDateRef.current) return;
+    if (!(pickedDateForWeek in groupedTimeline)) return;
+
+    const scrollToDate = () => {
+      const layout = dateSectionLayoutsRef.current.get(pickedDateForWeek);
+      if (layout && timelineScrollRef.current) {
+        timelineScrollRef.current.scrollTo({ y: layout.top, animated: true });
+        shouldScrollTimelineToDateRef.current = false;
+      }
+    };
+    scrollToDate();
+    const id = setTimeout(scrollToDate, 200); // 레이아웃 미측정 시 재시도
+    return () => clearTimeout(id);
+  }, [pickedDateForWeek, groupedTimeline]);
+
   // Format date for display
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -423,10 +525,47 @@ export default function MonthlyExpenseTimelineScreen() {
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}.${month}.${day}`;
   };
-  
+
+  const handlePrevMonth = useCallback(() => {
+    setCurrentMonth((prevMonth) => {
+      if (prevMonth === 1) {
+        setCurrentYear((prevYear) => prevYear - 1);
+        return 12;
+      }
+      return prevMonth - 1;
+    });
+  }, []);
+
+  const handleNextMonth = useCallback(() => {
+    setCurrentMonth((prevMonth) => {
+      if (prevMonth === 12) {
+        setCurrentYear((prevYear) => prevYear + 1);
+        return 1;
+      }
+      return prevMonth + 1;
+    });
+  }, []);
+
+  const timelinePanResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_evt: GestureResponderEvent, gestureState: PanResponderGestureState) => {
+        const { dx, dy } = gestureState;
+        return Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy);
+      },
+      onPanResponderRelease: (_evt: GestureResponderEvent, gestureState: PanResponderGestureState) => {
+        const SWIPE_THRESHOLD = 50;
+        const { dx } = gestureState;
+        if (dx <= -SWIPE_THRESHOLD || dx >= SWIPE_THRESHOLD) {
+          if (dx <= -SWIPE_THRESHOLD) handleNextMonth();
+          else handlePrevMonth();
+        }
+      },
+    })
+  ).current;
+
   const handleBackPress = useCallback(() => {
     void (async () => {
-      const targetDate = targetDateFromSelection;
+      const targetDate = pickedDateForWeek;
       setLatestPendingCalendarTarget({ year, month, targetDate });
       // 홈 화면이 이미 마운트되어 있으면 즉시 상태를 맞춰 점프를 제거
       applyPendingCalendarTargetEvent.emit({ year, month, targetDate });
@@ -453,12 +592,12 @@ export default function MonthlyExpenseTimelineScreen() {
         },
       });
     })();
-  }, [month, router, targetDateFromSelection, year]);
+  }, [month, router, pickedDateForWeek, year]);
   
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
-      {/* Top Navigation */}
-      <Animated.View style={{ opacity: isContentReady ? contentOpacity : 0 }}>
+      {/* Top Navigation: 데이터 로딩과 무관하게 항상 표시 */}
+      <View>
         <TopNavigation
           type="sub"
           title=""
@@ -482,78 +621,132 @@ export default function MonthlyExpenseTimelineScreen() {
             setCurrentMonth(newMonth);
           }}
         />
+      </View>
+
+      {/* 본문 */}
+      <View style={styles.timelineBodyWrap}>
+      {/* 날짜 선택: 해당 월 시작일~마지막일만 스크롤 (월 전환 제스처 제외) */}
+      <Animated.View style={[styles.weekRowWrap, { opacity: contentOpacity }]}>
+        <View style={[styles.weekRow, { backgroundColor: colors.fill }]}>
+          <ScrollView
+            ref={dateStripScrollRef}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.dateStripContent}
+            onScroll={(e) => {
+              dateStripScrollXRef.current = e.nativeEvent.contentOffset.x;
+            }}
+            scrollEventThrottle={16}
+          >
+            {monthDates.map((dateStr) => {
+              const isSelected = dateStr === pickedDateForWeek;
+              const hasRecord = dateStr in groupedTimeline;
+              const d = new Date(dateStr + 'T12:00:00');
+              const dayNum = d.getDate();
+              const dayLabel = weekDayLabels[d.getDay()];
+              return (
+                <Pressable
+                  key={dateStr}
+                  style={[styles.weekDayCell, { width: DATE_CELL_WIDTH }]}
+                  onPress={() => {
+                    scrollAnimatedRef.current = true;
+                    shouldScrollTimelineToDateRef.current = true; // 날짜 탭 시 해당 날짜 섹션이 최상단에 오도록 타임라인 스크롤
+                    setPickedDateForWeek(dateStr);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${dayNum}일 선택`}
+                  accessibilityState={{ selected: isSelected }}
+                >
+                  <Text style={[styles.weekDayLabel, { color: colors.textAssistive }]}>
+                    {dayLabel}
+                  </Text>
+                  <View
+                    style={[
+                      styles.weekDayCircle,
+                      {
+                        backgroundColor: isSelected ? colors.primary : 'transparent',
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.weekDayNumber,
+                        { color: isSelected ? colors.staticWhite : colors.textAssistive },
+                      ]}
+                    >
+                      {dayNum}
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.weekDayDot,
+                      { backgroundColor: hasRecord ? (isSelected ? colors.primary : colors.textAssistive) : 'transparent' },
+                    ]}
+                  />
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
       </Animated.View>
       
-      {/* Tab Menu */}
-      <Animated.View style={{ opacity: isContentReady ? contentOpacity : 0 }}>
-        <Tab
-          options={[
-            { label: '타임라인', value: 'timeline' },
-            { label: '소비 현황', value: 'status' },
-          ]}
-          value={activeTab}
-          onValueChange={setActiveTab}
-        />
-        
-        {/* Month Summary - Only show for timeline tab */}
-        {activeTab === 'timeline' && (
-          <View style={[styles.summaryContainer, { backgroundColor: colors.background }]}>
-            <Text style={[styles.summaryMonth, { color: colors.staticBlack }]}>
-              {(() => {
-                // 월 시작일 기준으로 실제 범위 계산
-                const { startDate, endDate } = getCustomMonthRange(year, month, monthStartDay);
-                
-                const startMonth = String(startDate.getMonth() + 1).padStart(2, '0');
-                const startDay = String(startDate.getDate()).padStart(2, '0');
-                const endMonth = String(endDate.getMonth() + 1).padStart(2, '0');
-                const endDay = String(endDate.getDate()).padStart(2, '0');
-                
-                return `${startMonth}.${startDay} - ${endMonth}.${endDay}`;
-              })()}
-            </Text>
+      {/* 월 소비합계 + 타임라인: 좌우 스와이프로 월 변경 */}
+      <View style={styles.timelineSwipeArea} {...timelinePanResponder.panHandlers}>
+      {/* Month Summary */}
+      <Animated.View style={{ opacity: contentOpacity }}>
+        <View style={[styles.summaryContainer, { backgroundColor: colors.background }]}>
+          <Text style={[styles.summaryMonth, { color: colors.staticBlack }]}>
+            {(() => {
+              const { startDate, endDate } = getCustomMonthRange(year, month, monthStartDay);
+              const startMonth = String(startDate.getMonth() + 1).padStart(2, '0');
+              const startDay = String(startDate.getDate()).padStart(2, '0');
+              const endMonth = String(endDate.getMonth() + 1).padStart(2, '0');
+              const endDay = String(endDate.getDate()).padStart(2, '0');
+              return `${startMonth}.${startDay} - ${endMonth}.${endDay}`;
+            })()}
+          </Text>
+          
+          <View style={styles.summaryAmounts}>
+            <View style={styles.summaryIncomeContainer}>
+              <Text 
+                style={[styles.summaryIncome, { color: colors.text }]}
+                adjustsFontSizeToFit
+                numberOfLines={1}
+                minimumFontScale={0.7}
+              >
+                + {monthlyTotals.income.toLocaleString()}원
+              </Text>
+            </View>
             
-            <View style={styles.summaryAmounts}>
-              <View style={styles.summaryIncomeContainer}>
-                <Text 
-                  style={[styles.summaryIncome, { color: colors.text }]}
-                  adjustsFontSizeToFit
-                  numberOfLines={1}
-                  minimumFontScale={0.7}
-                >
-                  + {monthlyTotals.income.toLocaleString()}원
-                </Text>
-              </View>
-              
-              <View style={[styles.summaryDivider, { backgroundColor: colors.border }]} />
-              
-              <View style={styles.summaryExpenseContainer}>
-                <Text 
-                  style={[styles.summaryExpense, { color: colors.text }]}
-                  adjustsFontSizeToFit
-                  numberOfLines={1}
-                  minimumFontScale={0.7}
-                >
-                  - {monthlyTotals.expense.toLocaleString()}원
-                </Text>
-              </View>
+            <View style={[styles.summaryDivider, { backgroundColor: colors.border }]} />
+            
+            <View style={styles.summaryExpenseContainer}>
+              <Text 
+                style={[styles.summaryExpense, { color: colors.text }]}
+                adjustsFontSizeToFit
+                numberOfLines={1}
+                minimumFontScale={0.7}
+              >
+                - {monthlyTotals.expense.toLocaleString()}원
+              </Text>
             </View>
           </View>
-        )}
-        
-        {/* Divider - Only show for timeline tab */}
-        {activeTab === 'timeline' && (
-          <View style={styles.headerDivider} />
-        )}
+        </View>
+        {/* Figma: 월 소비 합계 영역 하단 라인 디바이더 (Line/Normal, rgba(144,146,158,0.16)) */}
+        <View style={[styles.summaryBottomDivider, { backgroundColor: colors.border }]} />
       </Animated.View>
       
-      {/* Content based on active tab */}
-      <Animated.View style={{ opacity: isContentReady ? contentOpacity : 0, flex: 1 }}>
-      {activeTab === 'timeline' ? (
-        /* Timeline Content */
-        <ScrollView 
+      {/* Timeline Content (headerDivider는 스크롤과 함께 이동) */}
+      <Animated.View style={{ opacity: contentOpacity, flex: 1 }}>
+        <ScrollView
+          ref={timelineScrollRef}
           style={styles.scrollContainer}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            Object.keys(groupedTimeline).length === 0 && styles.scrollContentEmpty,
+          ]}
         >
+        <View style={styles.headerDivider} />
         {Object.keys(groupedTimeline).length === 0 ? (
           <View style={styles.emptyContainer}>
             <Text style={[styles.emptyText, { color: colors.textAssistive }]}>
@@ -566,7 +759,14 @@ export default function MonthlyExpenseTimelineScreen() {
             const isLastGroup = groupIndex === totalGroups - 1;
             
             return (
-              <View key={date} style={styles.dateGroup}>
+              <View
+                key={date}
+                style={styles.dateGroup}
+                onLayout={(e) => {
+                  const { y, height } = e.nativeEvent.layout;
+                  dateSectionLayoutsRef.current.set(date, { top: y, height });
+                }}
+              >
                 {items.map((item, itemIndex) => {
                   const isFirstInGroup = itemIndex === 0;
                   const isLastInGroup = itemIndex === items.length - 1;
@@ -814,253 +1014,9 @@ export default function MonthlyExpenseTimelineScreen() {
           })
         )}
         </ScrollView>
-      ) : activeTab === 'status' ? (
-        /* Category Expense Status Content */
-        <ScrollView 
-          style={[styles.scrollContainer, { backgroundColor: colors.fill }]}
-          contentContainerStyle={styles.scrollContent}
-        >
-          {/* Filter Chips */}
-          <View style={styles.filterContainer}>
-            <Chip
-              label="이번달 지출 순위"
-              active={categoryFilter === 'all'}
-              onPress={() => setCategoryFilter('all')}
-            />
-            <Chip
-              label="정기 지출"
-              active={categoryFilter === 'recurring'}
-              onPress={() => setCategoryFilter('recurring')}
-            />
-          </View>
-          
-          {/* Category List */}
-          {categoryExpenses.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Text style={[styles.emptyText, { color: colors.textAssistive }]}>
-                {categoryFilter === 'all' ? '이번달 지출 내역이 없습니다.' : '정기 지출 내역이 없습니다.'}
-              </Text>
-              {categoryFilter === 'all' && (
-                <Text style={[styles.emptyText, { color: colors.textAssistive }]}>
-                  0원
-                </Text>
-              )}
-            </View>
-          ) : (
-            <View style={styles.categoryList}>
-              {categoryExpenses.map((item, index) => (
-                <View key={item.category}>
-                  <Pressable
-                    style={[styles.categoryItemStatus, { backgroundColor: colors.staticWhite }]}
-                    onPress={() => {
-                      router.push({
-                        pathname: '/expense-category-detail',
-                        params: {
-                          category: item.category,
-                          year: year.toString(),
-                          month: month.toString(),
-                        },
-                      });
-                    }}
-                  >
-                    <View style={styles.categorySection}>
-                      <Text style={[styles.categoryName, { color: colors.text }]}>
-                        {categoryEmojiMap[item.category] || '📝'} {item.category}
-                      </Text>
-                      <Text style={[styles.categoryStatsText, { color: colors.text }]}>
-                        {categoryFilter === 'recurring' 
-                          ? `${item.amount.toLocaleString()}원`
-                          : `${item.count}건 · ${item.amount.toLocaleString()}원`
-                        }
-                      </Text>
-                    </View>
-                  </Pressable>
-                </View>
-              ))}
-            </View>
-          )}
-        </ScrollView>
-      ) : (
-        /* Challenge Status Content */
-        <ScrollView 
-          style={[styles.scrollContainer, { backgroundColor: colors.fill }]}
-          contentContainerStyle={styles.scrollContent}
-        >
-          {challenges.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Text style={[styles.emptyText, { color: colors.textAssistive }]}>
-                생성된 챌린지가 없습니다.
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.challengeList}>
-              {challenges.map((challenge) => {
-                const categoryEmoji = categoryEmojiMap[challenge.category];
-                
-                // 안전한 targetAmount 처리
-                let targetAmount = 0;
-                if (challenge.targetAmount) {
-                  if (typeof challenge.targetAmount === 'string') {
-                    const cleanAmount = (challenge.targetAmount as string).replace(/,/g, '');
-                    targetAmount = parseInt(cleanAmount) || 0;
-                  } else if (typeof challenge.targetAmount === 'number') {
-                    targetAmount = challenge.targetAmount;
-                  }
-                }
-                
-                // 미리 계산된 챌린지 소비금액 사용
-                const currentAmount = challengeAmounts[challenge.id] || 0;
-                const progress = targetAmount > 0 ? (currentAmount / targetAmount) * 100 : 0;
-                const isOverBudget = currentAmount > targetAmount;
-                
-                // 챌린지 상태 계산 (피그마 디자인에 맞게)
-                const getChallengeStatus = () => {
-                  const today = new Date();
-                  today.setHours(0, 0, 0, 0); // 시간 제거
-                  
-                  const startDate = new Date(challenge.startDate.replace(/\./g, '-'));
-                  startDate.setHours(0, 0, 0, 0);
-                  
-                  const endDate = new Date(challenge.endDate.replace(/\./g, '-'));
-                  endDate.setHours(0, 0, 0, 0);
-                  
-                  
-                  
-                  // 챌린지 시작일 판단 (단순히 현재 날짜와 비교)
-                  const isChallengeStarted = () => {
-                    
-                    
-                    // 챌린지 시작일이 현재 날짜 이전 또는 같은 날인지 확인
-                    return startDate <= today;
-                  };
-                  
-                  // 시작일이 미래인 경우: "진행 전"
-                  if (!isChallengeStarted()) {
-
-                    return { 
-                      text: '진행 전', 
-                      color: '#222222', 
-                      bgColor: 'transparent', 
-                      showProgressComplete: false,
-                      isBeforeStart: true
-                    };
-                  }
-                  
-                  // 챌린지가 진행 중인 경우: 남은 기간 표시
-                  const daysLeft = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-
-                  if (daysLeft < 0) {
-                    return { 
-                      text: isOverBudget ? 'Failed' : 'Success', 
-                      color: isOverBudget ? '#ef5252' : '#07b63b', 
-                      bgColor: isOverBudget ? '#ef5252' : '#07b63b',
-                      showProgressComplete: true,
-                      isBeforeStart: false
-                    };
-                  } else if (daysLeft === 0) {
-                    return { text: 'D-0', color: '#222222', bgColor: 'transparent', showProgressComplete: false, isBeforeStart: false };
-                  } else {
-                    return { text: `D-${daysLeft}`, color: '#222222', bgColor: 'transparent', showProgressComplete: false, isBeforeStart: false };
-                  }
-                };
-                
-                const status = getChallengeStatus();
-                
-                return (
-                    <Pressable 
-                    key={challenge.id} 
-                    style={[styles.challengeCard, { backgroundColor: colors.staticWhite }]}
-                    onPress={() => {
-                      // 중복 네비게이션 방지
-                      if (isNavigating.current) {
-
-                        return;
-                      }
-                      
-                      isNavigating.current = true;
-
-                      router.push({
-                        pathname: '/challenge-detail',
-                        params: {
-                          challengeId: challenge.id
-                        }
-                      });
-                      
-                      // 500ms 후 네비게이션 잠금 해제
-                      setTimeout(() => {
-                        isNavigating.current = false;
-                      }, 500);
-                    }}
-                  >
-                      {/* Challenge Header - 피그마 디자인에 맞게 */}
-                      <View style={styles.challengeHeader}>
-                        <View style={styles.challengeCategory}>
-                          <Text style={[styles.challengeCategoryName, { color: colors.text }]}>
-                            {categoryEmoji || '📝'} {challenge.category}
-                          </Text>
-                        </View>
-                        <View style={styles.challengeStatusContainer}>
-                          {status.showProgressComplete && (
-                            <View style={[styles.challengeStatus, { gap: 0 }]}>
-                              {status.bgColor !== 'transparent' ? (
-                                <View style={[styles.statusBadge, { backgroundColor: status.bgColor }]}>
-                                  <Text style={[styles.statusText, { color: '#ffffff' }]}>
-                                    {status.text}
-                                  </Text>
-                                </View>
-                              ) : (
-                                <Text style={[styles.statusLabel, { color: status.color }]}>
-                                  {status.text}
-                                </Text>
-                              )}
-                            </View>
-                          )}
-                          <Text style={[styles.statusLabel, { color: colors.text }]}>
-                            {status.showProgressComplete ? '종료' : status.text}
-                          </Text>
-                        </View>
-                      </View>
-                    
-                    {/* Progress Bar - 피그마 디자인에 맞게 */}
-                    <View style={[styles.progressContainer, { backgroundColor: '#E3E3E3' }]}>
-                      <View 
-                        style={[
-                          styles.progressBar, 
-                          { 
-                            width: status.isBeforeStart ? '5%' : `${Math.max(progress, 1)}%`, // 진행 전: 5%, 진행 중: 최소 1% 표시
-                            backgroundColor: status.isBeforeStart ? '#9e9e9e' : (isOverBudget ? '#F66262' : '#1AC673')
-                          }
-                        ]} 
-                      />
-                    </View>
-                    
-                    {/* Amount Info - 피그마 디자인에 맞게 좌우 배치 */}
-                    <View style={styles.challengeAmounts}>
-                      <View style={styles.amountLeft}>
-                        <Text style={[styles.amountLabel, { color: '#9e9e9e' }]}>
-                          현재 소비금액
-                        </Text>
-                        <Text style={[styles.amountValue, { color: '#424242' }]}>
-                          {status.isBeforeStart ? '0원' : `${currentAmount.toLocaleString()}원`}
-                        </Text>
-                      </View>
-                      <View style={styles.amountRight}>
-                        <Text style={[styles.amountLabel, { color: '#9e9e9e' }]}>
-                          목표 소비금액
-                        </Text>
-                        <Text style={[styles.amountValue, { color: '#424242' }]}>
-                          {targetAmount.toLocaleString()}원
-                        </Text>
-                      </View>
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </View>
-          )}
-        </ScrollView>
-      )}
       </Animated.View>
+      </View>
+      </View>
     </SafeAreaView>
   );
 }
@@ -1068,6 +1024,51 @@ export default function MonthlyExpenseTimelineScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  timelineBodyWrap: {
+    flex: 1,
+  },
+  timelineSwipeArea: {
+    flex: 1,
+  },
+  weekRowWrap: {
+    width: '100%',
+  },
+  weekRow: {
+    height: 110,
+    justifyContent: 'center',
+  },
+  dateStripContent: {
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  weekDayCell: {
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+  },
+  weekDayLabel: {
+    ...Typography.body2.r.medium,
+    marginBottom: 8,
+  },
+  weekDayCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  weekDayNumber: {
+    ...Typography.body1.l.bold,
+    fontSize: 21,
+    lineHeight: 31.5,
+  },
+  weekDayDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   summaryContainer: {
     paddingHorizontal: 16,
@@ -1104,6 +1105,10 @@ const styles = StyleSheet.create({
   summaryExpense: {
     ...Typography.body1.l.bold,
   },
+  summaryBottomDivider: {
+    height: 1,
+    width: '100%',
+  },
   headerDivider: {
     height: 8,
     width: '100%',
@@ -1115,11 +1120,13 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 0, // 내용물 크기만큼만, 늘어나지 않음
   },
+  scrollContentEmpty: {
+    flexGrow: 1, // 빈 상태일 때 타임라인 영역 전체를 채워 세로 중앙 정렬
+  },
   emptyContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 80,
   },
   emptyText: {
     ...Typography.body1.l.regular,
