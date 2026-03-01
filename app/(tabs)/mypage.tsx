@@ -252,6 +252,8 @@ export default function MyPageScreen() {
           <ScrollView
             style={styles.scrollView}
             contentContainerStyle={styles.scrollContent}
+            bounces={false}
+            overScrollMode="never"
             showsVerticalScrollIndicator={false}
           >
           {/* Settings Card */}

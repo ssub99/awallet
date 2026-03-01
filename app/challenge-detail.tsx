@@ -291,6 +291,8 @@ export default function ChallengeDetailScreen() {
       <ScrollView
         style={[styles.listScrollContainer, { backgroundColor: colors.staticWhite }]}
         contentContainerStyle={styles.listScrollContent}
+        bounces={false}
+        overScrollMode="never"
         showsVerticalScrollIndicator={false}
       >
         {!challenge ? (

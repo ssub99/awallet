@@ -8,6 +8,7 @@
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
+import { DatePicker } from '@/components/ui/date-picker';
 import { Icon } from '@/components/ui/icon';
 import { Colors, Typography } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';
@@ -91,6 +92,8 @@ interface MonthSwitcherProps {
   textColor: string;
   fillColor: string;
   assistiveColor: string;
+  /** 년/월 텍스트 탭 시 호출 (타임라인 탑 네비와 동일한 년월 피커 열기) */
+  onDatePress?: () => void;
 }
 
 const MonthSwitcher: React.FC<MonthSwitcherProps> = ({
@@ -101,7 +104,9 @@ const MonthSwitcher: React.FC<MonthSwitcherProps> = ({
   textColor,
   fillColor,
   assistiveColor,
+  onDatePress,
 }) => {
+  const dateLabel = `${year}년 ${String(month).padStart(2, '0')}월`;
   return (
     <View style={styles.periodRow}>
       <Pressable
@@ -114,9 +119,18 @@ const MonthSwitcher: React.FC<MonthSwitcherProps> = ({
         </View>
       </Pressable>
 
-      <Text style={[styles.periodText, { color: textColor }]}>
-        {year}년 {String(month).padStart(2, '0')}월
-      </Text>
+      {onDatePress != null ? (
+        <Pressable
+          onPress={onDatePress}
+          style={styles.periodTextWithArrow}
+          accessibilityRole="button"
+          accessibilityLabel="년월 선택"
+        >
+          <Text style={[styles.periodText, { color: textColor }]}>{dateLabel}</Text>
+        </Pressable>
+      ) : (
+        <Text style={[styles.periodText, { color: textColor }]}>{dateLabel}</Text>
+      )}
 
       <Pressable
         onPress={onNext}
@@ -170,8 +184,24 @@ export default function ChallengeTabScreen() {
   const initialMonth = params.month ? parseInt(params.month, 10) || now.getMonth() + 1 : now.getMonth() + 1;
   const [currentYear, setCurrentYear] = useState(initialYear);
   const [currentMonth, setCurrentMonth] = useState(initialMonth);
+  const [showYearMonthPicker, setShowYearMonthPicker] = useState(false);
   const year = currentYear;
   const month = currentMonth;
+
+  // 년/월 피커 옵션 (타임라인 탑 네비와 100% 동일: ±10년, 1~12월)
+  const yearOptions = useMemo(() => {
+    const cy = new Date().getFullYear();
+    return Array.from({ length: 21 }, (_, i) => {
+      const y = cy - 10 + i;
+      return { label: `${y}년`, value: y };
+    });
+  }, []);
+  const monthOptions = useMemo(() => {
+    return Array.from({ length: 12 }, (_, i) => {
+      const m = i + 1;
+      return { label: `${m}월`, value: m };
+    });
+  }, []);
 
   // 홈 잔액/년도 월 카드 탭 시 리포트 > 소비 리포트로 열기 + 해당 년/월로 동기화
   const appliedStatusParam = useRef(false);
@@ -663,8 +693,10 @@ export default function ChallengeTabScreen() {
                   style={[styles.reportScroll, { backgroundColor: colors.fill }]}
                   contentContainerStyle={styles.reportScrollContent}
                   showsVerticalScrollIndicator={false}
+                  bounces={false}
+                  overScrollMode="never"
                 >
-                  {/* 월 스위처 카드 (Frame 208) - 고정 */}
+                  {/* 월 스위처 카드 (Frame 208) - 고정, 년/월 탭 시 타임라인과 동일한 피커 */}
                   <View style={[styles.reportMonthCard, { backgroundColor: colors.staticWhite }]}>
                     <Pressable
                       onPress={handlePrevMonth}
@@ -674,11 +706,16 @@ export default function ChallengeTabScreen() {
                     >
                       <Icon name="arrowLeft" variant="solid" size={24} color={colors.textAssistive} />
                     </Pressable>
-                    <View style={styles.reportMonthTextWrap}>
+                    <Pressable
+                      onPress={() => setShowYearMonthPicker(true)}
+                      style={styles.reportMonthTextWrap}
+                      accessibilityRole="button"
+                      accessibilityLabel="년월 선택"
+                    >
                       <Text style={[styles.reportMonthText, { color: colors.text }]}>
                         {year}년 {String(month).padStart(2, '0')}월
                       </Text>
-                    </View>
+                    </Pressable>
                     <Pressable
                       onPress={handleNextMonth}
                       style={styles.reportMonthArrow}
@@ -723,8 +760,10 @@ export default function ChallengeTabScreen() {
                   style={[styles.reportScroll, { backgroundColor: colors.fill }]}
                   contentContainerStyle={styles.reportScrollContent}
                   showsVerticalScrollIndicator={false}
+                  bounces={false}
+                  overScrollMode="never"
                 >
-                  {/* 년월 박스 - 소비 리포트 탭과 동일 (좌우 화살표만 월 변경) */}
+                  {/* 년월 박스 - 소비 현황 탭, 년/월 탭 시 타임라인과 동일한 피커 */}
                   <View style={[styles.reportMonthCard, { backgroundColor: colors.staticWhite }]}>
                     <Pressable
                       onPress={handlePrevMonth}
@@ -734,11 +773,16 @@ export default function ChallengeTabScreen() {
                     >
                       <Icon name="arrowLeft" variant="solid" size={24} color={colors.textAssistive} />
                     </Pressable>
-                    <View style={styles.reportMonthTextWrap}>
+                    <Pressable
+                      onPress={() => setShowYearMonthPicker(true)}
+                      style={styles.reportMonthTextWrap}
+                      accessibilityRole="button"
+                      accessibilityLabel="년월 선택"
+                    >
                       <Text style={[styles.reportMonthText, { color: colors.text }]}>
                         {year}년 {String(month).padStart(2, '0')}월
                       </Text>
-                    </View>
+                    </Pressable>
                     <Pressable
                       onPress={handleNextMonth}
                       style={styles.reportMonthArrow}
@@ -815,6 +859,7 @@ export default function ChallengeTabScreen() {
             textColor={colors.text}
             fillColor={colors.fill}
             assistiveColor={colors.textAssistive}
+            onDatePress={() => setShowYearMonthPicker(true)}
           />
 
           {/* 챌린지 카드 리스트 - 로딩 완료 시 페이드인 */}
@@ -822,6 +867,8 @@ export default function ChallengeTabScreen() {
           <ScrollView
             style={styles.scrollContainer}
             contentContainerStyle={styles.scrollContent}
+            bounces={false}
+            overScrollMode="never"
           >
             {challenges.length === 0 ? (
               <View style={styles.emptyContainer}>
@@ -963,6 +1010,23 @@ export default function ChallengeTabScreen() {
             </>
           )}
         </View>
+
+        {/* 년/월 피커 (타임라인 탑 네비와 100% 동일한 DatePicker) */}
+        <DatePicker
+          visible={showYearMonthPicker}
+          onClose={() => setShowYearMonthPicker(false)}
+          title="년/월 선택"
+          yearOptions={yearOptions}
+          selectedYear={year}
+          onYearChange={(newYear) => {
+            const minY = yearOptions[0]?.value ?? newYear;
+            const maxY = yearOptions[yearOptions.length - 1]?.value ?? newYear;
+            setCurrentYear(Math.min(maxY, Math.max(minY, newYear)));
+          }}
+          monthOptions={monthOptions}
+          selectedMonth={month}
+          onMonthChange={setCurrentMonth}
+        />
       </SafeAreaView>
 
       <Pressable
@@ -1021,6 +1085,11 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 16,
     backgroundColor: Colors.light.staticWhite,
+  },
+  periodTextWithArrow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   periodText: {
     ...Typography.body1.l.bold,

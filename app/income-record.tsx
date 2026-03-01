@@ -629,6 +629,8 @@ export default function IncomeRecordScreen() {
             }
           ]}
           showsVerticalScrollIndicator={false}
+          bounces={false}
+          overScrollMode="never"
           keyboardShouldPersistTaps="handled"
           onScrollBeginDrag={() => {
             isScrollingRef.current = true;

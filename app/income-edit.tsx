@@ -697,6 +697,8 @@ export default function IncomeEditScreen() {
             }
           ]}
           showsVerticalScrollIndicator={false}
+          bounces={false}
+          overScrollMode="never"
           keyboardShouldPersistTaps="handled"
           onScrollBeginDrag={() => {
             isScrollingRef.current = true;

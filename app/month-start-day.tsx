@@ -327,6 +327,8 @@ export default function MonthStartDayScreen() {
         <ScrollView 
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
+          bounces={false}
+          overScrollMode="never"
           showsVerticalScrollIndicator={false}
           ref={scrollRef}
           onLayout={(e) => setViewportHeight(e.nativeEvent.layout.height)}

@@ -4368,6 +4368,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             }
           ]}
           showsVerticalScrollIndicator={false}
+          bounces={false}
+          overScrollMode="never"
           keyboardShouldPersistTaps="handled"
           onScrollBeginDrag={() => {
             isScrollingRef.current = true;
@@ -5062,6 +5064,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           ]}
           contentContainerStyle={styles.recurringInstallmentSheetScrollContent}
           showsVerticalScrollIndicator={true}
+          bounces={false}
+          overScrollMode="never"
         >
           {/* 소비 형태 (드래프트: 확인 시에만 반영) */}
           <View style={styles.sheetSection}>

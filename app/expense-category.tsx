@@ -158,6 +158,8 @@ export default function ExpenseCategoryScreen() {
             style={styles.scrollView}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
+            bounces={false}
+            overScrollMode="never"
           >
             {categories.map((category, index) => (
               <View key={category.label}>

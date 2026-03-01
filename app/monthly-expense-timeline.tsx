@@ -633,6 +633,8 @@ export default function MonthlyExpenseTimelineScreen() {
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.dateStripContent}
+            bounces={false}
+            overScrollMode="never"
             onScroll={(e) => {
               dateStripScrollXRef.current = e.nativeEvent.contentOffset.x;
             }}
@@ -734,20 +736,21 @@ export default function MonthlyExpenseTimelineScreen() {
         </View>
         {/* Figma: 월 소비 합계 영역 하단 라인 디바이더 (Line/Normal, rgba(144,146,158,0.16)) */}
         <View style={[styles.summaryBottomDivider, { backgroundColor: colors.border }]} />
-        {/* 박스 디바이더 - 월 소비 합계 하단 고정 */}
-        <View style={styles.headerDivider} />
       </View>
       
-      {/* Timeline Content - 로딩 완료 시 페이드인 (리스트만) */}
+      {/* Timeline Content - 로딩 완료 시 페이드인 (박스 디바이더 + 리스트) */}
       <Animated.View style={{ opacity: contentOpacity, flex: 1 }}>
         <ScrollView
           ref={timelineScrollRef}
           style={styles.scrollContainer}
+          bounces={false}
+          overScrollMode="never"
           contentContainerStyle={[
             styles.scrollContent,
             Object.keys(groupedTimeline).length === 0 && styles.scrollContentEmpty,
           ]}
         >
+        <View style={styles.headerDivider} />
         {Object.keys(groupedTimeline).length === 0 ? (
           <View style={styles.emptyContainer}>
             <Text style={[styles.emptyText, { color: colors.textAssistive }]}>
