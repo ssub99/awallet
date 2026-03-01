@@ -1,7 +1,5 @@
 {
-  "cli": {
-    "version": ">= 5.9.0"
-  },
+  "cli": { "version": ">= 5.9.0" },
   "build": {
     "development": {
       "developmentClient": true,
@@ -10,31 +8,19 @@
     "stage": {
       "distribution": "internal",
       "channel": "stage",
-      "ios": {
-        "buildConfiguration": "Release",
-        "buildNumber": "10"
-      },
-      "android": {
-        "versionCode": 10
-      }
+      "ios": { "buildConfiguration": "Release" },
+      "android": {}
     },
     "stage-testflight": {
       "distribution": "store",
       "channel": "stage",
-      "ios": {
-        "buildConfiguration": "Release",
-        "buildNumber": "10"
-      },
-      "android": {
-        "versionCode": 10
-      }
+      "ios": { "buildConfiguration": "Release" },
+      "android": {}
     },
     "production": {
       "distribution": "store",
       "channel": "production",
-      "ios": {
-        "buildConfiguration": "Release"
-      }
+      "ios": { "buildConfiguration": "Release" }
     }
   },
   "submit": {

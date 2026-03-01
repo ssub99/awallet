@@ -19,6 +19,7 @@ import {
   EXPENSE_CATEGORIES,
   INCOME_CATEGORIES,
 } from '@/constants/categories';
+import { applySavedOrder, loadCategoryOrder, saveCategoryOrder } from '@/utils/category-order';
 import { loadCategories, saveCategories } from '@/utils/categories';
 import { getAllExpenses, replaceAllExpenses, type ExpenseRecord, type PaymentMethod } from '@/utils/expenses';
 import { getAllIncomes, replaceAllIncomes, type IncomeRecord } from '@/utils/incomes';
@@ -72,14 +73,28 @@ function jsonReviver(_key: string, value: unknown): unknown {
 
 /**
  * 현재 저장된 소비/입금 데이터와 카테고리(수입·소비) 설정으로 백업 페이로드를 만듭니다.
+ * 카테고리는 사용자가 설정한 표시 순서(드래그 편집 순서)대로 포함됩니다.
  */
 export async function createBackupPayload(): Promise<BackupPayload> {
-  const [expenses, incomes, categoriesExpense, categoriesIncome] = await Promise.all([
+  const [
+    expenses,
+    incomes,
+    categoriesExpenseRaw,
+    categoriesIncomeRaw,
+    orderExpense,
+    orderIncome,
+  ] = await Promise.all([
     getAllExpenses(),
     getAllIncomes(),
     loadCategories('expense'),
     loadCategories('income'),
+    loadCategoryOrder('expense'),
+    loadCategoryOrder('income'),
   ]);
+  const categoriesExpense =
+    orderExpense?.length ? applySavedOrder(categoriesExpenseRaw, orderExpense) : categoriesExpenseRaw;
+  const categoriesIncome =
+    orderIncome?.length ? applySavedOrder(categoriesIncomeRaw, orderIncome) : categoriesIncomeRaw;
   return {
     version: BACKUP_VERSION,
     exportedAt: new Date().toISOString(),
@@ -191,9 +206,11 @@ export async function restoreFromBackupFile(fileUri: string): Promise<void> {
 
   if (payload.categoriesExpense?.length) {
     await saveCategories('expense', payload.categoriesExpense);
+    await saveCategoryOrder('expense', payload.categoriesExpense);
   }
   if (payload.categoriesIncome?.length) {
     await saveCategories('income', payload.categoriesIncome);
+    await saveCategoryOrder('income', payload.categoriesIncome);
   }
 
   await Promise.all([
@@ -735,6 +752,14 @@ export async function restoreFromFile(fileUri: string): Promise<void> {
     if (payload) {
       if (payload.version > BACKUP_VERSION) {
         throw new Error(BACKUP_VERSION_TOO_NEW_ERROR);
+      }
+      if (payload.categoriesExpense?.length) {
+        await saveCategories('expense', payload.categoriesExpense);
+        await saveCategoryOrder('expense', payload.categoriesExpense);
+      }
+      if (payload.categoriesIncome?.length) {
+        await saveCategories('income', payload.categoriesIncome);
+        await saveCategoryOrder('income', payload.categoriesIncome);
       }
       await Promise.all([
         replaceAllExpenses(Array.isArray(payload.expenses) ? payload.expenses : []),
