@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Icon } from '@/components/ui/icon';
+import { CONSUMPTION_REPORT_API_URL } from '@/constants/api';
 import { Colors, Typography } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';
 import { useCreateSheetContext } from '@/contexts/create-sheet-context';
@@ -170,6 +171,8 @@ export default function ChallengeTabScreen() {
   const [isConsumptionIndexLoading, setIsConsumptionIndexLoading] = useState(false);
   const [aiSummaryText, setAiSummaryText] = useState<string | null>(null);
   const [aiChallengeText, setAiChallengeText] = useState<string | null>(null);
+  const [aiSummaryTitleText, setAiSummaryTitleText] = useState<string | null>(null);
+  const [scoreFeedbackText, setScoreFeedbackText] = useState<string | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [hasCheckedScore, setHasCheckedScore] = useState(false);
   const categoryEmojiMap = useCategoryEmojiMap();
@@ -334,12 +337,60 @@ export default function ChallengeTabScreen() {
     refreshData();
   }, [dataVersion, year, month, refreshData]);
 
-  // 점수 확인/AI 결과는 년·월이 바뀔 때마다 초기화
+  // 년·월 또는 데이터 버전이 바뀌면:
+  // - 기본적으로 점수/AI 결과 상태를 초기화하고
+  // - 해당 월에 대한 AI 리포트 캐시가 있으면 즉시 불러와서 복원
   useEffect(() => {
-    setHasCheckedScore(false);
-    setAiSummaryText(null);
-    setAiChallengeText(null);
-  }, [year, month]);
+    let cancelled = false;
+
+    const syncReportFromCache = async () => {
+      // 기본 상태: 아직 점수 확인 전
+      if (!cancelled) {
+        setHasCheckedScore(false);
+        setAiSummaryText(null);
+        setAiChallengeText(null);
+        setScoreFeedbackText(null);
+        setAiSummaryTitleText(null);
+      }
+
+      const cacheKey = `consumptionReport_${year}_${month}_${monthStartDay}`;
+
+      try {
+        const cached = await AsyncStorage.getItem(cacheKey);
+        if (!cached || cancelled) return;
+
+        const parsed = JSON.parse(cached) as {
+          summary?: string;
+          summaryTitle?: string;
+          challenge?: string;
+          scoreFeedback?: string;
+          lastRecordUpdatedAt?: number;
+        };
+
+        if (typeof parsed.summary === 'string' && typeof parsed.challenge === 'string') {
+          if (!cancelled) {
+            setAiSummaryText(parsed.summary.trim());
+            setAiChallengeText(parsed.challenge.trim());
+            if (typeof parsed.summaryTitle === 'string') {
+              setAiSummaryTitleText(parsed.summaryTitle.trim());
+            }
+            if (typeof parsed.scoreFeedback === 'string') {
+              setScoreFeedbackText(parsed.scoreFeedback.trim());
+            }
+            setHasCheckedScore(true);
+          }
+        }
+      } catch {
+        // 캐시 파싱 오류는 무시하고 기본 상태를 유지
+      }
+    };
+
+    void syncReportFromCache();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [year, month, monthStartDay, dataVersion]);
 
   // 소비 리포트: 월별 소비 지수(FQ) 계산
   useEffect(() => {
@@ -693,6 +744,19 @@ export default function ChallengeTabScreen() {
       ? Math.round(consumptionIndex.fqScore)
       : null;
 
+  // 소비 지수 계산에 필요한 최소 기록 건수(기획 기준 5건)를 기준으로,
+  // 초기 상태에서 몇 건을 더 기록해야 하는지 노출하기 위한 값
+  const remainingRecordsForIndex = useMemo(() => {
+    if (!consumptionIndex || consumptionIndex.status !== 'collecting') {
+      return null;
+    }
+    const remaining = 5 - consumptionIndex.stats.expenseCount;
+    if (remaining <= 0) {
+      return null;
+    }
+    return remaining;
+  }, [consumptionIndex]);
+
   const topCategoryInfo = useMemo(() => {
     const stats = consumptionIndex?.stats;
     if (!stats || stats.totalExpense <= 0 || !stats.categoryTotals || stats.categoryTotals.length === 0) {
@@ -742,20 +806,136 @@ export default function ChallengeTabScreen() {
     return `이번 달에는 지출 속도가 꽤 빠른 편입니다.\n'${categoryLabel}' 카테고리가 전체의 ${ratioText}를 차지해 소비 패턴을 끌어올리고 있어요.\n이 카테고리부터 작게 줄이는 챌린지를 시작해 보세요.`;
   }, [aiSummaryText, consumptionIndex, fqScore, topCategoryInfo]);
 
-  const reportChallengeMessage = useMemo(() => {
-    if (aiChallengeText) {
-      return aiChallengeText;
+  const reportNextGoalMessage = useMemo(() => {
+    if (!consumptionIndex || fqScore == null) {
+      return '다가오는 한 주에는 지출을 기록하는 습관을 먼저 만드는 것을 목표로 해보세요.\n특히 자주 쓰는 카테고리 한두 개만 의식하면서 적어 보는 것만으로도 충분합니다.';
     }
 
-    if (!consumptionIndex || !topCategoryInfo || consumptionIndex.stats.totalExpense <= 0) {
-      return '이번 달에 가장 자주 쓰는 카테고리를 정리한 뒤,\n그중 하나를 골라 1주일 동안만 지출을 줄여 보는 미니 챌린지를 만들어 보세요.';
+    if (!topCategoryInfo) {
+      if (fqScore >= 80) {
+        return '다음 주에는 지금과 같은 소비 페이스를 유지하는 것을 목표로 해보세요.\n특별한 소비 계획이 없다면, 이미 잘 하고 계신 패턴을 그대로 이어가셔도 좋습니다.';
+      }
+      if (fqScore >= 50) {
+        return '다음 주에는 평소보다 하루에 한 번 정도만 소비를 줄여 보는 것을 목표로 해보세요.\n특히 큰 의미 없이 나가는 소액 지출이 있다면 한두 번만 덜 쓰는 것부터 시도해보면 좋습니다.';
+      }
+      return '다가오는 한 주 동안은 지출을 한 번 더 생각해 보고 사용하는 것을 목표로 해보세요.\n꼭 필요하지 않은 소비를 하루에 한 번만 덜 하는 것부터 시작해도 충분합니다.';
     }
 
     const categoryLabel = topCategoryInfo.category;
     const ratioText = `${topCategoryInfo.ratioPercent.toFixed(1)}%`;
 
-    return `이번 달 전체 지출 중 '${categoryLabel}' 카테고리가 ${ratioText}를 차지하고 있습니다.\n다음 1주일 동안 이 카테고리 지출을 평소보다 조금만 줄이는 챌린지를 먼저 시도해 보시는 건 어떨까요?`;
-  }, [aiChallengeText, consumptionIndex, topCategoryInfo]);
+    if (fqScore >= 80) {
+      return `다음 주에는 '${categoryLabel}' 지출을 이번 주보다 조금만 줄여 보는 것을 목표로 해보세요.\n현재 전체 지출의 ${ratioText}를 차지하고 있어, 이 부분만 가볍게 조절해도 좋은 흐름을 유지하는 데 도움이 됩니다.`;
+    }
+    if (fqScore >= 50) {
+      return `다음 주에는 '${categoryLabel}' 지출을 한두 번만 덜 쓰는 것을 목표로 해보세요.\n이 카테고리가 전체 지출의 ${ratioText}를 차지하고 있어서, 작은 조정만으로도 전체 소비 페이스를 낮추는 데 도움이 됩니다.`;
+    }
+    return `다가오는 한 주에는 '${categoryLabel}' 지출을 특히 의식하면서 사용해보세요.\n전체 지출의 ${ratioText}를 차지하고 있어, 이 카테고리에서 한두 번만 줄여도 이번 달 소비 흐름을 바꾸는 데 큰 도움이 됩니다.`;
+  }, [consumptionIndex, fqScore, topCategoryInfo]);
+
+  const shouldShowChallengeCard = useMemo(() => {
+    if (!consumptionIndex || fqScore == null || !aiChallengeText || !topCategoryInfo) return false;
+    // 점수가 충분히 높으면 별도의 챌린지 제안은 하지 않음
+    if (fqScore >= 80) return false;
+    // 상위 카테고리 비중이 너무 낮으면 챌린지 제안하지 않음
+    if (topCategoryInfo.ratioPercent < 15) return false;
+    // 이미 해당 카테고리로 생성된 챌린지가 있다면 중복 제안하지 않음
+    const hasExistingChallengeForCategory = challenges.some(
+      (c) => c.category === topCategoryInfo.category,
+    );
+    if (hasExistingChallengeForCategory) return false;
+    return true;
+  }, [consumptionIndex, fqScore, aiChallengeText, topCategoryInfo, challenges]);
+
+  const scoreMessage = useMemo(() => {
+    const collectingMessage = (() => {
+      const n = remainingRecordsForIndex;
+      const countText = typeof n === 'number' ? `${n}건을` : '몇건을';
+      return `이번 달 소비 기록이 아직 충분하지 않습니다.\n${countText} 더 기록하시면 소비 진단을 시작할 수 있어요.`;
+    })();
+
+    // 아직 점수 확인 전: 초기 안내 문구
+    if (!hasCheckedScore) {
+      if (isCollectingIndex || fqScore == null) {
+        return collectingMessage;
+      }
+      return '이번 달 소비 점수 계산이 가능합니다.\n아래 버튼을 눌러 점수를 확인해 보세요.';
+    }
+
+    // 점수를 확인했지만, 여전히 데이터가 부족한 상태라면 동일한 안내 유지
+    if (isCollectingIndex || fqScore == null) {
+      return collectingMessage;
+    }
+
+    // 점수 확인 후: 우선 AI가 제공한 점수 피드백이 있다면 사용
+    if (scoreFeedbackText && scoreFeedbackText.trim().length > 0) {
+      return scoreFeedbackText.trim();
+    }
+
+    // scoreFeedback이 없을 때는, 점수에 대한 해석을 강하게 고정하지 않고
+    // 간단한 중립 문구만 보여준다. (실제 피드백은 summary/summaryTitle에서 제공)
+    return '이번 달 소비 패턴을 기준으로 계산된 점수입니다.\n아래 리포트를 함께 보면서 이번 달 소비를 한 번 정리해 보셔도 좋겠습니다.';
+  }, [hasCheckedScore, isCollectingIndex, fqScore, remainingRecordsForIndex, scoreFeedbackText]);
+
+  const scoreEmoji = useMemo(() => {
+    if (!hasCheckedScore || fqScore == null) {
+      return '';
+    }
+
+    // 점수 구간별 이모지 후보 (각 10개)
+    const topTier = ['🌟', '💎', '🎉', '🏆', '🥇', '✨', '💖', '🙌', '👏', '😎'];
+    const goodTier = ['😄', '🙂', '👍', '😊', '🤗', '🌈', '🍀', '💪', '🧡', '😌'];
+    const midTier = ['😐', '🤔', '📊', '📈', '📝', '🔍', '📘', '🧠', '💬', '📌'];
+    const lowTier = ['😟', '🙁', '💸', '🕳️', '🤯', '😮‍💨', '💭', '🪙', '📉', '😬'];
+    const badTier = ['🚨', '⚠️', '🧨', '💣', '🥵', '😵', '🛑', '🔥', '❗️', '🤕'];
+
+    let pool = midTier;
+    if (fqScore >= 90) {
+      pool = topTier;
+    } else if (fqScore >= 75) {
+      pool = goodTier;
+    } else if (fqScore >= 50) {
+      pool = midTier;
+    } else if (fqScore >= 30) {
+      pool = lowTier;
+    } else {
+      pool = badTier;
+    }
+
+    // 점수를 기준으로 "랜덤하지만 재현 가능한" 인덱스 선택
+    const seed = fqScore * 13;
+    const idx = Math.abs(seed) % pool.length;
+    return pool[idx] ?? '';
+  }, [hasCheckedScore, fqScore]);
+
+  const runReportContentRefreshAnimation = useCallback(
+    (onAfterFadeOut?: () => void) => {
+      if (activeTopTab !== 'report' || reportSubTab !== 'score') {
+        // 탭이 다른 경우에는 그냥 콜백만 실행
+        if (onAfterFadeOut) {
+          onAfterFadeOut();
+        }
+        return;
+      }
+      Animated.timing(reportContentOpacity, {
+        toValue: 0,
+        duration: MONTH_CHANGE_FADE_OUT_DURATION,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (!finished) return;
+        if (onAfterFadeOut) {
+          onAfterFadeOut();
+        }
+        reportContentOpacity.setValue(0);
+        Animated.timing(reportContentOpacity, {
+          toValue: 1,
+          duration: MONTH_CHANGE_FADE_IN_DURATION,
+          useNativeDriver: true,
+        }).start();
+      });
+    },
+    [activeTopTab, reportSubTab, reportContentOpacity],
+  );
 
   const handleCheckScore = useCallback(async () => {
     if (!consumptionIndex || consumptionIndex.status !== 'ready' || fqScore == null) {
@@ -768,7 +948,12 @@ export default function ChallengeTabScreen() {
       return;
     }
 
-    setIsAiLoading(true);
+    let didUpdate = false;
+    let nextSummary: string | null = null;
+    let nextSummaryTitle: string | null = null;
+    let nextChallenge: string | null = null;
+    let nextScoreFeedback: string | null = null;
+
     try {
       const storedData = await AsyncStorage.getItem('calendarData');
       if (!storedData) {
@@ -821,13 +1006,36 @@ export default function ChallengeTabScreen() {
         try {
           const parsed = JSON.parse(cached) as {
             summary: string;
+            summaryTitle?: string;
             challenge: string;
+            scoreFeedback?: string;
             lastRecordUpdatedAt: number;
           };
-          if (parsed.lastRecordUpdatedAt === lastRecordUpdatedAt) {
-            setAiSummaryText(parsed.summary);
-            setAiChallengeText(parsed.challenge);
-            setHasCheckedScore(true);
+
+          // (1) 이미 이 월에서 한 번 이상 분석했고, 데이터도 그대로라면 → 분석 중단
+          if (parsed.lastRecordUpdatedAt === lastRecordUpdatedAt && hasCheckedScore) {
+            showToast('변경내역이 없어 분석을 중단합니다.');
+            return;
+          }
+
+          // (2) 분석 이력은 있지만, 이번 세션에서 아직 점수를 확인하지 않은 경우 → 캐시 재사용
+          if (parsed.lastRecordUpdatedAt === lastRecordUpdatedAt && !hasCheckedScore) {
+            nextSummary = parsed.summary.trim();
+            nextChallenge = parsed.challenge.trim();
+
+            runReportContentRefreshAnimation(() => {
+              if (nextSummary && nextChallenge) {
+                setAiSummaryText(nextSummary);
+                setAiChallengeText(nextChallenge);
+                if (typeof parsed.summaryTitle === 'string') {
+                  setAiSummaryTitleText(parsed.summaryTitle.trim());
+                }
+                if (typeof parsed.scoreFeedback === 'string') {
+                  setScoreFeedbackText(parsed.scoreFeedback.trim());
+                }
+                setHasCheckedScore(true);
+              }
+            });
             return;
           }
         } catch {
@@ -835,7 +1043,10 @@ export default function ChallengeTabScreen() {
         }
       }
 
-      const res = await fetch('/api/consumption-report', {
+      // (3) 여기까지 왔다면: 캐시가 없거나, 데이터가 변경된 상태 → 새로 분석 수행
+      setIsAiLoading(true);
+
+      const res = await fetch(CONSUMPTION_REPORT_API_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -850,6 +1061,8 @@ export default function ChallengeTabScreen() {
             totalDays: consumptionIndex.stats.totalDays,
             highAmountRatio: consumptionIndex.stats.highAmountRatio,
             categoryTotals: consumptionIndex.stats.categoryTotals,
+            expenseCount: consumptionIndex.stats.expenseCount,
+            activeDays: Object.keys(consumptionIndex.stats.dailyExpenseCounts).length,
           },
         }),
       });
@@ -859,24 +1072,37 @@ export default function ChallengeTabScreen() {
         return;
       }
 
-      const data = (await res.json()) as { summary?: string; challenge?: string };
-      const summary = typeof data.summary === 'string' ? data.summary.trim() : '';
-      const challenge = typeof data.challenge === 'string' ? data.challenge.trim() : '';
+      const data = (await res.json()) as { summary?: string; summaryTitle?: string; challenge?: string; scoreFeedback?: string };
+      const dataObj = data as { scoreFeedback?: string; summaryTitle?: string; summary?: string; challenge?: string };
+      const summary = typeof dataObj.summary === 'string' ? dataObj.summary.trim() : '';
+      const summaryTitle =
+        typeof dataObj.summaryTitle === 'string' ? dataObj.summaryTitle.trim() : '';
+      const challenge = typeof dataObj.challenge === 'string' ? dataObj.challenge.trim() : '';
+      const scoreFeedback =
+        typeof dataObj.scoreFeedback === 'string' ? dataObj.scoreFeedback.trim() : '';
 
       if (!summary || !challenge) {
         showToast('AI 리포트 형식이 올바르지 않습니다.');
         return;
       }
 
-      setAiSummaryText(summary);
-      setAiChallengeText(challenge);
-      setHasCheckedScore(true);
+      nextSummary = summary;
+      nextChallenge = challenge;
+      if (summaryTitle) {
+        nextSummaryTitle = summaryTitle;
+      }
+      if (scoreFeedback) {
+        nextScoreFeedback = scoreFeedback;
+      }
+      didUpdate = true;
 
       await AsyncStorage.setItem(
         cacheKey,
         JSON.stringify({
           summary,
+          summaryTitle: summaryTitle || undefined,
           challenge,
+          scoreFeedback: scoreFeedback || undefined,
           lastRecordUpdatedAt,
         }),
       );
@@ -884,6 +1110,19 @@ export default function ChallengeTabScreen() {
       showToast('AI 리포트 생성 중 오류가 발생했습니다. 다시 시도해 주세요.');
     } finally {
       setIsAiLoading(false);
+      if (didUpdate && nextSummary && nextChallenge) {
+        runReportContentRefreshAnimation(() => {
+          setAiSummaryText(nextSummary!);
+          setAiChallengeText(nextChallenge!);
+          if (nextSummaryTitle) {
+            setAiSummaryTitleText(nextSummaryTitle);
+          }
+          if (nextScoreFeedback) {
+            setScoreFeedbackText(nextScoreFeedback);
+          }
+          setHasCheckedScore(true);
+        });
+      }
     }
   }, [
     consumptionIndex,
@@ -891,7 +1130,9 @@ export default function ChallengeTabScreen() {
     monthStartDay,
     year,
     month,
+    hasCheckedScore,
     showToast,
+    runReportContentRefreshAnimation,
   ]);
 
   // Horizontal swipe to change month (left: prev, right: next)
@@ -1041,91 +1282,113 @@ export default function ChallengeTabScreen() {
                         이번달 소비 점수는?
                       </Text>
                       <View style={styles.reportScoreValueRow}>
+                        <Text style={[styles.reportScoreEmoji, { color: colors.text }]}>
+                          {hasCheckedScore && fqScore != null ? scoreEmoji : ''}
+                        </Text>
                         <Text style={[styles.reportScoreValue, { color: colors.text }]}>
                           {hasCheckedScore && fqScore != null ? fqScore : '?'}
                         </Text>
                         <Text style={[styles.reportScoreUnit, { color: colors.text }]}>점</Text>
                       </View>
                       <Text style={[styles.reportScoreMessage, { color: colors.textNeutral }]}>
-                        {!hasCheckedScore
-                          ? isCollectingIndex || fqScore == null
-                            ? '이번 달 소비 기록이 아직 충분하지 않습니다.\n조금만 더 기록해 주시면 소비 진단을 시작할 수 있어요.'
-                            : '이번 달 소비 점수 계산이 가능합니다.\n아래 버튼을 눌러 점수를 확인해 보세요.'
-                          : isCollectingIndex || fqScore == null
-                            ? '이번 달 소비 기록이 아직 충분하지 않습니다.\n조금만 더 기록해 주시면 소비 진단을 시작할 수 있어요.'
-                            : '이번 달 소비 패턴을 기준으로 계산한 점수입니다.\n아래에서 자세한 리포트와 챌린지 제안을 확인해 주세요.'}
+                        {scoreMessage}
                       </Text>
                       <Button
                         variant="primary"
                         type="solid"
                         size="large"
                         onPress={handleCheckScore}
-                        disabled={isAiLoading}
+                        loading={isAiLoading}
                       >
-                        {isAiLoading ? '분석 중...' : '점수 확인하기'}
+                        점수 확인하기
                       </Button>
                     </View>
 
-                    {aiSummaryText && aiChallengeText && (
-                      <>
-                        <View
-                          style={[
-                            styles.reportSummaryCard,
-                            { backgroundColor: colors.staticWhite },
-                          ]}
-                        >
-                          <Text style={[styles.reportSummaryTitle, { color: colors.text }]}>
-                            📊 이번 달 리포트
+                    {aiSummaryText && (
+                      <View
+                        style={[
+                          styles.reportSummaryCard,
+                          { backgroundColor: colors.staticWhite },
+                        ]}
+                      >
+                        <Text style={[styles.reportSummaryTitle, { color: colors.text }]}>
+                          📊 이번 달 리포트
+                        </Text>
+                        <View style={styles.reportSummaryRows}>
+                          <View style={styles.reportSummaryRow}>
+                            <Text style={[styles.reportSummaryLabel, { color: colors.textAssistive }]}>
+                              월간 지출
+                            </Text>
+                            <Text style={[styles.reportSummaryValue, { color: colors.text }]}>
+                              {consumptionIndex
+                                ? `${consumptionIndex.stats.totalExpense.toLocaleString()}원`
+                                : '0원'}
+                            </Text>
+                          </View>
+                          <View style={styles.reportSummaryRow}>
+                            <Text style={[styles.reportSummaryLabel, { color: colors.textAssistive }]}>
+                              무지출일
+                            </Text>
+                            <Text style={[styles.reportSummaryValue, { color: colors.text }]}>
+                              {consumptionIndex
+                                ? `${consumptionIndex.stats.noSpendDays}일 / ${consumptionIndex.stats.totalDays}일`
+                                : '-'}
+                            </Text>
+                          </View>
+                        </View>
+                        {aiSummaryTitleText && (
+                          <Text style={[styles.reportSummaryHeadline, { color: colors.text }]}>
+                            {aiSummaryTitleText}
                           </Text>
+                        )}
+                        <Text style={[styles.reportSummaryBody, { color: colors.textNeutral }]}>
+                          {reportSummaryMessage}
+                        </Text>
+                        <View style={styles.reportNextGoal}>
+                          <Text style={[styles.reportNextGoalTitle, { color: colors.text }]}>
+                            📌 다음 주 목표
+                          </Text>
+                          <Text style={[styles.reportNextGoalBody, { color: colors.textNeutral }]}>
+                            {reportNextGoalMessage}
+                          </Text>
+                        </View>
+                      </View>
+                    )}
+
+                    {shouldShowChallengeCard && (
+                      <View
+                        style={[
+                          styles.reportChallengeCard,
+                          { backgroundColor: colors.staticWhite },
+                        ]}
+                      >
+                        <Text style={[styles.reportChallengeTitle, { color: colors.text }]}>
+                          🎯 챌린지 제안
+                        </Text>
+                        {topCategoryInfo && consumptionIndex && (
                           <View style={styles.reportSummaryRows}>
                             <View style={styles.reportSummaryRow}>
                               <Text style={[styles.reportSummaryLabel, { color: colors.textAssistive }]}>
-                                월간 지출
+                                카테고리
                               </Text>
                               <Text style={[styles.reportSummaryValue, { color: colors.text }]}>
-                                {consumptionIndex
-                                  ? `${consumptionIndex.stats.totalExpense.toLocaleString()}원`
-                                  : '0원'}
+                                {topCategoryInfo.category}
                               </Text>
                             </View>
                             <View style={styles.reportSummaryRow}>
                               <Text style={[styles.reportSummaryLabel, { color: colors.textAssistive }]}>
-                                무지출일
+                                총 소비금액
                               </Text>
                               <Text style={[styles.reportSummaryValue, { color: colors.text }]}>
-                                {consumptionIndex
-                                  ? `${consumptionIndex.stats.noSpendDays}일 / ${consumptionIndex.stats.totalDays}일`
-                                  : '-'}
+                                {`${topCategoryInfo.amount.toLocaleString()}원`}
                               </Text>
                             </View>
                           </View>
-                          <Text style={[styles.reportSummaryBody, { color: colors.textNeutral }]}>
-                            {reportSummaryMessage}
-                          </Text>
-                          <View style={styles.reportNextGoal}>
-                            <Text style={[styles.reportNextGoalTitle, { color: colors.text }]}>
-                              📌 다음 주 목표
-                            </Text>
-                            <Text style={[styles.reportNextGoalBody, { color: colors.textNeutral }]}>
-                              {reportChallengeMessage}
-                            </Text>
-                          </View>
-                        </View>
-
-                        <View
-                          style={[
-                            styles.reportChallengeCard,
-                            { backgroundColor: colors.staticWhite },
-                          ]}
-                        >
-                          <Text style={[styles.reportChallengeTitle, { color: colors.text }]}>
-                            📌 챌린지 제안
-                          </Text>
-                          <Text style={[styles.reportChallengeBody, { color: colors.textNeutral }]}>
-                            {aiChallengeText}
-                          </Text>
-                        </View>
-                      </>
+                        )}
+                        <Text style={[styles.reportChallengeBody, { color: colors.textNeutral }]}>
+                          {aiChallengeText}
+                        </Text>
+                      </View>
                     )}
                   </Animated.View>
                 </ScrollView>
@@ -1585,6 +1848,12 @@ const styles = StyleSheet.create({
     alignItems: 'baseline',
     marginBottom: 24,
   },
+  reportScoreEmoji: {
+    ...Typography.headline1.xl.bold,
+    fontSize: 28,
+    lineHeight: 40,
+    marginRight: 4,
+  },
   reportScoreValue: {
     ...Typography.headline1.xl.bold,
     fontSize: 32,
@@ -1610,6 +1879,10 @@ const styles = StyleSheet.create({
     ...Typography.body2.r.bold,
     marginBottom: 8,
   },
+  reportSummaryHeadline: {
+    ...Typography.body2.r.bold,
+    marginBottom: 8,
+  },
   reportSummaryRows: {
     marginBottom: 12,
   },
@@ -1621,8 +1894,7 @@ const styles = StyleSheet.create({
   },
   reportSummaryLabel: {
     ...Typography.body2.r.regular,
-    width: 96,
-    marginRight: 8,
+    width: 72,
   },
   reportSummaryValue: {
     ...Typography.body2.r.bold,

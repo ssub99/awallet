@@ -32,6 +32,16 @@ const KEYS_TO_REMOVE = [
 ];
 
 /**
+ * 소비 리포트(AI 피드백) 캐시 키 패턴
+ *
+ * - 월별 캐시: consumptionReport_${year}_${month}_${monthStartDay}
+ *   (예: consumptionReport_2025_9_1)
+ *
+ * 전체 초기화 시에는 위 패턴에 해당하는 모든 키를 찾아 함께 삭제합니다.
+ */
+const CONSUMPTION_REPORT_PREFIX = 'consumptionReport_';
+
+/**
  * 전체 초기화를 수행합니다.
  * 소비·입금·챌린지 데이터와 카테고리/알림/캐시 등 설정을 모두 제거합니다.
  */
@@ -40,4 +50,15 @@ export async function resetAppData(): Promise<void> {
   await clearAllIncomes();
   await clearAllChallenges();
   await AsyncStorage.multiRemove(KEYS_TO_REMOVE);
+
+  // 소비 리포트 AI 캐시도 함께 제거 (키 패턴 스캔)
+  try {
+    const allKeys = await AsyncStorage.getAllKeys();
+    const reportKeys = allKeys.filter((key) => key.startsWith(CONSUMPTION_REPORT_PREFIX));
+    if (reportKeys.length > 0) {
+      await AsyncStorage.multiRemove(reportKeys);
+    }
+  } catch {
+    // 캐시 제거 실패는 전체 초기화 실패로 간주하지 않음
+  }
 }

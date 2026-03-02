@@ -18,6 +18,10 @@ export interface CalendarRecord {
   amount: number;
   timestamp?: number;
   isDeleted?: boolean;
+  /** 정기 지출 여부 (피드백용 카테고리 집계에서 제외) */
+  isRecurring?: boolean;
+  /** 할부 지출 여부 (피드백용 카테고리 집계에서 제외) */
+  isInstallment?: boolean;
 }
 
 export interface CalendarDayData {
@@ -243,9 +247,14 @@ export function computeMonthlyConsumptionStats(params: {
       dayExpenseCount += 1;
       totalExpense += record.amount;
 
-      const categoryKey = record.category ?? '기타';
-      const prevAmount = categoryMap.get(categoryKey) ?? 0;
-      categoryMap.set(categoryKey, prevAmount + record.amount);
+      // 피드백용 카테고리 집계에서는 정기/할부 지출은 제외
+      const isRecurring = record.isRecurring === true;
+      const isInstallment = record.isInstallment === true;
+      if (!isRecurring && !isInstallment) {
+        const categoryKey = record.category ?? '기타';
+        const prevAmount = categoryMap.get(categoryKey) ?? 0;
+        categoryMap.set(categoryKey, prevAmount + record.amount);
+      }
     });
 
     if (dayExpenseCount > 0) {
