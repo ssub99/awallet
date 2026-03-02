@@ -473,7 +473,6 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }, []);
 
   const hideQuickInput = useCallback(() => {
-    Keyboard.dismiss();
     overlayStarScale.stopAnimation();
     overlayStarRotate.stopAnimation();
     starRefs.current = null;
@@ -768,7 +767,6 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       }
 
       await createExpensesBatch(recordsToSave);
-      await refresh();
       await refreshWidgetWithCurrentMonth().catch(() => {});
 
       const actualDateKey = actualDate.replace(/\./g, '-');
@@ -784,7 +782,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
           'pendingCalendarTarget',
           JSON.stringify({ year: targetYear, month: targetMonth, targetDate: actualDateKey })
         );
-        applyPendingCalendarTargetEvent.emit();
+        applyPendingCalendarTargetEvent.emit({ year: targetYear, month: targetMonth, targetDate: actualDateKey });
       } catch {
         // ignore
       }
@@ -793,6 +791,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       setConfirmCardData(null);
       hideQuickInput();
       showToast('기록 생성이 완료되었습니다.');
+
+      await refresh();
     } catch {
       showToast('기록 저장에 실패했습니다.');
     } finally {

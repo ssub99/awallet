@@ -14,6 +14,7 @@ import { Colors, Typography } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';
 import { useCreateSheetContext } from '@/contexts/create-sheet-context';
 import { useLoading } from '@/contexts/loading-context';
+import { useToast } from '@/contexts/toast-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { useThemeColor } from '@/hooks/use-theme-color';
@@ -21,6 +22,11 @@ import { loadCategories } from '@/utils/categories';
 import { getChallengesByDateRange } from '@/utils/challenges';
 import { createSheetEvent } from '@/utils/create-sheet-event';
 import { getCustomMonthInfo, getCustomMonthRange, isDateInCustomMonth } from '@/utils/custom-month';
+import {
+  computeConsumptionIndex,
+  type ConsumptionIndexResult,
+  type CalendarData,
+} from '@/utils/consumption-index';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -160,8 +166,15 @@ export default function ChallengeTabScreen() {
   const [reportSubTab, setReportSubTab] = useState<ReportSubTabId>('score');
   const [trendTimelineData, setTrendTimelineData] = useState<TrendTimelineItem[]>([]);
   const [trendCategoryFilter, setTrendCategoryFilter] = useState<'all' | 'recurring'>('all');
+  const [consumptionIndex, setConsumptionIndex] = useState<ConsumptionIndexResult | null>(null);
+  const [isConsumptionIndexLoading, setIsConsumptionIndexLoading] = useState(false);
+  const [aiSummaryText, setAiSummaryText] = useState<string | null>(null);
+  const [aiChallengeText, setAiChallengeText] = useState<string | null>(null);
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [hasCheckedScore, setHasCheckedScore] = useState(false);
   const categoryEmojiMap = useCategoryEmojiMap();
   const { setLoading } = useLoading();
+  const { showToast } = useToast();
   const { updateCalendarContext } = useCreateSheetContext();
   const pendingOpsRef = useRef(0);
   const beginLoad = useCallback(() => {
@@ -230,6 +243,10 @@ export default function ChallengeTabScreen() {
   const [isContentReady, setIsContentReady] = useState(false);
   const contentOpacity = useRef(new Animated.Value(0)).current;
   const hasAnimatedRef = useRef(false);
+
+  // 탭 진입 시 탑 네비 + 날짜 박스 페이드인용 (월 변경 시에는 사용 안 함, 1로 유지)
+  const screenOpacity = useRef(new Animated.Value(0)).current;
+  const hasInitiallyFadedInRef = useRef(false);
 
   // 리포트 탭 월 변경 시 페이드 아웃/인 (타임라인과 동일) - 점수 박스는 항상 표시, 애니메이션만 적용
   const reportContentOpacity = useRef(new Animated.Value(1)).current;
@@ -317,6 +334,64 @@ export default function ChallengeTabScreen() {
     refreshData();
   }, [dataVersion, year, month, refreshData]);
 
+  // 점수 확인/AI 결과는 년·월이 바뀔 때마다 초기화
+  useEffect(() => {
+    setHasCheckedScore(false);
+    setAiSummaryText(null);
+    setAiChallengeText(null);
+  }, [year, month]);
+
+  // 소비 리포트: 월별 소비 지수(FQ) 계산
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadConsumptionIndex = async () => {
+      if (monthStartDay <= 0) return;
+      if (activeTopTab !== 'report' || reportSubTab !== 'score') return;
+
+      setIsConsumptionIndexLoading(true);
+      try {
+        const storedData = await AsyncStorage.getItem('calendarData');
+        if (!storedData) {
+          if (!cancelled) {
+            setConsumptionIndex(null);
+          }
+          return;
+        }
+
+        const calendarData = JSON.parse(storedData, (key: string, value: unknown) => {
+          if (key === 'recurringType' && value === null) return undefined;
+          return value;
+        }) as CalendarData;
+
+        const result = computeConsumptionIndex({
+          calendarData,
+          year,
+          month,
+          monthStartDay,
+        });
+
+        if (!cancelled) {
+          setConsumptionIndex(result);
+        }
+      } catch {
+        if (!cancelled) {
+          setConsumptionIndex(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsConsumptionIndexLoading(false);
+        }
+      }
+    };
+
+    loadConsumptionIndex();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTopTab, reportSubTab, year, month, monthStartDay, dataVersion]);
+
   // 소비 현황(이번달 지출 순위/정기 지출)용 타임라인 데이터 - 월 상세현황과 동일 로직
   useEffect(() => {
     let cancelled = false;
@@ -390,7 +465,19 @@ export default function ChallengeTabScreen() {
     });
   }, [currentYear, currentMonth, updateCalendarContext]);
 
-  // 페이드인 애니메이션 (챌린지 월 변경 시에는 refreshData에서 페이드인 처리)
+  // 탭 진입 시: 탑 네비 + 날짜 박스 페이드인 (최초 1회만, 이후 screenOpacity는 1 유지)
+  useEffect(() => {
+    if (!isContentReady || hasInitiallyFadedInRef.current) return;
+    hasInitiallyFadedInRef.current = true;
+    screenOpacity.setValue(0);
+    Animated.timing(screenOpacity, {
+      toValue: 1,
+      duration: MONTH_CHANGE_FADE_IN_DURATION,
+      useNativeDriver: true,
+    }).start();
+  }, [isContentReady, screenOpacity]);
+
+  // 챌린지 카드 리스트 페이드인 (탭 진입 시 + 월 변경 시)
   useEffect(() => {
     if (isContentReady) {
       if (challengeDidFadeInRef.current) {
@@ -600,6 +687,213 @@ export default function ChallengeTabScreen() {
     return Math.round(Math.max(REPORT_SCORE_CARD_MIN, Math.min(REPORT_SCORE_CARD_MAX, height)));
   }, [windowHeight]);
 
+  const isCollectingIndex = consumptionIndex?.status === 'collecting';
+  const fqScore =
+    consumptionIndex?.status === 'ready' && typeof consumptionIndex.fqScore === 'number'
+      ? Math.round(consumptionIndex.fqScore)
+      : null;
+
+  const topCategoryInfo = useMemo(() => {
+    const stats = consumptionIndex?.stats;
+    if (!stats || stats.totalExpense <= 0 || !stats.categoryTotals || stats.categoryTotals.length === 0) {
+      return null;
+    }
+    const top = stats.categoryTotals[0]!;
+    return {
+      category: top.category,
+      amount: top.amount,
+      ratio: top.ratio,
+      ratioPercent: top.ratio * 100,
+    };
+  }, [consumptionIndex]);
+
+  const reportSummaryMessage = useMemo(() => {
+    if (aiSummaryText) {
+      return aiSummaryText;
+    }
+
+    if (!consumptionIndex) {
+      return '아직 소비 데이터가 없습니다.\n이번 달부터 지출을 기록해 보세요.';
+    }
+
+    if (consumptionIndex.status === 'collecting' || fqScore == null) {
+      return '기록은 시작되었지만 아직 소비 패턴을 판단하기에는 데이터가 부족합니다.\n며칠만 더 꾸준히 기록해 주시면 소비 리포트를 볼 수 있어요.';
+    }
+
+    if (!topCategoryInfo) {
+      if (fqScore >= 80) {
+        return '이번 달 소비 페이스는 전반적으로 안정적인 편입니다.\n특정 카테고리에 과도하게 쏠린 지출 없이 균형을 잘 유지하고 있어요.';
+      }
+      if (fqScore >= 50) {
+        return '이번 달 소비 페이스는 다소 빠른 편입니다.\n어떤 요일·시간대에 소비가 몰리는지 한 번 확인해 보세요.';
+      }
+      return '이번 달에는 지출 속도가 꽤 빠른 편입니다.\n특히 불필요한 소액 지출이 반복되지 않는지 점검해 보시면 좋겠습니다.';
+    }
+
+    const categoryLabel = topCategoryInfo.category;
+    const ratioText = `${topCategoryInfo.ratioPercent.toFixed(1)}%`;
+
+    if (fqScore >= 80) {
+      return `이번 달 소비 페이스는 안정적인 편입니다.\n다만 전체 지출의 ${ratioText}가 '${categoryLabel}'에서 발생하고 있어, 이 카테고리만 조금만 줄이면 더 높은 점수를 기대할 수 있어요.`;
+    }
+    if (fqScore >= 50) {
+      return `이번 달 소비 페이스는 다소 빠른 편입니다.\n특히 '${categoryLabel}' 카테고리가 전체의 ${ratioText}를 차지하고 있어, 이 부분을 한 번 점검해 보시면 좋겠습니다.`;
+    }
+    return `이번 달에는 지출 속도가 꽤 빠른 편입니다.\n'${categoryLabel}' 카테고리가 전체의 ${ratioText}를 차지해 소비 패턴을 끌어올리고 있어요.\n이 카테고리부터 작게 줄이는 챌린지를 시작해 보세요.`;
+  }, [aiSummaryText, consumptionIndex, fqScore, topCategoryInfo]);
+
+  const reportChallengeMessage = useMemo(() => {
+    if (aiChallengeText) {
+      return aiChallengeText;
+    }
+
+    if (!consumptionIndex || !topCategoryInfo || consumptionIndex.stats.totalExpense <= 0) {
+      return '이번 달에 가장 자주 쓰는 카테고리를 정리한 뒤,\n그중 하나를 골라 1주일 동안만 지출을 줄여 보는 미니 챌린지를 만들어 보세요.';
+    }
+
+    const categoryLabel = topCategoryInfo.category;
+    const ratioText = `${topCategoryInfo.ratioPercent.toFixed(1)}%`;
+
+    return `이번 달 전체 지출 중 '${categoryLabel}' 카테고리가 ${ratioText}를 차지하고 있습니다.\n다음 1주일 동안 이 카테고리 지출을 평소보다 조금만 줄이는 챌린지를 먼저 시도해 보시는 건 어떨까요?`;
+  }, [aiChallengeText, consumptionIndex, topCategoryInfo]);
+
+  const handleCheckScore = useCallback(async () => {
+    if (!consumptionIndex || consumptionIndex.status !== 'ready' || fqScore == null) {
+      showToast('소비 지수는 기록이 조금 더 쌓인 후 확인할 수 있습니다.');
+      return;
+    }
+
+    if (monthStartDay <= 0) {
+      showToast('월 시작일 정보를 불러오는 중입니다. 잠시 후 다시 시도해 주세요.');
+      return;
+    }
+
+    setIsAiLoading(true);
+    try {
+      const storedData = await AsyncStorage.getItem('calendarData');
+      if (!storedData) {
+        showToast('기록 데이터가 없습니다. 먼저 소비를 기록해 주세요.');
+        return;
+      }
+
+      const calendarData = JSON.parse(storedData, (key: string, value: unknown) => {
+        if (key === 'recurringType' && value === null) return undefined;
+        return value;
+      }) as CalendarData;
+
+      const { startDate, endDate } = getCustomMonthRange(year, month, monthStartDay);
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+
+      let lastRecordUpdatedAt = 0;
+
+      Object.entries(calendarData).forEach(([dateKey, dayData]) => {
+        if (!dayData || !dayData.records || dayData.records.length === 0) {
+          return;
+        }
+        const date = new Date(dateKey);
+        const time = date.getTime();
+        if (time < start.getTime() || time > end.getTime()) {
+          return;
+        }
+        dayData.records.forEach((record) => {
+          if (record.type !== 'expense' || record.isDeleted) return;
+          const ts =
+            typeof record.timestamp === 'number' && !Number.isNaN(record.timestamp)
+              ? record.timestamp
+              : time;
+          if (ts > lastRecordUpdatedAt) {
+            lastRecordUpdatedAt = ts;
+          }
+        });
+      });
+
+      if (lastRecordUpdatedAt === 0) {
+        showToast('이번 달에는 아직 소비 기록이 없습니다.');
+        return;
+      }
+
+      const cacheKey = `consumptionReport_${year}_${month}_${monthStartDay}`;
+      const cached = await AsyncStorage.getItem(cacheKey);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached) as {
+            summary: string;
+            challenge: string;
+            lastRecordUpdatedAt: number;
+          };
+          if (parsed.lastRecordUpdatedAt === lastRecordUpdatedAt) {
+            setAiSummaryText(parsed.summary);
+            setAiChallengeText(parsed.challenge);
+            setHasCheckedScore(true);
+            return;
+          }
+        } catch {
+          // ignore cache parse error
+        }
+      }
+
+      const res = await fetch('/api/consumption-report', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          fqScore,
+          stats: {
+            year,
+            month,
+            totalExpense: consumptionIndex.stats.totalExpense,
+            noSpendDays: consumptionIndex.stats.noSpendDays,
+            totalDays: consumptionIndex.stats.totalDays,
+            highAmountRatio: consumptionIndex.stats.highAmountRatio,
+            categoryTotals: consumptionIndex.stats.categoryTotals,
+          },
+        }),
+      });
+
+      if (!res.ok) {
+        showToast('AI 리포트를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+        return;
+      }
+
+      const data = (await res.json()) as { summary?: string; challenge?: string };
+      const summary = typeof data.summary === 'string' ? data.summary.trim() : '';
+      const challenge = typeof data.challenge === 'string' ? data.challenge.trim() : '';
+
+      if (!summary || !challenge) {
+        showToast('AI 리포트 형식이 올바르지 않습니다.');
+        return;
+      }
+
+      setAiSummaryText(summary);
+      setAiChallengeText(challenge);
+      setHasCheckedScore(true);
+
+      await AsyncStorage.setItem(
+        cacheKey,
+        JSON.stringify({
+          summary,
+          challenge,
+          lastRecordUpdatedAt,
+        }),
+      );
+    } catch {
+      showToast('AI 리포트 생성 중 오류가 발생했습니다. 다시 시도해 주세요.');
+    } finally {
+      setIsAiLoading(false);
+    }
+  }, [
+    consumptionIndex,
+    fqScore,
+    monthStartDay,
+    year,
+    month,
+    showToast,
+  ]);
+
   // Horizontal swipe to change month (left: prev, right: next)
   const panResponder = useRef(
     PanResponder.create({
@@ -626,7 +920,8 @@ export default function ChallengeTabScreen() {
   return (
     <View style={styles.screenWrapper}>
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-        <View>
+        {/* 탭 진입 시: 데이터 로드 완료 후 탑 네비 + 날짜 박스 페이드인 (월 변경 시에는 애니메이션 없음) */}
+        <Animated.View style={{ opacity: screenOpacity }}>
           <TopNavigation
             type="main"
             title="챌린지"
@@ -637,10 +932,13 @@ export default function ChallengeTabScreen() {
             activeTabId={activeTopTab}
             onTabChange={(id) => setActiveTopTab(id as TopTabId)}
           />
-        </View>
+        </Animated.View>
 
-        <View
-          style={[styles.content, { backgroundColor: colors.fill }]}
+        <Animated.View
+          style={[
+            styles.content,
+            { backgroundColor: colors.fill, opacity: screenOpacity },
+          ]}
           {...panResponder.panHandlers}
         >
           {activeTopTab === 'report' ? (
@@ -726,33 +1024,109 @@ export default function ChallengeTabScreen() {
                     </Pressable>
                   </View>
 
-                  {/* 점수 카드 (Frame 226) - 본문: 로딩 완료 시 페이드인 */}
+                  {/* 점수 카드 + AI 리포트 (Frame 226/227/228) - 월 변경 시 페이드 아웃/인 */}
                   <Animated.View style={{ opacity: reportContentOpacity }}>
-                  <View
-                    style={[
-                      styles.reportScoreCard,
-                      { backgroundColor: colors.staticWhite, minHeight: reportScoreCardHeight },
-                    ]}
-                  >
-                    <Text style={[styles.reportScoreLabel, { color: colors.textAssistive }]}>
-                      이번달 소비 점수는?
-                    </Text>
-                    <View style={styles.reportScoreValueRow}>
-                      <Text style={[styles.reportScoreValue, { color: colors.text }]}>?</Text>
-                      <Text style={[styles.reportScoreUnit, { color: colors.text }]}>점</Text>
-                    </View>
-                    <Text style={[styles.reportScoreMessage, { color: colors.textNeutral }]}>
-                      오늘 벌써 2건의 기록이 쌓였어요.{'\n'}한 건만 더 적으면{'\n'}소비 진단을 진행할 수 있어요.
-                    </Text>
-                    <Button
-                      variant="primary"
-                      type="solid"
-                      size="large"
-                      onPress={() => {}}
+                    <View
+                      style={[
+                        styles.reportScoreCard,
+                        {
+                          backgroundColor: colors.staticWhite,
+                          // 버튼을 눌러 점수를 확인하기 전까지는 피그마 시안처럼 큰 높이 유지
+                          // 한 번 점수를 확인하면 콘텐츠 높이에 맞게 축소
+                          minHeight: hasCheckedScore && fqScore != null ? undefined : reportScoreCardHeight,
+                        },
+                      ]}
                     >
-                      점수 확인하기
-                    </Button>
-                  </View>
+                      <Text style={[styles.reportScoreLabel, { color: colors.textAssistive }]}>
+                        이번달 소비 점수는?
+                      </Text>
+                      <View style={styles.reportScoreValueRow}>
+                        <Text style={[styles.reportScoreValue, { color: colors.text }]}>
+                          {hasCheckedScore && fqScore != null ? fqScore : '?'}
+                        </Text>
+                        <Text style={[styles.reportScoreUnit, { color: colors.text }]}>점</Text>
+                      </View>
+                      <Text style={[styles.reportScoreMessage, { color: colors.textNeutral }]}>
+                        {!hasCheckedScore
+                          ? isCollectingIndex || fqScore == null
+                            ? '이번 달 소비 기록이 아직 충분하지 않습니다.\n조금만 더 기록해 주시면 소비 진단을 시작할 수 있어요.'
+                            : '이번 달 소비 점수 계산이 가능합니다.\n아래 버튼을 눌러 점수를 확인해 보세요.'
+                          : isCollectingIndex || fqScore == null
+                            ? '이번 달 소비 기록이 아직 충분하지 않습니다.\n조금만 더 기록해 주시면 소비 진단을 시작할 수 있어요.'
+                            : '이번 달 소비 패턴을 기준으로 계산한 점수입니다.\n아래에서 자세한 리포트와 챌린지 제안을 확인해 주세요.'}
+                      </Text>
+                      <Button
+                        variant="primary"
+                        type="solid"
+                        size="large"
+                        onPress={handleCheckScore}
+                        disabled={isAiLoading}
+                      >
+                        {isAiLoading ? '분석 중...' : '점수 확인하기'}
+                      </Button>
+                    </View>
+
+                    {aiSummaryText && aiChallengeText && (
+                      <>
+                        <View
+                          style={[
+                            styles.reportSummaryCard,
+                            { backgroundColor: colors.staticWhite },
+                          ]}
+                        >
+                          <Text style={[styles.reportSummaryTitle, { color: colors.text }]}>
+                            📊 이번 달 리포트
+                          </Text>
+                          <View style={styles.reportSummaryRows}>
+                            <View style={styles.reportSummaryRow}>
+                              <Text style={[styles.reportSummaryLabel, { color: colors.textAssistive }]}>
+                                월간 지출
+                              </Text>
+                              <Text style={[styles.reportSummaryValue, { color: colors.text }]}>
+                                {consumptionIndex
+                                  ? `${consumptionIndex.stats.totalExpense.toLocaleString()}원`
+                                  : '0원'}
+                              </Text>
+                            </View>
+                            <View style={styles.reportSummaryRow}>
+                              <Text style={[styles.reportSummaryLabel, { color: colors.textAssistive }]}>
+                                무지출일
+                              </Text>
+                              <Text style={[styles.reportSummaryValue, { color: colors.text }]}>
+                                {consumptionIndex
+                                  ? `${consumptionIndex.stats.noSpendDays}일 / ${consumptionIndex.stats.totalDays}일`
+                                  : '-'}
+                              </Text>
+                            </View>
+                          </View>
+                          <Text style={[styles.reportSummaryBody, { color: colors.textNeutral }]}>
+                            {reportSummaryMessage}
+                          </Text>
+                          <View style={styles.reportNextGoal}>
+                            <Text style={[styles.reportNextGoalTitle, { color: colors.text }]}>
+                              📌 다음 주 목표
+                            </Text>
+                            <Text style={[styles.reportNextGoalBody, { color: colors.textNeutral }]}>
+                              {reportChallengeMessage}
+                            </Text>
+                          </View>
+                        </View>
+
+                        <View
+                          style={[
+                            styles.reportChallengeCard,
+                            { backgroundColor: colors.staticWhite },
+                          ]}
+                        >
+                          <Text style={[styles.reportChallengeTitle, { color: colors.text }]}>
+                            📌 챌린지 제안
+                          </Text>
+                          <Text style={[styles.reportChallengeBody, { color: colors.textNeutral }]}>
+                            {aiChallengeText}
+                          </Text>
+                        </View>
+                      </>
+                    )}
                   </Animated.View>
                 </ScrollView>
               ) : (
@@ -1009,7 +1383,7 @@ export default function ChallengeTabScreen() {
           </Animated.View>
             </>
           )}
-        </View>
+        </Animated.View>
 
         {/* 년/월 피커 (타임라인 탑 네비와 100% 동일한 DatePicker) */}
         <DatePicker
@@ -1224,6 +1598,63 @@ const styles = StyleSheet.create({
     ...Typography.body1.l.regular,
     textAlign: 'center',
     marginBottom: 24,
+  },
+  reportSummaryCard: {
+    width: '100%',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    marginTop: 16,
+  },
+  reportSummaryTitle: {
+    ...Typography.body2.r.bold,
+    marginBottom: 8,
+  },
+  reportSummaryRows: {
+    marginBottom: 12,
+  },
+  reportSummaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    paddingVertical: 2,
+  },
+  reportSummaryLabel: {
+    ...Typography.body2.r.regular,
+    width: 96,
+    marginRight: 8,
+  },
+  reportSummaryValue: {
+    ...Typography.body2.r.bold,
+    flexShrink: 1,
+  },
+  reportSummaryBody: {
+    ...Typography.body2.r.regular,
+    marginTop: 0,
+  },
+  reportNextGoal: {
+    marginTop: 12,
+  },
+  reportNextGoalTitle: {
+    ...Typography.body2.r.bold,
+    marginBottom: 4,
+  },
+  reportNextGoalBody: {
+    ...Typography.body2.r.regular,
+  },
+  reportChallengeCard: {
+    width: '100%',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    marginTop: 16,
+  },
+  reportChallengeTitle: {
+    ...Typography.body2.r.bold,
+    marginBottom: 8,
+  },
+  reportChallengeBody: {
+    ...Typography.body2.r.regular,
   },
   trendFilterContainer: {
     flexDirection: 'row',

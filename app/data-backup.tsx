@@ -251,6 +251,8 @@ export default function DataBackupScreen() {
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          bounces={false}
+          overScrollMode="never"
         >
           {/* 백업/복원 + 유의사항: 두 섹션 간 gap 16 */}
           <View style={styles.backupNoticeGroup}>
