@@ -612,12 +612,6 @@ export default function ChallengeTabScreen() {
   // 리포트 탭: 월 변경 감지 → 페이드아웃, 로딩 완료 시 페이드인 (타임라인과 동일)
   useEffect(() => {
     if (activeTopTab !== 'report') return;
-    // 소비 현황(trend) 탭에서는 이 effect로 페이드아웃을 제어하지 않음
-    // (트렌드 리스트는 항상 즉시 표시하고, 로딩 상태는 별도로 관리)
-    if (reportSubTab === 'trend') {
-      prevReportMonthRef.current = { year, month };
-      return;
-    }
     const prev = prevReportMonthRef.current;
     if (prev === null) {
       prevReportMonthRef.current = { year, month };
@@ -626,7 +620,10 @@ export default function ChallengeTabScreen() {
     if (prev.year !== year || prev.month !== month) {
       prevReportMonthRef.current = { year, month };
       reportNeedsFadeInRef.current = true;
-      setReportTrendContentReady(false);
+      // 소비 리포트(score): 월 변경 시 즉시 컨텐츠 리셋
+      if (reportSubTab === 'score') {
+        setReportTrendContentReady(false);
+      }
       Animated.timing(reportContentOpacity, {
         toValue: 0,
         duration: MONTH_CHANGE_FADE_OUT_DURATION,
