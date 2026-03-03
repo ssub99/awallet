@@ -6,6 +6,8 @@
  * Response: { records, suggestedCategory?, reply? }
  */
 
+import { getBaseSystemPrompt } from './ai-system-prompts';
+
 const PAYMENT_METHODS = ['credit', 'debit', 'cash'] as const;
 type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
@@ -40,22 +42,14 @@ interface ParseExpenseResponse {
 
 const MAX_HISTORY_MESSAGES = 6;
 
-function buildPrompt(
-  message: string,
-  history: { role: string; content: string }[],
-  categories: string[],
-  today: string
-): string {
-  const limited = history.slice(-MAX_HISTORY_MESSAGES);
-  const historyText =
-    limited.length > 0
-      ? limited.map((h) => `${h.role === 'user' ? '사용자' : 'AI'}: ${h.content}`).join('\n')
-      : '';
-  const context = historyText ? `이전:\n${historyText}\n\n현재: ${message}` : message;
+function buildExpenseSystemPrompt(categories: string[], today: string): string {
+  const base = getBaseSystemPrompt();
   const categoryList =
     categories.length > 0 ? categories.join(', ') : '(없음. suggestedCategory로만 제안)';
 
-  return `가계부 지출 추출. JSON만 출력.
+  return `${base}
+
+가계부 지출 추출 에이전트입니다. JSON만 출력해야 합니다.
 
 규칙:
 1. 요청 없으면 생성/삭제 금지.
@@ -81,8 +75,21 @@ function buildPrompt(
 
 JSON 형식: {"records":[{"category","date","amount","paymentMethod","memo","isRecurring","isInstallment","recurringType","totalMonths","weekendOption"}],"suggestedCategory":null 또는 {"label","emoji"},"reply":null}
 reply는 사용자에게 할 말(부족한 항목 안내·거절 멘트 등) 있을 때만 문자열, 없으면 null.
+`;
+}
 
-${context}`;
+function buildExpenseUserPrompt(
+  message: string,
+  history: { role: string; content: string }[]
+): string {
+  const limited = history.slice(-MAX_HISTORY_MESSAGES);
+  const historyText =
+    limited.length > 0
+      ? limited.map((h) => `${h.role === 'user' ? '사용자' : 'AI'}: ${h.content}`).join('\n')
+      : '';
+  const context = historyText ? `이전 대화:\n${historyText}\n\n현재 입력: ${message}` : message;
+
+  return context;
 }
 
 const CATEGORY_LABEL_MAX_LEN = 10;
@@ -167,7 +174,11 @@ function parseGeminiJson(text: string): ParseExpenseResponse | null {
     if (!Array.isArray(parsed.records)) return null;
     const rawSuggested = parsed.suggestedCategory ?? null;
     const records = parsed.records.map((r) =>
-      normalizeRecord(typeof r === 'object' && r != null ? (r as Record<string, unknown>) : {})
+      normalizeRecord(
+        typeof r === 'object' && r != null
+          ? (r as unknown as Record<string, unknown>)
+          : {},
+      ),
     );
     return {
       records,
@@ -219,13 +230,23 @@ export async function POST(request: Request): Promise<Response> {
       );
     }
 
-    const prompt = buildPrompt(message, history, categories, today);
+    const systemPrompt = buildExpenseSystemPrompt(categories, today);
+    const userPrompt = buildExpenseUserPrompt(message, history);
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${apiKey}`;
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
+        systemInstruction: {
+          role: 'system',
+          parts: [{ text: systemPrompt }],
+        },
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: userPrompt }],
+          },
+        ],
         generationConfig: {
           temperature: 0.2,
           maxOutputTokens: 1024,
