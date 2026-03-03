@@ -1837,7 +1837,7 @@ const styles = StyleSheet.create({
   },
   reportScrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 0,
+    paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 24,
   },

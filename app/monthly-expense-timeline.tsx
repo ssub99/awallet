@@ -1043,7 +1043,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   dateStripContent: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 8,
     paddingVertical: 16,
     flexDirection: 'row',
     alignItems: 'center',
