@@ -21,28 +21,28 @@ import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { loadCategories } from '@/utils/categories';
 import { getChallengesByDateRange } from '@/utils/challenges';
-import { createSheetEvent } from '@/utils/create-sheet-event';
-import { getCustomMonthInfo, getCustomMonthRange, isDateInCustomMonth } from '@/utils/custom-month';
 import {
   computeConsumptionIndex,
-  type ConsumptionIndexResult,
   type CalendarData,
+  type ConsumptionIndexResult,
 } from '@/utils/consumption-index';
+import { createSheetEvent } from '@/utils/create-sheet-event';
+import { getCustomMonthInfo, getCustomMonthRange, isDateInCustomMonth } from '@/utils/custom-month';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    Animated,
-    GestureResponderEvent,
-    InteractionManager,
-    PanResponder,
-    PanResponderGestureState,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    useWindowDimensions,
-    View,
+  Animated,
+  GestureResponderEvent,
+  InteractionManager,
+  PanResponder,
+  PanResponderGestureState,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -465,31 +465,56 @@ export default function ChallengeTabScreen() {
       const monthStart = await loadMonthStartDay();
       if (cancelled) return;
       const storedData = await AsyncStorage.getItem('calendarData');
-      if (!storedData || cancelled) return;
-      const calendarData = JSON.parse(storedData, (key: string, value: unknown) => {
-        if (key === 'recurringType' && value === null) return undefined;
-        return value;
-      }) as Record<string, { records?: Array<{ type?: string; category?: string; amount?: number; memo?: string; isRecurring?: boolean; isDeleted?: boolean }> }>;
-      const items: TrendTimelineItem[] = [];
-      Object.entries(calendarData).forEach(([dateString, data]) => {
-        const [y, m, d] = dateString.split('-').map(Number);
-        const date = new Date(y, m - 1, d);
-        if (!isDateInCustomMonth(date, year, month, monthStart) || !data?.records) return;
-        data.records.forEach((record) => {
-          if (record.isDeleted || record.type !== 'expense') return;
-          items.push({
-            date: dateString,
-            type: 'expense',
-            category: record.category || '기타',
-            amount: record.amount || 0,
-            memo: record.memo,
-            isRecurring: record.isRecurring,
+      if (!storedData || cancelled) {
+        if (!cancelled) {
+          setTrendTimelineData([]);
+          setReportTrendContentReady(true);
+        }
+        return;
+      }
+      try {
+        const calendarData = JSON.parse(storedData, (key: string, value: unknown) => {
+          if (key === 'recurringType' && value === null) return undefined;
+          return value;
+        }) as Record<
+          string,
+          {
+            records?: Array<{
+              type?: string;
+              category?: string;
+              amount?: number;
+              memo?: string;
+              isRecurring?: boolean;
+              isDeleted?: boolean;
+            }>;
+          }
+        >;
+        const items: TrendTimelineItem[] = [];
+        Object.entries(calendarData).forEach(([dateString, data]) => {
+          const [y, m, d] = dateString.split('-').map(Number);
+          const date = new Date(y, m - 1, d);
+          if (!isDateInCustomMonth(date, year, month, monthStart) || !data?.records) return;
+          data.records.forEach((record) => {
+            if (record.isDeleted || record.type !== 'expense') return;
+            items.push({
+              date: dateString,
+              type: 'expense',
+              category: record.category || '기타',
+              amount: record.amount || 0,
+              memo: record.memo,
+              isRecurring: record.isRecurring,
+            });
           });
         });
-      });
-      if (!cancelled) {
-        setTrendTimelineData(items);
-        setReportTrendContentReady(true);
+        if (!cancelled) {
+          setTrendTimelineData(items);
+          setReportTrendContentReady(true);
+        }
+      } catch {
+        if (!cancelled) {
+          setTrendTimelineData([]);
+          setReportTrendContentReady(true);
+        }
       }
     };
     load();
@@ -1133,7 +1158,7 @@ export default function ChallengeTabScreen() {
       });
 
       if (!res.ok) {
-        showToast('AI 리포트를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+        showToast('잠시 후 다시 시도해 주세요.');
         return;
       }
 
