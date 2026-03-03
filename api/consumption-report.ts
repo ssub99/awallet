@@ -58,6 +58,7 @@ interface ConsumptionReportResponse {
   summaryTitle: string;
   summary: string;
   challenge: string;
+  nextWeekGoal: string;
 }
 
 function buildConsumptionSystemPrompt(): string {
@@ -73,7 +74,8 @@ function buildConsumptionSystemPrompt(): string {
   "scoreFeedback": "<FQ 점수에 대한 감성적인 한 문장 피드백. 줄바꿈(\\n) 없이 한 문장만 작성.>",
   "summaryTitle": "<이번 달 소비 패턴을 한 문장으로 요약하는 제목. 맨 앞에 단일 이모지 한 개 포함. 줄바꿈(\\n) 없이 한 문장만 작성.>",
   "summary": "<이번 달 소비 리포트 한두 문단. 줄바꿈은 \\n 사용. 최대 10줄.>",
-  "challenge": "<다음 주에 시도할 챌린지 제안 한두 문단. 줄바꿈은 \\n 사용. 최대 10줄.>"
+  "challenge": "<다음 주에 시도할 챌린지 제안 한두 문단. 줄바꿈은 \\n 사용. 최대 10줄.>",
+  "nextWeekGoal": "<다음 주에 실천할 핵심 목표 한두 문장 요약. 줄 수는 최대 2줄(\\n 기준)을 넘지 않도록 작성.>"
 }
 
 공통 규칙:
@@ -81,18 +83,20 @@ function buildConsumptionSystemPrompt(): string {
 - 금액은 "12,300원"처럼 한국 통화 형식으로 표현합니다.
 - 특정 카테고리는 따옴표로 감싸서 표기합니다. 예: "카페", "식비"
 - 사용자의 죄책감을 과도하게 자극하지 말고, 실천 가능한 작은 변화에 초점을 둡니다.
-- 네 필드(scoreFeedback, summaryTitle, summary, challenge)는 모두 반드시 채워야 하며, null이나 빈 문자열은 허용되지 않습니다.
+- 다섯 필드(scoreFeedback, summaryTitle, summary, challenge, nextWeekGoal)는 모두 가능한 한 의미 있는 문장으로 채우는 것을 목표로 합니다.
 
 [scoreFeedback 작성 규칙]
-- FQ 점수에 대한 감성적인 한 문장 피드백만 작성합니다.
+- FQ 점수에 대한 감성적인 한두 문장 피드백을 작성합니다.
 - 점수에 대한 전반적인 인상(예: "이번 달 소비 페이스는 전체적으로 안정적인 편입니다.")을 부드럽게 전달합니다.
-- 줄바꿈(\\n)은 사용하지 말고, 정확히 한 문장만 작성합니다.
+- 각 문장 끝에서 실제 줄바꿈(엔터 또는 \\n)을 넣어, 전체적으로 1~2줄 정도가 되도록 작성합니다.
+- 줄 수는 최대 2줄(\\n 기준)을 넘기지 않습니다.
 
 [summaryTitle 작성 규칙]
 - summary 전체 내용을 바탕으로, 이번 달 소비 패턴을 한 문장으로 요약하는 제목을 작성합니다.
-- 문장 맨 앞에는 이 내용을 잘 표현하는 단일 이모지(예: 📊, 💰, 📉, 📈, ⏳ 등)를 하나 포함합니다.
+- 문장 맨 앞에는 이 내용을 잘 표현하는 이모지(예: 💬, 💰, 📉, 📈, ⏳ 등)중 임의의 이모지를 표기 합니다.
 - 점수에 대한 감성적인 표현은 scoreFeedback에 맡기고, summaryTitle은 "지금 어떤 상태인지"를 객관적으로 설명하는 데 집중합니다.
 - 줄바꿈(\\n)은 사용하지 말고, 정확히 한 문장만 작성합니다.
+- summaryTitle의 텍스트 길이는 25자를 넘지 않도록 합니다.
 
 [summary 작성 규칙]
 - "이번 달 전반적인 소비 패턴"을 설명하고, 눈에 띄는 특징 1~2가지를 구체적으로 서술합니다.
@@ -105,6 +109,12 @@ function buildConsumptionSystemPrompt(): string {
 - 데이터가 적을 때는 "지출을 빠짐없이 기록해보기", "충동 구매를 하루에 한 번만 줄여보기"처럼 작고 실천 가능한 목표에 초점을 맞춥니다.
 - 데이터가 충분할 때는 상위 소비 카테고리(예: "카페", "야식", "편의점", "간식", "쇼핑")를 중심으로 부담되지 않는 챌린지를 제안합니다.
 - summary와 마찬가지로 줄바꿈(\\n)을 사용해 문단을 나누고, 최대 10줄(\\n 기준)을 넘기지 않습니다.
+
+[nextWeekGoal 작성 규칙]
+- 다음 주 1주일 동안 실천할 "핵심 목표"만 한 문장 또는 두 줄 이내로 요약합니다.
+- challenge에 작성한 내용 중 가장 중요한 행동 목표만 뽑아 압축해서 작성합니다.
+- 줄바꿈(\\n)을 사용할 수 있지만, 전체 길이는 10줄(\\n 기준)을 넘기지 않습니다.
+- 데이터가 적은 상태에서는 기록/관찰/충동 소비 점검과 같이 부담이 적은 목표를, 데이터가 충분한 상태에서는 상위 카테고리를 활용한 완화된 수준의 목표를 제안합니다.
 
 줄바꿈/형식 공통 규칙:
 - summary와 challenge는 각각 최대 10줄(\\n 기준)을 넘지 않습니다.
@@ -125,10 +135,10 @@ function buildConsumptionSystemPrompt(): string {
 
 데이터가 아직 적은 상태일 때:
 - summary 앞부분에서 "기록이 아직 많지 않아 소비 패턴을 단정하기는 이르다"는 취지를 짧게 언급합니다.
-- 현재까지의 지출 규모와 상위 카테고리를 가볍게 소개합니다.
-- 특정 카테고리를 강하게 문제 삼지 말고, 충동 소비를 한 번 더 점검해 보라는 수준의 부드러운 톤을 유지합니다.
-- challenge에서는 "지출을 빠짐없이 기록해보기", "충동 구매를 하루에 한 번만 줄여보기"와 같은 작고 구체적인 목표 1~2개만 제안합니다.
-- 이 모드에서는 특정 카테고리를 강하게 줄이라고 요구하는 문구를 사용하지 않습니다.
+- 현재까지의 지출 규모를, 주요 카테고리별로 "건수와 금액 수준" 위주로만 가볍게 소개합니다.
+- 이 모드에서는 상위 카테고리 비율(예: 전체 지출의 XX%)을 근거로 특정 카테고리 지출을 줄이라고 요구하는 문장을 작성하면 안 됩니다.
+- 또한, 특정 카테고리 이름과 "줄이다/줄여보세요/줄이는" 등 직접적인 절약·통제 표현을 함께 사용하는 문장은 작성하지 않습니다.
+- challenge에서는 지출을 빠짐없이 기록하기, 충동적인 소비를 하기 전에 한 번 더 생각해 보기 등 "기록/관찰/자기 점검"에 대한 작고 구체적인 목표 1~2개만 제안합니다.
 
 데이터가 충분한 상태일 때:
 - 상위 카테고리 비중을 근거로, 생활비/소비 카테고리(예: "카페", "야식", "편의점", "간식", "쇼핑")에 대한 구체적인 챌린지를 제안해도 좋습니다.`;
@@ -194,8 +204,10 @@ function parseReportJson(text: string): ConsumptionReportResponse | null {
     const summaryTitle =
       typeof parsed.summaryTitle === 'string' ? parsed.summaryTitle.trim() : '';
     const challenge = typeof parsed.challenge === 'string' ? parsed.challenge.trim() : '';
+    const nextWeekGoal =
+      typeof parsed.nextWeekGoal === 'string' ? parsed.nextWeekGoal.trim() : '';
     if (!summary || !challenge) return null;
-    return { scoreFeedback, summaryTitle, summary, challenge };
+    return { scoreFeedback, summaryTitle, summary, challenge, nextWeekGoal };
   } catch {
     return null;
   }
