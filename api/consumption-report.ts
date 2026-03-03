@@ -86,13 +86,13 @@ function buildConsumptionSystemPrompt(): string {
 - 사용자의 죄책감을 과도하게 자극하지 말고, 실천 가능한 작은 변화에 초점을 둡니다.
 - 다섯 필드(scoreFeedback, summaryTitle, summary, challenge, nextWeekGoal)는 모두 가능한 한 의미 있는 문장으로 채우는 것을 목표로 합니다.
 - 사용자는 FQ 또는 FQ 점수라는 워딩을 이해하기 힘드니 소비 점수라는 워딩으로 대체해서 설명해야 합니다.
+- 소비 패턴 진단을 진행할 때에 해당 년월에서 진단을 해야 합니다. 현재형으로 피드백을 지향하고 과거형 피드백은 지양해야 합니다.
 
 [scoreFeedback 작성 규칙]
-- 이번 달 소비 점수에 대한 **전반적인 느낌**을 한두 문장으로 부드럽게 설명해야 합니다.
+- 이번 달 소비 점수에 대한 **전반적인 느낌**을 한개의 문장으로 부드럽게 설명해야 합니다.
 - 점수의 구체적인 숫자(예: "75점")는 이미 카드에서 따로 보여주고 있으므로, scoreFeedback에서는 점수를 언급하지 않아야 합니다.
 - "소비 점수"라는 단어를 반복해서 강조하기보다는, 현재 소비 패턴이 안정적인지/빠른지/조금만 조정하면 되는지 등 **상태에 대한 감상**을 중심으로 작성합니다.
-- 각 문장 끝에서 실제 줄바꿈(엔터 또는 \\n)을 넣어, 전체적으로 1~2줄 정도가 되도록 작성합니다.
-- 줄 수는 최대 2줄(\\n 기준)을 넘기지 않습니다.
+- 줄 수는 1줄을 넘기지 않고, 20자 이내로 피드백을 줄 수 있도록 합니다.
 
 [summaryTitle 작성 규칙]
 - summary 전체 내용을 바탕으로, 이번 달 소비 패턴을 한 문장으로 요약하는 제목을 작성합니다.
@@ -301,52 +301,66 @@ export async function POST(request: Request): Promise<Response> {
 
     const systemPrompt = buildConsumptionSystemPrompt();
     const userPrompt = buildConsumptionUserPrompt(payload);
-
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${apiKey}`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        systemInstruction: {
-          role: 'system',
-          parts: [{ text: systemPrompt }],
-        },
-        contents: [
-          {
-            role: 'user',
-            parts: [{ text: userPrompt }],
+
+    const MAX_ATTEMPTS = 1;
+
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          systemInstruction: {
+            role: 'system',
+            parts: [{ text: systemPrompt }],
           },
-        ],
-        generationConfig: {
-          temperature: 0.4,
-          maxOutputTokens: 512,
-          responseMimeType: 'application/json',
-        },
-      }),
-    });
+          contents: [
+            {
+              role: 'user',
+              parts: [{ text: userPrompt }],
+            },
+          ],
+          generationConfig: {
+            temperature: 0.4,
+            maxOutputTokens: 512,
+            responseMimeType: 'application/json',
+          },
+        }),
+      });
 
-    if (!res.ok) {
-      const errText = await res.text();
-      return Response.json(
-        { error: 'Gemini API error', details: errText },
-        { status: 502 },
-      );
+      if (!res.ok) {
+        const errText = await res.text();
+        // Gemini API 자체가 실패한 경우에는 재시도 없이 즉시 반환
+        return Response.json(
+          { error: 'Gemini API error', details: errText },
+          { status: 502 },
+        );
+      }
+
+      const data = (await res.json()) as {
+        candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+      };
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+      const parsed = parseReportJson(text);
+
+      if (parsed) {
+        return Response.json(parsed, { status: 200 });
+      }
+
+      // 응답 파싱에 실패한 경우, 재시도 상한에 도달하면 502로 마무리
+      if (attempt === MAX_ATTEMPTS - 1) {
+        return Response.json(
+          { error: 'Failed to parse AI response after retries' },
+          { status: 502 },
+        );
+      }
     }
 
-    const data = (await res.json()) as {
-      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-    };
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-    const parsed = parseReportJson(text);
-
-    if (!parsed) {
-      return Response.json(
-        { error: 'Failed to parse AI response' },
-        { status: 502 },
-      );
-    }
-
-    return Response.json(parsed, { status: 200 });
+    // 이 지점에는 도달하지 않지만, 타입 안전성을 위해 추가
+    return Response.json(
+      { error: 'Unexpected error' },
+      { status: 500 },
+    );
   } catch (error) {
     console.error('[consumption-report] error:', error);
     return Response.json(
