@@ -173,6 +173,7 @@ export default function ChallengeTabScreen() {
   const [aiChallengeText, setAiChallengeText] = useState<string | null>(null);
   const [aiSummaryTitleText, setAiSummaryTitleText] = useState<string | null>(null);
   const [scoreFeedbackText, setScoreFeedbackText] = useState<string | null>(null);
+  const [aiNextWeekGoalText, setAiNextWeekGoalText] = useState<string | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [hasCheckedScore, setHasCheckedScore] = useState(false);
   const categoryEmojiMap = useCategoryEmojiMap();
@@ -807,6 +808,12 @@ export default function ChallengeTabScreen() {
   }, [aiSummaryText, consumptionIndex, fqScore, topCategoryInfo]);
 
   const reportNextGoalMessage = useMemo(() => {
+    // 1순위: AI가 생성한 nextWeekGoal이 있으면 그대로 사용
+    if (aiNextWeekGoalText && aiNextWeekGoalText.trim().length > 0) {
+      return aiNextWeekGoalText.trim();
+    }
+
+    // 2순위: 기존 로직 기반 템플릿 (AI 응답이 없거나 형식이 맞지 않을 때만 사용)
     if (!consumptionIndex || fqScore == null) {
       return '다가오는 한 주에는 지출을 기록하는 습관을 먼저 만드는 것을 목표로 해보세요.\n특히 자주 쓰는 카테고리 한두 개만 의식하면서 적어 보는 것만으로도 충분합니다.';
     }
@@ -831,7 +838,7 @@ export default function ChallengeTabScreen() {
       return `다음 주에는 '${categoryLabel}' 지출을 한두 번만 덜 쓰는 것을 목표로 해보세요.\n이 카테고리가 전체 지출의 ${ratioText}를 차지하고 있어서, 작은 조정만으로도 전체 소비 페이스를 낮추는 데 도움이 됩니다.`;
     }
     return `다가오는 한 주에는 '${categoryLabel}' 지출을 특히 의식하면서 사용해보세요.\n전체 지출의 ${ratioText}를 차지하고 있어, 이 카테고리에서 한두 번만 줄여도 이번 달 소비 흐름을 바꾸는 데 큰 도움이 됩니다.`;
-  }, [consumptionIndex, fqScore, topCategoryInfo]);
+  }, [aiNextWeekGoalText, consumptionIndex, fqScore, topCategoryInfo]);
 
   const shouldShowChallengeCard = useMemo(() => {
     if (!consumptionIndex || fqScore == null || !aiChallengeText || !topCategoryInfo) return false;
@@ -953,6 +960,7 @@ export default function ChallengeTabScreen() {
     let nextSummaryTitle: string | null = null;
     let nextChallenge: string | null = null;
     let nextScoreFeedback: string | null = null;
+    let nextNextWeekGoal: string | null = null;
 
     try {
       const storedData = await AsyncStorage.getItem('calendarData');
@@ -1009,6 +1017,7 @@ export default function ChallengeTabScreen() {
             summaryTitle?: string;
             challenge: string;
             scoreFeedback?: string;
+            nextWeekGoal?: string;
             lastRecordUpdatedAt: number;
           };
 
@@ -1032,6 +1041,9 @@ export default function ChallengeTabScreen() {
                 }
                 if (typeof parsed.scoreFeedback === 'string') {
                   setScoreFeedbackText(parsed.scoreFeedback.trim());
+                }
+                if (typeof parsed.nextWeekGoal === 'string') {
+                  setAiNextWeekGoalText(parsed.nextWeekGoal.trim());
                 }
                 setHasCheckedScore(true);
               }
@@ -1072,14 +1084,28 @@ export default function ChallengeTabScreen() {
         return;
       }
 
-      const data = (await res.json()) as { summary?: string; summaryTitle?: string; challenge?: string; scoreFeedback?: string };
-      const dataObj = data as { scoreFeedback?: string; summaryTitle?: string; summary?: string; challenge?: string };
+      const data = (await res.json()) as {
+        summary?: string;
+        summaryTitle?: string;
+        challenge?: string;
+        scoreFeedback?: string;
+        nextWeekGoal?: string;
+      };
+      const dataObj = data as {
+        scoreFeedback?: string;
+        summaryTitle?: string;
+        summary?: string;
+        challenge?: string;
+        nextWeekGoal?: string;
+      };
       const summary = typeof dataObj.summary === 'string' ? dataObj.summary.trim() : '';
       const summaryTitle =
         typeof dataObj.summaryTitle === 'string' ? dataObj.summaryTitle.trim() : '';
       const challenge = typeof dataObj.challenge === 'string' ? dataObj.challenge.trim() : '';
       const scoreFeedback =
         typeof dataObj.scoreFeedback === 'string' ? dataObj.scoreFeedback.trim() : '';
+      const nextWeekGoal =
+        typeof dataObj.nextWeekGoal === 'string' ? dataObj.nextWeekGoal.trim() : '';
 
       if (!summary || !challenge) {
         showToast('AI 리포트 형식이 올바르지 않습니다.');
@@ -1094,6 +1120,9 @@ export default function ChallengeTabScreen() {
       if (scoreFeedback) {
         nextScoreFeedback = scoreFeedback;
       }
+      if (nextWeekGoal) {
+        nextNextWeekGoal = nextWeekGoal;
+      }
       didUpdate = true;
 
       await AsyncStorage.setItem(
@@ -1103,6 +1132,7 @@ export default function ChallengeTabScreen() {
           summaryTitle: summaryTitle || undefined,
           challenge,
           scoreFeedback: scoreFeedback || undefined,
+          nextWeekGoal: nextWeekGoal || undefined,
           lastRecordUpdatedAt,
         }),
       );
@@ -1119,6 +1149,9 @@ export default function ChallengeTabScreen() {
           }
           if (nextScoreFeedback) {
             setScoreFeedbackText(nextScoreFeedback);
+          }
+          if (nextNextWeekGoal) {
+            setAiNextWeekGoalText(nextNextWeekGoal);
           }
           setHasCheckedScore(true);
         });
@@ -1804,7 +1837,7 @@ const styles = StyleSheet.create({
   },
   reportScrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 16,
+    paddingHorizontal: 0,
     paddingTop: 16,
     paddingBottom: 24,
   },
