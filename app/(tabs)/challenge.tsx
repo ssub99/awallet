@@ -169,11 +169,11 @@ export default function ChallengeTabScreen() {
   const [trendCategoryFilter, setTrendCategoryFilter] = useState<'all' | 'recurring'>('all');
   const [consumptionIndex, setConsumptionIndex] = useState<ConsumptionIndexResult | null>(null);
   const [isConsumptionIndexLoading, setIsConsumptionIndexLoading] = useState(false);
-  const [aiSummaryText, setAiSummaryText] = useState<string | null>(null);
-  const [aiChallengeText, setAiChallengeText] = useState<string | null>(null);
+  const [aiSummaryText, setAiSummaryText] = useState<string[] | null>(null);
+  const [aiChallengeText, setAiChallengeText] = useState<string[] | null>(null);
   const [aiSummaryTitleText, setAiSummaryTitleText] = useState<string | null>(null);
-  const [scoreFeedbackText, setScoreFeedbackText] = useState<string | null>(null);
-  const [aiNextWeekGoalText, setAiNextWeekGoalText] = useState<string | null>(null);
+  const [scoreFeedbackText, setScoreFeedbackText] = useState<string[] | null>(null);
+  const [aiNextWeekGoalText, setAiNextWeekGoalText] = useState<string[] | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [hasCheckedScore, setHasCheckedScore] = useState(false);
   const categoryEmojiMap = useCategoryEmojiMap();
@@ -361,22 +361,35 @@ export default function ChallengeTabScreen() {
         if (!cached || cancelled) return;
 
         const parsed = JSON.parse(cached) as {
-          summary?: string;
+          summary?: string | string[];
           summaryTitle?: string;
-          challenge?: string;
-          scoreFeedback?: string;
+          challenge?: string | string[];
+          scoreFeedback?: string | string[];
           lastRecordUpdatedAt?: number;
         };
 
-        if (typeof parsed.summary === 'string' && typeof parsed.challenge === 'string') {
+        if (parsed.summary && parsed.challenge) {
           if (!cancelled) {
-            setAiSummaryText(parsed.summary.trim());
-            setAiChallengeText(parsed.challenge.trim());
+            const summaryLines = splitLines(
+              Array.isArray(parsed.summary) ? parsed.summary.join('\n') : parsed.summary.trim(),
+            );
+            const challengeLines = splitLines(
+              Array.isArray(parsed.challenge)
+                ? parsed.challenge.join('\n')
+                : parsed.challenge.trim(),
+            );
+            setAiSummaryText(summaryLines);
+            setAiChallengeText(challengeLines);
             if (typeof parsed.summaryTitle === 'string') {
               setAiSummaryTitleText(parsed.summaryTitle.trim());
             }
-            if (typeof parsed.scoreFeedback === 'string') {
-              setScoreFeedbackText(parsed.scoreFeedback.trim());
+            if (typeof parsed.scoreFeedback !== 'undefined') {
+              const feedbackLines = splitLines(
+                Array.isArray(parsed.scoreFeedback)
+                  ? parsed.scoreFeedback.join('\n')
+                  : parsed.scoreFeedback.trim(),
+              );
+              setScoreFeedbackText(feedbackLines);
             }
             setHasCheckedScore(true);
           }
@@ -671,7 +684,14 @@ export default function ChallengeTabScreen() {
               if (itemDate >= startDate && itemDate <= endDate && data && typeof data === 'object' && 'records' in data) {
                 const records = (data as { records?: unknown[] }).records;
                 if (Array.isArray(records)) {
-                  records.forEach((record: { isDeleted?: boolean; isRefunded?: boolean; type?: string; category?: string; amount?: number }) => {
+                  records.forEach((value) => {
+                    const record = value as {
+                      isDeleted?: boolean;
+                      isRefunded?: boolean;
+                      type?: string;
+                      category?: string;
+                      amount?: number;
+                    };
                     if (record.isDeleted || record.isRefunded) return;
                     if (record.type === 'expense' && record.category === challenge.category) {
                       totalAmount += record.amount || 0;
@@ -772,73 +792,88 @@ export default function ChallengeTabScreen() {
     };
   }, [consumptionIndex]);
 
-  const reportSummaryMessage = useMemo(() => {
-    if (aiSummaryText) {
+  const splitLines = useCallback((text: string): string[] => {
+    return text
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+  }, []);
+
+  const reportSummaryLines = useMemo(() => {
+    if (aiSummaryText && aiSummaryText.length > 0) {
       return aiSummaryText;
     }
 
+    let fallback: string;
+
     if (!consumptionIndex) {
-      return '아직 소비 데이터가 없습니다.\n이번 달부터 지출을 기록해 보세요.';
-    }
-
-    if (consumptionIndex.status === 'collecting' || fqScore == null) {
-      return '기록은 시작되었지만 아직 소비 패턴을 판단하기에는 데이터가 부족합니다.\n며칠만 더 꾸준히 기록해 주시면 소비 리포트를 볼 수 있어요.';
-    }
-
-    if (!topCategoryInfo) {
+      fallback = '아직 소비 데이터가 없습니다.\n이번 달부터 지출을 기록해 보세요.';
+    } else if (consumptionIndex.status === 'collecting' || fqScore == null) {
+      fallback =
+        '기록은 시작되었지만 아직 소비 패턴을 판단하기에는 데이터가 부족합니다.\n며칠만 더 꾸준히 기록해 주시면 소비 리포트를 볼 수 있어요.';
+    } else if (!topCategoryInfo) {
       if (fqScore >= 80) {
-        return '이번 달 소비 페이스는 전반적으로 안정적인 편입니다.\n특정 카테고리에 과도하게 쏠린 지출 없이 균형을 잘 유지하고 있어요.';
+        fallback =
+          '이번 달 소비 페이스는 전반적으로 안정적인 편입니다.\n특정 카테고리에 과도하게 쏠린 지출 없이 균형을 잘 유지하고 있어요.';
+      } else if (fqScore >= 50) {
+        fallback =
+          '이번 달 소비 페이스는 다소 빠른 편입니다.\n어떤 요일·시간대에 소비가 몰리는지 한 번 확인해 보세요.';
+      } else {
+        fallback =
+          '이번 달에는 지출 속도가 꽤 빠른 편입니다.\n특히 불필요한 소액 지출이 반복되지 않는지 점검해 보시면 좋겠습니다.';
       }
-      if (fqScore >= 50) {
-        return '이번 달 소비 페이스는 다소 빠른 편입니다.\n어떤 요일·시간대에 소비가 몰리는지 한 번 확인해 보세요.';
+    } else {
+      const categoryLabel = topCategoryInfo.category;
+      const ratioText = `${topCategoryInfo.ratioPercent.toFixed(1)}%`;
+
+      if (fqScore >= 80) {
+        fallback = `이번 달 소비 페이스는 안정적인 편입니다.\n다만 전체 지출의 ${ratioText}가 '${categoryLabel}'에서 발생하고 있어, 이 카테고리만 조금만 줄이면 더 높은 점수를 기대할 수 있어요.`;
+      } else if (fqScore >= 50) {
+        fallback = `이번 달 소비 페이스는 다소 빠른 편입니다.\n특히 '${categoryLabel}' 카테고리가 전체의 ${ratioText}를 차지하고 있어, 이 부분을 한 번 점검해 보시면 좋겠습니다.`;
+      } else {
+        fallback = `이번 달에는 지출 속도가 꽤 빠른 편입니다.\n'${categoryLabel}' 카테고리가 전체의 ${ratioText}를 차지해 소비 패턴을 끌어올리고 있어요.\n이 카테고리부터 작게 줄이는 챌린지를 시작해 보세요.`;
       }
-      return '이번 달에는 지출 속도가 꽤 빠른 편입니다.\n특히 불필요한 소액 지출이 반복되지 않는지 점검해 보시면 좋겠습니다.';
     }
 
-    const categoryLabel = topCategoryInfo.category;
-    const ratioText = `${topCategoryInfo.ratioPercent.toFixed(1)}%`;
+    return splitLines(fallback);
+  }, [aiSummaryText, consumptionIndex, fqScore, topCategoryInfo, splitLines]);
 
-    if (fqScore >= 80) {
-      return `이번 달 소비 페이스는 안정적인 편입니다.\n다만 전체 지출의 ${ratioText}가 '${categoryLabel}'에서 발생하고 있어, 이 카테고리만 조금만 줄이면 더 높은 점수를 기대할 수 있어요.`;
-    }
-    if (fqScore >= 50) {
-      return `이번 달 소비 페이스는 다소 빠른 편입니다.\n특히 '${categoryLabel}' 카테고리가 전체의 ${ratioText}를 차지하고 있어, 이 부분을 한 번 점검해 보시면 좋겠습니다.`;
-    }
-    return `이번 달에는 지출 속도가 꽤 빠른 편입니다.\n'${categoryLabel}' 카테고리가 전체의 ${ratioText}를 차지해 소비 패턴을 끌어올리고 있어요.\n이 카테고리부터 작게 줄이는 챌린지를 시작해 보세요.`;
-  }, [aiSummaryText, consumptionIndex, fqScore, topCategoryInfo]);
-
-  const reportNextGoalMessage = useMemo(() => {
-    // 1순위: AI가 생성한 nextWeekGoal이 있으면 그대로 사용
-    if (aiNextWeekGoalText && aiNextWeekGoalText.trim().length > 0) {
-      return aiNextWeekGoalText.trim();
+  const reportNextGoalLines = useMemo(() => {
+    if (aiNextWeekGoalText && aiNextWeekGoalText.length > 0) {
+      return aiNextWeekGoalText;
     }
 
-    // 2순위: 기존 로직 기반 템플릿 (AI 응답이 없거나 형식이 맞지 않을 때만 사용)
+    let fallback: string;
+
     if (!consumptionIndex || fqScore == null) {
-      return '다가오는 한 주에는 지출을 기록하는 습관을 먼저 만드는 것을 목표로 해보세요.\n특히 자주 쓰는 카테고리 한두 개만 의식하면서 적어 보는 것만으로도 충분합니다.';
-    }
-
-    if (!topCategoryInfo) {
+      fallback =
+        '다가오는 한 주에는 지출을 기록하는 습관을 먼저 만드는 것을 목표로 해보세요.\n특히 자주 쓰는 카테고리 한두 개만 의식하면서 적어 보는 것만으로도 충분합니다.';
+    } else if (!topCategoryInfo) {
       if (fqScore >= 80) {
-        return '다음 주에는 지금과 같은 소비 페이스를 유지하는 것을 목표로 해보세요.\n특별한 소비 계획이 없다면, 이미 잘 하고 계신 패턴을 그대로 이어가셔도 좋습니다.';
+        fallback =
+          '다음 주에는 지금과 같은 소비 페이스를 유지하는 것을 목표로 해보세요.\n특별한 소비 계획이 없다면, 이미 잘 하고 계신 패턴을 그대로 이어가셔도 좋습니다.';
+      } else if (fqScore >= 50) {
+        fallback =
+          '다음 주에는 평소보다 하루에 한 번 정도만 소비를 줄여 보는 것을 목표로 해보세요.\n특히 큰 의미 없이 나가는 소액 지출이 있다면 한두 번만 덜 쓰는 것부터 시도해보면 좋습니다.';
+      } else {
+        fallback =
+          '다가오는 한 주 동안은 지출을 한 번 더 생각해 보고 사용하는 것을 목표로 해보세요.\n꼭 필요하지 않은 소비를 하루에 한 번만 덜 하는 것부터 시작해도 충분합니다.';
       }
-      if (fqScore >= 50) {
-        return '다음 주에는 평소보다 하루에 한 번 정도만 소비를 줄여 보는 것을 목표로 해보세요.\n특히 큰 의미 없이 나가는 소액 지출이 있다면 한두 번만 덜 쓰는 것부터 시도해보면 좋습니다.';
+    } else {
+      const categoryLabel = topCategoryInfo.category;
+      const ratioText = `${topCategoryInfo.ratioPercent.toFixed(1)}%`;
+
+      if (fqScore >= 80) {
+        fallback = `다음 주에는 '${categoryLabel}' 지출을 이번 주보다 조금만 줄여 보는 것을 목표로 해보세요.\n현재 전체 지출의 ${ratioText}를 차지하고 있어, 이 부분만 가볍게 조절해도 좋은 흐름을 유지하는 데 도움이 됩니다.`;
+      } else if (fqScore >= 50) {
+        fallback = `다음 주에는 '${categoryLabel}' 지출을 한두 번만 덜 쓰는 것을 목표로 해보세요.\n이 카테고리가 전체 지출의 ${ratioText}를 차지하고 있어서, 작은 조정만으로도 전체 소비 페이스를 낮추는 데 도움이 됩니다.`;
+      } else {
+        fallback = `다가오는 한 주에는 '${categoryLabel}' 지출을 특히 의식하면서 사용해보세요.\n전체 지출의 ${ratioText}를 차지하고 있어, 이 카테고리에서 한두 번만 줄여도 이번 달 소비 흐름을 바꾸는 데 큰 도움이 됩니다.`;
       }
-      return '다가오는 한 주 동안은 지출을 한 번 더 생각해 보고 사용하는 것을 목표로 해보세요.\n꼭 필요하지 않은 소비를 하루에 한 번만 덜 하는 것부터 시작해도 충분합니다.';
     }
 
-    const categoryLabel = topCategoryInfo.category;
-    const ratioText = `${topCategoryInfo.ratioPercent.toFixed(1)}%`;
-
-    if (fqScore >= 80) {
-      return `다음 주에는 '${categoryLabel}' 지출을 이번 주보다 조금만 줄여 보는 것을 목표로 해보세요.\n현재 전체 지출의 ${ratioText}를 차지하고 있어, 이 부분만 가볍게 조절해도 좋은 흐름을 유지하는 데 도움이 됩니다.`;
-    }
-    if (fqScore >= 50) {
-      return `다음 주에는 '${categoryLabel}' 지출을 한두 번만 덜 쓰는 것을 목표로 해보세요.\n이 카테고리가 전체 지출의 ${ratioText}를 차지하고 있어서, 작은 조정만으로도 전체 소비 페이스를 낮추는 데 도움이 됩니다.`;
-    }
-    return `다가오는 한 주에는 '${categoryLabel}' 지출을 특히 의식하면서 사용해보세요.\n전체 지출의 ${ratioText}를 차지하고 있어, 이 카테고리에서 한두 번만 줄여도 이번 달 소비 흐름을 바꾸는 데 큰 도움이 됩니다.`;
-  }, [aiNextWeekGoalText, consumptionIndex, fqScore, topCategoryInfo]);
+    return splitLines(fallback);
+  }, [aiNextWeekGoalText, consumptionIndex, fqScore, topCategoryInfo, splitLines]);
 
   const shouldShowChallengeCard = useMemo(() => {
     if (!consumptionIndex || fqScore == null || !aiChallengeText || !topCategoryInfo) return false;
@@ -854,7 +889,7 @@ export default function ChallengeTabScreen() {
     return true;
   }, [consumptionIndex, fqScore, aiChallengeText, topCategoryInfo, challenges]);
 
-  const scoreMessage = useMemo(() => {
+  const scoreMessageLines = useMemo(() => {
     const collectingMessage = (() => {
       const n = remainingRecordsForIndex;
       const countText = typeof n === 'number' ? `${n}건을` : '몇건을';
@@ -864,25 +899,29 @@ export default function ChallengeTabScreen() {
     // 아직 점수 확인 전: 초기 안내 문구
     if (!hasCheckedScore) {
       if (isCollectingIndex || fqScore == null) {
-        return collectingMessage;
+        return splitLines(collectingMessage);
       }
-      return '이번 달 소비 점수 계산이 가능합니다.\n아래 버튼을 눌러 점수를 확인해 보세요.';
+      return splitLines(
+        '이번 달 소비 상태를 분석할 수 있어요.\n아래 버튼을 눌러 결과를 확인해 보세요.',
+      );
     }
 
     // 점수를 확인했지만, 여전히 데이터가 부족한 상태라면 동일한 안내 유지
     if (isCollectingIndex || fqScore == null) {
-      return collectingMessage;
+      return splitLines(collectingMessage);
     }
 
     // 점수 확인 후: 우선 AI가 제공한 점수 피드백이 있다면 사용
-    if (scoreFeedbackText && scoreFeedbackText.trim().length > 0) {
-      return scoreFeedbackText.trim();
+    if (scoreFeedbackText && scoreFeedbackText.length > 0) {
+      return scoreFeedbackText;
     }
 
     // scoreFeedback이 없을 때는, 점수에 대한 해석을 강하게 고정하지 않고
     // 간단한 중립 문구만 보여준다. (실제 피드백은 summary/summaryTitle에서 제공)
-    return '이번 달 소비 패턴을 기준으로 계산된 점수입니다.\n아래 리포트를 함께 보면서 이번 달 소비를 한 번 정리해 보셔도 좋겠습니다.';
-  }, [hasCheckedScore, isCollectingIndex, fqScore, remainingRecordsForIndex, scoreFeedbackText]);
+    return splitLines(
+      '이번 달 소비 패턴을 바탕으로 계산된 결과예요.\n아래 리포트를 함께 보면서 이번 달 소비를 한 번 정리해 보셔도 좋겠습니다.',
+    );
+  }, [hasCheckedScore, isCollectingIndex, fqScore, remainingRecordsForIndex, scoreFeedbackText, splitLines]);
 
   const scoreEmoji = useMemo(() => {
     if (!hasCheckedScore || fqScore == null) {
@@ -956,11 +995,11 @@ export default function ChallengeTabScreen() {
     }
 
     let didUpdate = false;
-    let nextSummary: string | null = null;
+    let nextSummary: string[] | null = null;
     let nextSummaryTitle: string | null = null;
-    let nextChallenge: string | null = null;
+    let nextChallenge: string[] | null = null;
     let nextScoreFeedback: string | null = null;
-    let nextNextWeekGoal: string | null = null;
+    let nextNextWeekGoal: string[] | null = null;
 
     try {
       const storedData = await AsyncStorage.getItem('calendarData');
@@ -1013,11 +1052,11 @@ export default function ChallengeTabScreen() {
       if (cached) {
         try {
           const parsed = JSON.parse(cached) as {
-            summary: string;
+            summary: string | string[];
             summaryTitle?: string;
-            challenge: string;
+            challenge: string | string[];
             scoreFeedback?: string;
-            nextWeekGoal?: string;
+            nextWeekGoal?: string | string[];
             lastRecordUpdatedAt: number;
           };
 
@@ -1029,8 +1068,12 @@ export default function ChallengeTabScreen() {
 
           // (2) 분석 이력은 있지만, 이번 세션에서 아직 점수를 확인하지 않은 경우 → 캐시 재사용
           if (parsed.lastRecordUpdatedAt === lastRecordUpdatedAt && !hasCheckedScore) {
-            nextSummary = parsed.summary.trim();
-            nextChallenge = parsed.challenge.trim();
+            nextSummary = splitLines(
+              Array.isArray(parsed.summary) ? parsed.summary.join('\n') : parsed.summary.trim(),
+            );
+            nextChallenge = splitLines(
+              Array.isArray(parsed.challenge) ? parsed.challenge.join('\n') : parsed.challenge.trim(),
+            );
 
             runReportContentRefreshAnimation(() => {
               if (nextSummary && nextChallenge) {
@@ -1039,11 +1082,21 @@ export default function ChallengeTabScreen() {
                 if (typeof parsed.summaryTitle === 'string') {
                   setAiSummaryTitleText(parsed.summaryTitle.trim());
                 }
-                if (typeof parsed.scoreFeedback === 'string') {
-                  setScoreFeedbackText(parsed.scoreFeedback.trim());
+                if (typeof parsed.scoreFeedback !== 'undefined') {
+                  const feedbackLines = splitLines(
+                    Array.isArray(parsed.scoreFeedback)
+                      ? parsed.scoreFeedback.join('\n')
+                      : parsed.scoreFeedback.trim(),
+                  );
+                  setScoreFeedbackText(feedbackLines);
                 }
-                if (typeof parsed.nextWeekGoal === 'string') {
-                  setAiNextWeekGoalText(parsed.nextWeekGoal.trim());
+                if (typeof parsed.nextWeekGoal !== 'undefined') {
+                  const goalLines = splitLines(
+                    Array.isArray(parsed.nextWeekGoal)
+                      ? parsed.nextWeekGoal.join('\n')
+                      : parsed.nextWeekGoal.trim(),
+                  );
+                  setAiNextWeekGoalText(goalLines);
                 }
                 setHasCheckedScore(true);
               }
@@ -1085,54 +1138,74 @@ export default function ChallengeTabScreen() {
       }
 
       const data = (await res.json()) as {
-        summary?: string;
+        summary?: string | string[];
         summaryTitle?: string;
-        challenge?: string;
+        challenge?: string | string[];
         scoreFeedback?: string;
-        nextWeekGoal?: string;
+        nextWeekGoal?: string | string[];
       };
       const dataObj = data as {
-        scoreFeedback?: string;
+        scoreFeedback?: string | string[];
         summaryTitle?: string;
-        summary?: string;
-        challenge?: string;
-        nextWeekGoal?: string;
+        summary?: string | string[];
+        challenge?: string | string[];
+        nextWeekGoal?: string | string[];
       };
-      const summary = typeof dataObj.summary === 'string' ? dataObj.summary.trim() : '';
+      const summaryLines = dataObj.summary
+        ? splitLines(
+            Array.isArray(dataObj.summary) ? dataObj.summary.join('\n') : dataObj.summary.trim(),
+          )
+        : [];
       const summaryTitle =
         typeof dataObj.summaryTitle === 'string' ? dataObj.summaryTitle.trim() : '';
-      const challenge = typeof dataObj.challenge === 'string' ? dataObj.challenge.trim() : '';
-      const scoreFeedback =
-        typeof dataObj.scoreFeedback === 'string' ? dataObj.scoreFeedback.trim() : '';
-      const nextWeekGoal =
-        typeof dataObj.nextWeekGoal === 'string' ? dataObj.nextWeekGoal.trim() : '';
+      const challengeLines = dataObj.challenge
+        ? splitLines(
+            Array.isArray(dataObj.challenge)
+              ? dataObj.challenge.join('\n')
+              : dataObj.challenge.trim(),
+          )
+        : [];
+      const scoreFeedbackLines = dataObj.scoreFeedback
+        ? splitLines(
+            Array.isArray(dataObj.scoreFeedback)
+              ? dataObj.scoreFeedback.join('\n')
+              : dataObj.scoreFeedback.trim(),
+          )
+        : [];
+      const nextWeekGoalLines = dataObj.nextWeekGoal
+        ? splitLines(
+            Array.isArray(dataObj.nextWeekGoal)
+              ? dataObj.nextWeekGoal.join('\n')
+              : dataObj.nextWeekGoal.trim(),
+          )
+        : [];
 
-      if (!summary || !challenge) {
+      if (summaryLines.length === 0 || challengeLines.length === 0) {
         showToast('AI 리포트 형식이 올바르지 않습니다.');
         return;
       }
 
-      nextSummary = summary;
-      nextChallenge = challenge;
+      nextSummary = summaryLines;
+      nextChallenge = challengeLines;
       if (summaryTitle) {
         nextSummaryTitle = summaryTitle;
       }
-      if (scoreFeedback) {
-        nextScoreFeedback = scoreFeedback;
+      if (scoreFeedbackLines.length > 0) {
+        nextScoreFeedback = scoreFeedbackLines.join('\n');
       }
-      if (nextWeekGoal) {
-        nextNextWeekGoal = nextWeekGoal;
+      if (nextWeekGoalLines.length > 0) {
+        nextNextWeekGoal = nextWeekGoalLines;
       }
       didUpdate = true;
 
       await AsyncStorage.setItem(
         cacheKey,
         JSON.stringify({
-          summary,
+          summary: summaryLines,
           summaryTitle: summaryTitle || undefined,
-          challenge,
-          scoreFeedback: scoreFeedback || undefined,
-          nextWeekGoal: nextWeekGoal || undefined,
+          challenge: challengeLines,
+          scoreFeedback: scoreFeedbackLines.length > 0 ? scoreFeedbackLines : undefined,
+          nextWeekGoal: nextWeekGoalLines.length > 0 ? nextWeekGoalLines : undefined,
           lastRecordUpdatedAt,
         }),
       );
@@ -1148,7 +1221,8 @@ export default function ChallengeTabScreen() {
             setAiSummaryTitleText(nextSummaryTitle);
           }
           if (nextScoreFeedback) {
-            setScoreFeedbackText(nextScoreFeedback);
+            const feedbackLines = splitLines(nextScoreFeedback);
+            setScoreFeedbackText(feedbackLines);
           }
           if (nextNextWeekGoal) {
             setAiNextWeekGoalText(nextNextWeekGoal);
@@ -1323,9 +1397,21 @@ export default function ChallengeTabScreen() {
                         </Text>
                         <Text style={[styles.reportScoreUnit, { color: colors.text }]}>점</Text>
                       </View>
-                      <Text style={[styles.reportScoreMessage, { color: colors.textNeutral }]}>
-                        {scoreMessage}
-                      </Text>
+                      {scoreMessageLines.map((line, idx) => (
+                        <Text
+                          key={idx}
+                          style={[
+                            styles.reportScoreMessage,
+                            {
+                              color: colors.textNeutral,
+                              marginBottom:
+                                idx === scoreMessageLines.length - 1 ? 24 : 0,
+                            },
+                          ]}
+                        >
+                          {line}
+                        </Text>
+                      ))}
                       <Button
                         variant="primary"
                         type="solid"
@@ -1374,16 +1460,38 @@ export default function ChallengeTabScreen() {
                             {aiSummaryTitleText}
                           </Text>
                         )}
-                        <Text style={[styles.reportSummaryBody, { color: colors.textNeutral }]}>
-                          {reportSummaryMessage}
-                        </Text>
+                        {reportSummaryLines.map((line, idx) => (
+                          <Text
+                            key={idx}
+                            style={[
+                              styles.reportSummaryBody,
+                              {
+                                color: colors.textNeutral,
+                                marginBottom: idx === reportSummaryLines.length - 1 ? 0 : 8,
+                              },
+                            ]}
+                          >
+                            {line}
+                          </Text>
+                        ))}
                         <View style={styles.reportNextGoal}>
                           <Text style={[styles.reportNextGoalTitle, { color: colors.text }]}>
                             📌 다음 주 목표
                           </Text>
-                          <Text style={[styles.reportNextGoalBody, { color: colors.textNeutral }]}>
-                            {reportNextGoalMessage}
-                          </Text>
+                          {reportNextGoalLines.map((line, idx) => (
+                            <Text
+                              key={idx}
+                              style={[
+                                styles.reportNextGoalBody,
+                                {
+                                  color: colors.textNeutral,
+                                  marginBottom: idx === reportNextGoalLines.length - 1 ? 0 : 8,
+                                },
+                              ]}
+                            >
+                              {line}
+                            </Text>
+                          ))}
                         </View>
                       </View>
                     )}
@@ -1418,9 +1526,20 @@ export default function ChallengeTabScreen() {
                             </View>
                           </View>
                         )}
-                        <Text style={[styles.reportChallengeBody, { color: colors.textNeutral }]}>
-                          {aiChallengeText}
-                        </Text>
+                        {aiChallengeText?.map((line, idx) => (
+                          <Text
+                            key={idx}
+                            style={[
+                              styles.reportChallengeBody,
+                              {
+                                color: colors.textNeutral,
+                                marginBottom: idx === aiChallengeText.length - 1 ? 0 : 8,
+                              },
+                            ]}
+                          >
+                            {line}
+                          </Text>
+                        ))}
                       </View>
                     )}
                   </Animated.View>
@@ -1899,7 +2018,6 @@ const styles = StyleSheet.create({
   reportScoreMessage: {
     ...Typography.body1.l.regular,
     textAlign: 'center',
-    marginBottom: 24,
   },
   reportSummaryCard: {
     width: '100%',

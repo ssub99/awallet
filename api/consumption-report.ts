@@ -54,11 +54,11 @@ interface ConsumptionReportRequest {
 }
 
 interface ConsumptionReportResponse {
-  scoreFeedback: string;
+  scoreFeedback: string[];
   summaryTitle: string;
-  summary: string;
-  challenge: string;
-  nextWeekGoal: string;
+  summary: string[];
+  challenge: string[];
+  nextWeekGoal: string[];
 }
 
 function buildConsumptionSystemPrompt(): string {
@@ -71,11 +71,11 @@ function buildConsumptionSystemPrompt(): string {
 출력은 반드시 JSON 한 덩어리로만, 아래 형식을 지켜서 제공합니다.
 
 {
-  "scoreFeedback": "<FQ 점수에 대한 감성적인 한 문장 피드백. 줄바꿈(\\n) 없이 한 문장만 작성.>",
-  "summaryTitle": "<이번 달 소비 패턴을 한 문장으로 요약하는 제목. 맨 앞에 단일 이모지 한 개 포함. 줄바꿈(\\n) 없이 한 문장만 작성.>",
-  "summary": "<이번 달 소비 리포트 한두 문단. 줄바꿈은 \\n 사용. 최대 10줄.>",
-  "challenge": "<다음 주에 시도할 챌린지 제안 한두 문단. 줄바꿈은 \\n 사용. 최대 10줄.>",
-  "nextWeekGoal": "<다음 주에 실천할 핵심 목표 한두 문장 요약. 줄 수는 최대 2줄(\\n 기준)을 넘지 않도록 작성.>"
+  "scoreFeedback": "<이번 달 소비 점수에 대한 전반적인 느낌을 한두 문장으로 설명하는 문자열>",
+  "summaryTitle": "<이번 달 소비 패턴을 한 문장으로 요약하는 제목 문자열>",
+  "summary": ["<이번 달 소비 리포트 내용의 첫 번째 문장>", "<두 번째 문장>", "..."],
+  "challenge": ["<다음 주 챌린지 제안의 첫 번째 문장>", "<두 번째 문장>", "..."],
+  "nextWeekGoal": ["<다음 주에 실천할 핵심 목표를 요약한 문장>", "<필요하다면 두 번째 목표 문장>"]
 }
 
 공통 규칙:
@@ -88,9 +88,9 @@ function buildConsumptionSystemPrompt(): string {
 - 사용자는 FQ 또는 FQ 점수라는 워딩을 이해하기 힘드니 소비 점수라는 워딩으로 대체해서 설명해야 합니다.
 
 [scoreFeedback 작성 규칙]
-- FQ 점수에 대한 감성적인 한두 문장 피드백을 작성합니다.
-- FQ는 이미 로직이 계산하여 표기하고 있으니 중복으로 언급하지 않도록 해야 합니다.
-- 점수에 대한 전반적인 인상(예: "이번 달 소비 페이스는 전체적으로 안정적인 편입니다.")을 부드럽게 전달합니다.
+- 이번 달 소비 점수에 대한 **전반적인 느낌**을 한두 문장으로 부드럽게 설명합니다.
+- 점수의 구체적인 숫자(예: "75점")는 이미 카드에서 따로 보여주고 있으므로, scoreFeedback에서는 숫자를 직접 말하지 않아도 됩니다.
+- "소비 점수"라는 단어를 반복해서 강조하기보다는, 현재 소비 패턴이 안정적인지/빠른지/조금만 조정하면 되는지 등 **상태에 대한 감상**을 중심으로 작성합니다.
 - 각 문장 끝에서 실제 줄바꿈(엔터 또는 \\n)을 넣어, 전체적으로 1~2줄 정도가 되도록 작성합니다.
 - 줄 수는 최대 2줄(\\n 기준)을 넘기지 않습니다.
 
@@ -103,29 +103,31 @@ function buildConsumptionSystemPrompt(): string {
 
 [summary 작성 규칙]
 - "이번 달 전반적인 소비 패턴"을 설명하고, 눈에 띄는 특징 1~2가지를 구체적으로 서술합니다.
-- 기록이 적은 경우에는, 먼저 "기록이 아직 많지 않아 소비 패턴을 단정하기는 이르다"는 취지를 짧게 언급합니다.
+- summary는 문자열 배열이며, 각 요소는 하나의 문장 또는 짧은 문단을 의미합니다.
+- 기록이 적은 경우에는, 먼저 "기록이 아직 많지 않아 소비 패턴을 단정하기는 이르다"는 취지를 짧게 언급하는 문장을 포함합니다.
 - 상위 카테고리와 금액 수준을 자연스럽게 녹여서 설명합니다.
-- 줄바꿈(\\n)을 사용해 문단을 2~3줄 단위로 나누고, 최대 10줄(\\n 기준)을 넘기지 않습니다.
+- summary 배열의 길이는 최대 10개를 넘기지 않습니다.
 
 [challenge 작성 규칙]
 - 다음 주 1주일 동안 시도해 볼 수 있는 구체적인 행동 1~2가지를 제안합니다.
+- challenge는 문자열 배열이며, 각 요소는 하나의 문장 또는 짧은 문단을 의미합니다.
 - 데이터가 적을 때는 "지출을 빠짐없이 기록해보기", "충동 구매를 하루에 한 번만 줄여보기"처럼 작고 실천 가능한 목표에 초점을 맞춥니다.
 - 데이터가 충분할 때는 상위 소비 카테고리(예: "카페", "야식", "편의점", "간식", "쇼핑")를 중심으로 부담되지 않는 챌린지를 제안합니다.
-- summary와 마찬가지로 줄바꿈(\\n)을 사용해 문단을 나누고, 최대 10줄(\\n 기준)을 넘기지 않습니다.
+- 배열 길이는 최대 10개를 넘기지 않습니다.
 - 특정 카테고리를 챌린지 대상으로 선택했다면, "이번 달 이 카테고리의 총 사용 금액"과 "전체 지출에서 차지하는 비율(%)"을 함께 언급해,
-  왜 이 카테고리를 다음 주 목표 대상으로 제안하는지 사용자가 이해할 수 있도록 한두 줄 정도로 근거를 설명합니다.
+  왜 이 카테고리를 다음 주 목표 대상으로 제안하는지 사용자가 이해할 수 있도록 한두 개의 요소(문장)로 근거를 설명합니다.
 
 [nextWeekGoal 작성 규칙]
-- 다음 주 1주일 동안 실천할 "핵심 목표"만 한 문장 또는 두 줄 이내로 요약합니다.
+- nextWeekGoal은 문자열 배열이며, 다음 주 1주일 동안 실천할 "핵심 목표"만을 1~3개의 요소로 요약합니다.
 - challenge에 작성한 내용 중 가장 중요한 행동 목표만 뽑아 압축해서 작성합니다.
-- 줄바꿈(\\n)을 사용할 수 있지만, 전체 길이는 10줄(\\n 기준)을 넘기지 않습니다.
+- 배열 길이는 최대 10개를 넘기지 않습니다.
 - 특정 카테고리를 직접 언급하는 경우, challenge에서 설명한 것과 동일하게 "이번 달 이 카테고리의 총 사용 금액"과 "전체 지출 대비 비율(%)"을 간단히 다시 상기시켜,
   어떤 지점을 의식하면서 목표를 실천하면 좋을지 이해할 수 있도록 작성합니다.
 
 줄바꿈/형식 공통 규칙:
-- summary와 challenge는 각각 최대 10줄(\\n 기준)을 넘지 않습니다.
-- 숫자나 금액(예: 3회, 12,300원, 30%)이 포함된 문장은 가능하면 별도 줄에 배치합니다.
-- summary와 challenge의 마지막 줄은 행동을 유도하는 문장(격려 또는 다음 행동 제안)으로 마무리합니다.
+- summary, challenge, nextWeekGoal 배열의 각 요소는 하나의 문장 또는 짧은 문단을 의미하며, 자동 줄바꿈은 클라이언트에서 처리합니다.
+- 숫자나 금액(예: 3회, 12,300원, 30%)이 포함된 설명은 가능하면 별도의 요소(문장)로 분리해서 작성합니다.
+- summary와 challenge 배열의 마지막 요소는 행동을 유도하는 문장(격려 또는 다음 행동 제안)으로 마무리합니다.
 
 [데이터 양에 따른 피드백 모드]
 
@@ -198,22 +200,50 @@ ${topCategories || '(카테고리 데이터 없음)'}
 위 데이터를 기반으로, 위에서 설명한 JSON 형식으로만 응답해 주세요.`;
 }
 
+function normalizeTextArray(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .map((v) => (typeof v === 'string' ? v : String(v)))
+      .flatMap((s) => s.split('\n'))
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0)
+      .slice(0, 10);
+  }
+  if (typeof value === 'string') {
+    return value
+      .split('\n')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0)
+      .slice(0, 10);
+  }
+  return [];
+}
+
 function parseReportJson(text: string): ConsumptionReportResponse | null {
   const trimmed = text.trim();
   const jsonMatch = trimmed.match(/\{[\s\S]*\}/);
   if (!jsonMatch) return null;
   try {
-    const parsed = JSON.parse(jsonMatch[0]) as Partial<ConsumptionReportResponse>;
-    const scoreFeedback =
-      typeof parsed.scoreFeedback === 'string' ? parsed.scoreFeedback.trim() : '';
-    const summary = typeof parsed.summary === 'string' ? parsed.summary.trim() : '';
+    const parsed = JSON.parse(jsonMatch[0]) as Partial<ConsumptionReportResponse> & {
+      summary?: string | string[];
+      challenge?: string | string[];
+      nextWeekGoal?: string | string[];
+      scoreFeedback?: string | string[];
+    };
+    const scoreFeedbackArray = normalizeTextArray(parsed.scoreFeedback);
+    const summaryArray = normalizeTextArray(parsed.summary);
     const summaryTitle =
       typeof parsed.summaryTitle === 'string' ? parsed.summaryTitle.trim() : '';
-    const challenge = typeof parsed.challenge === 'string' ? parsed.challenge.trim() : '';
-    const nextWeekGoal =
-      typeof parsed.nextWeekGoal === 'string' ? parsed.nextWeekGoal.trim() : '';
-    if (!summary || !challenge) return null;
-    return { scoreFeedback, summaryTitle, summary, challenge, nextWeekGoal };
+    const challengeArray = normalizeTextArray(parsed.challenge);
+    const nextWeekGoalArray = normalizeTextArray(parsed.nextWeekGoal);
+    if (summaryArray.length === 0 || challengeArray.length === 0) return null;
+    return {
+      scoreFeedback: scoreFeedbackArray,
+      summaryTitle,
+      summary: summaryArray,
+      challenge: challengeArray,
+      nextWeekGoal: nextWeekGoalArray,
+    };
   } catch {
     return null;
   }
