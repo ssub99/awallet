@@ -19,6 +19,7 @@ import { useToast } from '@/contexts/toast-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { useThemeColor } from '@/hooks/use-theme-color';
+import { getApiSecurityHeaders } from '@/utils/api-security-headers';
 import { loadCategories } from '@/utils/categories';
 import { getChallengesByDateRange } from '@/utils/challenges';
 import {
@@ -1141,11 +1142,13 @@ export default function ChallengeTabScreen() {
 
       // (3) 여기까지 왔다면: 캐시가 없거나, 데이터가 변경된 상태 → 새로 분석 수행
       setIsAiLoading(true);
+      const securityHeaders = await getApiSecurityHeaders();
 
       const res = await fetch(CONSUMPTION_REPORT_API_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...securityHeaders,
         },
         body: JSON.stringify({
           fqScore,

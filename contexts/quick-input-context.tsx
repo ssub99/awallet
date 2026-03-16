@@ -17,6 +17,7 @@ import { useAppData } from '@/contexts/app-data-context';
 import { useToast } from '@/contexts/toast-context';
 import { applyPendingCalendarTargetEvent } from '@/hooks/calendar-events';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
+import { getApiSecurityHeaders } from '@/utils/api-security-headers';
 import { isAtLeastVersion, QUICK_INPUT_MIN_VERSION } from '@/utils/app-version';
 import { getCustomMonthInfo } from '@/utils/custom-month';
 import { refreshWidgetWithCurrentMonth } from '@/utils/widget-data-sync';
@@ -514,10 +515,14 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       const categories = categoryList.map((c) => c.label);
       const date = new Date();
       const today = `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}`;
+      const securityHeaders = await getApiSecurityHeaders();
 
       const res = await fetch(PARSE_EXPENSE_API_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...securityHeaders,
+        },
         body: JSON.stringify({ message, categories, today }),
       });
 

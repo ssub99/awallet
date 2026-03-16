@@ -7,6 +7,12 @@
  */
 
 import { getBaseSystemPrompt } from './ai-system-prompts';
+import {
+  checkRateLimit,
+  DEFAULT_AI_RATE_LIMIT_POLICY,
+  recordRateLimitSuccess,
+  verifyInternalApiSecret,
+} from './_security';
 
 const PAYMENT_METHODS = ['credit', 'debit', 'cash'] as const;
 type PaymentMethod = (typeof PAYMENT_METHODS)[number];
@@ -200,6 +206,20 @@ function getTodayString(): string {
 
 export async function POST(request: Request): Promise<Response> {
   try {
+    const secretErrorResponse = verifyInternalApiSecret(request);
+    if (secretErrorResponse) {
+      return secretErrorResponse;
+    }
+
+    const rateLimitCheck = checkRateLimit(
+      request,
+      'parse-expense',
+      DEFAULT_AI_RATE_LIMIT_POLICY,
+    );
+    if (rateLimitCheck.response) {
+      return rateLimitCheck.response;
+    }
+
     const apiKey =
       process.env.awallet_gemini_api ?? process.env.AWALLET_GEMINI_API;
     if (!apiKey) {
@@ -315,6 +335,7 @@ export async function POST(request: Request): Promise<Response> {
       }
     }
 
+    recordRateLimitSuccess(rateLimitCheck.key, DEFAULT_AI_RATE_LIMIT_POLICY);
     return Response.json(result);
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Unknown error';

@@ -1,4 +1,10 @@
 import { getBaseSystemPrompt } from './ai-system-prompts';
+import {
+  checkRateLimit,
+  DEFAULT_AI_RATE_LIMIT_POLICY,
+  recordRateLimitSuccess,
+  verifyInternalApiSecret,
+} from './_security';
 
 /**
  * 소비 리포트 / 챌린지 제안 생성 API (Gemini)
@@ -254,6 +260,20 @@ function parseReportJson(text: string): ConsumptionReportResponse | null {
 
 export async function POST(request: Request): Promise<Response> {
   try {
+    const secretErrorResponse = verifyInternalApiSecret(request);
+    if (secretErrorResponse) {
+      return secretErrorResponse;
+    }
+
+    const rateLimitCheck = checkRateLimit(
+      request,
+      'consumption-report',
+      DEFAULT_AI_RATE_LIMIT_POLICY,
+    );
+    if (rateLimitCheck.response) {
+      return rateLimitCheck.response;
+    }
+
     const apiKey = process.env.awallet_gemini_api ?? process.env.AWALLET_GEMINI_API;
     if (!apiKey) {
       return Response.json(
@@ -344,6 +364,7 @@ export async function POST(request: Request): Promise<Response> {
       const parsed = parseReportJson(text);
 
       if (parsed) {
+        recordRateLimitSuccess(rateLimitCheck.key, DEFAULT_AI_RATE_LIMIT_POLICY);
         return Response.json(parsed, { status: 200 });
       }
 
