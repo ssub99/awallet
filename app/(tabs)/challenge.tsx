@@ -23,9 +23,9 @@ import { getApiSecurityHeaders } from '@/utils/api-security-headers';
 import { loadCategories } from '@/utils/categories';
 import { getChallengesByDateRange } from '@/utils/challenges';
 import {
-  computeConsumptionIndex,
-  type CalendarData,
-  type ConsumptionIndexResult,
+    computeConsumptionIndex,
+    type CalendarData,
+    type ConsumptionIndexResult,
 } from '@/utils/consumption-index';
 import { createSheetEvent } from '@/utils/create-sheet-event';
 import { getCustomMonthInfo, getCustomMonthRange, isDateInCustomMonth } from '@/utils/custom-month';
@@ -33,17 +33,17 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Animated,
-  GestureResponderEvent,
-  InteractionManager,
-  PanResponder,
-  PanResponderGestureState,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  useWindowDimensions,
-  View,
+    Animated,
+    GestureResponderEvent,
+    InteractionManager,
+    PanResponder,
+    PanResponderGestureState,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    useWindowDimensions,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -53,6 +53,181 @@ const FAB_OFFSET_ABOVE_TABS = 16;
 /** 월 변경 시 페이드 아웃/인 애니메이션 (챌린지·리포트·타임라인 동일) */
 const MONTH_CHANGE_FADE_OUT_DURATION = 150;
 const MONTH_CHANGE_FADE_IN_DURATION = 200;
+const REPORT_POLICY_VERSION = '2026-03-16-report-context-v2';
+const REPORT_CACHE_PREFIX = 'consumptionReportCtx';
+
+interface ReportContext {
+  year: number;
+  month: number;
+  monthStartDay: number;
+  monthStartUpdatedAt: number;
+  asOfDate: string;
+  isMonthClosed: boolean;
+  elapsedDaysInMonth: number;
+  timezone: string;
+  policyVersion: string;
+}
+
+interface ReportSnapshot {
+  lastRecordUpdatedAt: number;
+  toDateTotalExpense: number;
+  toDateExpenseCount: number;
+  toDateActiveDays: number;
+  noSpendDaysToDate: number;
+  toDateCategoryTotals: Array<{ category: string; amount: number; ratio: number }>;
+  toDateCategoryUsage: Array<{ category: string; count: number; projectedMonthlyCount: number }>;
+}
+
+function formatDateToYmd(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(
+    date.getDate(),
+  ).padStart(2, '0')}`;
+}
+
+function getLocalTimezone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'Asia/Seoul';
+  } catch {
+    return 'Asia/Seoul';
+  }
+}
+
+function hashString(input: string): string {
+  let hash = 5381;
+  for (let i = 0; i < input.length; i += 1) {
+    hash = (hash * 33) ^ input.charCodeAt(i);
+  }
+  return Math.abs(hash >>> 0).toString(36);
+}
+
+function buildReportContext(year: number, month: number, monthStartDay: number): ReportContext | null {
+  if (monthStartDay <= 0) return null;
+  const { startDate, endDate } = getCustomMonthRange(year, month, monthStartDay);
+  const start = new Date(startDate);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(endDate);
+  end.setHours(23, 59, 59, 999);
+  const now = new Date();
+  const isMonthNotStarted = now.getTime() < start.getTime();
+  const isMonthClosed = now.getTime() > end.getTime();
+  const asOf = isMonthClosed ? new Date(end) : isMonthNotStarted ? new Date(start) : new Date(now);
+  asOf.setHours(23, 59, 59, 999);
+  const elapsedDaysInMonth = isMonthNotStarted
+    ? 0
+    : Math.max(1, Math.floor((asOf.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+
+  return {
+    year,
+    month,
+    monthStartDay,
+    monthStartUpdatedAt: 0,
+    asOfDate: formatDateToYmd(asOf),
+    isMonthClosed,
+    elapsedDaysInMonth,
+    timezone: getLocalTimezone(),
+    policyVersion: REPORT_POLICY_VERSION,
+  };
+}
+
+function buildReportCacheKey(context: ReportContext): string {
+  const source = [
+    context.year,
+    context.month,
+    context.monthStartDay,
+    context.monthStartUpdatedAt,
+    context.asOfDate,
+    context.isMonthClosed ? '1' : '0',
+    context.elapsedDaysInMonth,
+    context.timezone,
+    context.policyVersion,
+  ].join('|');
+  return `${REPORT_CACHE_PREFIX}_${hashString(source)}`;
+}
+
+function computeReportSnapshot(
+  calendarData: CalendarData,
+  context: ReportContext,
+): ReportSnapshot {
+  const { startDate, endDate } = getCustomMonthRange(context.year, context.month, context.monthStartDay);
+  const start = new Date(startDate);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(endDate);
+  end.setHours(23, 59, 59, 999);
+  const asOfDate = new Date(`${context.asOfDate}T23:59:59`);
+  const asOfTime = asOfDate.getTime();
+
+  let lastRecordUpdatedAt = 0;
+  let toDateTotalExpense = 0;
+  let toDateExpenseCount = 0;
+  const toDateDailyExpenseCounts: Record<string, number> = {};
+  const toDateCategoryMap = new Map<string, number>();
+  const toDateCategoryUsageMap = new Map<string, number>();
+
+  Object.entries(calendarData).forEach(([dateKey, dayData]) => {
+    if (!dayData?.records || dayData.records.length === 0) return;
+    const date = new Date(dateKey);
+    const time = date.getTime();
+    if (time < start.getTime() || time > end.getTime()) return;
+
+    dayData.records.forEach((record) => {
+      if (record.type !== 'expense' || record.isDeleted) return;
+      const amount = typeof record.amount === 'number' ? record.amount : 0;
+      const ts =
+        typeof record.timestamp === 'number' && !Number.isNaN(record.timestamp)
+          ? record.timestamp
+          : time;
+      if (ts > lastRecordUpdatedAt) lastRecordUpdatedAt = ts;
+
+      if (context.elapsedDaysInMonth > 0 && time <= asOfTime) {
+        toDateTotalExpense += amount;
+        toDateExpenseCount += 1;
+        toDateDailyExpenseCounts[dateKey] = (toDateDailyExpenseCounts[dateKey] ?? 0) + 1;
+        const isRecurring = record.isRecurring === true;
+        const isInstallment = record.isInstallment === true;
+        if (!isRecurring && !isInstallment) {
+          const categoryKey = record.category ?? '기타';
+          const prevAmount = toDateCategoryMap.get(categoryKey) ?? 0;
+          toDateCategoryMap.set(categoryKey, prevAmount + amount);
+          const prevCount = toDateCategoryUsageMap.get(categoryKey) ?? 0;
+          toDateCategoryUsageMap.set(categoryKey, prevCount + 1);
+        }
+      }
+    });
+  });
+
+  const toDateActiveDays = Object.keys(toDateDailyExpenseCounts).length;
+  const noSpendDaysToDate = Math.max(0, context.elapsedDaysInMonth - toDateActiveDays);
+  const toDateCategoryTotals = Array.from(toDateCategoryMap.entries())
+    .map(([category, amount]) => ({
+      category,
+      amount,
+      ratio: toDateTotalExpense > 0 ? amount / toDateTotalExpense : 0,
+    }))
+    .sort((a, b) => b.amount - a.amount);
+  const elapsedDays = Math.max(1, context.elapsedDaysInMonth);
+  const monthLength = Math.max(
+    1,
+    Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1,
+  );
+  const projectedMultiplier = monthLength / elapsedDays;
+  const toDateCategoryUsage = Array.from(toDateCategoryUsageMap.entries())
+    .map(([category, count]) => ({
+      category,
+      count,
+      projectedMonthlyCount: Math.max(0, Math.round(count * projectedMultiplier)),
+    }))
+    .sort((a, b) => b.count - a.count);
+
+  return {
+    lastRecordUpdatedAt,
+    toDateTotalExpense,
+    toDateExpenseCount,
+    toDateActiveDays,
+    noSpendDaysToDate,
+    toDateCategoryTotals,
+    toDateCategoryUsage,
+  };
+}
 
 /** 소비 현황(이번달 지출 순위/정기 지출)용 타임라인 아이템 - monthly-expense-timeline과 동일 */
 interface TrendTimelineItem {
@@ -193,18 +368,48 @@ export default function ChallengeTabScreen() {
   const router = useRouter();
   const navigation = useNavigation();
   const isNavigating = useRef(false);
+  const activeTopTabRef = useRef<TopTabId>('challenge');
+  const reportSubTabRef = useRef<ReportSubTabId>('score');
+  useEffect(() => {
+    activeTopTabRef.current = activeTopTab;
+  }, [activeTopTab]);
+  useEffect(() => {
+    reportSubTabRef.current = reportSubTab;
+  }, [reportSubTab]);
 
   const params = useLocalSearchParams<{ year?: string; month?: string; tab?: string }>();
 
   const [monthStartDay, setMonthStartDay] = useState(1);
+  const [monthStartUpdatedAt, setMonthStartUpdatedAt] = useState(0);
   const now = new Date();
   const initialYear = params.year ? parseInt(params.year, 10) || now.getFullYear() : now.getFullYear();
   const initialMonth = params.month ? parseInt(params.month, 10) || now.getMonth() + 1 : now.getMonth() + 1;
-  const [currentYear, setCurrentYear] = useState(initialYear);
-  const [currentMonth, setCurrentMonth] = useState(initialMonth);
+  const [challengeYear, setChallengeYear] = useState(initialYear);
+  const [challengeMonth, setChallengeMonth] = useState(initialMonth);
+  const [reportScoreYear, setReportScoreYear] = useState(initialYear);
+  const [reportScoreMonth, setReportScoreMonth] = useState(initialMonth);
+  const [reportTrendYear, setReportTrendYear] = useState(initialYear);
+  const [reportTrendMonth, setReportTrendMonth] = useState(initialMonth);
   const [showYearMonthPicker, setShowYearMonthPicker] = useState(false);
-  const year = currentYear;
-  const month = currentMonth;
+  const activeReportYear = reportSubTab === 'score' ? reportScoreYear : reportTrendYear;
+  const activeReportMonth = reportSubTab === 'score' ? reportScoreMonth : reportTrendMonth;
+  const activeYear = activeTopTab === 'report' ? activeReportYear : challengeYear;
+  const activeMonth = activeTopTab === 'report' ? activeReportMonth : challengeMonth;
+  const reportScoreContext = useMemo(
+    () => {
+      const base = buildReportContext(reportScoreYear, reportScoreMonth, monthStartDay);
+      if (base == null) return null;
+      return {
+        ...base,
+        monthStartUpdatedAt,
+      };
+    },
+    [reportScoreYear, reportScoreMonth, monthStartDay, monthStartUpdatedAt],
+  );
+  const reportScoreCacheKey = useMemo(
+    () => (reportScoreContext ? buildReportCacheKey(reportScoreContext) : null),
+    [reportScoreContext],
+  );
 
   // 년/월 피커 옵션 (타임라인 탑 네비와 100% 동일: ±10년, 1~12월)
   const yearOptions = useMemo(() => {
@@ -236,12 +441,20 @@ export default function ChallengeTabScreen() {
     const paramYear = params.year ? parseInt(params.year, 10) : undefined;
     const paramMonth = params.month ? parseInt(params.month, 10) : undefined;
     if (paramYear != null && !Number.isNaN(paramYear)) {
-      setCurrentYear(paramYear);
+      if (params.tab === 'status') {
+        setReportScoreYear(paramYear);
+      } else {
+        setChallengeYear(paramYear);
+      }
     }
     if (paramMonth != null && !Number.isNaN(paramMonth) && paramMonth >= 1 && paramMonth <= 12) {
-      setCurrentMonth(paramMonth);
+      if (params.tab === 'status') {
+        setReportScoreMonth(paramMonth);
+      } else {
+        setChallengeMonth(paramMonth);
+      }
     }
-  }, [params.year, params.month]);
+  }, [params.year, params.month, params.tab]);
 
   const [challenges, setChallenges] = useState<ChallengeData[]>([]);
   const [challengeAmounts, setChallengeAmounts] = useState<Record<string, number>>({});
@@ -256,8 +469,11 @@ export default function ChallengeTabScreen() {
   // 리포트 탭 월 변경 시 페이드 아웃/인 (타임라인과 동일) - 점수 박스는 항상 표시, 애니메이션만 적용
   const reportContentOpacity = useRef(new Animated.Value(1)).current;
   const [reportTrendContentReady, setReportTrendContentReady] = useState(false);
-  const prevReportMonthRef = useRef<{ year: number; month: number } | null>(null);
+  const prevReportScoreMonthRef = useRef<{ year: number; month: number } | null>(null);
+  const prevReportTrendMonthRef = useRef<{ year: number; month: number } | null>(null);
   const reportNeedsFadeInRef = useRef(false);
+  const reportFadeOutInProgressRef = useRef(false);
+  const reportPendingTrendFadeInRef = useRef(false);
 
   // 챌린지 탭 월 변경 시 페이드 아웃/인 (리포트·타임라인과 동일)
   const prevChallengeMonthRef = useRef<{ year: number; month: number } | null>(null);
@@ -274,8 +490,17 @@ export default function ChallengeTabScreen() {
 
       const monthStart = await loadMonthStartDay();
       setMonthStartDay(monthStart);
+      const monthStartUpdatedAtRaw = await AsyncStorage.getItem('monthStartDayUpdatedAt');
+      const parsedMonthStartUpdatedAt = Number(monthStartUpdatedAtRaw ?? 0);
+      setMonthStartUpdatedAt(
+        Number.isFinite(parsedMonthStartUpdatedAt) ? parsedMonthStartUpdatedAt : 0,
+      );
 
-      const { startDate: customStart, endDate: customEnd } = getCustomMonthRange(year, month, monthStart);
+      const { startDate: customStart, endDate: customEnd } = getCustomMonthRange(
+        challengeYear,
+        challengeMonth,
+        monthStart,
+      );
       const formatChallengeDate = (dateObj: Date) => {
         const y = dateObj.getFullYear();
         const m = String(dateObj.getMonth() + 1).padStart(2, '0');
@@ -290,13 +515,13 @@ export default function ChallengeTabScreen() {
       const activeChallenges = challengeRecords.filter((challenge) => {
         const [startY, startM, startD] = challenge.startDate.split('.').map(Number);
         const startDate = new Date(startY, startM - 1, startD);
-        return isDateInCustomMonth(startDate, year, month, monthStart);
+        return isDateInCustomMonth(startDate, challengeYear, challengeMonth, monthStart);
       });
       setChallenges(activeChallenges);
 
       setIsContentReady(true);
       hasAnimatedRef.current = true;
-      challengeRefreshedForRef.current = { year, month };
+      challengeRefreshedForRef.current = { year: challengeYear, month: challengeMonth };
       if (challengeMonthChangeInProgressRef.current) {
         challengeMonthChangeInProgressRef.current = false;
         challengeDidFadeInRef.current = true;
@@ -312,7 +537,7 @@ export default function ChallengeTabScreen() {
       setChallenges([]);
       setIsContentReady(true);
       hasAnimatedRef.current = true;
-      challengeRefreshedForRef.current = { year, month };
+      challengeRefreshedForRef.current = { year: challengeYear, month: challengeMonth };
       if (challengeMonthChangeInProgressRef.current) {
         challengeMonthChangeInProgressRef.current = false;
         challengeDidFadeInRef.current = true;
@@ -326,7 +551,7 @@ export default function ChallengeTabScreen() {
     } finally {
       endLoad();
     }
-  }, [year, month, beginLoad, endLoad, contentOpacity]);
+  }, [challengeYear, challengeMonth, beginLoad, endLoad, contentOpacity]);
 
   useFocusEffect(
     useCallback(() => {
@@ -337,7 +562,7 @@ export default function ChallengeTabScreen() {
   const { dataVersion } = useAppData();
   useEffect(() => {
     refreshData();
-  }, [dataVersion, year, month, refreshData]);
+  }, [dataVersion, challengeYear, challengeMonth, refreshData]);
 
   // 년·월 또는 데이터 버전이 바뀌면:
   // - 기본적으로 점수/AI 결과 상태를 초기화하고
@@ -355,11 +580,21 @@ export default function ChallengeTabScreen() {
         setAiSummaryTitleText(null);
       }
 
-      const cacheKey = `consumptionReport_${year}_${month}_${monthStartDay}`;
+      if (reportScoreContext == null || reportScoreCacheKey == null) {
+        return;
+      }
 
       try {
-        const cached = await AsyncStorage.getItem(cacheKey);
+        const cached = await AsyncStorage.getItem(reportScoreCacheKey);
         if (!cached || cancelled) return;
+
+        const storedData = await AsyncStorage.getItem('calendarData');
+        if (!storedData || cancelled) return;
+        const calendarData = JSON.parse(storedData, (key: string, value: unknown) => {
+          if (key === 'recurringType' && value === null) return undefined;
+          return value;
+        }) as CalendarData;
+        const snapshot = computeReportSnapshot(calendarData, reportScoreContext);
 
         const parsed = JSON.parse(cached) as {
           summary?: string | string[];
@@ -367,9 +602,24 @@ export default function ChallengeTabScreen() {
           challenge?: string | string[];
           scoreFeedback?: string | string[];
           lastRecordUpdatedAt?: number;
+          asOfDate?: string;
+          monthStartUpdatedAt?: number;
         };
+        const canReuseByAsOfDate =
+          reportScoreContext.isMonthClosed || parsed.asOfDate === reportScoreContext.asOfDate;
+        const canReuseByMonthStartVersion =
+          Number(parsed.monthStartUpdatedAt ?? 0) === reportScoreContext.monthStartUpdatedAt;
+        const canReuseByData =
+          typeof parsed.lastRecordUpdatedAt === 'number' &&
+          parsed.lastRecordUpdatedAt === snapshot.lastRecordUpdatedAt;
 
-        if (parsed.summary && parsed.challenge) {
+        if (
+          canReuseByAsOfDate &&
+          canReuseByMonthStartVersion &&
+          canReuseByData &&
+          parsed.summary &&
+          parsed.challenge
+        ) {
           if (!cancelled) {
             const summaryLines = splitLines(
               Array.isArray(parsed.summary) ? parsed.summary.join('\n') : parsed.summary.trim(),
@@ -405,7 +655,14 @@ export default function ChallengeTabScreen() {
     return () => {
       cancelled = true;
     };
-  }, [year, month, monthStartDay, dataVersion]);
+  }, [
+    reportScoreYear,
+    reportScoreMonth,
+    monthStartDay,
+    dataVersion,
+    reportScoreContext,
+    reportScoreCacheKey,
+  ]);
 
   // 소비 리포트: 월별 소비 지수(FQ) 계산
   useEffect(() => {
@@ -432,8 +689,8 @@ export default function ChallengeTabScreen() {
 
         const result = computeConsumptionIndex({
           calendarData,
-          year,
-          month,
+          year: reportScoreYear,
+          month: reportScoreMonth,
           monthStartDay,
         });
 
@@ -456,7 +713,7 @@ export default function ChallengeTabScreen() {
     return () => {
       cancelled = true;
     };
-  }, [activeTopTab, reportSubTab, year, month, monthStartDay, dataVersion]);
+  }, [activeTopTab, reportSubTab, reportScoreYear, reportScoreMonth, monthStartDay, dataVersion]);
 
   // 소비 현황(이번달 지출 순위/정기 지출)용 타임라인 데이터 - 월 상세현황과 동일 로직
   useEffect(() => {
@@ -494,7 +751,7 @@ export default function ChallengeTabScreen() {
         Object.entries(calendarData).forEach(([dateString, data]) => {
           const [y, m, d] = dateString.split('-').map(Number);
           const date = new Date(y, m - 1, d);
-          if (!isDateInCustomMonth(date, year, month, monthStart) || !data?.records) return;
+          if (!isDateInCustomMonth(date, reportTrendYear, reportTrendMonth, monthStart) || !data?.records) return;
           data.records.forEach((record) => {
             if (record.isDeleted || record.type !== 'expense') return;
             items.push({
@@ -520,7 +777,7 @@ export default function ChallengeTabScreen() {
     };
     load();
     return () => { cancelled = true; };
-  }, [year, month, dataVersion]);
+  }, [reportTrendYear, reportTrendMonth, dataVersion]);
 
   // 이번달 지출 순위 / 정기 지출 집계 (monthly-expense-timeline과 동일)
   const trendCategoryExpenses = useMemo(() => {
@@ -546,15 +803,15 @@ export default function ChallengeTabScreen() {
 
   // 챌린지 탭에서 FAB를 열 때도, 홈과 동일하게 현재 보고 있는 년/월 정보를 공유
   useEffect(() => {
-    const paddedMonth = String(currentMonth).padStart(2, '0');
-    const syntheticDate = `${currentYear}-${paddedMonth}-01`;
+    const paddedMonth = String(activeMonth).padStart(2, '0');
+    const syntheticDate = `${activeYear}-${paddedMonth}-01`;
 
     updateCalendarContext({
       selectedDate: syntheticDate,
-      calendarYear: currentYear,
-      calendarMonth: currentMonth,
+      calendarYear: activeYear,
+      calendarMonth: activeMonth,
     });
-  }, [currentYear, currentMonth, updateCalendarContext]);
+  }, [activeYear, activeMonth, updateCalendarContext]);
 
   // 탭 진입 시: 탑 네비 + 날짜 박스 페이드인 (최초 1회만, 이후 screenOpacity는 1 유지)
   useEffect(() => {
@@ -591,11 +848,11 @@ export default function ChallengeTabScreen() {
     if (activeTopTab !== 'challenge') return;
     const prev = prevChallengeMonthRef.current;
     if (prev === null) {
-      prevChallengeMonthRef.current = { year, month };
+      prevChallengeMonthRef.current = { year: challengeYear, month: challengeMonth };
       return;
     }
-    if (prev.year !== year || prev.month !== month) {
-      prevChallengeMonthRef.current = { year, month };
+    if (prev.year !== challengeYear || prev.month !== challengeMonth) {
+      prevChallengeMonthRef.current = { year: challengeYear, month: challengeMonth };
       challengeRefreshedForRef.current = null;
       challengeMonthChangeInProgressRef.current = true;
       Animated.timing(contentOpacity, {
@@ -603,36 +860,43 @@ export default function ChallengeTabScreen() {
         duration: MONTH_CHANGE_FADE_OUT_DURATION,
         useNativeDriver: true,
       }).start(({ finished }) => {
-        if (finished && (challengeRefreshedForRef.current?.year !== year || challengeRefreshedForRef.current?.month !== month)) {
+        if (
+          finished &&
+          (challengeRefreshedForRef.current?.year !== challengeYear ||
+            challengeRefreshedForRef.current?.month !== challengeMonth)
+        ) {
           setIsContentReady(false);
         }
       });
     }
-  }, [activeTopTab, year, month, contentOpacity]);
+  }, [activeTopTab, challengeYear, challengeMonth, contentOpacity]);
 
   // 리포트 탭: 월 변경 감지 → 페이드아웃, 로딩 완료 시 페이드인 (타임라인과 동일)
   useEffect(() => {
     if (activeTopTab !== 'report') return;
-    // 소비 현황(trend) 탭에서는 이 effect로 페이드아웃을 제어하지 않음
-    // (트렌드 리스트는 항상 즉시 표시하고, 로딩 상태는 별도로 관리)
-    if (reportSubTab === 'trend') {
-      prevReportMonthRef.current = { year, month };
-      return;
-    }
-    const prev = prevReportMonthRef.current;
+    const prevRef =
+      reportSubTab === 'score' ? prevReportScoreMonthRef : prevReportTrendMonthRef;
+    const nextYear = reportSubTab === 'score' ? reportScoreYear : reportTrendYear;
+    const nextMonth = reportSubTab === 'score' ? reportScoreMonth : reportTrendMonth;
+    const prev = prevRef.current;
     if (prev === null) {
-      prevReportMonthRef.current = { year, month };
+      prevRef.current = { year: nextYear, month: nextMonth };
       return;
     }
-    if (prev.year !== year || prev.month !== month) {
-      prevReportMonthRef.current = { year, month };
+    if (prev.year !== nextYear || prev.month !== nextMonth) {
+      prevRef.current = { year: nextYear, month: nextMonth };
       reportNeedsFadeInRef.current = true;
-      setReportTrendContentReady(false);
+      reportFadeOutInProgressRef.current = true;
+      reportPendingTrendFadeInRef.current = false;
+      if (reportSubTab === 'trend') {
+        setReportTrendContentReady(false);
+      }
       Animated.timing(reportContentOpacity, {
         toValue: 0,
         duration: MONTH_CHANGE_FADE_OUT_DURATION,
         useNativeDriver: true,
       }).start(({ finished }) => {
+        reportFadeOutInProgressRef.current = false;
         if (finished) {
           // 소비 리포트: 점수 박스는 데이터 없어도 항상 표시 → 페이드아웃 직후 페이드인
           // 소비 현황: 트렌드 로딩 완료 시 별도 effect에서 페이드인
@@ -643,11 +907,28 @@ export default function ChallengeTabScreen() {
               duration: MONTH_CHANGE_FADE_IN_DURATION,
               useNativeDriver: true,
             }).start();
+          } else if (reportPendingTrendFadeInRef.current) {
+            reportPendingTrendFadeInRef.current = false;
+            reportNeedsFadeInRef.current = false;
+            reportContentOpacity.setValue(0);
+            Animated.timing(reportContentOpacity, {
+              toValue: 1,
+              duration: MONTH_CHANGE_FADE_IN_DURATION,
+              useNativeDriver: true,
+            }).start();
           }
         }
       });
     }
-  }, [activeTopTab, year, month, reportSubTab, reportContentOpacity]);
+  }, [
+    activeTopTab,
+    reportSubTab,
+    reportScoreYear,
+    reportScoreMonth,
+    reportTrendYear,
+    reportTrendMonth,
+    reportContentOpacity,
+  ]);
 
   // 리포트 탭(소비 현황): 트렌드 로딩 완료 시 페이드인
   // 소비 리포트(점수 박스)는 월 변경 시 페이드아웃 콜백에서 바로 페이드인
@@ -657,7 +938,12 @@ export default function ChallengeTabScreen() {
       reportContentOpacity.setValue(0);
       return;
     }
+    if (reportFadeOutInProgressRef.current) {
+      reportPendingTrendFadeInRef.current = true;
+      return;
+    }
     reportNeedsFadeInRef.current = false;
+    reportPendingTrendFadeInRef.current = false;
     reportContentOpacity.setValue(0);
     Animated.timing(reportContentOpacity, {
       toValue: 1,
@@ -666,25 +952,31 @@ export default function ChallengeTabScreen() {
     }).start();
   }, [activeTopTab, reportSubTab, reportTrendContentReady, reportContentOpacity]);
 
-  // 리포트 탭 진입 시 prevReportMonthRef 초기화 (첫 진입 시 페이드아웃 방지)
+  // 리포트 탭 진입 시 subtab별 prev month 초기화 (첫 진입 시 페이드아웃 방지)
   useEffect(() => {
-    if (activeTopTab === 'report' && prevReportMonthRef.current === null) {
-      prevReportMonthRef.current = { year, month };
+    if (activeTopTab === 'report') {
+      if (prevReportScoreMonthRef.current === null) {
+        prevReportScoreMonthRef.current = { year: reportScoreYear, month: reportScoreMonth };
+      }
+      if (prevReportTrendMonthRef.current === null) {
+        prevReportTrendMonthRef.current = { year: reportTrendYear, month: reportTrendMonth };
+      }
     }
     if (activeTopTab !== 'report') {
-      prevReportMonthRef.current = null;
+      prevReportScoreMonthRef.current = null;
+      prevReportTrendMonthRef.current = null;
     }
-  }, [activeTopTab, year, month]);
+  }, [activeTopTab, reportScoreYear, reportScoreMonth, reportTrendYear, reportTrendMonth]);
 
   // 챌린지 탭 진입 시 prevChallengeMonthRef 초기화 (첫 진입 시 페이드아웃 방지)
   useEffect(() => {
     if (activeTopTab === 'challenge' && prevChallengeMonthRef.current === null) {
-      prevChallengeMonthRef.current = { year, month };
+      prevChallengeMonthRef.current = { year: challengeYear, month: challengeMonth };
     }
     if (activeTopTab !== 'challenge') {
       prevChallengeMonthRef.current = null;
     }
-  }, [activeTopTab, year, month]);
+  }, [activeTopTab, challengeYear, challengeMonth]);
 
   // 소비 리포트: 점수 박스는 데이터 없어도 항상 표시 → 트렌드→스코어 전환 시 opacity 1 (월 변경 애니메이션과 충돌 방지)
   const prevReportSubTabRef = useRef<ReportSubTabId | null>(null);
@@ -748,8 +1040,18 @@ export default function ChallengeTabScreen() {
     const monthStart = await loadMonthStartDay();
     const customMonthInfo = getCustomMonthInfo(today, monthStart);
 
-    setCurrentYear(customMonthInfo.year);
-    setCurrentMonth(customMonthInfo.month);
+    if (activeTopTabRef.current === 'report') {
+      if (reportSubTabRef.current === 'score') {
+        setReportScoreYear(customMonthInfo.year);
+        setReportScoreMonth(customMonthInfo.month);
+      } else {
+        setReportTrendYear(customMonthInfo.year);
+        setReportTrendMonth(customMonthInfo.month);
+      }
+    } else {
+      setChallengeYear(customMonthInfo.year);
+      setChallengeMonth(customMonthInfo.month);
+    }
   }, []);
 
   // Handle double-tap on challenge tab: reset to today's custom month
@@ -766,9 +1068,29 @@ export default function ChallengeTabScreen() {
   }, [navigation, resetToCurrentMonth]);
 
   const handlePrevMonth = useCallback(() => {
-    setCurrentMonth((prevMonth) => {
+    if (activeTopTabRef.current === 'report') {
+      if (reportSubTabRef.current === 'score') {
+        setReportScoreMonth((prevMonth) => {
+          if (prevMonth === 1) {
+            setReportScoreYear((prevYear) => prevYear - 1);
+            return 12;
+          }
+          return prevMonth - 1;
+        });
+      } else {
+        setReportTrendMonth((prevMonth) => {
+          if (prevMonth === 1) {
+            setReportTrendYear((prevYear) => prevYear - 1);
+            return 12;
+          }
+          return prevMonth - 1;
+        });
+      }
+      return;
+    }
+    setChallengeMonth((prevMonth) => {
       if (prevMonth === 1) {
-        setCurrentYear((prevYear) => prevYear - 1);
+        setChallengeYear((prevYear) => prevYear - 1);
         return 12;
       }
       return prevMonth - 1;
@@ -776,9 +1098,29 @@ export default function ChallengeTabScreen() {
   }, []);
 
   const handleNextMonth = useCallback(() => {
-    setCurrentMonth((prevMonth) => {
+    if (activeTopTabRef.current === 'report') {
+      if (reportSubTabRef.current === 'score') {
+        setReportScoreMonth((prevMonth) => {
+          if (prevMonth === 12) {
+            setReportScoreYear((prevYear) => prevYear + 1);
+            return 1;
+          }
+          return prevMonth + 1;
+        });
+      } else {
+        setReportTrendMonth((prevMonth) => {
+          if (prevMonth === 12) {
+            setReportTrendYear((prevYear) => prevYear + 1);
+            return 1;
+          }
+          return prevMonth + 1;
+        });
+      }
+      return;
+    }
+    setChallengeMonth((prevMonth) => {
       if (prevMonth === 12) {
-        setCurrentYear((prevYear) => prevYear + 1);
+        setChallengeYear((prevYear) => prevYear + 1);
         return 1;
       }
       return prevMonth + 1;
@@ -790,6 +1132,10 @@ export default function ChallengeTabScreen() {
     const height = windowHeight * 0.52;
     return Math.round(Math.max(REPORT_SCORE_CARD_MIN, Math.min(REPORT_SCORE_CARD_MAX, height)));
   }, [windowHeight]);
+  const shouldHideNoSpendInEarlyMonth = useMemo(() => {
+    if (reportScoreContext == null) return false;
+    return !reportScoreContext.isMonthClosed && reportScoreContext.elapsedDaysInMonth <= 28;
+  }, [reportScoreContext]);
 
   const isCollectingIndex = consumptionIndex?.status === 'collecting';
   const fqScore =
@@ -1017,7 +1363,7 @@ export default function ChallengeTabScreen() {
 
   const handleCheckScore = useCallback(async () => {
     if (!consumptionIndex || consumptionIndex.status !== 'ready' || fqScore == null) {
-      showToast('소비 지수는 기록이 조금 더 쌓인 후 확인할 수 있습니다.');
+      showToast('기록이 조금 더 쌓인 후 확인할 수 있습니다.');
       return;
     }
 
@@ -1045,42 +1391,27 @@ export default function ChallengeTabScreen() {
         return value;
       }) as CalendarData;
 
-      const { startDate, endDate } = getCustomMonthRange(year, month, monthStartDay);
-      const start = new Date(startDate);
-      start.setHours(0, 0, 0, 0);
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
-
-      let lastRecordUpdatedAt = 0;
-
-      Object.entries(calendarData).forEach(([dateKey, dayData]) => {
-        if (!dayData || !dayData.records || dayData.records.length === 0) {
-          return;
-        }
-        const date = new Date(dateKey);
-        const time = date.getTime();
-        if (time < start.getTime() || time > end.getTime()) {
-          return;
-        }
-        dayData.records.forEach((record) => {
-          if (record.type !== 'expense' || record.isDeleted) return;
-          const ts =
-            typeof record.timestamp === 'number' && !Number.isNaN(record.timestamp)
-              ? record.timestamp
-              : time;
-          if (ts > lastRecordUpdatedAt) {
-            lastRecordUpdatedAt = ts;
-          }
-        });
-      });
+      if (reportScoreContext == null || reportScoreCacheKey == null) {
+        showToast('월 시작일 정보를 불러오는 중입니다. 잠시 후 다시 시도해 주세요.');
+        return;
+      }
+      const snapshot = computeReportSnapshot(calendarData, reportScoreContext);
+      const {
+        lastRecordUpdatedAt,
+        toDateTotalExpense,
+        toDateExpenseCount,
+        toDateActiveDays,
+        noSpendDaysToDate,
+        toDateCategoryTotals,
+        toDateCategoryUsage,
+      } = snapshot;
 
       if (lastRecordUpdatedAt === 0) {
         showToast('이번 달에는 아직 소비 기록이 없습니다.');
         return;
       }
 
-      const cacheKey = `consumptionReport_${year}_${month}_${monthStartDay}`;
-      const cached = await AsyncStorage.getItem(cacheKey);
+      const cached = await AsyncStorage.getItem(reportScoreCacheKey);
       if (cached) {
         try {
           const parsed = JSON.parse(cached) as {
@@ -1090,16 +1421,33 @@ export default function ChallengeTabScreen() {
             scoreFeedback?: string;
             nextWeekGoal?: string | string[];
             lastRecordUpdatedAt: number;
+            asOfDate?: string;
+          monthStartUpdatedAt?: number;
           };
+          const canReuseByAsOfDate =
+            reportScoreContext.isMonthClosed ||
+            parsed.asOfDate === reportScoreContext.asOfDate;
+        const canReuseByMonthStartVersion =
+          Number(parsed.monthStartUpdatedAt ?? 0) === reportScoreContext.monthStartUpdatedAt;
 
           // (1) 이미 이 월에서 한 번 이상 분석했고, 데이터도 그대로라면 → 분석 중단
-          if (parsed.lastRecordUpdatedAt === lastRecordUpdatedAt && hasCheckedScore) {
+        if (
+          parsed.lastRecordUpdatedAt === lastRecordUpdatedAt &&
+          hasCheckedScore &&
+          canReuseByAsOfDate &&
+          canReuseByMonthStartVersion
+        ) {
             showToast('변경내역이 없어 분석을 중단합니다.');
             return;
           }
 
           // (2) 분석 이력은 있지만, 이번 세션에서 아직 점수를 확인하지 않은 경우 → 캐시 재사용
-          if (parsed.lastRecordUpdatedAt === lastRecordUpdatedAt && !hasCheckedScore) {
+        if (
+          parsed.lastRecordUpdatedAt === lastRecordUpdatedAt &&
+          !hasCheckedScore &&
+          canReuseByAsOfDate &&
+          canReuseByMonthStartVersion
+        ) {
             nextSummary = splitLines(
               Array.isArray(parsed.summary) ? parsed.summary.join('\n') : parsed.summary.trim(),
             );
@@ -1153,8 +1501,11 @@ export default function ChallengeTabScreen() {
         body: JSON.stringify({
           fqScore,
           stats: {
-            year,
-            month,
+            year: reportScoreYear,
+            month: reportScoreMonth,
+            asOfDate: reportScoreContext.asOfDate,
+            isMonthClosed: reportScoreContext.isMonthClosed,
+            elapsedDaysInMonth: reportScoreContext.elapsedDaysInMonth,
             totalExpense: consumptionIndex.stats.totalExpense,
             noSpendDays: consumptionIndex.stats.noSpendDays,
             totalDays: consumptionIndex.stats.totalDays,
@@ -1162,6 +1513,12 @@ export default function ChallengeTabScreen() {
             categoryTotals: consumptionIndex.stats.categoryTotals,
             expenseCount: consumptionIndex.stats.expenseCount,
             activeDays: Object.keys(consumptionIndex.stats.dailyExpenseCounts).length,
+            toDateTotalExpense,
+            toDateExpenseCount,
+            toDateActiveDays,
+            noSpendDaysToDate,
+            toDateCategoryTotals,
+            toDateCategoryUsage,
           },
         }),
       });
@@ -1233,7 +1590,7 @@ export default function ChallengeTabScreen() {
       didUpdate = true;
 
       await AsyncStorage.setItem(
-        cacheKey,
+        reportScoreCacheKey,
         JSON.stringify({
           summary: summaryLines,
           summaryTitle: summaryTitle || undefined,
@@ -1241,8 +1598,12 @@ export default function ChallengeTabScreen() {
           scoreFeedback: scoreFeedbackLines.length > 0 ? scoreFeedbackLines : undefined,
           nextWeekGoal: nextWeekGoalLines.length > 0 ? nextWeekGoalLines : undefined,
           lastRecordUpdatedAt,
+          asOfDate: reportScoreContext.asOfDate,
+          monthStartUpdatedAt: reportScoreContext.monthStartUpdatedAt,
         }),
       );
+      const legacyCacheKey = `consumptionReport_${reportScoreYear}_${reportScoreMonth}_${monthStartDay}`;
+      await AsyncStorage.removeItem(legacyCacheKey).catch(() => {});
     } catch {
       showToast('AI 리포트 생성 중 오류가 발생했습니다. 다시 시도해 주세요.');
     } finally {
@@ -1269,8 +1630,10 @@ export default function ChallengeTabScreen() {
     consumptionIndex,
     fqScore,
     monthStartDay,
-    year,
-    month,
+    reportScoreYear,
+    reportScoreMonth,
+    reportScoreContext,
+    reportScoreCacheKey,
     hasCheckedScore,
     showToast,
     runReportContentRefreshAnimation,
@@ -1393,7 +1756,7 @@ export default function ChallengeTabScreen() {
                       accessibilityLabel="년월 선택"
                     >
                       <Text style={[styles.reportMonthText, { color: colors.text }]}>
-                        {year}년 {String(month).padStart(2, '0')}월
+                        {reportScoreYear}년 {String(reportScoreMonth).padStart(2, '0')}월
                       </Text>
                     </Pressable>
                     <Pressable
@@ -1478,16 +1841,18 @@ export default function ChallengeTabScreen() {
                                 : '0원'}
                             </Text>
                           </View>
-                          <View style={styles.reportSummaryRow}>
-                            <Text style={[styles.reportSummaryLabel, { color: colors.textAssistive }]}>
-                              무지출일
-                            </Text>
-                            <Text style={[styles.reportSummaryValue, { color: colors.text }]}>
-                              {consumptionIndex
-                                ? `${consumptionIndex.stats.noSpendDays}일 / ${consumptionIndex.stats.totalDays}일`
-                                : '-'}
-                            </Text>
-                          </View>
+                          {!shouldHideNoSpendInEarlyMonth && (
+                            <View style={styles.reportSummaryRow}>
+                              <Text style={[styles.reportSummaryLabel, { color: colors.textAssistive }]}>
+                                무지출일
+                              </Text>
+                              <Text style={[styles.reportSummaryValue, { color: colors.text }]}>
+                                {consumptionIndex
+                                  ? `${consumptionIndex.stats.noSpendDays}일 / ${consumptionIndex.stats.totalDays}일`
+                                  : '-'}
+                              </Text>
+                            </View>
+                          )}
                         </View>
                         {aiSummaryTitleText && (
                           <Text style={[styles.reportSummaryHeadline, { color: colors.text }]}>
@@ -1603,7 +1968,7 @@ export default function ChallengeTabScreen() {
                       accessibilityLabel="년월 선택"
                     >
                       <Text style={[styles.reportMonthText, { color: colors.text }]}>
-                        {year}년 {String(month).padStart(2, '0')}월
+                        {reportTrendYear}년 {String(reportTrendMonth).padStart(2, '0')}월
                       </Text>
                     </Pressable>
                     <Pressable
@@ -1647,8 +2012,8 @@ export default function ChallengeTabScreen() {
                               pathname: '/expense-category-detail',
                               params: {
                                 category: item.category,
-                                year: year.toString(),
-                                month: month.toString(),
+                                year: reportTrendYear.toString(),
+                                month: reportTrendMonth.toString(),
                               },
                             });
                           }}
@@ -1675,8 +2040,8 @@ export default function ChallengeTabScreen() {
             <>
           {/* 날짜 박스 - 고정 */}
           <MonthSwitcher
-            year={year}
-            month={month}
+            year={challengeYear}
+            month={challengeMonth}
             onPrev={handlePrevMonth}
             onNext={handleNextMonth}
             textColor={colors.text}
@@ -1840,15 +2205,34 @@ export default function ChallengeTabScreen() {
           onClose={() => setShowYearMonthPicker(false)}
           title="년/월 선택"
           yearOptions={yearOptions}
-          selectedYear={year}
+          selectedYear={activeYear}
           onYearChange={(newYear) => {
             const minY = yearOptions[0]?.value ?? newYear;
             const maxY = yearOptions[yearOptions.length - 1]?.value ?? newYear;
-            setCurrentYear(Math.min(maxY, Math.max(minY, newYear)));
+            const nextYear = Math.min(maxY, Math.max(minY, newYear));
+            if (activeTopTab === 'report') {
+              if (reportSubTab === 'score') {
+                setReportScoreYear(nextYear);
+              } else {
+                setReportTrendYear(nextYear);
+              }
+            } else {
+              setChallengeYear(nextYear);
+            }
           }}
           monthOptions={monthOptions}
-          selectedMonth={month}
-          onMonthChange={setCurrentMonth}
+          selectedMonth={activeMonth}
+          onMonthChange={(newMonth) => {
+            if (activeTopTab === 'report') {
+              if (reportSubTab === 'score') {
+                setReportScoreMonth(newMonth);
+              } else {
+                setReportTrendMonth(newMonth);
+              }
+            } else {
+              setChallengeMonth(newMonth);
+            }
+          }}
         />
       </SafeAreaView>
 
