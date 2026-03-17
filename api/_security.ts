@@ -12,6 +12,14 @@ interface RateLimitState {
 const rateLimitStore = new Map<string, RateLimitState>();
 const INTERNAL_API_SECRET_FALLBACK = 'awallet-internal-2026-Yv9pZQkR8F2M';
 
+function normalizeSecret(raw: string | null | undefined): string {
+  if (typeof raw !== 'string') return '';
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return '';
+  const unquoted = trimmed.replace(/^['"]|['"]$/g, '').trim();
+  return unquoted;
+}
+
 function trimTimestamps(timestamps: number[], windowStartMs: number): number[] {
   return timestamps.filter((ts) => ts > windowStartMs);
 }
@@ -67,13 +75,13 @@ export function verifyInternalApiSecret(request: Request): Response | null {
   const legacySecret =
     process.env.awallet_internal_api_secret_legacy ??
     process.env.AWALLET_INTERNAL_API_SECRET_LEGACY;
-  const allowedSecrets = [
-    configuredSecret,
-    legacySecret,
-    INTERNAL_API_SECRET_FALLBACK,
-  ]
-    .map((secret) => (typeof secret === 'string' ? secret.trim() : ''))
-    .filter((secret) => secret.length > 0);
+  const allowedSecrets = Array.from(
+    new Set(
+      [configuredSecret, legacySecret, INTERNAL_API_SECRET_FALLBACK]
+        .map(normalizeSecret)
+        .filter((secret) => secret.length > 0),
+    ),
+  );
 
   if (allowedSecrets.length === 0) {
     return Response.json(
@@ -82,9 +90,9 @@ export function verifyInternalApiSecret(request: Request): Response | null {
     );
   }
 
-  const providedSecret = request.headers.get('x-awallet-internal-secret');
+  const providedSecret = normalizeSecret(request.headers.get('x-awallet-internal-secret'));
   const matchedSecret =
-    providedSecret != null
+    providedSecret.length > 0
       ? allowedSecrets.find((secret) => secret === providedSecret) ?? null
       : null;
   if (!matchedSecret) {
