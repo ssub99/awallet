@@ -53,11 +53,17 @@ const FAB_OFFSET_ABOVE_TABS = 16;
 /** 월 변경 시 페이드 아웃/인 애니메이션 (챌린지·리포트·타임라인 동일) */
 const MONTH_CHANGE_FADE_OUT_DURATION = 150;
 const MONTH_CHANGE_FADE_IN_DURATION = 200;
-const REPORT_POLICY_VERSION = '2026-03-16-report-context-v2';
 const REPORT_CACHE_PREFIX = 'consumptionReportCtx';
 const CONSUMPTION_REPORT_RESET_AT_KEY = 'consumptionReportResetAt';
 const CONSUMPTION_REPORT_RESET_HANDLED_AT_KEY = 'consumptionReportResetHandledAt';
 const CONSUMPTION_REPORT_API_TIMEOUT_MS = 15000;
+const REPORT_POLICY_FINGERPRINT_SOURCE = [
+  'summary_metric_autoinject=false',
+  'metric_order=category,amount(ratio,count)',
+  'confirmed_report_meta_snapshot=true',
+  'reset_signal_key=consumptionReportResetAt',
+].join('|');
+const REPORT_POLICY_FINGERPRINT = `pf_${hashString(REPORT_POLICY_FINGERPRINT_SOURCE)}`;
 
 function getConsumptionReportErrorMessage(
   status: number,
@@ -101,7 +107,7 @@ interface ReportContext {
   isMonthClosed: boolean;
   elapsedDaysInMonth: number;
   timezone: string;
-  policyVersion: string;
+  policyFingerprint: string;
 }
 
 interface ReportSnapshot {
@@ -175,7 +181,7 @@ function buildReportContext(year: number, month: number, monthStartDay: number):
     isMonthClosed,
     elapsedDaysInMonth,
     timezone: getLocalTimezone(),
-    policyVersion: REPORT_POLICY_VERSION,
+    policyFingerprint: REPORT_POLICY_FINGERPRINT,
   };
 }
 
@@ -189,7 +195,7 @@ function buildReportCacheKey(context: ReportContext): string {
     context.isMonthClosed ? '1' : '0',
     context.elapsedDaysInMonth,
     context.timezone,
-    context.policyVersion,
+    context.policyFingerprint,
   ].join('|');
   return `${REPORT_CACHE_PREFIX}_${hashString(source)}`;
 }
@@ -696,6 +702,7 @@ export default function ChallengeTabScreen() {
           challenge?: string | string[];
           scoreFeedback?: string | string[];
           nextWeekGoal?: string | string[];
+          policyFingerprint?: string;
           confirmedFqScore?: number;
           confirmedTotalExpense?: number;
           confirmedNoSpendDays?: number;
@@ -713,9 +720,13 @@ export default function ChallengeTabScreen() {
           reportScoreContext.isMonthClosed || parsed.asOfDate === reportScoreContext.asOfDate;
         const canReuseByMonthStartVersion =
           Number(parsed.monthStartUpdatedAt ?? 0) === reportScoreContext.monthStartUpdatedAt;
+        const canReuseByPolicyFingerprint =
+          typeof parsed.policyFingerprint === 'string' &&
+          parsed.policyFingerprint === reportScoreContext.policyFingerprint;
         if (
           canReuseByAsOfDate &&
           canReuseByMonthStartVersion &&
+          canReuseByPolicyFingerprint &&
           parsed.summary &&
           parsed.challenge
         ) {
@@ -1567,6 +1578,7 @@ export default function ChallengeTabScreen() {
             challenge: string | string[];
             scoreFeedback?: string;
             nextWeekGoal?: string | string[];
+            policyFingerprint?: string;
             lastRecordUpdatedAt: number;
             asOfDate?: string;
           monthStartUpdatedAt?: number;
@@ -1576,13 +1588,17 @@ export default function ChallengeTabScreen() {
             parsed.asOfDate === reportScoreContext.asOfDate;
         const canReuseByMonthStartVersion =
           Number(parsed.monthStartUpdatedAt ?? 0) === reportScoreContext.monthStartUpdatedAt;
+        const canReuseByPolicyFingerprint =
+          typeof parsed.policyFingerprint === 'string' &&
+          parsed.policyFingerprint === reportScoreContext.policyFingerprint;
 
           // (1) 이미 이 월에서 한 번 이상 분석했고, 데이터도 그대로라면 → 분석 중단
         if (
           parsed.lastRecordUpdatedAt === lastRecordUpdatedAt &&
           hasCheckedScore &&
           canReuseByAsOfDate &&
-          canReuseByMonthStartVersion
+          canReuseByMonthStartVersion &&
+          canReuseByPolicyFingerprint
         ) {
             showToast('변경내역이 없어 분석을 중단합니다.');
             return;
@@ -1593,7 +1609,8 @@ export default function ChallengeTabScreen() {
           parsed.lastRecordUpdatedAt === lastRecordUpdatedAt &&
           !hasCheckedScore &&
           canReuseByAsOfDate &&
-          canReuseByMonthStartVersion
+          canReuseByMonthStartVersion &&
+          canReuseByPolicyFingerprint
         ) {
             nextSummary = splitLines(
               Array.isArray(parsed.summary) ? parsed.summary.join('\n') : parsed.summary.trim(),
@@ -1805,6 +1822,7 @@ export default function ChallengeTabScreen() {
           lastRecordUpdatedAt,
           asOfDate: reportScoreContext.asOfDate,
           monthStartUpdatedAt: reportScoreContext.monthStartUpdatedAt,
+          policyFingerprint: reportScoreContext.policyFingerprint,
           confirmedFqScore: fqScore,
           confirmedTotalExpense: consumptionIndex.stats.totalExpense,
           confirmedNoSpendDays: consumptionIndex.stats.noSpendDays,
