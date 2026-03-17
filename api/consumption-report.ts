@@ -91,6 +91,8 @@ interface ConsumptionReportResponse {
   nextWeekGoal: string[];
 }
 
+const GEMINI_REQUEST_TIMEOUT_MS = 15000;
+
 function buildConsumptionSystemPrompt(): string {
   const base = getBaseSystemPrompt();
   return `${base}
@@ -666,27 +668,45 @@ export async function POST(request: Request): Promise<Response> {
     const MAX_ATTEMPTS = 1;
 
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          systemInstruction: {
-            role: 'system',
-            parts: [{ text: systemPrompt }],
-          },
-          contents: [
-            {
-              role: 'user',
-              parts: [{ text: userPrompt }],
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+      }, GEMINI_REQUEST_TIMEOUT_MS);
+      let res: Response;
+      try {
+        res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            systemInstruction: {
+              role: 'system',
+              parts: [{ text: systemPrompt }],
             },
-          ],
-          generationConfig: {
-            temperature: 0.4,
-            maxOutputTokens: 512,
-            responseMimeType: 'application/json',
-          },
-        }),
-      });
+            contents: [
+              {
+                role: 'user',
+                parts: [{ text: userPrompt }],
+              },
+            ],
+            generationConfig: {
+              temperature: 0.4,
+              maxOutputTokens: 512,
+              responseMimeType: 'application/json',
+            },
+          }),
+          signal: controller.signal,
+        });
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          return Response.json(
+            { error: 'Gemini API timeout' },
+            { status: 504 },
+          );
+        }
+        throw error;
+      } finally {
+        clearTimeout(timeoutId);
+      }
 
       if (!res.ok) {
         const errText = await res.text();

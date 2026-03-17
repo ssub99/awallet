@@ -56,6 +56,7 @@ const MONTH_CHANGE_FADE_IN_DURATION = 200;
 const REPORT_POLICY_VERSION = '2026-03-16-report-context-v2';
 const REPORT_CACHE_PREFIX = 'consumptionReportCtx';
 const CONSUMPTION_REPORT_RESET_AT_KEY = 'consumptionReportResetAt';
+const CONSUMPTION_REPORT_API_TIMEOUT_MS = 15000;
 
 interface ReportContext {
   year: number;
@@ -1516,39 +1517,54 @@ export default function ChallengeTabScreen() {
       setIsAiLoading(true);
       const securityHeaders = await getApiSecurityHeaders();
 
-      const res = await fetch(CONSUMPTION_REPORT_API_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...securityHeaders,
-        },
-        body: JSON.stringify({
-          fqScore,
-          stats: {
-            year: reportScoreYear,
-            month: reportScoreMonth,
-            asOfDate: reportScoreContext.asOfDate,
-            isMonthClosed: reportScoreContext.isMonthClosed,
-            elapsedDaysInMonth: reportScoreContext.elapsedDaysInMonth,
-            totalExpense: consumptionIndex.stats.totalExpense,
-            noSpendDays: consumptionIndex.stats.noSpendDays,
-            totalDays: consumptionIndex.stats.totalDays,
-            highAmountRatio: consumptionIndex.stats.highAmountRatio,
-            categoryTotals: consumptionIndex.stats.categoryTotals,
-            expenseCount: consumptionIndex.stats.expenseCount,
-            activeDays: Object.keys(consumptionIndex.stats.dailyExpenseCounts).length,
-            toDateTotalExpense,
-            toDateExpenseCount,
-            toDateActiveDays,
-            noSpendDaysToDate,
-            toDateCategoryTotals,
-            toDateCategoryUsage,
-          },
-        }),
-      });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+      }, CONSUMPTION_REPORT_API_TIMEOUT_MS);
+      const res = await (async () => {
+        try {
+          return await fetch(CONSUMPTION_REPORT_API_URL, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...securityHeaders,
+            },
+            body: JSON.stringify({
+              fqScore,
+              stats: {
+                year: reportScoreYear,
+                month: reportScoreMonth,
+                asOfDate: reportScoreContext.asOfDate,
+                isMonthClosed: reportScoreContext.isMonthClosed,
+                elapsedDaysInMonth: reportScoreContext.elapsedDaysInMonth,
+                totalExpense: consumptionIndex.stats.totalExpense,
+                noSpendDays: consumptionIndex.stats.noSpendDays,
+                totalDays: consumptionIndex.stats.totalDays,
+                highAmountRatio: consumptionIndex.stats.highAmountRatio,
+                categoryTotals: consumptionIndex.stats.categoryTotals,
+                expenseCount: consumptionIndex.stats.expenseCount,
+                activeDays: Object.keys(consumptionIndex.stats.dailyExpenseCounts).length,
+                toDateTotalExpense,
+                toDateExpenseCount,
+                toDateActiveDays,
+                noSpendDaysToDate,
+                toDateCategoryTotals,
+                toDateCategoryUsage,
+              },
+            }),
+            signal: controller.signal,
+          });
+        } finally {
+          clearTimeout(timeoutId);
+        }
+      })();
 
       if (!res.ok) {
-        showToast('잠시 후 다시 시도해 주세요.');
+        if (res.status === 408 || res.status === 504) {
+          showToast('응답이 지연되고 있습니다. 다시 시도해 주세요.');
+        } else {
+          showToast('오류가 발생했습니다. 다시 시도해 주세요.');
+        }
         return;
       }
 
@@ -1628,8 +1644,12 @@ export default function ChallengeTabScreen() {
       );
       const legacyCacheKey = `consumptionReport_${reportScoreYear}_${reportScoreMonth}_${monthStartDay}`;
       await AsyncStorage.removeItem(legacyCacheKey).catch(() => {});
-    } catch {
-      showToast('AI 리포트 생성 중 오류가 발생했습니다. 다시 시도해 주세요.');
+    } catch (error: unknown) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        showToast('응답이 지연되고 있습니다. 다시 시도해 주세요.');
+      } else {
+        showToast('오류가 발생했습니다. 다시 시도해 주세요.');
+      }
     } finally {
       setIsAiLoading(false);
       if (didUpdate && nextSummary && nextChallenge) {
