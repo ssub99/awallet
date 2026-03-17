@@ -93,6 +93,27 @@ interface ConsumptionReportResponse {
 
 const GEMINI_REQUEST_TIMEOUT_MS = 15000;
 
+type AiErrorType = 'UPSTREAM_HTTP_ERROR' | 'AI_PARSE_ERROR' | 'AI_TIMEOUT';
+
+function truncateForLog(input: string, maxLen = 500): string {
+  if (input.length <= maxLen) return input;
+  return `${input.slice(0, maxLen)}...(truncated)`;
+}
+
+function logAiFailure(
+  type: AiErrorType,
+  payload: ConsumptionReportRequest,
+  extra?: Record<string, unknown>,
+): void {
+  console.error(`[consumption-report][${type}]`, {
+    year: payload.stats.year,
+    month: payload.stats.month,
+    asOfDate: payload.stats.asOfDate ?? null,
+    isMonthClosed: payload.stats.isMonthClosed ?? null,
+    ...extra,
+  });
+}
+
 function buildConsumptionSystemPrompt(): string {
   const base = getBaseSystemPrompt();
   return `${base}
@@ -698,6 +719,10 @@ export async function POST(request: Request): Promise<Response> {
         });
       } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') {
+          logAiFailure('AI_TIMEOUT', payload, {
+            attempt: attempt + 1,
+            timeoutMs: GEMINI_REQUEST_TIMEOUT_MS,
+          });
           return Response.json(
             { error: 'Gemini API timeout' },
             { status: 504 },
@@ -710,6 +735,11 @@ export async function POST(request: Request): Promise<Response> {
 
       if (!res.ok) {
         const errText = await res.text();
+        logAiFailure('UPSTREAM_HTTP_ERROR', payload, {
+          attempt: attempt + 1,
+          upstreamStatus: res.status,
+          upstreamBody: truncateForLog(errText),
+        });
         // Gemini API 자체가 실패한 경우에는 재시도 없이 즉시 반환
         return Response.json(
           { error: 'Gemini API error', details: errText },
@@ -730,6 +760,10 @@ export async function POST(request: Request): Promise<Response> {
 
       // 응답 파싱에 실패한 경우, 재시도 상한에 도달하면 502로 마무리
       if (attempt === MAX_ATTEMPTS - 1) {
+        logAiFailure('AI_PARSE_ERROR', payload, {
+          attempt: attempt + 1,
+          textPreview: truncateForLog(text),
+        });
         return Response.json(
           { error: 'Failed to parse AI response after retries' },
           { status: 502 },
@@ -743,7 +777,7 @@ export async function POST(request: Request): Promise<Response> {
       { status: 500 },
     );
   } catch (error) {
-    console.error('[consumption-report] error:', error);
+    console.error('[consumption-report][INTERNAL_ERROR]', error);
     return Response.json(
       { error: 'Unexpected error' },
       { status: 500 },
