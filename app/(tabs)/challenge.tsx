@@ -56,6 +56,7 @@ const MONTH_CHANGE_FADE_IN_DURATION = 200;
 const REPORT_POLICY_VERSION = '2026-03-16-report-context-v2';
 const REPORT_CACHE_PREFIX = 'consumptionReportCtx';
 const CONSUMPTION_REPORT_RESET_AT_KEY = 'consumptionReportResetAt';
+const CONSUMPTION_REPORT_RESET_HANDLED_AT_KEY = 'consumptionReportResetHandledAt';
 const CONSUMPTION_REPORT_API_TIMEOUT_MS = 15000;
 
 function getConsumptionReportErrorMessage(
@@ -610,11 +611,25 @@ export default function ChallengeTabScreen() {
       const currentSyncKey =
         reportScoreCacheKey ??
         `none:${reportScoreYear}-${reportScoreMonth}-${monthStartDay}`;
-      const contextChanged = prevReportSyncKeyRef.current !== currentSyncKey;
+      const prevSyncKey = prevReportSyncKeyRef.current;
+      const contextChanged = prevSyncKey != null && prevSyncKey !== currentSyncKey;
       prevReportSyncKeyRef.current = currentSyncKey;
 
       let shouldResetUi = contextChanged;
       try {
+        // 처리된 reset 시각은 컴포넌트 생명주기 밖에서도 유지해,
+        // 화면 재진입 시 과거 reset 신호를 다시 소비하지 않도록 한다.
+        const handledResetAtRaw = await AsyncStorage.getItem(
+          CONSUMPTION_REPORT_RESET_HANDLED_AT_KEY,
+        );
+        const handledResetAt = Number(handledResetAtRaw ?? 0);
+        if (
+          Number.isFinite(handledResetAt) &&
+          handledResetAt > handledReportResetAtRef.current
+        ) {
+          handledReportResetAtRef.current = handledResetAt;
+        }
+
         const reportResetAtRaw = await AsyncStorage.getItem(
           CONSUMPTION_REPORT_RESET_AT_KEY,
         );
@@ -625,6 +640,10 @@ export default function ChallengeTabScreen() {
         ) {
           handledReportResetAtRef.current = reportResetAt;
           shouldResetUi = true;
+          await AsyncStorage.setItem(
+            CONSUMPTION_REPORT_RESET_HANDLED_AT_KEY,
+            String(reportResetAt),
+          );
         }
       } catch {
         // reset 신호 확인 실패 시 기존 상태 유지

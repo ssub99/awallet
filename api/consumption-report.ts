@@ -161,7 +161,8 @@ function buildConsumptionSystemPrompt(): string {
 - 기록이 적은 경우에는, 먼저 "기록이 아직 많지 않아 소비 패턴을 단정하기는 이르다"는 취지를 짧게 언급하는 문장을 포함합니다.
 - 상위 카테고리와 금액 수준을 자연스럽게 녹여서 설명합니다.
 - summary 배열의 길이는 최대 10개를 넘기지 않습니다.
-- summary에서 금액(원)을 언급하는 경우, 반드시 같은 요소(문장) 안에 카테고리, 건수(건), 비율(%)를 함께 포함해 주세요.
+- summary에서 금액(원)을 언급하는 경우, 반드시 같은 요소(문장) 안에 카테고리, 금액(원), 비율(%), 건수(건)를 함께 포함해 주세요.
+- 금액을 언급할 때는 "카테고리, 금액(비율, 건수)" 순서(예: "식비" 120,000원(32.1%, 8건))를 지켜 주세요.
 
 [challenge 작성 규칙]
 - 다음 주 1주일 동안 시도해 볼 수 있는 구체적인 행동 1~2가지를 제안합니다.
@@ -171,7 +172,8 @@ function buildConsumptionSystemPrompt(): string {
 - 배열 길이는 최대 10개를 넘기지 않습니다.
 - 특정 카테고리를 챌린지 대상으로 선택했다면, "이번 달 이 카테고리의 총 사용 금액"과 "전체 지출에서 차지하는 비율(%)"을 함께 언급해,
   왜 이 카테고리를 다음 주 목표 대상으로 제안하는지 사용자가 이해할 수 있도록 한두 개의 요소(문장)로 근거를 설명합니다.
-- challenge에서 금액(원)을 언급하는 경우, 반드시 같은 요소(문장) 안에 카테고리, 건수(건), 비율(%)를 함께 포함해 주세요.
+- challenge에서 금액(원)을 언급하는 경우, 반드시 같은 요소(문장) 안에 카테고리, 금액(원), 비율(%), 건수(건)를 함께 포함해 주세요.
+- 금액을 언급할 때는 "카테고리, 금액(비율, 건수)" 순서(예: "식비" 120,000원(32.1%, 8건))를 지켜 주세요.
 
 [nextWeekGoal 작성 규칙]
 - nextWeekGoal은 문자열 배열이며, 다음 주 1주일 동안 실천할 "핵심 목표"만을 1~3개의 요소로 요약합니다.
@@ -179,15 +181,16 @@ function buildConsumptionSystemPrompt(): string {
 - 데이터가 5건 미만인 경우 해당 월에 기록한 카테고리 대비 전월엔 N회∙NN,NNN원을 소비했는지 언급하여 앞으로의 소비 습관을 제시합니다.
 - 다음주 목표를 제안할 떄 주요 카테고리의 비율 및 소비총액을 언급하고 해당 카테고리의 지출대비 적절한 목표금액을 제시해야 합니다.(데이터가 5건 이상인 경우에만 해당)
 - 다음 주 목표 제안 시 기록한 데이터가 충동적인 소비인지 아닌지에 대한 분석이 필요합니다. (예시 : 같은 날 동일 카테고리 2건 이상, 단일 지출이 당월 전체 건당 평균의 300% 초과, 특정 카테고리의 이번 주 지출이 당월 주 평균 대비 200% 이상 급증 등등)
-- nextWeekGoal에서 금액(원)을 언급하는 경우, 반드시 같은 요소(문장) 안에 카테고리, 건수(건), 비율(%)를 함께 포함해 주세요.
+- nextWeekGoal에서 금액(원)을 언급하는 경우, 반드시 같은 요소(문장) 안에 카테고리, 금액(원), 비율(%), 건수(건)를 함께 포함해 주세요.
+- 금액을 언급할 때는 "카테고리, 금액(비율, 건수)" 순서(예: "식비" 120,000원(32.1%, 8건))를 지켜 주세요.
 - 근거 문장을 제시한 뒤에는 해당 수치를 바탕으로 실천할 행동 목표를 이어서 제안해 주세요.
 
 줄바꿈/형식 공통 규칙:
 - summary, challenge, nextWeekGoal 배열의 각 요소는 하나의 문장 또는 짧은 문단을 의미하며, 자동 줄바꿈은 클라이언트에서 처리합니다.
 - 숫자나 금액(예: 3회, 12,300원, 30%)이 포함된 설명은 가능하면 별도의 요소(문장)로 분리해서 작성합니다.
 - summary와 challenge 배열의 마지막 요소는 행동을 유도하는 문장(격려 또는 다음 행동 제안)으로 마무리합니다.
-- summary/challenge/nextWeekGoal 각 섹션에서 금액(원)을 언급할 때는 반드시 카테고리, 건수(건), 비율(%)를 함께 표기해 주세요.
-- 금액을 포함한 문장에는 위 네 요소(카테고리/금액/건수/비율)가 한 세트로 포함되어야 합니다.
+- summary/challenge/nextWeekGoal 각 섹션에서 금액(원)을 언급할 때는 반드시 카테고리, 금액(원), 비율(%), 건수(건)를 함께 표기해 주세요.
+- 금액을 포함한 문장에는 위 네 요소(카테고리/금액/비율/건수)가 한 세트로 포함되어야 하며, 표기 순서는 "카테고리, 금액(비율, 건수)"로 맞춰 주세요.
 
 [데이터 양에 따른 피드백 모드]
 
@@ -379,9 +382,9 @@ function buildFallbackReport(stats: StatsInput): ConsumptionReportResponse {
 function buildCategoryEvidenceLine(stats: StatsInput): string | null {
   const metrics = getTopCategoryMetrics(stats);
   if (!metrics) return null;
-  return `"${metrics.category}"은 현재 ${metrics.count}건, ${metrics.amount.toLocaleString(
+  return `"${metrics.category}"은 현재 ${metrics.amount.toLocaleString(
     'ko-KR',
-  )}원(${metrics.ratioText}) 수준이에요.`;
+  )}원(${metrics.ratioText}, ${metrics.count}건) 수준이에요.`;
 }
 
 function getTopCategoryMetrics(stats: StatsInput): {
@@ -427,12 +430,12 @@ function buildSectionMetricLine(
   if (!metrics) return null;
   const amountText = `${metrics.amount.toLocaleString('ko-KR')}원`;
   if (section === 'summary') {
-    return `"${metrics.category}"은 현재 ${metrics.count}건, ${amountText}(${metrics.ratioText}) 수준이에요.`;
+    return `"${metrics.category}"은 현재 ${amountText}(${metrics.ratioText}, ${metrics.count}건) 수준이에요.`;
   }
   if (section === 'challenge') {
-    return `"${metrics.category}" 카테고리는 이번 달 ${metrics.count}건, ${amountText}(${metrics.ratioText})로 비중이 커서 이번 주 실천 챌린지 대상으로 적합해요.`;
+    return `"${metrics.category}" 카테고리는 이번 달 ${amountText}(${metrics.ratioText}, ${metrics.count}건)로 비중이 커서 이번 주 실천 챌린지 대상으로 적합해요.`;
   }
-  return `다음 주에는 "${metrics.category}" 지출이 현재 ${metrics.count}건, ${amountText}(${metrics.ratioText}) 흐름을 넘지 않도록 관리해 보세요.`;
+  return `다음 주에는 "${metrics.category}" 지출이 현재 ${amountText}(${metrics.ratioText}, ${metrics.count}건) 흐름을 넘지 않도록 관리해 보세요.`;
 }
 
 function hasAmountInText(lines: string[]): boolean {
