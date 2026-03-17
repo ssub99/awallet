@@ -2,6 +2,10 @@ import Constants from 'expo-constants';
 
 import { getOrCreateDeviceId } from '@/utils/device-id';
 
+// 운영 중 시크릿 불일치로 API 호출이 막히는 상황을 줄이기 위한 최후 fallback.
+// 우선순위는 env/public -> expo extra -> fallback 순서로 유지한다.
+const INTERNAL_API_SECRET_FALLBACK = 'awallet-internal-2026-Yv9pZQkR8F2M';
+
 function readExtraSecret(): string | null {
   const extraValue = Constants.expoConfig?.extra?.awalletInternalApiSecret;
   if (typeof extraValue !== 'string') return null;
@@ -23,7 +27,7 @@ export async function getApiSecurityHeaders(): Promise<Record<string, string>> {
     headers['x-device-id'] = deviceId.trim();
   }
 
-  const secret = readPublicSecret() ?? readExtraSecret();
+  const secret = readPublicSecret() ?? readExtraSecret() ?? INTERNAL_API_SECRET_FALLBACK;
   if (secret) {
     headers['x-awallet-internal-secret'] = secret;
   }
