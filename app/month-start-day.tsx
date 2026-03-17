@@ -24,6 +24,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+const MONTH_START_DAY_UPDATED_AT_KEY = 'monthStartDayUpdatedAt';
+
 export default function MonthStartDayScreen() {
   const colorScheme = useColorScheme();
   const colors = ThemeColors[colorScheme ?? 'light'];
@@ -267,6 +269,7 @@ export default function MonthStartDayScreen() {
       if (selectedDay !== initialDay) {
         try {
           await AsyncStorage.setItem('monthStartDay', `${selectedDay}일`);
+          await AsyncStorage.setItem(MONTH_START_DAY_UPDATED_AT_KEY, String(Date.now()));
           
           // 월 시작일이 변경되었을 때만 챌린지 재생성
           await regenerateChallengesForNewMonthStart(selectedDay);
@@ -292,6 +295,7 @@ export default function MonthStartDayScreen() {
     if (selectedDay !== initialDay) {
       try {
         await AsyncStorage.setItem('monthStartDay', `${selectedDay}일`);
+        await AsyncStorage.setItem(MONTH_START_DAY_UPDATED_AT_KEY, String(Date.now()));
         
         // 월 시작일이 변경되었을 때만 챌린지 재생성
         await regenerateChallengesForNewMonthStart(selectedDay);
@@ -327,6 +331,8 @@ export default function MonthStartDayScreen() {
         <ScrollView 
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
+          bounces={false}
+          overScrollMode="never"
           showsVerticalScrollIndicator={false}
           ref={scrollRef}
           onLayout={(e) => setViewportHeight(e.nativeEvent.layout.height)}

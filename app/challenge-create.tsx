@@ -6,7 +6,7 @@
 
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Button } from '@/components/ui/button';
-import { CustomKeypad, type CustomKeypadOperator, type ExpressionToken } from '@/components/ui/custom-keypad';
+import { CustomKeypad, getKeypadHeight, type CustomKeypadOperator, type ExpressionToken } from '@/components/ui/custom-keypad';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
@@ -25,18 +25,19 @@ import { generateGroupId, generateRecordId } from '@/utils/id-generator';
 import { cancelChallengeProgressNotifications, notifyChallengeFailure, notifyChallengeProgress, notifyChallengeSuccess } from '@/utils/notification-scheduler';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BlurView } from 'expo-blur';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Dimensions, Easing, Keyboard, Pressable, ScrollView, StatusBar, StyleSheet, Text, TouchableWithoutFeedback, View } from 'react-native';
+import { Animated, Dimensions, Easing, Keyboard, Pressable, ScrollView, StatusBar, StyleSheet, Text, TouchableWithoutFeedback, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-
-const KEYPAD_HEIGHT = 282;
 
 export default function ChallengeCreateScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
   const router = useRouter();
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
+  const KEYPAD_HEIGHT = getKeypadHeight(windowWidth);
   const { setLoading } = useLoading();
   const { showToast } = useToast();
   const params = useLocalSearchParams<{ 
@@ -46,34 +47,26 @@ export default function ChallengeCreateScreen() {
     calendarMonth?: string;
   }>();
 
-  // Form state
-  // 캘린더에서 선택한 날짜의 일자 저장
-  const selectedDay = params.selectedDate 
-    ? new Date(params.selectedDate).getDate()
-    : new Date().getDate();
-
-  // Form state
+  // 챌린지는 "월 버킷" 기준으로만 시작 위치를 잡으면 되므로
+  // 캘린더 컨텍스트의 calendarYear/calendarMonth만 사용
   const [startYear, setStartYear] = useState<number>(() => {
-    // 현재 캘린더의 년도를 기본값으로 사용
     if (params.calendarYear) {
-      return parseInt(params.calendarYear);
-    }
-    if (params.selectedDate) {
-      return new Date(params.selectedDate).getFullYear();
+      return parseInt(params.calendarYear, 10);
     }
     return new Date().getFullYear();
   });
   
   const [startMonth, setStartMonth] = useState<number>(() => {
-    // 현재 캘린더의 월을 기본값으로 사용
     if (params.calendarMonth) {
-      return parseInt(params.calendarMonth);
-    }
-    if (params.selectedDate) {
-      return new Date(params.selectedDate).getMonth() + 1; // 1-based
+      return parseInt(params.calendarMonth, 10);
     }
     return new Date().getMonth() + 1;
   });
+
+  // 일자는 현재 선택된 날짜가 있다면 그 day, 없으면 오늘 day 정도만 참고 (챌린지는 월 기준)
+  const selectedDay = params.selectedDate 
+    ? new Date(params.selectedDate).getDate()
+    : new Date().getDate();
 
   // 현재 캘린더의 년/월을 기준으로 날짜 설정
   const realCurrentDate = useMemo(() => ({
@@ -172,15 +165,20 @@ export default function ChallengeCreateScreen() {
     // 숫자만 추출 (콤마는 제거 후 다시 추가)
     const numbersOnly = text.replace(/[^0-9]/g, '');
     
-    // 숫자가 있으면 콤마 포맷팅 적용
-    if (numbersOnly) {
-      const formattedAmount = Number(numbersOnly).toLocaleString();
-
-      setTargetAmount(formattedAmount);
-    } else {
-
+    if (!numbersOnly) {
       setTargetAmount('');
+      return;
     }
+
+    // 숫자로 변환
+    const num = parseInt(numbersOnly, 10);
+
+    // 최대값 제한: 소비 기록과 동일하게 10억 (1,000,000,000)
+    const MAX_AMOUNT = 1000000000;
+    const clamped = Math.min(num, MAX_AMOUNT);
+
+    // 포맷팅된 값으로 설정
+    setTargetAmount(clamped.toLocaleString());
   };
 
   const formatAmountDisplay = useCallback((raw: string) => {
@@ -348,23 +346,6 @@ export default function ChallengeCreateScreen() {
     return category ? `${category.emoji} ${categoryName}` : categoryName;
   };
 
-  // 기간 겹침 체크 함수
-  const isDateRangeOverlapping = (
-    newStart: string,
-    newEnd: string,
-    existingStart: string,
-    existingEnd: string
-  ): boolean => {
-    // 날짜 문자열을 비교 가능한 형식으로 변환 (YYYY.MM.DD 형식)
-    const newStartDate = new Date(newStart.replace(/\./g, '-'));
-    const newEndDate = new Date(newEnd.replace(/\./g, '-'));
-    const existingStartDate = new Date(existingStart.replace(/\./g, '-'));
-    const existingEndDate = new Date(existingEnd.replace(/\./g, '-'));
-    
-    // 두 기간이 겹치는지 확인: (newStart <= existingEnd && newEnd >= existingStart)
-    return newStartDate <= existingEndDate && newEndDate >= existingStartDate;
-  };
-
   const handleConfirm = async () => {
     // 필수값 검증
     if (!category) {
@@ -431,22 +412,6 @@ export default function ChallengeCreateScreen() {
         newChallenges.push(challengeData);
       }
       
-      // 기존 챌린지 존재 여부 체크 (같은 카테고리)
-      const existingChallenges = await getAllChallenges();
-      const activeChallenges = existingChallenges.filter(
-        (challenge) => 
-          !challenge.isDeleted && 
-          challenge.category === category
-      );
-      
-      // 같은 카테고리의 활성 챌린지가 하나라도 존재하면 생성 불가
-      if (activeChallenges.length > 0) {
-        setToastMessage('선택하신 챌린지는 이미 생성되어 있습니다.');
-        setToastVisible(true);
-        setLoading(false);
-        return;
-      }
-      
       // 중복이 없으면 recurringId 생성하고 챌린지 생성
       const recurringId = generateGroupId('recurring');
       newChallenges.forEach((challenge) => {
@@ -462,18 +427,25 @@ export default function ChallengeCreateScreen() {
       const firstChallenge = newChallenges[0];
       const [targetYear, targetMonth] = firstChallenge.startDate.split('.').map(Number);
 
-      router.back();
-      
+      // 키패드·언마운트와 reset 타이밍 분리: 키패드 닫고 짧은 지연 후 reset
+      Keyboard.dismiss();
       setTimeout(() => {
-        router.replace({
-          pathname: '/monthly-expense-timeline',
-          params: {
-            year: targetYear.toString(),
-            month: targetMonth.toString(),
-            tab: 'challenge'
-          },
+        (navigation as any).reset({
+          index: 0,
+          routes: [
+            {
+              name: '(tabs)',
+              params: {
+                screen: 'challenge',
+                params: {
+                  year: targetYear.toString(),
+                  month: targetMonth.toString(),
+                },
+              },
+            },
+          ],
         });
-      }, 100);
+      }, 50);
     } catch (error) {
       console.error('[챌린지 생성] error:', error);
     } finally {
@@ -487,10 +459,13 @@ export default function ChallengeCreateScreen() {
   };
 
   return (
-    <TouchableWithoutFeedback onPress={() => {
-      Keyboard.dismiss();
-      handleKeypadDismiss();
-    }}>
+    <TouchableWithoutFeedback
+      onPress={() => {
+        // 수입/소비 기록과 동일하게, 바깥 터치로는 소프트 키보드만 닫고
+        // 커스텀 키패드는 강제로 닫지 않는다.
+        Keyboard.dismiss();
+      }}
+    >
       <SafeAreaView style={[styles.container, { backgroundColor: colors.staticWhite }]} edges={['top']}>
         <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
       
@@ -509,6 +484,14 @@ export default function ChallengeCreateScreen() {
             { paddingBottom: isKeypadVisible ? KEYPAD_HEIGHT + 16 - insets.bottom : 24 }
           ]}
           keyboardShouldPersistTaps="handled"
+          bounces={false}
+          overScrollMode="never"
+          onTouchEnd={() => {
+            // 수입/소비 기록과 동일하게, 본문 영역을 탭하면 커스텀 키패드를 닫는다.
+            if (!isKeypadVisible) return;
+            clearDismissTimeout();
+            handleKeypadDismiss();
+          }}
           onScrollBeginDrag={() => {
             isScrollingRef.current = true;
             clearDismissTimeout();
@@ -524,18 +507,6 @@ export default function ChallengeCreateScreen() {
             isScrollingRef.current = false;
             setTimeout(() => {
               ignoreNextTouchEndRef.current = false;
-            }, 0);
-          }}
-          onTouchEnd={() => {
-            if (!isKeypadVisible) return;
-            clearDismissTimeout();
-            if (ignoreNextTouchEndRef.current) {
-              ignoreNextTouchEndRef.current = false;
-              return;
-            }
-            dismissTimeoutRef.current = setTimeout(() => {
-              if (isScrollingRef.current) return;
-              handleKeypadDismiss();
             }, 0);
           }}
         >

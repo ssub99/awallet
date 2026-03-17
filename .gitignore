@@ -25,6 +25,9 @@ Symbols/
 # Metro
 .metro-health-check*
 
+# Vercel (local link/config)
+.vercel/
+
 # debug
 npm-debug.*
 yarn-debug.*
@@ -36,6 +39,8 @@ yarn-error.*
 
 # local env files
 .env*.local
+.env.ing
+.env.production
 
 # typescript
 *.tsbuildinfo

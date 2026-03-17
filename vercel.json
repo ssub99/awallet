@@ -1,0 +1,15 @@
+{
+  "version": 2,
+  "buildCommand": "mkdir -p public && echo '<!DOCTYPE html><html><body><p>API only.</p></body></html>' > public/index.html",
+  "outputDirectory": "public",
+  "functions": {
+    "api/parse-expense.ts": {
+      "memory": 256,
+      "maxDuration": 30
+    },
+    "api/consumption-report.ts": {
+      "memory": 256,
+      "maxDuration": 30
+    }
+  }
+}

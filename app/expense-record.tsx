@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { BasicCalendarDaySelect } from '@/components/ui/calendar-day-basic';
 import { CalendarDaySelect } from '@/components/ui/calendar-day-select';
 import { Chip } from '@/components/ui/chip';
-import { CustomKeypad, type CustomKeypadOperator, type ExpressionToken } from '@/components/ui/custom-keypad';
+import { CustomKeypad, getKeypadHeight, type CustomKeypadOperator, type ExpressionToken } from '@/components/ui/custom-keypad';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Input } from '@/components/ui/input';
 import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
@@ -44,6 +44,7 @@ import {
     Dimensions,
     Easing,
     Keyboard,
+    Modal,
     NativeSyntheticEvent,
     Platform,
     Pressable,
@@ -52,6 +53,7 @@ import {
     StyleSheet,
     Text,
     TextInputKeyPressEventData,
+    useWindowDimensions,
     View
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -60,8 +62,6 @@ interface ExpenseRecordProps {
   mode?: 'create' | 'edit';
   editData?: any;
 }
-
-const KEYPAD_HEIGHT = 282;
 
 type CalendarBucket = {
   totalExpense: number;
@@ -268,6 +268,25 @@ function calculateRecurringIterations(startDate: string, recurringType: string):
  */
 const formatDateKey = (date: string): string => date.replace(/\./g, '-');
 
+const parseRecordDate = (dateValue?: string, fallback?: Date): Date => {
+  if (typeof dateValue === 'string' && dateValue.trim().length > 0) {
+    const normalized = dateValue.replace(/\./g, '-');
+    const [yearStr, monthStr, dayStr] = normalized.split('-');
+    const year = Number(yearStr);
+    const month = Number(monthStr);
+    const day = Number(dayStr);
+    if (Number.isFinite(year) && Number.isFinite(month) && Number.isFinite(day)) {
+      return new Date(year, month - 1, day, 12, 0, 0);
+    }
+  }
+
+  if (fallback && !Number.isNaN(fallback.getTime())) {
+    return new Date(fallback.getTime());
+  }
+
+  return new Date();
+};
+
 /**
  * 정기 기록 기간 계산 유틸리티
  */
@@ -285,7 +304,7 @@ const calcPeriod = (editData: any, totalMonths: number) => {
   const originalStartDate = new Date(extractedTimestamp ?? fallbackTimestamp);
 
   if (Number.isNaN(originalStartDate.getTime())) {
-    const editDate = new Date(editData.date || fallbackTimestamp);
+    const editDate = parseRecordDate(editData.date, new Date(fallbackTimestamp));
     const editYear = editDate.getFullYear();
     const editMonth = editDate.getMonth() + 1;
 
@@ -304,7 +323,7 @@ const calcPeriod = (editData: any, totalMonths: number) => {
   const originalStartYear = originalStartDate.getFullYear();
   const originalStartMonth = originalStartDate.getMonth() + 1;
   
-  const editDate = new Date(editData.date || '');
+  const editDate = parseRecordDate(editData.date, originalStartDate);
   const editYear = editDate.getFullYear();
   const editMonth = editDate.getMonth() + 1;
   
@@ -366,7 +385,7 @@ const isSameDate = (recordDate: string, currentDate: Date): boolean => {
 /**
  * 삭제 옵션별 기록 필터링
  */
-const shouldDelete = (
+const shouldMatchScope = (
   record: any, 
   deleteOption: 'all' | 'today' | 'future', 
   currentDate: Date,
@@ -455,6 +474,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   const router = useRouter();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
+  const KEYPAD_HEIGHT = getKeypadHeight(windowWidth);
   const { setLoading } = useLoading();
   const { showToast } = useToast();
   const params = useLocalSearchParams<{ 
@@ -531,6 +552,11 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     },
     [navigation]
   );
+
+  const goTimelineWithFocus = useCallback(async (_dateKey: string) => {
+    calendarRefreshEvent.emit();
+    router.back();
+  }, [router]);
   
   // 카테고리 state 변경 감지
   useEffect(() => {
@@ -612,7 +638,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         : [{ type: 'number', value: amount.replace(/,/g, '') || '0' }];
 
     // 할부/환불 기록 수정 모드에서 disabled 상태 확인
-    const isAmountDisabled = mode === 'edit' && (editData?.isInstallment || (!!editData?.isRefunded && !editData?.isInstallment));
+    const isAmountDisabled =
+      mode === 'edit' &&
+      (
+        editData?.isInstallment ||
+        (!!editData?.isRefunded && !editData?.isInstallment) ||
+        !!editData?.isSettled
+      );
     const textColor = isAmountDisabled ? colors.textDisabled : colors.text;
     const operatorColor = isAmountDisabled ? colors.textDisabled : colors.textNeutral;
 
@@ -770,7 +802,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   const [showWeekendConfirm, setShowWeekendConfirm] = useState<boolean>(false);
   // showPeriodNativePicker는 더 이상 사용하지 않음 (Selectbox로 대체)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<boolean>(false);
-  const [showRecurringDeleteConfirm, setShowRecurringDeleteConfirm] = useState<boolean>(false);
   const [showNoChangesModal, setShowNoChangesModal] = useState<boolean>(false);
   const [showEditConfirmModal, setShowEditConfirmModal] = useState<boolean>(false);
   const [editConfirmMessage, setEditConfirmMessage] = useState<string>('');
@@ -786,23 +817,165 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   const [prepaymentToastMessage, setPrepaymentToastMessage] = useState<string>('');
   const [showWeekendOptionToast, setShowWeekendOptionToast] = useState<boolean>(false);
   
-  // 정기 기록 삭제 옵션 모달
-  const [showRecurringDeleteOptions, setShowRecurringDeleteOptions] = useState<boolean>(false);
-  const [deleteOption, setDeleteOption] = useState<'all' | 'today' | 'future'>('all');
-  
   // 할부 기록 환불 처리 옵션 모달
   const [showRefundOptions, setShowRefundOptions] = useState<boolean>(false);
   const [refundOption, setRefundOption] = useState<'all' | 'today' | 'future'>('all');
+  const [refundRestoreOption, setRefundRestoreOption] = useState<'all' | 'today' | 'future'>('all');
   
   // 환불 처리 복구 모달
   const [showRefundRestore, setShowRefundRestore] = useState<boolean>(false);
+  // 결산 처리 복구 모달
+  const [showSettlementRestore, setShowSettlementRestore] = useState<boolean>(false);
   // 일반 기록 환불 처리 확인 모달
   const [showSingleRefundConfirm, setShowSingleRefundConfirm] = useState<boolean>(false);
   // 선결제 처리 복구 모달
   const [showPrepaymentRestore, setShowPrepaymentRestore] = useState<boolean>(false);
   // 선결제 모달
   const [showPrepaymentModal, setShowPrepaymentModal] = useState<boolean>(false);
-  
+  // 결산 처리 안내 모달
+  const [showSettlementConfirmModal, setShowSettlementConfirmModal] = useState<boolean>(false);
+  // 정산 처리 드롭다운 메뉴 (선결제/환불/결산)
+  const [showSettlementMenu, setShowSettlementMenu] = useState<boolean>(false);
+  const [settlementMenuLayout, setSettlementMenuLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const settlementButtonRef = useRef<View>(null);
+  const settlementActionLockRef = useRef<boolean>(false);
+  const settlementMenuOpacity = useRef(new Animated.Value(0)).current;
+  const settlementMenuScale = useRef(new Animated.Value(0.94)).current;
+
+  const settlementBaseAmount = useMemo(() => {
+    const parsedAmount = amount ? Number(amount.replace(/,/g, '')) : NaN;
+    if (!Number.isNaN(parsedAmount)) {
+      return parsedAmount;
+    }
+    return Number(editData?.amount ?? 0);
+  }, [amount, editData?.amount]);
+
+  const settlementAmountText = useMemo(() => `${settlementBaseAmount.toLocaleString()}원`, [settlementBaseAmount]);
+  const settlementRestoreAmountText = useMemo(() => {
+    const restoredAmount = Number(editData?.originalAmountBeforeSettlement ?? editData?.amount ?? 0);
+    return `${restoredAmount.toLocaleString()}원`;
+  }, [editData?.amount, editData?.originalAmountBeforeSettlement]);
+
+  const settlementPeriodText = useMemo(() => {
+    const sourceDate = editData?.date || date;
+    if (!sourceDate) {
+      return '';
+    }
+
+    if (sourceDate.includes('.')) {
+      const [yearStr, monthStr, dayStr] = sourceDate.split('.');
+      const year = Number(yearStr);
+      const month = Number(monthStr);
+      const day = Number(dayStr);
+      const parsedDate = new Date(year, month - 1, day);
+      return `기간 : ${yearStr}.${monthStr}.${dayStr}(${getWeekdayLabel(parsedDate)})`;
+    }
+
+    if (sourceDate.includes('-')) {
+      const [yearStr, monthStr, dayStr] = sourceDate.split('-');
+      const year = Number(yearStr);
+      const month = Number(monthStr);
+      const day = Number(dayStr);
+      const parsedDate = new Date(year, month - 1, day);
+      return `기간 : ${yearStr}.${monthStr}.${dayStr}(${getWeekdayLabel(parsedDate)})`;
+    }
+
+    return `기간 : ${sourceDate}`;
+  }, [date, editData?.date]);
+
+  const applySettlementAction = useCallback((label: '선결제' | '환불' | '결산') => {
+    if (label === '선결제') {
+      const today = new Date();
+      const todayFormatted = `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, '0')}.${String(today.getDate()).padStart(2, '0')}`;
+      setPrepaymentDate(todayFormatted);
+      setTempSelectedDate(todayFormatted.replace(/\./g, '-'));
+      setShowPrepaymentModal(true);
+      return;
+    }
+
+    if (label === '환불') {
+      if (editData?.isRecurring || editData?.isInstallment) {
+        setShowRefundOptions(true);
+      } else {
+        setShowSingleRefundConfirm(true);
+      }
+      return;
+    }
+
+    setShowSettlementConfirmModal(true);
+  }, [editData?.isInstallment, editData?.isRecurring]);
+
+  const closeSettlementMenu = useCallback(
+    (onClosed?: () => void) => {
+      Animated.parallel([
+        Animated.timing(settlementMenuOpacity, {
+          toValue: 0,
+          duration: 100,
+          useNativeDriver: true,
+          easing: Easing.in(Easing.cubic),
+        }),
+        Animated.timing(settlementMenuScale, {
+          toValue: 0.94,
+          duration: 100,
+          useNativeDriver: true,
+          easing: Easing.in(Easing.cubic),
+        }),
+      ]).start(({ finished }) => {
+        if (finished) {
+          setShowSettlementMenu(false);
+          setSettlementMenuLayout(null);
+          onClosed?.();
+        }
+      });
+    },
+    [settlementMenuOpacity, settlementMenuScale]
+  );
+
+  const handleSettlementMenuSelect = useCallback(
+    (label: '선결제' | '환불' | '결산') => {
+      if (settlementActionLockRef.current) {
+        return;
+      }
+      settlementActionLockRef.current = true;
+      closeSettlementMenu(() => {
+        requestAnimationFrame(() => {
+          applySettlementAction(label);
+          requestAnimationFrame(() => {
+            settlementActionLockRef.current = false;
+          });
+        });
+      });
+    },
+    [applySettlementAction, closeSettlementMenu]
+  );
+
+  // 정산 처리 드롭다운 등장 애니메이션
+  useEffect(() => {
+    if (showSettlementMenu && settlementMenuLayout) {
+      settlementMenuOpacity.setValue(0);
+      settlementMenuScale.setValue(0.94);
+      Animated.parallel([
+        Animated.timing(settlementMenuOpacity, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+          easing: Easing.out(Easing.cubic),
+        }),
+        Animated.timing(settlementMenuScale, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+          easing: Easing.out(Easing.cubic),
+        }),
+      ]).start();
+    }
+  }, [showSettlementMenu, settlementMenuLayout, settlementMenuOpacity, settlementMenuScale]);
+
   useEffect(() => {
     if (!showRecurringToast) {
       return;
@@ -849,6 +1022,12 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   const [actualTotalAmount, setActualTotalAmount] = useState<number>(0);
   // 할부 기록 "오늘 포함 이후" 금액 (실제 기록 기준)
   const [actualFutureAmount, setActualFutureAmount] = useState<number>(0);
+  // 환불 복구 모달 금액 계산용 (환불된 기록의 복구 대상 금액)
+  const [actualRefundRestoreTotalAmount, setActualRefundRestoreTotalAmount] = useState<number>(0);
+  const [actualRefundRestoreTodayAmount, setActualRefundRestoreTodayAmount] = useState<number>(0);
+  const [actualRefundRestoreFutureAmount, setActualRefundRestoreFutureAmount] = useState<number>(0);
+  // 정기/할부 그룹의 실제 마지막 년/월 (기간 표기 안정화용)
+  const [actualEndYearMonth, setActualEndYearMonth] = useState<{ year: number; month: number } | null>(null);
   
   // Keyboard height tracking
   const [keyboardHeight, setKeyboardHeight] = useState(0);
@@ -896,9 +1075,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           let actualCount = 0;
           let totalAmount = 0;
           let futureAmount = 0;
+          let restoreTotalAmount = 0;
+          let restoreTodayAmount = 0;
+          let restoreFutureAmount = 0;
+          let maxYearMonth: { year: number; month: number } | null = null;
           
           // 편집 날짜 기준으로 future 계산
-          const editDate = new Date(editData.date || '');
+          const editDate = parseRecordDate(editData.date, new Date());
           const editYear = editDate.getFullYear();
           const editMonth = editDate.getMonth() + 1;
           const editDay = editDate.getDate();
@@ -921,12 +1104,62 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               // 금액 합산
               relatedRecords.forEach((record: any) => {
                 totalAmount += record.amount || 0;
+                const recordDate = parseRecordDate(record.date, new Date());
+                const recordYear = recordDate.getFullYear();
+                const recordMonth = recordDate.getMonth() + 1;
+                if (!maxYearMonth) {
+                  maxYearMonth = { year: recordYear, month: recordMonth };
+                } else {
+                  const currentKey = maxYearMonth.year * 100 + maxYearMonth.month;
+                  const nextKey = recordYear * 100 + recordMonth;
+                  if (nextKey > currentKey) {
+                    maxYearMonth = { year: recordYear, month: recordMonth };
+                  }
+                }
                 
-                // future 금액 계산 (삭제 옵션이나 환불 옵션이 'future'일 때)
-                if (deleteOption === 'future' || refundOption === 'future') {
-                  const shouldDeleteRecord = shouldDelete(record, 'future', new Date(), startYear, startMonth, editYear, editMonth, editDay);
+                // future 금액 계산 (환불 옵션이 'future'일 때)
+                if (refundOption === 'future' || refundRestoreOption === 'future') {
+                  const shouldDeleteRecord = shouldMatchScope(record, 'future', new Date(), startYear, startMonth, editYear, editMonth, editDay);
                   if (shouldDeleteRecord) {
                     futureAmount += record.amount || 0;
+                  }
+                }
+
+                // 환불 복구 금액 계산 (환불된 기록 기준)
+                if (record.isRefunded) {
+                  const restoreAmount =
+                    (typeof record.originalAmountBeforeRefund === 'number' && record.originalAmountBeforeRefund >= 0)
+                      ? record.originalAmountBeforeRefund
+                      : (record.originalAmount ?? record.amount ?? 0);
+
+                  restoreTotalAmount += restoreAmount;
+
+                  const shouldRestoreToday = shouldMatchScope(
+                    record,
+                    'today',
+                    new Date(),
+                    startYear,
+                    startMonth,
+                    editYear,
+                    editMonth,
+                    editDay,
+                  );
+                  if (shouldRestoreToday) {
+                    restoreTodayAmount += restoreAmount;
+                  }
+
+                  const shouldRestoreFuture = shouldMatchScope(
+                    record,
+                    'future',
+                    new Date(),
+                    startYear,
+                    startMonth,
+                    editYear,
+                    editMonth,
+                    editDay,
+                  );
+                  if (shouldRestoreFuture) {
+                    restoreFutureAmount += restoreAmount;
                   }
                 }
               });
@@ -936,13 +1169,17 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           setActualRecordCount(actualCount);
           setActualTotalAmount(totalAmount);
           setActualFutureAmount(futureAmount);
+          setActualRefundRestoreTotalAmount(restoreTotalAmount);
+          setActualRefundRestoreTodayAmount(restoreTodayAmount);
+          setActualRefundRestoreFutureAmount(restoreFutureAmount);
+          setActualEndYearMonth(maxYearMonth);
         } catch {
         }
       }
     };
     
     calculateActualRecordCount();
-  }, [mode, editData, deleteOption, refundOption, totalMonths]);
+  }, [mode, editData, refundOption, refundRestoreOption, totalMonths]);
 
   // Edit mode: Initialize with edit data
   useEffect(() => {
@@ -1707,13 +1944,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   };
 
   const handleCategoryPress = () => {
-    // 원래 정기 기록 또는 할부 기록으로 생성된 데이터는 카테고리 변경 불가
+    // 정기/할부 기록은 카테고리 변경 잠금 (일반 기록만 변경 허용)
     if (mode === 'edit' && (editData?.isRecurring || editData?.isInstallment)) {
       setCategoryToastMessage('변경할 수 없습니다. 새로 생성해 주세요.');
       setShowCategoryToast(true);
       return;
     }
-    
+
     // 키패드가 열려있으면 닫기
     Keyboard.dismiss();
     
@@ -1883,12 +2120,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
       // 모달 닫기
       setShowPrepaymentModal(false);
-      // 홈으로 이동 (선결제 날짜의 해당 커스텀 월)
-      const [prepaidYear, prepaidMonth] = prepaidDateKey.split('-').map(Number);
-      const prepaidDate = new Date(prepaidYear, prepaidMonth - 1, 1);
-      const currentMonthStartDay = await loadMonthStartDay();
-      const { year: targetYear, month: targetMonth } = getCustomMonthInfo(prepaidDate, currentMonthStartDay);
-      await goHomeWithFocus({ year: targetYear, month: targetMonth, targetDate: prepaidDateKey });
+      showToast('정상적으로 선결제 처리가 완료 되었습니다.');
+      await goTimelineWithFocus(prepaidDateKey);
 
     } catch (error) {
       console.error('선결제 처리 중 오류:', error);
@@ -2989,6 +3222,55 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     }
   }, []);
 
+  const syncExpenseRecord = useCallback(
+    async (record: any, updates: Partial<ExpenseRecordType>) => {
+      const primaryId = typeof record?.id === 'string' && record.id.length > 0 ? record.id : null;
+      const timestampId =
+        typeof record?.timestamp === 'number' ? record.timestamp.toString() : null;
+
+      let updated: ExpenseRecordType | null = null;
+      if (primaryId) {
+        try {
+          updated = await updateExpense(primaryId, updates);
+        } catch {
+          updated = null;
+        }
+      }
+      if (!updated && timestampId) {
+        try {
+          updated = await updateExpense(timestampId, updates);
+        } catch {
+          updated = null;
+        }
+      }
+      if (updated) {
+        return updated;
+      }
+
+      // update 경로에서 못 찾는 레거시/파생 기록은 생성(upsert 유사)으로 보강
+      const fallbackRecord: ExpenseRecordType = {
+        ...(record as ExpenseRecordType),
+        ...updates,
+        type: 'expense',
+        amount: Number((updates.amount ?? record?.amount) ?? 0),
+        date: String(record?.date ?? ''),
+        timestamp: Number(record?.timestamp ?? 0),
+        category: String(record?.category ?? ''),
+      };
+
+      if (!fallbackRecord.date || !fallbackRecord.timestamp || !fallbackRecord.category) {
+        return null;
+      }
+
+      try {
+        return await createExpense(fallbackRecord);
+      } catch {
+        return null;
+      }
+    },
+    [],
+  );
+
   const handleBack = () => {
     router.back();
   };
@@ -3035,7 +3317,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       rescheduleDailyReminderIfNeeded().catch((_error) => {});
 
       setShowDeleteConfirm(false);
-      setShowRecurringDeleteConfirm(false);
 
       const recordDateKey = formatDateKey(editData.date || date);
       const [targetYear, targetMonth] = recordDateKey.split('-').map(Number);
@@ -3105,18 +3386,88 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         // ignore
       }
 
-      await rebuildCalendarData();
       calendarRefreshEvent.emit();
 
       const recordDate = editData.date || date;
       const dateKey = formatDateKey(recordDate);
-      if (params.calendarYear && params.calendarMonth) {
-        await goHomeWithFocus({ year: Number(params.calendarYear), month: Number(params.calendarMonth), targetDate: dateKey });
-      } else {
-        const [targetYear, targetMonth] = dateKey.split('-').map(Number);
-        await goHomeWithFocus({ year: targetYear, month: targetMonth, targetDate: dateKey });
-      }
+      showToast('정상적으로 환불 처리가 완료 되었습니다.');
+      await goTimelineWithFocus(dateKey);
     } finally {
+      setLoading(false);
+    }
+  };
+
+  // 일반 기록 단일 결산 처리
+  const handleSingleRecordSettlement = async () => {
+    if (mode !== 'edit' || !editData) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const storedData = await AsyncStorage.getItem('calendarData');
+      const calendarData = storedData ? JSON.parse(storedData) : {};
+      const originalDateKey = editData.date ? editData.date.replace(/\./g, '-') : '';
+      if (!originalDateKey || !calendarData[originalDateKey]?.records) {
+        return;
+      }
+
+      const recordIndex = calendarData[originalDateKey].records.findIndex(
+        (r: any) => r.id === editData.id || r.timestamp === editData.timestamp
+      );
+      if (recordIndex === -1) {
+        return;
+      }
+
+      const record = calendarData[originalDateKey].records[recordIndex];
+      if (record.isSettled) {
+        return;
+      }
+
+      const currentAmount = Number(record.amount || 0);
+      const settledAt = new Date().toISOString();
+      record.originalAmountBeforeSettlement =
+        typeof record.originalAmountBeforeSettlement === 'number'
+          ? record.originalAmountBeforeSettlement
+          : currentAmount;
+      record.isSettled = true;
+      record.settledAt = settledAt;
+      record.amount = 0;
+
+      calendarData[originalDateKey].totalExpense = Math.max(
+        0,
+        (calendarData[originalDateKey].totalExpense || 0) - currentAmount,
+      );
+
+      await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
+
+      const syncedSettlement = await syncExpenseRecord(record, {
+        isSettled: true,
+        settledAt,
+        originalAmountBeforeSettlement: record.originalAmountBeforeSettlement,
+        amount: 0,
+      });
+      if (!syncedSettlement) {
+        // expenseData 동기화가 실패하면 rebuild 시 결산 플래그 유실 가능성이 커서 중단
+        return;
+      }
+
+      calendarRefreshEvent.emit();
+
+      // 현재 화면 즉시 반영
+      setAmount('0');
+      editData.amount = 0;
+      editData.isSettled = true;
+      editData.settledAt = settledAt;
+      if (typeof editData.originalAmountBeforeSettlement !== 'number') {
+        editData.originalAmountBeforeSettlement = currentAmount;
+      }
+
+      const dateKey = formatDateKey(editData.date || date);
+      showToast('정상적으로 결산 처리가 완료 되었습니다.');
+      await goTimelineWithFocus(dateKey);
+    } finally {
+      setShowSettlementConfirmModal(false);
       setLoading(false);
     }
   };
@@ -3159,11 +3510,11 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             const currentDate = new Date();
             
             // 편집하려는 날짜의 일(day) 정보 추출
-            const editDate = new Date(editData.date || '');
+            const editDate = parseRecordDate(editData.date, currentDate);
             const editDay = editDate.getDate();
             
             // 유틸리티 함수 사용 (편집 중인 날짜 정보 전달)
-            const shouldRefundRecord = shouldDelete(record, refundOption, currentDate, startYear, startMonth, editYear, editMonth, editDay);
+            const shouldRefundRecord = shouldMatchScope(record, refundOption, currentDate, startYear, startMonth, editYear, editMonth, editDay);
             
             if (shouldRefundRecord) {
               recordsToRefund.push({ dateKey, record });
@@ -3251,18 +3602,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       
       // 모달 닫기
       setShowRefundOptions(false);
-      
-      // 타임라인에서 왔으면 타임라인으로, 아니면 홈으로 이동
-      if (params.calendarYear && params.calendarMonth) {
-        const recordDateTimeline = editData.date || date;
-        const dateKeyTimeline = formatDateKey(recordDateTimeline);
-        await goHomeWithFocus({ year: Number(params.calendarYear), month: Number(params.calendarMonth), targetDate: dateKeyTimeline });
-      } else {
-        const recordDateHome = editData.date || date;
-        const dateKeyHome = formatDateKey(recordDateHome);
-        const [targetYear, targetMonth] = dateKeyHome.split('-').map(Number);
-        await goHomeWithFocus({ year: targetYear, month: targetMonth, targetDate: dateKeyHome });
-      }
+      const dateKey = formatDateKey(editData.date || date);
+      showToast('정상적으로 환불 처리가 완료 되었습니다.');
+      await goTimelineWithFocus(dateKey);
       
     } catch (_error) {
     } finally {
@@ -3369,13 +3711,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
       // 모달 닫기
       setShowPrepaymentRestore(false);
-
-      // 홈으로 이동 (원래 기록일자의 해당 커스텀 월)
-      const [originalYear, originalMonth] = originalDateKey.split('-').map(Number);
-      const originalDate = new Date(originalYear, originalMonth - 1, 1);
-      const currentMonthStartDay = await loadMonthStartDay();
-      const { year: targetYear, month: targetMonth } = getCustomMonthInfo(originalDate, currentMonthStartDay);
-      await goHomeWithFocus({ year: targetYear, month: targetMonth, targetDate: originalDateKey });
+      showToast('정상적으로 복구 처리가 완료 되었습니다.');
+      await goTimelineWithFocus(originalDateKey);
 
     } catch (error) {
       console.error('선결제 처리 복구 중 오류:', error);
@@ -3418,12 +3755,19 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           }
         });
 
-      // 환불된 기록 찾기
+        const parsedEditDate = parseRecordDate(editData.date, new Date());
+        const editDay = parsedEditDate.getDate();
+        const { startYear, startMonth, editYear, editMonth } = calcPeriod(editData, totalMonths);
+
+        // 환불된 기록 찾기
         const refundedRecords = allInstallmentRecords.filter(
           ({ record }) => record.isRefunded
         );
+        const targetRefundedRecords = refundedRecords.filter(({ record }) =>
+          shouldMatchScope(record, refundRestoreOption, new Date(), startYear, startMonth, editYear, editMonth, editDay)
+        );
 
-        if (refundedRecords.length === 0) {
+        if (targetRefundedRecords.length === 0) {
           return;
         }
 
@@ -3487,7 +3831,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       
       
       // 환불된 기록들 복구 (timestamp 순서대로)
-        const sortedRefundedRecords = refundedRecords.sort((a, b) => (a.record.timestamp || 0) - (b.record.timestamp || 0));
+        const sortedRefundedRecords = targetRefundedRecords.sort((a, b) => (a.record.timestamp || 0) - (b.record.timestamp || 0));
       
         sortedRefundedRecords.forEach(({ dateKey, record }, index) => {
         
@@ -3561,54 +3905,91 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       
         const recordDate = editData.date || date;
         const dateKey = formatDateKey(recordDate);
-        if (params.calendarYear && params.calendarMonth) {
-          await goHomeWithFocus({ year: Number(params.calendarYear), month: Number(params.calendarMonth), targetDate: dateKey });
-        } else {
-          const [targetYear, targetMonth] = dateKey.split('-').map(Number);
-          await goHomeWithFocus({ year: targetYear, month: targetMonth, targetDate: dateKey });
-        }
+        showToast('정상적으로 복구 처리가 완료 되었습니다.');
+        await goTimelineWithFocus(dateKey);
       } else if (editData.isRecurring) {
-        const originalDateKey = editData.date ? editData.date.replace(/\./g, '-') : '';
-        if (!originalDateKey || !calendarData[originalDateKey]?.records) {
+        const recurringId = editData.recurringId;
+        if (!recurringId) {
           return;
         }
-        const recordIndex = calendarData[originalDateKey].records.findIndex(
-          (r: any) => r.id === editData.id || r.timestamp === editData.timestamp
-        );
-        if (recordIndex === -1) return;
 
-        const record = calendarData[originalDateKey].records[recordIndex];
-        let backupAmount = record.originalAmountBeforeRefund;
-        let storedRecordAmount: number | undefined;
-        if (!(typeof backupAmount === 'number' && backupAmount >= 0)) {
-          const recordId = record.timestamp.toString();
-          const storedRecord = await getExpenseById(recordId);
-          if (storedRecord) {
-            storedRecordAmount =
-              storedRecord.originalAmountBeforeRefund ??
-              storedRecord.originalAmount ??
-              storedRecord.amount;
-            if (typeof storedRecord.originalAmountBeforeRefund === 'number') {
-              backupAmount = storedRecord.originalAmountBeforeRefund;
+        const allRecurringRecords: {dateKey: string, record: any}[] = [];
+        Object.keys(calendarData).forEach((dateKey) => {
+          if (calendarData[dateKey]?.records) {
+            const relatedRecords = calendarData[dateKey].records.filter(
+              (r: any) => r.recurringId === recurringId
+            );
+            relatedRecords.forEach((record: any) => {
+              allRecurringRecords.push({ dateKey, record });
+            });
+          }
+        });
+
+        const parsedEditDate = parseRecordDate(editData.date, new Date());
+        const editDay = parsedEditDate.getDate();
+        const { startYear, startMonth, editYear, editMonth } = calcPeriod(editData, totalMonths);
+
+        const refundedRecords = allRecurringRecords.filter(({ record }) => record.isRefunded);
+        const targetRefundedRecords = refundedRecords.filter(({ record }) =>
+          shouldMatchScope(record, refundRestoreOption, new Date(), startYear, startMonth, editYear, editMonth, editDay)
+        );
+
+        if (targetRefundedRecords.length === 0) {
+          return;
+        }
+
+        for (const { dateKey, record } of targetRefundedRecords) {
+          const recordIndex = calendarData[dateKey].records.findIndex(
+            (r: any) => r.id === record.id || r.timestamp === record.timestamp
+          );
+          if (recordIndex === -1) {
+            continue;
+          }
+
+          const targetRecord = calendarData[dateKey].records[recordIndex];
+          let backupAmount = targetRecord.originalAmountBeforeRefund;
+          let storedRecordAmount: number | undefined;
+          if (!(typeof backupAmount === 'number' && backupAmount >= 0)) {
+            const recordId = targetRecord.id || targetRecord.timestamp.toString();
+            const storedRecord = await getExpenseById(recordId);
+            if (storedRecord) {
+              storedRecordAmount =
+                storedRecord.originalAmountBeforeRefund ??
+                storedRecord.originalAmount ??
+                storedRecord.amount;
+              if (typeof storedRecord.originalAmountBeforeRefund === 'number') {
+                backupAmount = storedRecord.originalAmountBeforeRefund;
+              }
             }
           }
+
+          const restoredAmount = (typeof backupAmount === 'number' && backupAmount >= 0)
+            ? backupAmount
+            : (storedRecordAmount ?? targetRecord.originalAmount ?? targetRecord.amount ?? 0);
+
+          targetRecord.isRefunded = false;
+          delete targetRecord.refundedAt;
+          targetRecord.amount = restoredAmount;
+          calendarData[dateKey].totalExpense = (calendarData[dateKey].totalExpense || 0) + restoredAmount;
         }
-        const restoredAmount = (typeof backupAmount === 'number' && backupAmount >= 0)
-          ? backupAmount
-          : (storedRecordAmount ?? record.originalAmount ?? record.amount ?? 0);
-        record.isRefunded = false;
-        delete record.refundedAt;
-        record.amount = restoredAmount;
-        calendarData[originalDateKey].totalExpense = (calendarData[originalDateKey].totalExpense || 0) + restoredAmount;
 
         await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
 
         try {
-          const recordId = record.timestamp.toString();
-          await updateExpense(recordId, {
-            isRefunded: false,
-            amount: restoredAmount,
-          });
+          for (const { dateKey, record } of targetRefundedRecords) {
+            const recordIndex = calendarData[dateKey].records.findIndex(
+              (r: any) => r.id === record.id || r.timestamp === record.timestamp
+            );
+            if (recordIndex === -1) {
+              continue;
+            }
+            const restoredRecord = calendarData[dateKey].records[recordIndex];
+            const recordId = restoredRecord.id || restoredRecord.timestamp.toString();
+            await updateExpense(recordId, {
+              isRefunded: false,
+              amount: restoredRecord.amount,
+            });
+          }
         } catch (_error) {
           // ignore
         }
@@ -3616,12 +3997,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         setShowRefundRestore(false);
 
         const dateKey = formatDateKey(editData.date || date);
-        if (params.calendarYear && params.calendarMonth) {
-          await goHomeWithFocus({ year: Number(params.calendarYear), month: Number(params.calendarMonth), targetDate: dateKey });
-        } else {
-          const [targetYear, targetMonth] = dateKey.split('-').map(Number);
-          await goHomeWithFocus({ year: targetYear, month: targetMonth, targetDate: dateKey });
-        }
+        showToast('정상적으로 복구 처리가 완료 되었습니다.');
+        await goTimelineWithFocus(dateKey);
       } else {
         const originalDateKey = editData.date ? editData.date.replace(/\./g, '-') : '';
         if (!originalDateKey || !calendarData[originalDateKey]?.records) {
@@ -3664,12 +4041,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         setShowRefundRestore(false);
 
         const dateKey = formatDateKey(editData.date || date);
-        if (params.calendarYear && params.calendarMonth) {
-          await goHomeWithFocus({ year: Number(params.calendarYear), month: Number(params.calendarMonth), targetDate: dateKey });
-        } else {
-          const [targetYear, targetMonth] = dateKey.split('-').map(Number);
-          await goHomeWithFocus({ year: targetYear, month: targetMonth, targetDate: dateKey });
-        }
+        showToast('정상적으로 복구 처리가 완료 되었습니다.');
+        await goTimelineWithFocus(dateKey);
       }
       
     } catch (_error) {
@@ -3678,127 +4051,78 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     }
   };
 
-  // 정기/할부 기록 삭제 옵션별 처리
-  const handleMultipleRecordsDelete = async () => {
-    if (mode !== 'edit' || !editData || (!editData.isRecurring && !editData.isInstallment)) {
-
+  // 결산 처리 복구 로직
+  const handleSettlementRestore = async () => {
+    if (mode !== 'edit' || !editData || !editData.isSettled) {
       return;
     }
 
+    setLoading(true);
     try {
-      
       const storedData = await AsyncStorage.getItem('calendarData');
       const calendarData = storedData ? JSON.parse(storedData) : {};
-      
-      // 정기 기록 또는 할부 기록 ID 확인
-      const idToUse = editData.isRecurring ? editData.recurringId : editData.installmentId;
-      if (!idToUse) {
-
+      const originalDateKey = editData.date ? editData.date.replace(/\./g, '-') : '';
+      if (!originalDateKey || !calendarData[originalDateKey]?.records) {
         return;
       }
 
-      // 정기 기록/할부 기록의 시작일 정보 계산
-      const { startYear, startMonth, editYear, editMonth } = calcPeriod(editData, totalMonths);
+      const recordIndex = calendarData[originalDateKey].records.findIndex(
+        (r: any) => r.id === editData.id || r.timestamp === editData.timestamp,
+      );
+      if (recordIndex === -1) {
+        return;
+      }
 
-      // 삭제할 기록들 찾기
-      const recordsToDelete: {dateKey: string, record: any}[] = [];
-      
-      Object.keys(calendarData).forEach(dateKey => {
-        if (calendarData[dateKey].records) {
-          const relatedRecords = calendarData[dateKey].records.filter(
-            (r: any) => {
-              if (editData.isRecurring) {
-                return r.recurringId === idToUse;
-              } else {
-                // 할부 기록: 같은 installmentId만 삭제
-                return r.installmentId === idToUse;
-              }
-            }
-          );
-          
-          relatedRecords.forEach((record: any) => {
-            const currentDate = new Date();
-            
-            // 편집하려는 날짜의 일(day) 정보 추출
-            const editDate = new Date(editData.date || '');
-            const editDay = editDate.getDate();
-            
-            // 유틸리티 함수 사용 (편집 중인 날짜 정보 전달)
-            const shouldDeleteRecord = shouldDelete(record, deleteOption, currentDate, startYear, startMonth, editYear, editMonth, editDay);
-            
-            if (shouldDeleteRecord) {
-              recordsToDelete.push({ dateKey, record });
-            }
-          });
-        }
-      });
+      const record = calendarData[originalDateKey].records[recordIndex];
+      const backupAmount = record.originalAmountBeforeSettlement
+        ?? editData.originalAmountBeforeSettlement
+        ?? 0;
+      const restoredAmount = Number(backupAmount);
 
-      
+      record.isSettled = false;
+      delete record.settledAt;
+      delete record.originalAmountBeforeSettlement;
+      record.amount = restoredAmount;
+      calendarData[originalDateKey].totalExpense = (calendarData[originalDateKey].totalExpense || 0) + restoredAmount;
 
-      // 기록들 삭제
-      recordsToDelete.forEach(({ dateKey, record }) => {
-        const recordIndex = calendarData[dateKey].records.findIndex(
-          (r: any) => r.timestamp === record.timestamp
-        );
-        
-        if (recordIndex !== -1) {
-          // 기록 삭제 (isDeleted 플래그 추가)
-          calendarData[dateKey].records[recordIndex].isDeleted = true;
-          calendarData[dateKey].records[recordIndex].deletedAt = new Date().toISOString();
-          
-          // 총액에서 차감
-          if (record.type === 'expense') {
-            calendarData[dateKey].totalExpense = Math.max(0, 
-              (calendarData[dateKey].totalExpense || 0) - (record.amount || 0)
-            );
-          } else if (record.type === 'income') {
-            calendarData[dateKey].totalIncome = Math.max(0, 
-              (calendarData[dateKey].totalIncome || 0) - (record.amount || 0)
-            );
-          }
-          
-          // 빈 날짜 데이터 정리 (삭제된 기록만 있는 경우)
-          const activeRecords = calendarData[dateKey].records.filter((r: any) => !r.isDeleted);
-          if (activeRecords.length === 0) {
-            delete calendarData[dateKey];
-          }
-        }
-      });
-
-      // AsyncStorage에 저장
       await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
-      
-      // 챌린지 알림 재계산 (삭제 후 소비율 변경 반영)
-      if (editData.category) {
-        const recordDateObj = new Date(editData.date || date);
-        triggerChallengeNotifications(editData.category, recordDateObj).catch(error => {
-          console.error('[expense-record] Failed to trigger challenge notifications after delete:', error);
-        });
-      }
-      
-      // 소비 기록 삭제 시 당일 알림 재스케줄링 (오후 8시 전이면)
-      rescheduleDailyReminderIfNeeded().catch((_error) => {});
-      
-      // 모달 닫기
-      setShowRecurringDeleteOptions(false);
-      
-      // 타임라인에서 왔으면 타임라인으로, 아니면 홈으로 이동
-      const recordDateAfter = editData.date || date;
-      const dateKeyAfter = formatDateKey(recordDateAfter);
-      if (params.calendarYear && params.calendarMonth) {
-        await goHomeWithFocus({ year: Number(params.calendarYear), month: Number(params.calendarMonth), targetDate: dateKeyAfter });
-      } else {
-        const [targetYear, targetMonth] = dateKeyAfter.split('-').map(Number);
-        await goHomeWithFocus({ year: targetYear, month: targetMonth, targetDate: dateKeyAfter });
-      }
-      
-    } catch {
 
+      const syncedRestore = await syncExpenseRecord(record, {
+        isSettled: false,
+        settledAt: undefined,
+        originalAmountBeforeSettlement: undefined,
+        amount: restoredAmount,
+      });
+      if (!syncedRestore) {
+        return;
+      }
+
+      await rebuildCalendarData();
+      calendarRefreshEvent.emit();
+
+      setShowSettlementRestore(false);
+      showToast('정상적으로 복구 처리가 완료 되었습니다.');
+      await goTimelineWithFocus(originalDateKey);
+    } finally {
+      setLoading(false);
     }
   };
 
   // 환불 처리날짜 포맷 함수
   const formatRefundDate = (dateString: string): string => {
+    try {
+      const date = new Date(dateString);
+      const year = String(date.getFullYear()).slice(-2);
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}/${month}/${day}`;
+    } catch {
+      return '';
+    }
+  };
+
+  // 결산 처리날짜 포맷 함수
+  const formatSettlementDate = (dateString: string): string => {
     try {
       const date = new Date(dateString);
       const year = String(date.getFullYear()).slice(-2);
@@ -3869,12 +4193,12 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   };
 
   // 그룹 기록 환불 옵션별 기간 계산 (할부/정기)
-  const getRefundPeriod = () => {
+  const getRefundPeriodByOption = (option: 'all' | 'today' | 'future') => {
     if (!editData?.isInstallment && !editData?.isRecurring) return '';
     
     const currentRecurringType = editData.recurringType || recurringType;
     
-    switch (refundOption) {
+    switch (option) {
       case 'all': {
         const { startYear: allStartYear, startMonth: allStartMonth, totalMonths: allTotalMonths } = calcPeriod(editData, totalMonths);
         const { actualEndYear: allActualEndYear, actualEndMonth: allActualEndMonth } = calcEndDate(
@@ -3883,12 +4207,14 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           allTotalMonths,
           editData.isRecurring ? currentRecurringType : undefined,
         );
+        const endYear = editData.isRecurring && actualEndYearMonth ? actualEndYearMonth.year : allActualEndYear;
+        const endMonth = editData.isRecurring && actualEndYearMonth ? actualEndYearMonth.month : allActualEndMonth;
         const allStartPeriod = `${String(allStartYear).slice(-2)}/${String(allStartMonth).padStart(2, '0')}`;
-        const allEndPeriod = `${String(allActualEndYear).slice(-2)}/${String(allActualEndMonth).padStart(2, '0')}`;
+        const allEndPeriod = `${String(endYear).slice(-2)}/${String(endMonth).padStart(2, '0')}`;
         return `기간 : ${allStartPeriod} - ${allEndPeriod}`;
       }
       case 'today': {
-        const editDate = new Date(editData.date || '');
+        const editDate = parseRecordDate(editData.date, new Date());
         const editYear = editDate.getFullYear();
         const editMonth = editDate.getMonth() + 1;
         const editDay = editDate.getDate();
@@ -3903,16 +4229,18 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           futureTotalMonths,
           editData.isRecurring ? currentRecurringType : undefined,
         );
+        const endYear = editData.isRecurring && actualEndYearMonth ? actualEndYearMonth.year : futureActualEndYear;
+        const endMonth = editData.isRecurring && actualEndYearMonth ? actualEndYearMonth.month : futureActualEndMonth;
         
         const isFirstData = futureEditYear === futureStartYear && futureEditMonth === futureStartMonth;
         
         if (isFirstData) {
           const futureStartPeriod = `${String(futureStartYear).slice(-2)}/${String(futureStartMonth).padStart(2, '0')}`;
-          const futureEndPeriod = `${String(futureActualEndYear).slice(-2)}/${String(futureActualEndMonth).padStart(2, '0')}`;
+          const futureEndPeriod = `${String(endYear).slice(-2)}/${String(endMonth).padStart(2, '0')}`;
           return `기간 : ${futureStartPeriod} - ${futureEndPeriod}`;
         }
         const refundStartPeriod = `${String(futureEditYear).slice(-2)}/${String(futureEditMonth).padStart(2, '0')}`;
-        const futureEndPeriod = `${String(futureActualEndYear).slice(-2)}/${String(futureActualEndMonth).padStart(2, '0')}`;
+        const futureEndPeriod = `${String(endYear).slice(-2)}/${String(endMonth).padStart(2, '0')}`;
         return `기간 : ${refundStartPeriod} - ${futureEndPeriod}`;
       }
       default: {
@@ -3930,14 +4258,22 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     }
   };
 
+  const getRefundPeriod = () => {
+    return getRefundPeriodByOption(refundOption);
+  };
+
+  const getRefundRestorePeriod = () => {
+    return getRefundPeriodByOption(refundRestoreOption);
+  };
+
   // 그룹 기록 환불 옵션별 금액 계산 (할부/정기)
-  const getRefundAmount = () => {
+  const getRefundAmountByOption = (option: 'all' | 'today' | 'future') => {
     if ((!editData?.isInstallment && !editData?.isRecurring) || !amount) return '0원';
     
     const baseAmount = Number(amount.replace(/,/g, ''));
     if (isNaN(baseAmount)) return '0원';
     
-    switch (refundOption) {
+    switch (option) {
       case 'all':
         // 전체 기간의 금액 합산 - 실제 존재하는 기록만 계산
         if (actualTotalAmount > 0) {
@@ -3958,142 +4294,28 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     }
   };
 
-  // 정기 기록 삭제 옵션별 기간 계산
-  const getDeletePeriod = () => {
-    if (!editData?.isRecurring) return '';
-    
-    // editData에서 recurringType 가져오기 (없으면 현재 상태의 recurringType 사용)
-    const currentRecurringType = editData.recurringType || recurringType;
-    
-    switch (deleteOption) {
-      case 'all':
-        // 전체 삭제 - 정기기록 원본 시작일 계산 필요
-        const { startYear: allStartYear, startMonth: allStartMonth, totalMonths: allTotalMonths } = calcPeriod(editData, totalMonths);
-        const { actualEndYear: allActualEndYear, actualEndMonth: allActualEndMonth } = calcEndDate(allStartYear, allStartMonth, allTotalMonths, currentRecurringType);
-        const allStartPeriod = `${String(allStartYear).slice(-2)}/${String(allStartMonth).padStart(2, '0')}`;
-        const allEndPeriod = `${String(allActualEndYear).slice(-2)}/${String(allActualEndMonth).padStart(2, '0')}`;
-        return `기간 : ${allStartPeriod} - ${allEndPeriod}`;
-      case 'today':
-        // 오늘만 삭제 - 편집하려는 날짜만 표시
-        const editDate = new Date(editData.date || '');
-        const editYear = editDate.getFullYear();
-        const editMonth = editDate.getMonth() + 1;
-        const editDay = editDate.getDate();
-        const weekday = getWeekdayLabel(editDate);
-        return `기간 : ${editYear}/${String(editMonth).padStart(2, '0')}/${String(editDay).padStart(2, '0')}(${weekday})`;
-      case 'future':
-        // 오늘 이후 삭제 - 정기기록 원본 시작일 계산 필요
-        const { startYear: futureStartYear, startMonth: futureStartMonth, editYear: futureEditYear, editMonth: futureEditMonth, totalMonths: futureTotalMonths } = calcPeriod(editData, totalMonths);
-        const { actualEndYear: futureActualEndYear, actualEndMonth: futureActualEndMonth } = calcEndDate(futureStartYear, futureStartMonth, futureTotalMonths, currentRecurringType);
-        
-        // 첫 번째 데이터(정기 기록 시작일)인지 확인
-        const isFirstData = futureEditYear === futureStartYear && futureEditMonth === futureStartMonth;
-        
-        if (isFirstData) {
-          // 첫 번째 데이터에서는 전체 삭제와 동일
-          const futureStartPeriod = `${String(futureStartYear).slice(-2)}/${String(futureStartMonth).padStart(2, '0')}`;
-          const futureEndPeriod = `${String(futureActualEndYear).slice(-2)}/${String(futureActualEndMonth).padStart(2, '0')}`;
-          return `기간 : ${futureStartPeriod} - ${futureEndPeriod}`;
-        } else {
-          // 나머지 데이터에서는 현재 편집 중인 날짜부터 정기 기록의 실제 마지막까지
-          const deleteStartPeriod = `${String(futureEditYear).slice(-2)}/${String(futureEditMonth).padStart(2, '0')}`;
-          const futureEndPeriod = `${String(futureActualEndYear).slice(-2)}/${String(futureActualEndMonth).padStart(2, '0')}`;
-          
-          return `기간 : ${deleteStartPeriod} - ${futureEndPeriod}`;
-        }
-      default:
-        // 기본값 - 전체 삭제와 동일
-        const { startYear: defaultStartYear, startMonth: defaultStartMonth, totalMonths: defaultTotalMonths } = calcPeriod(editData, totalMonths);
-        const { actualEndYear: defaultActualEndYear, actualEndMonth: defaultActualEndMonth } = calcEndDate(defaultStartYear, defaultStartMonth, defaultTotalMonths, currentRecurringType);
-        const defaultStartPeriod = `${String(defaultStartYear).slice(-2)}/${String(defaultStartMonth).padStart(2, '0')}`;
-        const defaultEndPeriod = `${String(defaultActualEndYear).slice(-2)}/${String(defaultActualEndMonth).padStart(2, '0')}`;
-        return `기간 : ${defaultStartPeriod} - ${defaultEndPeriod}`;
-    }
+  const getRefundAmount = () => {
+    return getRefundAmountByOption(refundOption);
   };
 
-  // 정기 기록 삭제 옵션별 금액 계산
-  const getDeleteAmount = () => {
-    if ((!editData?.isRecurring && !editData?.isInstallment) || !amount) return '0원';
-    
-    const baseAmount = Number(amount.replace(/,/g, ''));
-    if (isNaN(baseAmount)) return '0원';
-    
-    switch (deleteOption) {
+  const getRefundRestoreAmount = () => {
+    if ((!editData?.isInstallment && !editData?.isRecurring) || !amount) return '0원';
+
+    switch (refundRestoreOption) {
       case 'all':
-        // 전체 기간의 금액 합산 - 실제 존재하는 기록만 계산
-        if (editData.isInstallment) {
-          // 할부 기록: 실제 기록들의 금액 합산 사용 (각 기록 금액이 다를 수 있음)
-          // 계산이 완료되지 않았으면 기다림
-          if (actualTotalAmount > 0) {
-            return `${actualTotalAmount.toLocaleString()}원`;
-          } else {
-            // 계산 중에는 실제 금액 대기
-            return '계산 중...';
-          }
-        } else {
-          // 정기 기록: 개수 * 금액
-          const { totalMonths: allTotalMonths } = calcPeriod(editData, totalMonths);
-          const recordCount = actualRecordCount > 0 ? actualRecordCount : allTotalMonths;
-          return `${(baseAmount * recordCount).toLocaleString()}원`;
-        }
+        return actualRefundRestoreTotalAmount > 0
+          ? `${actualRefundRestoreTotalAmount.toLocaleString()}원`
+          : '계산 중...';
       case 'today':
-        // 오늘 날짜의 금액만 - 정기기록 원본 시작일 계산 불필요
-        return `${baseAmount.toLocaleString()}원`;
+        return actualRefundRestoreTodayAmount > 0
+          ? `${actualRefundRestoreTodayAmount.toLocaleString()}원`
+          : '계산 중...';
       case 'future':
-        // 오늘 이후의 금액 합산
-        if (editData.isInstallment) {
-          // 할부 기록: 실제 기록들의 금액 합산 사용
-          // 계산이 완료되지 않았으면 기다림
-          if (actualFutureAmount > 0) {
-            return `${actualFutureAmount.toLocaleString()}원`;
-          } else {
-            // 계산 중에는 실제 금액 대기
-            return '계산 중...';
-          }
-        } else {
-          // 정기 기록: 계산
-          const { startYear: futureStartYear, startMonth: futureStartMonth, editYear: futureEditYear, editMonth: futureEditMonth, totalMonths: futureTotalMonths } = calcPeriod(editData, totalMonths);
-          
-          // 첫 번째 데이터(정기 기록 시작일)인지 확인
-          const isFirstData = futureEditYear === futureStartYear && futureEditMonth === futureStartMonth;
-          
-          if (isFirstData) {
-            // 첫 번째 데이터에서는 전체 삭제와 동일 (실제 기록 개수 사용)
-            const recordCount = actualRecordCount > 0 ? actualRecordCount : futureTotalMonths;
-            return `${(baseAmount * recordCount).toLocaleString()}원`;
-          } else {
-            // 나머지 데이터에서는 현재 편집 중인 날짜부터 정기 기록의 실제 마지막까지 계산
-            let futureMonths = 0;
-            
-            // editData에서 recurringType 가져오기 (없으면 현재 상태의 recurringType 사용)
-            const currentRecurringType = editData.recurringType || recurringType;
-            
-            // 유틸리티 함수 사용
-            const { actualEndYear, actualEndMonth } = calcEndDate(futureStartYear, futureStartMonth, futureTotalMonths, currentRecurringType);
-            
-            // 현재 편집 중인 날짜부터 정기 기록의 실제 마지막까지 계산
-            for (let year = futureStartYear; year <= actualEndYear; year++) {
-              const startM = (year === futureStartYear) ? futureStartMonth : 1;
-              const endM = (year === actualEndYear) ? actualEndMonth : 12;
-              
-              
-              for (let month = startM; month <= endM; month++) {
-                // 현재 편집 중인 날짜부터 정기 기록의 실제 마지막까지 포함
-                const isFutureMonth = year > futureEditYear || (year === futureEditYear && month >= futureEditMonth);
-                if (isFutureMonth) {
-                  futureMonths++;
-                } else {
-                }
-              }
-            }
-            
-            const totalAmount = baseAmount * futureMonths;
-            
-            return `${totalAmount.toLocaleString()}원`;
-          }
-        }
+        return actualRefundRestoreFutureAmount > 0
+          ? `${actualRefundRestoreFutureAmount.toLocaleString()}원`
+          : '계산 중...';
       default:
-        return `${baseAmount.toLocaleString()}원`;
+        return '0원';
     }
   };
 
@@ -4146,6 +4368,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             }
           ]}
           showsVerticalScrollIndicator={false}
+          bounces={false}
+          overScrollMode="never"
           keyboardShouldPersistTaps="handled"
           onScrollBeginDrag={() => {
             isScrollingRef.current = true;
@@ -4277,6 +4501,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                               style={styles.prepaymentRefundButton}
                               onPress={() => {
                                 // 환불 처리 복구 모달 열기
+                                setRefundRestoreOption('all');
                                 setShowRefundRestore(true);
                               }}
                             >
@@ -4285,43 +4510,49 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                               </Text>
                             </Pressable>
                           </>
-                        ) : (
-                          // 일반 할부 기록인 경우: 선결제/환불 처리 버튼 표시
+                        ) : editData?.isSettled ? (
+                          // 결산 처리된 경우: 결산 처리날짜와 복구 버튼 표시
                           <>
                             <Text style={[styles.prepaymentRefundLabel, { color: colors.textAssistive }]}>
-                              선결제·환불 미적용
+                              결산 처리날짜 : {editData?.settledAt
+                                ? formatSettlementDate(editData.settledAt)
+                                : formatSettlementDate(new Date().toISOString())
+                              }
                             </Text>
-                            <View style={styles.prepaymentRefundActions}>
-                              <Pressable 
+                            <Pressable
+                              style={styles.prepaymentRefundButton}
+                              onPress={() => {
+                                setShowSettlementRestore(true);
+                              }}
+                            >
+                              <Text style={[styles.prepaymentRefundText, { color: colors.textAssistive }]}>
+                                결산 처리 복구
+                              </Text>
+                            </Pressable>
+                          </>
+                        ) : (
+                          // 일반 할부 기록인 경우: 정산 처리 버튼 표시 (선결제/환불/결산 드롭다운)
+                          <>
+                            <Text style={[styles.prepaymentRefundLabel, { color: colors.textAssistive }]}>
+                              선결제·환불·결산 미적용
+                            </Text>
+                            <View ref={settlementButtonRef} collapsable={false}>
+                              <Pressable
                                 style={[styles.prepaymentRefundButton, { marginLeft: 0 }]}
                                 onPress={() => {
-                                  // 선결제 모달 열기 (날짜 제한 없이 허용)
-                                  // 선결제 모달 열 때 현재 일자로 날짜 초기화
-                                  const today = new Date();
-                                  const todayFormatted = `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, '0')}.${String(today.getDate()).padStart(2, '0')}`;
-                                  setPrepaymentDate(todayFormatted);
-                                  setTempSelectedDate(todayFormatted.replace(/\./g, '-'));
-                                  setShowPrepaymentModal(true);
+                                  settlementButtonRef.current?.measureInWindow((x, y, width, height) => {
+                                    const { width: screenWidth } = Dimensions.get('window');
+                                    const menuWidth = 250;
+                                    let left = x + width - menuWidth;
+                                    if (left < 16) left = 16;
+                                    if (left + menuWidth > screenWidth - 16) left = screenWidth - menuWidth - 16;
+                                    setSettlementMenuLayout({ x: left, y: y + height, width: menuWidth, height });
+                                    setShowSettlementMenu(true);
+                                  });
                                 }}
                               >
                                 <Text style={[styles.prepaymentRefundText, { color: colors.textAssistive }]}>
-                                  선결제 처리
-                                </Text>
-                              </Pressable>
-                              <Pressable 
-                                style={styles.prepaymentRefundButton}
-                                onPress={() => {
-                                  if (editData?.isRecurring || editData?.isInstallment) {
-                                    // 환불 처리 모달 열기 (정기/할부)
-                                    setShowRefundOptions(true);
-                                    return;
-                                  }
-                                  // 일반 기록: 단일 환불 처리
-                                  setShowSingleRefundConfirm(true);
-                                }}
-                              >
-                                <Text style={[styles.prepaymentRefundText, { color: colors.textAssistive }]}>
-                                  환불 처리
+                                  정산 처리
                                 </Text>
                               </Pressable>
                             </View>
@@ -4471,14 +4702,25 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 onChangeText={handleAmountChange}
                 placeholder="0"
                 textAlign="right"
-                disabled={mode === 'edit' && (editData?.isInstallment || (!!editData?.isRefunded && !editData?.isInstallment))}
+                disabled={
+                  mode === 'edit' &&
+                  (
+                    editData?.isInstallment ||
+                    (!!editData?.isRefunded && !editData?.isInstallment) ||
+                    !!editData?.isSettled
+                  )
+                }
                 editable={false}
                 caretHidden
                 onPress={() => {
                   // 환불/할부 기록 수정 모드에서는 금액 변경 불가
                   const isDisabled =
                     mode === 'edit' &&
-                    (editData?.isInstallment || (!!editData?.isRefunded && !editData?.isInstallment));
+                    (
+                      editData?.isInstallment ||
+                      (!!editData?.isRefunded && !editData?.isInstallment) ||
+                      !!editData?.isSettled
+                    );
 
                   if (isDisabled) {
                     setRecurringToastMessage('변경할 수 없습니다. 새로 생성해 주세요.');
@@ -4611,6 +4853,87 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
       
 
+      {/* 정산 처리 드롭다운 메뉴 (선결제/환불/결산) - iOS 스타일 */}
+      <Modal
+        visible={showSettlementMenu}
+        transparent
+        animationType="none"
+        onRequestClose={() => closeSettlementMenu()}
+      >
+        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => closeSettlementMenu()}
+          />
+          {settlementMenuLayout && (
+            <View
+              style={[
+                styles.settlementDropdownMenuContainer,
+                {
+                  left: settlementMenuLayout.x,
+                  top: settlementMenuLayout.y + 4,
+                  width: settlementMenuLayout.width,
+                },
+              ]}
+              pointerEvents="box-none"
+            >
+              <Animated.View
+                style={[
+                  styles.settlementDropdownMenuPanel,
+                  {
+                    opacity: settlementMenuOpacity,
+                    transform: [{ scale: settlementMenuScale }],
+                  },
+                ]}
+              >
+                <View style={styles.settlementDropdownMenuClip}>
+                  {Platform.OS === 'ios' ? (
+                    <BlurView intensity={100} tint="light" style={styles.settlementDropdownMenuBlur}>
+                      {/* Liquid Glass: 반투명 하이라이트 + 가장자리 쉰 */}
+                      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                        <View style={[StyleSheet.absoluteFill, styles.settlementDropdownMenuGlassOverlay]} />
+                        <View style={styles.settlementDropdownMenuGlassSheen} />
+                      </View>
+                      {(['선결제', '환불', '결산'] as const).map((label, index) => (
+                        <Pressable
+                          key={label}
+                          style={[
+                            styles.settlementDropdownMenuItem,
+                            index < 2 && styles.settlementDropdownMenuItemBorder,
+                          ]}
+                          onPress={() => handleSettlementMenuSelect(label)}
+                        >
+                          <Text style={[styles.settlementDropdownMenuLabel, { color: colors.text }]}>
+                            {label}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </BlurView>
+                  ) : (
+                    <View style={[styles.settlementDropdownMenuBlur, { backgroundColor: 'rgba(253, 253, 253, 0.98)' }]}>
+                      {(['선결제', '환불', '결산'] as const).map((label, index) => (
+                        <Pressable
+                          key={label}
+                          style={[
+                            styles.settlementDropdownMenuItem,
+                            index < 2 && styles.settlementDropdownMenuItemBorder,
+                          ]}
+                          onPress={() => handleSettlementMenuSelect(label)}
+                        >
+                          <Text style={[styles.settlementDropdownMenuLabel, { color: colors.text }]}>
+                            {label}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              </Animated.View>
+            </View>
+          )}
+        </View>
+      </Modal>
+
       {/* 카테고리 미선택 얼럿 */}
       <PrepaymentModal
         visible={showPrepaymentModal}
@@ -4741,6 +5064,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           ]}
           contentContainerStyle={styles.recurringInstallmentSheetScrollContent}
           showsVerticalScrollIndicator={true}
+          bounces={false}
+          overScrollMode="never"
         >
           {/* 소비 형태 (드래프트: 확인 시에만 반영) */}
           <View style={styles.sheetSection}>
@@ -5068,114 +5393,64 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         </Text>
       </ModalPopup>
 
-      {/* 정기 기록 삭제 확인 모달 */}
+      {/* 결산 처리 안내 모달 */}
       <ModalPopup
-        visible={showRecurringDeleteConfirm}
-        title="소비 기록 안내"
-        onConfirm={handleDeleteConfirm}
-        onCancel={() => setShowRecurringDeleteConfirm(false)}
-        confirmText="확인"
-        cancelText="취소"
-      >
-        <Text style={[styles.deleteConfirmText, { color: colors.textNeutral }]}>
-          매달 마다 자동으로{'\n'}
-          기록된 내역이 모두 삭제 됩니다.
-        </Text>
-      </ModalPopup>
-
-      {/* 정기 기록 삭제 옵션 모달 */}
-      <ModalPopup
-        visible={showRecurringDeleteOptions}
-        title="정기 지출 내역 삭제 안내"
-        onConfirm={handleMultipleRecordsDelete}
-        onCancel={() => setShowRecurringDeleteOptions(false)}
+        visible={showSettlementConfirmModal}
+        title="결산 처리 안내"
+        onConfirm={handleSingleRecordSettlement}
+        onCancel={() => setShowSettlementConfirmModal(false)}
         confirmText="확인"
         cancelText="취소"
       >
         <View style={styles.deleteOptionsContainer}>
           <Text style={[styles.deleteOptionsDescription, { color: colors.textNeutral }]}>
-            선택하신 사항에 따라{'\n'}정기 기록 내역이 삭제 됩니다.
+            선택하신 사항에 따라{'\n'}해당 소비내역을 마감하여{'\n'}결산 처리한 내역이 반영 됩니다.
           </Text>
-          
-          {/* 정기 기록 정보 카드 */}
-          <View style={[styles.recurringInfoCard, { backgroundColor: colors.fill }]}>
-            <View style={styles.recurringInfoRow}>
+
+          <View style={[styles.settlementInfoCard, { backgroundColor: colors.fill }]}>
+            <View style={styles.settlementTopRow}>
               <Text style={[styles.recurringCategory, { color: colors.text }]}>
                 {categoryDisplay || '카테고리'}
               </Text>
               <Text style={[styles.recurringAmount, { color: colors.text }]}>
-                {getDeleteAmount()}
+                {settlementAmountText}
+              </Text>
+            </View>
+
+            <View style={[styles.settlementDivider, { backgroundColor: colors.border }]} />
+
+            <View style={[styles.settlementSubRow, styles.settlementSubRowSpacing]}>
+              <Text style={[styles.recurringPeriod, { color: colors.textAssistive }]}>
+                소비
+              </Text>
+              <Text style={[styles.recurringPeriod, { color: colors.textAssistive }]}>
+                - {settlementAmountText}
+              </Text>
+            </View>
+            <View style={styles.settlementSubRow}>
+              <Text style={[styles.recurringPeriod, { color: colors.textAssistive }]}>
+                결산
+              </Text>
+              <Text style={[styles.recurringPeriod, { color: colors.textAssistive }]}>
+                + {settlementAmountText}
+              </Text>
+            </View>
+
+            <View style={[styles.settlementDivider, { backgroundColor: colors.border }]} />
+
+            <View style={styles.settlementTopRow}>
+              <Text style={[styles.recurringCategory, { color: colors.text }]}>
+                최종 정산
+              </Text>
+              <Text style={[styles.recurringAmount, { color: colors.text }]}>
+                0원
               </Text>
             </View>
             <View style={styles.recurringPeriodRow}>
               <Text style={[styles.recurringPeriod, { color: colors.textAssistive }]}>
-                {getDeletePeriod()}
+                {settlementPeriodText}
               </Text>
             </View>
-          </View>
-          
-          {/* 삭제 옵션들 */}
-          <View style={[styles.deleteOptionsList, { backgroundColor: colors.fill }]}>
-            {/* 전체 삭제 */}
-            <Pressable 
-              style={styles.deleteOptionItem}
-              onPress={() => setDeleteOption('all')}
-            >
-              <View style={styles.deleteOptionContent}>
-                <Text style={[styles.deleteOptionTitle, { color: colors.text }]}>
-                  전체 삭제
-                </Text>
-                <Text style={[styles.deleteOptionDescription, { color: colors.textAssistive }]}>
-                  정기 기록을 모두 삭제합니다.
-                </Text>
-              </View>
-              <Radio
-                checked={deleteOption === 'all'}
-                onPress={() => setDeleteOption('all')}
-              />
-            </Pressable>
-            
-            <View style={[styles.deleteOptionDivider, { backgroundColor: colors.border }]} />
-            
-            {/* 오늘만 삭제 */}
-            <Pressable 
-              style={styles.deleteOptionItem}
-              onPress={() => setDeleteOption('today')}
-            >
-              <View style={styles.deleteOptionContent}>
-                <Text style={[styles.deleteOptionTitle, { color: colors.text }]}>
-                  오늘만 삭제
-                </Text>
-                <Text style={[styles.deleteOptionDescription, { color: colors.textAssistive }]}>
-                  해당 날짜만 삭제합니다.
-                </Text>
-              </View>
-              <Radio
-                checked={deleteOption === 'today'}
-                onPress={() => setDeleteOption('today')}
-              />
-            </Pressable>
-            
-            <View style={[styles.deleteOptionDivider, { backgroundColor: colors.border }]} />
-            
-            {/* 오늘 이후 삭제 */}
-            <Pressable 
-              style={styles.deleteOptionItem}
-              onPress={() => setDeleteOption('future')}
-            >
-              <View style={styles.deleteOptionContent}>
-                <Text style={[styles.deleteOptionTitle, { color: colors.text }]}>
-                  오늘을 포함한 이후의 기록 삭제
-                </Text>
-                <Text style={[styles.deleteOptionDescription, { color: colors.textAssistive }]}>
-                  이전 기록은 유지하고 삭제합니다.
-                </Text>
-              </View>
-              <Radio
-                checked={deleteOption === 'future'}
-                onPress={() => setDeleteOption('future')}
-              />
-            </Pressable>
           </View>
         </View>
       </ModalPopup>
@@ -5343,10 +5618,126 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         confirmText="확인"
         cancelText="취소"
       >
-        <Text style={[styles.deleteConfirmText, { color: colors.textNeutral }]}>
-          환불 처리된 해당 기록을{'\n'}
-          최초 {getRecordTypeLabel()} 기록일로 복구가 진행됩니다.
-        </Text>
+        {(editData?.isInstallment || editData?.isRecurring) ? (
+          <View style={styles.deleteOptionsContainer}>
+            <Text style={[styles.deleteOptionsDescription, { color: colors.textNeutral }]}>
+              선택하신 사항에 따라{'\n'}{getRecordTypeLabel()} 기록 내역이 반영 됩니다.
+            </Text>
+
+            <View style={[styles.recurringInfoCard, { backgroundColor: colors.fill }]}>
+              <View style={styles.recurringInfoRow}>
+                <Text style={[styles.recurringCategory, { color: colors.text }]}>
+                  {categoryDisplay || '카테고리'}
+                </Text>
+                <Text style={[styles.recurringAmount, { color: colors.text }]}>
+                  {getRefundRestoreAmount()}
+                </Text>
+              </View>
+              <View style={styles.recurringPeriodRow}>
+                <Text style={[styles.recurringPeriod, { color: colors.textAssistive }]}>
+                  {getRefundRestorePeriod()}
+                </Text>
+              </View>
+            </View>
+
+            <View style={[styles.deleteOptionsList, { backgroundColor: colors.fill }]}>
+              <Pressable
+                style={styles.deleteOptionItem}
+                onPress={() => setRefundRestoreOption('all')}
+              >
+                <View style={styles.deleteOptionContent}>
+                  <Text style={[styles.deleteOptionTitle, { color: colors.text }]}>
+                    전체 환불 복구
+                  </Text>
+                  <Text style={[styles.deleteOptionDescription, { color: colors.textAssistive }]}>
+                    {getRecordTypeLabel()} 기록을 모두 복구합니다.
+                  </Text>
+                </View>
+                <Radio
+                  checked={refundRestoreOption === 'all'}
+                  onPress={() => setRefundRestoreOption('all')}
+                />
+              </Pressable>
+
+              <View style={[styles.deleteOptionDivider, { backgroundColor: colors.border }]} />
+
+              <Pressable
+                style={styles.deleteOptionItem}
+                onPress={() => setRefundRestoreOption('today')}
+              >
+                <View style={styles.deleteOptionContent}>
+                  <Text style={[styles.deleteOptionTitle, { color: colors.text }]}>
+                    오늘만 환불 복구
+                  </Text>
+                  <Text style={[styles.deleteOptionDescription, { color: colors.textAssistive }]}>
+                    해당 날짜만 복구합니다.
+                  </Text>
+                </View>
+                <Radio
+                  checked={refundRestoreOption === 'today'}
+                  onPress={() => setRefundRestoreOption('today')}
+                />
+              </Pressable>
+
+              <View style={[styles.deleteOptionDivider, { backgroundColor: colors.border }]} />
+
+              <Pressable
+                style={styles.deleteOptionItem}
+                onPress={() => setRefundRestoreOption('future')}
+              >
+                <View style={styles.deleteOptionContent}>
+                  <Text style={[styles.deleteOptionTitle, { color: colors.text }]}>
+                    오늘 포함한 이후의 기록 복구
+                  </Text>
+                  <Text style={[styles.deleteOptionDescription, { color: colors.textAssistive }]}>
+                    이전 기록은 유지하고 복구합니다.
+                  </Text>
+                </View>
+                <Radio
+                  checked={refundRestoreOption === 'future'}
+                  onPress={() => setRefundRestoreOption('future')}
+                />
+              </Pressable>
+            </View>
+          </View>
+        ) : (
+          <Text style={[styles.deleteConfirmText, { color: colors.textNeutral }]}>
+            환불 처리된 해당 기록을{'\n'}
+            최초 {getRecordTypeLabel()} 기록일로 복구가 진행됩니다.
+          </Text>
+        )}
+      </ModalPopup>
+
+      {/* 결산 처리 복구 모달 */}
+      <ModalPopup
+        visible={showSettlementRestore}
+        title="결산 처리 복구 안내"
+        onConfirm={async () => { await handleSettlementRestore(); }}
+        onCancel={() => setShowSettlementRestore(false)}
+        confirmText="확인"
+        cancelText="취소"
+      >
+        <View style={styles.deleteOptionsContainer}>
+          <Text style={[styles.deleteOptionsDescription, { color: colors.textNeutral }]}>
+            결산 처리된 해당 기록을{'\n'}
+            최초 소비내역 상태로 복구가 진행됩니다.
+          </Text>
+          <View style={[styles.recurringInfoCard, { backgroundColor: colors.fill }]}>
+            <View style={styles.recurringInfoRow}>
+              <Text style={[styles.recurringCategory, { color: colors.text }]}>
+                {categoryDisplay || '카테고리'}
+              </Text>
+              <Text style={[styles.recurringAmount, { color: colors.text }]}>
+                {settlementRestoreAmountText}
+              </Text>
+            </View>
+            <View style={styles.recurringPeriodRow}>
+              <Text style={[styles.recurringPeriod, { color: colors.textAssistive }]}>
+                {settlementPeriodText}
+              </Text>
+            </View>
+          </View>
+        </View>
       </ModalPopup>
 
       {/* 변경사항 없음 모달 */}
@@ -5841,6 +6232,58 @@ const styles = StyleSheet.create({
     ...Typography.body1.l.regular,
     textDecorationLine: 'underline',
   },
+  settlementDropdownMenuContainer: {
+    position: 'absolute',
+  },
+  settlementDropdownMenuPanel: {
+    borderRadius: 12,
+    minWidth: 250,
+    // Liquid Glass: 가장자리 쉰 + 드롭다운 그림자 (x0, y8, blur 16, #000 10%)
+    ...(Platform.OS === 'ios' && {
+      borderWidth: 1,
+      borderColor: 'rgba(255, 255, 255, 0.35)',
+      shadowColor: '#000000',
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.1,
+      shadowRadius: 16,
+    }),
+    ...(Platform.OS === 'android' && { elevation: 12 }),
+  },
+  settlementDropdownMenuClip: {
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  settlementDropdownMenuBlur: {
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  settlementDropdownMenuGlassOverlay: {
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
+    borderRadius: 12,
+  },
+  settlementDropdownMenuGlassSheen: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+  },
+  settlementDropdownMenuItem: {
+    height: 44,
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+  settlementDropdownMenuItemBorder: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(0, 0, 0, 0.12)',
+  },
+  settlementDropdownMenuLabel: {
+    ...Typography.body1.l.regular,
+    fontSize: 17,
+  },
   expenseCategory: {
     ...Typography.body1.l.bold,
     fontSize: 21,
@@ -5900,6 +6343,29 @@ const styles = StyleSheet.create({
     ...Typography.body2.r.regular,
     fontSize: 14,
     lineHeight: 21,
+  },
+  settlementInfoCard: {
+    borderRadius: 16,
+    padding: 16,
+    gap: 0,
+  },
+  settlementTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  settlementSubRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  settlementSubRowSpacing: {
+    marginBottom: 4,
+  },
+  settlementDivider: {
+    height: 1,
+    width: '100%',
+    marginVertical: 12,
   },
   deleteOptionsList: {
     borderRadius: 16,

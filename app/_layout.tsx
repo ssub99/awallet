@@ -10,8 +10,14 @@ import * as Updates from 'expo-updates';
 import { useFirstLaunchNotificationPermission } from '@/hooks/use-notifications';
 import { enableDebugMode, logEvent, setAnalyticsCollectionEnabled } from '@/utils/analytics';
 import { checkActiveChallengesNotifications, checkEndedChallenges } from '@/utils/challenge-utils';
-import { cleanupOldSchedules, setupDailyReminder } from '@/utils/notification-scheduler';
-import { refreshWidgetWithCurrentMonth } from '@/utils/widget-data-sync';
+import {
+  cancelDailyReminder,
+  cleanupOldSchedules,
+  getChallengeNotificationsEnabled,
+  getGeneralNotificationsEnabled,
+  setupDailyReminder,
+} from '@/utils/notification-scheduler';
+import { refreshWidgetWithCurrentMonth, resetMonthlyExpenseMaskInWidget } from '@/utils/widget-data-sync';
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
 import { Stack } from 'expo-router';
@@ -19,6 +25,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import { AppState, AppStateStatus, Platform, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 import 'react-native-reanimated';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 
@@ -58,8 +65,8 @@ export default function RootLayout() {
         // 스플래시 자동 숨김 방지 (이미 위에서 호출했지만 안전을 위해 다시 호출)
         await SplashScreen.preventAutoHideAsync();
         
-        // OTA 업데이트 체크 및 적용
-        const isExpoGo = Constants.executionEnvironment === 'storeClient';
+        // OTA 업데이트 체크 및 적용 (Expo Go만 제외, 스토어/스탠드얼론은 체크)
+        const isExpoGo = Constants.executionEnvironment === 'expoClient';
         if (!isExpoGo && Updates.isEnabled) {
           try {
             const update = await Updates.checkForUpdateAsync();
@@ -119,15 +126,25 @@ export default function RootLayout() {
         try {
           // ✅ 오래된 스케줄 마킹 정리
           await cleanupOldSchedules();
-          
+
+          const [generalEnabled, challengeEnabled] = await Promise.all([
+            getGeneralNotificationsEnabled(),
+            getChallengeNotificationsEnabled(),
+          ]);
+
           // Setup daily reminder (8 PM every day)
-          await setupDailyReminder();
-          
-          // Check active challenges for missing notifications (보완)
-          await checkActiveChallengesNotifications();
-          
-          // Check ended challenges (for success notifications)
-          await checkEndedChallenges();
+          if (generalEnabled) {
+            await setupDailyReminder();
+          } else {
+            // OFF 상태에서는 앱 시작 시 잔여 일반 알림을 강제 정리
+            await cancelDailyReminder();
+          }
+
+          // Check challenge notification schedules only when challenge notifications are ON
+          if (challengeEnabled) {
+            await checkActiveChallengesNotifications();
+            await checkEndedChallenges();
+          }
 
         } catch (error) {
           console.error('알림 설정 중 오류:', error);
@@ -142,7 +159,11 @@ export default function RootLayout() {
   // 사용자가 홈/잠금화면으로 나가는 순간 한 번 더 쓰기+reload 요청하면 위젯이 갱신될 가능성이 높아짐.
   useEffect(() => {
     if (Platform.OS !== 'ios') return;
+    resetMonthlyExpenseMaskInWidget().catch(() => {});
     const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
+      if (next === 'active') {
+        resetMonthlyExpenseMaskInWidget().catch(() => {});
+      }
       if (next === 'background' || next === 'inactive') {
         refreshWidgetWithCurrentMonth().catch(() => {});
       }
@@ -190,7 +211,8 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <LoadingProvider>
+      <KeyboardProvider>
+        <LoadingProvider>
         <SafeAreaProvider initialMetrics={initialWindowMetrics}>
         <View style={{ flex: 1, backgroundColor: colors.background }} onLayout={onLayoutRootView}>
           <ThemeProvider value={DefaultTheme}>
@@ -215,6 +237,8 @@ export default function RootLayout() {
                       <Stack.Screen name="category-create" options={{ headerShown: false }} />
                       <Stack.Screen name="category-edit" options={{ headerShown: false }} />
                       <Stack.Screen name="expense-category-detail" options={{ headerShown: false }} />
+                      <Stack.Screen name="notification-setting" options={{ headerShown: false }} />
+                      <Stack.Screen name="data-backup" options={{ headerShown: false }} />
                       <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
                     </Stack>
                     <StatusBar style="dark" />
@@ -226,7 +250,8 @@ export default function RootLayout() {
           </ThemeProvider>
         </View>
         </SafeAreaProvider>
-      </LoadingProvider>
+        </LoadingProvider>
+      </KeyboardProvider>
     </GestureHandlerRootView>
   );
 }

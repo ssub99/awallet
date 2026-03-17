@@ -13,19 +13,16 @@ import { Typography } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { monthStartEvent } from '@/hooks/use-month-start';
-import { getNotificationPermissionStatus, handleNotificationToggle } from '@/hooks/use-notifications';
 import { weekStartEvent } from '@/hooks/use-week-start';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as MailComposer from 'expo-mail-composer';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Animated, AppState, AppStateStatus, BackHandler, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Animated, BackHandler, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function MyPageScreen() {
   const colorScheme = useColorScheme();
   const colors = ThemeColors[colorScheme ?? 'light'];
-  const appState = useRef(AppState.currentState);
   const router = useRouter();
   const { setLoading } = useLoading();
   const hasInitializedRef = useRef(false);   // 마이페이지 최초 진입 1회만 로드
@@ -35,7 +32,6 @@ export default function MyPageScreen() {
   // Settings state
   const [monthStartDay, setMonthStartDay] = useState('1일');
   const [weekStartsSunday, setWeekStartsSunday] = useState(true);
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
   // Load settings from AsyncStorage on screen focus
   useFocusEffect(
@@ -55,15 +51,14 @@ export default function MyPageScreen() {
             // 이미 초기화된 경우, 바로 컨텐츠 표시 유지
             setIsContentReady(true);
           }
-          const [startDay, weekStart, notifications] = await Promise.all([
+          const [startDay, weekStart] = await Promise.all([
             AsyncStorage.getItem('monthStartDay'),
             AsyncStorage.getItem('weekStartsSunday'),
-            AsyncStorage.getItem('notificationsEnabled'),
           ]);
 
           if (startDay) setMonthStartDay(startDay);
+          else setMonthStartDay('1일');
           if (weekStart !== null) setWeekStartsSunday(JSON.parse(weekStart));
-          if (notifications !== null) setNotificationsEnabled(JSON.parse(notifications));
         } catch (error) {
           console.error('설정 로드 중 오류:', error);
         } finally {
@@ -103,51 +98,6 @@ export default function MyPageScreen() {
     return unsub;
   }, []);
 
-  // Sync notification setting with system permission when app becomes active
-  useEffect(() => {
-    const syncNotificationSetting = async () => {
-      try {
-        const permissionStatus = await getNotificationPermissionStatus();
-        const savedSetting = await AsyncStorage.getItem('notificationsEnabled');
-        const currentSetting = savedSetting !== null ? JSON.parse(savedSetting) : true;
-
-        // If permission is granted but setting is off, turn it on automatically
-        if (permissionStatus === 'granted' && !currentSetting) {
-
-          setNotificationsEnabled(true);
-          await AsyncStorage.setItem('notificationsEnabled', JSON.stringify(true));
-        }
-        // If permission is denied but setting is on, turn it off automatically
-        else if (permissionStatus === 'denied' && currentSetting) {
-
-          setNotificationsEnabled(false);
-          await AsyncStorage.setItem('notificationsEnabled', JSON.stringify(false));
-        }
-      } catch (error) {
-        console.error('설정 저장 중 오류:', error);
-
-      }
-    };
-
-    const handleAppStateChange = (nextAppState: AppStateStatus) => {
-      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-        // App has come to foreground - sync notification setting
-
-        syncNotificationSetting();
-      }
-      appState.current = nextAppState;
-    };
-
-    const subscription = AppState.addEventListener('change', handleAppStateChange);
-
-    // Also sync on mount
-    syncNotificationSetting();
-
-    return () => {
-      subscription.remove();
-    };
-  }, []);
-
   // Save settings to AsyncStorage
   const handleWeekStartChange = async (value: boolean) => {
     setWeekStartsSunday(value);
@@ -163,91 +113,41 @@ export default function MyPageScreen() {
     }
   };
 
-  const handleNotificationsChange = async (value: boolean) => {
-    // Check notification permission before enabling
-    const shouldEnable = await handleNotificationToggle(value);
-    
-    if (!shouldEnable) {
-      // Permission denied or not granted - don't enable the setting
-
-      return;
-    }
-    
-    // Permission granted or turning off - update setting
-    setNotificationsEnabled(value);
-    try {
-      await AsyncStorage.setItem('notificationsEnabled', JSON.stringify(value));
-
-    } catch (error) {
-      console.error('설정 저장 중 오류:', error);
-
-    }
-  };
-
-  
-
   const handleMonthStartDayPress = () => {
 
     router.push('/month-start-day');
   };
 
   const handleInquiryPress = async () => {
+    const EMAIL = 'ssuby99@gmail.com';
+    // CRLF(\r\n)로 줄바꿈해 써드파티 메일 앱에서도 본문 줄바꿈이 유지되도록 함
+    const body = [
+      '안녕하세요, 문의 내용을 작성해주세요.',
+      '',
+      '- App version : ',
+      '- OS version : ',
+    ].join('\r\n');
+    const subject = '[AWallet] 문의하기';
 
     try {
-      // Check if mail composer is available
-      const isAvailable = await MailComposer.isAvailableAsync();
-      
-      if (!isAvailable) {
-        // Fallback to mailto URL
-        const EMAIL = 'ssuby99@gmail.com';
-        
+      // mailto: 사용 시 시스템 설정의 기본 메일 앱(써드파티 포함)이 열림
+      const mailtoUrl = `mailto:${EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      const canOpen = await Linking.canOpenURL(mailtoUrl);
+
+      if (canOpen) {
+        await Linking.openURL(mailtoUrl);
+      } else {
         Alert.alert(
           '메일 앱 없음',
           '기기에 메일 앱이 설정되어 있지 않습니다.\n\n아래 이메일로 직접 문의해주세요:\n' + EMAIL,
           [{ text: '확인' }]
         );
-
-        return;
-      }
-      
-      // Get app version
-      const appVersion = '1.0.0';
-      
-      // Get OS version
-      const osVersion = Platform.Version;
-      const osName = Platform.OS === 'ios' ? 'iOS' : Platform.OS === 'android' ? 'Android' : Platform.OS;
-      
-      // TODO: Replace with actual support email
-      const EMAIL = 'ssuby99@gmail.com';
-      const SUBJECT = '[AWallet] 문의하기';
-      const BODY = `안녕하세요,
-
-문의 내용을 작성해주세요.
-
----
-앱 버전: ${appVersion}
-플랫폼: ${osName} ${osVersion}`;
-      
-      // Open mail composer with pre-filled content
-      const result = await MailComposer.composeAsync({
-        recipients: [EMAIL],
-        subject: SUBJECT,
-        body: BODY,
-      });
-      
-      if (result.status === 'sent') {
-
-      } else if (result.status === 'saved') {
-
-      } else if (result.status === 'cancelled') {
-
       }
     } catch (error) {
-      console.error('설정 저장 중 오류:', error);
-
+      console.error('문의하기 메일 열기 오류:', error);
       Alert.alert(
         '오류',
-        '메일을 작성하는 중 문제가 발생했습니다.',
+        '메일을 여는 중 문제가 발생했습니다.',
         [{ text: '확인' }]
       );
     }
@@ -348,14 +248,15 @@ export default function MyPageScreen() {
       </Animated.View>
 
       <Animated.View style={{ flex: 1, opacity: isContentReady ? contentOpacity : 0 }}>
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
         {/* Background */}
         <View style={[styles.background, { backgroundColor: colors.fill }]}>
-          <>
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
+            bounces={false}
+            overScrollMode="never"
+            showsVerticalScrollIndicator={false}
+          >
           {/* Settings Card */}
           <View style={[styles.card, { backgroundColor: colors.background }]}>
             {/* Month Start Day */}
@@ -392,15 +293,19 @@ export default function MyPageScreen() {
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
             {/* Notifications */}
-            <View style={[styles.settingRow, { height: 56 }]}>
+            <Pressable
+              style={[styles.settingRow, { height: 56 }]}
+              onPress={() => {
+                router.push('/notification-setting');
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="알림 설정"
+            >
               <Text style={[styles.settingLabel, { color: colors.text }]}>알림 설정</Text>
               <View style={styles.settingValue}>
-                <Switch 
-                  value={notificationsEnabled}
-                  onValueChange={handleNotificationsChange}
-                />
+                <Icon name="arrowRight" size={24} color={colors.text} />
               </View>
-            </View>
+            </Pressable>
           </View>
 
           {/* Category Settings Card */}
@@ -486,6 +391,19 @@ export default function MyPageScreen() {
             </Pressable>
           </View>
 
+          {/* Data backup/restore (Figma: Frame 65) */}
+          <View style={[styles.card, { backgroundColor: colors.background }]}>
+            <Pressable
+              style={styles.menuRowSingle}
+              onPress={() => router.push('/data-backup')}
+              accessibilityRole="button"
+              accessibilityLabel="데이터 백업/복원"
+            >
+              <Text style={[styles.menuLabel, { color: colors.text }]}>데이터 백업/복원</Text>
+              <Icon name="arrowRight" size={24} color={colors.text} />
+            </Pressable>
+          </View>
+
           {/* Test Environment Card (only in __DEV__) */}
           {__DEV__ && (
             <View style={[styles.card, { backgroundColor: colors.background }]}>
@@ -505,10 +423,8 @@ export default function MyPageScreen() {
               </Pressable>
             </View>
           )}
-
-          </>
+          </ScrollView>
         </View>
-      </ScrollView>
       </Animated.View>
 
     </SafeAreaView>
@@ -531,16 +447,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    flexGrow: 1,
+    paddingTop: 16,
+    paddingBottom: 16,
+    gap: 16,
   },
 
   // Background
   background: {
     flex: 1,
-    paddingTop: 16,
     paddingHorizontal: 16,
-    paddingBottom: 16,
-    gap: 16,
   },
 
   // Card
@@ -579,6 +494,14 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 16,
     minHeight: 56,
+  },
+  menuRowSingle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    minHeight: 58,
   },
   menuLabel: {
     ...Typography.body1.l.regular,

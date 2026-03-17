@@ -1,16 +1,21 @@
 import Constants from 'expo-constants';
 
-// Expo Go 환경에서는 Firebase Analytics를 사용할 수 없음
-const isExpoGo = Constants.executionEnvironment === 'storeClient';
+// 프로덕션(스토어 앱)에서만 Firebase Analytics 사용. 스테이지/Expo Go/개발빌드는 제외
+const isProduction = Constants.executionEnvironment === 'storeClient';
 
 let analytics: any = null;
 
-// Development build에서만 Firebase Analytics 로드
-if (!isExpoGo) {
+// 프로덕션에서만 Firebase Analytics 로드 (스테이지 채널·Expo Go 제외)
+if (isProduction) {
   try {
     analytics = require('@react-native-firebase/analytics').default;
   } catch (error) {
-    console.warn('[Analytics] Firebase Analytics 모듈을 로드할 수 없습니다:', error);
+    // Expo Go·개발빌드 등 네이티브 모듈 미연결 시 정상 동작. 프로덕션에서만 경고.
+    if (__DEV__) {
+      console.debug('[Analytics] Firebase Analytics 모듈을 로드할 수 없습니다 (개발 환경):', error);
+    } else {
+      console.warn('[Analytics] Firebase Analytics 모듈을 로드할 수 없습니다:', error);
+    }
   }
 }
 
@@ -18,9 +23,9 @@ if (!isExpoGo) {
  * Firebase Analytics 이벤트 로깅
  */
 export async function logEvent(eventName: string, params?: Record<string, any>): Promise<void> {
-  if (isExpoGo || !analytics) {
+  if (!isProduction || !analytics) {
     if (__DEV__) {
-      console.log(`📊 [Analytics] (Expo Go) Event logged: ${eventName}`, params || {});
+      console.log(`📊 [Analytics] (비프로덕션) Event skipped: ${eventName}`, params || {});
     }
     return;
   }
@@ -31,7 +36,11 @@ export async function logEvent(eventName: string, params?: Record<string, any>):
       console.log(`📊 [Analytics] Event logged: ${eventName}`, params || {});
     }
   } catch (error) {
-    console.warn(`[Analytics] Failed to log event ${eventName}:`, error);
+    if (__DEV__) {
+      console.debug(`[Analytics] Failed to log event ${eventName} (개발 환경):`, error);
+    } else {
+      console.warn(`[Analytics] Failed to log event ${eventName}:`, error);
+    }
   }
 }
 
@@ -39,9 +48,9 @@ export async function logEvent(eventName: string, params?: Record<string, any>):
  * Firebase Analytics 수집 활성화/비활성화
  */
 export async function setAnalyticsCollectionEnabled(enabled: boolean): Promise<void> {
-  if (isExpoGo || !analytics) {
+  if (!isProduction || !analytics) {
     if (__DEV__) {
-      console.log(`📊 [Analytics] (Expo Go) Collection ${enabled ? 'enabled' : 'disabled'}`);
+      console.log(`📊 [Analytics] (비프로덕션) Collection skipped: ${enabled ? 'enabled' : 'disabled'}`);
     }
     return;
   }
@@ -52,7 +61,11 @@ export async function setAnalyticsCollectionEnabled(enabled: boolean): Promise<v
       console.log(`📊 [Analytics] Collection ${enabled ? 'enabled' : 'disabled'}`);
     }
   } catch (error) {
-    console.warn('[Analytics] Failed to set collection enabled:', error);
+    if (__DEV__) {
+      console.debug('[Analytics] Failed to set collection enabled (개발 환경):', error);
+    } else {
+      console.warn('[Analytics] Failed to set collection enabled:', error);
+    }
   }
 }
 
@@ -60,9 +73,9 @@ export async function setAnalyticsCollectionEnabled(enabled: boolean): Promise<v
  * 사용자 속성 설정
  */
 export async function setUserProperty(name: string, value: string | null): Promise<void> {
-  if (isExpoGo || !analytics) {
+  if (!isProduction || !analytics) {
     if (__DEV__) {
-      console.log(`📊 [Analytics] (Expo Go) User property set: ${name} = ${value}`);
+      console.log(`📊 [Analytics] (비프로덕션) User property skipped: ${name} = ${value}`);
     }
     return;
   }
@@ -81,9 +94,9 @@ export async function setUserProperty(name: string, value: string | null): Promi
  * 사용자 ID 설정
  */
 export async function setUserId(userId: string | null): Promise<void> {
-  if (isExpoGo || !analytics) {
+  if (!isProduction || !analytics) {
     if (__DEV__) {
-      console.log(`📊 [Analytics] (Expo Go) User ID set: ${userId || '(null)'}`);
+      console.log(`📊 [Analytics] (비프로덕션) User ID skipped: ${userId || '(null)'}`);
     }
     return;
   }
@@ -102,9 +115,9 @@ export async function setUserId(userId: string | null): Promise<void> {
  * 화면 추적
  */
 export async function logScreenView(screenName: string, screenClass?: string): Promise<void> {
-  if (isExpoGo || !analytics) {
+  if (!isProduction || !analytics) {
     if (__DEV__) {
-      console.log(`📊 [Analytics] (Expo Go) Screen view: ${screenName}`);
+      console.log(`📊 [Analytics] (비프로덕션) Screen view skipped: ${screenName}`);
     }
     return;
   }
@@ -127,9 +140,9 @@ export async function logScreenView(screenName: string, screenClass?: string): P
  * iOS: Xcode Scheme에서 -FIRAnalyticsDebugEnabled 플래그 필요
  */
 export async function enableDebugMode(): Promise<void> {
-  if (isExpoGo) {
+  if (!isProduction) {
     if (__DEV__) {
-      console.log('📊 [Analytics] Expo Go 환경에서는 DebugView를 사용할 수 없습니다.');
+      console.log('📊 [Analytics] 프로덕션(storeClient)에서만 DebugView를 사용할 수 있습니다.');
     }
     return;
   }

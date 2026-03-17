@@ -291,6 +291,8 @@ export default function ChallengeDetailScreen() {
       <ScrollView
         style={[styles.listScrollContainer, { backgroundColor: colors.staticWhite }]}
         contentContainerStyle={styles.listScrollContent}
+        bounces={false}
+        overScrollMode="never"
         showsVerticalScrollIndicator={false}
       >
         {!challenge ? (
@@ -431,13 +433,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   listScrollContent: {
+    flexGrow: 1,
     paddingBottom: 32,
   },
   emptyContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 80,
   },
   emptyText: {
     ...Typography.body1.l.regular,

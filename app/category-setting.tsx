@@ -427,6 +427,8 @@ export default function CategorySettingScreen() {
               autoscrollThreshold={100}
               autoscrollSpeed={100}
               showsVerticalScrollIndicator={false}
+              bounces={false}
+              overScrollMode="never"
             />
           )}
         </View>

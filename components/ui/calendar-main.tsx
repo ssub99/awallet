@@ -50,6 +50,8 @@ export interface CalendarMainProps {
   initialYear?: number;
   initialMonth?: number;
   monthStartDay?: number;
+  /** 부모가 flex로 할당한 높이. 있으면 이 값으로 셀 높이를 계산해 FAB 등과 겹치지 않게 함 */
+  containerHeight?: number;
 }
 
 /**
@@ -207,6 +209,7 @@ export function CalendarMain({
   initialYear,
   initialMonth,
   monthStartDay = 1,
+  containerHeight,
 }: CalendarMainProps) {
   const colorScheme = useColorScheme();  
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
@@ -220,11 +223,21 @@ export function CalendarMain({
   // Animation lock to prevent rapid swipes
   const [isAnimating, setIsAnimating] = useState(false);
 
-  // Calculate dynamic day cell height
+  const TITLE_HEIGHT = 48;
+
+  // Calculate dynamic day cell height (containerHeight 있으면 그걸 쓰고, 없으면 화면 높이 기준)
   const dayCellHeight = useMemo(() => {
+    const grid = generateMonthGrid(currentYear, currentMonth, adjustFirstDayOfWeek, monthStartDay);
+    const weeks = Math.ceil(grid.length / 7);
+    if (weeks <= 0) return 40;
+
+    if (containerHeight != null && containerHeight > 0) {
+      const forGrid = containerHeight - (showTitle ? TITLE_HEIGHT : 0) - DAY_HEADER_HEIGHT;
+      return Math.max(32, Math.floor(forGrid / weeks));
+    }
+
     const screenHeight = Dimensions.get('window').height;
-    const TITLE_HEIGHT = 48;
-    const fixedHeight = 
+    const fixedHeight =
       STATUS_BAR_HEIGHT +
       TOP_NAV_HEIGHT +
       AMOUNT_SECTION_HEIGHT +
@@ -232,14 +245,9 @@ export function CalendarMain({
       DAY_HEADER_HEIGHT +
       TAB_BAR_BASE_HEIGHT +
       insets.bottom;
-    
     const remainingHeight = screenHeight - fixedHeight;
-    const grid = generateMonthGrid(currentYear, currentMonth, adjustFirstDayOfWeek, monthStartDay);
-    const weeks = Math.ceil(grid.length / 7);
-    
-    
     return Math.floor(remainingHeight / weeks);
-  }, [currentYear, currentMonth, insets.bottom, adjustFirstDayOfWeek, monthStartDay]);
+  }, [currentYear, currentMonth, insets.bottom, adjustFirstDayOfWeek, monthStartDay, containerHeight, showTitle]);
 
   // Generate grids for 7 months (prev3, prev2, prev1, current, next1, next2, next3)
   const monthGrids = useMemo(() => {

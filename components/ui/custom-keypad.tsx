@@ -3,7 +3,30 @@ import { AtomicColors } from '@/constants/atomic-colors';
 import { Colors, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+
+const PADDING_H = 8;
+const GAP = 8;
+const COLS = 4;
+const ROWS = 4;
+const PADDING_TOP = 16;
+const HOME_INDICATOR_HEIGHT = 34;
+const BUTTON_ASPECT = 48 / 84;
+
+/** 컨테이너 너비로 버튼 너비·높이·키패드 전체 높이 계산 (여백 8 유지) */
+function getKeypadDimensions(containerWidth: number) {
+  const contentWidth = Math.max(0, containerWidth - PADDING_H * 2 - GAP * (COLS - 1));
+  const buttonWidth = contentWidth / COLS;
+  const buttonHeight = buttonWidth * BUTTON_ASPECT;
+  const sectionHeight = PADDING_TOP + ROWS * buttonHeight + GAP * (ROWS - 1);
+  const totalHeight = sectionHeight + HOME_INDICATOR_HEIGHT;
+  return { buttonWidth, buttonHeight, totalHeight };
+}
+
+/** 화면/컨테이너 너비로 키패드 전체 높이만 필요할 때 (애니메이션·패딩용) */
+export function getKeypadHeight(width: number): number {
+  return getKeypadDimensions(width).totalHeight;
+}
 
 export type CustomKeypadOperator = 'add' | 'sub' | 'mul' | 'div';
 
@@ -167,6 +190,14 @@ export function CustomKeypad({
 }: CustomKeypadProps) {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const { width: windowWidth } = useWindowDimensions();
+  const [containerWidth, setContainerWidth] = useState(windowWidth);
+
+  const { buttonWidth, buttonHeight } = getKeypadDimensions(containerWidth);
+  const onContainerLayout = useCallback((e: { nativeEvent: { layout: { width: number } } }) => {
+    const w = e.nativeEvent.layout.width;
+    setContainerWidth(w);
+  }, []);
 
   const [tokens, setTokens] = useState<ExpressionToken[]>([]);
   const [operatorSelection, setOperatorSelection] = useState<CustomKeypadOperator | null>(null);
@@ -406,7 +437,7 @@ export function CustomKeypad({
   };
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} onLayout={onContainerLayout}>
       <View style={styles.keypadSection}>
         {KEY_ROWS.map((row, rowIndex) => (
           <View key={`row-${rowIndex}`} style={styles.row}>
@@ -417,7 +448,7 @@ export function CustomKeypad({
               const isDigit = key.type === 'digit';
               const buttonStyle = [
                 styles.keyButton,
-                key.compact && styles.keyButtonCompact,
+                { width: buttonWidth, height: buttonHeight },
                 (isAction || isDelete) && styles.keyButtonAction,
                 isConfirm && { backgroundColor: colors.primary },
               ];
@@ -468,15 +499,10 @@ const styles = StyleSheet.create({
     columnGap: 8,
   },
   keyButton: {
-    width: 84,
-    height: 48,
     borderRadius: 8,
     backgroundColor: AtomicColors.common[0],
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  keyButtonCompact: {
-    width: 83,
   },
   keyButtonAction: {
     backgroundColor: AtomicColors.coolNeutral[50],

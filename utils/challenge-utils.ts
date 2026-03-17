@@ -6,7 +6,15 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
-import { notifyChallengeFailure, notifyChallengeProgress, notifyChallengeSuccess, cancelChallengeSuccessNotification, cancelChallengeProgressNotifications, cancelChallengeFailureNotification } from './notification-scheduler';
+import {
+  cancelChallengeFailureNotification,
+  cancelChallengeProgressNotifications,
+  cancelChallengeSuccessNotification,
+  getChallengeNotificationsEnabled,
+  notifyChallengeFailure,
+  notifyChallengeProgress,
+  notifyChallengeSuccess,
+} from './notification-scheduler';
 import {
   getAllChallenges,
   type ChallengeRecord as ChallengeData,
@@ -302,6 +310,11 @@ export async function triggerChallengeNotifications(category: string, recordDate
  */
 export async function checkActiveChallengesNotifications(): Promise<void> {
   try {
+    const challengeNotificationsEnabled = await getChallengeNotificationsEnabled();
+    if (!challengeNotificationsEnabled) {
+      return;
+    }
+
     const challenges = await getAllChallenges();
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -441,6 +454,11 @@ export async function checkActiveChallengesNotifications(): Promise<void> {
  */
 export async function checkEndedChallenges(): Promise<void> {
   try {
+    const challengeNotificationsEnabled = await getChallengeNotificationsEnabled();
+    if (!challengeNotificationsEnabled) {
+      return;
+    }
+
     const challenges = await getAllChallenges();
     const today = new Date();
     today.setHours(0, 0, 0, 0);

@@ -7,26 +7,43 @@
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { CalendarMain } from '@/components/ui/calendar-main';
 import { Icon } from '@/components/ui/icon';
+import { QuickInputShort } from '@/components/ui/quick-input-short';
+import { BlurView } from 'expo-blur';
 import { MonthData, YearView, YearViewRef } from '@/components/ui/year-view';
 import { AtomicColors } from '@/constants/atomic-colors';
 import { Colors, Typography } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';
 import { useCreateSheetContext } from '@/contexts/create-sheet-context';
+import { FAB_OFFSET_ABOVE_TABS, useQuickInputContext } from '@/contexts/quick-input-context';
 import { useLoading } from '@/contexts/loading-context';
-import { calendarRefreshEvent } from '@/hooks/calendar-events';
+import {
+  applyPendingCalendarTargetEvent,
+  calendarRefreshEvent,
+  consumeLatestPendingCalendarTarget,
+  getLatestPendingCalendarTarget,
+} from '@/hooks/calendar-events';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
+import { useThemeColor } from '@/hooks/use-theme-color';
+import { createSheetEvent } from '@/utils/create-sheet-event';
+import { isAtLeastVersion, QUICK_INPUT_MIN_VERSION } from '@/utils/app-version';
 import { getCustomMonthInfo, isDateInCustomMonth } from '@/utils/custom-month';
 import { saveMonthlyExpenseToWidget } from '@/utils/widget-data-sync';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, AppState, AppStateStatus, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Animated, AppState, AppStateStatus, Easing, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Circle, Defs, LinearGradient, Stop, Svg } from 'react-native-svg';
+
+const FAB_SIZE = 48;
 
 export default function HomeScreen() {
+  const initialPendingTarget = getLatestPendingCalendarTarget();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const iconWhite = useThemeColor({}, 'staticWhite');
   const navigation = useNavigation();
   const router = useRouter();
   const { calendarData, monthStartDay, refresh, isReady } = useAppData();
@@ -34,6 +51,9 @@ export default function HomeScreen() {
   const { setLoading } = useLoading();
   const pendingOpsRef = useRef(0);
   const appState = useRef<AppStateStatus>(AppState.currentState);
+  const insets = useSafeAreaInsets();
+  
+  const { isQuickInputVisible, showQuickInput } = useQuickInputContext();
   const beginLoad = useCallback(() => {
     pendingOpsRef.current += 1;
     setLoading(true);
@@ -45,6 +65,11 @@ export default function HomeScreen() {
   const [isContentReady, setIsContentReady] = useState(false);
   const contentOpacity = useRef(new Animated.Value(0)).current;
   const hasAnimatedRef = useRef(false);
+
+  // Star 아이콘 애니메이션: isContentReady 후 2초 대기 → (스케일 다운·업 → 2초 대기 → 회전 2바퀴 → 5초 대기 → 리셋) 루프
+  const starScale = useRef(new Animated.Value(1)).current;
+  const starRotate = useRef(new Animated.Value(0)).current;
+  const starAnimationRunRef = useRef(false);
 
   // 소비 기록 완료 후 전달된 params 받기
   const params = useLocalSearchParams<{
@@ -60,6 +85,9 @@ export default function HomeScreen() {
   
   // Navigation lock to prevent duplicate navigation
   const isNavigating = useRef(false);
+
+  // 캘린더가 차지할 수 있는 높이 (FAB/간편입력과 겹치지 않게 flex로 남은 영역만 사용)
+  const [calendarContainerHeight, setCalendarContainerHeight] = useState<number | undefined>(undefined);
   
   // Top Navigation state
   const [periodType, setPeriodType] = useState<'year' | 'month'>('month');
@@ -67,6 +95,13 @@ export default function HomeScreen() {
   
   // 년도 화면에서 마지막으로 본 월 추적
   const lastYearViewMonth = useRef<number | null>(null);
+  // Shared year/month state for both TopNavigation and Calendar
+  const [currentYear, setCurrentYear] = useState<number>(
+    initialPendingTarget?.year ?? new Date().getFullYear(),
+  );
+  const [currentMonth, setCurrentMonth] = useState<number>(
+    initialPendingTarget?.month ?? (new Date().getMonth() + 1),
+  ); // 1-12
   const handleYearMonthPress = useCallback(
     (month: number) => {
       if (isNavigating.current) {
@@ -77,7 +112,7 @@ export default function HomeScreen() {
       isNavigating.current = true;
 
       router.push({
-        pathname: '/monthly-expense-timeline',
+        pathname: '/(tabs)/challenge',
         params: {
           year: currentYear.toString(),
           month: month.toString(),
@@ -93,19 +128,54 @@ export default function HomeScreen() {
   );
   
   // 사용되지 않는 오늘 날짜 유틸 제거 (기능 영향 없음)
-  
-  const [selectedDate, setSelectedDate] = useState<string>('');
-  
-  // Shared year/month state for both TopNavigation and Calendar
-  // 초기값은 임시로 설정하고, useFocusEffect에서 올바른 값으로 설정
-  const [currentYear, setCurrentYear] = useState<number>(new Date().getFullYear());
-  const [currentMonth, setCurrentMonth] = useState<number>(new Date().getMonth() + 1); // 1-12
+  const [selectedDate, setSelectedDate] = useState<string>(initialPendingTarget?.targetDate ?? '');
+
+  const applyPendingCalendarTarget = useCallback(async () => {
+    try {
+      const inMemoryTarget = consumeLatestPendingCalendarTarget();
+      if (inMemoryTarget?.year != null && inMemoryTarget?.month != null && inMemoryTarget?.targetDate) {
+        setCurrentYear(inMemoryTarget.year);
+        setCurrentMonth(inMemoryTarget.month);
+        setSelectedDate(inMemoryTarget.targetDate);
+        setPeriodType('month');
+        await refresh();
+        return;
+      }
+
+      const raw = await AsyncStorage.getItem('pendingCalendarTarget');
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { year?: number; month?: number; targetDate?: string };
+      if (parsed?.year != null && parsed?.month != null && parsed?.targetDate) {
+        setCurrentYear(parsed.year);
+        setCurrentMonth(parsed.month);
+        setSelectedDate(parsed.targetDate);
+        setPeriodType('month');
+        await AsyncStorage.removeItem('pendingCalendarTarget');
+        await refresh();
+      }
+    } catch {
+      // ignore
+    }
+  }, [refresh]);
 
   // 앱 시작 시 저장된 설정 불러오기 및 params 처리
   useEffect(() => {
     const loadSettings = async () => {
       try {
         beginLoad();
+        // 0) 메모리 pending 타겟이 있으면 최우선 적용 후 종료
+        if (
+          initialPendingTarget?.year != null &&
+          initialPendingTarget?.month != null &&
+          initialPendingTarget?.targetDate
+        ) {
+          setCurrentYear(initialPendingTarget.year);
+          setCurrentMonth(initialPendingTarget.month);
+          setSelectedDate(initialPendingTarget.targetDate);
+          setPeriodType('month');
+          return;
+        }
+
         // 0) pending 타겟이 있으면 최우선 적용 후 종료
         try {
           const raw = await AsyncStorage.getItem('pendingCalendarTarget');
@@ -233,6 +303,29 @@ export default function HomeScreen() {
     return unsub;
   }, [refresh]);
 
+  // 간편입력 등: 홈에 있을 때 해당 날짜로 포커스 적용
+  useEffect(() => {
+    const unsub = applyPendingCalendarTargetEvent.subscribe(async (target) => {
+      if (target?.year != null && target?.month != null && target?.targetDate) {
+        setCurrentYear(target.year);
+        setCurrentMonth(target.month);
+        setSelectedDate(target.targetDate);
+        setPeriodType('month');
+        return;
+      }
+      await applyPendingCalendarTarget();
+    });
+    return unsub;
+  }, [applyPendingCalendarTarget]);
+
+  // 타임라인에서 스와이프/백으로 복귀해도 pending 타겟을 항상 반영
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      void applyPendingCalendarTarget();
+    });
+    return unsubscribe;
+  }, [applyPendingCalendarTarget, navigation]);
+
   // 년도 화면에 진입할 때와 스크롤 애니메이션 처리
   useEffect(() => {
     if (periodType === 'year') {
@@ -320,28 +413,6 @@ export default function HomeScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isReady]);
 
-  // iOS 위젯에 이번달 소비 요약 데이터 동기화
-  useEffect(() => {
-    if (Platform.OS !== 'ios') {
-      return;
-    }
-
-    if (!isReady) {
-      return;
-    }
-
-    // financialData는 현재 커스텀 월 기준 합산 데이터
-    saveMonthlyExpenseToWidget(
-      Number(financialData.expense),
-      Number(financialData.income),
-      Number(financialData.balance),
-      Number(monthStartDay)
-    ).catch((error) => {
-      // 위젯 연동 실패는 앱 주요 플로우를 막지 않도록 조용히 로깅만 수행
-      console.warn('[HomeScreen] Failed to sync monthly data to widget:', error);
-    });
-  }, [financialData, monthStartDay, isReady]);
-
   // 앱이 백그라운드에서 포그라운드로 돌아올 때 날짜 변경 여부를 감지하여 오늘로 리셋
   const handleAppStateChange = useCallback(
     (nextAppState: AppStateStatus) => {
@@ -387,6 +458,11 @@ export default function HomeScreen() {
     };
   }, [handleAppStateChange]);
 
+  const handleQuickInputPress = useCallback(
+    (shortBottomFromScreen: number) => showQuickInput(starScale, starRotate, shortBottomFromScreen),
+    [showQuickInput, starScale, starRotate]
+  );
+
   useEffect(() => {
     if (isContentReady) {
       contentOpacity.setValue(0);
@@ -400,6 +476,31 @@ export default function HomeScreen() {
     }
   }, [isContentReady, contentOpacity]);
 
+  // Star 애니메이션: 홈 로딩 2초 후 → (스케일 다운·업 → 2초 대기 → 회전 2바퀴 → 5초 대기 → 리셋) 루프 반복
+  useEffect(() => {
+    if (!isContentReady || starAnimationRunRef.current) return;
+    starAnimationRunRef.current = true;
+
+    Animated.sequence([
+      Animated.delay(2500),
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(starScale, { toValue: 0.6, duration: 200, useNativeDriver: true }),
+          Animated.timing(starScale, { toValue: 1.35, duration: 200, useNativeDriver: true }),
+          Animated.timing(starScale, { toValue: 1, duration: 200, useNativeDriver: true }),
+          Animated.delay(1500),
+          Animated.timing(starRotate, {
+            toValue: 720,
+            duration: 3000,
+            easing: Easing.inOut(Easing.cubic),
+            useNativeDriver: true,
+          }),
+          Animated.delay(5000),
+          Animated.timing(starRotate, { toValue: 0, duration: 0, useNativeDriver: true }),
+        ])
+      ),
+    ]).start();
+  }, [isContentReady, starScale, starRotate]);
 
   // Calculate year data from calendar data (based on custom month start day)
   const yearData: MonthData[] = useMemo(() => {
@@ -482,8 +583,45 @@ export default function HomeScreen() {
     };
   }, [currentYear, currentMonth, calendarData, monthStartDay]);
 
+  const monthlyIncomeText = useMemo(() => {
+    const amount = Number(financialData.income) || 0;
+    return amount > 0 ? `+ ${amount.toLocaleString()}원` : '0원';
+  }, [financialData.income]);
+
+  const monthlyExpenseText = useMemo(() => {
+    const amount = Number(financialData.expense) || 0;
+    return amount > 0 ? `- ${amount.toLocaleString()}원` : '0원';
+  }, [financialData.expense]);
+
+  const monthlyBalanceText = useMemo(() => {
+    const amount = Number(financialData.balance) || 0;
+    return `${amount.toLocaleString()}원`;
+  }, [financialData.balance]);
+
+  // iOS 위젯에 이번달 소비 요약 데이터 동기화
+  useEffect(() => {
+    if (Platform.OS !== 'ios') {
+      return;
+    }
+
+    if (!isReady) {
+      return;
+    }
+
+    // financialData는 현재 커스텀 월 기준 합산 데이터
+    saveMonthlyExpenseToWidget(
+      Number(financialData.expense),
+      Number(financialData.income),
+      Number(financialData.balance),
+      Number(monthStartDay)
+    ).catch((error) => {
+      // 위젯 연동 실패는 앱 주요 플로우를 막지 않도록 조용히 로깅만 수행
+      console.warn('[HomeScreen] Failed to sync monthly data to widget:', error);
+    });
+  }, [financialData, monthStartDay, isReady]);
 
   return (
+    <View style={styles.screenWrapper}>
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       
       {/* Top Navigation */}
@@ -512,15 +650,14 @@ export default function HomeScreen() {
 
       {/* Conditional Content: Month View or Year View */}
       {periodType === 'month' ? (
-        <Animated.View style={{ opacity: isContentReady ? contentOpacity : 0 }}>
-            {/* Financial Summary Cards */}
-            <View style={[styles.summaryContainer, { backgroundColor: colors.fill }]}> 
-              <View style={styles.summaryRow}>
-                {/* Income Card */}
-                <Pressable 
-                  style={[styles.card, { backgroundColor: colors.staticWhite }]}
+        <Animated.View style={[styles.monthViewContent, { opacity: isContentReady ? contentOpacity : 0 }]}>
+            {/* 월 현황 (UI only 변경): 입금/소비/잔액 3개를 한 카드에 정렬 */}
+            <View style={[styles.monthStatusWrap, { backgroundColor: colors.fill }]}>
+              <View style={[styles.monthStatusCard, { backgroundColor: colors.staticWhite }]}>
+                {/* 입금 */}
+                <Pressable
+                  style={styles.monthStatusItem}
                   onPress={() => {
-                    // 수입 기록: 카테고리 선택 → 기록
                     const targetDate = effectiveSelectedDate;
                     router.push({
                       pathname: '/expense-category',
@@ -534,60 +671,24 @@ export default function HomeScreen() {
                   }}
                   accessibilityRole="button"
                   accessibilityLabel="수입 기록하기"
-                > 
-                  <Text style={[styles.cardLabel, { color: colors.textNeutral }]}> 
+                >
+                  <Text style={[styles.monthStatusLabel, { color: colors.textNeutral }]}>
                     수입
                   </Text>
-                  <Text 
-                    style={[styles.cardAmount, { color: colors.text }]}
-                    adjustsFontSizeToFit
+                  <Text
+                    style={[styles.monthStatusValue, { color: colors.text }]}
                     numberOfLines={1}
-                    minimumFontScale={0.5}
                   >
-                    + {financialData.income.toLocaleString()}원
+                    {monthlyIncomeText}
                   </Text>
                 </Pressable>
 
-                {/* Balance Card */}
-                <Pressable 
-                  style={[styles.card, { backgroundColor: colors.staticWhite }]}
-                  onPress={() => {
-                    // 타임라인으로 이동
-                    router.push({
-                      pathname: '/monthly-expense-timeline',
-                      params: {
-                        year: currentYear.toString(),
-                        month: currentMonth.toString(),
-                      },
-                    });
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel="월 타임라인 보기"
-                > 
-                  <Text style={[styles.cardLabel, { color: colors.textNeutral }]}> 
-                    잔액
-                  </Text>
-                  <Text 
-                    style={[styles.cardAmount, { 
-                      color: financialData.balance < 0 
-                        ? AtomicColors.red[500] 
-                        : AtomicColors.green[600]
-                    }]}
-                    adjustsFontSizeToFit
-                    numberOfLines={1}
-                    minimumFontScale={0.5}
-                  >
-                    {financialData.balance.toLocaleString()}원
-                  </Text>
-                </Pressable>
-              </View>
+                <View style={[styles.monthStatusDivider, { backgroundColor: colors.border }]} />
 
-              <View style={styles.summaryRow}>
-                {/* Expense Card */}
-                <Pressable 
-                  style={[styles.card, { backgroundColor: colors.staticWhite }]}
+                {/* 소비 */}
+                <Pressable
+                  style={styles.monthStatusItem}
                   onPress={() => {
-                    // 소비 카테고리 선택 화면으로 이동
                     const targetDate = effectiveSelectedDate;
                     router.push({
                       pathname: '/expense-category',
@@ -600,48 +701,65 @@ export default function HomeScreen() {
                   }}
                   accessibilityRole="button"
                   accessibilityLabel="소비 기록하기"
-                > 
-                  <Text style={[styles.cardLabel, { color: colors.textNeutral }]}> 
+                >
+                  <Text style={[styles.monthStatusLabel, { color: colors.textNeutral }]}>
                     소비
                   </Text>
-                  <Text 
-                    style={[styles.cardAmount, { color: colors.text }]}
-                    adjustsFontSizeToFit
+                  <Text
+                    style={[styles.monthStatusValue, { color: colors.text }]}
                     numberOfLines={1}
-                    minimumFontScale={0.5}
                   >
-                    - {financialData.expense.toLocaleString()}원
+                    {monthlyExpenseText}
                   </Text>
                 </Pressable>
 
-                {/* Challenge Card */}
-                <Pressable 
-                  style={[styles.card, { backgroundColor: colors.staticWhite }]}
+                <View style={[styles.monthStatusDivider, { backgroundColor: colors.border }]} />
+
+                {/* 잔액 - 탭 시 챌린지·통계 탭 리포트 > 소비 리포트로 이동 */}
+                <Pressable
+                  style={styles.monthStatusItem}
                   onPress={() => {
-                    // 챌린지 현황으로 이동
                     router.push({
-                      pathname: '/monthly-expense-timeline',
+                      pathname: '/(tabs)/challenge',
                       params: {
                         year: currentYear.toString(),
                         month: currentMonth.toString(),
-                        tab: 'challenge'
-                      }
+                        tab: 'status',
+                      },
                     });
                   }}
+                  accessibilityRole="button"
+                  accessibilityLabel="챌린지 통계 소비 리포트 보기"
                 >
-                  <Text style={[styles.cardLabel, { color: colors.textNeutral }]}> 
-                    챌린지 진행현황
+                  <Text style={[styles.monthStatusLabel, { color: colors.textNeutral }]}>
+                    잔액
                   </Text>
-                  <View style={styles.challengeIcon}>
-                    <Icon name="arrowRight" variant="solid" size={24} color={colors.textAssistive} />
-                  </View>
+                  <Text
+                    style={[
+                      styles.monthStatusValue,
+                      {
+                        color:
+                          financialData.balance < 0
+                            ? AtomicColors.red[500]
+                            : AtomicColors.green[600],
+                      },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {monthlyBalanceText}
+                  </Text>
                 </Pressable>
               </View>
             </View>
 
-            {/* Calendar */}
-            <CalendarMain
-              selectedDate={selectedDate}
+            {/* Calendar: flex 1로 남은 영역만 쓰고, 측정한 높이를 넘겨 FAB/간편입력과 겹치지 않게 함 */}
+            <View
+              style={styles.calendarContainer}
+              onLayout={(e) => setCalendarContainerHeight(e.nativeEvent.layout.height)}
+            >
+              <CalendarMain
+                containerHeight={calendarContainerHeight}
+                selectedDate={selectedDate}
               onDayPress={(dateString) => {
                 // 이미 선택된 날짜를 다시 탭하면 월 소비현황으로 이동
                 if (selectedDate === dateString) {
@@ -684,7 +802,8 @@ export default function HomeScreen() {
                 setCurrentYear(year);
                 setCurrentMonth(month);
               }}
-            />
+              />
+            </View>
         </Animated.View>
       ) : (
         <>
@@ -701,12 +820,115 @@ export default function HomeScreen() {
       )}
 
     </SafeAreaView>
+      {/* 간편입력: 월 캘린더에서만 노출 + 1.0.3 이상에서만 노출 (구버전 OTA 시 크래시 방지) */}
+      {periodType === 'month' && isAtLeastVersion(Constants.expoConfig?.version, QUICK_INPUT_MIN_VERSION) && (
+        <View
+          style={[
+            styles.quickInputShortWrap,
+            isQuickInputVisible && styles.quickInputShortHidden,
+          ]}
+          pointerEvents={isQuickInputVisible ? 'none' : 'auto'}
+        >
+          <QuickInputShort
+            bottom={FAB_OFFSET_ABOVE_TABS}
+            onPress={handleQuickInputPress}
+            starScale={starScale}
+            starRotate={starRotate}
+          />
+        </View>
+      )}
+
+      {/* FAB: 홈에서만 노출, 기록/챌린지 선택 바텀시트 오픈 */}
+      <Pressable
+        style={[
+          styles.fab,
+          styles.fabShadow,
+          {
+            backgroundColor: colors.primary,
+            // 탭 콘텐츠 영역 기준이므로 탭바 위 12px만 적용 (레이아웃에 둘 때와 동일한 시각 위치)
+            bottom: FAB_OFFSET_ABOVE_TABS,
+          },
+        ]}
+        onPress={() => createSheetEvent.emit()}
+        accessibilityRole="button"
+        accessibilityLabel="기록 또는 챌린지 선택"
+      >
+        <Icon name="addTaskFab" variant="line" size={24} color={iconWhite} />
+      </Pressable>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  screenWrapper: {
+    flex: 1,
+  },
   container: {
     flex: 1,
+  },
+  fab: {
+    position: 'absolute',
+    right: 16,
+    width: FAB_SIZE,
+    height: FAB_SIZE,
+    borderRadius: FAB_SIZE / 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fabShadow: {
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  quickInputShortWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  quickInputShortHidden: {
+    opacity: 0,
+  },
+  monthViewContent: {
+    flex: 1,
+  },
+  calendarContainer: {
+    flex: 1,
+  },
+  monthStatusWrap: {
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  monthStatusCard: {
+    height: 78,
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+  },
+  monthStatusItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  monthStatusDivider: {
+    width: 1,
+    height: 16,
+  },
+  monthStatusLabel: {
+    ...Typography.body2.r.medium,
+    textAlign: 'center',
+  },
+  monthStatusValue: {
+    ...Typography.body1.l.bold,
+    textAlign: 'center',
   },
   summaryContainer: {
     paddingHorizontal: 16,
@@ -735,13 +957,11 @@ const styles = StyleSheet.create({
     flex: 1, // Take remaining space
     textAlign: 'right',
   },
-  challengeIcon: {
+  agentCardArrow: {
     width: 24,
     height: 24,
-    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 'auto', // Push to right
   },
 });
 

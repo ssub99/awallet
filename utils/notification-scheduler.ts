@@ -8,24 +8,28 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 
+export const GENERAL_NOTIFICATIONS_ENABLED_KEY = 'generalNotificationsEnabled';
+export const CHALLENGE_NOTIFICATIONS_ENABLED_KEY = 'challengeNotificationsEnabled';
+const DAILY_REMINDER_TITLE = '오늘은 어떤 소비들을 하셨나요?';
+const DAILY_REMINDER_BODY = '시작이 반! 소비 기록을 통해 차근차근 소비습관을 개선해 보세요!';
+let dailyReminderOperationQueue: Promise<void> = Promise.resolve();
+
+function runDailyReminderExclusive<T>(operation: () => Promise<T>): Promise<T> {
+  const nextOperation = dailyReminderOperationQueue.then(operation, operation);
+  dailyReminderOperationQueue = nextOperation.then(
+    () => undefined,
+    () => undefined
+  );
+  return nextOperation;
+}
+
 /**
- * Check if notifications should be sent
- * Returns true only if both app setting and system permission are granted
+ * Check only system permission.
+ * Feature ON/OFF 판단은 general/challenge 분기 키에서 처리한다.
  */
 async function shouldSendNotification(): Promise<boolean> {
   try {
-    // 1. Check app setting (ensure default value exists)
-    let notificationsEnabled = await AsyncStorage.getItem('notificationsEnabled');
-    if (notificationsEnabled === null) {
-      notificationsEnabled = 'true';
-      await AsyncStorage.setItem('notificationsEnabled', JSON.stringify(true));
-    }
-
-    if (notificationsEnabled !== 'true') {
-      return false;
-    }
-    
-    // 2. Check system permission
+    // Check system permission
     const { status } = await Notifications.getPermissionsAsync();
     if (status !== 'granted') {
       return false;
@@ -34,6 +38,145 @@ async function shouldSendNotification(): Promise<boolean> {
     return true;
   } catch (error) {
     return false;
+  }
+}
+
+async function getLegacyNotificationsEnabled(): Promise<boolean> {
+  const legacy = await AsyncStorage.getItem('notificationsEnabled');
+  if (legacy === null) return true;
+  return legacy === 'true';
+}
+
+export async function getGeneralNotificationsEnabled(): Promise<boolean> {
+  const stored = await AsyncStorage.getItem(GENERAL_NOTIFICATIONS_ENABLED_KEY);
+  if (stored === null) {
+    const fallback = await getLegacyNotificationsEnabled();
+    await AsyncStorage.setItem(GENERAL_NOTIFICATIONS_ENABLED_KEY, JSON.stringify(fallback));
+    return fallback;
+  }
+  return stored === 'true';
+}
+
+export async function getChallengeNotificationsEnabled(): Promise<boolean> {
+  const stored = await AsyncStorage.getItem(CHALLENGE_NOTIFICATIONS_ENABLED_KEY);
+  if (stored === null) {
+    const fallback = await getLegacyNotificationsEnabled();
+    await AsyncStorage.setItem(CHALLENGE_NOTIFICATIONS_ENABLED_KEY, JSON.stringify(fallback));
+    return fallback;
+  }
+  return stored === 'true';
+}
+
+async function shouldSendGeneralNotification(): Promise<boolean> {
+  const isEnabled = await getGeneralNotificationsEnabled();
+  if (!isEnabled) {
+    return false;
+  }
+  return shouldSendNotification();
+}
+
+async function shouldSendChallengeNotification(): Promise<boolean> {
+  const isEnabled = await getChallengeNotificationsEnabled();
+  if (!isEnabled) {
+    return false;
+  }
+  return shouldSendNotification();
+}
+
+async function cancelScheduledNotificationsByTypes(types: string[]): Promise<void> {
+  const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
+  for (const notification of scheduledNotifications) {
+    const notificationType = notification.content.data?.type;
+    if (typeof notificationType === 'string' && types.includes(notificationType)) {
+      try {
+        await Notifications.cancelScheduledNotificationAsync(notification.identifier);
+      } catch {
+        // ignore cancellation failures for missing/stale identifiers
+      }
+    }
+  }
+}
+
+function isGeneralReminderNotification(notification: Notifications.NotificationRequest): boolean {
+  const notificationType = notification.content.data?.type;
+  return (
+    notification.identifier === 'daily_expense_reminder' ||
+    notificationType === 'expense_reminder' ||
+    (notification.content.title === DAILY_REMINDER_TITLE &&
+      notification.content.body === DAILY_REMINDER_BODY)
+  );
+}
+
+async function getGeneralReminderNotifications(): Promise<Notifications.NotificationRequest[]> {
+  const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
+  return scheduledNotifications.filter(isGeneralReminderNotification);
+}
+
+async function dedupeGeneralReminderNotifications(): Promise<void> {
+  const generalNotifications = await getGeneralReminderNotifications();
+  if (generalNotifications.length <= 1) {
+    return;
+  }
+
+  // Keep the first notification and cancel the rest.
+  for (let index = 1; index < generalNotifications.length; index += 1) {
+    await Notifications.cancelScheduledNotificationAsync(generalNotifications[index].identifier).catch(() => {});
+  }
+}
+
+async function cancelGeneralReminderNotifications(): Promise<void> {
+  // 1) Known fixed identifier cancellation
+  await Notifications.cancelScheduledNotificationAsync('daily_expense_reminder').catch(() => {});
+
+  // 2) Defensive cleanup for legacy or orphan reminder schedules by type
+  await cancelScheduledNotificationsByTypes(['expense_reminder']);
+
+  // 3) Additional defensive cleanup:
+  // some legacy requests may not have the expected identifier/data.type.
+  const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
+  for (const notification of scheduledNotifications) {
+    if (isGeneralReminderNotification(notification)) {
+      try {
+        await Notifications.cancelScheduledNotificationAsync(notification.identifier);
+      } catch {
+        // ignore cancellation failures for missing/stale identifiers
+      }
+    }
+  }
+
+  // 4) Final retry once if anything still remains after cancellation
+  const remainingGeneralReminders = await getGeneralReminderNotifications();
+
+  if (remainingGeneralReminders.length > 0) {
+    for (const notification of remainingGeneralReminders) {
+      await Notifications.cancelScheduledNotificationAsync(notification.identifier).catch(() => {});
+    }
+  }
+}
+
+export async function setGeneralNotificationsEnabled(enabled: boolean): Promise<void> {
+  await AsyncStorage.setItem(GENERAL_NOTIFICATIONS_ENABLED_KEY, JSON.stringify(enabled));
+  if (!enabled) {
+    await cancelDailyReminder();
+    return;
+  }
+  await setupDailyReminder();
+}
+
+export async function setChallengeNotificationsEnabled(enabled: boolean): Promise<void> {
+  await AsyncStorage.setItem(CHALLENGE_NOTIFICATIONS_ENABLED_KEY, JSON.stringify(enabled));
+  if (!enabled) {
+    await cancelScheduledNotificationsByTypes(['challenge_progress', 'challenge_success', 'challenge_failure']);
+    const keys = await AsyncStorage.getAllKeys();
+    const challengeMarkKeys = keys.filter(
+      (key) =>
+        key.startsWith('challenge_progress_') ||
+        key.startsWith('challenge_success_') ||
+        key.startsWith('challenge_failure_')
+    );
+    if (challengeMarkKeys.length > 0) {
+      await AsyncStorage.multiRemove(challengeMarkKeys);
+    }
   }
 }
 
@@ -62,55 +205,35 @@ async function hasExpenseToday(): Promise<boolean> {
  * 매일 오후 8시, 당일 소비 기록 0건일 때만
  */
 export async function setupDailyReminder(): Promise<void> {
+  return runDailyReminderExclusive(async () => {
+    await setupDailyReminderInternal();
+  });
+}
+
+async function setupDailyReminderInternal(): Promise<void> {
   try {
+    // ✅ 항상 먼저 취소 → 최대 1개만 유지 (중복 푸시 방지)
+    await cancelDailyReminderInternal();
+
     // Global check: 알림 설정 + 권한
-    if (!(await shouldSendNotification())) {
+    if (!(await shouldSendGeneralNotification())) {
       return;
     }
-    
-    // ✅ 앱 시작 시 소비 기록 상태 확인
-    // 소비 기록이 있으면 당일 알림 취소
+
+    // 소비 기록이 있으면 당일 알림 스케줄하지 않음
     if (await hasExpenseToday()) {
-      await cancelDailyReminder();
       return;
     }
-    
-    // ✅ 중복 스케줄링 방지: 오늘 이미 스케줄되었는지 확인
+
     const today = new Date().toDateString();
     const scheduledKey = `daily_reminder_${today}`;
-    const alreadyScheduled = await AsyncStorage.getItem(scheduledKey);
-    
-    if (alreadyScheduled) {
-      return;
-    }
-    
-    // ✅ 기존 일일 알림 확인 및 취소
-    const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
-    const existingDailyReminder = scheduledNotifications.find(
-      notification => 
-        notification.identifier === 'daily_expense_reminder' ||
-        notification.content.data?.type === 'expense_reminder' ||
-        notification.content.title === '오늘은 어떤 소비들을 하셨나요?'
-    );
-    
-    // 이미 일일 알림이 스케줄되어 있으면 새로 스케줄하지 않음
-    if (existingDailyReminder) {
-      return;
-    }
-    
-    // 기존 일일 알림 취소 (혹시 모를 경우를 대비)
-    try {
-      await Notifications.cancelScheduledNotificationAsync('daily_expense_reminder');
-    } catch (error) {
-      // Ignore if not found
-    }
-    
+
     // Schedule notification for 8 PM daily
     await Notifications.scheduleNotificationAsync({
       identifier: 'daily_expense_reminder',
       content: {
-        title: '오늘은 어떤 소비들을 하셨나요?',
-        body: '시작이 반! 소비 기록을 통해 차근차근 소비습관을 개선해 보세요!',
+        title: DAILY_REMINDER_TITLE,
+        body: DAILY_REMINDER_BODY,
         data: { type: 'expense_reminder' },
       },
       trigger: {
@@ -119,6 +242,16 @@ export async function setupDailyReminder(): Promise<void> {
         minute: 0,
       },
     });
+
+    // OFF로 바뀐 직후 stale schedule이 생기지 않도록 스케줄 직후 재검증
+    if (!(await shouldSendGeneralNotification())) {
+      await cancelGeneralReminderNotifications();
+      await AsyncStorage.removeItem(scheduledKey);
+      return;
+    }
+
+    // 개발환경/레이스 조건에서 생길 수 있는 중복 예약 방지
+    await dedupeGeneralReminderNotifications();
     
     // ✅ 스케줄링 완료 마킹
     await AsyncStorage.setItem(scheduledKey, 'true');
@@ -131,18 +264,16 @@ export async function setupDailyReminder(): Promise<void> {
  * 소비 기록 저장 시 당일 알림 취소
  */
 export async function cancelDailyReminder(): Promise<void> {
+  return runDailyReminderExclusive(async () => {
+    await cancelDailyReminderInternal();
+  });
+}
+
+async function cancelDailyReminderInternal(): Promise<void> {
   try {
-    // Global check: 알림 설정 + 권한
-    if (!(await shouldSendNotification())) {
-      return;
-    }
-    
-    // 당일 알림 취소
-    try {
-      await Notifications.cancelScheduledNotificationAsync('daily_expense_reminder');
-    } catch (error) {
-      // Ignore if not found
-    }
+    // 취소는 설정/권한과 무관하게 항상 수행해야 잔여 스케줄이 남지 않음
+    // (OFF 상태, 권한 거부 상태에서도 기존 예약 정리는 필요)
+    await cancelGeneralReminderNotifications();
     
     // 오늘 날짜의 스케줄링 마킹 제거
     const today = new Date().toDateString();
@@ -158,63 +289,48 @@ export async function cancelDailyReminder(): Promise<void> {
  * 소비 기록 삭제 시 당일 알림 재스케줄링 (오후 8시 전이면)
  */
 export async function rescheduleDailyReminderIfNeeded(): Promise<void> {
+  return runDailyReminderExclusive(async () => {
+    await rescheduleDailyReminderIfNeededInternal();
+  });
+}
+
+async function rescheduleDailyReminderIfNeededInternal(): Promise<void> {
   try {
+    // ✅ 항상 먼저 취소 → 최대 1개만 유지 (중복 푸시 방지)
+    await cancelDailyReminderInternal();
+
     // Global check: 알림 설정 + 권한
-    if (!(await shouldSendNotification())) {
+    if (!(await shouldSendGeneralNotification())) {
       return;
     }
-    
-    // 현재 시간 확인
+
     const now = new Date();
     const currentHour = now.getHours();
-    
+
     // 오후 8시가 지났으면 스케줄링하지 않음
     if (currentHour >= 20) {
       return;
     }
-    
+
     // 소비 기록이 있으면 스케줄링하지 않음
     if (await hasExpenseToday()) {
       return;
     }
-    
-    // 오늘 날짜의 스케줄링 마킹 확인
+
     const today = new Date().toDateString();
     const scheduledKey = `daily_reminder_${today}`;
-    const alreadyScheduled = await AsyncStorage.getItem(scheduledKey);
-    
-    if (alreadyScheduled) {
-      return;
-    }
-    
-    // 기존 일일 알림 확인
-    const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
-    const existingDailyReminder = scheduledNotifications.find(
-      notification => 
-        notification.identifier === 'daily_expense_reminder' ||
-        notification.content.data?.type === 'expense_reminder' ||
-        notification.content.title === '오늘은 어떤 소비들을 하셨나요?'
-    );
-    
-    // 이미 일일 알림이 스케줄되어 있으면 새로 스케줄하지 않음
-    if (existingDailyReminder) {
-      return;
-    }
-    
-    // 당일 오후 8시 알림 스케줄링
     const today8PM = new Date();
     today8PM.setHours(20, 0, 0, 0);
-    
-    // 이미 오후 8시가 지났으면 스케줄링하지 않음
+
     if (today8PM.getTime() <= now.getTime()) {
       return;
     }
-    
+
     await Notifications.scheduleNotificationAsync({
       identifier: 'daily_expense_reminder',
       content: {
-        title: '오늘은 어떤 소비들을 하셨나요?',
-        body: '시작이 반! 소비 기록을 통해 차근차근 소비습관을 개선해 보세요!',
+        title: DAILY_REMINDER_TITLE,
+        body: DAILY_REMINDER_BODY,
         data: { type: 'expense_reminder' },
       },
       trigger: {
@@ -222,6 +338,16 @@ export async function rescheduleDailyReminderIfNeeded(): Promise<void> {
         date: today8PM,
       },
     });
+
+    // OFF로 바뀐 직후 stale schedule이 생기지 않도록 스케줄 직후 재검증
+    if (!(await shouldSendGeneralNotification())) {
+      await cancelGeneralReminderNotifications();
+      await AsyncStorage.removeItem(scheduledKey);
+      return;
+    }
+
+    // 개발환경/레이스 조건에서 생길 수 있는 중복 예약 방지
+    await dedupeGeneralReminderNotifications();
     
     // 스케줄링 완료 마킹
     await AsyncStorage.setItem(scheduledKey, 'true');
@@ -272,7 +398,7 @@ export async function notifyChallengeProgress(
   referenceDate: Date
 ): Promise<void> {
   try {
-    if (!(await shouldSendNotification())) {
+    if (!(await shouldSendChallengeNotification())) {
       return;
     }
     
@@ -319,7 +445,7 @@ export async function notifyChallengeProgress(
       identifier,
       content: {
         title: `[#${category}] 챌린지 진행현황`,
-        body: `${Math.round(100 - percentage)}% 남음. 오늘의 소비는 어떠셨나요?`,
+        body: `${Math.round(100 - percentage)}% 남음. 오늘은 어떤 소비를 하실 예정이신가요?`,
         data: { 
           type: 'challenge_progress',
           challengeId,
@@ -351,7 +477,7 @@ export async function notifyChallengeSuccess(
 ): Promise<void> {
   try {
     // Global check
-    if (!(await shouldSendNotification())) {
+    if (!(await shouldSendChallengeNotification())) {
       return;
     }
     
@@ -502,7 +628,7 @@ export async function notifyChallengeFailure(
 ): Promise<void> {
   try {
     // Global check
-    if (!(await shouldSendNotification())) {
+    if (!(await shouldSendChallengeNotification())) {
       return;
     }
     
@@ -564,10 +690,8 @@ export async function notifyChallengeFailure(
  */
 export async function cancelAllNotifications(): Promise<Array<Notifications.NotificationRequest>> {
   try {
-    // Cancel all scheduled notifications
+    // Dev 테스트 버튼 용도: 단일 호출로 전체 취소 후 남은 항목 조회
     await Notifications.cancelAllScheduledNotificationsAsync();
-    
-    // Return any remaining notifications (for debugging)
     const remaining = await Notifications.getAllScheduledNotificationsAsync();
     return remaining;
   } catch (error) {

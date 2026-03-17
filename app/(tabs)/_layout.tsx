@@ -1,19 +1,23 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
+import { StyleSheet, View } from 'react-native';
 
 import { TabBar } from '@/components/navigation/tab-bar';
 import { Icon } from '@/components/ui/icon';
 import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { CreateSheetProvider } from '@/contexts/create-sheet-context';
+import { QuickInputProvider } from '@/contexts/quick-input-context';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
 
   return (
-    <CreateSheetProvider>
-      <Tabs
+    <QuickInputProvider>
+      <CreateSheetProvider>
+        <View style={styles.wrapper}>
+        <Tabs
         initialRouteName="home"
         tabBar={(props) => <TabBar {...props} />}
         screenOptions={{
@@ -31,11 +35,11 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
-          name="create"
+          name="challenge"
           options={{
-            title: '기록하기',
-            tabBarIcon: () => (
-              <Icon name="addTask" variant="line" size={28} color={colors.staticBlack} />
+            title: '챌린지∙통계',
+            tabBarIcon: ({ focused }) => (
+              <Icon name="challenge" variant={focused ? 'solid' : 'line'} size={28} color={colors.staticBlack} />
             ),
           }}
         />
@@ -50,6 +54,12 @@ export default function TabLayout() {
         />
         
         {/* Hidden tabs - still accessible but not in bottom navigation */}
+        <Tabs.Screen
+          name="create"
+          options={{
+            href: null,
+          }}
+        />
         <Tabs.Screen
           name="index"
           options={{
@@ -81,6 +91,14 @@ export default function TabLayout() {
           }}
         />
       </Tabs>
-    </CreateSheetProvider>
+        </View>
+      </CreateSheetProvider>
+    </QuickInputProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  wrapper: {
+    flex: 1,
+  },
+});

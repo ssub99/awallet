@@ -518,6 +518,8 @@ export default function CategoryEditScreen() {
             contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
+            bounces={false}
+            overScrollMode="never"
           >
             {/* Emoji Selection */}
             <View style={styles.emojiSection}>
@@ -589,6 +591,7 @@ export default function CategoryEditScreen() {
                 contentContainerStyle={styles.categoryListScrollContent}
                 showsVerticalScrollIndicator={false}
                 bounces={false}
+                overScrollMode="never"
               >
                 {(Object.keys(EMOJI_CATEGORIES) as EmojiCategory[]).map((category) => (
                   <Pressable

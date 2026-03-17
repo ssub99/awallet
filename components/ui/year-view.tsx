@@ -82,6 +82,8 @@ export const YearView = forwardRef<YearViewRef, YearViewProps>(
         style={styles.container}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
+        bounces={false}
+        overScrollMode="never"
       >
         {sortedData.map((data) => (
           <MonthCard

@@ -25,6 +25,9 @@ export interface ExpenseRecord {
   isPrepaid?: boolean;
   prepaidDate?: string; // YYYY.MM.DD 형식
   isRefunded?: boolean;
+  isSettled?: boolean;
+  settledAt?: string;
+  originalAmountBeforeSettlement?: number;
   installmentOriginDate?: string; // 할부 기록 원본 예정일 (선결제 시 사용)
   isDeleted?: boolean;
   deletedAt?: string | null;
@@ -122,6 +125,47 @@ export async function createExpense(record: ExpenseRecord): Promise<ExpenseRecor
   await persistExpenses(filtered);
   
   return expense;
+}
+
+export async function createExpensesBatch(records: ExpenseRecord[]): Promise<ExpenseRecord[]> {
+  if (records.length === 0) {
+    return [];
+  }
+
+  const normalizedIncoming = records.map(normalizeExpense);
+  const incomingIds = new Set<string>();
+  const incomingTimestamps = new Set<number>();
+  const dedupedIncoming: ExpenseRecord[] = [];
+
+  for (const record of normalizedIncoming) {
+    const id = record.id ?? '';
+    const hasDuplicateId = id.length > 0 && incomingIds.has(id);
+    const hasDuplicateTimestamp = incomingTimestamps.has(record.timestamp);
+    if (hasDuplicateId || hasDuplicateTimestamp) {
+      continue;
+    }
+
+    if (id.length > 0) {
+      incomingIds.add(id);
+    }
+    incomingTimestamps.add(record.timestamp);
+    dedupedIncoming.push(record);
+  }
+
+  if (dedupedIncoming.length === 0) {
+    return [];
+  }
+
+  const existing = await loadLocalExpenses();
+  const filteredExisting = existing.filter((item) => {
+    if (item.id && incomingIds.has(item.id)) {
+      return false;
+    }
+    return !incomingTimestamps.has(item.timestamp);
+  });
+
+  await persistExpenses([...filteredExisting, ...dedupedIncoming]);
+  return dedupedIncoming;
 }
 
 export async function updateExpense(
@@ -246,6 +290,13 @@ export async function deleteExpensesByCategory(categoryLabel: string): Promise<v
 
 export async function clearAllExpenses(): Promise<void> {
   await AsyncStorage.removeItem(EXPENSE_STORAGE_KEY);
+}
+
+/**
+ * 복원용: 전체 지출 데이터를 주어진 배열로 교체합니다.
+ */
+export async function replaceAllExpenses(records: ExpenseRecord[]): Promise<void> {
+  await persistExpenses(records);
 }
 
 export async function deleteExpensesByGroup(params: {

@@ -6,7 +6,7 @@
 
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Button } from '@/components/ui/button';
-import { CustomKeypad, type CustomKeypadOperator, type ExpressionToken } from '@/components/ui/custom-keypad';
+import { CustomKeypad, getKeypadHeight, type CustomKeypadOperator, type ExpressionToken } from '@/components/ui/custom-keypad';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { ModalPopup } from '@/components/ui/modal-popup';
@@ -25,10 +25,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BlurView } from 'expo-blur';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, Dimensions, Easing, Keyboard, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { Alert, Animated, Dimensions, Easing, Keyboard, Pressable, ScrollView, StatusBar, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-
-const KEYPAD_HEIGHT = 282;
 
 export default function ChallengeEditScreen() {
   const colorScheme = useColorScheme();
@@ -36,6 +34,8 @@ export default function ChallengeEditScreen() {
   const router = useRouter();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
+  const KEYPAD_HEIGHT = getKeypadHeight(windowWidth);
   const { setLoading } = useLoading();
   const { showToast } = useToast();
   const params = useLocalSearchParams<{ 
@@ -174,16 +174,20 @@ export default function ChallengeEditScreen() {
     }
   };
 
-  // 금액 입력 시 처리하는 함수
+  // 금액 입력 시 처리하는 함수 (소비 기록과 동일한 상한선 적용)
   const handleAmountChange = (text: string) => {
     const numbersOnly = text.replace(/[^0-9]/g, '');
     
-    if (numbersOnly) {
-      const formattedAmount = Number(numbersOnly).toLocaleString();
-      setTargetAmount(formattedAmount);
-    } else {
+    if (!numbersOnly) {
       setTargetAmount('');
+      return;
     }
+
+    const num = parseInt(numbersOnly, 10);
+    const MAX_AMOUNT = 1000000000; // 10억
+    const clamped = Math.min(num, MAX_AMOUNT);
+
+    setTargetAmount(clamped.toLocaleString());
   };
 
   const formatAmountDisplay = useCallback((raw: string) => {
@@ -370,26 +374,26 @@ export default function ChallengeEditScreen() {
         updatedAt: Date.now(),
       });
 
-      // 챌린지 현황으로 이동 (스택 리셋)
-      (navigation as any).reset({
-        index: 0,
-        routes: [
-          {
-            name: '(tabs)',
-            params: {
-              screen: 'home',
+      // 키패드·언마운트와 reset 타이밍 분리: 키패드 닫고 짧은 지연 후 reset
+      Keyboard.dismiss();
+      const now = new Date();
+      setTimeout(() => {
+        (navigation as any).reset({
+          index: 0,
+          routes: [
+            {
+              name: '(tabs)',
+              params: {
+                screen: 'challenge',
+                params: {
+                  year: now.getFullYear().toString(),
+                  month: (now.getMonth() + 1).toString(),
+                },
+              },
             },
-          },
-          {
-            name: 'monthly-expense-timeline',
-            params: {
-              year: new Date().getFullYear().toString(),
-              month: (new Date().getMonth() + 1).toString(),
-              tab: 'challenge',
-            },
-          },
-        ],
-      });
+          ],
+        });
+      }, 50);
     } catch (error) {
       console.error('[챌린지 수정] error:', error);
       Alert.alert('오류', '챌린지 저장에 실패했습니다.');
@@ -423,28 +427,27 @@ export default function ChallengeEditScreen() {
       }
 
       setShowDeleteModal(false);
-      
-      // 챌린지 현황으로 이동 (스택 리셋 - 소비기록 삭제와 동일한 방식)
-      // 스택의 루트부터 시작하여 챌린지 현황 화면만 남기도록 리셋
-      (navigation as any).reset({
-        index: 0,
-        routes: [
-          {
-            name: '(tabs)',
-            params: {
-              screen: 'home',
+
+      // 키패드·언마운트와 reset 타이밍 분리: 키패드 닫고 짧은 지연 후 reset
+      Keyboard.dismiss();
+      const now = new Date();
+      setTimeout(() => {
+        (navigation as any).reset({
+          index: 0,
+          routes: [
+            {
+              name: '(tabs)',
+              params: {
+                screen: 'challenge',
+                params: {
+                  year: now.getFullYear().toString(),
+                  month: (now.getMonth() + 1).toString(),
+                },
+              },
             },
-          },
-          {
-            name: 'monthly-expense-timeline',
-            params: {
-              year: new Date().getFullYear().toString(),
-              month: (new Date().getMonth() + 1).toString(),
-              tab: 'challenge'
-            },
-          },
-        ],
-      });
+          ],
+        });
+      }, 50);
     } catch (error) {
       console.error('[챌린지 삭제] error:', error);
       Alert.alert('오류', '챌린지 삭제에 실패했습니다.');
@@ -585,34 +588,13 @@ export default function ChallengeEditScreen() {
             ]}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
-            onScrollBeginDrag={() => {
-              isScrollingRef.current = true;
-              clearDismissTimeout();
-              ignoreNextTouchEndRef.current = true;
-            }}
-            onScrollEndDrag={() => {
-              isScrollingRef.current = false;
-              setTimeout(() => {
-                ignoreNextTouchEndRef.current = false;
-              }, 0);
-            }}
-            onMomentumScrollEnd={() => {
-              isScrollingRef.current = false;
-              setTimeout(() => {
-                ignoreNextTouchEndRef.current = false;
-              }, 0);
-            }}
+            bounces={false}
+            overScrollMode="never"
             onTouchEnd={() => {
+              // 수입/소비 기록과 동일하게, 본문 영역을 탭하면 커스텀 키패드를 닫는다.
               if (!isKeypadVisible) return;
               clearDismissTimeout();
-              if (ignoreNextTouchEndRef.current) {
-                ignoreNextTouchEndRef.current = false;
-                return;
-              }
-              dismissTimeoutRef.current = setTimeout(() => {
-                if (isScrollingRef.current) return;
-                handleKeypadDismiss();
-              }, 0);
+              handleKeypadDismiss();
             }}
           >
           {/* 챌린지 정보 */}

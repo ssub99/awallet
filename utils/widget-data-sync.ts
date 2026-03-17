@@ -19,6 +19,7 @@ interface WidgetDataSyncModule {
     balance: number;
     monthStartDay: number;
   }) => Promise<void>;
+  clearMonthlyExpenseRevealState: () => Promise<void>;
 }
 
 // 네이티브 모듈 가져오기 (iOS만)
@@ -124,6 +125,24 @@ export async function saveMonthlyExpenseToWidget(
   } catch (error) {
     console.error('[WidgetDataSync] Failed to save monthly expense data:', error);
     throw error;
+  }
+}
+
+/**
+ * 잠금화면 위젯 금액 공개 상태를 초기화(재마스킹)합니다.
+ * 앱 진입 직후 호출해 위젯에 금액이 계속 노출되지 않도록 합니다.
+ */
+export async function resetMonthlyExpenseMaskInWidget(): Promise<void> {
+  if (Platform.OS !== 'ios') return;
+
+  if (!widgetDataSync || typeof widgetDataSync.clearMonthlyExpenseRevealState !== 'function') {
+    return;
+  }
+
+  try {
+    await widgetDataSync.clearMonthlyExpenseRevealState();
+  } catch (error) {
+    console.warn('[WidgetDataSync] Failed to reset monthly expense reveal state:', error);
   }
 }
 

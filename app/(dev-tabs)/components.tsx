@@ -22,9 +22,18 @@ import { Tab } from '@/components/ui/tab';
 import { Tag } from '@/components/ui/tag';
 import { Colors, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { cancelAllNotifications, clearChallengeNotificationMarks, getScheduledNotifications, sendTestNotification } from '@/utils/notification-scheduler';
+import {
+  cancelAllNotifications,
+  cancelDailyReminder,
+  clearChallengeNotificationMarks,
+  getChallengeNotificationsEnabled,
+  getGeneralNotificationsEnabled,
+  getScheduledNotifications,
+  sendTestNotification,
+  setupDailyReminder,
+} from '@/utils/notification-scheduler';
 import { getAllChallenges } from '@/utils/challenges';
-import { getChallengeStatus } from '@/utils/challenge-utils';
+import { checkActiveChallengesNotifications, checkEndedChallenges, getChallengeStatus } from '@/utils/challenge-utils';
 import { storageCache } from '@/utils/storage-cache';
 import { useAppData } from '@/contexts/app-data-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -160,6 +169,20 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
     if ((window as any).restoreDate) {
       (window as any).restoreDate();
     }
+  };
+
+  const isGeneralNotification = (notification: { identifier: string; content: { data?: Record<string, unknown> } }) => {
+    const type = notification.content.data?.type;
+    return notification.identifier === 'daily_expense_reminder' || type === 'expense_reminder';
+  };
+
+  const isChallengeNotification = (notification: { content: { data?: Record<string, unknown> } }) => {
+    const type = notification.content.data?.type;
+    return (
+      type === 'challenge_progress' ||
+      type === 'challenge_success' ||
+      type === 'challenge_failure'
+    );
   };
 
   return (
@@ -789,6 +812,211 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
       </View>
 
       <SectionHeader title="ℹ️ 안내" colors={colors} />
+      
+      <View style={styles.section}>
+        <Pressable
+          style={[styles.testButton, { backgroundColor: '#455A64' }]}
+          onPress={async () => {
+            const [generalEnabled, challengeEnabled, scheduled] = await Promise.all([
+              getGeneralNotificationsEnabled(),
+              getChallengeNotificationsEnabled(),
+              getScheduledNotifications(),
+            ]);
+            const generalCount = scheduled.filter(isGeneralNotification).length;
+            const challengeCount = scheduled.filter(isChallengeNotification).length;
+            alert(
+              `분기 상태\n\n` +
+                `일반 알림: ${generalEnabled ? 'ON' : 'OFF'}\n` +
+                `챌린지 알림: ${challengeEnabled ? 'ON' : 'OFF'}\n\n` +
+                `일반 예약 수: ${generalCount}\n` +
+                `챌린지 예약 수: ${challengeCount}\n` +
+                `전체 예약 수: ${scheduled.length}`
+            );
+          }}
+        >
+          <Text style={[styles.testButtonText, { color: colors.staticWhite }]}>
+            🔀 분기 상태 조회
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={[styles.testButton, { backgroundColor: '#1E88E5' }]}
+          onPress={async () => {
+            const generalEnabled = await getGeneralNotificationsEnabled();
+            if (generalEnabled) {
+              await setupDailyReminder();
+            } else {
+              await cancelDailyReminder();
+            }
+            const scheduled = await getScheduledNotifications();
+            const generalScheduled = scheduled.filter(isGeneralNotification);
+            const generalDetails = generalScheduled
+              .map((notification) => {
+                const type = String(notification.content.data?.type ?? 'unknown');
+                return `- ${notification.identifier} (${type})`;
+              })
+              .join('\n');
+            alert(
+              `일반 알림 재평가 완료\n\n` +
+                `설정 상태: ${generalEnabled ? 'ON' : 'OFF'}\n` +
+                `예약 수: ${generalScheduled.length}\n\n` +
+                `${generalDetails || '예약된 일반 알림이 없습니다.'}`
+            );
+          }}
+        >
+          <Text style={[styles.testButtonText, { color: colors.staticWhite }]}>
+            🔁 일반 알림 재스케줄 테스트
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={[styles.testButton, { backgroundColor: '#8E24AA' }]}
+          onPress={async () => {
+            const challengeEnabled = await getChallengeNotificationsEnabled();
+            if (challengeEnabled) {
+              await checkActiveChallengesNotifications();
+              await checkEndedChallenges();
+            }
+            const scheduled = await getScheduledNotifications();
+            const challengeScheduled = scheduled.filter(isChallengeNotification);
+            alert(
+              `챌린지 알림 재평가 완료\n\n` +
+                `설정 상태: ${challengeEnabled ? 'ON' : 'OFF'}\n` +
+                `예약 수: ${challengeScheduled.length}\n` +
+                `(progress/success/failure 합산)`
+            );
+          }}
+        >
+          <Text style={[styles.testButtonText, { color: colors.staticWhite }]}>
+            🔁 챌린지 알림 재평가 테스트
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={[styles.testButton, { backgroundColor: '#5D4037' }]}
+          onPress={async () => {
+            const scheduled = await getScheduledNotifications();
+            const expenseReminder = scheduled.filter(
+              (notification) => notification.content.data?.type === 'expense_reminder'
+            ).length;
+            const challengeProgress = scheduled.filter(
+              (notification) => notification.content.data?.type === 'challenge_progress'
+            ).length;
+            const challengeSuccess = scheduled.filter(
+              (notification) => notification.content.data?.type === 'challenge_success'
+            ).length;
+            const challengeFailure = scheduled.filter(
+              (notification) => notification.content.data?.type === 'challenge_failure'
+            ).length;
+            const getTriggerSummary = (trigger: unknown): string => {
+              if (!trigger || typeof trigger !== 'object') {
+                return 'none';
+              }
+
+              const triggerWithType = trigger as { type?: unknown };
+              const triggerType =
+                typeof triggerWithType.type === 'string' ? triggerWithType.type : 'unknown';
+
+              if ('date' in trigger) {
+                const dateValue = (trigger as { date?: unknown }).date;
+                if (dateValue) {
+                  return `${triggerType} @ ${new Date(String(dateValue)).toLocaleString('ko-KR')}`;
+                }
+              }
+
+              if ('hour' in trigger && 'minute' in trigger) {
+                const hour = (trigger as { hour?: unknown }).hour;
+                const minute = (trigger as { minute?: unknown }).minute;
+                if (typeof hour === 'number' && typeof minute === 'number') {
+                  return `${triggerType} @ ${hour}:${String(minute).padStart(2, '0')}`;
+                }
+              }
+
+              return triggerType;
+            };
+
+            const details = scheduled
+              .map((notification, index) => {
+                const type = String(notification.content.data?.type ?? 'unknown');
+                const title = notification.content.title ?? '(제목 없음)';
+                const trigger = getTriggerSummary(notification.trigger);
+                return `${index + 1}. ${title}\n- id: ${notification.identifier}\n- type: ${type}\n- trigger: ${trigger}`;
+              })
+              .join('\n\n');
+            alert(
+              `타입별 예약 목록\n\n` +
+                `expense_reminder: ${expenseReminder}\n` +
+                `challenge_progress: ${challengeProgress}\n` +
+                `challenge_success: ${challengeSuccess}\n` +
+                `challenge_failure: ${challengeFailure}\n\n` +
+                `전체 예약 수: ${scheduled.length}\n\n` +
+                `${details || '예약 상세 없음'}`
+            );
+          }}
+        >
+          <Text style={[styles.testButtonText, { color: colors.staticWhite }]}>
+            📋 타입별 예약 목록
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={[styles.testButton, { backgroundColor: '#263238' }]}
+          onPress={async () => {
+            const parseBooleanLabel = (rawValue: string | null): string => {
+              if (rawValue === null) return 'null';
+              if (rawValue === 'true' || rawValue === 'false') return rawValue;
+              try {
+                const parsed = JSON.parse(rawValue);
+                if (typeof parsed === 'boolean') {
+                  return String(parsed);
+                }
+                return `invalid(${rawValue})`;
+              } catch {
+                return `invalid(${rawValue})`;
+              }
+            };
+
+            const [generalEnabled, challengeEnabled, legacyRaw, scheduled] = await Promise.all([
+              getGeneralNotificationsEnabled(),
+              getChallengeNotificationsEnabled(),
+              AsyncStorage.getItem('notificationsEnabled'),
+              getScheduledNotifications(),
+            ]);
+
+            const detailedRows = scheduled
+              .map((notification, index) => {
+                const dataType = String(notification.content.data?.type ?? 'unknown');
+                const title = notification.content.title ?? '(제목 없음)';
+                const triggerType =
+                  notification.trigger && typeof notification.trigger === 'object' && 'type' in notification.trigger
+                    ? String((notification.trigger as { type?: unknown }).type ?? 'unknown')
+                    : 'none';
+                return (
+                  `${index + 1}. ${title}\n` +
+                  `- id: ${notification.identifier}\n` +
+                  `- data.type: ${dataType}\n` +
+                  `- trigger.type: ${triggerType}`
+                );
+              })
+              .join('\n\n');
+
+            alert(
+              `진단 리포트\n\n` +
+                `[설정 키]\n` +
+                `- generalNotificationsEnabled: ${generalEnabled}\n` +
+                `- challengeNotificationsEnabled: ${challengeEnabled}\n` +
+                `- notificationsEnabled(legacy): ${parseBooleanLabel(legacyRaw)}\n\n` +
+                `[예약 알림]\n` +
+                `- count: ${scheduled.length}\n\n` +
+                `${detailedRows || '예약 알림 없음'}`
+            );
+          }}
+        >
+          <Text style={[styles.testButtonText, { color: colors.staticWhite }]}>
+            🧾 키/스케줄 진단 리포트
+          </Text>
+        </Pressable>
+      </View>
       
       <View style={[styles.infoBox, { backgroundColor: colors.fillAlt }]}>
         <Text style={[styles.infoText, { color: colors.textNeutral }]}>
