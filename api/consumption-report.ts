@@ -354,6 +354,19 @@ function buildFallbackReport(stats: StatsInput): ConsumptionReportResponse {
 }
 
 function buildCategoryEvidenceLine(stats: StatsInput): string | null {
+  const metrics = getTopCategoryMetrics(stats);
+  if (!metrics) return null;
+  return `"${metrics.category}"은 현재 ${metrics.count}건, ${metrics.amount.toLocaleString(
+    'ko-KR',
+  )}원(${metrics.ratioText}) 수준이에요.`;
+}
+
+function getTopCategoryMetrics(stats: StatsInput): {
+  category: string;
+  count: number;
+  amount: number;
+  ratioText: string;
+} | null {
   const usageTop = (stats.toDateCategoryUsage ?? [])[0];
   const amountTop =
     (stats.toDateCategoryTotals ?? []).find(
@@ -375,9 +388,28 @@ function buildCategoryEvidenceLine(stats: StatsInput): string | null {
     ? `${(ratioNumber * 100).toFixed(1)}%`
     : '비율 정보 없음';
 
-  return `"${category}"은 현재 ${count}건, ${amount.toLocaleString(
-    'ko-KR',
-  )}원(${ratioText}) 수준이에요.`;
+  return {
+    category,
+    count,
+    amount,
+    ratioText,
+  };
+}
+
+function buildSectionMetricLine(
+  stats: StatsInput,
+  section: 'summary' | 'challenge' | 'nextWeekGoal',
+): string | null {
+  const metrics = getTopCategoryMetrics(stats);
+  if (!metrics) return null;
+  const amountText = `${metrics.amount.toLocaleString('ko-KR')}원`;
+  if (section === 'summary') {
+    return `"${metrics.category}"은 현재 ${metrics.count}건, ${amountText}(${metrics.ratioText}) 수준이에요.`;
+  }
+  if (section === 'challenge') {
+    return `"${metrics.category}" 카테고리는 이번 달 ${metrics.count}건, ${amountText}(${metrics.ratioText})로 비중이 커서 이번 주 실천 챌린지 대상으로 적합해요.`;
+  }
+  return `다음 주에는 "${metrics.category}" 지출이 현재 ${metrics.count}건, ${amountText}(${metrics.ratioText}) 흐름을 넘지 않도록 관리해 보세요.`;
 }
 
 function hasAmountInText(lines: string[]): boolean {
@@ -408,12 +440,13 @@ function hasMetricSetInText(lines: string[]): boolean {
 function ensureMetricSetWhenAmountMentioned(
   lines: string[],
   stats: StatsInput,
+  section: 'summary' | 'challenge' | 'nextWeekGoal',
 ): string[] {
   if (lines.length === 0) return lines;
   if (!hasAmountInText(lines)) return lines;
   if (hasMetricSetInText(lines)) return lines;
 
-  const evidenceLine = buildCategoryEvidenceLine(stats);
+  const evidenceLine = buildSectionMetricLine(stats, section);
   if (!evidenceLine) return lines;
   return [...lines, evidenceLine].slice(0, 10);
 }
@@ -453,9 +486,13 @@ function sanitizeReportResponse(
   if (!suppressNoSpend && !hasPromptArtifacts) {
     const normalizedReport = {
       ...report,
-      summary: ensureMetricSetWhenAmountMentioned(report.summary, stats),
-      challenge: ensureMetricSetWhenAmountMentioned(report.challenge, stats),
-      nextWeekGoal: ensureMetricSetWhenAmountMentioned(report.nextWeekGoal, stats),
+      summary: ensureMetricSetWhenAmountMentioned(report.summary, stats, 'summary'),
+      challenge: ensureMetricSetWhenAmountMentioned(report.challenge, stats, 'challenge'),
+      nextWeekGoal: ensureMetricSetWhenAmountMentioned(
+        report.nextWeekGoal,
+        stats,
+        'nextWeekGoal',
+      ),
     };
     if (isMonthClosedStyleLeak(normalizedReport, stats)) {
       return buildFallbackReport(stats);
@@ -476,14 +513,17 @@ function sanitizeReportResponse(
   const summary = ensureMetricSetWhenAmountMentioned(
     filterLines(report.summary),
     stats,
+    'summary',
   );
   const challenge = ensureMetricSetWhenAmountMentioned(
     filterLines(report.challenge),
     stats,
+    'challenge',
   );
   const nextWeekGoal = ensureMetricSetWhenAmountMentioned(
     filterLines(report.nextWeekGoal),
     stats,
+    'nextWeekGoal',
   );
   const summaryTitle = isPromptArtifactText(report.summaryTitle) ? '' : report.summaryTitle;
 
