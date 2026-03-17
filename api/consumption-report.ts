@@ -154,15 +154,15 @@ function buildConsumptionSystemPrompt(): string {
 - 데이터가 5건 미만인 경우 해당 월에 기록한 카테고리 대비 전월엔 N회∙NN,NNN원을 소비했는지 언급하여 앞으로의 소비 습관을 제시합니다.
 - 다음주 목표를 제안할 떄 주요 카테고리의 비율 및 소비총액을 언급하고 해당 카테고리의 지출대비 적절한 목표금액을 제시해야 합니다.(데이터가 5건 이상인 경우에만 해당)
 - 다음 주 목표 제안 시 기록한 데이터가 충동적인 소비인지 아닌지에 대한 분석이 필요합니다. (예시 : 같은 날 동일 카테고리 2건 이상, 단일 지출이 당월 전체 건당 평균의 300% 초과, 특정 카테고리의 이번 주 지출이 당월 주 평균 대비 200% 이상 급증 등등)
-- 특정 카테고리를 직접 언급하는 경우, challenge에서 설명한 것과 동일하게 "이번 달 이 카테고리의 총 사용 금액"과 "전체 지출 대비 비율(%)"을 간단히 다시 상기시켜,
-  어떤 지점을 의식하면서 목표를 실천하면 좋을지 이해할 수 있도록 작성합니다.
-- 특정 카테고리를 목표로 제안할 때는 가능하면 비율(%)뿐 아니라 "금액(원)"과 "건수(건)"를 함께 자연스럽게 언급해 주세요.
+- 특정 카테고리를 목표로 언급할 때는 "금액(원)"과 함께 "비율(%)" 및 "건수(건)"를 가능한 한 함께 표기해 주세요.
+- 다만 summary/challenge에 이미 같은 카테고리 근거(금액/비율/건수)를 충분히 설명했다면, nextWeekGoal에서는 동일 문장을 반복하지 말고 행동 중심으로 간결하게 제시해 주세요.
 
 줄바꿈/형식 공통 규칙:
 - summary, challenge, nextWeekGoal 배열의 각 요소는 하나의 문장 또는 짧은 문단을 의미하며, 자동 줄바꿈은 클라이언트에서 처리합니다.
 - 숫자나 금액(예: 3회, 12,300원, 30%)이 포함된 설명은 가능하면 별도의 요소(문장)로 분리해서 작성합니다.
 - summary와 challenge 배열의 마지막 요소는 행동을 유도하는 문장(격려 또는 다음 행동 제안)으로 마무리합니다.
-- 리포트 피드백(summary/challenge/nextWeekGoal 전체)에는 반드시 카테고리, 금액(원), 퍼센테이지(%), 건수(건) 정보가 포함되도록 작성합니다.
+- summary/challenge/nextWeekGoal에서 카테고리와 금액(원)을 언급할 때는 가능한 한 퍼센테이지(%)와 건수(건)를 함께 표기해 주세요.
+- 동일 카테고리 근거 문장을 섹션 간 그대로 반복하지 말고, 이미 앞 섹션에서 충분히 설명한 수치는 다음 섹션에서 요약하거나 생략해 주세요.
 
 [데이터 양에 따른 피드백 모드]
 
@@ -408,12 +408,22 @@ function ensureFeedbackHasMetrics(lines: string[], stats: StatsInput): string[] 
 function ensureGoalHasAmountAndCount(
   lines: string[],
   stats: StatsInput,
+  avoidDuplicateLines: string[] = [],
 ): string[] {
   if (lines.length === 0) return lines;
   if (hasMetricsInText(lines)) return lines;
 
   const evidenceLine = buildCategoryEvidenceLine(stats);
   if (!evidenceLine) return lines;
+  const normalize = (text: string) => text.replace(/\s+/g, '').trim();
+  const evidenceNormalized = normalize(evidenceLine);
+  const hasDuplicateInLines = lines.some((line) => normalize(line) === evidenceNormalized);
+  const hasDuplicateInAvoid = avoidDuplicateLines.some(
+    (line) => normalize(line) === evidenceNormalized,
+  );
+  if (hasDuplicateInLines || hasDuplicateInAvoid) {
+    return lines;
+  }
   return [...lines, evidenceLine].slice(0, 10);
 }
 
@@ -447,10 +457,6 @@ function sanitizeReportResponse(
     report.challenge.some(isPromptArtifactText) ||
     report.nextWeekGoal.some(isPromptArtifactText) ||
     isPromptArtifactText(report.summaryTitle);
-  const needsGoalEvidence =
-    report.nextWeekGoal.length > 0 &&
-    (!hasAmountInText(report.nextWeekGoal) ||
-      !hasCountInText(report.nextWeekGoal));
   const needsSummaryMetrics =
     report.summary.length > 0 && !hasMetricsInText(report.summary);
 
@@ -461,9 +467,7 @@ function sanitizeReportResponse(
       summary: needsSummaryMetrics
         ? ensureFeedbackHasMetrics(report.summary, stats)
         : report.summary,
-      nextWeekGoal: needsGoalEvidence
-        ? ensureGoalHasAmountAndCount(report.nextWeekGoal, stats)
-        : report.nextWeekGoal,
+      nextWeekGoal: report.nextWeekGoal,
     };
     if (isMonthClosedStyleLeak(normalizedReport, stats)) {
       return buildFallbackReport(stats);
@@ -483,10 +487,7 @@ function sanitizeReportResponse(
   const scoreFeedback = filterLines(report.scoreFeedback);
   const summary = ensureFeedbackHasMetrics(filterLines(report.summary), stats);
   const challenge = filterLines(report.challenge);
-  const nextWeekGoal = ensureGoalHasAmountAndCount(
-    filterLines(report.nextWeekGoal),
-    stats,
-  );
+  const nextWeekGoal = filterLines(report.nextWeekGoal);
   const summaryTitle = isPromptArtifactText(report.summaryTitle) ? '' : report.summaryTitle;
 
   const sanitizedReport = {

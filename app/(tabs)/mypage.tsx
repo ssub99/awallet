@@ -57,6 +57,7 @@ export default function MyPageScreen() {
           ]);
 
           if (startDay) setMonthStartDay(startDay);
+          else setMonthStartDay('1일');
           if (weekStart !== null) setWeekStartsSunday(JSON.parse(weekStart));
         } catch (error) {
           console.error('설정 로드 중 오류:', error);

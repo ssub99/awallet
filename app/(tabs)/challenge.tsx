@@ -55,6 +55,7 @@ const MONTH_CHANGE_FADE_OUT_DURATION = 150;
 const MONTH_CHANGE_FADE_IN_DURATION = 200;
 const REPORT_POLICY_VERSION = '2026-03-16-report-context-v2';
 const REPORT_CACHE_PREFIX = 'consumptionReportCtx';
+const CONSUMPTION_REPORT_RESET_AT_KEY = 'consumptionReportResetAt';
 
 interface ReportContext {
   year: number;
@@ -471,6 +472,8 @@ export default function ChallengeTabScreen() {
   const [reportTrendContentReady, setReportTrendContentReady] = useState(false);
   const prevReportScoreMonthRef = useRef<{ year: number; month: number } | null>(null);
   const prevReportTrendMonthRef = useRef<{ year: number; month: number } | null>(null);
+  const prevReportSyncKeyRef = useRef<string | null>(null);
+  const handledReportResetAtRef = useRef<number>(0);
   const reportNeedsFadeInRef = useRef(false);
   const reportFadeOutInProgressRef = useRef(false);
   const reportPendingTrendFadeInRef = useRef(false);
@@ -564,15 +567,36 @@ export default function ChallengeTabScreen() {
     refreshData();
   }, [dataVersion, challengeYear, challengeMonth, refreshData]);
 
-  // 년·월 또는 데이터 버전이 바뀌면:
-  // - 기본적으로 점수/AI 결과 상태를 초기화하고
-  // - 해당 월에 대한 AI 리포트 캐시가 있으면 즉시 불러와서 복원
+  // 년·월 컨텍스트 변경/외부 reset 신호(복원 등)가 있을 때만 리포트를 초기화하고,
+  // 일반 데이터 변경(dataVersion 증가)에서는 기존 리포트를 유지한다.
   useEffect(() => {
     let cancelled = false;
 
     const syncReportFromCache = async () => {
-      // 기본 상태: 아직 점수 확인 전
-      if (!cancelled) {
+      const currentSyncKey =
+        reportScoreCacheKey ??
+        `none:${reportScoreYear}-${reportScoreMonth}-${monthStartDay}`;
+      const contextChanged = prevReportSyncKeyRef.current !== currentSyncKey;
+      prevReportSyncKeyRef.current = currentSyncKey;
+
+      let shouldResetUi = contextChanged;
+      try {
+        const reportResetAtRaw = await AsyncStorage.getItem(
+          CONSUMPTION_REPORT_RESET_AT_KEY,
+        );
+        const reportResetAt = Number(reportResetAtRaw ?? 0);
+        if (
+          Number.isFinite(reportResetAt) &&
+          reportResetAt > handledReportResetAtRef.current
+        ) {
+          handledReportResetAtRef.current = reportResetAt;
+          shouldResetUi = true;
+        }
+      } catch {
+        // reset 신호 확인 실패 시 기존 상태 유지
+      }
+
+      if (shouldResetUi && !cancelled) {
         setHasCheckedScore(false);
         setAiSummaryText(null);
         setAiChallengeText(null);

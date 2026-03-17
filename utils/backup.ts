@@ -27,6 +27,7 @@ import * as XLSX from 'xlsx-js-style';
 
 const CALENDAR_DATA_KEY = 'calendarData';
 const CONSUMPTION_REPORT_CACHE_PREFIXES = ['consumptionReport_', 'consumptionReportCtx_'] as const;
+const CONSUMPTION_REPORT_RESET_AT_KEY = 'consumptionReportResetAt';
 
 export const BACKUP_FILE_EXTENSION = '.awbak';
 export const CSV_FILE_EXTENSION = '.csv';
@@ -47,6 +48,7 @@ async function clearConsumptionReportCaches(): Promise<void> {
     if (reportKeys.length > 0) {
       await AsyncStorage.multiRemove(reportKeys);
     }
+    await AsyncStorage.setItem(CONSUMPTION_REPORT_RESET_AT_KEY, String(Date.now()));
   } catch {
     // ignore cache cleanup failures during restore
   }
