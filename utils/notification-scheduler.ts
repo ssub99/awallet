@@ -445,7 +445,7 @@ export async function notifyChallengeProgress(
       identifier,
       content: {
         title: `[#${category}] 챌린지 진행현황`,
-        body: `${Math.round(100 - percentage)}% 남음. 오늘의 소비는 어떠셨나요?`,
+        body: `${Math.round(100 - percentage)}% 남음. 오늘은 어떤 소비를 하실 예정이신가요?`,
         data: { 
           type: 'challenge_progress',
           challengeId,

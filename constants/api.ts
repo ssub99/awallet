@@ -1,11 +1,13 @@
 /**
  * API 엔드포인트 설정
  *
- * 현재는 ing 브랜치용 Vercel 프리뷰 도메인을 사용하고 있습니다.
- * 나중에 프로덕션/스테이지를 분리할 경우, 이 파일만 교체하면 됩니다.
+ * EXPO_PUBLIC_AWALLET_API_BASE_URL 이 설정되어 있으면 우선 사용합니다.
+ * 값이 없으면 기존 ing 프리뷰 도메인을 fallback 으로 사용합니다.
  */
 
-const VERCEL_API_BASE_URL = 'https://awallet-git-ing-awallet-vercel-api.vercel.app';
+const DEFAULT_VERCEL_API_BASE_URL = 'https://awallet-git-ing-awallet-vercel-api.vercel.app';
+const VERCEL_API_BASE_URL =
+  process.env.EXPO_PUBLIC_AWALLET_API_BASE_URL ?? DEFAULT_VERCEL_API_BASE_URL;
 
 export const PARSE_EXPENSE_API_URL = `${VERCEL_API_BASE_URL}/api/parse-expense`;
 

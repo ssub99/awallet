@@ -34,12 +34,12 @@ const KEYS_TO_REMOVE = [
 /**
  * 소비 리포트(AI 피드백) 캐시 키 패턴
  *
- * - 월별 캐시: consumptionReport_${year}_${month}_${monthStartDay}
- *   (예: consumptionReport_2025_9_1)
+ * - 레거시 월별 캐시: consumptionReport_${year}_${month}_${monthStartDay}
+ * - 컨텍스트 해시 캐시: consumptionReportCtx_${hash}
  *
  * 전체 초기화 시에는 위 패턴에 해당하는 모든 키를 찾아 함께 삭제합니다.
  */
-const CONSUMPTION_REPORT_PREFIX = 'consumptionReport_';
+const CONSUMPTION_REPORT_PREFIXES = ['consumptionReport_', 'consumptionReportCtx_'] as const;
 
 /**
  * 전체 초기화를 수행합니다.
@@ -54,7 +54,9 @@ export async function resetAppData(): Promise<void> {
   // 소비 리포트 AI 캐시도 함께 제거 (키 패턴 스캔)
   try {
     const allKeys = await AsyncStorage.getAllKeys();
-    const reportKeys = allKeys.filter((key) => key.startsWith(CONSUMPTION_REPORT_PREFIX));
+    const reportKeys = allKeys.filter((key) =>
+      CONSUMPTION_REPORT_PREFIXES.some((prefix) => key.startsWith(prefix)),
+    );
     if (reportKeys.length > 0) {
       await AsyncStorage.multiRemove(reportKeys);
     }

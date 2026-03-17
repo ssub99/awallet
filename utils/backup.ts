@@ -26,6 +26,7 @@ import { getAllIncomes, replaceAllIncomes, type IncomeRecord } from '@/utils/inc
 import * as XLSX from 'xlsx-js-style';
 
 const CALENDAR_DATA_KEY = 'calendarData';
+const CONSUMPTION_REPORT_CACHE_PREFIXES = ['consumptionReport_', 'consumptionReportCtx_'] as const;
 
 export const BACKUP_FILE_EXTENSION = '.awbak';
 export const CSV_FILE_EXTENSION = '.csv';
@@ -36,6 +37,20 @@ const BACKUP_VERSION = 1;
 export const RESTORE_VALIDATION_ERROR = 'RESTORE_VALIDATION_FAILED';
 /** 백업 파일 버전이 앱보다 높을 때 throw (화면에서 토스트 문구 분기용) */
 export const BACKUP_VERSION_TOO_NEW_ERROR = 'BACKUP_VERSION_TOO_NEW';
+
+async function clearConsumptionReportCaches(): Promise<void> {
+  try {
+    const allKeys = await AsyncStorage.getAllKeys();
+    const reportKeys = allKeys.filter((key) =>
+      CONSUMPTION_REPORT_CACHE_PREFIXES.some((prefix) => key.startsWith(prefix)),
+    );
+    if (reportKeys.length > 0) {
+      await AsyncStorage.multiRemove(reportKeys);
+    }
+  } catch {
+    // ignore cache cleanup failures during restore
+  }
+}
 
 /** CSV 헤더 (양식: 날짜, 카테고리, 수입/소비, 금액, 유형, 메모) */
 const CSV_HEADER = '날짜,카테고리,수입/소비,금액,유형,메모';
@@ -217,6 +232,7 @@ export async function restoreFromBackupFile(fileUri: string): Promise<void> {
     replaceAllExpenses(expenses),
     replaceAllIncomes(incomes),
   ]);
+  await clearConsumptionReportCaches();
 }
 
 // ---------- CSV (엑셀 양식 호환) ----------
@@ -736,6 +752,7 @@ export async function restoreFromFile(fileUri: string): Promise<void> {
         replaceAllIncomes(parsed.incomes),
       ]);
       await AsyncStorage.removeItem(CALENDAR_DATA_KEY);
+      await clearConsumptionReportCaches();
       return;
     }
     throw new Error(RESTORE_VALIDATION_ERROR);
@@ -766,6 +783,7 @@ export async function restoreFromFile(fileUri: string): Promise<void> {
         replaceAllIncomes(Array.isArray(payload.incomes) ? payload.incomes : []),
       ]);
       await AsyncStorage.removeItem(CALENDAR_DATA_KEY);
+      await clearConsumptionReportCaches();
       return;
     }
   }
@@ -777,6 +795,7 @@ export async function restoreFromFile(fileUri: string): Promise<void> {
       replaceAllIncomes(csv.incomes),
     ]);
     await AsyncStorage.removeItem(CALENDAR_DATA_KEY);
+    await clearConsumptionReportCaches();
     return;
   }
 
