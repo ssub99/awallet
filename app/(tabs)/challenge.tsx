@@ -58,6 +58,39 @@ const REPORT_CACHE_PREFIX = 'consumptionReportCtx';
 const CONSUMPTION_REPORT_RESET_AT_KEY = 'consumptionReportResetAt';
 const CONSUMPTION_REPORT_API_TIMEOUT_MS = 15000;
 
+function getConsumptionReportErrorMessage(
+  status: number,
+  retryAfterSec?: number,
+): string {
+  if (status === 408 || status === 504) {
+    return '응답이 지연되고 있습니다. 다시 시도해 주세요.';
+  }
+  if (status === 403) {
+    return '인증 정보 확인이 필요합니다. 잠시 후 다시 시도해 주세요.';
+  }
+  if (status === 429) {
+    if (typeof retryAfterSec === 'number' && Number.isFinite(retryAfterSec) && retryAfterSec > 0) {
+      return `현재 요청이 많습니다. ${Math.ceil(retryAfterSec)}초 후 다시 시도해 주세요.`;
+    }
+    return '현재 요청이 많습니다. 잠시 후 다시 시도해 주세요.';
+  }
+  if (status === 500) {
+    return '서버 설정 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.';
+  }
+  if (status === 502 || status === 503) {
+    return '현재 서비스가 혼잡합니다. 잠시 후 다시 시도해 주세요.';
+  }
+  return '오류가 발생했습니다. 다시 시도해 주세요.';
+}
+
+function getRetryPolicy(status: number): 'no_retry' | 'manual_retry' {
+  // 인증/레이트리밋/업스트림 오류는 자동 재시도하지 않는다.
+  if (status === 403 || status === 429 || status === 502) {
+    return 'no_retry';
+  }
+  return 'manual_retry';
+}
+
 interface ReportContext {
   year: number;
   month: number;
@@ -1560,11 +1593,36 @@ export default function ChallengeTabScreen() {
       })();
 
       if (!res.ok) {
-        if (res.status === 408 || res.status === 504) {
-          showToast('응답이 지연되고 있습니다. 다시 시도해 주세요.');
-        } else {
-          showToast('오류가 발생했습니다. 다시 시도해 주세요.');
+        let retryAfterSec: number | undefined;
+        let errorBodyText = '';
+        try {
+          const raw = await res.text();
+          errorBodyText = raw.slice(0, 500);
+          if (raw.length > 0) {
+            const parsed = JSON.parse(raw) as { retryAfterSec?: unknown };
+            if (typeof parsed.retryAfterSec === 'number' && Number.isFinite(parsed.retryAfterSec)) {
+              retryAfterSec = parsed.retryAfterSec;
+            }
+          }
+        } catch {
+          // ignore body parse/read failure
         }
+        const retryPolicy = getRetryPolicy(res.status);
+        if (__DEV__) {
+          console.warn('[consumption-report] request failed', {
+            url: CONSUMPTION_REPORT_API_URL,
+            status: res.status,
+            retryPolicy,
+            retryAfterSec: retryAfterSec ?? null,
+            errorBody: errorBodyText,
+          });
+        } else {
+          console.warn('[consumption-report] request failed', {
+            status: res.status,
+            retryPolicy,
+          });
+        }
+        showToast(getConsumptionReportErrorMessage(res.status, retryAfterSec));
         return;
       }
 
@@ -1645,6 +1703,13 @@ export default function ChallengeTabScreen() {
       const legacyCacheKey = `consumptionReport_${reportScoreYear}_${reportScoreMonth}_${monthStartDay}`;
       await AsyncStorage.removeItem(legacyCacheKey).catch(() => {});
     } catch (error: unknown) {
+      if (__DEV__) {
+        console.warn('[consumption-report] request exception', {
+          url: CONSUMPTION_REPORT_API_URL,
+          errorName: error instanceof Error ? error.name : 'UnknownError',
+          errorMessage: error instanceof Error ? error.message : String(error),
+        });
+      }
       if (error instanceof Error && error.name === 'AbortError') {
         showToast('응답이 지연되고 있습니다. 다시 시도해 주세요.');
       } else {
