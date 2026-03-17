@@ -773,23 +773,6 @@ export default function ChallengeTabScreen() {
                 totalDays: parsed.confirmedTotalDays,
                 topCategoryInfo: confirmedTopCategory,
               });
-            } else if (
-              consumptionIndex?.status === 'ready' &&
-              typeof consumptionIndex.fqScore === 'number'
-            ) {
-              setConfirmedReportMeta({
-                fqScore: Math.round(consumptionIndex.fqScore),
-                totalExpense: consumptionIndex.stats.totalExpense,
-                noSpendDays: consumptionIndex.stats.noSpendDays,
-                totalDays: consumptionIndex.stats.totalDays,
-                topCategoryInfo: topCategoryInfo
-                  ? {
-                      category: topCategoryInfo.category,
-                      amount: topCategoryInfo.amount,
-                      ratioPercent: topCategoryInfo.ratioPercent,
-                    }
-                  : null,
-              });
             }
             setHasCheckedScore(true);
           }
@@ -811,8 +794,6 @@ export default function ChallengeTabScreen() {
     dataVersion,
     reportScoreContext,
     reportScoreCacheKey,
-    consumptionIndex,
-    topCategoryInfo,
   ]);
 
   // 소비 리포트: 월별 소비 지수(FQ) 계산

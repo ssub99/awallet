@@ -371,8 +371,7 @@ function buildFallbackReport(stats: StatsInput): ConsumptionReportResponse {
     summary: [
       '기록이 아직 많지 않아 소비 패턴을 단정하기는 이른 시점이에요.',
       categoryHint,
-      buildCategoryEvidenceLine(stats) ??
-        '주요 카테고리의 금액·비율·건수를 함께 확인해 보세요.',
+      '주요 카테고리의 소비 흐름을 함께 점검해 보세요.',
     ],
     challenge: ['다음 주에는 지출을 빠짐없이 기록해 보세요.'],
     nextWeekGoal: ['하루 한 번 소비 내역을 점검하는 습관을 만들어 보세요.'],
@@ -475,6 +474,8 @@ function ensureMetricSetWhenAmountMentioned(
   section: 'summary' | 'challenge' | 'nextWeekGoal',
 ): string[] {
   if (lines.length === 0) return lines;
+  // summary는 고정 템플릿 문장을 강제로 추가하지 않는다.
+  if (section === 'summary') return lines;
   if (!hasAmountInText(lines)) return lines;
 
   const evidenceLine = buildSectionMetricLine(stats, section);
