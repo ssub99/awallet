@@ -114,6 +114,20 @@ interface ReportSnapshot {
   toDateCategoryUsage: Array<{ category: string; count: number; projectedMonthlyCount: number }>;
 }
 
+interface ConfirmedTopCategoryInfo {
+  category: string;
+  amount: number;
+  ratioPercent: number;
+}
+
+interface ConfirmedReportMeta {
+  fqScore: number;
+  totalExpense: number;
+  noSpendDays: number;
+  totalDays: number;
+  topCategoryInfo: ConfirmedTopCategoryInfo | null;
+}
+
 function formatDateToYmd(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(
     date.getDate(),
@@ -388,6 +402,7 @@ export default function ChallengeTabScreen() {
   const [aiNextWeekGoalText, setAiNextWeekGoalText] = useState<string[] | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [hasCheckedScore, setHasCheckedScore] = useState(false);
+  const [confirmedReportMeta, setConfirmedReportMeta] = useState<ConfirmedReportMeta | null>(null);
   const categoryEmojiMap = useCategoryEmojiMap();
   const { setLoading } = useLoading();
   const { showToast } = useToast();
@@ -655,6 +670,8 @@ export default function ChallengeTabScreen() {
         setAiChallengeText(null);
         setScoreFeedbackText(null);
         setAiSummaryTitleText(null);
+        setAiNextWeekGoalText(null);
+        setConfirmedReportMeta(null);
       }
 
       if (reportScoreContext == null || reportScoreCacheKey == null) {
@@ -678,6 +695,16 @@ export default function ChallengeTabScreen() {
           summaryTitle?: string;
           challenge?: string | string[];
           scoreFeedback?: string | string[];
+          nextWeekGoal?: string | string[];
+          confirmedFqScore?: number;
+          confirmedTotalExpense?: number;
+          confirmedNoSpendDays?: number;
+          confirmedTotalDays?: number;
+          confirmedTopCategory?: {
+            category?: string;
+            amount?: number;
+            ratioPercent?: number;
+          };
           lastRecordUpdatedAt?: number;
           asOfDate?: string;
           monthStartUpdatedAt?: number;
@@ -686,14 +713,9 @@ export default function ChallengeTabScreen() {
           reportScoreContext.isMonthClosed || parsed.asOfDate === reportScoreContext.asOfDate;
         const canReuseByMonthStartVersion =
           Number(parsed.monthStartUpdatedAt ?? 0) === reportScoreContext.monthStartUpdatedAt;
-        const canReuseByData =
-          typeof parsed.lastRecordUpdatedAt === 'number' &&
-          parsed.lastRecordUpdatedAt === snapshot.lastRecordUpdatedAt;
-
         if (
           canReuseByAsOfDate &&
           canReuseByMonthStartVersion &&
-          canReuseByData &&
           parsed.summary &&
           parsed.challenge
         ) {
@@ -719,6 +741,56 @@ export default function ChallengeTabScreen() {
               );
               setScoreFeedbackText(feedbackLines);
             }
+            if (typeof parsed.nextWeekGoal !== 'undefined') {
+              const goalLines = splitLines(
+                Array.isArray(parsed.nextWeekGoal)
+                  ? parsed.nextWeekGoal.join('\n')
+                  : parsed.nextWeekGoal.trim(),
+              );
+              setAiNextWeekGoalText(goalLines);
+            }
+            if (
+              typeof parsed.confirmedFqScore === 'number' &&
+              typeof parsed.confirmedTotalExpense === 'number' &&
+              typeof parsed.confirmedNoSpendDays === 'number' &&
+              typeof parsed.confirmedTotalDays === 'number'
+            ) {
+              const confirmedTopCategory =
+                parsed.confirmedTopCategory &&
+                typeof parsed.confirmedTopCategory.category === 'string' &&
+                typeof parsed.confirmedTopCategory.amount === 'number' &&
+                typeof parsed.confirmedTopCategory.ratioPercent === 'number'
+                  ? {
+                      category: parsed.confirmedTopCategory.category,
+                      amount: parsed.confirmedTopCategory.amount,
+                      ratioPercent: parsed.confirmedTopCategory.ratioPercent,
+                    }
+                  : null;
+              setConfirmedReportMeta({
+                fqScore: parsed.confirmedFqScore,
+                totalExpense: parsed.confirmedTotalExpense,
+                noSpendDays: parsed.confirmedNoSpendDays,
+                totalDays: parsed.confirmedTotalDays,
+                topCategoryInfo: confirmedTopCategory,
+              });
+            } else if (
+              consumptionIndex?.status === 'ready' &&
+              typeof consumptionIndex.fqScore === 'number'
+            ) {
+              setConfirmedReportMeta({
+                fqScore: Math.round(consumptionIndex.fqScore),
+                totalExpense: consumptionIndex.stats.totalExpense,
+                noSpendDays: consumptionIndex.stats.noSpendDays,
+                totalDays: consumptionIndex.stats.totalDays,
+                topCategoryInfo: topCategoryInfo
+                  ? {
+                      category: topCategoryInfo.category,
+                      amount: topCategoryInfo.amount,
+                      ratioPercent: topCategoryInfo.ratioPercent,
+                    }
+                  : null,
+              });
+            }
             setHasCheckedScore(true);
           }
         }
@@ -739,6 +811,8 @@ export default function ChallengeTabScreen() {
     dataVersion,
     reportScoreContext,
     reportScoreCacheKey,
+    consumptionIndex,
+    topCategoryInfo,
   ]);
 
   // 소비 리포트: 월별 소비 지수(FQ) 계산
@@ -1246,6 +1320,21 @@ export default function ChallengeTabScreen() {
       ratioPercent: top.ratio * 100,
     };
   }, [consumptionIndex]);
+  const displayedFqScore = hasCheckedScore ? (confirmedReportMeta?.fqScore ?? fqScore) : fqScore;
+  const displayedTopCategoryInfo =
+    hasCheckedScore ? (confirmedReportMeta?.topCategoryInfo ?? topCategoryInfo) : topCategoryInfo;
+  const displayedTotalExpense =
+    hasCheckedScore && confirmedReportMeta
+      ? confirmedReportMeta.totalExpense
+      : (consumptionIndex?.stats.totalExpense ?? 0);
+  const displayedNoSpendDays =
+    hasCheckedScore && confirmedReportMeta
+      ? confirmedReportMeta.noSpendDays
+      : (consumptionIndex?.stats.noSpendDays ?? 0);
+  const displayedTotalDays =
+    hasCheckedScore && confirmedReportMeta
+      ? confirmedReportMeta.totalDays
+      : (consumptionIndex?.stats.totalDays ?? 0);
 
   const splitLines = useCallback((text: string): string[] => {
     return text
@@ -1263,14 +1352,14 @@ export default function ChallengeTabScreen() {
 
     if (!consumptionIndex) {
       fallback = '아직 소비 데이터가 없습니다.\n이번 달부터 지출을 기록해 보세요.';
-    } else if (consumptionIndex.status === 'collecting' || fqScore == null) {
+    } else if (consumptionIndex.status === 'collecting' || displayedFqScore == null) {
       fallback =
         '기록은 시작되었지만 아직 소비 패턴을 판단하기에는 데이터가 부족합니다.\n며칠만 더 꾸준히 기록해 주시면 소비 리포트를 볼 수 있어요.';
-    } else if (!topCategoryInfo) {
-      if (fqScore >= 80) {
+    } else if (!displayedTopCategoryInfo) {
+      if (displayedFqScore >= 80) {
         fallback =
           '이번 달 소비 페이스는 전반적으로 안정적인 편입니다.\n특정 카테고리에 과도하게 쏠린 지출 없이 균형을 잘 유지하고 있어요.';
-      } else if (fqScore >= 50) {
+      } else if (displayedFqScore >= 50) {
         fallback =
           '이번 달 소비 페이스는 다소 빠른 편입니다.\n어떤 요일·시간대에 소비가 몰리는지 한 번 확인해 보세요.';
       } else {
@@ -1278,12 +1367,12 @@ export default function ChallengeTabScreen() {
           '이번 달에는 지출 속도가 꽤 빠른 편입니다.\n특히 불필요한 소액 지출이 반복되지 않는지 점검해 보시면 좋겠습니다.';
       }
     } else {
-      const categoryLabel = topCategoryInfo.category;
-      const ratioText = `${topCategoryInfo.ratioPercent.toFixed(1)}%`;
+      const categoryLabel = displayedTopCategoryInfo.category;
+      const ratioText = `${displayedTopCategoryInfo.ratioPercent.toFixed(1)}%`;
 
-      if (fqScore >= 80) {
+      if (displayedFqScore >= 80) {
         fallback = `이번 달 소비 페이스는 안정적인 편입니다.\n다만 전체 지출의 ${ratioText}가 '${categoryLabel}'에서 발생하고 있어, 이 카테고리만 조금만 줄이면 더 높은 점수를 기대할 수 있어요.`;
-      } else if (fqScore >= 50) {
+      } else if (displayedFqScore >= 50) {
         fallback = `이번 달 소비 페이스는 다소 빠른 편입니다.\n특히 '${categoryLabel}' 카테고리가 전체의 ${ratioText}를 차지하고 있어, 이 부분을 한 번 점검해 보시면 좋겠습니다.`;
       } else {
         fallback = `이번 달에는 지출 속도가 꽤 빠른 편입니다.\n'${categoryLabel}' 카테고리가 전체의 ${ratioText}를 차지해 소비 패턴을 끌어올리고 있어요.\n이 카테고리부터 작게 줄이는 챌린지를 시작해 보세요.`;
@@ -1291,7 +1380,7 @@ export default function ChallengeTabScreen() {
     }
 
     return splitLines(fallback);
-  }, [aiSummaryText, consumptionIndex, fqScore, topCategoryInfo, splitLines]);
+  }, [aiSummaryText, consumptionIndex, displayedFqScore, displayedTopCategoryInfo, splitLines]);
 
   const reportNextGoalLines = useMemo(() => {
     if (aiNextWeekGoalText && aiNextWeekGoalText.length > 0) {
@@ -1300,14 +1389,14 @@ export default function ChallengeTabScreen() {
 
     let fallback: string;
 
-    if (!consumptionIndex || fqScore == null) {
+    if (!consumptionIndex || displayedFqScore == null) {
       fallback =
         '다가오는 한 주에는 지출을 기록하는 습관을 먼저 만드는 것을 목표로 해보세요.\n특히 자주 쓰는 카테고리 한두 개만 의식하면서 적어 보는 것만으로도 충분합니다.';
-    } else if (!topCategoryInfo) {
-      if (fqScore >= 80) {
+    } else if (!displayedTopCategoryInfo) {
+      if (displayedFqScore >= 80) {
         fallback =
           '다음 주에는 지금과 같은 소비 페이스를 유지하는 것을 목표로 해보세요.\n특별한 소비 계획이 없다면, 이미 잘 하고 계신 패턴을 그대로 이어가셔도 좋습니다.';
-      } else if (fqScore >= 50) {
+      } else if (displayedFqScore >= 50) {
         fallback =
           '다음 주에는 평소보다 하루에 한 번 정도만 소비를 줄여 보는 것을 목표로 해보세요.\n특히 큰 의미 없이 나가는 소액 지출이 있다면 한두 번만 덜 쓰는 것부터 시도해보면 좋습니다.';
       } else {
@@ -1315,12 +1404,12 @@ export default function ChallengeTabScreen() {
           '다가오는 한 주 동안은 지출을 한 번 더 생각해 보고 사용하는 것을 목표로 해보세요.\n꼭 필요하지 않은 소비를 하루에 한 번만 덜 하는 것부터 시작해도 충분합니다.';
       }
     } else {
-      const categoryLabel = topCategoryInfo.category;
-      const ratioText = `${topCategoryInfo.ratioPercent.toFixed(1)}%`;
+      const categoryLabel = displayedTopCategoryInfo.category;
+      const ratioText = `${displayedTopCategoryInfo.ratioPercent.toFixed(1)}%`;
 
-      if (fqScore >= 80) {
+      if (displayedFqScore >= 80) {
         fallback = `다음 주에는 '${categoryLabel}' 지출을 이번 주보다 조금만 줄여 보는 것을 목표로 해보세요.\n현재 전체 지출의 ${ratioText}를 차지하고 있어, 이 부분만 가볍게 조절해도 좋은 흐름을 유지하는 데 도움이 됩니다.`;
-      } else if (fqScore >= 50) {
+      } else if (displayedFqScore >= 50) {
         fallback = `다음 주에는 '${categoryLabel}' 지출을 한두 번만 덜 쓰는 것을 목표로 해보세요.\n이 카테고리가 전체 지출의 ${ratioText}를 차지하고 있어서, 작은 조정만으로도 전체 소비 페이스를 낮추는 데 도움이 됩니다.`;
       } else {
         fallback = `다가오는 한 주에는 '${categoryLabel}' 지출을 특히 의식하면서 사용해보세요.\n전체 지출의 ${ratioText}를 차지하고 있어, 이 카테고리에서 한두 번만 줄여도 이번 달 소비 흐름을 바꾸는 데 큰 도움이 됩니다.`;
@@ -1328,21 +1417,21 @@ export default function ChallengeTabScreen() {
     }
 
     return splitLines(fallback);
-  }, [aiNextWeekGoalText, consumptionIndex, fqScore, topCategoryInfo, splitLines]);
+  }, [aiNextWeekGoalText, consumptionIndex, displayedFqScore, displayedTopCategoryInfo, splitLines]);
 
   const shouldShowChallengeCard = useMemo(() => {
-    if (!consumptionIndex || fqScore == null || !aiChallengeText || !topCategoryInfo) return false;
+    if (!consumptionIndex || displayedFqScore == null || !aiChallengeText || !displayedTopCategoryInfo) return false;
     // 점수가 충분히 높으면 별도의 챌린지 제안은 하지 않음
-    if (fqScore >= 80) return false;
+    if (displayedFqScore >= 80) return false;
     // 상위 카테고리 비중이 너무 낮으면 챌린지 제안하지 않음
-    if (topCategoryInfo.ratioPercent < 15) return false;
+    if (displayedTopCategoryInfo.ratioPercent < 15) return false;
     // 이미 해당 카테고리로 생성된 챌린지가 있다면 중복 제안하지 않음
     const hasExistingChallengeForCategory = challenges.some(
-      (c) => c.category === topCategoryInfo.category,
+      (c) => c.category === displayedTopCategoryInfo.category,
     );
     if (hasExistingChallengeForCategory) return false;
     return true;
-  }, [consumptionIndex, fqScore, aiChallengeText, topCategoryInfo, challenges]);
+  }, [consumptionIndex, displayedFqScore, aiChallengeText, displayedTopCategoryInfo, challenges]);
 
   const scoreMessageLines = useMemo(() => {
     const collectingMessage = (() => {
@@ -1353,7 +1442,7 @@ export default function ChallengeTabScreen() {
 
     // 아직 점수 확인 전: 초기 안내 문구
     if (!hasCheckedScore) {
-      if (isCollectingIndex || fqScore == null) {
+      if (isCollectingIndex || displayedFqScore == null) {
         return splitLines(collectingMessage);
       }
       return splitLines(
@@ -1362,7 +1451,7 @@ export default function ChallengeTabScreen() {
     }
 
     // 점수를 확인했지만, 여전히 데이터가 부족한 상태라면 동일한 안내 유지
-    if (isCollectingIndex || fqScore == null) {
+    if (isCollectingIndex || displayedFqScore == null) {
       return splitLines(collectingMessage);
     }
 
@@ -1376,10 +1465,10 @@ export default function ChallengeTabScreen() {
     return splitLines(
       '이번 달 소비 패턴을 바탕으로 계산된 결과예요.\n아래 리포트를 함께 보면서 이번 달 소비를 한 번 정리해 보셔도 좋겠습니다.',
     );
-  }, [hasCheckedScore, isCollectingIndex, fqScore, remainingRecordsForIndex, scoreFeedbackText, splitLines]);
+  }, [hasCheckedScore, isCollectingIndex, displayedFqScore, remainingRecordsForIndex, scoreFeedbackText, splitLines]);
 
   const scoreEmoji = useMemo(() => {
-    if (!hasCheckedScore || fqScore == null) {
+    if (!hasCheckedScore || displayedFqScore == null) {
       return '';
     }
 
@@ -1391,23 +1480,23 @@ export default function ChallengeTabScreen() {
     const badTier = ['🚨', '⚠️', '🧨', '💣', '🥵', '😵', '🛑', '🔥', '❗️', '🤕'];
 
     let pool = midTier;
-    if (fqScore >= 90) {
+    if (displayedFqScore >= 90) {
       pool = topTier;
-    } else if (fqScore >= 75) {
+    } else if (displayedFqScore >= 75) {
       pool = goodTier;
-    } else if (fqScore >= 50) {
+    } else if (displayedFqScore >= 50) {
       pool = midTier;
-    } else if (fqScore >= 30) {
+    } else if (displayedFqScore >= 30) {
       pool = lowTier;
     } else {
       pool = badTier;
     }
 
     // 점수를 기준으로 "랜덤하지만 재현 가능한" 인덱스 선택
-    const seed = fqScore * 13;
+    const seed = displayedFqScore * 13;
     const idx = Math.abs(seed) % pool.length;
     return pool[idx] ?? '';
-  }, [hasCheckedScore, fqScore]);
+  }, [hasCheckedScore, displayedFqScore]);
 
   const runReportContentRefreshAnimation = useCallback(
     (onAfterFadeOut?: () => void) => {
@@ -1554,6 +1643,24 @@ export default function ChallengeTabScreen() {
                       : parsed.nextWeekGoal.trim(),
                   );
                   setAiNextWeekGoalText(goalLines);
+                }
+                if (
+                  consumptionIndex?.status === 'ready' &&
+                  typeof consumptionIndex.fqScore === 'number'
+                ) {
+                  setConfirmedReportMeta({
+                    fqScore: Math.round(consumptionIndex.fqScore),
+                    totalExpense: consumptionIndex.stats.totalExpense,
+                    noSpendDays: consumptionIndex.stats.noSpendDays,
+                    totalDays: consumptionIndex.stats.totalDays,
+                    topCategoryInfo: topCategoryInfo
+                      ? {
+                          category: topCategoryInfo.category,
+                          amount: topCategoryInfo.amount,
+                          ratioPercent: topCategoryInfo.ratioPercent,
+                        }
+                      : null,
+                  });
                 }
                 setHasCheckedScore(true);
               }
@@ -1717,6 +1824,17 @@ export default function ChallengeTabScreen() {
           lastRecordUpdatedAt,
           asOfDate: reportScoreContext.asOfDate,
           monthStartUpdatedAt: reportScoreContext.monthStartUpdatedAt,
+          confirmedFqScore: fqScore,
+          confirmedTotalExpense: consumptionIndex.stats.totalExpense,
+          confirmedNoSpendDays: consumptionIndex.stats.noSpendDays,
+          confirmedTotalDays: consumptionIndex.stats.totalDays,
+          confirmedTopCategory: topCategoryInfo
+            ? {
+                category: topCategoryInfo.category,
+                amount: topCategoryInfo.amount,
+                ratioPercent: topCategoryInfo.ratioPercent,
+              }
+            : undefined,
         }),
       );
       const legacyCacheKey = `consumptionReport_${reportScoreYear}_${reportScoreMonth}_${monthStartDay}`;
@@ -1750,6 +1868,24 @@ export default function ChallengeTabScreen() {
           if (nextNextWeekGoal) {
             setAiNextWeekGoalText(nextNextWeekGoal);
           }
+          if (
+            consumptionIndex?.status === 'ready' &&
+            typeof consumptionIndex.fqScore === 'number'
+          ) {
+            setConfirmedReportMeta({
+              fqScore: Math.round(consumptionIndex.fqScore),
+              totalExpense: consumptionIndex.stats.totalExpense,
+              noSpendDays: consumptionIndex.stats.noSpendDays,
+              totalDays: consumptionIndex.stats.totalDays,
+              topCategoryInfo: topCategoryInfo
+                ? {
+                    category: topCategoryInfo.category,
+                    amount: topCategoryInfo.amount,
+                    ratioPercent: topCategoryInfo.ratioPercent,
+                  }
+                : null,
+            });
+          }
           setHasCheckedScore(true);
         });
       }
@@ -1763,6 +1899,8 @@ export default function ChallengeTabScreen() {
     reportScoreContext,
     reportScoreCacheKey,
     hasCheckedScore,
+    consumptionIndex,
+    topCategoryInfo,
     showToast,
     runReportContentRefreshAnimation,
   ]);
@@ -1906,7 +2044,7 @@ export default function ChallengeTabScreen() {
                           backgroundColor: colors.staticWhite,
                           // 버튼을 눌러 점수를 확인하기 전까지는 피그마 시안처럼 큰 높이 유지
                           // 한 번 점수를 확인하면 콘텐츠 높이에 맞게 축소
-                          minHeight: hasCheckedScore && fqScore != null ? undefined : reportScoreCardHeight,
+                          minHeight: hasCheckedScore && displayedFqScore != null ? undefined : reportScoreCardHeight,
                         },
                       ]}
                     >
@@ -1915,10 +2053,10 @@ export default function ChallengeTabScreen() {
                       </Text>
                       <View style={styles.reportScoreValueRow}>
                         <Text style={[styles.reportScoreEmoji, { color: colors.text }]}>
-                          {hasCheckedScore && fqScore != null ? scoreEmoji : ''}
+                          {hasCheckedScore && displayedFqScore != null ? scoreEmoji : ''}
                         </Text>
                         <Text style={[styles.reportScoreValue, { color: colors.text }]}>
-                          {hasCheckedScore && fqScore != null ? fqScore : '?'}
+                          {hasCheckedScore && displayedFqScore != null ? displayedFqScore : '?'}
                         </Text>
                         <Text style={[styles.reportScoreUnit, { color: colors.text }]}>점</Text>
                       </View>
@@ -1964,9 +2102,7 @@ export default function ChallengeTabScreen() {
                               월간 지출
                             </Text>
                             <Text style={[styles.reportSummaryValue, { color: colors.text }]}>
-                              {consumptionIndex
-                                ? `${consumptionIndex.stats.totalExpense.toLocaleString()}원`
-                                : '0원'}
+                              {`${displayedTotalExpense.toLocaleString()}원`}
                             </Text>
                           </View>
                           {!shouldHideNoSpendInEarlyMonth && (
@@ -1975,9 +2111,7 @@ export default function ChallengeTabScreen() {
                                 무지출일
                               </Text>
                               <Text style={[styles.reportSummaryValue, { color: colors.text }]}>
-                                {consumptionIndex
-                                  ? `${consumptionIndex.stats.noSpendDays}일 / ${consumptionIndex.stats.totalDays}일`
-                                  : '-'}
+                                {`${displayedNoSpendDays}일 / ${displayedTotalDays}일`}
                               </Text>
                             </View>
                           )}
@@ -2033,14 +2167,14 @@ export default function ChallengeTabScreen() {
                         <Text style={[styles.reportChallengeTitle, { color: colors.text }]}>
                           🎯 챌린지 제안
                         </Text>
-                        {topCategoryInfo && consumptionIndex && (
+                        {displayedTopCategoryInfo && consumptionIndex && (
                           <View style={styles.reportSummaryRows}>
                             <View style={styles.reportSummaryRow}>
                               <Text style={[styles.reportSummaryLabel, { color: colors.textAssistive }]}>
                                 카테고리
                               </Text>
                               <Text style={[styles.reportSummaryValue, { color: colors.text }]}>
-                                {topCategoryInfo.category}
+                                {displayedTopCategoryInfo.category}
                               </Text>
                             </View>
                             <View style={styles.reportSummaryRow}>
@@ -2048,7 +2182,7 @@ export default function ChallengeTabScreen() {
                                 총 소비금액
                               </Text>
                               <Text style={[styles.reportSummaryValue, { color: colors.text }]}>
-                                {`${topCategoryInfo.amount.toLocaleString()}원`}
+                                {`${displayedTopCategoryInfo.amount.toLocaleString()}원`}
                               </Text>
                             </View>
                           </View>

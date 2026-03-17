@@ -463,6 +463,12 @@ function hasMetricSetInText(lines: string[]): boolean {
   );
 }
 
+function hasCanonicalMetricOrder(lines: string[]): boolean {
+  return lines.some((line) =>
+    /[0-9][0-9,]*\s*원\(\s*[0-9]+(?:\.[0-9]+)?\s*%\s*,\s*[0-9]+\s*건\s*\)/.test(line),
+  );
+}
+
 function ensureMetricSetWhenAmountMentioned(
   lines: string[],
   stats: StatsInput,
@@ -470,10 +476,12 @@ function ensureMetricSetWhenAmountMentioned(
 ): string[] {
   if (lines.length === 0) return lines;
   if (!hasAmountInText(lines)) return lines;
-  if (hasMetricSetInText(lines)) return lines;
 
   const evidenceLine = buildSectionMetricLine(stats, section);
   if (!evidenceLine) return lines;
+  if (hasCanonicalMetricOrder(lines)) return lines;
+  // 4요소가 이미 있어도 순서가 맞지 않으면 canonical 문장을 추가해 순서를 강제한다.
+  if (hasMetricSetInText(lines)) return [...lines, evidenceLine].slice(0, 10);
   return [...lines, evidenceLine].slice(0, 10);
 }
 
