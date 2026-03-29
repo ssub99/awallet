@@ -140,7 +140,9 @@ function buildConsumptionSystemPrompt(): string {
 - 다섯 필드(scoreFeedback, summaryTitle, summary, challenge, nextWeekGoal)는 모두 가능한 한 의미 있는 문장으로 채우는 것을 목표로 합니다.
 - 사용자는 FQ 또는 FQ 점수라는 워딩을 이해하기 힘드니 소비 점수라는 워딩으로 대체해서 설명해야 합니다.
 - 소비 패턴 진단을 진행할 때에 해당 년월에서 진단을 해야 합니다. 현재형으로 피드백을 지향하고 과거형 피드백은 지양해야 합니다.
-- 금액을 포함한 문장에는 위 네 요소(카테고리/금액/비율/건수)가 한 세트로 포함되어야 하며, 표기 순서는 "카테고리, 금액(비율, 건수)"로 맞춰 주세요.
+- summary·challenge·nextWeekGoal에서 언급하는 금액·비율·건수는 입력 데이터와 일치해야 하며, 없는 숫자를 만들지 마세요.
+- 지표(카테고리·금액·비율·건수)는 **summary 전체**에 걸쳐 자연스럽게 드러나면 됩니다. 모든 문장마다 네 가지를 한꺼번에 몰아넣을 필요는 없고, 여러 문장으로 나누어 서술해도 됩니다.
+- "…은 현재 N건, …원(…%) 수준이에요."처럼 **매번 비슷한 문장 틀**로 끝내지 말고, 문장마다 표현을 바꿉니다.
 
 [scoreFeedback 작성 규칙]
 - 이번 달 소비 점수에 대한 **전반적인 느낌**을 한개의 문장으로 부드럽게 설명해야 합니다.
@@ -160,7 +162,8 @@ function buildConsumptionSystemPrompt(): string {
 - "이번 달 전반적인 소비 패턴"을 설명하고, 눈에 띄는 특징 1~2가지를 구체적으로 서술합니다.
 - summary는 문자열 배열이며, 각 요소는 하나의 문장 또는 짧은 문단을 의미합니다.
 - 기록이 적은 경우에는, 먼저 "기록이 아직 많지 않아 소비 패턴을 단정하기는 이르다"는 취지를 짧게 언급하는 문장을 포함합니다.
-- 상위 카테고리와 금액 수준을 자연스럽게 녹여서 설명합니다.
+- 상위 카테고리와 금액 수준을 자연스럽게 녹여서 설명합니다. 구체적인 숫자·비율·건수는 **앞쪽 요소**에 두는 것을 권장합니다.
+- summary 배열의 **마지막 요소**는 **지표를 한 번 더 요약하는 문장**(예: "~수준이에요"로 이어지는 건수·금액 나열)으로 쓰지 말고, **격려·관찰 포인트·가벼운 제안** 중 하나로만 마무리합니다. 앞에서 이미 말한 지표를 마지막에 같은 패턴으로 반복하지 않습니다.
 - summary 배열의 길이는 최대 10개를 넘기지 않습니다.
 
 [challenge 작성 규칙]
@@ -171,7 +174,7 @@ function buildConsumptionSystemPrompt(): string {
 - 배열 길이는 최대 10개를 넘기지 않습니다.
 - 특정 카테고리를 챌린지 대상으로 선택했다면, "이번 달 이 카테고리의 총 사용 금액"과 "전체 지출에서 차지하는 비율(%)"을 함께 언급해,
   왜 이 카테고리를 다음 주 목표 대상으로 제안하는지 사용자가 이해할 수 있도록 한두 개의 요소(문장)로 근거를 설명합니다.
-- challenge에서 금액(원)을 언급하는 경우, 반드시 같은 요소(문장) 안에 카테고리, 금액(원), 비율(%), 건수(건)를 함께 포함해 주세요.
+- challenge에서 금액(원)을 언급하는 경우, 카테고리·금액(원)·비율(%)·건수(건)가 빠지지 않도록 하되, 같은 문장에 모두 넣기 어색하면 바로 이어지는 다음 문장에 나누어 담아도 됩니다.
 
 [nextWeekGoal 작성 규칙]
 - nextWeekGoal은 문자열 배열이며, 다음 주 1주일 동안 실천할 "핵심 목표"만을 1~3개의 요소로 요약합니다.
@@ -179,12 +182,12 @@ function buildConsumptionSystemPrompt(): string {
 - 데이터가 5건 미만인 경우 해당 월에 기록한 카테고리 대비 전월엔 N회∙NN,NNN원을 소비했는지 언급하여 앞으로의 소비 습관을 제시합니다.
 - 다음주 목표를 제안할 떄 주요 카테고리의 비율 및 소비총액을 언급하고 해당 카테고리의 지출대비 적절한 목표금액을 제시해야 합니다.(데이터가 5건 이상인 경우에만 해당)
 - 다음 주 목표 제안 시 기록한 데이터가 충동적인 소비인지 아닌지에 대한 분석이 필요합니다. (예시 : 같은 날 동일 카테고리 2건 이상, 단일 지출이 당월 전체 건당 평균의 300% 초과, 특정 카테고리의 이번 주 지출이 당월 주 평균 대비 200% 이상 급증 등등)
-- nextWeekGoal에서 금액(원)을 언급하는 경우, 반드시 같은 요소(문장) 안에 카테고리, 금액(원), 비율(%), 건수(건)를 함께 포함해 주세요.
+- nextWeekGoal에서 금액(원)을 언급하는 경우, 카테고리·금액(원)·비율(%)·건수(건)가 빠지지 않도록 하되, 같은 문장에 모두 넣기 어색하면 바로 이어지는 다음 문장에 나누어 담아도 됩니다.
 - 근거 문장을 제시한 뒤에는 해당 수치를 바탕으로 실천할 행동 목표를 이어서 제안해 주세요.
 
 줄바꿈/형식 공통 규칙:
 - summary, challenge, nextWeekGoal 배열의 각 요소는 하나의 문장 또는 짧은 문단을 의미하며, 자동 줄바꿈은 클라이언트에서 처리합니다.
-- summary와 challenge 배열의 마지막 요소는 행동을 유도하는 문장(격려 또는 다음 행동 제안)으로 마무리합니다.
+- challenge 배열의 마지막 요소는 행동을 유도하는 문장(격려 또는 다음 행동 제안)으로 마무리합니다.
 
 [데이터 양에 따른 피드백 모드]
 
@@ -372,14 +375,6 @@ function buildFallbackReport(stats: StatsInput): ConsumptionReportResponse {
   };
 }
 
-function buildCategoryEvidenceLine(stats: StatsInput): string | null {
-  const metrics = getTopCategoryMetrics(stats);
-  if (!metrics) return null;
-  return `"${metrics.category}"은 현재 ${metrics.amount.toLocaleString(
-    'ko-KR',
-  )}원(${metrics.ratioText}, ${metrics.count}건) 수준이에요.`;
-}
-
 function getTopCategoryMetrics(stats: StatsInput): {
   category: string;
   count: number;
@@ -417,14 +412,11 @@ function getTopCategoryMetrics(stats: StatsInput): {
 
 function buildSectionMetricLine(
   stats: StatsInput,
-  section: 'summary' | 'challenge' | 'nextWeekGoal',
+  section: 'challenge' | 'nextWeekGoal',
 ): string | null {
   const metrics = getTopCategoryMetrics(stats);
   if (!metrics) return null;
   const amountText = `${metrics.amount.toLocaleString('ko-KR')}원`;
-  if (section === 'summary') {
-    return `"${metrics.category}"은 현재 ${amountText}(${metrics.ratioText}, ${metrics.count}건) 수준이에요.`;
-  }
   if (section === 'challenge') {
     return `"${metrics.category}" 카테고리는 이번 달 ${amountText}(${metrics.ratioText}, ${metrics.count}건)로 비중이 커서 이번 주 실천 챌린지 대상으로 적합해요.`;
   }
@@ -716,7 +708,7 @@ export async function POST(request: Request): Promise<Response> {
               },
             ],
             generationConfig: {
-              temperature: 0.4,
+              temperature: 0.7,
               maxOutputTokens: 512,
               responseMimeType: 'application/json',
             },
