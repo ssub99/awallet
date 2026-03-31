@@ -15,15 +15,5 @@
       "src": "public/**",
       "use": "@vercel/static"
     }
-  ],
-  "functions": {
-    "api/parse-expense.ts": {
-      "memory": 256,
-      "maxDuration": 30
-    },
-    "api/consumption-report.ts": {
-      "memory": 256,
-      "maxDuration": 30
-    }
-  }
+  ]
 }
