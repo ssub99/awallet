@@ -268,7 +268,7 @@ export async function POST(request: Request): Promise<Response> {
           },
         ],
         generationConfig: {
-          temperature: 0.5,
+          temperature: 0.2,
           maxOutputTokens: 1024,
           responseMimeType: 'application/json',
         },
