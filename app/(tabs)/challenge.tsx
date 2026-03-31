@@ -87,6 +87,9 @@ function getConsumptionReportErrorMessage(
   if (status === 502 || status === 503) {
     return '현재 서비스가 혼잡합니다. 잠시 후 다시 시도해 주세요.';
   }
+  if (status === 405) {
+    return '서버가 이 요청을 받지 못했습니다. 앱 업데이트 후 다시 시도해 주세요.';
+  }
   return '오류가 발생했습니다. 다시 시도해 주세요.';
 }
 
