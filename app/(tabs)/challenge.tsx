@@ -723,10 +723,16 @@ export default function ChallengeTabScreen() {
         const canReuseByPolicyFingerprint =
           typeof parsed.policyFingerprint === 'string' &&
           parsed.policyFingerprint === reportScoreContext.policyFingerprint;
+        // handleCheckScore와 동일: 저장 시점의 지출 스냅샷과 지금 calendarData가 같을 때만 캐시 UI 복원
+        const canReuseByRecordVersion =
+          typeof parsed.lastRecordUpdatedAt === 'number' &&
+          Number.isFinite(parsed.lastRecordUpdatedAt) &&
+          parsed.lastRecordUpdatedAt === snapshot.lastRecordUpdatedAt;
         if (
           canReuseByAsOfDate &&
           canReuseByMonthStartVersion &&
           canReuseByPolicyFingerprint &&
+          canReuseByRecordVersion &&
           parsed.summary &&
           parsed.challenge
         ) {
