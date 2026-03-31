@@ -1686,6 +1686,7 @@ export default function ChallengeTabScreen() {
       }, CONSUMPTION_REPORT_API_TIMEOUT_MS);
       const res = await (async () => {
         try {
+          console.warn('[consumption-report] API URL', CONSUMPTION_REPORT_API_URL);
           return await fetch(CONSUMPTION_REPORT_API_URL, {
             method: 'POST',
             headers: {
