@@ -1,6 +1,8 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
-  "buildCommand": "mkdir -p public && echo '<!DOCTYPE html><html><body><p>API only.</p></body></html>' > public/index.html",
+  "framework": null,
+  "buildCommand": "test -f public/index.html && test -f api/consumption-report.ts && test -f api/parse-expense.ts",
   "outputDirectory": "public",
   "functions": {
     "api/parse-expense.ts": {
