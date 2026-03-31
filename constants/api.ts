@@ -2,16 +2,15 @@ import * as Application from 'expo-application';
 import * as Updates from 'expo-updates';
 
 /**
- * API 엔드포인트 설정
+ * API 엔드포인트 (JS만 수정하면 eas update 로 배포 가능)
  *
- * EXPO_PUBLIC_AWALLET_API_BASE_URL 이 설정되어 있으면 우선 사용합니다.
- * 값이 없으면 아래 중 하나이면 스테이지용 Vercel Preview URL을 씁니다.
- * - applicationId에 `.stage` 포함 (예: iOS 스테이지 타깃)
- * - EAS Update channel이 `stage` (Android 등 번들 ID에 stage가 없어도 동일 채널이면 Preview)
+ * - 스토어 프로덕션: 기본 awallet.vercel.app (env로 덮어쓰기 가능)
+ * - 스테이지: 번들 ID에 `.stage` 또는 Updates.channel === 'stage'
+ *   → EAS에 프로덕션 URL이 실수로 박혀 있어도(405 대비) Preview를 쓴다.
+ *   → Preview가 아닌 다른 호스트를 쓰려면 EXPO_PUBLIC_AWALLET_API_BASE_URL 에
+ *     awallet.vercel.app 이 아닌 URL을 넣는다.
  *
- * 프로덕션(또는 channel 미설정)은 awallet.vercel.app 을 씁니다.
- * Expo Go·dev 클라이언트는 channel이 null 이라 프로덕션 URL이 되며,
- * ing Preview를 쓰려면 `npm run start:ing` 등으로 env를 주입하세요.
+ * Expo Go는 channel 이 비어 프로덕션 URL이 될 수 있음 → npm run start:ing 으로 env 주입.
  */
 
 const DEFAULT_VERCEL_API_BASE_URL = 'https://awallet.vercel.app';
@@ -36,12 +35,21 @@ function normalizeApiBaseUrl(raw: string | undefined): string | null {
   }
 }
 
-const isStageApiBase =
+const isStageProfile =
   Application.applicationId?.includes('.stage') === true || Updates.channel === 'stage';
 
-const VERCEL_API_BASE_URL =
-  normalizeApiBaseUrl(process.env.EXPO_PUBLIC_AWALLET_API_BASE_URL) ??
-  (isStageApiBase ? DEFAULT_STAGE_VERCEL_API_BASE_URL : DEFAULT_VERCEL_API_BASE_URL);
+const VERCEL_API_BASE_URL = (() => {
+  const fromEnv = normalizeApiBaseUrl(process.env.EXPO_PUBLIC_AWALLET_API_BASE_URL);
+
+  if (isStageProfile) {
+    if (fromEnv != null && fromEnv !== DEFAULT_VERCEL_API_BASE_URL) {
+      return fromEnv;
+    }
+    return DEFAULT_STAGE_VERCEL_API_BASE_URL;
+  }
+
+  return fromEnv ?? DEFAULT_VERCEL_API_BASE_URL;
+})();
 
 export const PARSE_EXPENSE_API_URL = `${VERCEL_API_BASE_URL}/api/parse-expense`;
 
