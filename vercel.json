@@ -1,7 +1,21 @@
 {
   "version": 2,
+  "framework": null,
   "buildCommand": "mkdir -p public && echo '<!DOCTYPE html><html><body><p>API only.</p></body></html>' > public/index.html",
-  "outputDirectory": "public",
+  "builds": [
+    {
+      "src": "api/consumption-report.ts",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "api/parse-expense.ts",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "public/**",
+      "use": "@vercel/static"
+    }
+  ],
   "functions": {
     "api/parse-expense.ts": {
       "memory": 256,
