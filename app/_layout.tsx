@@ -7,6 +7,7 @@ import Constants from 'expo-constants';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Updates from 'expo-updates';
 // useColorScheme import 제거 - OS 강제 다크 모드 영향 방지를 위해 항상 'light' 사용
+import { useMetaFacebookAttSync } from '@/hooks/use-meta-facebook-att-sync';
 import { useFirstLaunchNotificationPermission } from '@/hooks/use-notifications';
 import { enableDebugMode, logEvent, setAnalyticsCollectionEnabled } from '@/utils/analytics';
 import { checkActiveChallengesNotifications, checkEndedChallenges } from '@/utils/challenge-utils';
@@ -116,6 +117,8 @@ export default function RootLayout() {
   
   // Request notification permission on first app launch
   const { permissionChecked } = useFirstLaunchNotificationPermission();
+
+  useMetaFacebookAttSync(Boolean(permissionChecked && appIsReady));
 
   // Setup notifications after permission is checked
   useEffect(() => {
