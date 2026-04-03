@@ -17,7 +17,8 @@ export function useMetaFacebookAttSync(enabled: boolean) {
     if (Platform.OS === 'web') {
       return undefined;
     }
-    if (Constants.executionEnvironment === 'expoClient') {
+    // Expo Go: FB SDK 네이티브 모듈 없음. `expoClient`는 더 이상 존재하지 않음(SDK 50+).
+    if (Constants.appOwnership === 'expo') {
       return undefined;
     }
 

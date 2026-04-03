@@ -33,7 +33,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       autoLogAppEventsEnabled: true,
       advertiserIDCollectionEnabled: true,
       iosUserTrackingPermission:
-        '맞춤 광고 성과 측정에 활용하기 위해 추적 권한이 필요합니다. 거부해도 앱은 이용할 수 있습니다.',
+        '맞춤 광고 성과 측정에 활용하기 위해 추적 권한이 필요합니다. 거부해도 서비스는 이용할 수 있습니다.',
     },
   ];
 
