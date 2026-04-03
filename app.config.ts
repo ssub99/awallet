@@ -2,13 +2,19 @@ import type { ConfigContext, ExpoConfig } from 'expo/config';
 
 const META_APP_ID = '3000788043449897';
 
+/** Xcode Archive 등에서 Expo가 `.env.production.local`을 읽지 않을 때 사용. `Info.plist`의 FacebookClientToken과 동일해야 함. */
+const FACEBOOK_CLIENT_TOKEN_DEFAULT = 'da66e7f52a5abced5b1f09aeae6c80e6';
+
 function getFacebookClientToken(): string {
-  const token = process.env.EXPO_PUBLIC_FACEBOOK_CLIENT_TOKEN?.trim();
-  if (token) {
-    return token;
+  const fromEnv = process.env.EXPO_PUBLIC_FACEBOOK_CLIENT_TOKEN?.trim();
+  if (fromEnv) {
+    return fromEnv;
+  }
+  if (FACEBOOK_CLIENT_TOKEN_DEFAULT.length > 0) {
+    return FACEBOOK_CLIENT_TOKEN_DEFAULT;
   }
   throw new Error(
-    '[Facebook SDK] .env에 EXPO_PUBLIC_FACEBOOK_CLIENT_TOKEN을 설정하세요. ' +
+    '[Facebook SDK] EXPO_PUBLIC_FACEBOOK_CLIENT_TOKEN 또는 app.config.ts 기본값을 설정하세요. ' +
       'Meta 개발자 > 앱 > 앱 설정 > 고급에서 Client Token을 복사합니다.',
   );
 }
