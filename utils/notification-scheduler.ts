@@ -181,21 +181,75 @@ export async function setChallengeNotificationsEnabled(enabled: boolean): Promis
 }
 
 /**
- * Check if user has recorded any expense today
+ * 해당 날짜 버킷에 일반 리마인드를 보내지 않아도 될 만큼의 지출 기록 활동이 있는지 판단합니다.
+ * - 금액이 남은 지출, 또는 환불/결산 처리로 금액은 0이어도 사용자가 기록·후속 조치를 한 경우 포함
+ * - totalExpense > 0 은 records 합계와 어긋날 때를 위한 보조 조건
+ */
+function calendarDayHasExpenseActivity(dayData: unknown): boolean {
+  if (dayData === null || dayData === undefined || typeof dayData !== 'object') {
+    return false;
+  }
+  const bucket = dayData as {
+    totalExpense?: unknown;
+    records?: unknown;
+  };
+
+  if (typeof bucket.totalExpense === 'number' && bucket.totalExpense > 0) {
+    return true;
+  }
+
+  const { records } = bucket;
+  if (!Array.isArray(records)) {
+    return false;
+  }
+
+  return records.some((raw) => {
+    if (raw === null || typeof raw !== 'object') {
+      return false;
+    }
+    const record = raw as {
+      type?: unknown;
+      isDeleted?: unknown;
+      amount?: unknown;
+      isRefunded?: unknown;
+      isSettled?: unknown;
+    };
+    if (record.type !== 'expense') {
+      return false;
+    }
+    if (record.isDeleted === true) {
+      return false;
+    }
+    const amount = typeof record.amount === 'number' ? record.amount : 0;
+    if (amount > 0) {
+      return true;
+    }
+    if (record.isRefunded === true) {
+      return true;
+    }
+    if (record.isSettled === true) {
+      return true;
+    }
+    return false;
+  });
+}
+
+/**
+ * 오늘(로컬) 날짜 키 기준으로 지출 기록 활동이 있는지 확인합니다.
  */
 async function hasExpenseToday(): Promise<boolean> {
   try {
     const today = new Date();
     const dateKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-    
-    const calendarData = await AsyncStorage.getItem('calendarData');
-    if (!calendarData) return false;
-    
-    const data = JSON.parse(calendarData);
-    const todayData = data[dateKey];
-    
-    return todayData?.totalExpense && todayData.totalExpense > 0;
-  } catch (error) {
+
+    const calendarRaw = await AsyncStorage.getItem('calendarData');
+    if (!calendarRaw) {
+      return false;
+    }
+
+    const data = JSON.parse(calendarRaw) as Record<string, unknown>;
+    return calendarDayHasExpenseActivity(data[dateKey]);
+  } catch {
     return false;
   }
 }

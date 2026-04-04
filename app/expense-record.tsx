@@ -3388,6 +3388,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
       calendarRefreshEvent.emit();
 
+      rescheduleDailyReminderIfNeeded().catch(() => {});
+
       const recordDate = editData.date || date;
       const dateKey = formatDateKey(recordDate);
       showToast('정상적으로 환불 처리가 완료 되었습니다.');
@@ -3453,6 +3455,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       }
 
       calendarRefreshEvent.emit();
+
+      rescheduleDailyReminderIfNeeded().catch(() => {});
 
       // 현재 화면 즉시 반영
       setAmount('0');
@@ -3598,8 +3602,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       
       await rebuildCalendarData();
       calendarRefreshEvent.emit();
-      
-      
+
+      rescheduleDailyReminderIfNeeded().catch(() => {});
+
       // 모달 닫기
       setShowRefundOptions(false);
       const dateKey = formatDateKey(editData.date || date);
@@ -3892,9 +3897,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         } catch (_error) {
           // 에러가 발생해도 AsyncStorage 저장은 완료되었으므로 계속 진행
         }
-      
-      
-      
+
+        rescheduleDailyReminderIfNeeded().catch(() => {});
+
       // 모달 닫기
         setShowRefundRestore(false);
       
@@ -3994,6 +3999,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           // ignore
         }
 
+        rescheduleDailyReminderIfNeeded().catch(() => {});
+
         setShowRefundRestore(false);
 
         const dateKey = formatDateKey(editData.date || date);
@@ -4037,6 +4044,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         } catch (_error) {
           // ignore
         }
+
+        rescheduleDailyReminderIfNeeded().catch(() => {});
 
         setShowRefundRestore(false);
 
@@ -4099,6 +4108,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
       await rebuildCalendarData();
       calendarRefreshEvent.emit();
+
+      rescheduleDailyReminderIfNeeded().catch(() => {});
 
       setShowSettlementRestore(false);
       showToast('정상적으로 복구 처리가 완료 되었습니다.');
