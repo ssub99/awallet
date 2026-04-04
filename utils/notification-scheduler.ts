@@ -8,6 +8,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 
+import { getAllExpenses } from '@/utils/expenses';
+
 export const GENERAL_NOTIFICATIONS_ENABLED_KEY = 'generalNotificationsEnabled';
 export const CHALLENGE_NOTIFICATIONS_ENABLED_KEY = 'challengeNotificationsEnabled';
 const DAILY_REMINDER_TITLE = '오늘은 어떤 소비들을 하셨나요?';
@@ -234,8 +236,49 @@ function calendarDayHasExpenseActivity(dayData: unknown): boolean {
   });
 }
 
+function localDateKeyFromMs(ms: number): string {
+  const d = new Date(ms);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function localDateKeyFromIso(iso: string): string | null {
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) {
+    return null;
+  }
+  return localDateKeyFromMs(t);
+}
+
+/**
+ * expenseData 기준, 로컬 달력 "오늘"에 생성된 지출이 있는지 (삭제 제외).
+ * 날짜만 과거/미래로 옮긴 경우에도 오늘 생성이면 true.
+ */
+async function hasExpenseCreatedLocalToday(): Promise<boolean> {
+  try {
+    const expenses = await getAllExpenses();
+    const today = new Date();
+    const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+    return expenses.some((e) => {
+      if (e.isDeleted) {
+        return false;
+      }
+      if (typeof e.createdAt === 'string' && e.createdAt.length > 0) {
+        const key = localDateKeyFromIso(e.createdAt);
+        if (key !== null && key === todayKey) {
+          return true;
+        }
+      }
+      return localDateKeyFromMs(e.timestamp) === todayKey;
+    });
+  } catch {
+    return false;
+  }
+}
+
 /**
  * 오늘(로컬) 날짜 키 기준으로 지출 기록 활동이 있는지 확인합니다.
+ * 캘린더 버킷 활동 또는 오늘(로컬) 생성된 지출(expenseData) 중 하나라도 해당하면 true.
  */
 async function hasExpenseToday(): Promise<boolean> {
   try {
@@ -243,12 +286,14 @@ async function hasExpenseToday(): Promise<boolean> {
     const dateKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
     const calendarRaw = await AsyncStorage.getItem('calendarData');
-    if (!calendarRaw) {
-      return false;
+    if (calendarRaw) {
+      const data = JSON.parse(calendarRaw) as Record<string, unknown>;
+      if (calendarDayHasExpenseActivity(data[dateKey])) {
+        return true;
+      }
     }
 
-    const data = JSON.parse(calendarRaw) as Record<string, unknown>;
-    return calendarDayHasExpenseActivity(data[dateKey]);
+    return await hasExpenseCreatedLocalToday();
   } catch {
     return false;
   }

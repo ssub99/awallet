@@ -33,7 +33,7 @@ import { getCustomMonthInfo } from '@/utils/custom-month';
 import { createExpense, deleteExpense, deleteExpensesByGroup, getAllExpenses, getExpenseById, updateExpense, type ExpenseRecord as ExpenseRecordType, type PaymentMethod } from '@/utils/expenses';
 import { extractTimestampFromId, generateGroupId, generateRecordId } from '@/utils/id-generator';
 import { getAllIncomes } from '@/utils/incomes';
-import { cancelDailyReminder, rescheduleDailyReminderIfNeeded } from '@/utils/notification-scheduler';
+import { rescheduleDailyReminderIfNeeded } from '@/utils/notification-scheduler';
 import { refreshWidgetWithCurrentMonth } from '@/utils/widget-data-sync';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BlurView } from 'expo-blur';
@@ -2592,8 +2592,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               triggerChallengeNotifications(category, recordDateObj).catch((_error) => {});
             }
             
-            // 소비 기록 저장 시 당일 알림 취소
-            cancelDailyReminder().catch((_error) => {});
+            // 소비 기록 저장 후 일일 리마인더 정책 재적용
+            rescheduleDailyReminderIfNeeded().catch((_error) => {});
 
             let targetDateKey = actualDateKey;
             const originalDateKey = editData.date ? editData.date.replace(/\./g, '-') : actualDateKey;
@@ -3074,8 +3074,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         });
       }
       
-      // 소비 기록 저장 시 당일 알림 취소
-      cancelDailyReminder().catch((_error) => {});
+      // 소비 기록 저장 후 일일 리마인더 정책 재적용
+      rescheduleDailyReminderIfNeeded().catch((_error) => {});
       
       // 7. 홈으로 이동
       // 오늘만 수정 모드에서는 날짜 변경 여부에 따라 이동

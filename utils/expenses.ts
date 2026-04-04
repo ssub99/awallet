@@ -35,21 +35,42 @@ export interface ExpenseRecord {
   originalAmountBeforeRefund?: number; // 환불 직전 금액
   originalCategory?: string; // 원본 카테고리
   originalDate?: string; // 원본 날짜 (YYYY.MM.DD 형식) - 일반 기록: 처음 생성일, 선결제 기록: 원래 예정일
+  /** 최초 생성 시각 (ISO 8601). 없으면 로드 시 timestamp으로 백필 */
+  createdAt?: string;
+  /** 마지막 수정 시각 (ISO 8601). 없으면 로드 시 createdAt과 동일하게 백필 */
+  updatedAt?: string;
 }
 
 const EXPENSE_STORAGE_KEY = 'expenseData';
 const DATE_TOKEN_REGEX = /\./g;
 
+function coerceTimestamp(record: ExpenseRecord): number {
+  const raw = record.timestamp;
+  if (typeof raw === 'number' && !Number.isNaN(raw)) {
+    return raw;
+  }
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : Date.now();
+}
+
 function normalizeExpense(record: ExpenseRecord): ExpenseRecord {
-  const normalized = {
+  const timestamp = coerceTimestamp(record);
+  const fromTimestampIso = new Date(timestamp).toISOString();
+  const createdAt = record.createdAt ?? fromTimestampIso;
+  const updatedAt = record.updatedAt ?? createdAt;
+
+  const normalized: ExpenseRecord = {
     ...record,
     id: record.id ?? generateRecordId(),
     type: 'expense',
+    timestamp,
+    createdAt,
+    updatedAt,
     isDeleted: record.isDeleted ?? false,
     deletedAt: record.deletedAt ?? null,
     paymentMethod: record.paymentMethod ?? 'credit',
   };
-  
+
   return normalized;
 }
 
@@ -175,12 +196,16 @@ export async function updateExpense(
   const expenses = await loadLocalExpenses();
   let updated: ExpenseRecord | null = null;
 
+  const { createdAt: _discardCreatedAt, ...restUpdates } = updates;
+
   const next = expenses.map((expense) => {
     if (expense.id === id || expense.timestamp.toString() === id) {
       updated = normalizeExpense({
         ...expense,
-        ...updates,
+        ...restUpdates,
         id: expense.id ?? id,
+        createdAt: expense.createdAt,
+        updatedAt: new Date().toISOString(),
       });
       return updated;
     }
@@ -265,10 +290,15 @@ export async function renameExpenseCategory(
 ): Promise<void> {
   const expenses = await loadLocalExpenses();
   let changed = false;
+  const nowIso = new Date().toISOString();
   const updated = expenses.map((expense) => {
     if (expense.category === oldLabel) {
       changed = true;
-      return { ...expense, category: newLabel };
+      return normalizeExpense({
+        ...expense,
+        category: newLabel,
+        updatedAt: nowIso,
+      });
     }
     return expense;
   });
