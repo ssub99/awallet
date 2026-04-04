@@ -553,6 +553,51 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     [navigation]
   );
 
+  /** 수정 저장 후: 스택을 (tabs)+타임라인 2단만 두고 타임라인을 최상단으로 (push 누적 없음) */
+  const goTimelineWithFocusAfterSave = useCallback(
+    async ({ year, month, targetDate, refresh = true }: GoHomeOptions) => {
+      try {
+        await AsyncStorage.setItem(
+          'pendingCalendarTarget',
+          JSON.stringify({ year, month, targetDate })
+        );
+      } catch (error) {
+        console.warn('[NAV] goTimelineWithFocusAfterSave:pendingCalendarTarget:error', error);
+      }
+
+      (navigation as any).reset({
+        index: 1,
+        routes: [
+          {
+            name: '(tabs)',
+            params: {
+              screen: 'home',
+              params: {
+                targetYear: year.toString(),
+                targetMonth: month.toString(),
+                targetDate,
+                periodType: 'month',
+              },
+            },
+          },
+          {
+            name: 'monthly-expense-timeline',
+            params: {
+              year: year.toString(),
+              month: month.toString(),
+              selectedDate: targetDate,
+            },
+          },
+        ],
+      });
+
+      if (refresh) {
+        calendarRefreshEvent.emit();
+      }
+    },
+    [navigation]
+  );
+
   const goTimelineWithFocus = useCallback(async (_dateKey: string) => {
     calendarRefreshEvent.emit();
     router.back();
@@ -1927,6 +1972,42 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       };
     }
 
+    const refundPreserve: Partial<ExpenseRecordType> = {};
+    if (foundRecord?.isRefunded === true || editData.isRefunded === true) {
+      refundPreserve.isRefunded = true;
+      const ra = foundRecord?.refundedAt ?? editData.refundedAt;
+      if (typeof ra === 'string') {
+        refundPreserve.refundedAt = ra;
+      }
+      const oar =
+        typeof foundRecord?.originalAmountBeforeRefund === 'number'
+          ? foundRecord.originalAmountBeforeRefund
+          : typeof editData.originalAmountBeforeRefund === 'number'
+            ? editData.originalAmountBeforeRefund
+            : undefined;
+      if (typeof oar === 'number') {
+        refundPreserve.originalAmountBeforeRefund = oar;
+      }
+    }
+
+    const settlementPreserve: Partial<ExpenseRecordType> = {};
+    if (foundRecord?.isSettled === true || editData.isSettled === true) {
+      settlementPreserve.isSettled = true;
+      const sa = foundRecord?.settledAt ?? editData.settledAt;
+      if (typeof sa === 'string') {
+        settlementPreserve.settledAt = sa;
+      }
+      const oas =
+        typeof foundRecord?.originalAmountBeforeSettlement === 'number'
+          ? foundRecord.originalAmountBeforeSettlement
+          : typeof editData.originalAmountBeforeSettlement === 'number'
+            ? editData.originalAmountBeforeSettlement
+            : undefined;
+      if (typeof oas === 'number') {
+        settlementPreserve.originalAmountBeforeSettlement = oas;
+      }
+    }
+
     const updatedRecord = {
       ...newRecord,
       date: actualDate, // 날짜 변경 시 실제 날짜로 업데이트
@@ -1934,7 +2015,11 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       installmentId: editData.isInstallment ? editData.installmentId : undefined,
       timestamp: editData.timestamp, // 기존 timestamp 유지
       amount: finalAmount, // 할부 기록 수정 시 기존 금액 사용
-      ...(editData.isRecurring ? { originalAmountBeforeRefund: monthlyAmount } : {}),
+      ...refundPreserve,
+      ...settlementPreserve,
+      ...(editData.isRecurring && refundPreserve.isRefunded !== true
+        ? { originalAmountBeforeRefund: monthlyAmount }
+        : {}),
     };
 
     calendarData[actualDateKey].records.push(updatedRecord);
@@ -1967,6 +2052,11 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   const handleDatePress = () => {
     // 이미 열려있으면 무시
     if (showDatePicker) {
+      return;
+    }
+    // 선결제 처리된 기록은 날짜 변경 불가
+    if (mode === 'edit' && editData?.isPrepaid) {
+      showToast('변경할 수 없습니다. 새로 생성해 주세요.');
       return;
     }
     // 키패드가 열려있으면 닫기
@@ -2245,18 +2335,21 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     }
     
     const isRefundedRecord = mode === 'edit' && !!editData?.isRefunded;
-    
-    // 금액 필수 검증: 환불된 기록은 0원/미입력 허용
-    if (!isRefundedRecord) {
+    const isSettledRecord = mode === 'edit' && !!editData?.isSettled;
+    const isRefundedRecurringOrInstallment =
+      isRefundedRecord &&
+      (!!editData?.isRecurring || !!editData?.isInstallment);
+
+    // 금액 필수 검증: 환불·결산 처리 기록은 0원/미입력 허용
+    if (!isRefundedRecord && !isSettledRecord) {
       if (!amount || amount === '0' || amount.trim() === '') {
         setShowAmountAlert(true);
         return;
       }
     }
     
-    // 수정 모드에서 변경사항이 없으면 모달 표시
-    // 환불 기록: 저장 전에 환불 전용 모달 표시
-    if (isRefundedRecord) {
+    // 정기/할부 환불 기록만: 이번 달·이번 회차만 바뀐다는 확인 (일회성 환불은 해당 없음)
+    if (isRefundedRecurringOrInstallment) {
       setRefundEditConfirmMessage('현재 데이터만 변경 됩니다.\n진행하시겠어요?');
       setShowRefundEditConfirmModal(true);
       return;
@@ -2321,7 +2414,11 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       const calendarData = storedData ? JSON.parse(storedData) : {};
       
       const isRefundedRecordForSave = mode === 'edit' && !!editData?.isRefunded;
-      const expenseAmount = parseFloat(amount.replace(/,/g, ''));
+      const isSettledRecordForSave = mode === 'edit' && !!editData?.isSettled;
+      let expenseAmount = parseFloat(amount.replace(/,/g, ''));
+      if (!Number.isFinite(expenseAmount) && (isRefundedRecordForSave || isSettledRecordForSave)) {
+        expenseAmount = 0;
+      }
       
       // 1. 실제 저장될 날짜 계산 (주말 옵션 적용)
       // 선결제 기록 날짜 변경 체크는 handleConfirm에서 이미 처리됨
@@ -2362,37 +2459,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       }
       
       const actualDateKey = actualDate.replace(/\./g, '-');
-
-      // 환불된 기록은 금액/상태를 유지한 채 날짜만 이동
-      if (isRefundedRecordForSave && mode === 'edit' && editData?.timestamp) {
-        const originalDateKey = (editData.date || date).replace(/\./g, '-');
-        const ts = editData.timestamp;
-        if (!calendarData[actualDateKey]) {
-          calendarData[actualDateKey] = { totalExpense: 0, totalIncome: 0, records: [] };
-        }
-        // 원본 위치에서 레코드 찾아 이동
-        if (calendarData[originalDateKey]?.records) {
-          const idx = calendarData[originalDateKey].records.findIndex((r: any) => r.timestamp === ts);
-          if (idx !== -1) {
-            const rec = calendarData[originalDateKey].records[idx];
-            // 날짜 문자열 업데이트(YYYY.MM.DD)
-            rec.date = actualDate;
-            // 환불 상태/금액/백업 값 유지
-            rec.isRefunded = true;
-            rec.amount = 0;
-            // 원본에서 제거
-            calendarData[originalDateKey].records.splice(idx, 1);
-            // 원본 날짜키가 비면 정리
-            if (calendarData[originalDateKey].records.length === 0) {
-              delete calendarData[originalDateKey];
-            }
-            // 대상 날짜키에 추가
-            calendarData[actualDateKey].records.push(rec);
-            await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
-            return;
-          }
-        }
-      }
 
       // 2. 날짜에 데이터 구조 생성
       if (!calendarData[actualDateKey]) {
@@ -2567,12 +2633,23 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                   isAutoGenerated: false,
                   totalMonths,
                   recurringType,
-                  originalAmountBeforeRefund: monthlyAmount,
                   isPrepaid: editData.isPrepaid,
                   prepaidDate: editData.prepaidDate,
                   originalDate: editData.originalDate,
                   isRefunded: editData.isRefunded,
+                  paymentMethod,
                 };
+                if (editData.isSettled === true) {
+                  updateData.isSettled = true;
+                  if (typeof editData.settledAt === 'string') {
+                    updateData.settledAt = editData.settledAt;
+                  }
+                  if (typeof editData.originalAmountBeforeSettlement === 'number') {
+                    updateData.originalAmountBeforeSettlement = editData.originalAmountBeforeSettlement;
+                  }
+                } else if (editData.isRecurring) {
+                  updateData.originalAmountBeforeRefund = monthlyAmount;
+                }
                 await updateExpense(recordKey, updateData);
               }
             } catch (error) {
@@ -2605,12 +2682,25 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             const savedDate = new Date(yearNum, monthNum - 1, dayNum);
             const currentMonthStartDay = await loadMonthStartDay();
             const customMonthInfo = getCustomMonthInfo(savedDate, currentMonthStartDay);
-            await goHomeWithFocus({ year: customMonthInfo.year, month: customMonthInfo.month, targetDate: targetDateKey });
+            if (mode === 'edit') {
+              await goTimelineWithFocusAfterSave({
+                year: customMonthInfo.year,
+                month: customMonthInfo.month,
+                targetDate: targetDateKey,
+              });
+            } else {
+              await goHomeWithFocus({
+                year: customMonthInfo.year,
+                month: customMonthInfo.month,
+                targetDate: targetDateKey,
+              });
+            }
             return;
           }
         } else {
           // 일반 기록 수정 (기존 로직)
           const originalDateKey = editData.date ? editData.date.replace(/\./g, '-') : actualDateKey;
+          let preservedAdjustmentForGeneral: Record<string, unknown> = {};
 
           // 기존 위치에서 기록 삭제 (날짜 변경 여부와 상관없이)
           if (calendarData[originalDateKey] && calendarData[originalDateKey].records) {
@@ -2631,6 +2721,27 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             
             if (originalRecordIndex !== -1 && originalRecordIndex < calendarData[originalDateKey].records.length) {
               const originalRecord = calendarData[originalDateKey].records[originalRecordIndex];
+
+              if (originalRecord.isRefunded === true) {
+                preservedAdjustmentForGeneral.isRefunded = true;
+                if (typeof originalRecord.refundedAt === 'string') {
+                  preservedAdjustmentForGeneral.refundedAt = originalRecord.refundedAt;
+                }
+                if (typeof originalRecord.originalAmountBeforeRefund === 'number') {
+                  preservedAdjustmentForGeneral.originalAmountBeforeRefund =
+                    originalRecord.originalAmountBeforeRefund;
+                }
+              }
+              if (originalRecord.isSettled === true) {
+                preservedAdjustmentForGeneral.isSettled = true;
+                if (typeof originalRecord.settledAt === 'string') {
+                  preservedAdjustmentForGeneral.settledAt = originalRecord.settledAt;
+                }
+                if (typeof originalRecord.originalAmountBeforeSettlement === 'number') {
+                  preservedAdjustmentForGeneral.originalAmountBeforeSettlement =
+                    originalRecord.originalAmountBeforeSettlement;
+                }
+              }
 
               calendarData[originalDateKey].records.splice(originalRecordIndex, 1);
               
@@ -2668,6 +2779,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           calendarData[actualDateKey].records.push({
             ...newRecord,
             timestamp: editData.timestamp, // Keep original timestamp
+            ...preservedAdjustmentForGeneral,
           });
           calendarData[actualDateKey].totalExpense = (calendarData[actualDateKey].totalExpense || 0) + monthlyAmount;
 
@@ -2842,6 +2954,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             memo,
             date: actualDate,
             timestamp: editData.timestamp, // 기존 timestamp 유지
+            paymentMethod,
             isRecurring,
             weekendOption: (isRecurring || isInstallment) ? weekendOption : undefined,
             recurringId: isRecurring ? recurringId : undefined,
@@ -2851,10 +2964,29 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             totalMonths: isRecurring ? totalMonths : undefined,
             installmentMonths: isInstallment ? totalMonths : undefined,
             originalInstallment: isInstallment ? true : undefined,
+            recurringType: isRecurring ? recurringType : undefined,
             isPrepaid: editData.isPrepaid,
             prepaidDate: editData.prepaidDate,
             originalDate: editData.originalDate,
-            isRefunded: editData.isRefunded,
+            ...(typeof editData.id === 'string' && editData.id.length > 0 ? { id: editData.id } : {}),
+            ...(editData.isRefunded === true
+              ? {
+                  isRefunded: true,
+                  ...(typeof editData.refundedAt === 'string' ? { refundedAt: editData.refundedAt } : {}),
+                  ...(typeof editData.originalAmountBeforeRefund === 'number'
+                    ? { originalAmountBeforeRefund: editData.originalAmountBeforeRefund }
+                    : {}),
+                }
+              : {}),
+            ...(editData.isSettled === true
+              ? {
+                  isSettled: true,
+                  ...(typeof editData.settledAt === 'string' ? { settledAt: editData.settledAt } : {}),
+                  ...(typeof editData.originalAmountBeforeSettlement === 'number'
+                    ? { originalAmountBeforeSettlement: editData.originalAmountBeforeSettlement }
+                    : {}),
+                }
+              : {}),
           };
           recordsToSave.push(updatedRecord);
         } else {
@@ -3113,10 +3245,20 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       const customMonthInfo = getCustomMonthInfo(savedDate, currentMonthStartDay);
       const targetYear = customMonthInfo.year;
       const targetMonth = customMonthInfo.month;
-      
-      
-      
-      await goHomeWithFocus({ year: targetYear, month: targetMonth, targetDate: targetDateKey });
+
+      if (mode === 'edit') {
+        await goTimelineWithFocusAfterSave({
+          year: targetYear,
+          month: targetMonth,
+          targetDate: targetDateKey,
+        });
+      } else {
+        await goHomeWithFocus({
+          year: targetYear,
+          month: targetMonth,
+          targetDate: targetDateKey,
+        });
+      }
     } catch (error) {
       console.error('[SAVE] error:', error);
     } finally {
@@ -4683,6 +4825,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                   return `${year}.${String(month).padStart(2, '0')}.${String(day).padStart(2, '0')}(${actualDayOfWeekLabel})`;
                 })()}
                 editable={false}
+                disabled={mode === 'edit' && !!editData?.isPrepaid}
                 placeholder="날짜 선택"
                 onPress={handleDatePress}
               />
@@ -5779,7 +5922,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         </Text>
       </ModalPopup>
 
-      {/* 환불 기록 저장 확인 모달 */}
+      {/* 정기/할부 환불 기록 저장 확인 모달 */}
       <ModalPopup
         visible={showRefundEditConfirmModal}
         title="소비 기록 안내"
