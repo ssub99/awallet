@@ -35,9 +35,9 @@ export interface ExpenseRecord {
   originalAmountBeforeRefund?: number; // 환불 직전 금액
   originalCategory?: string; // 원본 카테고리
   originalDate?: string; // 원본 날짜 (YYYY.MM.DD 형식) - 일반 기록: 처음 생성일, 선결제 기록: 원래 예정일
-  /** 최초 생성 시각 (ISO 8601). 없으면 로드 시 timestamp으로 백필 */
+  /** 최초 생성 시각. 로컬 `YYYY-MM-DD HH:mm:ss` (없으면 로드 시 timestamp으로 백필) */
   createdAt?: string;
-  /** 마지막 수정 시각 (ISO 8601). 없으면 로드 시 createdAt과 동일하게 백필 */
+  /** 마지막 수정 시각. 로컬 `YYYY-MM-DD HH:mm:ss` (없으면 createdAt과 동일하게 백필) */
   updatedAt?: string;
 }
 
@@ -53,11 +53,42 @@ function coerceTimestamp(record: ExpenseRecord): number {
   return Number.isFinite(n) ? n : Date.now();
 }
 
+/** 로컬 날짜+시간 문자열 (AsyncStorage 저장용) */
+function formatLocalDateTime(ms: number): string {
+  const d = new Date(ms);
+  const y = d.getFullYear();
+  const mo = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const h = String(d.getHours()).padStart(2, '0');
+  const min = String(d.getMinutes()).padStart(2, '0');
+  const s = String(d.getSeconds()).padStart(2, '0');
+  return `${y}-${mo}-${day} ${h}:${min}:${s}`;
+}
+
+function parseStoredDateTimeToMs(value: string): number | null {
+  const t = Date.parse(value);
+  return Number.isNaN(t) ? null : t;
+}
+
 function normalizeExpense(record: ExpenseRecord): ExpenseRecord {
   const timestamp = coerceTimestamp(record);
-  const fromTimestampIso = new Date(timestamp).toISOString();
-  const createdAt = record.createdAt ?? fromTimestampIso;
-  const updatedAt = record.updatedAt ?? createdAt;
+  const fallbackDt = formatLocalDateTime(timestamp);
+
+  let createdAt: string;
+  if (typeof record.createdAt === 'string' && record.createdAt.length > 0) {
+    const ms = parseStoredDateTimeToMs(record.createdAt);
+    createdAt = ms !== null ? formatLocalDateTime(ms) : fallbackDt;
+  } else {
+    createdAt = fallbackDt;
+  }
+
+  let updatedAt: string;
+  if (typeof record.updatedAt === 'string' && record.updatedAt.length > 0) {
+    const ms = parseStoredDateTimeToMs(record.updatedAt);
+    updatedAt = ms !== null ? formatLocalDateTime(ms) : createdAt;
+  } else {
+    updatedAt = createdAt;
+  }
 
   const normalized: ExpenseRecord = {
     ...record,
@@ -205,7 +236,7 @@ export async function updateExpense(
         ...restUpdates,
         id: expense.id ?? id,
         createdAt: expense.createdAt,
-        updatedAt: new Date().toISOString(),
+        updatedAt: formatLocalDateTime(Date.now()),
       });
       return updated;
     }
@@ -290,14 +321,14 @@ export async function renameExpenseCategory(
 ): Promise<void> {
   const expenses = await loadLocalExpenses();
   let changed = false;
-  const nowIso = new Date().toISOString();
+  const nowLocal = formatLocalDateTime(Date.now());
   const updated = expenses.map((expense) => {
     if (expense.category === oldLabel) {
       changed = true;
       return normalizeExpense({
         ...expense,
         category: newLabel,
-        updatedAt: nowIso,
+        updatedAt: nowLocal,
       });
     }
     return expense;

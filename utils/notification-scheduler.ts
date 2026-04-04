@@ -241,8 +241,9 @@ function localDateKeyFromMs(ms: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-function localDateKeyFromIso(iso: string): string | null {
-  const t = Date.parse(iso);
+/** `YYYY-MM-DD HH:mm:ss` 또는 ISO 문자열 등 `Date.parse` 가능한 값 */
+function localDateKeyFromStoredDateTime(value: string): string | null {
+  const t = Date.parse(value);
   if (Number.isNaN(t)) {
     return null;
   }
@@ -264,7 +265,7 @@ async function hasExpenseCreatedLocalToday(): Promise<boolean> {
         return false;
       }
       if (typeof e.createdAt === 'string' && e.createdAt.length > 0) {
-        const key = localDateKeyFromIso(e.createdAt);
+        const key = localDateKeyFromStoredDateTime(e.createdAt);
         if (key !== null && key === todayKey) {
           return true;
         }
