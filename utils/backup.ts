@@ -234,6 +234,7 @@ export async function restoreFromBackupFile(fileUri: string): Promise<void> {
     replaceAllExpenses(expenses),
     replaceAllIncomes(incomes),
   ]);
+  await AsyncStorage.removeItem(CALENDAR_DATA_KEY);
   await clearConsumptionReportCaches();
 }
 

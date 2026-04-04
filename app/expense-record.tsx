@@ -725,7 +725,19 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         })}
       </ScrollView>
     );
-  }, [amount, amountExpression, colors.text, colors.textDisabled, colors.textNeutral, formatAmountDisplay, getOperatorSymbol, mode, editData?.isInstallment, editData?.isRefunded]);
+  }, [
+    amount,
+    amountExpression,
+    colors.text,
+    colors.textDisabled,
+    colors.textNeutral,
+    formatAmountDisplay,
+    getOperatorSymbol,
+    mode,
+    editData?.isInstallment,
+    editData?.isRefunded,
+    editData?.isSettled,
+  ]);
 
   useEffect(() => {
     if (isKeypadVisible) {
@@ -2336,9 +2348,11 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     
     const isRefundedRecord = mode === 'edit' && !!editData?.isRefunded;
     const isSettledRecord = mode === 'edit' && !!editData?.isSettled;
-    const isRefundedRecurringOrInstallment =
-      isRefundedRecord &&
-      (!!editData?.isRecurring || !!editData?.isInstallment);
+    /** 정기·할부 중 환불/선결제/결산 처리된 건: 저장 시 이 회차만 바뀐다는 확인 */
+    const isAdjustedRecurringOrInstallment =
+      mode === 'edit' &&
+      (!!editData?.isRecurring || !!editData?.isInstallment) &&
+      (!!editData?.isRefunded || !!editData?.isPrepaid || !!editData?.isSettled);
 
     // 금액 필수 검증: 환불·결산 처리 기록은 0원/미입력 허용
     if (!isRefundedRecord && !isSettledRecord) {
@@ -2348,39 +2362,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       }
     }
     
-    // 정기/할부 환불 기록만: 이번 달·이번 회차만 바뀐다는 확인 (일회성 환불은 해당 없음)
-    if (isRefundedRecurringOrInstallment) {
+    if (isAdjustedRecurringOrInstallment) {
       setRefundEditConfirmMessage('현재 데이터만 변경 됩니다.\n진행하시겠어요?');
       setShowRefundEditConfirmModal(true);
       return;
-    }
-
-    // 선결제 기록에서 날짜 변경 확인 (정기/할부 모달보다 먼저 체크)
-    if (mode === 'edit' && editData?.isPrepaid && editData?.isInstallment) {
-      const originalDateKey = editData.date ? editData.date.replace(/\./g, '-') : '';
-      const parts = date.split('.');
-      const year = parseInt(parts[0], 10);
-      const month = parseInt(parts[1], 10) - 1;
-      const day = parseInt(parts[2], 10);
-      const dateObj = new Date(year, month, day);
-      const dayOfWeek = dateObj.getDay();
-      const isWeekendDay = dayOfWeek === 0 || dayOfWeek === 6;
-      
-      // 매일, 주중, 주말 반복 기간을 선택한 경우 주말 옵션 무시
-      const shouldIgnoreWeekendOption = isRecurring && ['매일', '주중', '주말'].includes(recurringType);
-      let checkActualDate = date;
-      if ((isRecurring || isInstallment) && isWeekendDay && weekendOption !== 'weekend' && !shouldIgnoreWeekendOption) {
-        checkActualDate = getAdjustedWeekendDate(date, weekendOption);
-      }
-      const checkActualDateKey = checkActualDate.replace(/\./g, '-');
-      const isDateChanged = originalDateKey !== checkActualDateKey;
-      
-      // 날짜가 변경되었으면 모달 표시
-      if (isDateChanged) {
-        setEditConfirmMessage('현재 데이터만 변경 됩니다.\n진행하시겠어요?');
-        setShowEditConfirmModal(true);
-        return;
-      }
     }
 
     // 할부 기록 수정모드에서 확인 모달 표시 (환불 기록, 선결제 기록은 제외)
@@ -5922,7 +5907,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         </Text>
       </ModalPopup>
 
-      {/* 정기/할부 환불 기록 저장 확인 모달 */}
+      {/* 정기·할부 + 환불/선결제/결산 처리 건 저장 확인 모달 */}
       <ModalPopup
         visible={showRefundEditConfirmModal}
         title="소비 기록 안내"

@@ -25,6 +25,8 @@ export interface ExpenseRecord {
   isPrepaid?: boolean;
   prepaidDate?: string; // YYYY.MM.DD 형식
   isRefunded?: boolean;
+  /** 환불 처리 시각(ISO). 백업·캘린더 행과 동기화 */
+  refundedAt?: string;
   isSettled?: boolean;
   settledAt?: string;
   originalAmountBeforeSettlement?: number;
