@@ -15,11 +15,13 @@ import { PARSE_EXPENSE_API_URL } from '@/constants/api';
 import { getRandomQuickInputPlaceholder } from '@/constants/quick-input-placeholders';
 import { useAppData } from '@/contexts/app-data-context';
 import { useToast } from '@/contexts/toast-context';
-import { applyPendingCalendarTargetEvent } from '@/hooks/calendar-events';
+import { applyPendingCalendarTargetEvent, calendarRefreshEvent } from '@/hooks/calendar-events';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { getApiSecurityHeaders } from '@/utils/api-security-headers';
 import { isAtLeastVersion, QUICK_INPUT_MIN_VERSION } from '@/utils/app-version';
+import { triggerChallengeNotifications } from '@/utils/challenge-utils';
 import { getCustomMonthInfo } from '@/utils/custom-month';
+import { rescheduleDailyReminderIfNeeded } from '@/utils/notification-scheduler';
 import { refreshWidgetWithCurrentMonth } from '@/utils/widget-data-sync';
 import {
   adjustWeekendDate,
@@ -774,6 +776,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       await createExpensesBatch(recordsToSave);
       await refreshWidgetWithCurrentMonth().catch(() => {});
 
+      const challengeCategory = pending.category ?? '기타';
       const actualDateKey = actualDate.replace(/\./g, '-');
       const savedDate = new Date(
         parseInt(actualDate.split('.')[0], 10),
@@ -798,6 +801,12 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       showToast('기록 생성이 완료되었습니다.');
 
       await refresh();
+      calendarRefreshEvent.emit();
+      if (challengeCategory) {
+        const recordDateObj = new Date(actualDateKey);
+        triggerChallengeNotifications(challengeCategory, recordDateObj).catch(() => {});
+      }
+      rescheduleDailyReminderIfNeeded().catch(() => {});
     } catch {
       showToast('기록 저장에 실패했습니다.');
     } finally {
