@@ -6,6 +6,7 @@
  * Response: { records, suggestedCategory?, reply? }
  */
 
+import { resolveRelativeWeekdayDateFromMessage } from '../utils/parse-expense-relative-date';
 import { getBaseSystemPrompt } from './ai-system-prompts';
 import {
   checkRateLimit,
@@ -60,7 +61,7 @@ function buildExpenseSystemPrompt(categories: string[], today: string): string {
 규칙:
 1. 요청 없으면 생성/삭제 금지.
 2. 결제 기본: credit. 체크/현금 요청 시 debit/cash. 기본값 지정 요청 시 기억.
-3. 날짜는 기준일 ${today} 기준. YYYY.MM.DD.
+3. 날짜는 기준일 ${today} 기준. YYYY.MM.DD. (저번주/이번주/다음주+요일 조합은 서버에서 월요일 시작 주로 재계산해 보정될 수 있음)
 4. 소비 외 질문→reply에 "소비 기록 관련해서만 답변드릴 수 있어요."
 5. 부족한 항목 있으면 reply에 요청. 카테고리 목록에 없거나 비어있으면 반드시 suggestedCategory 1개 제안(이모지+이름 10자).
 6. 메모는 사용자가 별도로 요청할 때만 기록에 넣음.
@@ -333,6 +334,14 @@ export async function POST(request: Request): Promise<Response> {
           ],
         };
       }
+    }
+
+    const relativeDate = resolveRelativeWeekdayDateFromMessage(message, today);
+    if (relativeDate != null && result.records.length > 0) {
+      result = {
+        ...result,
+        records: result.records.map((r) => ({ ...r, date: relativeDate })),
+      };
     }
 
     recordRateLimitSuccess(rateLimitCheck.key, DEFAULT_AI_RATE_LIMIT_POLICY);

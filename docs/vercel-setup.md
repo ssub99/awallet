@@ -83,8 +83,8 @@ npx vercel
 1. 로컬에서 마지막 커밋까지 한 뒤 `ing` 브랜치에 푸시: `git push origin ing`
 2. Vercel은 **Settings → Git → Production Branch** 에서 정한 브랜치만 “프로덕션 URL”로 배포함. 나머지 브랜치 푸시는 **Preview** 배포(브랜치별 URL)로 뜸.
 3. 따라서 `ing` 에 푸시하면:
-   - **Production Branch 가 `ing` 이면** → `https://awallet.vercel.app` 에 배포됨 (테스트용으로 쓰면 됨)
-   - **Production Branch 가 `main`/`master` 등이면** → `ing` 푸시는 **Preview** 배포만 생성 (예: `https://awallet-git-ing-xxx.vercel.app`) → 메인 URL은 안 바뀜
+   - **Production Branch 가 `ing` 이면** → 해당 프로젝트의 **프로덕션 URL**(현재 레포 앱 기본값: `https://awallet-eta.vercel.app`)에 배포됨 (테스트용으로 쓰면 됨)
+   - **Production Branch 가 `main`/`master` 등이면** → `ing` 푸시는 **Preview** 배포만 생성 (예: `https://awallet-git-ing-awallet-vercel-api.vercel.app`) → 메인 URL은 안 바뀜
 4. **`ing` 푸시가 메인 URL에 반영되게 하려면:** **Production Branch** 를 **ing** 으로 바꾸고 저장. 그다음부터는 `ing` 푸시가 프로덕션 배포로 뜨고, 메인 도메인이 그걸 가리킴.
    - **Production Branch 위치:** 프로젝트 **Settings** → **Git** 페이지에서 **Deploy Hooks가 아닌 위쪽**에 “Production Branch” 또는 “Production branch” 필드가 있음. 없으면 **Settings** → **Environments** 메뉴에서 같은 설정을 찾을 수 있음 (Vercel UI 버전에 따라 다름).
 5. **Deploy Hooks** 는 “이 URL로 GET 요청 보내면 해당 브랜치 배포 트리거”하는 기능이라, “어떤 브랜치 푸시가 프로덕션으로 갈지” 정하는 **Production Branch** 와는 다름.
@@ -99,7 +99,7 @@ npx vercel
 | 방식 | 설명 |
 |------|------|
 | **같은 프로젝트, 환경만 구분** | Vercel **Environment Variables**에서 **Production** / **Preview** 를 따로 선택해 넣기. `main` 배포 = Production URL, 다른 브랜치 배포 = Preview URL. 스테이지 앱은 Preview URL을, 프로덕션 앱은 Production URL을 쓰면 됨. |
-| **프로젝트 두 개** | Vercel 프로젝트를 **awallet-stage**, **awallet**(프로덕션) 처럼 두 개 만든 뒤, 스테이지 앱은 `https://awallet-stage.vercel.app/api/parse-expense`, 프로덕션 앱은 `https://awallet.vercel.app/api/parse-expense` 처럼 다른 URL 호출. |
+| **프로젝트 두 개** | Vercel 프로젝트를 **awallet-stage**, **awallet-eta**(프로덕션) 처럼 두 개 만든 뒤, 스테이지 앱은 `https://awallet-stage.vercel.app/api/parse-expense`, 프로덕션 앱은 `https://awallet-eta.vercel.app/api/parse-expense` 처럼 다른 URL 호출. |
 
 - **같은 프로젝트**: 관리할 곳이 하나라서 단순함. Preview 배포 시 자동으로 브랜치별 URL이 생김.
 - **프로젝트 두 개**: 스테이지/프로덕션을 완전히 분리하고 싶을 때. API 키도 스테이지용·프로덕션용 따로 둘 수 있음.
@@ -108,18 +108,25 @@ npx vercel
 
 ## 4. 배포 후 확인
 
-- 배포가 끝나면 **Deployments**에서 URL 확인 (예: `https://awallet-xxx.vercel.app`).
+- 배포가 끝나면 **Deployments**에서 URL 확인 (예: `https://awallet-eta.vercel.app`, Preview는 `https://awallet-git-ing-awallet-vercel-api.vercel.app` 등).
+- **모바일 앱**의 프로덕션/스테이지 기본 호스트는 `constants/api.ts` 와 맞출 것:
+  - 프로덕션 기본: `https://awallet-eta.vercel.app`
+  - 스테이지·Expo Go 기본(ing 프리뷰): `https://awallet-git-ing-awallet-vercel-api.vercel.app`
 - 에이전트 API 엔드포인트:
   - **POST** `https://<프로젝트-도메인>/api/parse-expense`
+  - 소비 리포트: **POST** `https://<프로젝트-도메인>/api/consumption-report`
 
-### 4-1. API URL을 `https://awallet.vercel.app/api/parse-expense` 로 쓰고 싶을 때
+### 4-1. 프로덕션 API 기본 URL (`https://awallet-eta.vercel.app`)
 
-1. **Vercel 대시보드** → 우리 프로젝트 선택 → **Settings** → **General**
-2. **Project Name** 입력란을 찾아서 **awallet** 로 입력 (이미 있으면 그대로 둠)
-3. **Save** 하면 기본 배포 URL이 `https://awallet.vercel.app` 로 잡힘
-4. 그러면 API 주소는 **`https://awallet.vercel.app/api/parse-expense`** 가 됨
+현재 이 레포의 앱 상수는 프로덕션 호스트를 **`https://awallet-eta.vercel.app`** 로 둡니다.
 
-**참고:** `awallet` 이 이미 다른 계정에서 쓰 중이면 이 이름은 쓸 수 없음. Project Name을 **awallet-vercel-api** 로 두면 API 주소는 **`https://awallet-vercel-api.vercel.app/api/parse-expense`** 가 됨.
+1. **Vercel 대시보드** → 해당 프로젝트 선택 → **Settings** → **General**
+2. **Project Name** 이 `awallet-eta` 이면 기본 배포 URL이 **`https://awallet-eta.vercel.app`** 로 잡히는 경우가 일반적입니다 (Vercel 계정·프로젝트 생성 방식에 따라 실제 도메인은 **Deployments**에서 확인).
+3. API 예시:
+   - **`https://awallet-eta.vercel.app/api/parse-expense`**
+   - **`https://awallet-eta.vercel.app/api/consumption-report`**
+
+**참고:** 희망하는 서브도메인이 이미 사용 중이면 Project Name을 **awallet-vercel-api** 등으로 두고, 앱에서는 **`EXPO_PUBLIC_AWALLET_API_BASE_URL`** 로 그 프로젝트 URL을 맞추면 됨 (예: `https://awallet-vercel-api.vercel.app/api/parse-expense`).
 - 요청 body 예시:
   ```json
   { "message": "어제 오늘 점심 2만원 썼어" }

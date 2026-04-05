@@ -11,7 +11,8 @@ import * as Updates from 'expo-updates';
  * - 그 밖의 프로덕션 빌드: EXPO_PUBLIC 이 있으면 우선, 없으면 프로덕션 기본 도메인.
  */
 
-const DEFAULT_VERCEL_API_BASE_URL = 'https://awallet.vercel.app';
+/** 프로덕션 Vercel 기본 호스트(스테이지 분기 시 `EXPO_PUBLIC` 비교 기준에도 사용) */
+const DEFAULT_VERCEL_API_BASE_URL = 'https://awallet-eta.vercel.app';
 const DEFAULT_STAGE_VERCEL_API_BASE_URL =
   'https://awallet-git-ing-awallet-vercel-api.vercel.app';
 

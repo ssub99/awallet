@@ -708,7 +708,7 @@ export async function POST(request: Request): Promise<Response> {
             ],
             generationConfig: {
               temperature: 0.7,
-              maxOutputTokens: 512,
+              maxOutputTokens: 720,
               responseMimeType: 'application/json',
             },
           }),
