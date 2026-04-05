@@ -1,12 +1,14 @@
 import * as Application from 'expo-application';
+import Constants from 'expo-constants';
 import * as Updates from 'expo-updates';
 
 /**
  * API 엔드포인트 설정
  *
- * 스테이지(EAS channel stage 또는 applicationId 에 `.stage`): 프리뷰 기본 도메인 사용.
- * 단, EXPO_PUBLIC_AWALLET_API_BASE_URL 이 프로덕션과 다른 호스트면 그 값을 사용.
- * 프로덕션 앱: EXPO_PUBLIC 이 있으면 우선, 없으면 프로덕션 기본 도메인.
+ * - 스테이지(EAS channel stage 또는 applicationId 에 `.stage`): 프리뷰(ing) 기본 도메인.
+ * - Expo Go(`appOwnership === 'expo'`): 동일하게 프리뷰 기본 도메인(로컬 개발 시 프로덕션 API 405 등 방지).
+ * - 단, EXPO_PUBLIC_AWALLET_API_BASE_URL 이 프로덕션 기본과 다르면 그 호스트를 우선.
+ * - 그 밖의 프로덕션 빌드: EXPO_PUBLIC 이 있으면 우선, 없으면 프로덕션 기본 도메인.
  */
 
 const DEFAULT_VERCEL_API_BASE_URL = 'https://awallet.vercel.app';
@@ -37,10 +39,19 @@ function isStageBuildProfile(): boolean {
   );
 }
 
+/** Expo Go 클라이언트에서 실행 중 (개발용 스캐너 앱) */
+function isExpoGo(): boolean {
+  return Constants.appOwnership === 'expo';
+}
+
+function shouldUseStageDefaultVercelHost(): boolean {
+  return isStageBuildProfile() || isExpoGo();
+}
+
 const VERCEL_API_BASE_URL = (() => {
   const fromEnv = normalizeApiBaseUrl(process.env.EXPO_PUBLIC_AWALLET_API_BASE_URL);
 
-  if (isStageBuildProfile()) {
+  if (shouldUseStageDefaultVercelHost()) {
     if (fromEnv != null && fromEnv !== DEFAULT_VERCEL_API_BASE_URL) {
       return fromEnv;
     }

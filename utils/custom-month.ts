@@ -17,6 +17,26 @@ export interface CustomMonthInfo {
 }
 
 /**
+ * calendarData 날짜 키(YYYY-MM-DD)를 디바이스 로컬 자정 Date로 변환합니다.
+ * `new Date('YYYY-MM-DD')`는 UTC 자정으로 해석되어, 홈 캘린더(로컬 요일)·월 합계와
+ * 소비 지수 집계가 월 말일 등에서 어긋날 수 있습니다.
+ */
+export function parseCalendarDateKeyLocal(dateKey: string): Date | null {
+  const parts = dateKey.split('-');
+  if (parts.length !== 3) return null;
+  const y = Number(parts[0]);
+  const m = Number(parts[1]);
+  const d = Number(parts[2]);
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return null;
+  if (m < 1 || m > 12 || d < 1 || d > 31) return null;
+  const date = new Date(y, m - 1, d);
+  if (date.getFullYear() !== y || date.getMonth() !== m - 1 || date.getDate() !== d) {
+    return null;
+  }
+  return date;
+}
+
+/**
  * Get custom month info for a specific date
  * 
  * @param date - The date to check

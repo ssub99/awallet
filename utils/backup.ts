@@ -39,6 +39,7 @@ export const RESTORE_VALIDATION_ERROR = 'RESTORE_VALIDATION_FAILED';
 /** 백업 파일 버전이 앱보다 높을 때 throw (화면에서 토스트 문구 분기용) */
 export const BACKUP_VERSION_TOO_NEW_ERROR = 'BACKUP_VERSION_TOO_NEW';
 
+/** 소비 리포트 캐시 제거 + `consumptionReportResetAt` 기록(챌린지 탭에서 리포트 UI 초기화 신호로 소비) */
 async function clearConsumptionReportCaches(): Promise<void> {
   try {
     const allKeys = await AsyncStorage.getAllKeys();

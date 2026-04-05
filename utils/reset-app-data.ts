@@ -37,9 +37,13 @@ const KEYS_TO_REMOVE = [
  * - 레거시 월별 캐시: consumptionReport_${year}_${month}_${monthStartDay}
  * - 컨텍스트 해시 캐시: consumptionReportCtx_${hash}
  *
- * 전체 초기화 시에는 위 패턴에 해당하는 모든 키를 찾아 함께 삭제합니다.
+ * 전체 초기화 시에는 위 패턴에 해당하는 모든 키를 찾아 삭제하고,
+ * 챌린지 탭이 읽는 `consumptionReportResetAt`을 갱신해 리포트 UI를 비우도록 합니다.
+ * (`consumptionReportResetHandledAt`는 저장소에서 제거 — app/(tabs)/challenge.tsx 와 동일 키)
  */
 const CONSUMPTION_REPORT_PREFIXES = ['consumptionReport_', 'consumptionReportCtx_'] as const;
+const CONSUMPTION_REPORT_RESET_AT_KEY = 'consumptionReportResetAt';
+const CONSUMPTION_REPORT_RESET_HANDLED_AT_KEY = 'consumptionReportResetHandledAt';
 
 /**
  * 전체 초기화를 수행합니다.
@@ -51,15 +55,17 @@ export async function resetAppData(): Promise<void> {
   await clearAllChallenges();
   await AsyncStorage.multiRemove(KEYS_TO_REMOVE);
 
-  // 소비 리포트 AI 캐시도 함께 제거 (키 패턴 스캔)
+  // 소비 리포트 AI 캐시 제거 + 리포트 UI 리셋 신호(백업 복원 시 utils/backup.ts 와 동일 계약)
   try {
     const allKeys = await AsyncStorage.getAllKeys();
     const reportKeys = allKeys.filter((key) =>
       CONSUMPTION_REPORT_PREFIXES.some((prefix) => key.startsWith(prefix)),
     );
-    if (reportKeys.length > 0) {
-      await AsyncStorage.multiRemove(reportKeys);
+    const toRemove = [...reportKeys, CONSUMPTION_REPORT_RESET_HANDLED_AT_KEY];
+    if (toRemove.length > 0) {
+      await AsyncStorage.multiRemove(toRemove);
     }
+    await AsyncStorage.setItem(CONSUMPTION_REPORT_RESET_AT_KEY, String(Date.now()));
   } catch {
     // 캐시 제거 실패는 전체 초기화 실패로 간주하지 않음
   }

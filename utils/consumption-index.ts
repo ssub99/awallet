@@ -7,7 +7,7 @@
  * 이 모듈은 UI/네트워크에 의존하지 않는 순수 함수만 제공합니다.
  */
 
-import { getCustomMonthRange } from './custom-month';
+import { getCustomMonthRange, parseCalendarDateKeyLocal } from './custom-month';
 
 export type RecordType = 'income' | 'expense';
 
@@ -168,7 +168,10 @@ function getPreviousMonthExpenseTotal(
     if (!dayData || !dayData.records || dayData.records.length === 0) {
       return;
     }
-    const date = new Date(dateKey);
+    const date = parseCalendarDateKeyLocal(dateKey);
+    if (date == null) {
+      return;
+    }
     const time = date.getTime();
     if (time < startTime || time > endTime) {
       return;
@@ -224,7 +227,10 @@ export function computeMonthlyConsumptionStats(params: {
     if (!dayData || !dayData.records || dayData.records.length === 0) {
       return;
     }
-    const date = new Date(dateKey);
+    const date = parseCalendarDateKeyLocal(dateKey);
+    if (date == null) {
+      return;
+    }
     const time = date.getTime();
     if (time < startTime || time > endTime) {
       return;
@@ -278,7 +284,10 @@ export function computeMonthlyConsumptionStats(params: {
       if (!dayData || !dayData.records || dayData.records.length === 0) {
         return;
       }
-      const date = new Date(dateKey);
+      const date = parseCalendarDateKeyLocal(dateKey);
+      if (date == null) {
+        return;
+      }
       const time = date.getTime();
       if (time < startTime || time > endTime) {
         return;
@@ -368,8 +377,11 @@ function computeTotalSpendingScore(
     baseline = previousMonthTotalExpense;
   } else {
     // 전월 데이터가 없는 경우: 당월 누적 일평균 기준
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+    const start = parseCalendarDateKeyLocal(startDate);
+    const end = parseCalendarDateKeyLocal(endDate);
+    if (start == null || end == null) {
+      return { score: MAX_TOTAL_SPENDING_SCORE, baseline: 0 };
+    }
     const todayClamped = new Date(today);
     todayClamped.setHours(0, 0, 0, 0);
 

@@ -28,7 +28,12 @@ import {
     type ConsumptionIndexResult,
 } from '@/utils/consumption-index';
 import { createSheetEvent } from '@/utils/create-sheet-event';
-import { getCustomMonthInfo, getCustomMonthRange, isDateInCustomMonth } from '@/utils/custom-month';
+import {
+  getCustomMonthInfo,
+  getCustomMonthRange,
+  isDateInCustomMonth,
+  parseCalendarDateKeyLocal,
+} from '@/utils/custom-month';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -57,6 +62,7 @@ const REPORT_CACHE_PREFIX = 'consumptionReportCtx';
 const CONSUMPTION_REPORT_RESET_AT_KEY = 'consumptionReportResetAt';
 const CONSUMPTION_REPORT_RESET_HANDLED_AT_KEY = 'consumptionReportResetHandledAt';
 const CONSUMPTION_REPORT_API_TIMEOUT_MS = 15000;
+/** 이 문자열을 바꾸면 `REPORT_POLICY_FINGERPRINT`가 달라지고, 저장된 소비 리포트 캐시는 복구 시 지문 불일치로 제외될 수 있음 */
 const REPORT_POLICY_FINGERPRINT_SOURCE = [
   'summary_metric_autoinject=false',
   'metric_order=category,amount(ratio,count)',
@@ -111,7 +117,10 @@ interface ReportContext {
 }
 
 interface ReportSnapshot {
+  /** 해당 월·as-of 범위 내 지출 기록의 최신 갱신 시각(ms). API 본문·캐시 메타 등 */
   lastRecordUpdatedAt: number;
+  /** 커스텀 월 내 지출 레코드 집합 지문(해시) — 추가·수정·삭제(및 삭제 표시) 시 변함. `handleCheckScore` 변경 없음 스킵 판정에 사용 */
+  dataRevision: string;
   toDateTotalExpense: number;
   toDateExpenseCount: number;
   toDateActiveDays: number;
@@ -200,6 +209,50 @@ function buildReportCacheKey(context: ReportContext): string {
   return `${REPORT_CACHE_PREFIX}_${hashString(source)}`;
 }
 
+/**
+ * 커스텀 월에 속한 지출 레코드(삭제 표시 포함) 상태를 문자열로 정규화해 해시합니다.
+ * 금액·카테고리·메모·정기/할부·timestamp·삭제 여부가 바뀌면 값이 달라집니다.
+ */
+function computeMonthExpenseDataRevision(
+  calendarData: CalendarData,
+  context: ReportContext,
+): string {
+  const { startDate, endDate } = getCustomMonthRange(context.year, context.month, context.monthStartDay);
+  const rangeStart = new Date(startDate);
+  rangeStart.setHours(0, 0, 0, 0);
+  const rangeEnd = new Date(endDate);
+  rangeEnd.setHours(23, 59, 59, 999);
+
+  const parts: string[] = [];
+  Object.entries(calendarData).forEach(([dateKey, dayData]) => {
+    if (!dayData?.records?.length) return;
+    const date = parseCalendarDateKeyLocal(dateKey);
+    if (date == null) return;
+    const dayTime = date.getTime();
+    if (dayTime < rangeStart.getTime() || dayTime > rangeEnd.getTime()) return;
+
+    dayData.records.forEach((record) => {
+      if (record.type !== 'expense') return;
+      const id = record.id ?? '';
+      const amount = typeof record.amount === 'number' ? record.amount : 0;
+      const ts =
+        typeof record.timestamp === 'number' && !Number.isNaN(record.timestamp)
+          ? record.timestamp
+          : dayTime;
+      const del = record.isDeleted === true ? 1 : 0;
+      const rec = record.isRecurring === true ? 1 : 0;
+      const inst = record.isInstallment === true ? 1 : 0;
+      const ref = (record as { isRefunded?: boolean }).isRefunded === true ? 1 : 0;
+      const cat = String(record.category ?? '');
+      const memo = String((record as { memo?: string }).memo ?? '');
+      parts.push(`${dateKey}\t${id}\t${amount}\t${ts}\t${del}\t${ref}\t${rec}\t${inst}\t${cat}\t${memo}`);
+    });
+  });
+  parts.sort();
+  return hashString(parts.join('\n'));
+}
+
+/** API 요청 본문·변경 감지용 스냅샷. 캐시 화면 복구는 `syncReportFromCache`에서 별도 조건 */
 function computeReportSnapshot(
   calendarData: CalendarData,
   context: ReportContext,
@@ -221,7 +274,8 @@ function computeReportSnapshot(
 
   Object.entries(calendarData).forEach(([dateKey, dayData]) => {
     if (!dayData?.records || dayData.records.length === 0) return;
-    const date = new Date(dateKey);
+    const date = parseCalendarDateKeyLocal(dateKey);
+    if (date == null) return;
     const time = date.getTime();
     if (time < start.getTime() || time > end.getTime()) return;
 
@@ -274,8 +328,11 @@ function computeReportSnapshot(
     }))
     .sort((a, b) => b.count - a.count);
 
+  const dataRevision = computeMonthExpenseDataRevision(calendarData, context);
+
   return {
     lastRecordUpdatedAt,
+    dataRevision,
     toDateTotalExpense,
     toDateExpenseCount,
     toDateActiveDays,
@@ -634,9 +691,15 @@ export default function ChallengeTabScreen() {
         `none:${reportScoreYear}-${reportScoreMonth}-${monthStartDay}`;
       const prevSyncKey = prevReportSyncKeyRef.current;
       const contextChanged = prevSyncKey != null && prevSyncKey !== currentSyncKey;
+      // `reportScoreCacheKey`가 아직 없을 때만 쓰는 `none:…` 플레이스홀더 → 실제 키로 처음 바뀌는 경우는
+      // 사용자가 맥락을 바꾼 것이 아니라 로드 안정화에 가깝다 → 리포트 UI를 비우지 않음
+      const suppressResetForPlaceholderToRealKey =
+        contextChanged &&
+        prevSyncKey.startsWith('none:') &&
+        reportScoreCacheKey != null;
       prevReportSyncKeyRef.current = currentSyncKey;
 
-      let shouldResetUi = contextChanged;
+      let shouldResetUi = contextChanged && !suppressResetForPlaceholderToRealKey;
       try {
         // 처리된 reset 시각은 컴포넌트 생명주기 밖에서도 유지해,
         // 화면 재진입 시 과거 reset 신호를 다시 소비하지 않도록 한다.
@@ -688,14 +751,6 @@ export default function ChallengeTabScreen() {
         const cached = await AsyncStorage.getItem(reportScoreCacheKey);
         if (!cached || cancelled) return;
 
-        const storedData = await AsyncStorage.getItem('calendarData');
-        if (!storedData || cancelled) return;
-        const calendarData = JSON.parse(storedData, (key: string, value: unknown) => {
-          if (key === 'recurringType' && value === null) return undefined;
-          return value;
-        }) as CalendarData;
-        const snapshot = computeReportSnapshot(calendarData, reportScoreContext);
-
         const parsed = JSON.parse(cached) as {
           summary?: string | string[];
           summaryTitle?: string;
@@ -713,6 +768,7 @@ export default function ChallengeTabScreen() {
             ratioPercent?: number;
           };
           lastRecordUpdatedAt?: number;
+          dataRevision?: string;
           asOfDate?: string;
           monthStartUpdatedAt?: number;
         };
@@ -723,16 +779,13 @@ export default function ChallengeTabScreen() {
         const canReuseByPolicyFingerprint =
           typeof parsed.policyFingerprint === 'string' &&
           parsed.policyFingerprint === reportScoreContext.policyFingerprint;
-        // handleCheckScore와 동일: 저장 시점의 지출 스냅샷과 지금 calendarData가 같을 때만 캐시 UI 복원
-        const canReuseByRecordVersion =
-          typeof parsed.lastRecordUpdatedAt === 'number' &&
-          Number.isFinite(parsed.lastRecordUpdatedAt) &&
-          parsed.lastRecordUpdatedAt === snapshot.lastRecordUpdatedAt;
+        // 맥락(as-of, 월 시작일 설정 버전, 리포트 정책 지문)이 같으면 캐시 본문을 UI에 복원한다.
+        // 지출 기록이 이후 추가·수정되어도 이전에 확정한 리포트 문구는 유지한다(handleCheckScore의
+        // "변경 없음 → API 스킵" 판정은 dataRevision으로 별도 유지).
         if (
           canReuseByAsOfDate &&
           canReuseByMonthStartVersion &&
           canReuseByPolicyFingerprint &&
-          canReuseByRecordVersion &&
           parsed.summary &&
           parsed.challenge
         ) {
@@ -1562,6 +1615,7 @@ export default function ChallengeTabScreen() {
       const snapshot = computeReportSnapshot(calendarData, reportScoreContext);
       const {
         lastRecordUpdatedAt,
+        dataRevision,
         toDateTotalExpense,
         toDateExpenseCount,
         toDateActiveDays,
@@ -1585,9 +1639,19 @@ export default function ChallengeTabScreen() {
             scoreFeedback?: string;
             nextWeekGoal?: string | string[];
             policyFingerprint?: string;
-            lastRecordUpdatedAt: number;
+            lastRecordUpdatedAt?: number;
+            dataRevision?: string;
             asOfDate?: string;
-          monthStartUpdatedAt?: number;
+            monthStartUpdatedAt?: number;
+            confirmedFqScore?: number;
+            confirmedTotalExpense?: number;
+            confirmedNoSpendDays?: number;
+            confirmedTotalDays?: number;
+            confirmedTopCategory?: {
+              category?: string;
+              amount?: number;
+              ratioPercent?: number;
+            };
           };
           const canReuseByAsOfDate =
             reportScoreContext.isMonthClosed ||
@@ -1598,9 +1662,11 @@ export default function ChallengeTabScreen() {
           typeof parsed.policyFingerprint === 'string' &&
           parsed.policyFingerprint === reportScoreContext.policyFingerprint;
 
-          // (1) 이미 이 월에서 한 번 이상 분석했고, 데이터도 그대로라면 → 분석 중단
+          // (1) 이미 이 월에서 한 번 이상 분석했고, 월간 지출 데이터 지문도 동일하면 → 분석 중단
+          // (레거시 캐시에 dataRevision 없음 → 스킵하지 않고 재분석 허용)
         if (
-          parsed.lastRecordUpdatedAt === lastRecordUpdatedAt &&
+          typeof parsed.dataRevision === 'string' &&
+          parsed.dataRevision === dataRevision &&
           hasCheckedScore &&
           canReuseByAsOfDate &&
           canReuseByMonthStartVersion &&
@@ -1610,13 +1676,14 @@ export default function ChallengeTabScreen() {
             return;
           }
 
-          // (2) 분석 이력은 있지만, 이번 세션에서 아직 점수를 확인하지 않은 경우 → 캐시 재사용
+          // (2) 이번 세션에서 아직 점수 확인 전 → 캐시에서 화면만 채움(syncReportFromCache와 동일하게 기록 버전 불일치여도 허용)
         if (
-          parsed.lastRecordUpdatedAt === lastRecordUpdatedAt &&
           !hasCheckedScore &&
           canReuseByAsOfDate &&
           canReuseByMonthStartVersion &&
-          canReuseByPolicyFingerprint
+          canReuseByPolicyFingerprint &&
+          parsed.summary &&
+          parsed.challenge
         ) {
             nextSummary = splitLines(
               Array.isArray(parsed.summary) ? parsed.summary.join('\n') : parsed.summary.trim(),
@@ -1649,6 +1716,30 @@ export default function ChallengeTabScreen() {
                   setAiNextWeekGoalText(goalLines);
                 }
                 if (
+                  typeof parsed.confirmedFqScore === 'number' &&
+                  typeof parsed.confirmedTotalExpense === 'number' &&
+                  typeof parsed.confirmedNoSpendDays === 'number' &&
+                  typeof parsed.confirmedTotalDays === 'number'
+                ) {
+                  const confirmedTopCategory =
+                    parsed.confirmedTopCategory &&
+                    typeof parsed.confirmedTopCategory.category === 'string' &&
+                    typeof parsed.confirmedTopCategory.amount === 'number' &&
+                    typeof parsed.confirmedTopCategory.ratioPercent === 'number'
+                      ? {
+                          category: parsed.confirmedTopCategory.category,
+                          amount: parsed.confirmedTopCategory.amount,
+                          ratioPercent: parsed.confirmedTopCategory.ratioPercent,
+                        }
+                      : null;
+                  setConfirmedReportMeta({
+                    fqScore: parsed.confirmedFqScore,
+                    totalExpense: parsed.confirmedTotalExpense,
+                    noSpendDays: parsed.confirmedNoSpendDays,
+                    totalDays: parsed.confirmedTotalDays,
+                    topCategoryInfo: confirmedTopCategory,
+                  });
+                } else if (
                   consumptionIndex?.status === 'ready' &&
                   typeof consumptionIndex.fqScore === 'number'
                 ) {
@@ -1827,6 +1918,7 @@ export default function ChallengeTabScreen() {
           scoreFeedback: scoreFeedbackLines.length > 0 ? scoreFeedbackLines : undefined,
           nextWeekGoal: nextWeekGoalLines.length > 0 ? nextWeekGoalLines : undefined,
           lastRecordUpdatedAt,
+          dataRevision,
           asOfDate: reportScoreContext.asOfDate,
           monthStartUpdatedAt: reportScoreContext.monthStartUpdatedAt,
           policyFingerprint: reportScoreContext.policyFingerprint,
