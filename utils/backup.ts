@@ -21,6 +21,7 @@ import {
 } from '@/constants/categories';
 import { applySavedOrder, loadCategoryOrder, saveCategoryOrder } from '@/utils/category-order';
 import { loadCategories, saveCategories } from '@/utils/categories';
+import { resetAppStoreReviewProgressAfterRestore } from '@/utils/app-store-review-lifetime';
 import { getAllExpenses, replaceAllExpenses, type ExpenseRecord, type PaymentMethod } from '@/utils/expenses';
 import { getAllIncomes, replaceAllIncomes, type IncomeRecord } from '@/utils/incomes';
 import * as XLSX from 'xlsx-js-style';
@@ -53,6 +54,13 @@ async function clearConsumptionReportCaches(): Promise<void> {
   } catch {
     // ignore cache cleanup failures during restore
   }
+}
+
+/** 캘린더 제거 + 리포트 캐시 정리 + 인앱 리뷰 누적·유도 플래그 초기화(복원분은 리뷰 카운트에 포함하지 않음) */
+async function finalizeRestoreSideEffects(): Promise<void> {
+  await AsyncStorage.removeItem(CALENDAR_DATA_KEY);
+  await clearConsumptionReportCaches();
+  await resetAppStoreReviewProgressAfterRestore();
 }
 
 /** CSV 헤더 (양식: 날짜, 카테고리, 수입/소비, 금액, 유형, 메모) */
@@ -235,8 +243,7 @@ export async function restoreFromBackupFile(fileUri: string): Promise<void> {
     replaceAllExpenses(expenses),
     replaceAllIncomes(incomes),
   ]);
-  await AsyncStorage.removeItem(CALENDAR_DATA_KEY);
-  await clearConsumptionReportCaches();
+  await finalizeRestoreSideEffects();
 }
 
 // ---------- CSV (엑셀 양식 호환) ----------
@@ -755,8 +762,7 @@ export async function restoreFromFile(fileUri: string): Promise<void> {
         replaceAllExpenses(parsed.expenses),
         replaceAllIncomes(parsed.incomes),
       ]);
-      await AsyncStorage.removeItem(CALENDAR_DATA_KEY);
-      await clearConsumptionReportCaches();
+      await finalizeRestoreSideEffects();
       return;
     }
     throw new Error(RESTORE_VALIDATION_ERROR);
@@ -786,8 +792,7 @@ export async function restoreFromFile(fileUri: string): Promise<void> {
         replaceAllExpenses(Array.isArray(payload.expenses) ? payload.expenses : []),
         replaceAllIncomes(Array.isArray(payload.incomes) ? payload.incomes : []),
       ]);
-      await AsyncStorage.removeItem(CALENDAR_DATA_KEY);
-      await clearConsumptionReportCaches();
+      await finalizeRestoreSideEffects();
       return;
     }
   }
@@ -798,8 +803,7 @@ export async function restoreFromFile(fileUri: string): Promise<void> {
       replaceAllExpenses(csv.expenses),
       replaceAllIncomes(csv.incomes),
     ]);
-    await AsyncStorage.removeItem(CALENDAR_DATA_KEY);
-    await clearConsumptionReportCaches();
+    await finalizeRestoreSideEffects();
     return;
   }
 

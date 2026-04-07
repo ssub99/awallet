@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { registerReviewPromptLifetimeCreations } from '@/utils/app-store-review-lifetime';
 import { scheduleMaybePromptWriteReview } from '@/utils/app-store-review-scheduler';
 import { generateRecordId } from './id-generator';
 
@@ -80,6 +81,7 @@ export async function createIncome(record: IncomeRecord): Promise<IncomeRecord> 
   );
   filtered.push(income);
   await persistIncomes(filtered);
+  await registerReviewPromptLifetimeCreations(1);
   scheduleMaybePromptWriteReview();
   return income;
 }

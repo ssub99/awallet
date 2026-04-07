@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { registerReviewPromptLifetimeCreations } from '@/utils/app-store-review-lifetime';
 import { scheduleMaybePromptWriteReview } from '@/utils/app-store-review-scheduler';
 import { generateRecordId } from './id-generator';
 
@@ -178,7 +179,8 @@ export async function createExpense(record: ExpenseRecord): Promise<ExpenseRecor
   );
   filtered.push(expense);
   await persistExpenses(filtered);
-  
+  await registerReviewPromptLifetimeCreations(1);
+  scheduleMaybePromptWriteReview();
   return expense;
 }
 
@@ -220,6 +222,7 @@ export async function createExpensesBatch(records: ExpenseRecord[]): Promise<Exp
   });
 
   await persistExpenses([...filteredExisting, ...dedupedIncoming]);
+  await registerReviewPromptLifetimeCreations(dedupedIncoming.length);
   scheduleMaybePromptWriteReview();
   return dedupedIncoming;
 }
