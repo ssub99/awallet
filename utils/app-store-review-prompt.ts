@@ -11,7 +11,7 @@ import { getReviewPromptLifetimeRecordCount } from '@/utils/app-store-review-lif
 
 const RECORD_THRESHOLD = 10;
 
-/** 같은 틱에 저장이 여러 번 일어나면 microtask가 여러 개 열리므로, 요청·플래그 저장은 한 번만 */
+/** 동시에 maybePrompt가 두 번 돌지 않도록 (스케줄러는 별도로 setTimeout으로 합침) */
 let reviewPromptRunInFlight = false;
 
 /**

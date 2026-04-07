@@ -8,6 +8,7 @@
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Icon } from '@/components/ui/icon';
 import { Switch } from '@/components/ui/switch';
+import { getAppStoreWriteReviewUrl } from '@/constants/app-store';
 import { ThemeColors } from '@/constants/theme-colors';
 import { Typography } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
@@ -159,9 +160,7 @@ export default function MyPageScreen() {
       let url = '';
       
       if (Platform.OS === 'ios') {
-        // iOS App Store review URL - Always use AWallet app ID
-        const APP_ID = '6755246069';
-        url = `https://apps.apple.com/app/id${APP_ID}?action=write-review`;
+        url = getAppStoreWriteReviewUrl();
       } else if (Platform.OS === 'android') {
         // Android Play Store review URL - Always use AWallet package name
         const PACKAGE_NAME = 'com.ssong.awallet';
