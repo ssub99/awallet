@@ -3,6 +3,7 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { APP_STORE_WRITE_REVIEW_PROMPT_SHOWN_KEY } from '@/utils/app-store-review-prompt';
 import { clearAllChallenges } from '@/utils/challenges';
 import { clearAllExpenses } from '@/utils/expenses';
 import { clearAllIncomes } from '@/utils/incomes';
@@ -29,6 +30,7 @@ const KEYS_TO_REMOVE = [
   'selectedCategory',
   'weekStartsSunday',
   'monthStartDay',
+  APP_STORE_WRITE_REVIEW_PROMPT_SHOWN_KEY,
 ];
 
 /**

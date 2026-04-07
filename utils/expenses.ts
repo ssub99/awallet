@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { scheduleMaybePromptWriteReview } from '@/utils/app-store-review-scheduler';
 import { generateRecordId } from './id-generator';
 
 export type PaymentMethod = 'credit' | 'debit' | 'cash';
@@ -219,6 +220,7 @@ export async function createExpensesBatch(records: ExpenseRecord[]): Promise<Exp
   });
 
   await persistExpenses([...filteredExisting, ...dedupedIncoming]);
+  scheduleMaybePromptWriteReview();
   return dedupedIncoming;
 }
 

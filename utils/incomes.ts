@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { scheduleMaybePromptWriteReview } from '@/utils/app-store-review-scheduler';
 import { generateRecordId } from './id-generator';
 
 const INCOME_STORAGE_KEY = 'incomeData';
@@ -79,6 +80,7 @@ export async function createIncome(record: IncomeRecord): Promise<IncomeRecord> 
   );
   filtered.push(income);
   await persistIncomes(filtered);
+  scheduleMaybePromptWriteReview();
   return income;
 }
 

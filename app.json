@@ -2,7 +2,7 @@
   "expo": {
     "name": "awallet",
     "slug": "awallet",
-    "version": "1.0.7",
+    "version": "1.0.8",
     "description": "당신의 현명한 소비 기록 awallet",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -13,7 +13,8 @@
       "deploymentTarget": "17.0",
       "supportsTablet": true,
       "bundleIdentifier": "com.ssong.awallet",
-      "buildNumber": "37",
+      "appStoreUrl": "https://apps.apple.com/app/id6755246069",
+      "buildNumber": "38",
       "userInterfaceStyle": "light",
       "googleServicesFile": "./ios/awallet/GoogleService-Info.plist",
       "infoPlist": {
@@ -21,10 +22,10 @@
         "CFBundleName": "에이월렛",
         "NSUserNotificationsUsageDescription": "소비 기록 알림과 챌린지 리마인더를 받기 위해 알림 권한이 필요합니다.",
         "ITSAppUsesNonExemptEncryption": false,
-        "CFBundleShortVersionString": "1.0.7",
-        "CFBundleVersion": "37"
+        "CFBundleShortVersionString": "1.0.8",
+        "CFBundleVersion": "38"
       },
-      "runtimeVersion": "1.0.7"
+      "runtimeVersion": "1.0.8"
     },
     "android": {
       "adaptiveIcon": {
@@ -37,11 +38,12 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.ssong.awallet",
-      "versionCode": 37,
+      "playStoreUrl": "https://play.google.com/store/apps/details?id=com.ssong.awallet",
+      "versionCode": 38,
       "permissions": [
         "android.permission.POST_NOTIFICATIONS"
       ],
-      "runtimeVersion": "1.0.7"
+      "runtimeVersion": "1.0.8"
     },
     "web": {
       "output": "static",
@@ -91,7 +93,7 @@
       "url": "https://u.expo.dev/f33074c8-df40-4c61-bcfe-826b22dabd0a",
       "fallbackToCacheTimeout": 0,
       "checkAutomatically": "ON_LOAD",
-      "runtimeVersion": "1.0.7"
+      "runtimeVersion": "1.0.8"
     },
     "extra": {
       "supportEmail": "ssuby99@gmail.com",
