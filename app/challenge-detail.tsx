@@ -11,6 +11,7 @@ import { Colors, Typography } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';
 import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { logEvent } from '@/utils/analytics';
 import { loadCategories } from '@/utils/categories';
 import { getChallengeById, type ChallengeRecord } from '@/utils/challenges';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -211,11 +212,19 @@ export default function ChallengeDetailScreen() {
   }, [groupedByDate]);
 
   const handleBack = () => {
+    void logEvent('btn', {
+      screen_name: 'challenge-detail',
+      target: 'detail-prev',
+    });
     router.back();
   };
 
   const handleEdit = () => {
     if (!challengeId) return;
+    void logEvent('btn', {
+      screen_name: 'challenge-detail',
+      target: 'detail-modification',
+    });
     router.push({
       pathname: '/challenge-edit',
       params: { challengeId },

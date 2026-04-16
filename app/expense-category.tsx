@@ -10,6 +10,7 @@ import { getCategoriesByType, type Category } from '@/constants/categories';
 import { Colors, Typography } from '@/constants/theme';
 import { useToast } from '@/contexts/toast-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { logEvent } from '@/utils/analytics';
 import { loadCategories } from '@/utils/categories';
 import { getAllChallenges, type ChallengeRecord } from '@/utils/challenges';
 import { applySavedOrder, loadCategoryOrder } from '@/utils/category-order';
@@ -83,6 +84,9 @@ export default function ExpenseCategoryScreen() {
   
   // 챌린지 모드인지 확인
   const isChallengeMode = params.mode === 'challenge';
+  const flowMode: 'income' | 'expense' | 'challenge' = isChallengeMode
+    ? 'challenge'
+    : categoryType;
   
   // 챌린지 재선택 모드인지 확인 (챌린지 생성 화면에서 카테고리 재선택)
   const isChallengeReSelectMode = isChallengeMode && !!params.selectedCategory;
@@ -102,6 +106,13 @@ export default function ExpenseCategoryScreen() {
   }, [showToast, toastMessage, toastVisible]);
 
   const handleConfirm = async () => {
+    void logEvent('btn', {
+      screen_name: 'expense-category',
+      target: 'category-option-confirm',
+      mode: flowMode,
+      category_type: categoryType,
+      category: selectedCategory ?? null,
+    });
 
     if (selectedCategory) {
       if (isEditMode) {
@@ -133,6 +144,12 @@ export default function ExpenseCategoryScreen() {
   };
 
   const handleBack = () => {
+    void logEvent('btn', {
+      screen_name: 'expense-category',
+      target: 'category-option-prev',
+      mode: flowMode,
+      category_type: categoryType,
+    });
     router.back();
   };
 
@@ -166,6 +183,13 @@ export default function ExpenseCategoryScreen() {
                 <Pressable
                   style={styles.categoryItem}
                   onPress={async () => {
+                    void logEvent('list', {
+                      screen_name: 'expense-category',
+                      target: 'category-option',
+                      mode: flowMode,
+                      category_type: categoryType,
+                      category: category.label,
+                    });
                     // 챌린지 신규 선택 모드일 때: 기존 챌린지 기간 겹침 체크 후, 문제 없으면 선택 + 생성 화면으로 이동
                     if (isChallengeMode && !isChallengeReSelectMode) {
                       if (!params.selectedDate || !params.calendarYear || !params.calendarMonth) {
@@ -255,8 +279,8 @@ export default function ExpenseCategoryScreen() {
                         },
                       });
                     }
-                    // 수정 모드일 때: 카테고리 선택 상태만 반영하고 상단 확인 버튼으로 저장
-                    else if (isEditMode) {
+                    // 수정/챌린지 재선택 모드일 때: 선택 상태만 반영하고 상단 확인 버튼으로 저장
+                    else if (isEditMode || isChallengeReSelectMode) {
                       setSelectedCategory(category.label);
                     }
                   }}

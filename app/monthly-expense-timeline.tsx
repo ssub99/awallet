@@ -12,6 +12,7 @@ import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { applyPendingCalendarTargetEvent, setLatestPendingCalendarTarget } from '@/hooks/calendar-events';
+import { logEvent } from '@/utils/analytics';
 import { loadCategories } from '@/utils/categories';
 import { getCustomMonthRange, isDateInCustomMonth } from '@/utils/custom-month';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -61,8 +62,9 @@ interface TimelineItem {
   amount: number;
   timestamp?: number;
   isRecurring?: boolean;
-  weekendOption?: 'friday' | 'monday';
+  weekendOption?: 'weekend' | 'friday' | 'monday';
   recurringType?: string; // 정기 기록 반복 타입 (매일, 매주, 2주, 3주, 4주, 매월, 2개월 마다, 4개월 마다, 6개월 마다, 주중, 주말)
+  paymentMethod?: 'credit' | 'debit' | 'cash';
   isPrepaid?: boolean;
   prepaidDate?: string; // 선결제 처리 날짜
   recurringId?: string;
@@ -651,6 +653,11 @@ export default function MonthlyExpenseTimelineScreen() {
                   key={dateStr}
                   style={[styles.weekDayCell, { width: DATE_CELL_WIDTH }]}
                   onPress={() => {
+                    void logEvent('ui', {
+                      screen_name: 'monthly-expense-timeline',
+                      target: 'timeline_day_strip',
+                      selected_date: dateStr,
+                    });
                     scrollAnimatedRef.current = true;
                     shouldScrollTimelineToDateRef.current = true; // 날짜 탭 시 해당 날짜 섹션이 최상단에 오도록 타임라인 스크롤
                     setPickedDateForWeek(dateStr);
@@ -780,6 +787,31 @@ export default function MonthlyExpenseTimelineScreen() {
                       <Pressable 
                         style={styles.timelineItem}
                         onPress={async () => {
+                          const recurrenceKind = item.isInstallment
+                            ? 'installment_expense'
+                            : item.isRecurring
+                              ? 'recurring_expense'
+                              : 'none';
+                          const recurrencePeriod = item.isInstallment
+                            ? (typeof item.totalMonths === 'number' ? `${item.totalMonths}개월` : 'none')
+                            : (item.recurringType ?? 'none');
+                          const memoValue =
+                            typeof item.memo === 'string' && item.memo.trim().length > 0
+                              ? item.memo
+                              : 'null';
+                          void logEvent('list', {
+                            target: 'timeline_item',
+                            screen_name: 'monthly-expense-timeline',
+                            record_type: item.type,
+                            category: item.category,
+                            date: date,
+                            payment_method: item.paymentMethod ?? null,
+                            amount: item.amount,
+                            recurrence_kind: recurrenceKind,
+                            recurrence_period: recurrencePeriod,
+                            weekend_option: item.weekendOption ?? null,
+                            memo: memoValue,
+                          });
                           
                           if (item.type === 'expense') {
                             

@@ -20,6 +20,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { getApiSecurityHeaders } from '@/utils/api-security-headers';
+import { logEvent } from '@/utils/analytics';
 import { loadCategories } from '@/utils/categories';
 import { getChallengesByDateRange } from '@/utils/challenges';
 import {
@@ -1579,6 +1580,11 @@ export default function ChallengeTabScreen() {
   );
 
   const handleCheckScore = useCallback(async () => {
+    void logEvent('btn', {
+      screen_name: 'challenge',
+      target: 'feedback',
+    });
+
     if (!consumptionIndex || consumptionIndex.status !== 'ready' || fqScore == null) {
       showToast('기록이 조금 더 쌓인 후 확인할 수 있습니다.');
       return;
@@ -2368,12 +2374,21 @@ export default function ChallengeTabScreen() {
                           key={item.category}
                           style={[styles.trendCategoryItem, { backgroundColor: colors.staticWhite }]}
                           onPress={() => {
+                            void logEvent('list', {
+                              screen_name: 'challenge',
+                              target:
+                                trendCategoryFilter === 'all'
+                                  ? 'expense-monthly-ranking'
+                                  : 'expense-recurring-ranking',
+                            });
                             router.push({
                               pathname: '/expense-category-detail',
                               params: {
                                 category: item.category,
                                 year: reportTrendYear.toString(),
                                 month: reportTrendMonth.toString(),
+                                rankingType:
+                                  trendCategoryFilter === 'all' ? 'monthly' : 'recurring',
                               },
                             });
                           }}
@@ -2501,6 +2516,10 @@ export default function ChallengeTabScreen() {
                   style={[styles.challengeCard, { backgroundColor: colors.staticWhite }]}
                   onPress={() => {
                     if (isNavigating.current) return;
+                    void logEvent('list', {
+                      screen_name: 'challenge',
+                      target: 'challenge-item',
+                    });
                     isNavigating.current = true;
                     router.push({ pathname: '/challenge-detail', params: { challengeId: challenge.id } });
                     setTimeout(() => { isNavigating.current = false; }, 500);

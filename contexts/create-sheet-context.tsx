@@ -2,6 +2,7 @@ import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
 import { Colors } from '@/constants/theme';
 import { Typography } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { logEvent } from '@/utils/analytics';
 import { createSheetEvent } from '@/utils/create-sheet-event';
 import { useRouter } from 'expo-router';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react';
@@ -40,6 +41,10 @@ export const CreateSheetProvider = ({ children }: PropsWithChildren) => {
 
   useEffect(() => {
     return createSheetEvent.subscribe(() => {
+      void logEvent('sheet_view', {
+        screen_name: 'home',
+        target: 'add-record-sheet',
+      });
       setIsVisible(true);
     });
   }, []);
@@ -49,7 +54,7 @@ export const CreateSheetProvider = ({ children }: PropsWithChildren) => {
   }, []);
 
   const navigateWithDelay = useCallback(
-    (pathname: string, params: Record<string, string | undefined>) => {
+    (pathname: '/expense-category', params: Record<string, string | undefined>) => {
       setIsVisible(false);
       setTimeout(() => {
         router.push({
@@ -62,6 +67,12 @@ export const CreateSheetProvider = ({ children }: PropsWithChildren) => {
   );
 
   const handleIncomePress = useCallback(() => {
+    void logEvent('btn', {
+      screen_name: 'home',
+      target: 'add-record-income',
+      mode: 'income',
+      category_type: 'income',
+    });
     navigateWithDelay('/expense-category', {
       type: 'income',
       selectedDate: calendarContext.selectedDate,
@@ -71,6 +82,12 @@ export const CreateSheetProvider = ({ children }: PropsWithChildren) => {
   }, [navigateWithDelay, calendarContext]);
 
   const handleExpensePress = useCallback(() => {
+    void logEvent('btn', {
+      screen_name: 'home',
+      target: 'add-record-expense',
+      mode: 'expense',
+      category_type: 'expense',
+    });
     navigateWithDelay('/expense-category', {
       selectedDate: calendarContext.selectedDate,
       calendarYear: calendarContext.calendarYear.toString(),
@@ -79,6 +96,12 @@ export const CreateSheetProvider = ({ children }: PropsWithChildren) => {
   }, [navigateWithDelay, calendarContext]);
 
   const handleChallengePress = useCallback(() => {
+    void logEvent('btn', {
+      screen_name: 'home',
+      target: 'add-record-challenge',
+      mode: 'challenge',
+      category_type: 'expense',
+    });
     navigateWithDelay('/expense-category', {
       mode: 'challenge',
       // 캘린더에서 선택한 위치 그대로 사용 (소비 기록 생성과 동일한 로직)

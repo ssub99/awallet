@@ -8,6 +8,7 @@
 import { Icon } from '@/components/ui/icon';
 import { Colors, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { logEvent } from '@/utils/analytics';
 import { forwardRef, useImperativeHandle, useRef } from 'react';
 import {
   ActivityIndicator,
@@ -168,7 +169,14 @@ export const QuickInputField = forwardRef<TextInput, QuickInputFieldProps>(
           >
             <Pressable
               style={styles.sendButtonContent}
-              onPress={onSend}
+              onPress={() => {
+                if (!hasValue || sendLoading || sendDisabled) return;
+                void logEvent('btn', {
+                  screen_name: 'home',
+                  target: 'sentence',
+                });
+                onSend?.();
+              }}
               disabled={!hasValue || sendLoading || sendDisabled}
               accessibilityRole="button"
               accessibilityLabel={sendLoading ? '전송 중' : '전송'}

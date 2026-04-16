@@ -17,6 +17,7 @@ import { Colors, Typography } from '@/constants/theme';
 import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
+import { logEvent } from '@/utils/analytics';
 import { getCustomMonthInfo } from '@/utils/custom-month';
 import { loadCategories } from '@/utils/categories';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -176,6 +177,27 @@ export default function IncomeEditScreen() {
   // Alert states
   const [showAmountAlert, setShowAmountAlert] = useState<boolean>(false);
   const [showDeleteAlert, setShowDeleteAlert] = useState<boolean>(false);
+  const [showNoChangesModal, setShowNoChangesModal] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!showDeleteAlert) {
+      return;
+    }
+    void logEvent('modal', {
+      screen_name: 'income-edit',
+      target: 'delete-modal',
+    });
+  }, [showDeleteAlert]);
+
+  useEffect(() => {
+    if (!showNoChangesModal) {
+      return;
+    }
+    void logEvent('modal', {
+      screen_name: 'income-edit',
+      target: 'none',
+    });
+  }, [showNoChangesModal]);
 
   // Scroll reference
   const scrollViewRef = useRef<ScrollView>(null);
@@ -226,6 +248,10 @@ export default function IncomeEditScreen() {
   }, []);
 
   const handleAmountFocus = useCallback(() => {
+    void logEvent('ui', {
+      screen_name: 'income-edit',
+      target: 'amount',
+    });
     Keyboard.dismiss();
     skipNextDismissRef.current = true;
     isMemoFocusedRef.current = false;
@@ -394,6 +420,14 @@ export default function IncomeEditScreen() {
   }, [isKeypadMounted, isKeypadVisible, keypadBackdropOpacity, keypadTranslateY]);
 
   const handleDatePress = () => {
+    void logEvent('ui', {
+      screen_name: 'income-edit',
+      target: 'calendar',
+    });
+    void logEvent('sheet_view', {
+      screen_name: 'income-edit',
+      target: 'calendar',
+    });
     // 키패드가 열려있으면 닫기
     Keyboard.dismiss();
     
@@ -402,10 +436,18 @@ export default function IncomeEditScreen() {
   };
 
   const handleDatePickerClose = () => {
+    void logEvent('btn', {
+      screen_name: 'income-edit',
+      target: 'calendar-close',
+    });
     setShowDatePicker(false);
   };
   
   const handleDateConfirm = () => {
+    void logEvent('btn', {
+      screen_name: 'income-edit',
+      target: 'calendar-confirm',
+    });
     if (tempSelectedDate) {
       const formattedDate = tempSelectedDate.replace(/-/g, '.');
       setDate(formattedDate);
@@ -415,6 +457,10 @@ export default function IncomeEditScreen() {
 
   // amount auto-scroll removed per request
   const handleCategoryPress = () => {
+    void logEvent('ui', {
+      screen_name: 'income-edit',
+      target: 'category',
+    });
     Keyboard.dismiss();
 
     router.push({
@@ -475,6 +521,10 @@ export default function IncomeEditScreen() {
   const categoryDisplay = category ? `${getCategoryEmojiSafe(category)} ${category}` : '';
 
   const handleMemoFocus = () => {
+    void logEvent('ui', {
+      screen_name: 'income-edit',
+      target: 'memo',
+    });
     isMemoFocusedRef.current = true;
     handleKeypadDismiss();
     // 메모 섹션 위치로 스크롤 (하단 버튼 제외)
@@ -493,6 +543,22 @@ export default function IncomeEditScreen() {
   };
 
   const handleUpdate = async () => {
+    const originalAmount = Number(recordData?.amount ?? 0);
+    const currentAmount = Number.parseFloat((amount || '0').replace(/,/g, ''));
+    const originalDate = dateKey ? dateKey.replace(/-/g, '.') : '';
+    const originalCategory = recordData?.category ?? '';
+    const originalMemo = recordData?.memo ?? '';
+    const hasChanges =
+      currentAmount !== originalAmount ||
+      date !== originalDate ||
+      category !== originalCategory ||
+      memo !== originalMemo;
+
+    if (!hasChanges) {
+      setShowNoChangesModal(true);
+      return;
+    }
+
     // 필수값 검증
     if (!category) {
       setShowCategoryAlert(true);
@@ -668,7 +734,43 @@ export default function IncomeEditScreen() {
   };
 
   const handleBack = () => {
+    void logEvent('btn', {
+      screen_name: 'income-edit',
+      target: 'category-option-prev',
+    });
     router.back();
+  };
+
+  const handleDeleteButtonPress = () => {
+    void logEvent('btn', {
+      screen_name: 'income-edit',
+      target: 'delete',
+    });
+    setShowDeleteAlert(true);
+  };
+
+  const handleDeleteModalCancel = () => {
+    void logEvent('btn', {
+      screen_name: 'income-edit',
+      target: 'delete-cancel',
+    });
+    setShowDeleteAlert(false);
+  };
+
+  const handleDeleteModalConfirm = () => {
+    void logEvent('btn', {
+      screen_name: 'income-edit',
+      target: 'delete-confirm',
+    });
+    void handleDelete();
+  };
+
+  const handleCtaPress = () => {
+    void logEvent('btn', {
+      screen_name: 'income-edit',
+      target: 'cta',
+    });
+    void handleUpdate();
   };
 
   return (
@@ -756,7 +858,7 @@ export default function IncomeEditScreen() {
               <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
                 날짜 <Text style={{ color: '#EF5252' }}>*</Text>
               </Text>
-              <Pressable onPress={() => setShowDeleteAlert(true)}>
+              <Pressable onPress={handleDeleteButtonPress}>
                 <Text style={[styles.deleteButton, { color: colors.statusNegative }]}> 
                   삭제
                 </Text>
@@ -885,7 +987,7 @@ export default function IncomeEditScreen() {
         }
       }}
       >
-        <Button onPress={handleUpdate}>
+        <Button onPress={handleCtaPress}>
           저장
         </Button>
       </View>
@@ -945,13 +1047,23 @@ export default function IncomeEditScreen() {
       {/* 삭제 확인 얼럿 */}
       <ModalPopup
         visible={showDeleteAlert}
-        onConfirm={handleDelete}
-        onCancel={() => setShowDeleteAlert(false)}
+        onConfirm={handleDeleteModalConfirm}
+        onCancel={handleDeleteModalCancel}
         confirmText="확인"
         cancelText="취소"
       >
         <Text style={[styles.alertText, { color: colors.text }]}>
           수입 내역을 삭제하시겠습니까?
+        </Text>
+      </ModalPopup>
+
+      <ModalPopup
+        visible={showNoChangesModal}
+        onConfirm={() => setShowNoChangesModal(false)}
+        confirmText="확인"
+      >
+        <Text style={[styles.alertText, { color: colors.text }]}>
+          변경사항이 없습니다.
         </Text>
       </ModalPopup>
     </SafeAreaView>

@@ -2,6 +2,7 @@ import { BlurView } from 'expo-blur';
 import { Colors, Typography } from '@/constants/theme';
 import { Icon } from '@/components/ui/icon';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { logEvent } from '@/utils/analytics';
 import type { ComponentRef } from 'react';
 import { useCallback, useRef } from 'react';
 import { Animated, Dimensions, LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -94,7 +95,13 @@ export function QuickInputShort({
       ref={containerRef}
       style={[styles.quickInput, { bottom }]}
       onLayout={handleLayout}
-      onPress={handlePress}
+      onPress={() => {
+        void logEvent('component', {
+          screen_name: 'home',
+          target: 'dim',
+        });
+        handlePress();
+      }}
       accessibilityRole="button"
       accessibilityLabel="간편입력"
     >

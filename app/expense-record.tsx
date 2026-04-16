@@ -486,6 +486,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     calendarMonth?: string;
     dateKey?: string;
   }>();
+  const analyticsScreenName = mode === 'edit' ? 'expense-edit' : 'expense-record';
   const scrollViewRef = useRef<ScrollView>(null);
 
   // Form state
@@ -803,6 +804,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   );
   const installmentPeriodOptions = useMemo(() => [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], []);
   
+  // 반복/할부 설정 바텀시트 표시 여부
+  const [showRecurringInstallmentSheet, setShowRecurringInstallmentSheet] = useState<boolean>(false);
+
   // date state 변경 감지
   useEffect(() => {
     // 날짜 변경 시 tempSelectedDate 동기화 (바텀시트가 닫힌 상태에서만)
@@ -826,8 +830,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     }
   }, [showRecurringInstallmentSheet]);
 
-  // 반복/할부 설정 바텀시트 표시 여부
-  const [showRecurringInstallmentSheet, setShowRecurringInstallmentSheet] = useState<boolean>(false);
   // 반복/할부 바텀시트 내부 드래프트 (확인 시에만 main에 반영)
   const [draftIsRecurring, setDraftIsRecurring] = useState<boolean>(false);
   const [draftIsInstallment, setDraftIsInstallment] = useState<boolean>(false);
@@ -892,6 +894,62 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   const [showPrepaymentModal, setShowPrepaymentModal] = useState<boolean>(false);
   // 결산 처리 안내 모달
   const [showSettlementConfirmModal, setShowSettlementConfirmModal] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!showNoChangesModal) {
+      return;
+    }
+    void logEvent('modal', {
+      screen_name: analyticsScreenName,
+      target: 'none',
+    });
+  }, [analyticsScreenName, showNoChangesModal]);
+
+  const handlePaymentMethodChange = useCallback((val: string) => {
+    const nextPaymentMethod = val as PaymentMethod;
+    const target =
+      nextPaymentMethod === 'credit'
+        ? 'payment-credit'
+        : nextPaymentMethod === 'debit'
+        ? 'payment-debit'
+        : 'payment-cash';
+
+    void logEvent('ui', {
+      screen_name: analyticsScreenName,
+      target,
+    });
+    setPaymentMethod(nextPaymentMethod);
+  }, []);
+
+  useEffect(() => {
+    if (!showPrepaymentModal) {
+      return;
+    }
+    void logEvent('modal', {
+      screen_name: analyticsScreenName,
+      target: 'prepayment',
+    });
+  }, [analyticsScreenName, showPrepaymentModal]);
+
+  useEffect(() => {
+    if (!showRefundOptions && !showSingleRefundConfirm) {
+      return;
+    }
+    void logEvent('modal', {
+      screen_name: analyticsScreenName,
+      target: 'refund',
+    });
+  }, [analyticsScreenName, showRefundOptions, showSingleRefundConfirm]);
+
+  useEffect(() => {
+    if (!showSettlementConfirmModal) {
+      return;
+    }
+    void logEvent('modal', {
+      screen_name: analyticsScreenName,
+      target: 'settlement',
+    });
+  }, [analyticsScreenName, showSettlementConfirmModal]);
   // 정산 처리 드롭다운 메뉴 (선결제/환불/결산)
   const [showSettlementMenu, setShowSettlementMenu] = useState<boolean>(false);
   const [settlementMenuLayout, setSettlementMenuLayout] = useState<{
@@ -948,6 +1006,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
   const applySettlementAction = useCallback((label: '선결제' | '환불' | '결산') => {
     if (label === '선결제') {
+      void logEvent('btn', {
+        screen_name: analyticsScreenName,
+        target: 'prepayment',
+      });
       const today = new Date();
       const todayFormatted = `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, '0')}.${String(today.getDate()).padStart(2, '0')}`;
       setPrepaymentDate(todayFormatted);
@@ -957,6 +1019,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     }
 
     if (label === '환불') {
+      void logEvent('btn', {
+        screen_name: analyticsScreenName,
+        target: 'refund',
+      });
       if (editData?.isRecurring || editData?.isInstallment) {
         setShowRefundOptions(true);
       } else {
@@ -965,8 +1031,12 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       return;
     }
 
+    void logEvent('btn', {
+      screen_name: analyticsScreenName,
+      target: 'settlement',
+    });
     setShowSettlementConfirmModal(true);
-  }, [editData?.isInstallment, editData?.isRecurring]);
+  }, [analyticsScreenName, editData?.isInstallment, editData?.isRecurring]);
 
   const closeSettlementMenu = useCallback(
     (onClosed?: () => void) => {
@@ -1073,6 +1143,36 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     showToast('해당 단위는 주말 옵션을 적용할 수 없습니다.');
     setShowWeekendOptionToast(false);
   }, [showToast, showWeekendOptionToast]);
+  
+  useEffect(() => {
+    if (!showPrepaymentRestore) {
+      return;
+    }
+    void logEvent('modal', {
+      screen_name: analyticsScreenName,
+      target: 'prepayment-restoration',
+    });
+  }, [analyticsScreenName, showPrepaymentRestore]);
+
+  useEffect(() => {
+    if (!showRefundRestore) {
+      return;
+    }
+    void logEvent('modal', {
+      screen_name: analyticsScreenName,
+      target: 'refund-restoration',
+    });
+  }, [analyticsScreenName, showRefundRestore]);
+
+  useEffect(() => {
+    if (!showSettlementRestore) {
+      return;
+    }
+    void logEvent('modal', {
+      screen_name: analyticsScreenName,
+      target: 'settlement-restoration',
+    });
+  }, [analyticsScreenName, showSettlementRestore]);
   
   // 실제 존재하는 기록 개수 (삭제된 기록 제외)
   const [actualRecordCount, setActualRecordCount] = useState<number>(0);
@@ -2042,6 +2142,11 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   };
 
   const handleCategoryPress = () => {
+    void logEvent('ui', {
+      screen_name: analyticsScreenName,
+      target: 'category',
+    });
+
     // 정기/할부 기록은 카테고리 변경 잠금 (일반 기록만 변경 허용)
     if (mode === 'edit' && (editData?.isRecurring || editData?.isInstallment)) {
       setCategoryToastMessage('변경할 수 없습니다. 새로 생성해 주세요.');
@@ -2063,6 +2168,11 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   };
 
   const handleDatePress = () => {
+    void logEvent('ui', {
+      screen_name: analyticsScreenName,
+      target: 'calendar',
+    });
+
     // 이미 열려있으면 무시
     if (showDatePicker) {
       return;
@@ -2076,6 +2186,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     Keyboard.dismiss();
     // 캘린더 바텀시트를 열어 날짜 선택 (생성/수정 모드 모두 허용)
     setTempSelectedDate(date.replace(/\./g, '-'));
+    void logEvent('sheet_view', {
+      screen_name: analyticsScreenName,
+      target: 'calendar',
+    });
     setShowDatePicker(true);
   };
 
@@ -2083,6 +2197,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     if (!showDatePicker) {
       return;
     }
+    void logEvent('btn', {
+      screen_name: analyticsScreenName,
+      target: 'calendar-close',
+    });
     setShowDatePicker(false);
   }, [showDatePicker]);
   
@@ -2257,6 +2375,11 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   }, []);
 
   const handleMemoFocus = () => {
+    void logEvent('ui', {
+      screen_name: analyticsScreenName,
+      target: 'memo',
+    });
+
     clearDismissTimeout();
     setIsMemoFocused(true);
     isMemoFocusedRef.current = true;
@@ -2334,12 +2457,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   };
 
   const handleConfirm = async () => {
-    void logEvent('Button Clicked', {
-      buttonColor: 'primary',
-      screen: 'expense_record',
-      cta: mode === 'edit' ? 'save' : 'confirm',
-    });
-
     // 필수값 검증
     if (!category) {
       setCategoryToastMessage('카테고리를 선택해 주세요.');
@@ -2397,6 +2514,14 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     
     // 실제 저장 진행
     await saveExpenseRecord();
+  };
+
+  const handleBottomCtaConfirmPress = () => {
+    void logEvent('btn', {
+      screen_name: analyticsScreenName,
+      target: 'cta',
+    });
+    void handleConfirm();
   };
 
   const saveExpenseRecord = async () => {
@@ -4624,6 +4749,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                             <Pressable 
                               style={styles.prepaymentRefundButton}
                               onPress={() => {
+                                void logEvent('btn', {
+                                  screen_name: analyticsScreenName,
+                                  target: 'prepayment-restoration',
+                                });
                                 // 선결제 처리 복구 모달 열기
                                 setShowPrepaymentRestore(true);
                               }}
@@ -4645,6 +4774,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                             <Pressable 
                               style={styles.prepaymentRefundButton}
                               onPress={() => {
+                                void logEvent('btn', {
+                                  screen_name: analyticsScreenName,
+                                  target: 'refund-restoration',
+                                });
                                 // 환불 처리 복구 모달 열기
                                 setRefundRestoreOption('all');
                                 setShowRefundRestore(true);
@@ -4667,6 +4800,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                             <Pressable
                               style={styles.prepaymentRefundButton}
                               onPress={() => {
+                                void logEvent('btn', {
+                                  screen_name: analyticsScreenName,
+                                  target: 'settlement-restoration',
+                                });
                                 setShowSettlementRestore(true);
                               }}
                             >
@@ -4685,6 +4822,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                               <Pressable
                                 style={[styles.prepaymentRefundButton, { marginLeft: 0 }]}
                                 onPress={() => {
+                                  void logEvent('btn', {
+                                    screen_name: analyticsScreenName,
+                                    target: 'calculate',
+                                  });
                                   settlementButtonRef.current?.measureInWindow((x, y, width, height) => {
                                     const { width: screenWidth } = Dimensions.get('window');
                                     const menuWidth = 250;
@@ -4739,7 +4880,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                     { label: '현금', value: 'cash' },
                   ]}
                   value={paymentMethod}
-                  onValueChange={(val) => setPaymentMethod(val as PaymentMethod)}
+                  onValueChange={handlePaymentMethodChange}
                 />
               </View>
             )}
@@ -4753,6 +4894,11 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 <Pressable
                   style={styles.recurringInstallmentButton}
                   onPress={() => {
+                    void logEvent('btn', {
+                      screen_name: analyticsScreenName,
+                      target: 'option',
+                    });
+
                     // 수정 화면에서는 반복/할부 설정 변경 불가
                     if (mode === 'edit') {
                       showToast('변경할 수 없습니다. 새로 생성해 주세요.');
@@ -4768,6 +4914,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                     setDraftWeekendOption(weekendOption);
                     setDraftSelectedDay(selectedDay);
                     setDraftIsPeriodExpanded(isPeriodExpanded);
+                    void logEvent('sheet_view', {
+                      screen_name: analyticsScreenName,
+                      target: 'recurring-installment-sheet',
+                    });
                     setShowRecurringInstallmentSheet(true);
                   }}
                 >
@@ -4859,6 +5009,11 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 editable={false}
                 caretHidden
                 onPress={() => {
+                  void logEvent('ui', {
+                    screen_name: analyticsScreenName,
+                    target: 'amount',
+                  });
+
                   // 환불/할부 기록 수정 모드에서는 금액 변경 불가
                   const isDisabled =
                     mode === 'edit' &&
@@ -4937,7 +5092,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                     { label: '현금', value: 'cash' },
                   ]}
                   value={paymentMethod}
-                  onValueChange={(val) => setPaymentMethod(val as PaymentMethod)}
+                  onValueChange={handlePaymentMethodChange}
                   size="small"
                 />
               </View>
@@ -4954,7 +5109,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             paddingTop: 16,
           }
         ]}>
-          <Button onPress={handleConfirm}>
+          <Button onPress={handleBottomCtaConfirmPress}>
             {mode === 'edit' ? '저장' : '확인'}
           </Button>
         </View>
@@ -5091,8 +5246,20 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           setTempSelectedDate(prepaymentDate.replace(/\./g, '-'));
           setShowDatePicker(true);
         }}
-        onConfirm={async () => { await handlePrepaymentConfirm(); }}
-        onCancel={() => setShowPrepaymentModal(false)}
+        onConfirm={async () => {
+          void logEvent('btn', {
+            screen_name: analyticsScreenName,
+            target: 'prepayment-confirm',
+          });
+          await handlePrepaymentConfirm();
+        }}
+        onCancel={() => {
+          void logEvent('btn', {
+            screen_name: analyticsScreenName,
+            target: 'prepayment-cancel',
+          });
+          setShowPrepaymentModal(false);
+        }}
         backdropInteractive={true}
         extraOverlay={showDatePicker ? (
           <>
@@ -5117,6 +5284,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             <Pressable
               style={[styles.dateButton, { backgroundColor: colors.primary }]}
               onPress={() => {
+                void logEvent('btn', {
+                  screen_name: analyticsScreenName,
+                  target: 'calendar-confirm',
+                });
                 // 선결제 날짜 선택 시 date state 업데이트
                 // 바텀시트를 먼저 닫고 나서 date를 업데이트하여 재오픈 방지
                 setShowDatePicker(false);
@@ -5159,6 +5330,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             <Pressable
               style={[styles.dateButton, { backgroundColor: colors.primary }]}
               onPress={() => {
+                void logEvent('btn', {
+                  screen_name: analyticsScreenName,
+                  target: 'calendar-confirm',
+                });
                 // 바텀시트를 먼저 닫고 나서 date를 업데이트하여 재오픈 방지
                 setShowDatePicker(false);
                 if (tempSelectedDate) {
@@ -5182,8 +5357,18 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       <ModalBottomsheet
         visible={showRecurringInstallmentSheet}
         title="반복/할부 설정"
-        onClose={() => setShowRecurringInstallmentSheet(false)}
+        onClose={() => {
+          void logEvent('btn', {
+            screen_name: analyticsScreenName,
+            target: 'recurring-installment-sheet-close',
+          });
+          setShowRecurringInstallmentSheet(false);
+        }}
         onConfirm={() => {
+          void logEvent('btn', {
+            screen_name: analyticsScreenName,
+            target: 'recurring-installment-sheet-confirm',
+          });
           setIsRecurring(draftIsRecurring);
           setIsInstallment(draftIsInstallment);
           setHasSelectedInstallment(draftHasSelectedInstallment);
@@ -5244,6 +5429,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                       value={draftIsRecurring}
                       onValueChange={(value) => {
                         if (mode === 'edit') return;
+                        void logEvent('ui', {
+                          screen_name: analyticsScreenName,
+                          target: 'recurring-toggle',
+                        });
                         setDraftIsRecurring(value);
                         if (!value) {
                           setDraftTotalMonths(2);
@@ -5296,6 +5485,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                       value={draftIsInstallment}
                       onValueChange={(value) => {
                         if (mode === 'edit') return;
+                        void logEvent('ui', {
+                          screen_name: analyticsScreenName,
+                          target: 'installment-toggle',
+                        });
                         setDraftIsInstallment(value);
                         if (value) {
                           setDraftIsRecurring(false);
@@ -5339,6 +5532,26 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                           setShowRecurringToast(true);
                           return;
                         }
+                        const recurringTargetMap: Record<string, string> = {
+                          매일: 'recurring-daily',
+                          매주: 'recurring-weekly',
+                          매월: 'recurring-monthly',
+                          '2주': 'recurring-2weeks',
+                          '3주': 'recurring-3weeks',
+                          '4주': 'recurring-4weeks',
+                          '2개월 마다': 'recurring-2months',
+                          '4개월 마다': 'recurring-4months',
+                          '6개월 마다': 'recurring-6months',
+                          주중: 'recurring-weekdays',
+                          주말: 'recurring-weekends',
+                        };
+                        const recurringTarget = recurringTargetMap[label];
+                        if (recurringTarget) {
+                          void logEvent('ui', {
+                            screen_name: analyticsScreenName,
+                            target: recurringTarget,
+                          });
+                        }
                         setDraftRecurringType(label);
                         if (label === '매월') {
                           setDraftTotalMonths(1);
@@ -5370,6 +5583,26 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                           setShowRecurringToast(true);
                           return;
                         }
+                        const installmentTargetMap: Record<number, string> = {
+                          2: 'installment-2months',
+                          3: 'installment-3months',
+                          4: 'installment-4months',
+                          5: 'installment-5months',
+                          6: 'installment-6months',
+                          7: 'installment-7months',
+                          8: 'installment-8months',
+                          9: 'installment-9months',
+                          10: 'installment-10months',
+                          11: 'installment-11months',
+                          12: 'installment-12months',
+                        };
+                        const installmentTarget = installmentTargetMap[months];
+                        if (installmentTarget) {
+                          void logEvent('ui', {
+                            screen_name: analyticsScreenName,
+                            target: installmentTarget,
+                          });
+                        }
                         setDraftTotalMonths(months);
                       }}
                       style={styles.periodChip}
@@ -5399,6 +5632,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                     setShowWeekendOptionToast(true);
                     return;
                   }
+                  void logEvent('ui', {
+                    screen_name: analyticsScreenName,
+                    target: 'on-weekend',
+                  });
                   setDraftWeekendOption('weekend');
                 }}
                 disabled={!draftIsRecurring && !draftIsInstallment}
@@ -5414,6 +5651,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                       setShowWeekendOptionToast(true);
                       return;
                     }
+                    void logEvent('ui', {
+                      screen_name: analyticsScreenName,
+                      target: 'on-weekend',
+                    });
                     setDraftWeekendOption('weekend');
                   }}
                   label={false}
@@ -5431,6 +5672,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                     setShowWeekendOptionToast(true);
                     return;
                   }
+                  void logEvent('ui', {
+                    screen_name: analyticsScreenName,
+                    target: 'on-this-friday',
+                  });
                   setDraftWeekendOption('friday');
                 }}
                 disabled={!draftIsRecurring && !draftIsInstallment}
@@ -5446,6 +5691,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                       setShowWeekendOptionToast(true);
                       return;
                     }
+                    void logEvent('ui', {
+                      screen_name: analyticsScreenName,
+                      target: 'on-this-friday',
+                    });
                     setDraftWeekendOption('friday');
                   }}
                   label={false}
@@ -5463,6 +5712,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                     setShowWeekendOptionToast(true);
                     return;
                   }
+                  void logEvent('ui', {
+                    screen_name: analyticsScreenName,
+                    target: 'on-next-monday',
+                  });
                   setDraftWeekendOption('monday');
                 }}
                 disabled={!draftIsRecurring && !draftIsInstallment}
@@ -5478,6 +5731,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                       setShowWeekendOptionToast(true);
                       return;
                     }
+                    void logEvent('ui', {
+                      screen_name: analyticsScreenName,
+                      target: 'on-next-monday',
+                    });
                     setDraftWeekendOption('monday');
                   }}
                   label={false}
@@ -5543,8 +5800,20 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       <ModalPopup
         visible={showSettlementConfirmModal}
         title="결산 처리 안내"
-        onConfirm={handleSingleRecordSettlement}
-        onCancel={() => setShowSettlementConfirmModal(false)}
+        onConfirm={async () => {
+          void logEvent('btn', {
+            screen_name: analyticsScreenName,
+            target: 'settlement-confirm',
+          });
+          await handleSingleRecordSettlement();
+        }}
+        onCancel={() => {
+          void logEvent('btn', {
+            screen_name: analyticsScreenName,
+            target: 'settlement-close',
+          });
+          setShowSettlementConfirmModal(false);
+        }}
         confirmText="확인"
         cancelText="취소"
       >
@@ -5605,8 +5874,20 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       <ModalPopup
         visible={showRefundOptions}
         title={`${getRecordTypeLabel()} 기록 환불 반영 안내`}
-        onConfirm={async () => { await handleMultipleRecordsRefund(); }}
-        onCancel={() => setShowRefundOptions(false)}
+        onConfirm={async () => {
+          void logEvent('btn', {
+            screen_name: analyticsScreenName,
+            target: 'refund-confirm',
+          });
+          await handleMultipleRecordsRefund();
+        }}
+        onCancel={() => {
+          void logEvent('btn', {
+            screen_name: analyticsScreenName,
+            target: 'refund-cancel',
+          });
+          setShowRefundOptions(false);
+        }}
         confirmText="확인"
         cancelText="취소"
       >
@@ -5637,7 +5918,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             {/* 전체 환불 */}
             <Pressable 
               style={styles.deleteOptionItem}
-              onPress={() => setRefundOption('all')}
+              onPress={() => {
+                void logEvent('ui', {
+                  screen_name: analyticsScreenName,
+                  target: 'refund-repetition-all',
+                });
+                setRefundOption('all');
+              }}
             >
               <View style={styles.deleteOptionContent}>
                 <Text style={[styles.deleteOptionTitle, { color: colors.text }]}>
@@ -5649,7 +5936,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               </View>
               <Radio
                 checked={refundOption === 'all'}
-                onPress={() => setRefundOption('all')}
+                onPress={() => {
+                  void logEvent('ui', {
+                    screen_name: analyticsScreenName,
+                    target: 'refund-repetition-all',
+                  });
+                  setRefundOption('all');
+                }}
               />
             </Pressable>
             
@@ -5658,7 +5951,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             {/* 오늘만 환불 */}
             <Pressable 
               style={styles.deleteOptionItem}
-              onPress={() => setRefundOption('today')}
+              onPress={() => {
+                void logEvent('ui', {
+                  screen_name: analyticsScreenName,
+                  target: 'refund-repetition-today',
+                });
+                setRefundOption('today');
+              }}
             >
               <View style={styles.deleteOptionContent}>
                 <Text style={[styles.deleteOptionTitle, { color: colors.text }]}>
@@ -5670,7 +5969,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               </View>
               <Radio
                 checked={refundOption === 'today'}
-                onPress={() => setRefundOption('today')}
+                onPress={() => {
+                  void logEvent('ui', {
+                    screen_name: analyticsScreenName,
+                    target: 'refund-repetition-today',
+                  });
+                  setRefundOption('today');
+                }}
               />
             </Pressable>
             
@@ -5679,7 +5984,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             {/* 오늘 포함한 이후의 기록 환불 */}
             <Pressable 
               style={styles.deleteOptionItem}
-              onPress={() => setRefundOption('future')}
+              onPress={() => {
+                void logEvent('ui', {
+                  screen_name: analyticsScreenName,
+                  target: 'refund-repetition-future',
+                });
+                setRefundOption('future');
+              }}
             >
               <View style={styles.deleteOptionContent}>
                 <Text style={[styles.deleteOptionTitle, { color: colors.text }]}>
@@ -5691,7 +6002,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               </View>
               <Radio
                 checked={refundOption === 'future'}
-                onPress={() => setRefundOption('future')}
+                onPress={() => {
+                  void logEvent('ui', {
+                    screen_name: analyticsScreenName,
+                    target: 'refund-repetition-future',
+                  });
+                  setRefundOption('future');
+                }}
               />
             </Pressable>
           </View>
@@ -5737,8 +6054,20 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       <ModalPopup
         visible={showPrepaymentRestore}
         title="선결제 처리 복구 안내"
-        onConfirm={handlePrepaymentRestore}
-        onCancel={() => setShowPrepaymentRestore(false)}
+        onConfirm={async () => {
+          void logEvent('btn', {
+            screen_name: analyticsScreenName,
+            target: 'prepayment-restoration-confirm',
+          });
+          await handlePrepaymentRestore();
+        }}
+        onCancel={() => {
+          void logEvent('btn', {
+            screen_name: analyticsScreenName,
+            target: 'prepayment-restoration-cancel',
+          });
+          setShowPrepaymentRestore(false);
+        }}
         confirmText="확인"
         cancelText="취소"
       >
@@ -5759,8 +6088,20 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       <ModalPopup
         visible={showRefundRestore}
         title="환불 처리 복구 안내"
-        onConfirm={async () => { await handleRefundRestore(); }}
-        onCancel={() => setShowRefundRestore(false)}
+        onConfirm={async () => {
+          void logEvent('btn', {
+            screen_name: analyticsScreenName,
+            target: 'refund-restoration-confirm',
+          });
+          await handleRefundRestore();
+        }}
+        onCancel={() => {
+          void logEvent('btn', {
+            screen_name: analyticsScreenName,
+            target: 'refund-restoration-cancel',
+          });
+          setShowRefundRestore(false);
+        }}
         confirmText="확인"
         cancelText="취소"
       >
@@ -5789,7 +6130,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             <View style={[styles.deleteOptionsList, { backgroundColor: colors.fill }]}>
               <Pressable
                 style={styles.deleteOptionItem}
-                onPress={() => setRefundRestoreOption('all')}
+                onPress={() => {
+                  void logEvent('ui', {
+                    screen_name: analyticsScreenName,
+                    target: 'prepayment-restoration-all',
+                  });
+                  setRefundRestoreOption('all');
+                }}
               >
                 <View style={styles.deleteOptionContent}>
                   <Text style={[styles.deleteOptionTitle, { color: colors.text }]}>
@@ -5801,7 +6148,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 </View>
                 <Radio
                   checked={refundRestoreOption === 'all'}
-                  onPress={() => setRefundRestoreOption('all')}
+                  onPress={() => {
+                    void logEvent('ui', {
+                      screen_name: analyticsScreenName,
+                      target: 'prepayment-restoration-all',
+                    });
+                    setRefundRestoreOption('all');
+                  }}
                 />
               </Pressable>
 
@@ -5809,7 +6162,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
               <Pressable
                 style={styles.deleteOptionItem}
-                onPress={() => setRefundRestoreOption('today')}
+                onPress={() => {
+                  void logEvent('ui', {
+                    screen_name: analyticsScreenName,
+                    target: 'prepayment-restoration-today',
+                  });
+                  setRefundRestoreOption('today');
+                }}
               >
                 <View style={styles.deleteOptionContent}>
                   <Text style={[styles.deleteOptionTitle, { color: colors.text }]}>
@@ -5821,7 +6180,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 </View>
                 <Radio
                   checked={refundRestoreOption === 'today'}
-                  onPress={() => setRefundRestoreOption('today')}
+                  onPress={() => {
+                    void logEvent('ui', {
+                      screen_name: analyticsScreenName,
+                      target: 'prepayment-restoration-today',
+                    });
+                    setRefundRestoreOption('today');
+                  }}
                 />
               </Pressable>
 
@@ -5829,7 +6194,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
               <Pressable
                 style={styles.deleteOptionItem}
-                onPress={() => setRefundRestoreOption('future')}
+                onPress={() => {
+                  void logEvent('ui', {
+                    screen_name: analyticsScreenName,
+                    target: 'prepayment-restoration-future',
+                  });
+                  setRefundRestoreOption('future');
+                }}
               >
                 <View style={styles.deleteOptionContent}>
                   <Text style={[styles.deleteOptionTitle, { color: colors.text }]}>
@@ -5841,7 +6212,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 </View>
                 <Radio
                   checked={refundRestoreOption === 'future'}
-                  onPress={() => setRefundRestoreOption('future')}
+                  onPress={() => {
+                    void logEvent('ui', {
+                      screen_name: analyticsScreenName,
+                      target: 'prepayment-restoration-future',
+                    });
+                    setRefundRestoreOption('future');
+                  }}
                 />
               </Pressable>
             </View>
@@ -5858,8 +6235,20 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       <ModalPopup
         visible={showSettlementRestore}
         title="결산 처리 복구 안내"
-        onConfirm={async () => { await handleSettlementRestore(); }}
-        onCancel={() => setShowSettlementRestore(false)}
+        onConfirm={async () => {
+          void logEvent('btn', {
+            screen_name: analyticsScreenName,
+            target: 'settlement-restoration-confirm',
+          });
+          await handleSettlementRestore();
+        }}
+        onCancel={() => {
+          void logEvent('btn', {
+            screen_name: analyticsScreenName,
+            target: 'settlement-restoration-cancel',
+          });
+          setShowSettlementRestore(false);
+        }}
         confirmText="확인"
         cancelText="취소"
       >

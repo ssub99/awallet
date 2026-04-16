@@ -11,6 +11,7 @@ import { useAppData } from '@/contexts/app-data-context';
 import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
+import { logEvent } from '@/utils/analytics';
 import { loadCategories } from '@/utils/categories';
 import { getCustomMonthRange, isDateInCustomMonth } from '@/utils/custom-month';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -63,6 +64,7 @@ export default function ExpenseCategoryDetailScreen() {
     category: string;
     year?: string;
     month?: string;
+    rankingType?: string;
   }>();
 
   const category = params.category || '';
@@ -207,6 +209,15 @@ export default function ExpenseCategoryDetailScreen() {
   }, [groupedByDate]);
 
   const handleBack = () => {
+    const target =
+      params.rankingType === 'recurring'
+        ? 'expense-recurring-ranking-prev'
+        : 'expense-monthly-ranking-prev';
+
+    void logEvent('btn', {
+      screen_name: 'expense-category-detail',
+      target,
+    });
     router.back();
   };
 

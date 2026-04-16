@@ -208,7 +208,11 @@ export async function setUserId(userId: string | null): Promise<void> {
 /**
  * 화면 조회 (전역 라우트 리스너에서도 사용)
  */
-export async function logScreenView(screenName: string, screenClass?: string): Promise<void> {
+export async function logScreenView(
+  screenName: string,
+  screenClass?: string,
+  params?: Record<string, unknown>,
+): Promise<void> {
   if (!assertReady()) return;
 
   try {
@@ -216,6 +220,7 @@ export async function logScreenView(screenName: string, screenClass?: string): P
       app_runtime: Platform.OS,
       screen_name: screenName,
       screen_class: screenClass ?? screenName,
+      ...(params ?? {}),
     });
   } catch (error) {
     console.warn(`[Analytics] logScreenView 실패: ${screenName}`, error);

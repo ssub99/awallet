@@ -1,5 +1,5 @@
 import { logScreenView } from '@/utils/analytics';
-import { usePathname } from 'expo-router';
+import { useGlobalSearchParams, usePathname } from 'expo-router';
 import { useEffect, useRef } from 'react';
 
 /**
@@ -8,13 +8,28 @@ import { useEffect, useRef } from 'react';
  */
 export function AnalyticsRouteListener() {
   const pathname = usePathname();
+  const params = useGlobalSearchParams<{ type?: string | string[]; mode?: string | string[] }>();
   const prevRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!pathname || pathname === prevRef.current) return;
-    prevRef.current = pathname;
-    void logScreenView(pathname);
-  }, [pathname]);
+    if (!pathname) return;
+
+    let screenName = pathname;
+    let mode: 'income' | 'expense' | 'challenge' | undefined;
+    if (pathname === '/expense-category') {
+      const rawType = params.type;
+      const categoryType = Array.isArray(rawType) ? rawType[0] : rawType;
+      const rawMode = params.mode;
+      const flowMode = Array.isArray(rawMode) ? rawMode[0] : rawMode;
+      screenName = 'expense-category';
+      mode = flowMode === 'challenge' ? 'challenge' : categoryType === 'income' ? 'income' : 'expense';
+    }
+
+    const dedupeKey = `${screenName}|${mode ?? ''}`;
+    if (dedupeKey === prevRef.current) return;
+    prevRef.current = dedupeKey;
+    void logScreenView(screenName, undefined, mode ? { mode } : undefined);
+  }, [pathname, params.mode, params.type]);
 
   return null;
 }

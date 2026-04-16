@@ -33,6 +33,16 @@ export interface DatePickerProps {
    * Close handler
    */
   onClose: () => void;
+
+  /**
+   * Cancel button press handler (header "취소")
+   */
+  onCancelPress?: () => void;
+
+  /**
+   * Done button press handler (header "완료")
+   */
+  onDonePress?: () => void;
   
   /**
    * Title shown in picker header
@@ -96,6 +106,8 @@ export interface DatePickerProps {
 export function DatePicker({
   visible,
   onClose,
+  onCancelPress,
+  onDonePress,
   title = '날짜 선택',
   yearOptions,
   selectedYear,
@@ -439,6 +451,7 @@ export function DatePicker({
               onPress={() => {
                 if (__DEV__) {
                 }
+                onCancelPress?.();
                 handleCancel();
               }} 
               style={styles.headerButton}
@@ -456,6 +469,7 @@ export function DatePicker({
               onPress={() => {
                 if (__DEV__) {
                 }
+                onDonePress?.();
                 handleDone();
               }} 
               style={styles.headerButton}

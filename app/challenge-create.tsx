@@ -19,6 +19,7 @@ import { useLoading } from '@/contexts/loading-context';
 import { useToast } from '@/contexts/toast-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
+import { logEvent } from '@/utils/analytics';
 import { getChallengeStatus } from '@/utils/challenge-utils';
 import { createChallenges, getAllChallenges, type ChallengeRecord } from '@/utils/challenges';
 import { generateGroupId, generateRecordId } from '@/utils/id-generator';
@@ -313,6 +314,10 @@ export default function ChallengeCreateScreen() {
   }, []);
 
   const handleAmountFocus = useCallback(() => {
+    void logEvent('ui', {
+      screen_name: 'challenge-create',
+      target: 'amount',
+    });
     Keyboard.dismiss();
     if (!isKeypadVisible) {
       setIsKeypadVisible(true);
@@ -453,6 +458,14 @@ export default function ChallengeCreateScreen() {
     }
   };
 
+  const handleCtaPress = () => {
+    void logEvent('btn', {
+      screen_name: 'challenge-create',
+      target: 'cta',
+    });
+    void handleConfirm();
+  };
+
   const handleBack = () => {
 
     router.back();
@@ -516,6 +529,10 @@ export default function ChallengeCreateScreen() {
               카테고리 <Text style={{ color: '#EF5252' }}>*</Text>
             </Text>
             <Pressable onPress={() => {
+              void logEvent('ui', {
+                screen_name: 'challenge-create',
+                target: 'category-option',
+              });
               // 사용자가 선택한 년/월/일 정보를 카테고리 선택 화면으로 전달
               // selectedDay는 사용자가 선택한 날짜의 일자이므로 그대로 사용
               const selectedDateStr = `${startYear}.${String(startMonth).padStart(2, '0')}.${String(selectedDay).padStart(2, '0')}`;
@@ -548,6 +565,14 @@ export default function ChallengeCreateScreen() {
               시작 년월 <Text style={{ color: '#EF5252' }}>*</Text>
             </Text>
             <Pressable onPress={() => {
+              void logEvent('ui', {
+                screen_name: 'challenge-create',
+                target: 'calendar',
+              });
+              void logEvent('sheet_view', {
+                screen_name: 'challenge-create',
+                target: 'calendar',
+              });
 
               setShowYearMonthPicker(true);
             }}>
@@ -604,6 +629,10 @@ export default function ChallengeCreateScreen() {
                   <Switch
                     value={isRecurring}
                     onValueChange={(value) => {
+                      void logEvent('ui', {
+                        screen_name: 'challenge-create',
+                        target: 'recurring-toggle',
+                      });
 
                       setIsRecurring(value);
                     }}
@@ -623,6 +652,14 @@ export default function ChallengeCreateScreen() {
                 개월 수
               </Text>
               <Pressable onPress={() => {
+                void logEvent('ui', {
+                  screen_name: 'challenge-create',
+                  target: 'recurring-period',
+                });
+                void logEvent('sheet_view', {
+                  screen_name: 'challenge-create',
+                  target: 'recurring',
+                });
 
                 setShowRecurringMonthsPicker(true);
               }}>
@@ -691,7 +728,7 @@ export default function ChallengeCreateScreen() {
             paddingBottom: 16 + insets.bottom 
           }
         ]}>
-          <Button onPress={handleConfirm}>
+          <Button onPress={handleCtaPress}>
             확인
           </Button>
         </View>
@@ -700,6 +737,18 @@ export default function ChallengeCreateScreen() {
         <DatePicker
           visible={showYearMonthPicker}
           onClose={() => setShowYearMonthPicker(false)}
+          onCancelPress={() => {
+            void logEvent('btn', {
+              screen_name: 'challenge-create',
+              target: 'challenge-create-close',
+            });
+          }}
+          onDonePress={() => {
+            void logEvent('btn', {
+              screen_name: 'challenge-create',
+              target: 'challenge-create-confirm',
+            });
+          }}
           title="시작 년월"
           yearOptions={yearOptions}
           selectedYear={startYear}
@@ -719,6 +768,18 @@ export default function ChallengeCreateScreen() {
         <DatePicker
           visible={showRecurringMonthsPicker}
           onClose={() => setShowRecurringMonthsPicker(false)}
+          onCancelPress={() => {
+            void logEvent('btn', {
+              screen_name: 'challenge-create',
+              target: 'recurring-close',
+            });
+          }}
+          onDonePress={() => {
+            void logEvent('btn', {
+              screen_name: 'challenge-create',
+              target: 'recurring-confirm',
+            });
+          }}
           title="반복할 개월 수"
           dayOptions={[
             { label: '2개월', value: 2 },

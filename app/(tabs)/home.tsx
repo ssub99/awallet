@@ -25,6 +25,7 @@ import {
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { useThemeColor } from '@/hooks/use-theme-color';
+import { logEvent } from '@/utils/analytics';
 import { createSheetEvent } from '@/utils/create-sheet-event';
 import { isAtLeastVersion, QUICK_INPUT_MIN_VERSION } from '@/utils/app-version';
 import { getCustomMonthInfo, isDateInCustomMonth } from '@/utils/custom-month';
@@ -772,6 +773,14 @@ export default function HomeScreen() {
                   
                   // 🔧 수정: 날짜 문자열이 아닌 현재 보고 있는 캘린더의 년/월 사용
                   // 월 시작일이 20일이면 9월 캘린더에 10월 날짜가 표시될 수 있음
+                  void logEvent('ui', {
+                    screen_name: 'monthly-expense-timeline',
+                    target: 'timeline_entry',
+                    entry_point: 'home_calendar_day_retap',
+                    selected_date: dateString,
+                    year: currentYear,
+                    month: currentMonth,
+                  });
                   
                   router.push({
                     pathname: '/monthly-expense-timeline',

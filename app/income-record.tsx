@@ -18,6 +18,7 @@ import { useLoading } from '@/contexts/loading-context';
 import { calendarRefreshEvent } from '@/hooks/calendar-events';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
+import { logEvent } from '@/utils/analytics';
 import { loadCategories } from '@/utils/categories';
 import { getCustomMonthInfo } from '@/utils/custom-month';
 import { generateRecordId } from '@/utils/id-generator';
@@ -369,6 +370,10 @@ export default function IncomeRecordScreen() {
   }, []);
 
   const handleAmountFocus = useCallback(() => {
+    void logEvent('ui', {
+      screen_name: 'income-record',
+      target: 'amount',
+    });
     Keyboard.dismiss();
     skipNextDismissRef.current = false;
     isMemoFocusedRef.current = false;
@@ -389,6 +394,10 @@ export default function IncomeRecordScreen() {
 
 
   const handleDatePress = () => {
+    void logEvent('ui', {
+      screen_name: 'income-record',
+      target: 'calendar',
+    });
     // 이미 열려있으면 무시
     if (showDatePicker) {
       return;
@@ -397,6 +406,10 @@ export default function IncomeRecordScreen() {
     handleKeypadDismiss();
     Keyboard.dismiss();
     setTempSelectedDate(date.replace(/\./g, '-'));
+    void logEvent('sheet_view', {
+      screen_name: 'income-record',
+      target: 'calendar',
+    });
     setShowDatePicker(true);
   };
 
@@ -404,10 +417,18 @@ export default function IncomeRecordScreen() {
     if (!showDatePicker) {
       return;
     }
+    void logEvent('btn', {
+      screen_name: 'income-record',
+      target: 'calendar-close',
+    });
     setShowDatePicker(false);
   };
   
   const handleDateConfirm = () => {
+    void logEvent('btn', {
+      screen_name: 'income-record',
+      target: 'calendar-confirm',
+    });
     // 바텀시트를 먼저 닫고 나서 date를 업데이트하여 재오픈 방지
     setShowDatePicker(false);
     if (tempSelectedDate) {
@@ -421,6 +442,10 @@ export default function IncomeRecordScreen() {
   // amount auto-scroll removed per request
 
   const handleMemoFocus = () => {
+    void logEvent('ui', {
+      screen_name: 'income-record',
+      target: 'memo',
+    });
     isMemoFocusedRef.current = true;
     handleKeypadDismiss();
     // 메모 섹션 위치로 스크롤 (하단 버튼 제외)
@@ -439,6 +464,10 @@ export default function IncomeRecordScreen() {
   };
 
   const handleCategoryPress = () => {
+    void logEvent('ui', {
+      screen_name: 'income-record',
+      target: 'category',
+    });
     handleKeypadDismiss();
     Keyboard.dismiss();
 
@@ -600,7 +629,19 @@ export default function IncomeRecordScreen() {
   };
 
   const handleBack = () => {
+    void logEvent('btn', {
+      screen_name: 'income-record',
+      target: 'category-option-prev',
+    });
     router.back();
+  };
+
+  const handleCtaPress = () => {
+    void logEvent('btn', {
+      screen_name: 'income-record',
+      target: 'cta',
+    });
+    void handleConfirm();
   };
 
   return (
@@ -813,7 +854,7 @@ export default function IncomeRecordScreen() {
             }
           }}
         >
-          <Button onPress={handleConfirm}>
+          <Button onPress={handleCtaPress}>
             확인
           </Button>
         </View>

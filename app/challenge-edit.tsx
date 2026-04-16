@@ -18,6 +18,7 @@ import { useLoading } from '@/contexts/loading-context';
 import { useToast } from '@/contexts/toast-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
+import { logEvent } from '@/utils/analytics';
 import { loadCategories } from '@/utils/categories';
 import { cancelChallengeFailureNotification, cancelChallengeProgressNotifications, cancelChallengeSuccessNotification } from '@/utils/notification-scheduler';
 import { getChallengeById, getChallengesByRecurringId, softDeleteChallengesByRecurringId, updateChallengesByRecurringId, type ChallengeRecord } from '@/utils/challenges';
@@ -73,6 +74,26 @@ export default function ChallengeEditScreen() {
   const showDisabledToast = () => {
     showToast('변경할 수 없습니다. 새로 생성해 주세요.');
   };
+
+  const logChallengeEditEvent = useCallback(
+    (eventType: 'btn' | 'ui' | 'modal', target: string) => {
+      logEvent(eventType, {
+        screen_name: 'challenge-edit',
+        target,
+      });
+    },
+    []
+  );
+
+  const handleCalendarPress = useCallback(() => {
+    logChallengeEditEvent('ui', 'calendar');
+    showDisabledToast();
+  }, [logChallengeEditEvent]);
+
+  const handleRecurringTogglePress = useCallback(() => {
+    logChallengeEditEvent('ui', 'recurring-toggle');
+    showDisabledToast();
+  }, [logChallengeEditEvent]);
 
   // Load challenge data
   useEffect(() => {
@@ -322,6 +343,7 @@ export default function ChallengeEditScreen() {
   }, []);
 
   const handleAmountFocus = useCallback(() => {
+    logChallengeEditEvent('ui', 'amount');
     Keyboard.dismiss();
     if (!isKeypadVisible) {
       setIsKeypadVisible(true);
@@ -336,7 +358,7 @@ export default function ChallengeEditScreen() {
         });
       }
     }, 0);
-  }, [amountSectionY, isKeypadVisible]);
+  }, [amountSectionY, isKeypadVisible, logChallengeEditEvent]);
 
   const [expenseCategories, setExpenseCategories] = useState<Category[]>([]);
 
@@ -355,6 +377,7 @@ export default function ChallengeEditScreen() {
   };
 
   const handleSave = async () => {
+    logChallengeEditEvent('btn', 'cta');
     // 필수값 검증
     if (!targetAmount || targetAmount === '0' || targetAmount.trim() === '') {
       Alert.alert('알림', '목표 소비 금액을 입력해주세요.');
@@ -403,10 +426,12 @@ export default function ChallengeEditScreen() {
   };
 
   const handleDelete = () => {
+    logChallengeEditEvent('btn', 'delete');
     setShowDeleteModal(true);
   };
 
   const confirmDelete = async () => {
+    logChallengeEditEvent('btn', 'delete-confirm');
     setLoading(true);
     try {
       if (!recurringId) {
@@ -460,6 +485,12 @@ export default function ChallengeEditScreen() {
 
     router.back();
   };
+
+  useEffect(() => {
+    if (showDeleteModal) {
+      logChallengeEditEvent('modal', 'modal');
+    }
+  }, [logChallengeEditEvent, showDeleteModal]);
 
   // 진행 전 챌린지 여부 확인 (월 시작일 고려)
   const isBeforeStart = () => {
@@ -673,7 +704,7 @@ export default function ChallengeEditScreen() {
             <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
               시작 년월 <Text style={{ color: '#EF5252' }}>*</Text>
             </Text>
-            <Pressable onPress={showDisabledToast}>
+            <Pressable onPress={handleCalendarPress}>
               <View style={[styles.disabledCard, { backgroundColor: 'rgba(144, 146, 158, 0.12)' }]}>
                 <View style={styles.yearMonthRow}>
                   <View style={styles.yearMonthLeft}>
@@ -722,7 +753,7 @@ export default function ChallengeEditScreen() {
             <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
               반복 설정
             </Text>
-            <Pressable onPress={showDisabledToast}>
+            <Pressable onPress={handleRecurringTogglePress}>
               <View style={[styles.disabledCard, { backgroundColor: colors.staticWhite }]}>
                 <View style={styles.recurringSection}>
                   <View style={styles.recurringTitleRow}>
@@ -826,7 +857,10 @@ export default function ChallengeEditScreen() {
           confirmText="확인"
           cancelText="취소"
           onConfirm={confirmDelete}
-          onCancel={() => setShowDeleteModal(false)}
+          onCancel={() => {
+            logChallengeEditEvent('btn', 'delete-cancel');
+            setShowDeleteModal(false);
+          }}
         >
           <Text style={[styles.modalText, { color: colors.text }]}>
             {isRecurringChallenge 

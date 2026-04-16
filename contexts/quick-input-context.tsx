@@ -22,6 +22,7 @@ import { isAtLeastVersion, QUICK_INPUT_MIN_VERSION } from '@/utils/app-version';
 import { triggerChallengeNotifications } from '@/utils/challenge-utils';
 import { getCustomMonthInfo } from '@/utils/custom-month';
 import { rescheduleDailyReminderIfNeeded } from '@/utils/notification-scheduler';
+import { logEvent } from '@/utils/analytics';
 import { refreshWidgetWithCurrentMonth } from '@/utils/widget-data-sync';
 import {
   adjustWeekendDate,
@@ -494,6 +495,10 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       return;
     }
     const message = quickInputText.trim();
+    void logEvent('ui', {
+      screen_name: 'home',
+      target: 'sentence',
+    });
 
     const now = Date.now();
     if (lockEndTimeRef.current > now) {
@@ -611,6 +616,10 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       hideQuickInput();
       return;
     }
+    void logEvent('btn', {
+      screen_name: 'home',
+      target: 'sentence-cardadd-confirm',
+    });
     isConfirmAddInFlightRef.current = true;
     setIsQuickInputConfirmAdding(true);
 
@@ -816,8 +825,22 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }, [hideQuickInput, isQuickInputConfirmAdding, refresh, showToast]);
 
   const handleConfirmCardCancel = useCallback(() => {
+    void logEvent('btn', {
+      screen_name: 'home',
+      target: 'sentence-cardadd-cancel',
+    });
     setConfirmCardData(null);
   }, []);
+
+  useEffect(() => {
+    if (!confirmCardData) {
+      return;
+    }
+    void logEvent('component', {
+      screen_name: 'home',
+      target: 'sentence-cardadd',
+    });
+  }, [confirmCardData]);
 
   const handleCancel = useCallback(() => {
     setQuickInputText('');
