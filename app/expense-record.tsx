@@ -27,6 +27,7 @@ import { useToast } from '@/contexts/toast-context';
 import { calendarRefreshEvent } from '@/hooks/calendar-events';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
+import { logEvent } from '@/utils/analytics';
 import { loadCategories } from '@/utils/categories';
 import { triggerChallengeNotifications } from '@/utils/challenge-utils';
 import { getCustomMonthInfo } from '@/utils/custom-month';
@@ -2333,6 +2334,12 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   };
 
   const handleConfirm = async () => {
+    void logEvent('Button Clicked', {
+      buttonColor: 'primary',
+      screen: 'expense_record',
+      cta: mode === 'edit' ? 'save' : 'confirm',
+    });
+
     // 필수값 검증
     if (!category) {
       setCategoryToastMessage('카테고리를 선택해 주세요.');

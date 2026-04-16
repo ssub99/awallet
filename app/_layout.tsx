@@ -9,7 +9,8 @@ import * as Updates from 'expo-updates';
 // useColorScheme import 제거 - OS 강제 다크 모드 영향 방지를 위해 항상 'light' 사용
 import { useMetaFacebookAttSync } from '@/hooks/use-meta-facebook-att-sync';
 import { useFirstLaunchNotificationPermission } from '@/hooks/use-notifications';
-import { enableDebugMode, logEvent, setAnalyticsCollectionEnabled } from '@/utils/analytics';
+import { AnalyticsRouteListener } from '@/components/analytics-route-listener';
+import { initAmplitude, logEvent } from '@/utils/analytics';
 import { checkActiveChallengesNotifications, checkEndedChallenges } from '@/utils/challenge-utils';
 import {
   cancelDailyReminder,
@@ -83,7 +84,15 @@ export default function RootLayout() {
         
         // 2초 대기
         await new Promise(resolve => setTimeout(resolve, 2000));
-        
+
+        // Amplitude 가이드 4번: init(API 키) + Session Replay 플러그인 → `utils/analytics`의 `initAmplitude`
+        await initAmplitude();
+        await logEvent('app_started', {
+          timestamp: Date.now(),
+          platform: Platform.OS,
+          environment: __DEV__ ? 'development' : 'production',
+        });
+
         // 데이터 로딩 시작
         setSplashFinished(true);
         
@@ -174,44 +183,6 @@ export default function RootLayout() {
     return () => sub.remove();
   }, []);
 
-  // Initialize Firebase Analytics
-  useEffect(() => {
-    const initAnalytics = async () => {
-      try {
-        console.log('📊 [Analytics] Firebase Analytics 초기화 시작...');
-        
-        // Analytics 수집 활성화
-        await setAnalyticsCollectionEnabled(true);
-        console.log('📊 [Analytics] Analytics 수집 활성화 완료');
-        
-        // 개발 환경에서 DebugView 활성화 및 테스트 이벤트 전송
-        if (__DEV__) {
-          console.log('📊 [Analytics] 개발 모드: DebugView 활성화 시도...');
-          await enableDebugMode();
-        }
-        
-        // 앱 시작 이벤트 전송
-        await logEvent('app_started', {
-          timestamp: Date.now(),
-          platform: 'ios',
-          environment: __DEV__ ? 'development' : 'production',
-        });
-        console.log('📊 [Analytics] app_started 이벤트 전송 완료');
-        
-        console.log('✅ Firebase Analytics 초기화 완료');
-      } catch (error) {
-        console.error('❌ Firebase Analytics 초기화 실패:', error);
-      }
-    };
-    
-    // 약간의 지연 후 초기화 (Firebase가 완전히 준비될 때까지)
-    const timer = setTimeout(() => {
-      initAnalytics();
-    }, 1000);
-    
-    return () => clearTimeout(timer);
-  }, []);
-
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <KeyboardProvider>
@@ -223,6 +194,7 @@ export default function RootLayout() {
               <ToastProvider>
                 {appIsReady ? (
                   <>
+                    <AnalyticsRouteListener />
                     <Stack>
                       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                       <Stack.Screen name="(dev-tabs)" options={{ headerShown: false }} />
