@@ -1,14 +1,14 @@
 import type { BeforePlugin, Event } from '@amplitude/analytics-core';
 import {
-  Identify,
-  add,
-  identify,
-  init,
-  setOptOut,
-  setUserId as amplitudeSetUserId,
-  track,
+    Identify,
+    add,
+    setUserId as amplitudeSetUserId,
+    identify,
+    init,
+    setOptOut,
+    track,
 } from '@amplitude/analytics-react-native';
-import { SessionReplayPlugin } from '@amplitude/plugin-session-replay-react-native';
+import { SessionReplayPlugin } from './amplitude-session-replay';
 import Constants from 'expo-constants';
 import * as Updates from 'expo-updates';
 import { Platform } from 'react-native';
