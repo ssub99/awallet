@@ -1,4 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  logChallengeCreate,
+  logChallengeDelete,
+  type ChallengeCreationVariant,
+  type ChallengeLifecycleAnalyticsPayload,
+} from '@/utils/analytics';
 
 const CHALLENGE_STORAGE_KEY = 'challengeData';
 
@@ -46,6 +52,30 @@ function sortChallenges(challenges: ChallengeRecord[]): ChallengeRecord[] {
   return [...challenges].sort((a, b) => a.startDate.localeCompare(b.startDate));
 }
 
+/** 생성 화면의 반복(2~6개월)과 동일: durationMonths > 1 이면 isrecurring */
+function challengeDeletionVariantFromRecords(
+  records: ChallengeRecord[],
+): ChallengeCreationVariant {
+  if (records.some((r) => typeof r.durationMonths === 'number' && r.durationMonths > 1)) {
+    return 'isrecurring';
+  }
+  return 'general';
+}
+
+function challengeLifecyclePayloadFromRecords(
+  records: ChallengeRecord[],
+): ChallengeLifecycleAnalyticsPayload {
+  if (records.length === 0) {
+    return { is_recurring: false, duration_months: null };
+  }
+  const dm = records[0].durationMonths;
+  const isRecurring = typeof dm === 'number' && dm > 1;
+  return {
+    is_recurring: isRecurring,
+    duration_months: isRecurring && typeof dm === 'number' ? dm : null,
+  };
+}
+
 async function loadLocalChallenges(): Promise<ChallengeRecord[]> {
   try {
     const stored = await AsyncStorage.getItem(CHALLENGE_STORAGE_KEY);
@@ -86,6 +116,9 @@ export async function createChallenges(records: ChallengeRecord[]): Promise<Chal
   ];
 
   await saveLocalChallenges(merged);
+  const variant = challengeDeletionVariantFromRecords(records);
+  const lifecyclePayload = challengeLifecyclePayloadFromRecords(records);
+  logChallengeCreate(variant, lifecyclePayload);
   return records;
 }
 
@@ -170,8 +203,20 @@ export async function softDeleteChallengesByRecurringId(recurringId: string): Pr
     return;
   }
 
+  const challenges = await loadLocalChallenges();
+  const group = challenges.filter(
+    (challenge) => challenge.recurringId === recurringId && challenge.isDeleted !== true,
+  );
+  if (group.length === 0) {
+    return;
+  }
+
   const deletedAt = new Date().toISOString();
   await updateChallengesByRecurringId(recurringId, { isDeleted: true, deletedAt });
+  logChallengeDelete(
+    challengeDeletionVariantFromRecords(group),
+    challengeLifecyclePayloadFromRecords(group),
+  );
 }
 
 export async function hardDeleteChallengesByRecurringId(recurringId: string): Promise<void> {
@@ -180,8 +225,14 @@ export async function hardDeleteChallengesByRecurringId(recurringId: string): Pr
   }
 
   const challenges = await loadLocalChallenges();
+  const toRemove = challenges.filter((challenge) => challenge.recurringId === recurringId);
+  if (toRemove.length === 0) {
+    return;
+  }
+  const variant = challengeDeletionVariantFromRecords(toRemove);
   const filtered = challenges.filter((challenge) => challenge.recurringId !== recurringId);
   await saveLocalChallenges(filtered);
+  logChallengeDelete(variant, challengeLifecyclePayloadFromRecords(toRemove));
 }
 
 /**
@@ -210,10 +261,16 @@ export async function renameChallengeCategory(
  */
 export async function deleteChallengesByCategory(categoryLabel: string): Promise<void> {
   const challenges = await loadLocalChallenges();
-  const filtered = challenges.filter((challenge) => challenge.category !== categoryLabel);
-  if (filtered.length !== challenges.length) {
-    await saveLocalChallenges(filtered);
+  const removedRecords = challenges.filter((challenge) => challenge.category === categoryLabel);
+  if (removedRecords.length === 0) {
+    return;
   }
+  const filtered = challenges.filter((challenge) => challenge.category !== categoryLabel);
+  await saveLocalChallenges(filtered);
+  logChallengeDelete(
+    challengeDeletionVariantFromRecords(removedRecords),
+    challengeLifecyclePayloadFromRecords(removedRecords),
+  );
 }
 
 export async function getChallengeById(id: string): Promise<ChallengeRecord | null> {

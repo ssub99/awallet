@@ -1,6 +1,16 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { registerReviewPromptLifetimeCreations } from '@/utils/app-store-review-lifetime';
 import { scheduleMaybePromptWriteReview } from '@/utils/app-store-review-scheduler';
+import {
+  logExpenseCreate,
+  logExpenseDelete,
+  type ExpenseCreationVariant,
+  type ExpenseLifecycleAnalyticsPayload,
+  type ExpenseRefundScopeAnalytics,
+  type ExpenseRepeatKind,
+  type ExpenseSettlementKind,
+  type ExpenseWeekendOptionAnalytics,
+} from '@/utils/analytics';
 import { generateRecordId } from './id-generator';
 
 export type PaymentMethod = 'credit' | 'debit' | 'cash';
@@ -169,7 +179,75 @@ async function persistExpenses(records: ExpenseRecord[]): Promise<void> {
   await AsyncStorage.setItem(EXPENSE_STORAGE_KEY, stringified);
 }
 
-export async function createExpense(record: ExpenseRecord): Promise<ExpenseRecord> {
+/** 분석용: 할부(`isInstallment`) 우선, 다음 정기(`isRecurring`), 나머지 일반 */
+export function expenseCreationVariantFromInstallmentFlags(
+  isInstallment?: boolean,
+  isRecurring?: boolean,
+): ExpenseCreationVariant {
+  if (isInstallment) {
+    return 'repeated_isinstallment';
+  }
+  if (isRecurring) {
+    return 'repeated_isrecurring';
+  }
+  return 'general';
+}
+
+export function expenseCreationVariantFromRecord(record: ExpenseRecord): ExpenseCreationVariant {
+  return expenseCreationVariantFromInstallmentFlags(record.isInstallment, record.isRecurring);
+}
+
+/** Amplitude `record_created` / `record_deleted`용 소비 생애주기 속성 */
+export function buildExpenseLifecycleAnalyticsPayload(
+  record: ExpenseRecord,
+): ExpenseLifecycleAnalyticsPayload {
+  let repeat_kind: ExpenseRepeatKind = 'none';
+  if (record.isInstallment) {
+    repeat_kind = 'installment';
+  } else if (record.isRecurring) {
+    repeat_kind = 'recurring';
+  }
+
+  let period_months: number | null = null;
+  if (record.isInstallment && typeof record.installmentMonths === 'number') {
+    period_months = record.installmentMonths;
+  } else if (record.isRecurring && typeof record.totalMonths === 'number') {
+    period_months = record.totalMonths;
+  }
+
+  const wo = record.weekendOption;
+  const weekend_option: ExpenseWeekendOptionAnalytics =
+    wo === 'friday' || wo === 'monday' || wo === 'weekend' ? wo : 'none';
+
+  let settlement_kind: ExpenseSettlementKind = 'none';
+  if (record.isRefunded) {
+    settlement_kind = 'refund';
+  } else if (record.isSettled) {
+    settlement_kind = 'settlement';
+  } else if (record.isPrepaid) {
+    settlement_kind = 'prepayment';
+  }
+
+  const refund_scope: ExpenseRefundScopeAnalytics | null = null;
+
+  return {
+    repeat_kind,
+    period_months,
+    weekend_option,
+    settlement_kind,
+    refund_scope,
+  };
+}
+
+export type CreateExpenseOptions = {
+  /** expense-record 등에서 한 번에 집계할 때 개별 호출 로그 생략 */
+  skipLifecycleLog?: boolean;
+};
+
+export async function createExpense(
+  record: ExpenseRecord,
+  options?: CreateExpenseOptions,
+): Promise<ExpenseRecord> {
   const expense = normalizeExpense(record);
   
   const existing = await loadLocalExpenses();
@@ -179,6 +257,12 @@ export async function createExpense(record: ExpenseRecord): Promise<ExpenseRecor
   );
   filtered.push(expense);
   await persistExpenses(filtered);
+  if (!options?.skipLifecycleLog) {
+    logExpenseCreate(
+      expenseCreationVariantFromRecord(expense),
+      buildExpenseLifecycleAnalyticsPayload(expense),
+    );
+  }
   await registerReviewPromptLifetimeCreations(1);
   scheduleMaybePromptWriteReview();
   return expense;
@@ -222,6 +306,12 @@ export async function createExpensesBatch(records: ExpenseRecord[]): Promise<Exp
   });
 
   await persistExpenses([...filteredExisting, ...dedupedIncoming]);
+  for (const record of dedupedIncoming) {
+    logExpenseCreate(
+      expenseCreationVariantFromRecord(record),
+      buildExpenseLifecycleAnalyticsPayload(record),
+    );
+  }
   await registerReviewPromptLifetimeCreations(dedupedIncoming.length);
   scheduleMaybePromptWriteReview();
   return dedupedIncoming;
@@ -260,14 +350,22 @@ export async function updateExpense(
 
 export async function deleteExpense(id: string): Promise<boolean> {
   const expenses = await loadLocalExpenses();
-  const filtered = expenses.filter(
-    (expense) => expense.id !== id && expense.timestamp.toString() !== id,
+  const target = expenses.find(
+    (expense) => expense.id === id || expense.timestamp.toString() === id,
   );
-  if (filtered.length === expenses.length) {
+  if (!target) {
     return false;
   }
 
+  const filtered = expenses.filter(
+    (expense) => expense.id !== id && expense.timestamp.toString() !== id,
+  );
+
   await persistExpenses(filtered);
+  logExpenseDelete(
+    expenseCreationVariantFromRecord(target),
+    buildExpenseLifecycleAnalyticsPayload(target),
+  );
   return true;
 }
 
@@ -350,9 +448,17 @@ export async function renameExpenseCategory(
  */
 export async function deleteExpensesByCategory(categoryLabel: string): Promise<void> {
   const expenses = await loadLocalExpenses();
+  const removedRecords = expenses.filter((expense) => expense.category === categoryLabel);
+  if (removedRecords.length === 0) {
+    return;
+  }
   const filtered = expenses.filter((expense) => expense.category !== categoryLabel);
-  if (filtered.length !== expenses.length) {
-    await persistExpenses(filtered);
+  await persistExpenses(filtered);
+  for (const r of removedRecords) {
+    logExpenseDelete(
+      expenseCreationVariantFromRecord(r),
+      buildExpenseLifecycleAnalyticsPayload(r),
+    );
   }
 }
 
@@ -377,16 +483,28 @@ export async function deleteExpensesByGroup(params: {
   }
 
   const expenses = await loadLocalExpenses();
-  const filtered = expenses.filter((expense) => {
+  const toRemove = expenses.filter((expense) => {
     if (recurringId && expense.recurringId === recurringId) {
-      return false;
+      return true;
     }
     if (installmentId && expense.installmentId === installmentId) {
-      return false;
+      return true;
     }
-    return true;
+    return false;
   });
 
+  const filtered = expenses.filter((expense) => !toRemove.includes(expense));
+
+  if (toRemove.length === 0) {
+    return;
+  }
+
   await persistExpenses(filtered);
+  for (const r of toRemove) {
+    logExpenseDelete(
+      expenseCreationVariantFromRecord(r),
+      buildExpenseLifecycleAnalyticsPayload(r),
+    );
+  }
 }
 

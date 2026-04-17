@@ -27,11 +27,22 @@ import { useToast } from '@/contexts/toast-context';
 import { calendarRefreshEvent } from '@/hooks/calendar-events';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
-import { logEvent } from '@/utils/analytics';
+import { logEvent, logExpenseAdjustment, mapRefundOptionToAnalytics } from '@/utils/analytics';
 import { loadCategories } from '@/utils/categories';
 import { triggerChallengeNotifications } from '@/utils/challenge-utils';
 import { getCustomMonthInfo } from '@/utils/custom-month';
-import { createExpense, deleteExpense, deleteExpensesByGroup, getAllExpenses, getExpenseById, updateExpense, type ExpenseRecord as ExpenseRecordType, type PaymentMethod } from '@/utils/expenses';
+import {
+  createExpense,
+  deleteExpense,
+  deleteExpensesByGroup,
+  expenseCreationVariantFromInstallmentFlags,
+  expenseCreationVariantFromRecord,
+  getAllExpenses,
+  getExpenseById,
+  updateExpense,
+  type ExpenseRecord as ExpenseRecordType,
+  type PaymentMethod,
+} from '@/utils/expenses';
 import { extractTimestampFromId, generateGroupId, generateRecordId } from '@/utils/id-generator';
 import { getAllIncomes } from '@/utils/incomes';
 import { rescheduleDailyReminderIfNeeded } from '@/utils/notification-scheduler';
@@ -2339,6 +2350,20 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       // 새로고침 이벤트 발생
       calendarRefreshEvent.emit();
 
+      try {
+        logExpenseAdjustment({
+          adjustment: 'isprepaid',
+          state: 'applied',
+          refund_scope: null,
+          expense_variant: expenseCreationVariantFromInstallmentFlags(
+            prepaidRecord.isInstallment,
+            prepaidRecord.isRecurring,
+          ),
+        });
+      } catch {
+        // analytics only
+      }
+
       // 모달 닫기
       setShowPrepaymentModal(false);
       showToast('정상적으로 선결제 처리가 완료 되었습니다.');
@@ -3258,7 +3283,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           }
         }
 
-        // 지출 기록 저장
+        // 지출 기록 저장 (건당 `record_created`는 createExpense 내부)
         for (const record of recordsToSave) {
           try {
             const recordId = record.id || record.timestamp.toString(); // UUID 우선, fallback으로 timestamp
@@ -3634,9 +3659,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
       await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
 
+      const recordIdForSingleRefund = record.id || record.timestamp.toString();
       try {
-        const recordId = record.id || record.timestamp.toString();
-        await updateExpense(recordId, {
+        await updateExpense(recordIdForSingleRefund, {
           isRefunded: true,
           originalAmountBeforeRefund: record.originalAmountBeforeRefund,
           amount: 0,
@@ -3648,6 +3673,20 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       calendarRefreshEvent.emit();
 
       rescheduleDailyReminderIfNeeded().catch(() => {});
+
+      try {
+        logExpenseAdjustment({
+          adjustment: 'isrefunded',
+          state: 'applied',
+          refund_scope: mapRefundOptionToAnalytics('all'),
+          expense_variant: expenseCreationVariantFromInstallmentFlags(
+            record.isInstallment,
+            record.isRecurring,
+          ),
+        });
+      } catch {
+        // analytics only
+      }
 
       const recordDate = editData.date || date;
       const dateKey = formatDateKey(recordDate);
@@ -3716,6 +3755,19 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       calendarRefreshEvent.emit();
 
       rescheduleDailyReminderIfNeeded().catch(() => {});
+
+      try {
+        if (syncedSettlement) {
+          logExpenseAdjustment({
+            adjustment: 'issettled',
+            state: 'applied',
+            refund_scope: null,
+            expense_variant: expenseCreationVariantFromRecord(syncedSettlement),
+          });
+        }
+      } catch {
+        // analytics only
+      }
 
       // 현재 화면 즉시 반영
       setAmount('0');
@@ -3864,6 +3916,22 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
       rescheduleDailyReminderIfNeeded().catch(() => {});
 
+      try {
+        if (recordsToRefund.length > 0) {
+          logExpenseAdjustment({
+            adjustment: 'isrefunded',
+            state: 'applied',
+            refund_scope: mapRefundOptionToAnalytics(refundOption),
+            expense_variant: expenseCreationVariantFromInstallmentFlags(
+              editData.isInstallment,
+              editData.isRecurring,
+            ),
+          });
+        }
+      } catch {
+        // analytics only
+      }
+
       // 모달 닫기
       setShowRefundOptions(false);
       const dateKey = formatDateKey(editData.date || date);
@@ -3971,6 +4039,20 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         });
       } catch (_error) {
         // 에러가 발생해도 AsyncStorage 저장은 완료되었으므로 계속 진행
+      }
+
+      try {
+        logExpenseAdjustment({
+          adjustment: 'isprepaid',
+          state: 'restored',
+          refund_scope: null,
+          expense_variant: expenseCreationVariantFromInstallmentFlags(
+            restoredRecord.isInstallment,
+            restoredRecord.isRecurring,
+          ),
+        });
+      } catch {
+        // analytics only
       }
 
       // 모달 닫기
@@ -4159,6 +4241,20 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
         rescheduleDailyReminderIfNeeded().catch(() => {});
 
+        try {
+          logExpenseAdjustment({
+            adjustment: 'isrefunded',
+            state: 'restored',
+            refund_scope: mapRefundOptionToAnalytics(refundRestoreOption),
+            expense_variant: expenseCreationVariantFromInstallmentFlags(
+              editData.isInstallment,
+              editData.isRecurring,
+            ),
+          });
+        } catch {
+          // analytics only
+        }
+
       // 모달 닫기
         setShowRefundRestore(false);
       
@@ -4260,6 +4356,20 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
         rescheduleDailyReminderIfNeeded().catch(() => {});
 
+        try {
+          logExpenseAdjustment({
+            adjustment: 'isrefunded',
+            state: 'restored',
+            refund_scope: mapRefundOptionToAnalytics(refundRestoreOption),
+            expense_variant: expenseCreationVariantFromInstallmentFlags(
+              editData.isInstallment,
+              editData.isRecurring,
+            ),
+          });
+        } catch {
+          // analytics only
+        }
+
         setShowRefundRestore(false);
 
         const dateKey = formatDateKey(editData.date || date);
@@ -4295,8 +4405,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         await AsyncStorage.setItem('calendarData', JSON.stringify(calendarData));
 
         try {
-          const recordId = record.id || record.timestamp.toString();
-          await updateExpense(recordId, {
+          const recordIdGeneralRestore = record.id || record.timestamp.toString();
+          await updateExpense(recordIdGeneralRestore, {
             isRefunded: false,
             amount: restoredAmount,
           });
@@ -4305,6 +4415,20 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         }
 
         rescheduleDailyReminderIfNeeded().catch(() => {});
+
+        try {
+          logExpenseAdjustment({
+            adjustment: 'isrefunded',
+            state: 'restored',
+            refund_scope: mapRefundOptionToAnalytics(refundRestoreOption),
+            expense_variant: expenseCreationVariantFromInstallmentFlags(
+              editData.isInstallment,
+              editData.isRecurring,
+            ),
+          });
+        } catch {
+          // analytics only
+        }
 
         setShowRefundRestore(false);
 
@@ -4369,6 +4493,19 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       calendarRefreshEvent.emit();
 
       rescheduleDailyReminderIfNeeded().catch(() => {});
+
+      try {
+        if (syncedRestore) {
+          logExpenseAdjustment({
+            adjustment: 'issettled',
+            state: 'restored',
+            refund_scope: null,
+            expense_variant: expenseCreationVariantFromRecord(syncedRestore),
+          });
+        }
+      } catch {
+        // analytics only
+      }
 
       setShowSettlementRestore(false);
       showToast('정상적으로 복구 처리가 완료 되었습니다.');

@@ -424,7 +424,7 @@ export default function ChallengeCreateScreen() {
       });
       
       await createChallenges(newChallenges);
-      
+
       // ✅ 챌린지 생성 시점에는 알림 스케줄링하지 않음
       // 첫 소비 기록 저장 시 triggerChallengeNotifications()에서 알림이 트리거됨
       

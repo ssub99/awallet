@@ -8,10 +8,10 @@ import {
     setOptOut,
     track,
 } from '@amplitude/analytics-react-native';
-import { SessionReplayPlugin } from './amplitude-session-replay';
 import Constants from 'expo-constants';
 import * as Updates from 'expo-updates';
 import { Platform } from 'react-native';
+import { SessionReplayPlugin } from './amplitude-session-replay';
 
 const isNativeMobile = Platform.OS === 'ios' || Platform.OS === 'android';
 
@@ -157,6 +157,153 @@ export async function logEvent(
   } catch (error) {
     console.warn(`[Analytics] logEvent 실패: ${eventName}`, error);
   }
+}
+
+export type RecordLifecycleEntity = 'income' | 'expense' | 'challenge';
+
+/** 소비: 일반 / 정기 / 할부. 반복·할부 저장 1회당 1건. */
+export type ExpenseCreationVariant =
+  | 'general'
+  | 'repeated_isrecurring'
+  | 'repeated_isinstallment';
+
+/** 챌린지: 일반 vs 반복 — `challenge_variant` 속성 */
+export type ChallengeCreationVariant = 'general' | 'isrecurring';
+
+/** 소비 분석: 반복 종류 (할부 > 정기 > 일반) */
+export type ExpenseRepeatKind = 'none' | 'recurring' | 'installment';
+
+export type ExpenseWeekendOptionAnalytics = 'friday' | 'monday' | 'weekend' | 'none';
+
+export type ExpenseSettlementKind = 'none' | 'prepayment' | 'refund' | 'settlement';
+
+/** 정기/할부 환불 범위(UI 옵션과 대응). 미해당 시 null */
+export type ExpenseRefundScopeAnalytics = 'all' | 'from_today' | 'future_only';
+
+export interface ExpenseLifecycleAnalyticsPayload {
+  repeat_kind: ExpenseRepeatKind;
+  period_months: number | null;
+  weekend_option: ExpenseWeekendOptionAnalytics;
+  settlement_kind: ExpenseSettlementKind;
+  refund_scope: ExpenseRefundScopeAnalytics | null;
+}
+
+export interface ChallengeLifecycleAnalyticsPayload {
+  is_recurring: boolean;
+  duration_months: number | null;
+}
+
+/** 정산 처리(선결제·환불·결산) 적용/복구 1회 = 이벤트 1회 */
+export type ExpenseAdjustmentState = 'applied' | 'restored';
+
+/** `adjustment` 이벤트 프로퍼티 값: 어떤 줄(선결제·환불·결산)에 대한 이벤트인지 */
+export type ExpenseAdjustmentKind = 'isprepaid' | 'isrefunded' | 'issettled';
+
+export interface ExpenseAdjustmentAnalyticsPayload {
+  /** 키 `adjustment`에 대응: `isprepaid` | `isrefunded` | `issettled` 중 하나 */
+  adjustment: ExpenseAdjustmentKind;
+  state: ExpenseAdjustmentState;
+  /** 환불 처리·복구일 때만. 그 외 `null` */
+  refund_scope: ExpenseRefundScopeAnalytics | null;
+  /** `record_created`의 `expense_variant`와 동일 규칙 (일반 / 정기 / 할부) */
+  expense_variant: ExpenseCreationVariant;
+}
+
+/**
+ * 정산 처리 / 복구 완료. `adjustment`는 세 종류 중 하나, `refund_scope`는 환불일 때만.
+ */
+export function logExpenseAdjustment(payload: ExpenseAdjustmentAnalyticsPayload): void {
+  void logEvent('expense_adjustment', {
+    record_type: 'expense',
+    adjustment: payload.adjustment,
+    state: payload.state,
+    refund_scope: payload.refund_scope,
+    expense_variant: payload.expense_variant,
+  });
+}
+
+/**
+ * 환불 옵션 모달 값 → 분석용 `refund_scope` (B: UI 확정 시점에서만 설정)
+ */
+export function mapRefundOptionToAnalytics(
+  option: 'all' | 'today' | 'future',
+): ExpenseRefundScopeAnalytics {
+  if (option === 'today') {
+    return 'from_today';
+  }
+  if (option === 'future') {
+    return 'future_only';
+  }
+  return 'all';
+}
+
+/**
+ * 로컬 기록 생성·삭제 성공(행위 1회 = 이벤트 1회). Amplitude에서는 이벤트 수로 집계합니다.
+ */
+export function logRecordLifecycleCount(
+  action: 'create' | 'delete',
+  entity: RecordLifecycleEntity,
+): void {
+  const eventName = action === 'create' ? 'record_created' : 'record_deleted';
+  void logEvent(eventName, {
+    record_type: entity,
+  });
+}
+
+/**
+ * 소비 기록 생성. `expense_variant`: general | repeated_isrecurring | repeated_isinstallment
+ */
+export function logExpenseCreate(
+  variant: ExpenseCreationVariant,
+  payload: ExpenseLifecycleAnalyticsPayload,
+): void {
+  void logEvent('record_created', {
+    record_type: 'expense',
+    expense_variant: variant,
+    ...payload,
+  });
+}
+
+/**
+ * 챌린지 생성 (일반 / 반복 구분).
+ */
+export function logChallengeCreate(
+  variant: ChallengeCreationVariant,
+  payload: ChallengeLifecycleAnalyticsPayload,
+): void {
+  void logEvent('record_created', {
+    record_type: 'challenge',
+    challenge_variant: variant,
+    ...payload,
+  });
+}
+
+/**
+ * 소비 기록 삭제. 생성 시와 동일한 `expense_variant` 및 생애주기 속성.
+ */
+export function logExpenseDelete(
+  variant: ExpenseCreationVariant,
+  payload: ExpenseLifecycleAnalyticsPayload,
+): void {
+  void logEvent('record_deleted', {
+    record_type: 'expense',
+    expense_variant: variant,
+    ...payload,
+  });
+}
+
+/**
+ * 챌린지 삭제. 생성 시와 동일한 `challenge_variant` 및 반복 속성.
+ */
+export function logChallengeDelete(
+  variant: ChallengeCreationVariant,
+  payload: ChallengeLifecycleAnalyticsPayload,
+): void {
+  void logEvent('record_deleted', {
+    record_type: 'challenge',
+    challenge_variant: variant,
+    ...payload,
+  });
 }
 
 /**

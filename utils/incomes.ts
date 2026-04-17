@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { registerReviewPromptLifetimeCreations } from '@/utils/app-store-review-lifetime';
 import { scheduleMaybePromptWriteReview } from '@/utils/app-store-review-scheduler';
+import { logRecordLifecycleCount } from '@/utils/analytics';
 import { generateRecordId } from './id-generator';
 
 const INCOME_STORAGE_KEY = 'incomeData';
@@ -81,6 +82,7 @@ export async function createIncome(record: IncomeRecord): Promise<IncomeRecord> 
   );
   filtered.push(income);
   await persistIncomes(filtered);
+  logRecordLifecycleCount('create', 'income');
   await registerReviewPromptLifetimeCreations(1);
   scheduleMaybePromptWriteReview();
   return income;
@@ -115,7 +117,10 @@ export async function updateIncome(
 
 export async function softDeleteIncome(id: string): Promise<void> {
   const deletedAt = new Date().toISOString();
-  await updateIncome(id, { isDeleted: true, deletedAt });
+  const updated = await updateIncome(id, { isDeleted: true, deletedAt });
+  if (updated) {
+    logRecordLifecycleCount('delete', 'income');
+  }
 }
 
 export async function getIncomeById(id: string): Promise<IncomeRecord | null> {
@@ -159,8 +164,10 @@ export async function replaceAllIncomes(records: IncomeRecord[]): Promise<void> 
 export async function deleteIncomesByCategory(categoryLabel: string): Promise<void> {
   const incomes = await loadLocalIncomes();
   const filtered = incomes.filter((income) => income.category !== categoryLabel);
-  if (filtered.length !== incomes.length) {
+  const removed = incomes.length - filtered.length;
+  if (removed > 0) {
     await persistIncomes(filtered);
+    logRecordLifecycleCount('delete', 'income');
   }
 }
 
