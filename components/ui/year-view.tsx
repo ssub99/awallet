@@ -7,6 +7,7 @@
 
 import { Colors, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { logEvent } from '@/utils/analytics';
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
@@ -22,6 +23,8 @@ export interface YearViewProps {
   monthsData: MonthData[];
   initialMonth?: number; // 초기 스크롤 위치 (월)
   onMonthPress?: (month: number) => void;
+  /** 설정 시 월 카드 탭에 `list` 이벤트(`target: yearcard`) 전송 */
+  yearCardAnalyticsScreenName?: string;
 }
 
 export interface YearViewRef {
@@ -32,7 +35,7 @@ export interface YearViewRef {
  * Year View Component
  */
 export const YearView = forwardRef<YearViewRef, YearViewProps>(
-  ({ year, monthsData, initialMonth, onMonthPress }, ref) => {
+  ({ year, monthsData, initialMonth, onMonthPress, yearCardAnalyticsScreenName }, ref) => {
     const colorScheme = useColorScheme();
     const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
     const scrollViewRef = useRef<ScrollView>(null);
@@ -90,6 +93,7 @@ export const YearView = forwardRef<YearViewRef, YearViewProps>(
             key={data.month}
             data={data}
             colors={colors}
+            yearCardAnalyticsScreenName={yearCardAnalyticsScreenName}
             onPress={
               onMonthPress
                 ? () => {
@@ -110,10 +114,11 @@ export const YearView = forwardRef<YearViewRef, YearViewProps>(
 interface MonthCardProps {
   data: MonthData;
   colors: typeof Colors.light;
+  yearCardAnalyticsScreenName?: string;
   onPress?: () => void;
 }
 
-function MonthCard({ data, colors, onPress }: MonthCardProps) {
+function MonthCard({ data, colors, yearCardAnalyticsScreenName, onPress }: MonthCardProps) {
   // 수입대비 소비율 계산
   const calculateRatio = (): number => {
     if (data.income === 0) return 0;
@@ -153,9 +158,15 @@ function MonthCard({ data, colors, onPress }: MonthCardProps) {
     if (!onPress) {
       return;
     }
+    if (yearCardAnalyticsScreenName) {
+      void logEvent('list', {
+        screen_name: yearCardAnalyticsScreenName,
+        target: 'yearcard',
+      });
+    }
     void Haptics.selectionAsync();
     onPress();
-  }, [onPress]);
+  }, [onPress, yearCardAnalyticsScreenName]);
 
   const cardContent = (
     <View style={[styles.cardContent, { backgroundColor: status.color }]}>

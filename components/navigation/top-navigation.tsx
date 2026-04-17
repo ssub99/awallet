@@ -9,6 +9,7 @@ import { DatePicker } from '@/components/ui/date-picker';
 import { Icon } from '@/components/ui/icon';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { logEvent } from '@/utils/analytics';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
 
@@ -88,6 +89,11 @@ export interface TopNavigationProps {
    * Period type change handler
    */
   onPeriodChange?: (type: 'year' | 'month') => void;
+
+  /**
+   * 설정 시 년도/월 토글 탭에 `ui` 이벤트(`target: ym-switch`, `label`) 전송
+   */
+  periodToggleAnalyticsScreenName?: string;
   
   /**
    * Show dropdown arrow next to title/date
@@ -154,6 +160,7 @@ export function TopNavigation({
   onRightButtonPress,
   periodType = 'month',
   onPeriodChange,
+  periodToggleAnalyticsScreenName,
   showDropdownArrow = false,
   onDropdownPress,
   yearOptions,
@@ -337,7 +344,16 @@ export function TopNavigation({
               
               {/* Buttons */}
               <Pressable
-                onPress={() => handlePeriodChange('year')}
+                onPress={() => {
+                  if (periodToggleAnalyticsScreenName) {
+                    void logEvent('ui', {
+                      screen_name: periodToggleAnalyticsScreenName,
+                      target: 'ym-switch',
+                      label: '년도',
+                    });
+                  }
+                  handlePeriodChange('year');
+                }}
                 style={styles.periodButton}
               >
                 <Text
@@ -350,7 +366,16 @@ export function TopNavigation({
                 </Text>
               </Pressable>
               <Pressable
-                onPress={() => handlePeriodChange('month')}
+                onPress={() => {
+                  if (periodToggleAnalyticsScreenName) {
+                    void logEvent('ui', {
+                      screen_name: periodToggleAnalyticsScreenName,
+                      target: 'ym-switch',
+                      label: '월',
+                    });
+                  }
+                  handlePeriodChange('month');
+                }}
                 style={styles.periodButton}
               >
                 <Text

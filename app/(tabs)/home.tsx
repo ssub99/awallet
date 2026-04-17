@@ -634,6 +634,7 @@ export default function HomeScreen() {
           dateText={dateText}
           periodType={periodType}
           onPeriodChange={setPeriodType}
+          periodToggleAnalyticsScreenName="home"
           showDropdownArrow
           yearOptions={yearOptions}
           selectedYear={currentYear}
@@ -659,6 +660,10 @@ export default function HomeScreen() {
                 <Pressable
                   style={styles.monthStatusItem}
                   onPress={() => {
+                    void logEvent('ui', {
+                      screen_name: 'home',
+                      target: 'income-present',
+                    });
                     const targetDate = effectiveSelectedDate;
                     router.push({
                       pathname: '/expense-category',
@@ -690,6 +695,10 @@ export default function HomeScreen() {
                 <Pressable
                   style={styles.monthStatusItem}
                   onPress={() => {
+                    void logEvent('ui', {
+                      screen_name: 'home',
+                      target: 'expense-present',
+                    });
                     const targetDate = effectiveSelectedDate;
                     router.push({
                       pathname: '/expense-category',
@@ -720,6 +729,10 @@ export default function HomeScreen() {
                 <Pressable
                   style={styles.monthStatusItem}
                   onPress={() => {
+                    void logEvent('ui', {
+                      screen_name: 'home',
+                      target: 'report-present',
+                    });
                     router.push({
                       pathname: '/(tabs)/challenge',
                       params: {
@@ -824,6 +837,7 @@ export default function HomeScreen() {
             monthsData={yearData}
             initialMonth={lastYearViewMonth.current ?? undefined}
             onMonthPress={handleYearMonthPress}
+            yearCardAnalyticsScreenName="home"
           />
         </>
       )}
