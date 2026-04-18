@@ -1,5 +1,9 @@
 import type { ConfigContext, ExpoConfig } from 'expo/config';
 
+type UpdatesWithChannel = NonNullable<ExpoConfig['updates']> & {
+  channel: 'stage' | 'production';
+};
+
 const META_APP_ID = '3000788043449897';
 
 /**
@@ -55,15 +59,16 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     entry === 'react-native-fbsdk-next' ? facebookPlugin : entry,
   );
 
+  const updates = {
+    ...(config.updates ?? {}),
+    channel: resolveExpoUpdatesChannel(),
+  } satisfies UpdatesWithChannel;
+
   return {
     ...config,
     plugins,
-    updates: {
-      ...(config.updates ?? {}),
-      // EAS Update `channel`은 런타임·문서상 유효한데, 생성된 `ExpoConfig['updates']` 타입에 필드가 없을 수 있음
-      // (타입 정의가 스키마보다 늦게 갱신되는 경우). 임시 우회가 아니라 TS 한계에 맞춘 표현.
-      // @ts-expect-error channel — see resolveExpoUpdatesChannel / eas.json build profiles
-      channel: resolveExpoUpdatesChannel(),
-    },
-  };
+    // `channel`은 런타임에 유효하나 `ExpoConfig['updates']` 타입에 없음.
+    updates: updates as ExpoConfig['updates'],
+    // `config`는 `Partial<ExpoConfig>`라 스프레드 결과가 `ExpoConfig`와 1:1로 맞지 않을 수 있음(평가 시점에는 완전한 설정).
+  } as ExpoConfig;
 };
