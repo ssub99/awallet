@@ -52,7 +52,7 @@ function sortChallenges(challenges: ChallengeRecord[]): ChallengeRecord[] {
   return [...challenges].sort((a, b) => a.startDate.localeCompare(b.startDate));
 }
 
-/** 생성 화면의 반복(2~6개월)과 동일: durationMonths > 1 이면 isrecurring */
+/** 생성 화면의 반복(2~12개월)과 동일: durationMonths > 1 이면 isrecurring */
 function challengeDeletionVariantFromRecords(
   records: ChallengeRecord[],
 ): ChallengeCreationVariant {

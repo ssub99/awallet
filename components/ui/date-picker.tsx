@@ -122,6 +122,13 @@ export function DatePicker({
 }: DatePickerProps) {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+
+  // 휠 배경은 항상 staticWhite라 라벨은 항상 어두운 고정색을 씁니다.
+  // (다크 모드에서 시스템 라벨 색이 밝게 잡히면 흰 배경 위에서 글자가 사라짐)
+  const iosWheelItemStyle =
+    Platform.OS === 'ios'
+      ? { color: colors.staticBlack, fontSize: 22 }
+      : undefined;
   
   const clampToOptions = (value: number | undefined, options?: DatePickerOption[]) => {
     if (!options || options.length === 0 || value === undefined) {
@@ -492,6 +499,7 @@ export function DatePicker({
                   selectedValue={Platform.OS === 'ios' ? tempYear : selectedYear}
                   onValueChange={handleYearValueChange}
                   style={[styles.iosPicker, { backgroundColor: colors.staticWhite }]}
+                  itemStyle={iosWheelItemStyle}
                 >
                   {yearOptions.map((option) => (
                     <Picker.Item
@@ -506,11 +514,17 @@ export function DatePicker({
             
             {/* Month Picker */}
             {monthOptions && monthOptions.length > 0 && (
-              <View style={styles.pickerColumn}>
+              <View
+                style={[
+                  styles.pickerColumn,
+                  pickerCount === 1 && styles.pickerColumnFull,
+                ]}
+              >
                 <Picker
                   selectedValue={Platform.OS === 'ios' ? tempMonth : selectedMonth}
                   onValueChange={handleMonthValueChange}
                   style={[styles.iosPicker, { backgroundColor: colors.staticWhite }]}
+                  itemStyle={iosWheelItemStyle}
                 >
                   {monthOptions.map((option) => (
                     <Picker.Item
@@ -525,11 +539,17 @@ export function DatePicker({
             
             {/* Day Picker */}
             {dayOptions && dayOptions.length > 0 && (
-              <View style={styles.pickerColumn}>
+              <View
+                style={[
+                  styles.pickerColumn,
+                  pickerCount === 1 && styles.pickerColumnFull,
+                ]}
+              >
                 <Picker
                   selectedValue={Platform.OS === 'ios' ? tempDay : selectedDay}
                   onValueChange={handleDayValueChange}
                   style={[styles.iosPicker, { backgroundColor: colors.staticWhite }]}
+                  itemStyle={iosWheelItemStyle}
                 >
                   {dayOptions.map((option) => (
                     <Picker.Item

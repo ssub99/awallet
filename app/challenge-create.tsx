@@ -12,6 +12,10 @@ import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { AtomicColors } from '@/constants/atomic-colors';
+import {
+  buildChallengeRecurringMonthPickerOptions,
+  CHALLENGE_RECURRING_MONTH_MIN,
+} from '@/constants/challenge-recurring-months';
 import { type Category } from '@/constants/categories';
 import { loadCategories } from '@/utils/categories';
 import { Colors, Typography } from '@/constants/theme';
@@ -87,7 +91,11 @@ export default function ChallengeCreateScreen() {
   const keypadTranslateY = useRef(new Animated.Value(KEYPAD_HEIGHT)).current;
   const keypadBackdropOpacity = useRef(new Animated.Value(0)).current;
   const [isRecurring, setIsRecurring] = useState<boolean>(false);
-  const [recurringMonths, setRecurringMonths] = useState<number>(2);
+  const [recurringMonths, setRecurringMonths] = useState<number>(CHALLENGE_RECURRING_MONTH_MIN);
+  const recurringMonthPickerOptions = useMemo(
+    () => buildChallengeRecurringMonthPickerOptions(),
+    [],
+  );
   const [showYearMonthPicker, setShowYearMonthPicker] = useState<boolean>(false);
   const [showRecurringMonthsPicker, setShowRecurringMonthsPicker] = useState<boolean>(false);
   const [monthStartDay, setMonthStartDay] = useState<number>(1);
@@ -781,13 +789,7 @@ export default function ChallengeCreateScreen() {
             });
           }}
           title="반복할 개월 수"
-          dayOptions={[
-            { label: '2개월', value: 2 },
-            { label: '3개월', value: 3 },
-            { label: '4개월', value: 4 },
-            { label: '5개월', value: 5 },
-            { label: '6개월', value: 6 },
-          ]}
+          dayOptions={recurringMonthPickerOptions}
           selectedDay={recurringMonths}
           onDayChange={(value) => {
 
