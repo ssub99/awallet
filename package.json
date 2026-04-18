@@ -3,7 +3,7 @@
   "main": "expo-router/entry",
   "version": "1.1.0",
   "scripts": {
-    "start": "expo start",
+    "start": "bash ./scripts/start-default.sh",
     "start:ing": "bash ./scripts/start-ing.sh",
     "start:prod": "bash ./scripts/start-prod.sh",
     "reset-project": "node ./scripts/reset-project.js",
