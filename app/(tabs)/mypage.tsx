@@ -9,6 +9,7 @@ import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Icon } from '@/components/ui/icon';
 import { Switch } from '@/components/ui/switch';
 import { getAppStoreWriteReviewUrl } from '@/constants/app-store';
+import { OTA_TEST_MARKER } from '@/constants/ota-test-marker';
 import { ThemeColors } from '@/constants/theme-colors';
 import { Typography } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
@@ -16,7 +17,9 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { monthStartEvent } from '@/hooks/use-month-start';
 import { weekStartEvent } from '@/hooks/use-week-start';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
+import * as Updates from 'expo-updates';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Animated, BackHandler, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -403,6 +406,34 @@ export default function MyPageScreen() {
             </Pressable>
           </View>
 
+          {/* OTA smoke test: change `OTA_TEST_MARKER` in constants/ota-test-marker.ts before each eas update */}
+          <View
+            style={[
+              styles.card,
+              styles.otaTestBox,
+              {
+                backgroundColor: colors.background,
+                borderColor: colors.primary,
+              },
+            ]}
+            accessibilityLabel={`OTA 테스트 마커 ${OTA_TEST_MARKER}`}
+          >
+            <Text style={[styles.otaTestTitle, { color: colors.text }]}>OTA 배포 확인</Text>
+            <Text style={[styles.otaTestLine, { color: colors.textNeutral }]}>
+              Marker: {OTA_TEST_MARKER}
+            </Text>
+            <Text style={[styles.otaTestLine, { color: colors.textNeutral }]}>
+              App: {Constants.expoConfig?.version ?? '—'} · runtime:{' '}
+              {Constants.expoConfig?.runtimeVersion != null
+                ? String(Constants.expoConfig.runtimeVersion)
+                : '—'}
+            </Text>
+            <Text style={[styles.otaTestLine, { color: colors.textNeutral }]}>
+              Bundle: {Updates.isEmbeddedLaunch ? 'embedded' : 'update'} · updateId:{' '}
+              {Updates.updateId ?? '—'}
+            </Text>
+          </View>
+
           {/* Test Environment Card (only in __DEV__) */}
           {__DEV__ && (
             <View style={[styles.card, { backgroundColor: colors.background }]}>
@@ -461,6 +492,19 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: 16,
     overflow: 'hidden',
+  },
+  otaTestBox: {
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+  },
+  otaTestTitle: {
+    ...Typography.body1.l.medium,
+    marginBottom: 8,
+  },
+  otaTestLine: {
+    ...Typography.detail.r.regular,
+    marginTop: 4,
   },
 
 
