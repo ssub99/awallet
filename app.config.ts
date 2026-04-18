@@ -37,7 +37,7 @@ function getFacebookClientToken(): string {
   );
 }
 
-export default ({ config }: ConfigContext): ExpoConfig => {
+export default ({ config }: ConfigContext) => {
   const clientToken = getFacebookClientToken();
 
   const facebookPlugin: NonNullable<ExpoConfig['plugins']>[number] = [
@@ -67,8 +67,6 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   return {
     ...config,
     plugins,
-    // `channel`은 런타임에 유효하나 `ExpoConfig['updates']` 타입에 없음.
-    updates: updates as ExpoConfig['updates'],
-    // `config`는 `Partial<ExpoConfig>`라 스프레드 결과가 `ExpoConfig`와 1:1로 맞지 않을 수 있음(평가 시점에는 완전한 설정).
-  } as ExpoConfig;
+    updates,
+  };
 };
