@@ -83,6 +83,7 @@
       ],
       "@react-native-firebase/app",
       "expo-web-browser",
+      "expo-mail-composer",
       "react-native-fbsdk-next"
     ],
     "experiments": {

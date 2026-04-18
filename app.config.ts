@@ -60,6 +60,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     plugins,
     updates: {
       ...(config.updates ?? {}),
+      // expo-updates: runtime supports `channel`; ExpoConfig `updates` type omits it in this SDK line.
+      // @ts-expect-error — channel for EAS Update (see resolveExpoUpdatesChannel)
       channel: resolveExpoUpdatesChannel(),
     },
   };
