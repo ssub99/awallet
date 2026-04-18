@@ -1,0 +1,52 @@
+---
+alwaysApply: false
+description: Version bumps, EAS build, store submission, EAS Update (OTA). Production vs stage targets and files.
+---
+
+# Store Release & OTA — Version Checklist
+
+**Production** (App Store / Play) and **stage** (internal / TestFlight stage) use **different build numbers** and **different iOS targets/plists**. Do not copy values across environments by mistake.
+
+## Environment
+
+| | Production | Stage |
+|---|------------|--------|
+| EAS profile | `production` | `stage`, `stage-testflight` |
+| Update channel (`eas.json` + `app.config.ts`) | `production` | `stage` |
+| Main iOS target | `awallet` → `ios/awallet/Info.plist` | `awallet-stage` → `ios/awallet/Info-stage.plist` |
+| Xcode | `EXPO_UPDATES_CHANNELS = production` | `EXPO_UPDATES_CHANNELS = stage` |
+
+`updates.channel` is set in **`app.config.ts`** from `EAS_BUILD_PROFILE`, not in static `app.json`. Without that env var locally, channel defaults to **`production`** — set `EAS_BUILD_PROFILE` for stage-aligned local builds.
+
+## Expo (`app.json`)
+
+Keep in sync: `expo.version`, `expo.ios.buildNumber`, `expo.ios.infoPlist` (`CFBundleShortVersionString`, `CFBundleVersion`), `expo.android.versionCode`, and all three **`runtimeVersion`** fields (`ios`, `android`, `updates`). Optional: `package.json` `version` + lockfile.
+
+**Android:** If `android/` is not committed, `app.json` is the source for EAS prebuild; if `android/` is added later, check Gradle too.
+
+## iOS native (`project.pbxproj`)
+
+- **Production:** main app target **`awallet`** — `MARKETING_VERSION`, `CURRENT_PROJECT_VERSION`; match `ios/awallet/Info.plist`.
+- **Stage:** **`awallet-stage`** — same fields; match `Info-stage.plist` (independent build numbers from production).
+
+## Widget extensions (separate targets)
+
+- **Production:** `awalletWidgetExtension` + `ios/awalletWidget/Info.plist`
+- **Stage:** `awalletStageWidgetExtension` + `ios/awalletStageWidget/Info.plist`
+
+Bumping widget version metadata does **not** break widget **runtime** (logic uses code & App Groups, not version strings). Align versions for **store rules** and **team consistency**, not because a higher build number disables WidgetKit.
+
+## OTA (`eas update`)
+
+Files alone do not ship JS — run **`eas update`** with **`runtimeVersion`** and **`channel`** matching the **installed binary** (same as `eas.json` build profile channel and iOS `EXPO_UPDATES_CHANNELS`).
+
+## Order
+
+1. Bump only the **relevant** targets (main app + widgets if policy requires).  
+2. Align **`app.json`** with the binary you will build.  
+3. Build with the correct **EAS profile**.  
+4. For JS-only fixes: **`eas update`** — matching runtime + channel.
+
+## Do not
+
+Mix **production** and **stage** build numbers or plists; publish OTA with wrong **channel** / **runtimeVersion**; assume version lives in **`eas.json`** (it does not — use **`app.json`** + native + optional **`package.json`**).
