@@ -30,5 +30,13 @@
   "submit": {
     "stage": {},
     "production": {}
+  },
+  "update": {
+    "production": {
+      "channel": "production"
+    },
+    "preview": {
+      "channel": "stage"
+    }
   }
 }
