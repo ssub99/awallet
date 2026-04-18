@@ -3,23 +3,27 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "environment": "development"
     },
     "stage": {
       "distribution": "internal",
       "channel": "stage",
+      "environment": "preview",
       "ios": { "buildConfiguration": "Release" },
       "android": {}
     },
     "stage-testflight": {
       "distribution": "store",
       "channel": "stage",
+      "environment": "preview",
       "ios": { "buildConfiguration": "Release" },
       "android": {}
     },
     "production": {
       "distribution": "store",
       "channel": "production",
+      "environment": "production",
       "ios": { "buildConfiguration": "Release" }
     }
   },
