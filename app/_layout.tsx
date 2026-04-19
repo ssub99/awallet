@@ -1,4 +1,3 @@
-import { StoreUpdateGate } from '@/components/store-update-gate';
 import { GlobalProgressBar } from '@/components/ui/global-progress-bar';
 import { Colors } from '@/constants/theme';
 import { AppDataProvider } from '@/contexts/app-data-context';
@@ -25,12 +24,13 @@ import {
   getEffectiveMinVersion,
 } from '@/utils/fetch-app-version-policy';
 import { isAtLeastVersion } from '@/utils/app-version';
+import { showStoreUpdateAlert } from '@/utils/show-store-update-alert';
 import { refreshWidgetWithCurrentMonth, resetMonthlyExpenseMaskInWidget } from '@/utils/widget-data-sync';
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AppState, AppStateStatus, Platform, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
@@ -63,6 +63,8 @@ export default function RootLayout() {
   const [splashFinished, setSplashFinished] = useState(false);
   const [appIsReady, setAppIsReady] = useState(false);
   const [storeUpdateGate, setStoreUpdateGate] = useState<StoreUpdateGateState | null>(null);
+  const storeAlertPresentedRef = useRef(false);
+  const storeGateResumeFromBackgroundRef = useRef(false);
   const colors = Colors[colorScheme] as typeof Colors.light;
   
   // 스플래시 자동 숨김 방지 (컴포넌트 최상단에서 즉시 호출)
@@ -135,19 +137,46 @@ export default function RootLayout() {
     prepare();
   }, []);
 
-  // 스토어에서 업데이트 후 복귀 시 게이트 해제
+  // 최초: 스플래시 이후 시스템 Alert로 업데이트 유도
+  useEffect(() => {
+    if (!appIsReady || storeUpdateGate == null) {
+      storeAlertPresentedRef.current = false;
+      return;
+    }
+    if (storeAlertPresentedRef.current) return;
+    storeAlertPresentedRef.current = true;
+    showStoreUpdateAlert(storeUpdateGate.forceUpdate, storeUpdateGate.message, () => {
+      setStoreUpdateGate(null);
+    });
+  }, [appIsReady, storeUpdateGate]);
+
+  // 백그라운드에서 포그라운드로 복귀 시 정책 재확인 — 충족 시 해제, 미충족이면 Alert 재표시(시작 직후 중복 방지)
   useEffect(() => {
     if (storeUpdateGate == null) return undefined;
     const sub = AppState.addEventListener('change', async (next: AppStateStatus) => {
+      if (next === 'background' || next === 'inactive') {
+        storeGateResumeFromBackgroundRef.current = true;
+        return;
+      }
       if (next !== 'active') return;
       if (__DEV__) return;
       if (Constants.appOwnership === 'expo') return;
+
+      const resumedFromBackground = storeGateResumeFromBackgroundRef.current;
+      storeGateResumeFromBackgroundRef.current = false;
+
       const policy = await fetchAppVersionPolicy();
       if (policy == null) return;
       const currentVersion = Constants.expoConfig?.version;
       const minRequired = getEffectiveMinVersion(policy);
       if (isAtLeastVersion(currentVersion, minRequired)) {
         setStoreUpdateGate(null);
+        return;
+      }
+      if (resumedFromBackground) {
+        showStoreUpdateAlert(storeUpdateGate.forceUpdate, storeUpdateGate.message, () => {
+          setStoreUpdateGate(null);
+        });
       }
     });
     return () => sub.remove();
@@ -266,13 +295,6 @@ export default function RootLayout() {
                     <StatusBar style="dark" />
                     <GlobalProgressBar />
                   </>
-                ) : null}
-                {appIsReady && storeUpdateGate != null ? (
-                  <StoreUpdateGate
-                    forceUpdate={storeUpdateGate.forceUpdate}
-                    message={storeUpdateGate.message}
-                    onDismissOptional={() => setStoreUpdateGate(null)}
-                  />
                 ) : null}
               </ToastProvider>
             </AppDataProvider>
