@@ -11,5 +11,6 @@ export const APP_STORE_WRITE_REVIEW_PROMPT_SHOWN_KEY = 'appStoreWriteReviewPromp
 export const APP_STORE_REVIEW_LIFETIME_RECORD_COUNT_KEY = 'appStoreReviewLifetimeRecordCount';
 
 export function getAppStoreWriteReviewUrl(): string {
-  return `https://apps.apple.com/app/id${APP_STORE_APP_ID}?action=write-review`;
+  // `/app/id…` 는 일부 환경에서 404·빈 페이지. 한국 스토어 정식 경로 사용.
+  return `https://apps.apple.com/kr/app/id${APP_STORE_APP_ID}?action=write-review`;
 }

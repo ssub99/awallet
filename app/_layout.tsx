@@ -1,3 +1,4 @@
+import { StoreUpdateGate } from '@/components/store-update-gate';
 import { GlobalProgressBar } from '@/components/ui/global-progress-bar';
 import { Colors } from '@/constants/theme';
 import { AppDataProvider } from '@/contexts/app-data-context';
@@ -19,6 +20,11 @@ import {
   getGeneralNotificationsEnabled,
   setupDailyReminder,
 } from '@/utils/notification-scheduler';
+import {
+  fetchAppVersionPolicy,
+  getEffectiveMinVersion,
+} from '@/utils/fetch-app-version-policy';
+import { isAtLeastVersion } from '@/utils/app-version';
 import { refreshWidgetWithCurrentMonth, resetMonthlyExpenseMaskInWidget } from '@/utils/widget-data-sync';
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
@@ -46,11 +52,17 @@ export const unstable_settings = {
   anchor: '(tabs)',
 };
 
+interface StoreUpdateGateState {
+  forceUpdate: boolean;
+  message: string;
+}
+
 export default function RootLayout() {
   // OS 강제 다크 모드 영향 방지를 위해 항상 'light'로 고정
   const colorScheme: 'light' = 'light';
   const [splashFinished, setSplashFinished] = useState(false);
   const [appIsReady, setAppIsReady] = useState(false);
+  const [storeUpdateGate, setStoreUpdateGate] = useState<StoreUpdateGateState | null>(null);
   const colors = Colors[colorScheme] as typeof Colors.light;
   
   // 스플래시 자동 숨김 방지 (컴포넌트 최상단에서 즉시 호출)
@@ -68,7 +80,7 @@ export default function RootLayout() {
         await SplashScreen.preventAutoHideAsync();
         
         // OTA 업데이트 체크 및 적용 (Expo Go만 제외, 스토어/스탠드얼론은 체크)
-        const isExpoGo = Constants.executionEnvironment === 'expoClient';
+        const isExpoGo = Constants.appOwnership === 'expo';
         if (!isExpoGo && Updates.isEnabled) {
           try {
             const update = await Updates.checkForUpdateAsync();
@@ -81,7 +93,22 @@ export default function RootLayout() {
             // 업데이트 체크 실패해도 앱은 정상 실행
           }
         }
-        
+
+        // 스토어 최소 버전 정책 (Vercel 정적 JSON). 개발/Expo Go에서는 생략.
+        if (!__DEV__ && !isExpoGo) {
+          const policy = await fetchAppVersionPolicy();
+          if (policy != null) {
+            const currentVersion = Constants.expoConfig?.version;
+            const minRequired = getEffectiveMinVersion(policy);
+            if (!isAtLeastVersion(currentVersion, minRequired)) {
+              setStoreUpdateGate({
+                forceUpdate: policy.forceUpdate,
+                message: policy.message,
+              });
+            }
+          }
+        }
+
         // 2초 대기
         await new Promise(resolve => setTimeout(resolve, 2000));
 
@@ -107,7 +134,25 @@ export default function RootLayout() {
     
     prepare();
   }, []);
-  
+
+  // 스토어에서 업데이트 후 복귀 시 게이트 해제
+  useEffect(() => {
+    if (storeUpdateGate == null) return undefined;
+    const sub = AppState.addEventListener('change', async (next: AppStateStatus) => {
+      if (next !== 'active') return;
+      if (__DEV__) return;
+      if (Constants.appOwnership === 'expo') return;
+      const policy = await fetchAppVersionPolicy();
+      if (policy == null) return;
+      const currentVersion = Constants.expoConfig?.version;
+      const minRequired = getEffectiveMinVersion(policy);
+      if (isAtLeastVersion(currentVersion, minRequired)) {
+        setStoreUpdateGate(null);
+      }
+    });
+    return () => sub.remove();
+  }, [storeUpdateGate]);
+
   // appIsReady가 true가 되면 스플래시 숨기기
   useEffect(() => {
     if (appIsReady) {
@@ -190,9 +235,11 @@ export default function RootLayout() {
         <SafeAreaProvider initialMetrics={initialWindowMetrics}>
         <View style={{ flex: 1, backgroundColor: colors.background }} onLayout={onLayoutRootView}>
           <ThemeProvider value={DefaultTheme}>
-            <AppDataProvider enabled={appIsReady && splashFinished}>
+            <AppDataProvider
+              enabled={appIsReady && splashFinished && !(storeUpdateGate?.forceUpdate === true)}
+            >
               <ToastProvider>
-                {appIsReady ? (
+                {appIsReady && !(storeUpdateGate?.forceUpdate === true) ? (
                   <>
                     <AnalyticsRouteListener />
                     <Stack>
@@ -219,6 +266,13 @@ export default function RootLayout() {
                     <StatusBar style="dark" />
                     <GlobalProgressBar />
                   </>
+                ) : null}
+                {appIsReady && storeUpdateGate != null ? (
+                  <StoreUpdateGate
+                    forceUpdate={storeUpdateGate.forceUpdate}
+                    message={storeUpdateGate.message}
+                    onDismissOptional={() => setStoreUpdateGate(null)}
+                  />
                 ) : null}
               </ToastProvider>
             </AppDataProvider>
