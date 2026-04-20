@@ -7,19 +7,19 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import {
-  cancelChallengeFailureNotification,
-  cancelChallengeProgressNotifications,
-  cancelChallengeSuccessNotification,
-  getChallengeNotificationsEnabled,
-  notifyChallengeFailure,
-  notifyChallengeProgress,
-  notifyChallengeSuccess,
-} from './notification-scheduler';
-import {
-  getAllChallenges,
-  logChallengeResultForRecord,
-  type ChallengeRecord as ChallengeData,
+    getAllChallenges,
+    logChallengeResultForRecord,
+    type ChallengeRecord as ChallengeData,
 } from './challenges';
+import {
+    cancelChallengeFailureNotification,
+    cancelChallengeProgressNotifications,
+    cancelChallengeSuccessNotification,
+    getChallengeNotificationsEnabled,
+    notifyChallengeFailure,
+    notifyChallengeProgress,
+    notifyChallengeSuccess,
+} from './notification-scheduler';
 
 export interface ChallengeStatus {
   challenge: ChallengeData;
@@ -449,6 +449,94 @@ export async function checkActiveChallengesNotifications(): Promise<void> {
   }
 }
 
+type EndedYesterdayPayload = {
+  challenge: ChallengeData;
+  status: ChallengeStatus;
+  endDate: Date;
+  result: 'success' | 'fail';
+};
+
+/**
+ * 종료일이 오늘(로컬 자정)보다 이전인 챌린지만 순회 — 기간이 끝난 뒤 첫 접속(및 이후 미전송분)용 분석.
+ */
+async function forEachChallengeEndedBeforeToday(
+  handler: (p: EndedYesterdayPayload) => Promise<void>,
+): Promise<void> {
+  const challenges = await getAllChallenges();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  for (const challenge of challenges) {
+    if (challenge.isDeleted) {
+      continue;
+    }
+
+    const endDate = new Date(challenge.endDate.replace(/\./g, '-'));
+    endDate.setHours(0, 0, 0, 0);
+
+    // 종료일 당일은 아직 기간에 포함되므로 제외 (다음날 0시부터 판정 가능)
+    if (endDate.getTime() >= today.getTime()) {
+      continue;
+    }
+
+    const status = await getChallengeStatus(challenge);
+    const result: 'success' | 'fail' = status.percentage <= 100 ? 'success' : 'fail';
+
+    await handler({ challenge, status, endDate, result });
+  }
+}
+
+/** 종료일이 어제(로컬)인 챌린지만 순회 — 성공 푸시 등 기존 알림 로직 전용 */
+async function forEachChallengeEndedYesterday(
+  handler: (p: EndedYesterdayPayload) => Promise<void>,
+): Promise<void> {
+  const challenges = await getAllChallenges();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  for (const challenge of challenges) {
+    if (challenge.isDeleted) {
+      continue;
+    }
+
+    const endDate = new Date(challenge.endDate.replace(/\./g, '-'));
+    endDate.setHours(0, 0, 0, 0);
+
+    // 종료일이 어제인 챌린지만 체크 (종료일 다음날 알림·판정)
+    if (endDate.getTime() !== yesterday.getTime()) {
+      continue;
+    }
+
+    const status = await getChallengeStatus(challenge);
+    const result: 'success' | 'fail' = status.percentage <= 100 ? 'success' : 'fail';
+
+    await handler({ challenge, status, endDate, result });
+  }
+}
+
+/**
+ * 기간이 끝난 챌린지에 대해 challenge_result 분석만 기록 (알림·푸시 설정과 무관).
+ * 종료 다음날 이후 언제 앱을 열든(또는 포그라운드 복귀) 그 시점 상태로 1회만 전송.
+ * `judged_at`은 호출 시각(Date.now) 기준 로컬 시각.
+ */
+export async function emitEndedChallengeResultAnalytics(): Promise<void> {
+  try {
+    await forEachChallengeEndedBeforeToday(async ({ challenge, result }) => {
+      const analyticsKey = `challenge_result_logged_${challenge.id}`;
+      const alreadyLoggedResult = await AsyncStorage.getItem(analyticsKey);
+      if (!alreadyLoggedResult) {
+        logChallengeResultForRecord(challenge, Date.now(), result);
+        await AsyncStorage.setItem(analyticsKey, '1');
+      }
+    });
+  } catch (error) {
+    console.error('[challenge-utils] Failed to emit ended challenge result analytics:', error);
+  }
+}
+
 /**
  * 종료된 챌린지의 성공 알림 체크 (일일 배치 작업용)
  * 앱 시작 시 또는 매일 특정 시간에 실행
@@ -456,41 +544,11 @@ export async function checkActiveChallengesNotifications(): Promise<void> {
 export async function checkEndedChallenges(): Promise<void> {
   try {
     const challengeNotificationsEnabled = await getChallengeNotificationsEnabled();
+    if (!challengeNotificationsEnabled) {
+      return;
+    }
 
-    const challenges = await getAllChallenges();
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-
-    for (const challenge of challenges) {
-      if (challenge.isDeleted) {
-        continue;
-      }
-
-      const endDate = new Date(challenge.endDate.replace(/\./g, '-'));
-      endDate.setHours(0, 0, 0, 0);
-
-      // 종료일이 어제인 챌린지만 체크 (종료일 다음날 알림·판정)
-      if (endDate.getTime() !== yesterday.getTime()) {
-        continue;
-      }
-
-      const status = await getChallengeStatus(challenge);
-      const result = status.percentage <= 100 ? 'success' : 'fail';
-
-      const analyticsKey = `challenge_result_logged_${challenge.id}`;
-      const alreadyLoggedResult = await AsyncStorage.getItem(analyticsKey);
-      if (!alreadyLoggedResult) {
-        logChallengeResultForRecord(challenge, Date.now(), result);
-        await AsyncStorage.setItem(analyticsKey, '1');
-      }
-
-      if (!challengeNotificationsEnabled) {
-        continue;
-      }
-
+    await forEachChallengeEndedYesterday(async ({ challenge, status, endDate }) => {
       // 성공 조건: 소비율이 100% 이하
       if (status.percentage <= 100) {
         const sentKey = `challenge_success_${challenge.id}`;
@@ -505,7 +563,7 @@ export async function checkEndedChallenges(): Promise<void> {
           );
         }
       }
-    }
+    });
   } catch (error) {
     console.error('[challenge-utils] Failed to check ended challenges:', error);
   }

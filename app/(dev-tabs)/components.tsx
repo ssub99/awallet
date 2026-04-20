@@ -21,21 +21,26 @@ import { Switch } from '@/components/ui/switch';
 import { Tab } from '@/components/ui/tab';
 import { Tag } from '@/components/ui/tag';
 import { Colors, Typography } from '@/constants/theme';
+import { useAppData } from '@/contexts/app-data-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
-  cancelAllNotifications,
-  cancelDailyReminder,
-  clearChallengeNotificationMarks,
-  getChallengeNotificationsEnabled,
-  getGeneralNotificationsEnabled,
-  getScheduledNotifications,
-  sendTestNotification,
-  setupDailyReminder,
-} from '@/utils/notification-scheduler';
+  checkActiveChallengesNotifications,
+  checkEndedChallenges,
+  emitEndedChallengeResultAnalytics,
+  getChallengeStatus,
+} from '@/utils/challenge-utils';
 import { getAllChallenges } from '@/utils/challenges';
-import { checkActiveChallengesNotifications, checkEndedChallenges, getChallengeStatus } from '@/utils/challenge-utils';
+import {
+    cancelAllNotifications,
+    cancelDailyReminder,
+    clearChallengeNotificationMarks,
+    getChallengeNotificationsEnabled,
+    getGeneralNotificationsEnabled,
+    getScheduledNotifications,
+    sendTestNotification,
+    setupDailyReminder,
+} from '@/utils/notification-scheduler';
 import { storageCache } from '@/utils/storage-cache';
-import { useAppData } from '@/contexts/app-data-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -889,6 +894,110 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
         >
           <Text style={[styles.testButtonText, { color: colors.staticWhite }]}>
             🔁 챌린지 알림 재평가 테스트
+          </Text>
+        </Pressable>
+
+        <SectionHeader title="📊 challenge_result 분석" colors={colors} />
+
+        <Pressable
+          style={[styles.testButton, { backgroundColor: '#00796B' }]}
+          onPress={async () => {
+            try {
+              await emitEndedChallengeResultAnalytics();
+              const challenges = await getAllChallenges();
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              const endedCount = challenges.filter((c) => {
+                if (c.isDeleted) return false;
+                const end = new Date(c.endDate.replace(/\./g, '-'));
+                end.setHours(0, 0, 0, 0);
+                return end.getTime() < today.getTime();
+              }).length;
+              alert(
+                `challenge_result 전송 로직 실행함\n\n` +
+                  `로컬 챌린지 중 종료일이 오늘(로컬)보다 이전인 ${endedCount}개가 대상입니다.\n` +
+                  `이미 전송 마킹된 id는 스킵됩니다.\n\n` +
+                  `상세·마킹 전후는 아래 「상태 요약」 버튼을 쓰세요.`
+              );
+            } catch (e) {
+              console.error(e);
+              alert('실행 실패 — 콘솔 확인');
+            }
+          }}
+        >
+          <Text style={[styles.testButtonText, { color: colors.staticWhite }]}>
+            📤 challenge_result 즉시 전송 (저장된 챌린지 기준)
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={[styles.testButton, { backgroundColor: '#00695C' }]}
+          onPress={async () => {
+            try {
+              const challenges = await getAllChallenges();
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              const ended = challenges.filter((c) => {
+                if (c.isDeleted) return false;
+                const end = new Date(c.endDate.replace(/\./g, '-'));
+                end.setHours(0, 0, 0, 0);
+                return end.getTime() < today.getTime();
+              });
+              const beforeLines: string[] = [];
+              for (const c of ended) {
+                const key = `challenge_result_logged_${c.id}`;
+                const logged = await AsyncStorage.getItem(key);
+                const status = await getChallengeStatus(c);
+                const result = status.percentage <= 100 ? 'success' : 'fail';
+                beforeLines.push(
+                  `· ${c.category} ~${c.endDate} | ${result} | 전송됨=${logged ? 'Y' : 'N'}`,
+                );
+              }
+              await emitEndedChallengeResultAnalytics();
+              const afterLines: string[] = [];
+              for (const c of ended) {
+                const key = `challenge_result_logged_${c.id}`;
+                const logged = await AsyncStorage.getItem(key);
+                afterLines.push(`· ${c.id.slice(0, 8)}… 전송마킹=${logged ? 'Y' : 'N'}`);
+              }
+              alert(
+                `emitEndedChallengeResultAnalytics 실행\n\n` +
+                  `종료 후보 ${ended.length}개 (실행 전 → 후 마킹)\n\n` +
+                  `${beforeLines.join('\n') || '(해당 없음)'}\n\n` +
+                  `— 마킹 —\n${afterLines.join('\n') || '-'}\n\n` +
+                  `Amplitude 디버거/이벤트 스트림에서 challenge_result 확인`
+              );
+            } catch (e) {
+              console.error(e);
+              alert('실행 실패 — 콘솔 확인');
+            }
+          }}
+        >
+          <Text style={[styles.testButtonText, { color: colors.staticWhite }]}>
+            ▶ challenge_result 분석 실행 (상태 요약)
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={[styles.testButton, { backgroundColor: '#37474F' }]}
+          onPress={async () => {
+            try {
+              const keys = await AsyncStorage.getAllKeys();
+              const toRemove = keys.filter((k) => k.startsWith('challenge_result_logged_'));
+              if (toRemove.length === 0) {
+                alert('challenge_result_logged_* 키 없음');
+                return;
+              }
+              await AsyncStorage.multiRemove(toRemove);
+              alert(`제거 완료: ${toRemove.length}개\n다시 ▶ 실행하면 이벤트 재전송 시도`);
+            } catch (e) {
+              console.error(e);
+              alert('초기화 실패');
+            }
+          }}
+        >
+          <Text style={[styles.testButtonText, { color: colors.staticWhite }]}>
+            🧹 challenge_result 전송 마킹 초기화
           </Text>
         </Pressable>
 

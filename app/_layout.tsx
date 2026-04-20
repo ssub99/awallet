@@ -11,7 +11,11 @@ import { useMetaFacebookAttSync } from '@/hooks/use-meta-facebook-att-sync';
 import { useFirstLaunchNotificationPermission } from '@/hooks/use-notifications';
 import { AnalyticsRouteListener } from '@/components/analytics-route-listener';
 import { initAmplitude, logEvent } from '@/utils/analytics';
-import { checkActiveChallengesNotifications, checkEndedChallenges } from '@/utils/challenge-utils';
+import {
+  checkActiveChallengesNotifications,
+  checkEndedChallenges,
+  emitEndedChallengeResultAnalytics,
+} from '@/utils/challenge-utils';
 import {
   cancelDailyReminder,
   cleanupOldSchedules,
@@ -227,7 +231,7 @@ export default function RootLayout() {
             await cancelDailyReminder();
           }
 
-          // Check challenge notification schedules only when challenge notifications are ON
+          // 챌린지 알림 스케줄·종료 성공 푸시는 ON일 때만 (기존 알림 로직 유지)
           if (challengeEnabled) {
             await checkActiveChallengesNotifications();
             await checkEndedChallenges();
@@ -241,6 +245,29 @@ export default function RootLayout() {
       setupNotifications();
     }
   }, [permissionChecked]);
+
+  // challenge_result: initAmplitude 이후(appIsReady)에만 전송. 알림 권한/설정 effect와 무관.
+  // 콜드 스타트 1회 + 포그라운드 복귀 시 재실행(AsyncStorage로 챌린지당 1회만 전송).
+  useEffect(() => {
+    if (!appIsReady) {
+      return undefined;
+    }
+
+    const runEmit = () => {
+      emitEndedChallengeResultAnalytics().catch((err) => {
+        console.warn('[RootLayout] emitEndedChallengeResultAnalytics:', err);
+      });
+    };
+
+    runEmit();
+
+    const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
+      if (next === 'active') {
+        runEmit();
+      }
+    });
+    return () => sub.remove();
+  }, [appIsReady]);
 
   // iOS: 앱이 백그라운드로 갈 때 위젯 동기화. reloadTimelines는 포그라운드에서만 반영되므로,
   // 사용자가 홈/잠금화면으로 나가는 순간 한 번 더 쓰기+reload 요청하면 위젯이 갱신될 가능성이 높아짐.
