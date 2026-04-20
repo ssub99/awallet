@@ -1,10 +1,8 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { registerReviewPromptLifetimeCreations } from '@/utils/app-store-review-lifetime';
-import { scheduleMaybePromptWriteReview } from '@/utils/app-store-review-scheduler';
-import { calculateRecurringIterations } from '@/utils/expense-calculations';
 import {
   logExpenseCreate,
+  logExpenseCreateComplete,
   logExpenseDelete,
+  logExpenseDeleteComplete,
   type ExpenseAdjustmentKind,
   type ExpenseAdjustmentState,
   type ExpenseCreationCompletionPayload,
@@ -17,6 +15,10 @@ import {
   type ExpenseSimpleCreationValue,
   type ExpenseWeekendOptionAnalytics,
 } from '@/utils/analytics';
+import { registerReviewPromptLifetimeCreations } from '@/utils/app-store-review-lifetime';
+import { scheduleMaybePromptWriteReview } from '@/utils/app-store-review-scheduler';
+import { calculateRecurringIterations } from '@/utils/expense-calculations';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { generateRecordId } from './id-generator';
 
 export type PaymentMethod = 'credit' | 'debit' | 'cash';
@@ -64,6 +66,11 @@ export interface ExpenseRecord {
    * 미지정(레거시/일반 생성 화면)은 non-simple로 간주.
    */
   createdVia?: 'simple' | 'screen';
+  /**
+   * 정산(선결제/환불/결산) 복구 이력.
+   * restore 처리 후 true로 설정되며, 이후 재적용/삭제 시 분석 이벤트의 `state: 'restored'` 판별에 사용.
+   */
+  wasRestored?: boolean;
 }
 
 const EXPENSE_STORAGE_KEY = 'expenseData';
@@ -248,7 +255,13 @@ export function buildExpenseLifecycleAnalyticsPayload(
   else if (record.isSettled) adjustment = 'issettled';
   else if (record.isPrepaid) adjustment = 'isprepaid';
 
-  const state: ExpenseAdjustmentState | null = adjustment !== null ? 'applied' : null;
+  // 정산 적용 중: 'applied', 복구 이력 있음(현재 정산 해제 상태): 'restored', 없음: null
+  let state: ExpenseAdjustmentState | null = null;
+  if (adjustment !== null) {
+    state = 'applied';
+  } else if (record.wasRestored === true) {
+    state = 'restored';
+  }
 
   return {
     repeat_kind,
@@ -454,9 +467,22 @@ export async function createExpensesBatch(
       ? batchOptions.creationCompletionRepeatCount
       : dedupedIncoming.length;
 
+  // record_created: 건별 발행
+  for (const record of dedupedIncoming) {
+    logExpenseCreate(
+      expenseCreationVariantFromRecord(record),
+      buildExpenseLifecycleAnalyticsPayload(record),
+      buildExpenseCreationCompletionPayload(record, {
+        repeatCountOverride: batchRepeatCount,
+        simpleCreation: batchOptions?.simpleCreation === true,
+      }),
+    );
+  }
+
+  // created_complete: 완료 1회
   if (dedupedIncoming.length > 0) {
     const anchor = dedupedIncoming[0];
-    logExpenseCreate(
+    logExpenseCreateComplete(
       expenseCreationVariantFromRecord(anchor),
       buildExpenseLifecycleAnalyticsPayload(anchor),
       buildExpenseCreationCompletionPayload(anchor, {
@@ -516,11 +542,11 @@ export async function deleteExpense(id: string): Promise<boolean> {
   );
 
   await persistExpenses(filtered);
-  logExpenseDelete(
-    expenseCreationVariantFromRecord(target),
-    buildExpenseLifecycleAnalyticsPayload(target),
-    buildExpenseCreationCompletionPayload(target),
-  );
+  const variant = expenseCreationVariantFromRecord(target);
+  const lifecycle = buildExpenseLifecycleAnalyticsPayload(target);
+  const completion = buildExpenseCreationCompletionPayload(target);
+  logExpenseDelete(variant, lifecycle, completion);
+  logExpenseDeleteComplete(variant, lifecycle, completion);
   return true;
 }
 
@@ -610,11 +636,11 @@ export async function deleteExpensesByCategory(categoryLabel: string): Promise<v
   const filtered = expenses.filter((expense) => expense.category !== categoryLabel);
   await persistExpenses(filtered);
   for (const r of removedRecords) {
-    logExpenseDelete(
-      expenseCreationVariantFromRecord(r),
-      buildExpenseLifecycleAnalyticsPayload(r),
-      buildExpenseCreationCompletionPayload(r),
-    );
+    const v = expenseCreationVariantFromRecord(r);
+    const l = buildExpenseLifecycleAnalyticsPayload(r);
+    const c = buildExpenseCreationCompletionPayload(r);
+    logExpenseDelete(v, l, c);
+    logExpenseDeleteComplete(v, l, c);
   }
 }
 
@@ -656,9 +682,21 @@ export async function deleteExpensesByGroup(params: {
   }
 
   await persistExpenses(filtered);
-  // 정기/할부 그룹 삭제: 생성과 동일하게 이벤트 1회만 (repeat_count = 실제 삭제 건수)
+
+  // record_deleted: 건별 발행
+  for (const r of toRemove) {
+    logExpenseDelete(
+      expenseCreationVariantFromRecord(r),
+      buildExpenseLifecycleAnalyticsPayload(r),
+      buildExpenseCreationCompletionPayload(r, {
+        repeatCountOverride: toRemove.length,
+      }),
+    );
+  }
+
+  // deleted_complete: 완료 1회
   const anchor = toRemove[0];
-  logExpenseDelete(
+  logExpenseDeleteComplete(
     expenseCreationVariantFromRecord(anchor),
     buildExpenseLifecycleAnalyticsPayload(anchor),
     buildExpenseCreationCompletionPayload(anchor, {

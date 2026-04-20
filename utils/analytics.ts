@@ -160,7 +160,7 @@ export async function logEvent(
   }
 }
 
-export type RecordLifecycleEntity = 'income' | 'expense' | 'challenge';
+export type RecordLifecycleEntity = 'income' | 'expense';
 
 /** 소비: 일반 / 정기 / 할부. 반복·할부 저장 1회당 1건. */
 export type ExpenseCreationVariant =
@@ -238,8 +238,36 @@ export interface ExpenseCreationCompletionPayload {
 }
 
 export interface ChallengeLifecycleAnalyticsPayload {
+  /** 챌린지 ID (ULID 문자열) */
+  challenge_id: string;
   is_recurring: boolean;
   duration_months: number | null;
+  /** 챌린지 생성 시각 (yyyy.mm.dd hh:mm:ss) */
+  created_at: string;
+  /** 챌린지 종료일 (yyyy.mm.dd hh:mm:ss) */
+  end_date: string;
+}
+
+/** 챌린지 생성·삭제 완료 집계용(`created_challenge_complete` / `deleted_challenge_complete`). `challenge_id` 없음. */
+export interface ChallengeCreatedCompleteAnalyticsPayload {
+  challenge_variant: ChallengeCreationVariant;
+  is_recurring: boolean;
+  duration_months: number | null;
+}
+
+/** 챌린지 기간 종료 후 판정 결과 (`challenge_result.result`) */
+export type ChallengeResultOutcome = 'success' | 'fail';
+
+/** 종료 후 판정 시점(`challenge_result`). 타임스탬프는 `yyyy.mm.dd hh:mm:ss`. */
+export interface ChallengeResultAnalyticsPayload {
+  challenge_id: string;
+  challenge_variant: ChallengeCreationVariant;
+  is_recurring: boolean;
+  duration_months: number | null;
+  created_at: string;
+  judged_at: string;
+  end_date: string;
+  result: ChallengeResultOutcome;
 }
 
 export interface ExpenseAdjustmentAnalyticsPayload {
@@ -289,6 +317,7 @@ export function logRecordLifecycleCount(
   extra?: { memo?: boolean },
 ): void {
   const eventName = action === 'create' ? 'record_created' : 'record_deleted';
+  const completeEventName = action === 'create' ? 'created_complete' : 'deleted_complete';
   const payload: Record<string, unknown> = {
     record_type: entity,
   };
@@ -296,6 +325,12 @@ export function logRecordLifecycleCount(
     payload.memo = extra.memo;
   }
   void logEvent(eventName, payload);
+  // created_complete/deleted_complete: record_type + memo (income은 expense_variant 등 불필요)
+  const completePayload: Record<string, unknown> = { record_type: entity };
+  if (typeof extra?.memo === 'boolean') {
+    completePayload.memo = extra.memo;
+  }
+  void logEvent(completeEventName, completePayload);
 }
 
 /**
@@ -326,16 +361,64 @@ export function logExpenseCreate(
 }
 
 /**
- * 챌린지 생성 (일반 / 반복 구분).
+ * 소비 기록 생성 완료 (사용자 액션 1회 = 1이벤트).
+ * 수집 속성: record_type, expense_variant, repeat_kind, period_months, period_unit
  */
-export function logChallengeCreate(
+export function logExpenseCreateComplete(
+  variant: ExpenseCreationVariant,
+  payload: ExpenseLifecycleAnalyticsPayload,
+  completion: ExpenseCreationCompletionPayload,
+): void {
+  let period_months: number | string | null = payload.period_months;
+  let period_unit: ExpensePeriodUnit | undefined = completion.period_unit;
+
+  if (variant === 'general') {
+    period_unit = 'none';
+    period_months = 'none';
+  } else if (variant === 'repeated_isrecurring') {
+    period_months = 'none';
+  }
+
+  void logEvent('created_complete', {
+    record_type: 'expense',
+    expense_variant: variant,
+    repeat_kind: payload.repeat_kind,
+    period_months,
+    period_unit,
+    simple_creation: completion.simple_creation,
+    memo: completion.memo,
+  });
+}
+
+/**
+ * 챌린지 생성 완료.
+ * 속성: challenge_id, challenge_variant, is_recurring, duration_months, created_at, end_date
+ */
+export function logChallengeCreated(
   variant: ChallengeCreationVariant,
   payload: ChallengeLifecycleAnalyticsPayload,
 ): void {
-  void logEvent('record_created', {
-    record_type: 'challenge',
+  void logEvent('challenge_created', {
+    challenge_id: payload.challenge_id,
     challenge_variant: variant,
-    ...payload,
+    is_recurring: payload.is_recurring,
+    duration_months: payload.duration_months,
+    created_at: payload.created_at,
+    end_date: payload.end_date,
+  });
+}
+
+/**
+ * 챌린지 생성 완료 (사용자 액션 1회 = 1이벤트). `challenge_created`가 월·건수만큼 N번일 때 집계용.
+ * 속성: challenge_variant, is_recurring, duration_months (`challenge_id` 미포함).
+ */
+export function logChallengeCreatedComplete(
+  payload: ChallengeCreatedCompleteAnalyticsPayload,
+): void {
+  void logEvent('created_challenge_complete', {
+    challenge_variant: payload.challenge_variant,
+    is_recurring: payload.is_recurring,
+    duration_months: payload.duration_months,
   });
 }
 
@@ -366,16 +449,80 @@ export function logExpenseDelete(
 }
 
 /**
- * 챌린지 삭제. 생성 시와 동일한 `challenge_variant` 및 반복 속성.
+ * 소비 기록 삭제 완료 (사용자 액션 1회 = 1이벤트). 속성은 `record_deleted`와 완전히 동일.
  */
-export function logChallengeDelete(
+/**
+ * 소비 기록 삭제 완료 (사용자 액션 1회 = 1이벤트).
+ * 수집 속성: record_type, expense_variant, repeat_kind, period_months, period_unit
+ */
+export function logExpenseDeleteComplete(
+  variant: ExpenseCreationVariant,
+  payload: ExpenseLifecycleAnalyticsPayload,
+  completion: ExpenseCreationCompletionPayload,
+): void {
+  let period_months: number | string | null = payload.period_months;
+  let period_unit: ExpensePeriodUnit | undefined = completion.period_unit;
+
+  if (variant === 'general') {
+    period_unit = 'none';
+    period_months = 'none';
+  } else if (variant === 'repeated_isrecurring') {
+    period_months = 'none';
+  }
+
+  void logEvent('deleted_complete', {
+    record_type: 'expense',
+    expense_variant: variant,
+    repeat_kind: payload.repeat_kind,
+    period_months,
+    period_unit,
+    simple_creation: completion.simple_creation,
+    memo: completion.memo,
+  });
+}
+
+/**
+ * 챌린지 삭제 완료.
+ * 속성: challenge_id, challenge_variant, is_recurring, duration_months, created_at, end_date
+ */
+export function logChallengeDeleted(
   variant: ChallengeCreationVariant,
   payload: ChallengeLifecycleAnalyticsPayload,
 ): void {
-  void logEvent('record_deleted', {
-    record_type: 'challenge',
+  void logEvent('challenge_deleted', {
+    challenge_id: payload.challenge_id,
     challenge_variant: variant,
-    ...payload,
+    is_recurring: payload.is_recurring,
+    duration_months: payload.duration_months,
+    created_at: payload.created_at,
+    end_date: payload.end_date,
+  });
+}
+
+/**
+ * 챌린지 삭제 완료 (사용자 액션·그룹 1회 = 1이벤트). `challenge_deleted`가 N번일 때 집계용.
+ * 속성은 `created_challenge_complete`와 동일 (`challenge_id` 미포함).
+ */
+export function logChallengeDeletedComplete(
+  payload: ChallengeCreatedCompleteAnalyticsPayload,
+): void {
+  void logEvent('deleted_challenge_complete', {
+    challenge_variant: payload.challenge_variant,
+    is_recurring: payload.is_recurring,
+    duration_months: payload.duration_months,
+  });
+}
+
+export function logChallengeResult(payload: ChallengeResultAnalyticsPayload): void {
+  void logEvent('challenge_result', {
+    challenge_id: payload.challenge_id,
+    challenge_variant: payload.challenge_variant,
+    is_recurring: payload.is_recurring,
+    duration_months: payload.duration_months,
+    created_at: payload.created_at,
+    judged_at: payload.judged_at,
+    end_date: payload.end_date,
+    result: payload.result,
   });
 }
 

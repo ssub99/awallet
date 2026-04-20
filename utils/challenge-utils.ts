@@ -17,6 +17,7 @@ import {
 } from './notification-scheduler';
 import {
   getAllChallenges,
+  logChallengeResultForRecord,
   type ChallengeRecord as ChallengeData,
 } from './challenges';
 
@@ -455,14 +456,14 @@ export async function checkActiveChallengesNotifications(): Promise<void> {
 export async function checkEndedChallenges(): Promise<void> {
   try {
     const challengeNotificationsEnabled = await getChallengeNotificationsEnabled();
-    if (!challengeNotificationsEnabled) {
-      return;
-    }
 
     const challenges = await getAllChallenges();
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
     for (const challenge of challenges) {
       if (challenge.isDeleted) {
         continue;
@@ -470,27 +471,38 @@ export async function checkEndedChallenges(): Promise<void> {
 
       const endDate = new Date(challenge.endDate.replace(/\./g, '-'));
       endDate.setHours(0, 0, 0, 0);
-      
-      // 종료일이 어제인 챌린지만 체크 (종료일 다음날 알림 발송)
-      const yesterday = new Date(today);
-      yesterday.setDate(yesterday.getDate() - 1);
-      
-      if (endDate.getTime() === yesterday.getTime()) {
-        const status = await getChallengeStatus(challenge);
-        
-        // 성공 조건: 소비율이 100% 이하
-        if (status.percentage <= 100) {
-          const sentKey = `challenge_success_${challenge.id}`;
-          const alreadySent = await AsyncStorage.getItem(sentKey);
-          
-          if (!alreadySent) {
-            await notifyChallengeSuccess(
-              challenge.category,
-              status.percentage,
-              challenge.id,
-              endDate
-            );
-          }
+
+      // 종료일이 어제인 챌린지만 체크 (종료일 다음날 알림·판정)
+      if (endDate.getTime() !== yesterday.getTime()) {
+        continue;
+      }
+
+      const status = await getChallengeStatus(challenge);
+      const result = status.percentage <= 100 ? 'success' : 'fail';
+
+      const analyticsKey = `challenge_result_logged_${challenge.id}`;
+      const alreadyLoggedResult = await AsyncStorage.getItem(analyticsKey);
+      if (!alreadyLoggedResult) {
+        logChallengeResultForRecord(challenge, Date.now(), result);
+        await AsyncStorage.setItem(analyticsKey, '1');
+      }
+
+      if (!challengeNotificationsEnabled) {
+        continue;
+      }
+
+      // 성공 조건: 소비율이 100% 이하
+      if (status.percentage <= 100) {
+        const sentKey = `challenge_success_${challenge.id}`;
+        const alreadySent = await AsyncStorage.getItem(sentKey);
+
+        if (!alreadySent) {
+          await notifyChallengeSuccess(
+            challenge.category,
+            status.percentage,
+            challenge.id,
+            endDate,
+          );
         }
       }
     }
