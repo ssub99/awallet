@@ -5,6 +5,8 @@ import { calculateRecurringIterations } from '@/utils/expense-calculations';
 import {
   logExpenseCreate,
   logExpenseDelete,
+  type ExpenseAdjustmentKind,
+  type ExpenseAdjustmentState,
   type ExpenseCreationCompletionPayload,
   type ExpenseCreationVariant,
   type ExpenseLifecycleAnalyticsPayload,
@@ -239,12 +241,23 @@ export function buildExpenseLifecycleAnalyticsPayload(
 
   const refund_scope: ExpenseRefundScopeAnalytics | null = null;
 
+  // `adjustment`는 `expense_adjustment` 이벤트와 동일한 네이밍 규약을 따른다.
+  // 환불 > 결산 > 선결제 우선순위로 하나만 표기. 어느 것도 적용 안 된 기록은 null.
+  let adjustment: ExpenseAdjustmentKind | null = null;
+  if (record.isRefunded) adjustment = 'isrefunded';
+  else if (record.isSettled) adjustment = 'issettled';
+  else if (record.isPrepaid) adjustment = 'isprepaid';
+
+  const state: ExpenseAdjustmentState | null = adjustment !== null ? 'applied' : null;
+
   return {
     repeat_kind,
     period_months,
     weekend_option,
     settlement_kind,
     refund_scope,
+    adjustment,
+    state,
   };
 }
 
