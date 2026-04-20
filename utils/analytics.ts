@@ -194,12 +194,25 @@ export type ExpensePeriodUnit =
 /** 정기/할부 환불 범위(UI 옵션과 대응). 미해당 시 null */
 export type ExpenseRefundScopeAnalytics = 'all' | 'from_today' | 'future_only';
 
+/** 정산 처리(선결제·환불·결산) 적용/복구 1회 = 이벤트 1회 */
+export type ExpenseAdjustmentState = 'applied' | 'restored';
+
+/** `adjustment` 이벤트 프로퍼티 값: 어떤 줄(선결제·환불·결산)에 대한 이벤트인지 */
+export type ExpenseAdjustmentKind = 'isprepaid' | 'isrefunded' | 'issettled';
+
 export interface ExpenseLifecycleAnalyticsPayload {
   repeat_kind: ExpenseRepeatKind;
   period_months: number | null;
   weekend_option: ExpenseWeekendOptionAnalytics;
   settlement_kind: ExpenseSettlementKind;
   refund_scope: ExpenseRefundScopeAnalytics | null;
+  /**
+   * 해당 기록의 현재 정산 종류.
+   * 환불 > 결산 > 선결제 우선순위로 하나만 결정. 셋 다 아니면 null.
+   */
+  adjustment: ExpenseAdjustmentKind | null;
+  /** `adjustment != null` 이면 현재 적용 상태 `'applied'`, 그 외엔 null */
+  state: ExpenseAdjustmentState | null;
 }
 
 /**
@@ -228,12 +241,6 @@ export interface ChallengeLifecycleAnalyticsPayload {
   is_recurring: boolean;
   duration_months: number | null;
 }
-
-/** 정산 처리(선결제·환불·결산) 적용/복구 1회 = 이벤트 1회 */
-export type ExpenseAdjustmentState = 'applied' | 'restored';
-
-/** `adjustment` 이벤트 프로퍼티 값: 어떤 줄(선결제·환불·결산)에 대한 이벤트인지 */
-export type ExpenseAdjustmentKind = 'isprepaid' | 'isrefunded' | 'issettled';
 
 export interface ExpenseAdjustmentAnalyticsPayload {
   /** 키 `adjustment`에 대응: `isprepaid` | `isrefunded` | `issettled` 중 하나 */
