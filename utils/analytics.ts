@@ -41,11 +41,14 @@ function isProductionRuntime(): boolean {
   if (__DEV__ || Constants.appOwnership === 'expo') {
     return false;
   }
-  // Stage(채널 stage)도 DEBUG로 보낸다. 오직 production 채널의 스토어 바이너리만 PROD.
-  return (
-    Constants.executionEnvironment === 'storeClient' &&
-    Updates.channel === 'production'
-  );
+  // stage 등 production이 아닌 업데이트 채널은 DEBUG
+  if (Updates.channel !== 'production') {
+    return false;
+  }
+  // App Store 설치는 storeClient. TestFlight·스토어 제출 전 EAS 빌드 등은 standalone/bare로 잡히는 경우가 많아,
+  // storeClient만 요구하면 PROD 키 분기에 못 들어가 디버그 프로젝트로만 전송됨.
+  const env = Constants.executionEnvironment;
+  return env === 'storeClient' || env === 'standalone' || env === 'bare';
 }
 
 function resolveAmplitudeApiKey(): string | null {
