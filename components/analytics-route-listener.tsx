@@ -14,14 +14,13 @@ export function AnalyticsRouteListener() {
   useEffect(() => {
     if (!pathname) return;
 
-    let screenName = pathname;
+    const screenName = pathname;
     let mode: 'income' | 'expense' | 'challenge' | undefined;
     if (pathname === '/expense-category') {
       const rawType = params.type;
       const categoryType = Array.isArray(rawType) ? rawType[0] : rawType;
       const rawMode = params.mode;
       const flowMode = Array.isArray(rawMode) ? rawMode[0] : rawMode;
-      screenName = 'expense-category';
       mode = flowMode === 'challenge' ? 'challenge' : categoryType === 'income' ? 'income' : 'expense';
     }
 

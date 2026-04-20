@@ -42,7 +42,7 @@ export const CreateSheetProvider = ({ children }: PropsWithChildren) => {
   useEffect(() => {
     return createSheetEvent.subscribe(() => {
       void logEvent('sheet_view', {
-        screen_name: 'home',
+        screen_name: '/home',
         target: 'add-record-sheet',
       });
       setIsVisible(true);
@@ -68,7 +68,7 @@ export const CreateSheetProvider = ({ children }: PropsWithChildren) => {
 
   const handleIncomePress = useCallback(() => {
     void logEvent('btn', {
-      screen_name: 'home',
+      screen_name: '/home',
       target: 'add-record-income',
       mode: 'income',
       category_type: 'income',
@@ -83,7 +83,7 @@ export const CreateSheetProvider = ({ children }: PropsWithChildren) => {
 
   const handleExpensePress = useCallback(() => {
     void logEvent('btn', {
-      screen_name: 'home',
+      screen_name: '/home',
       target: 'add-record-expense',
       mode: 'expense',
       category_type: 'expense',
@@ -97,7 +97,7 @@ export const CreateSheetProvider = ({ children }: PropsWithChildren) => {
 
   const handleChallengePress = useCallback(() => {
     void logEvent('btn', {
-      screen_name: 'home',
+      screen_name: '/home',
       target: 'add-record-challenge',
       mode: 'challenge',
       category_type: 'expense',

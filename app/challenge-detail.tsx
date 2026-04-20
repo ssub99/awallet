@@ -213,7 +213,7 @@ export default function ChallengeDetailScreen() {
 
   const handleBack = () => {
     void logEvent('btn', {
-      screen_name: 'challenge-detail',
+      screen_name: '/challenge-detail',
       target: 'detail-prev',
     });
     router.back();
@@ -222,7 +222,7 @@ export default function ChallengeDetailScreen() {
   const handleEdit = () => {
     if (!challengeId) return;
     void logEvent('btn', {
-      screen_name: 'challenge-detail',
+      screen_name: '/challenge-detail',
       target: 'detail-modification',
     });
     router.push({

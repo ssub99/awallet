@@ -107,7 +107,7 @@ export default function ExpenseCategoryScreen() {
 
   const handleConfirm = async () => {
     void logEvent('btn', {
-      screen_name: 'expense-category',
+      screen_name: '/expense-category',
       target: 'category-option-confirm',
       mode: flowMode,
       category_type: categoryType,
@@ -145,7 +145,7 @@ export default function ExpenseCategoryScreen() {
 
   const handleBack = () => {
     void logEvent('btn', {
-      screen_name: 'expense-category',
+      screen_name: '/expense-category',
       target: 'category-option-prev',
       mode: flowMode,
       category_type: categoryType,
@@ -184,7 +184,7 @@ export default function ExpenseCategoryScreen() {
                   style={styles.categoryItem}
                   onPress={async () => {
                     void logEvent('list', {
-                      screen_name: 'expense-category',
+                      screen_name: '/expense-category',
                       target: 'category-option',
                       mode: flowMode,
                       category_type: categoryType,

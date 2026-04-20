@@ -172,7 +172,7 @@ export const QuickInputField = forwardRef<TextInput, QuickInputFieldProps>(
               onPress={() => {
                 if (!hasValue || sendLoading || sendDisabled) return;
                 void logEvent('btn', {
-                  screen_name: 'home',
+                  screen_name: '/home',
                   target: 'sentence',
                 });
                 onSend?.();

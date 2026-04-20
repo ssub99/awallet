@@ -82,7 +82,8 @@ export async function createIncome(record: IncomeRecord): Promise<IncomeRecord> 
   );
   filtered.push(income);
   await persistIncomes(filtered);
-  logRecordLifecycleCount('create', 'income');
+  const memo = typeof income.memo === 'string' && income.memo.trim().length > 0;
+  logRecordLifecycleCount('create', 'income', { memo });
   await registerReviewPromptLifetimeCreations(1);
   scheduleMaybePromptWriteReview();
   return income;
@@ -119,7 +120,8 @@ export async function softDeleteIncome(id: string): Promise<void> {
   const deletedAt = new Date().toISOString();
   const updated = await updateIncome(id, { isDeleted: true, deletedAt });
   if (updated) {
-    logRecordLifecycleCount('delete', 'income');
+    const memo = typeof updated.memo === 'string' && updated.memo.trim().length > 0;
+    logRecordLifecycleCount('delete', 'income', { memo });
   }
 }
 
@@ -163,11 +165,15 @@ export async function replaceAllIncomes(records: IncomeRecord[]): Promise<void> 
  */
 export async function deleteIncomesByCategory(categoryLabel: string): Promise<void> {
   const incomes = await loadLocalIncomes();
+  const removedRecords = incomes.filter((income) => income.category === categoryLabel);
+  if (removedRecords.length === 0) {
+    return;
+  }
   const filtered = incomes.filter((income) => income.category !== categoryLabel);
-  const removed = incomes.length - filtered.length;
-  if (removed > 0) {
-    await persistIncomes(filtered);
-    logRecordLifecycleCount('delete', 'income');
+  await persistIncomes(filtered);
+  for (const r of removedRecords) {
+    const memo = typeof r.memo === 'string' && r.memo.trim().length > 0;
+    logRecordLifecycleCount('delete', 'income', { memo });
   }
 }
 

@@ -496,7 +496,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     }
     const message = quickInputText.trim();
     void logEvent('ui', {
-      screen_name: 'home',
+      screen_name: '/home',
       target: 'sentence',
     });
 
@@ -617,7 +617,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       return;
     }
     void logEvent('btn', {
-      screen_name: 'home',
+      screen_name: '/home',
       target: 'sentence-cardadd-confirm',
     });
     isConfirmAddInFlightRef.current = true;
@@ -704,6 +704,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         originalAmount: monthlyAmount,
         originalCategory: pending.category ?? '기타',
         originalDate: actualDate,
+        createdVia: 'simple',
       };
       recordsToSave.push(baseRecord);
 
@@ -782,7 +783,10 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         }
       }
 
-      await createExpensesBatch(recordsToSave);
+      await createExpensesBatch(recordsToSave, {
+        creationCompletionRepeatCount: recordsToSave.length,
+        simpleCreation: true,
+      });
       await refreshWidgetWithCurrentMonth().catch(() => {});
 
       const challengeCategory = pending.category ?? '기타';
@@ -826,7 +830,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
 
   const handleConfirmCardCancel = useCallback(() => {
     void logEvent('btn', {
-      screen_name: 'home',
+      screen_name: '/home',
       target: 'sentence-cardadd-cancel',
     });
     setConfirmCardData(null);
@@ -837,7 +841,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       return;
     }
     void logEvent('component', {
-      screen_name: 'home',
+      screen_name: '/home',
       target: 'sentence-cardadd',
     });
   }, [confirmCardData]);

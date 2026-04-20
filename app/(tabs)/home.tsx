@@ -8,14 +8,13 @@ import { TopNavigation } from '@/components/navigation/top-navigation';
 import { CalendarMain } from '@/components/ui/calendar-main';
 import { Icon } from '@/components/ui/icon';
 import { QuickInputShort } from '@/components/ui/quick-input-short';
-import { BlurView } from 'expo-blur';
 import { MonthData, YearView, YearViewRef } from '@/components/ui/year-view';
 import { AtomicColors } from '@/constants/atomic-colors';
 import { Colors, Typography } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';
 import { useCreateSheetContext } from '@/contexts/create-sheet-context';
-import { FAB_OFFSET_ABOVE_TABS, useQuickInputContext } from '@/contexts/quick-input-context';
 import { useLoading } from '@/contexts/loading-context';
+import { FAB_OFFSET_ABOVE_TABS, useQuickInputContext } from '@/contexts/quick-input-context';
 import {
   applyPendingCalendarTargetEvent,
   calendarRefreshEvent,
@@ -26,8 +25,8 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { logEvent } from '@/utils/analytics';
-import { createSheetEvent } from '@/utils/create-sheet-event';
 import { isAtLeastVersion, QUICK_INPUT_MIN_VERSION } from '@/utils/app-version';
+import { createSheetEvent } from '@/utils/create-sheet-event';
 import { getCustomMonthInfo, isDateInCustomMonth } from '@/utils/custom-month';
 import { saveMonthlyExpenseToWidget } from '@/utils/widget-data-sync';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -36,7 +35,6 @@ import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, AppState, AppStateStatus, Easing, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Circle, Defs, LinearGradient, Stop, Svg } from 'react-native-svg';
 
 const FAB_SIZE = 48;
 
@@ -634,7 +632,7 @@ export default function HomeScreen() {
           dateText={dateText}
           periodType={periodType}
           onPeriodChange={setPeriodType}
-          periodToggleAnalyticsScreenName="home"
+          periodToggleAnalyticsScreenName="/home"
           showDropdownArrow
           yearOptions={yearOptions}
           selectedYear={currentYear}
@@ -661,7 +659,7 @@ export default function HomeScreen() {
                   style={styles.monthStatusItem}
                   onPress={() => {
                     void logEvent('ui', {
-                      screen_name: 'home',
+                      screen_name: '/home',
                       target: 'income-present',
                     });
                     const targetDate = effectiveSelectedDate;
@@ -696,7 +694,7 @@ export default function HomeScreen() {
                   style={styles.monthStatusItem}
                   onPress={() => {
                     void logEvent('ui', {
-                      screen_name: 'home',
+                      screen_name: '/home',
                       target: 'expense-present',
                     });
                     const targetDate = effectiveSelectedDate;
@@ -730,7 +728,7 @@ export default function HomeScreen() {
                   style={styles.monthStatusItem}
                   onPress={() => {
                     void logEvent('ui', {
-                      screen_name: 'home',
+                      screen_name: '/home',
                       target: 'report-present',
                     });
                     router.push({
@@ -787,7 +785,7 @@ export default function HomeScreen() {
                   // 🔧 수정: 날짜 문자열이 아닌 현재 보고 있는 캘린더의 년/월 사용
                   // 월 시작일이 20일이면 9월 캘린더에 10월 날짜가 표시될 수 있음
                   void logEvent('ui', {
-                    screen_name: 'monthly-expense-timeline',
+                    screen_name: '/monthly-expense-timeline',
                     target: 'timeline_entry',
                     entry_point: 'home_calendar_day_retap',
                     selected_date: dateString,
@@ -837,7 +835,7 @@ export default function HomeScreen() {
             monthsData={yearData}
             initialMonth={lastYearViewMonth.current ?? undefined}
             onMonthPress={handleYearMonthPress}
-            yearCardAnalyticsScreenName="home"
+            yearCardAnalyticsScreenName="/home"
           />
         </>
       )}

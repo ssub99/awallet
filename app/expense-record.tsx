@@ -27,11 +27,13 @@ import { useToast } from '@/contexts/toast-context';
 import { calendarRefreshEvent } from '@/hooks/calendar-events';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
-import { logEvent, logExpenseAdjustment, mapRefundOptionToAnalytics } from '@/utils/analytics';
+import { logEvent, logExpenseAdjustment, logExpenseCreate, mapRefundOptionToAnalytics } from '@/utils/analytics';
 import { loadCategories } from '@/utils/categories';
 import { triggerChallengeNotifications } from '@/utils/challenge-utils';
 import { getCustomMonthInfo } from '@/utils/custom-month';
 import {
+  buildExpenseCreationCompletionPayload,
+  buildExpenseLifecycleAnalyticsPayload,
   createExpense,
   deleteExpense,
   deleteExpensesByGroup,
@@ -497,7 +499,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     calendarMonth?: string;
     dateKey?: string;
   }>();
-  const analyticsScreenName = mode === 'edit' ? 'expense-edit' : 'expense-record';
+  const analyticsScreenName = mode === 'edit' ? '/expense-edit' : '/expense-record';
   const scrollViewRef = useRef<ScrollView>(null);
 
   // Form state
@@ -2676,6 +2678,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         originalAmount: monthlyAmount,
         originalCategory: category,
         originalDate: actualDate,
+        createdVia: 'screen' as const,
       };
 
       const recordsToSave: ExpenseRecordType[] = [];
@@ -3157,6 +3160,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             originalAmount: monthlyAmount,
             originalCategory: category,
             originalDate: actualDate,
+            createdVia: 'screen',
           });
 
           // 정기/할부 기록의 미래 기록들도 저장
@@ -3275,6 +3279,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 originalAmount: futureMonthlyAmount,
                 originalCategory: category,
                 originalDate: futureDate,
+                createdVia: 'screen',
               });
               
               // 다음 반복을 위해 현재 날짜 업데이트
@@ -3283,7 +3288,12 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           }
         }
 
-        // 지출 기록 저장 (건당 `record_created`는 createExpense 내부)
+        // 지출 기록 저장
+        // 정기/할부 일괄 생성: 저장 루프에서는 analytics 생략 → 루프 종료 후 `record_created` 1회만 (완료 수 집계)
+        const isBatchCreateAnalytics =
+          mode !== 'edit' && (isRecurring || isInstallment) && recordsToSave.length > 0;
+        let batchCreateSavedCount = 0;
+
         for (const record of recordsToSave) {
           try {
             const recordId = record.id || record.timestamp.toString(); // UUID 우선, fallback으로 timestamp
@@ -3307,12 +3317,30 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               }
             } else {
               // 생성 모드: 새로 생성
-              await createExpense(record);
+              await createExpense(
+                record,
+                isBatchCreateAnalytics ? { skipLifecycleLog: true } : undefined,
+              );
+              if (isBatchCreateAnalytics) {
+                batchCreateSavedCount += 1;
+              }
             }
           } catch (error) {
             console.error('[expense-record] Failed to save expense:', record.timestamp, error);
             // 개별 기록 저장 실패해도 다음 기록 계속 처리
           }
+        }
+
+        if (isBatchCreateAnalytics && batchCreateSavedCount > 0) {
+          const anchor = recordsToSave[0];
+          logExpenseCreate(
+            expenseCreationVariantFromRecord(anchor),
+            buildExpenseLifecycleAnalyticsPayload(anchor),
+            buildExpenseCreationCompletionPayload(anchor, {
+              repeatCountOverride: batchCreateSavedCount,
+              simpleCreation: false,
+            }),
+          );
         }
       } catch (error) {
         console.error('[expense-record] expense save error:', error);

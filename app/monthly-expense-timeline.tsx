@@ -654,7 +654,7 @@ export default function MonthlyExpenseTimelineScreen() {
                   style={[styles.weekDayCell, { width: DATE_CELL_WIDTH }]}
                   onPress={() => {
                     void logEvent('ui', {
-                      screen_name: 'monthly-expense-timeline',
+                      screen_name: '/monthly-expense-timeline',
                       target: 'timeline_day_strip',
                       selected_date: dateStr,
                     });
@@ -801,7 +801,7 @@ export default function MonthlyExpenseTimelineScreen() {
                               : 'null';
                           void logEvent('list', {
                             target: 'timeline_item',
-                            screen_name: 'monthly-expense-timeline',
+                            screen_name: '/monthly-expense-timeline',
                             record_type: item.type,
                             category: item.category,
                             date: date,
