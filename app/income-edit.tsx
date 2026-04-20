@@ -184,7 +184,7 @@ export default function IncomeEditScreen() {
       return;
     }
     void logEvent('modal', {
-      screen_name: 'income-edit',
+      screen_name: '/income-edit',
       target: 'delete-modal',
     });
   }, [showDeleteAlert]);
@@ -194,7 +194,7 @@ export default function IncomeEditScreen() {
       return;
     }
     void logEvent('modal', {
-      screen_name: 'income-edit',
+      screen_name: '/income-edit',
       target: 'none',
     });
   }, [showNoChangesModal]);
@@ -249,7 +249,7 @@ export default function IncomeEditScreen() {
 
   const handleAmountFocus = useCallback(() => {
     void logEvent('ui', {
-      screen_name: 'income-edit',
+      screen_name: '/income-edit',
       target: 'amount',
     });
     Keyboard.dismiss();
@@ -421,11 +421,11 @@ export default function IncomeEditScreen() {
 
   const handleDatePress = () => {
     void logEvent('ui', {
-      screen_name: 'income-edit',
+      screen_name: '/income-edit',
       target: 'calendar',
     });
     void logEvent('sheet_view', {
-      screen_name: 'income-edit',
+      screen_name: '/income-edit',
       target: 'calendar',
     });
     // 키패드가 열려있으면 닫기
@@ -437,7 +437,7 @@ export default function IncomeEditScreen() {
 
   const handleDatePickerClose = () => {
     void logEvent('btn', {
-      screen_name: 'income-edit',
+      screen_name: '/income-edit',
       target: 'calendar-close',
     });
     setShowDatePicker(false);
@@ -445,7 +445,7 @@ export default function IncomeEditScreen() {
   
   const handleDateConfirm = () => {
     void logEvent('btn', {
-      screen_name: 'income-edit',
+      screen_name: '/income-edit',
       target: 'calendar-confirm',
     });
     if (tempSelectedDate) {
@@ -458,7 +458,7 @@ export default function IncomeEditScreen() {
   // amount auto-scroll removed per request
   const handleCategoryPress = () => {
     void logEvent('ui', {
-      screen_name: 'income-edit',
+      screen_name: '/income-edit',
       target: 'category',
     });
     Keyboard.dismiss();
@@ -522,7 +522,7 @@ export default function IncomeEditScreen() {
 
   const handleMemoFocus = () => {
     void logEvent('ui', {
-      screen_name: 'income-edit',
+      screen_name: '/income-edit',
       target: 'memo',
     });
     isMemoFocusedRef.current = true;
@@ -735,7 +735,7 @@ export default function IncomeEditScreen() {
 
   const handleBack = () => {
     void logEvent('btn', {
-      screen_name: 'income-edit',
+      screen_name: '/income-edit',
       target: 'category-option-prev',
     });
     router.back();
@@ -743,7 +743,7 @@ export default function IncomeEditScreen() {
 
   const handleDeleteButtonPress = () => {
     void logEvent('btn', {
-      screen_name: 'income-edit',
+      screen_name: '/income-edit',
       target: 'delete',
     });
     setShowDeleteAlert(true);
@@ -751,7 +751,7 @@ export default function IncomeEditScreen() {
 
   const handleDeleteModalCancel = () => {
     void logEvent('btn', {
-      screen_name: 'income-edit',
+      screen_name: '/income-edit',
       target: 'delete-cancel',
     });
     setShowDeleteAlert(false);
@@ -759,7 +759,7 @@ export default function IncomeEditScreen() {
 
   const handleDeleteModalConfirm = () => {
     void logEvent('btn', {
-      screen_name: 'income-edit',
+      screen_name: '/income-edit',
       target: 'delete-confirm',
     });
     void handleDelete();
@@ -767,7 +767,7 @@ export default function IncomeEditScreen() {
 
   const handleCtaPress = () => {
     void logEvent('btn', {
-      screen_name: 'income-edit',
+      screen_name: '/income-edit',
       target: 'cta',
     });
     void handleUpdate();

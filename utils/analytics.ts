@@ -177,6 +177,19 @@ export type ExpenseRepeatKind = 'none' | 'recurring' | 'installment';
 export type ExpenseWeekendOptionAnalytics = 'friday' | 'monday' | 'weekend' | 'none';
 
 export type ExpenseSettlementKind = 'none' | 'prepayment' | 'refund' | 'settlement';
+export type ExpensePeriodUnit =
+  | 'none'
+  | 'daily'
+  | 'weekly'
+  | 'monthly'
+  | '2weeks'
+  | '3weeks'
+  | '4weeks'
+  | '2months'
+  | '4months'
+  | '6months'
+  | 'weekdays'
+  | 'weekends';
 
 /** 정기/할부 환불 범위(UI 옵션과 대응). 미해당 시 null */
 export type ExpenseRefundScopeAnalytics = 'all' | 'from_today' | 'future_only';
@@ -187,6 +200,28 @@ export interface ExpenseLifecycleAnalyticsPayload {
   weekend_option: ExpenseWeekendOptionAnalytics;
   settlement_kind: ExpenseSettlementKind;
   refund_scope: ExpenseRefundScopeAnalytics | null;
+}
+
+/**
+ * `simple_creation` 값.
+ * - `true`: 간편입력(또는 원본이 간편입력)
+ * - `false`: 생성 화면 경로
+ * - `'unknown'`: 출처 추적 필드가 없는 레거시 레코드의 삭제 이벤트 등
+ */
+export type ExpenseSimpleCreationValue = boolean | 'unknown';
+
+export interface ExpenseCreationCompletionPayload {
+  repeat_count: number;
+  period_unit?: ExpensePeriodUnit;
+  /**
+   * 간편입력 경로로 "생성된" 기록이면 true.
+   * - 생성 이벤트: 이번 경로가 간편입력이면 true, 생성 화면이면 false
+   * - 삭제 이벤트: 원본 기록이 간편입력이면 true, 생성 화면이면 false,
+   *               출처 추적이 없는 레거시 레코드면 'unknown'
+   */
+  simple_creation: ExpenseSimpleCreationValue;
+  /** 메모 입력 여부 */
+  memo: boolean;
 }
 
 export interface ChallengeLifecycleAnalyticsPayload {
@@ -244,11 +279,16 @@ export function mapRefundOptionToAnalytics(
 export function logRecordLifecycleCount(
   action: 'create' | 'delete',
   entity: RecordLifecycleEntity,
+  extra?: { memo?: boolean },
 ): void {
   const eventName = action === 'create' ? 'record_created' : 'record_deleted';
-  void logEvent(eventName, {
+  const payload: Record<string, unknown> = {
     record_type: entity,
-  });
+  };
+  if (typeof extra?.memo === 'boolean') {
+    payload.memo = extra.memo;
+  }
+  void logEvent(eventName, payload);
 }
 
 /**
@@ -257,12 +297,25 @@ export function logRecordLifecycleCount(
 export function logExpenseCreate(
   variant: ExpenseCreationVariant,
   payload: ExpenseLifecycleAnalyticsPayload,
+  completion: ExpenseCreationCompletionPayload,
 ): void {
-  void logEvent('record_created', {
+  const merged: Record<string, unknown> = {
     record_type: 'expense',
     expense_variant: variant,
     ...payload,
-  });
+    ...completion,
+  };
+
+  // Amplitude: 정기는 `period_unit`만 사용, `period_months`는 생애주기 숫자 대신 none
+  // 일반은 `period_unit`·`period_months` 모두 none (할부는 기존 숫자 `period_months` 유지)
+  if (variant === 'general') {
+    merged.period_unit = 'none';
+    merged.period_months = 'none';
+  } else if (variant === 'repeated_isrecurring') {
+    merged.period_months = 'none';
+  }
+
+  void logEvent('record_created', merged);
 }
 
 /**
@@ -280,17 +333,29 @@ export function logChallengeCreate(
 }
 
 /**
- * 소비 기록 삭제. 생성 시와 동일한 `expense_variant` 및 생애주기 속성.
+ * 소비 기록 삭제. 생성 시와 동일한 `expense_variant` 및 생애주기/완료 속성을 실어 보낸다.
  */
 export function logExpenseDelete(
   variant: ExpenseCreationVariant,
   payload: ExpenseLifecycleAnalyticsPayload,
+  completion: ExpenseCreationCompletionPayload,
 ): void {
-  void logEvent('record_deleted', {
+  const merged: Record<string, unknown> = {
     record_type: 'expense',
     expense_variant: variant,
     ...payload,
-  });
+    ...completion,
+  };
+
+  // 생성 이벤트와 동일 스키마: 정기는 `period_months` none, 일반은 `period_unit`·`period_months` 모두 none
+  if (variant === 'general') {
+    merged.period_unit = 'none';
+    merged.period_months = 'none';
+  } else if (variant === 'repeated_isrecurring') {
+    merged.period_months = 'none';
+  }
+
+  void logEvent('record_deleted', merged);
 }
 
 /**

@@ -371,7 +371,7 @@ export default function IncomeRecordScreen() {
 
   const handleAmountFocus = useCallback(() => {
     void logEvent('ui', {
-      screen_name: 'income-record',
+      screen_name: '/income-record',
       target: 'amount',
     });
     Keyboard.dismiss();
@@ -395,7 +395,7 @@ export default function IncomeRecordScreen() {
 
   const handleDatePress = () => {
     void logEvent('ui', {
-      screen_name: 'income-record',
+      screen_name: '/income-record',
       target: 'calendar',
     });
     // 이미 열려있으면 무시
@@ -407,7 +407,7 @@ export default function IncomeRecordScreen() {
     Keyboard.dismiss();
     setTempSelectedDate(date.replace(/\./g, '-'));
     void logEvent('sheet_view', {
-      screen_name: 'income-record',
+      screen_name: '/income-record',
       target: 'calendar',
     });
     setShowDatePicker(true);
@@ -418,7 +418,7 @@ export default function IncomeRecordScreen() {
       return;
     }
     void logEvent('btn', {
-      screen_name: 'income-record',
+      screen_name: '/income-record',
       target: 'calendar-close',
     });
     setShowDatePicker(false);
@@ -426,7 +426,7 @@ export default function IncomeRecordScreen() {
   
   const handleDateConfirm = () => {
     void logEvent('btn', {
-      screen_name: 'income-record',
+      screen_name: '/income-record',
       target: 'calendar-confirm',
     });
     // 바텀시트를 먼저 닫고 나서 date를 업데이트하여 재오픈 방지
@@ -443,7 +443,7 @@ export default function IncomeRecordScreen() {
 
   const handleMemoFocus = () => {
     void logEvent('ui', {
-      screen_name: 'income-record',
+      screen_name: '/income-record',
       target: 'memo',
     });
     isMemoFocusedRef.current = true;
@@ -465,7 +465,7 @@ export default function IncomeRecordScreen() {
 
   const handleCategoryPress = () => {
     void logEvent('ui', {
-      screen_name: 'income-record',
+      screen_name: '/income-record',
       target: 'category',
     });
     handleKeypadDismiss();
@@ -630,7 +630,7 @@ export default function IncomeRecordScreen() {
 
   const handleBack = () => {
     void logEvent('btn', {
-      screen_name: 'income-record',
+      screen_name: '/income-record',
       target: 'category-option-prev',
     });
     router.back();
@@ -638,7 +638,7 @@ export default function IncomeRecordScreen() {
 
   const handleCtaPress = () => {
     void logEvent('btn', {
-      screen_name: 'income-record',
+      screen_name: '/income-record',
       target: 'cta',
     });
     void handleConfirm();

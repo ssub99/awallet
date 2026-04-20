@@ -323,7 +323,7 @@ export default function ChallengeCreateScreen() {
 
   const handleAmountFocus = useCallback(() => {
     void logEvent('ui', {
-      screen_name: 'challenge-create',
+      screen_name: '/challenge-create',
       target: 'amount',
     });
     Keyboard.dismiss();
@@ -468,7 +468,7 @@ export default function ChallengeCreateScreen() {
 
   const handleCtaPress = () => {
     void logEvent('btn', {
-      screen_name: 'challenge-create',
+      screen_name: '/challenge-create',
       target: 'cta',
     });
     void handleConfirm();
@@ -538,7 +538,7 @@ export default function ChallengeCreateScreen() {
             </Text>
             <Pressable onPress={() => {
               void logEvent('ui', {
-                screen_name: 'challenge-create',
+                screen_name: '/challenge-create',
                 target: 'category-option',
               });
               // 사용자가 선택한 년/월/일 정보를 카테고리 선택 화면으로 전달
@@ -574,11 +574,11 @@ export default function ChallengeCreateScreen() {
             </Text>
             <Pressable onPress={() => {
               void logEvent('ui', {
-                screen_name: 'challenge-create',
+                screen_name: '/challenge-create',
                 target: 'calendar',
               });
               void logEvent('sheet_view', {
-                screen_name: 'challenge-create',
+                screen_name: '/challenge-create',
                 target: 'calendar',
               });
 
@@ -638,7 +638,7 @@ export default function ChallengeCreateScreen() {
                     value={isRecurring}
                     onValueChange={(value) => {
                       void logEvent('ui', {
-                        screen_name: 'challenge-create',
+                        screen_name: '/challenge-create',
                         target: 'recurring-toggle',
                       });
 
@@ -661,11 +661,11 @@ export default function ChallengeCreateScreen() {
               </Text>
               <Pressable onPress={() => {
                 void logEvent('ui', {
-                  screen_name: 'challenge-create',
+                  screen_name: '/challenge-create',
                   target: 'recurring-period',
                 });
                 void logEvent('sheet_view', {
-                  screen_name: 'challenge-create',
+                  screen_name: '/challenge-create',
                   target: 'recurring',
                 });
 
@@ -747,13 +747,13 @@ export default function ChallengeCreateScreen() {
           onClose={() => setShowYearMonthPicker(false)}
           onCancelPress={() => {
             void logEvent('btn', {
-              screen_name: 'challenge-create',
+              screen_name: '/challenge-create',
               target: 'challenge-create-close',
             });
           }}
           onDonePress={() => {
             void logEvent('btn', {
-              screen_name: 'challenge-create',
+              screen_name: '/challenge-create',
               target: 'challenge-create-confirm',
             });
           }}
@@ -778,13 +778,13 @@ export default function ChallengeCreateScreen() {
           onClose={() => setShowRecurringMonthsPicker(false)}
           onCancelPress={() => {
             void logEvent('btn', {
-              screen_name: 'challenge-create',
+              screen_name: '/challenge-create',
               target: 'recurring-close',
             });
           }}
           onDonePress={() => {
             void logEvent('btn', {
-              screen_name: 'challenge-create',
+              screen_name: '/challenge-create',
               target: 'recurring-confirm',
             });
           }}

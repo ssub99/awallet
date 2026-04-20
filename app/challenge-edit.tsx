@@ -78,7 +78,7 @@ export default function ChallengeEditScreen() {
   const logChallengeEditEvent = useCallback(
     (eventType: 'btn' | 'ui' | 'modal', target: string) => {
       logEvent(eventType, {
-        screen_name: 'challenge-edit',
+        screen_name: '/challenge-edit',
         target,
       });
     },

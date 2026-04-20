@@ -215,7 +215,7 @@ export default function ExpenseCategoryDetailScreen() {
         : 'expense-monthly-ranking-prev';
 
     void logEvent('btn', {
-      screen_name: 'expense-category-detail',
+      screen_name: '/expense-category-detail',
       target,
     });
     router.back();

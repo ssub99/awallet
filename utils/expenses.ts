@@ -1,14 +1,18 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { registerReviewPromptLifetimeCreations } from '@/utils/app-store-review-lifetime';
 import { scheduleMaybePromptWriteReview } from '@/utils/app-store-review-scheduler';
+import { calculateRecurringIterations } from '@/utils/expense-calculations';
 import {
   logExpenseCreate,
   logExpenseDelete,
+  type ExpenseCreationCompletionPayload,
   type ExpenseCreationVariant,
   type ExpenseLifecycleAnalyticsPayload,
+  type ExpensePeriodUnit,
   type ExpenseRefundScopeAnalytics,
   type ExpenseRepeatKind,
   type ExpenseSettlementKind,
+  type ExpenseSimpleCreationValue,
   type ExpenseWeekendOptionAnalytics,
 } from '@/utils/analytics';
 import { generateRecordId } from './id-generator';
@@ -53,6 +57,11 @@ export interface ExpenseRecord {
   createdAt?: string;
   /** 마지막 수정 시각. 로컬 `YYYY-MM-DD HH:mm:ss` (없으면 createdAt과 동일하게 백필) */
   updatedAt?: string;
+  /**
+   * 기록 생성 경로. `'simple'`은 간편입력 경로로 생성됐음을 의미.
+   * 미지정(레거시/일반 생성 화면)은 non-simple로 간주.
+   */
+  createdVia?: 'simple' | 'screen';
 }
 
 const EXPENSE_STORAGE_KEY = 'expenseData';
@@ -239,9 +248,116 @@ export function buildExpenseLifecycleAnalyticsPayload(
   };
 }
 
+/**
+ * 소비 화면 반복 옵션 라벨 → 분석용 `period_unit`.
+ * 반복 토글 ON 시 UI가 항상 `recurringType`을 설정하므로, 여기서는 매핑만 수행한다.
+ */
+function mapRecurringTypeToPeriodUnit(recurringType: string): ExpensePeriodUnit {
+  const label = recurringType.trim();
+  switch (label) {
+    case '매일':
+      return 'daily';
+    case '매주':
+      return 'weekly';
+    case '매월':
+      return 'monthly';
+    case '2주':
+      return '2weeks';
+    case '3주':
+      return '3weeks';
+    case '4주':
+      return '4weeks';
+    case '2개월 마다':
+      return '2months';
+    case '4개월 마다':
+      return '4months';
+    case '6개월 마다':
+      return '6months';
+    case '주중':
+      return 'weekdays';
+    case '주말':
+      return 'weekends';
+    default:
+      throw new Error(`[analytics] 알 수 없는 정기 recurringType: ${JSON.stringify(label)}`);
+  }
+}
+
+export type BuildExpenseCreationCompletionOpts = {
+  /**
+   * 같은 저장 배치(정기/할부 일괄 생성)에서 모든 `record_created`에 동일하게 실을 총 건수.
+   * 미지정 시 정기는 `record.date` 기준 연말까지 횟수(건당 달라질 수 있음)로 계산.
+   */
+  repeatCountOverride?: number;
+  /** 간편입력 경로 여부. 기본은 false (생성 화면 경로) */
+  simpleCreation?: boolean;
+};
+
+function resolveSimpleCreation(
+  record: ExpenseRecord,
+  opts?: BuildExpenseCreationCompletionOpts,
+): ExpenseSimpleCreationValue {
+  // 생성 이벤트: 호출자가 명시적으로 넘긴 boolean이 우선
+  if (typeof opts?.simpleCreation === 'boolean') {
+    return opts.simpleCreation;
+  }
+  // 삭제 이벤트 등: 레코드의 출처 필드로 판단
+  if (record.createdVia === 'simple') return true;
+  if (record.createdVia === 'screen') return false;
+  // 출처 추적이 없는 레거시 레코드
+  return 'unknown';
+}
+
+export function buildExpenseCreationCompletionPayload(
+  record: ExpenseRecord,
+  opts?: BuildExpenseCreationCompletionOpts,
+): ExpenseCreationCompletionPayload {
+  const simpleCreation = resolveSimpleCreation(record, opts);
+  const memo = typeof record.memo === 'string' && record.memo.trim().length > 0;
+
+  if (record.isInstallment) {
+    const months =
+      typeof opts?.repeatCountOverride === 'number' && opts.repeatCountOverride >= 1
+        ? opts.repeatCountOverride
+        : typeof record.installmentMonths === 'number'
+          ? Math.max(1, record.installmentMonths)
+          : 1;
+    return {
+      repeat_count: months,
+      simple_creation: simpleCreation,
+      memo,
+    };
+  }
+
+  if (record.isRecurring) {
+    if (typeof record.recurringType !== 'string' || record.recurringType.trim() === '') {
+      throw new Error('[analytics] 정기 기록인데 recurringType 이 비어 있음');
+    }
+    const label = record.recurringType.trim();
+    const repeatCount =
+      typeof opts?.repeatCountOverride === 'number' && opts.repeatCountOverride >= 1
+        ? opts.repeatCountOverride
+        : Math.max(1, calculateRecurringIterations(record.date, label));
+    return {
+      repeat_count: repeatCount,
+      period_unit: mapRecurringTypeToPeriodUnit(label),
+      simple_creation: simpleCreation,
+      memo,
+    };
+  }
+
+  return {
+    repeat_count: 1,
+    period_unit: 'none',
+    simple_creation: simpleCreation,
+    memo,
+  };
+}
+
 export type CreateExpenseOptions = {
   /** expense-record 등에서 한 번에 집계할 때 개별 호출 로그 생략 */
   skipLifecycleLog?: boolean;
+  /** 간편입력 경로 여부. 기본은 false (생성 화면 경로) */
+  simpleCreation?: boolean;
 };
 
 export async function createExpense(
@@ -261,6 +377,9 @@ export async function createExpense(
     logExpenseCreate(
       expenseCreationVariantFromRecord(expense),
       buildExpenseLifecycleAnalyticsPayload(expense),
+      buildExpenseCreationCompletionPayload(expense, {
+        simpleCreation: options?.simpleCreation === true,
+      }),
     );
   }
   await registerReviewPromptLifetimeCreations(1);
@@ -268,7 +387,16 @@ export async function createExpense(
   return expense;
 }
 
-export async function createExpensesBatch(records: ExpenseRecord[]): Promise<ExpenseRecord[]> {
+export type CreateExpensesBatchOptions = {
+  creationCompletionRepeatCount?: number;
+  /** 간편입력 경로 여부. 기본은 false (생성 화면 경로) */
+  simpleCreation?: boolean;
+};
+
+export async function createExpensesBatch(
+  records: ExpenseRecord[],
+  batchOptions?: CreateExpensesBatchOptions,
+): Promise<ExpenseRecord[]> {
   if (records.length === 0) {
     return [];
   }
@@ -306,12 +434,25 @@ export async function createExpensesBatch(records: ExpenseRecord[]): Promise<Exp
   });
 
   await persistExpenses([...filteredExisting, ...dedupedIncoming]);
-  for (const record of dedupedIncoming) {
+
+  const batchRepeatCount =
+    typeof batchOptions?.creationCompletionRepeatCount === 'number' &&
+    batchOptions.creationCompletionRepeatCount >= 1
+      ? batchOptions.creationCompletionRepeatCount
+      : dedupedIncoming.length;
+
+  if (dedupedIncoming.length > 0) {
+    const anchor = dedupedIncoming[0];
     logExpenseCreate(
-      expenseCreationVariantFromRecord(record),
-      buildExpenseLifecycleAnalyticsPayload(record),
+      expenseCreationVariantFromRecord(anchor),
+      buildExpenseLifecycleAnalyticsPayload(anchor),
+      buildExpenseCreationCompletionPayload(anchor, {
+        repeatCountOverride: batchRepeatCount,
+        simpleCreation: batchOptions?.simpleCreation === true,
+      }),
     );
   }
+
   await registerReviewPromptLifetimeCreations(dedupedIncoming.length);
   scheduleMaybePromptWriteReview();
   return dedupedIncoming;
@@ -365,6 +506,7 @@ export async function deleteExpense(id: string): Promise<boolean> {
   logExpenseDelete(
     expenseCreationVariantFromRecord(target),
     buildExpenseLifecycleAnalyticsPayload(target),
+    buildExpenseCreationCompletionPayload(target),
   );
   return true;
 }
@@ -458,6 +600,7 @@ export async function deleteExpensesByCategory(categoryLabel: string): Promise<v
     logExpenseDelete(
       expenseCreationVariantFromRecord(r),
       buildExpenseLifecycleAnalyticsPayload(r),
+      buildExpenseCreationCompletionPayload(r),
     );
   }
 }
@@ -500,11 +643,14 @@ export async function deleteExpensesByGroup(params: {
   }
 
   await persistExpenses(filtered);
-  for (const r of toRemove) {
-    logExpenseDelete(
-      expenseCreationVariantFromRecord(r),
-      buildExpenseLifecycleAnalyticsPayload(r),
-    );
-  }
+  // 정기/할부 그룹 삭제: 생성과 동일하게 이벤트 1회만 (repeat_count = 실제 삭제 건수)
+  const anchor = toRemove[0];
+  logExpenseDelete(
+    expenseCreationVariantFromRecord(anchor),
+    buildExpenseLifecycleAnalyticsPayload(anchor),
+    buildExpenseCreationCompletionPayload(anchor, {
+      repeatCountOverride: toRemove.length,
+    }),
+  );
 }
 

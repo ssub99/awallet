@@ -97,7 +97,7 @@ export function QuickInputShort({
       onLayout={handleLayout}
       onPress={() => {
         void logEvent('component', {
-          screen_name: 'home',
+          screen_name: '/home',
           target: 'dim',
         });
         handlePress();

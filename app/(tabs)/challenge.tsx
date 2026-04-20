@@ -1581,7 +1581,7 @@ export default function ChallengeTabScreen() {
 
   const handleCheckScore = useCallback(async () => {
     void logEvent('btn', {
-      screen_name: 'challenge',
+      screen_name: '/challenge',
       target: 'feedback',
     });
 
@@ -2375,7 +2375,7 @@ export default function ChallengeTabScreen() {
                           style={[styles.trendCategoryItem, { backgroundColor: colors.staticWhite }]}
                           onPress={() => {
                             void logEvent('list', {
-                              screen_name: 'challenge',
+                              screen_name: '/challenge',
                               target:
                                 trendCategoryFilter === 'all'
                                   ? 'expense-monthly-ranking'
@@ -2517,7 +2517,7 @@ export default function ChallengeTabScreen() {
                   onPress={() => {
                     if (isNavigating.current) return;
                     void logEvent('list', {
-                      screen_name: 'challenge',
+                      screen_name: '/challenge',
                       target: 'challenge-item',
                     });
                     isNavigating.current = true;
