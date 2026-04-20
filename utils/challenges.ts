@@ -82,6 +82,13 @@ function endDateToDateTimeStr(endDate: string): string {
   return isNaN(d.getTime()) ? endDate : formatLocalDateTimeStr(d.getTime());
 }
 
+function startDateToDateTimeStr(startDate: string): string {
+  // startDate: YYYY.MM.DD → 해당 일 00:00:00
+  const normalized = startDate.replace(/\./g, '-');
+  const d = new Date(`${normalized}T00:00:00`);
+  return isNaN(d.getTime()) ? startDate : formatLocalDateTimeStr(d.getTime());
+}
+
 /** `challenge_created` / `challenge_deleted`의 challenge_id와 동일 규칙 */
 function challengeAnalyticsIdFromRecord(record: ChallengeRecord): string {
   return record.id ?? record.recurringId ?? '';
@@ -96,6 +103,7 @@ function challengeLifecyclePayloadFromRecord(
     challenge_id: challengeAnalyticsIdFromRecord(record),
     is_recurring: isRecurring,
     duration_months: isRecurring && typeof dm === 'number' ? dm : null,
+    start_date: startDateToDateTimeStr(record.startDate),
     created_at: formatLocalDateTimeStr(record.createdAt),
     end_date: endDateToDateTimeStr(record.endDate),
   };
@@ -387,6 +395,7 @@ export function logChallengeResultForRecord(
     challenge_variant: variant,
     is_recurring: life.is_recurring,
     duration_months: life.duration_months,
+    start_date: life.start_date,
     created_at: life.created_at,
     judged_at: formatLocalDateTimeStr(judgedAtMs),
     end_date: life.end_date,

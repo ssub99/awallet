@@ -242,6 +242,8 @@ export interface ChallengeLifecycleAnalyticsPayload {
   challenge_id: string;
   is_recurring: boolean;
   duration_months: number | null;
+  /** 챌린지 시작일 (yyyy.mm.dd hh:mm:ss) */
+  start_date: string;
   /** 챌린지 생성 시각 (yyyy.mm.dd hh:mm:ss) */
   created_at: string;
   /** 챌린지 종료일 (yyyy.mm.dd hh:mm:ss) */
@@ -264,6 +266,7 @@ export interface ChallengeResultAnalyticsPayload {
   challenge_variant: ChallengeCreationVariant;
   is_recurring: boolean;
   duration_months: number | null;
+  start_date: string;
   created_at: string;
   judged_at: string;
   end_date: string;
@@ -326,7 +329,7 @@ export function logRecordLifecycleCount(
   }
   void logEvent(eventName, payload);
   // created_complete/deleted_complete: record_type + memo (income은 expense_variant 등 불필요)
-  const completePayload: Record<string, unknown> = { record_type: entity };
+  const completePayload: Record<string, unknown> = { record_type: entity, repeat_count: 1 };
   if (typeof extra?.memo === 'boolean') {
     completePayload.memo = extra.memo;
   }
@@ -351,6 +354,7 @@ export function logExpenseCreate(
   // Amplitude: 정기는 `period_unit`만 사용, `period_months`는 생애주기 숫자 대신 none
   // 일반은 `period_unit`·`period_months` 모두 none (할부는 기존 숫자 `period_months` 유지)
   if (variant === 'general') {
+    merged.repeat_count = 'none';
     merged.period_unit = 'none';
     merged.period_months = 'none';
   } else if (variant === 'repeated_isrecurring') {
@@ -371,10 +375,12 @@ export function logExpenseCreateComplete(
 ): void {
   let period_months: number | string | null = payload.period_months;
   let period_unit: ExpensePeriodUnit | undefined = completion.period_unit;
+  let repeat_count: number | 'none' = completion.repeat_count;
 
   if (variant === 'general') {
     period_unit = 'none';
     period_months = 'none';
+    repeat_count = 'none';
   } else if (variant === 'repeated_isrecurring') {
     period_months = 'none';
   }
@@ -382,6 +388,7 @@ export function logExpenseCreateComplete(
   void logEvent('created_complete', {
     record_type: 'expense',
     expense_variant: variant,
+    repeat_count,
     repeat_kind: payload.repeat_kind,
     period_months,
     period_unit,
@@ -392,7 +399,7 @@ export function logExpenseCreateComplete(
 
 /**
  * 챌린지 생성 완료.
- * 속성: challenge_id, challenge_variant, is_recurring, duration_months, created_at, end_date
+ * 속성: challenge_id, challenge_variant, is_recurring, duration_months, start_date, created_at, end_date
  */
 export function logChallengeCreated(
   variant: ChallengeCreationVariant,
@@ -403,6 +410,7 @@ export function logChallengeCreated(
     challenge_variant: variant,
     is_recurring: payload.is_recurring,
     duration_months: payload.duration_months,
+    start_date: payload.start_date,
     created_at: payload.created_at,
     end_date: payload.end_date,
   });
@@ -439,6 +447,7 @@ export function logExpenseDelete(
 
   // 생성 이벤트와 동일 스키마: 정기는 `period_months` none, 일반은 `period_unit`·`period_months` 모두 none
   if (variant === 'general') {
+    merged.repeat_count = 'none';
     merged.period_unit = 'none';
     merged.period_months = 'none';
   } else if (variant === 'repeated_isrecurring') {
@@ -462,10 +471,12 @@ export function logExpenseDeleteComplete(
 ): void {
   let period_months: number | string | null = payload.period_months;
   let period_unit: ExpensePeriodUnit | undefined = completion.period_unit;
+  let repeat_count: number | 'none' = completion.repeat_count;
 
   if (variant === 'general') {
     period_unit = 'none';
     period_months = 'none';
+    repeat_count = 'none';
   } else if (variant === 'repeated_isrecurring') {
     period_months = 'none';
   }
@@ -473,6 +484,7 @@ export function logExpenseDeleteComplete(
   void logEvent('deleted_complete', {
     record_type: 'expense',
     expense_variant: variant,
+    repeat_count,
     repeat_kind: payload.repeat_kind,
     period_months,
     period_unit,
@@ -483,7 +495,7 @@ export function logExpenseDeleteComplete(
 
 /**
  * 챌린지 삭제 완료.
- * 속성: challenge_id, challenge_variant, is_recurring, duration_months, created_at, end_date
+ * 속성: challenge_id, challenge_variant, is_recurring, duration_months, start_date, created_at, end_date
  */
 export function logChallengeDeleted(
   variant: ChallengeCreationVariant,
@@ -494,6 +506,7 @@ export function logChallengeDeleted(
     challenge_variant: variant,
     is_recurring: payload.is_recurring,
     duration_months: payload.duration_months,
+    start_date: payload.start_date,
     created_at: payload.created_at,
     end_date: payload.end_date,
   });
@@ -519,6 +532,7 @@ export function logChallengeResult(payload: ChallengeResultAnalyticsPayload): vo
     challenge_variant: payload.challenge_variant,
     is_recurring: payload.is_recurring,
     duration_months: payload.duration_months,
+    start_date: payload.start_date,
     created_at: payload.created_at,
     judged_at: payload.judged_at,
     end_date: payload.end_date,
