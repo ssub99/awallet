@@ -4,7 +4,9 @@ description: Commit Result Notes Guideline
 ---
 # Commit Result Notes Guideline
 
-After completing any commit (especially when using in-editor git tools), produce a concise English note in chat summarizing the outcome so users have a clear record of what changed.
+After completing any commit (especially when using in-editor git tools), produce a concise note in chat summarizing the outcome so users have a clear record of what changed.
+
+**Language:** Korean and English are both allowed. Prefer the same language the user uses in the conversation (e.g. Korean replies → Korean summary).
 
 What to include (in order):
 - Branch name and whether push to remote succeeded
@@ -18,22 +20,22 @@ Formatting rules:
 - Prefer file references with backticks (e.g., `app/email-verify.tsx`)
 - Avoid noisy details like full diff stats unless requested
 
-Example template:
+Example template (Korean):
 ```
-Commit complete and pushed to <branch>.
+브랜치 <branch>에 커밋 완료. 원격 푸시: 성공/실패
 
-Subject: <first line of commit message>
+제목: <커밋 메시지 첫 줄>
 
-Highlights:
-- <concise bullet 1>
-- <concise bullet 2>
+요약:
+- <핵심 변경 1>
+- <핵심 변경 2>
 
-Key files/routes:
-- `<path/to/file>` — <short description>
+주요 파일:
+- `<path/to/file>` — <짧은 설명>
 
-Follow-ups:
-- <verification or TODO 1>
-- <verification or TODO 2>
+후속:
+- <확인 사항 1>
+- <확인 사항 2>
 ```
 
 Notes:
