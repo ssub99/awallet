@@ -27,7 +27,7 @@ import { useToast } from '@/contexts/toast-context';
 import { calendarRefreshEvent } from '@/hooks/calendar-events';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
-import { logEvent, logExpenseAdjustment, logExpenseCreate, mapRefundOptionToAnalytics } from '@/utils/analytics';
+import { logEvent, logExpenseAdjustment, logExpenseCreateComplete, mapRefundOptionToAnalytics } from '@/utils/analytics';
 import { loadCategories } from '@/utils/categories';
 import { triggerChallengeNotifications } from '@/utils/challenge-utils';
 import { getCustomMonthInfo } from '@/utils/custom-month';
@@ -3289,8 +3289,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         }
 
         // 지출 기록 저장
-        // 정기/할부 일괄 생성: 저장 루프에서는 analytics 생략 → 루프 종료 후 `record_created` 1회만 (완료 수 집계)
-        const isBatchCreateAnalytics =
+        // record_created: 건별 발행 / created_complete: 정기·할부 배치 성공 후 1회
+        const isBatchCreate =
           mode !== 'edit' && (isRecurring || isInstallment) && recordsToSave.length > 0;
         let batchCreateSavedCount = 0;
 
@@ -3300,28 +3300,22 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             
             if (mode === 'edit' && editData) {
               // 수정 모드: 기록이 존재하는지 확인 후 업데이트 또는 생성
-              // 기존 기록 존재 여부 확인
               const { getExpenseById } = await import('@/utils/expenses');
               const existingRecord = await getExpenseById(recordId);
               
               if (existingRecord) {
-                // 기존 기록이 있으면 업데이트
                 const updateData: Partial<ExpenseRecordType> = {
                   ...record,
-                  date: record.date, // 명시적으로 date 포함
+                  date: record.date,
                 };
                 await updateExpense(recordId, updateData);
               } else {
-                // 기존 기록이 없으면 생성 (전체 수정 시 새로 생성된 기록)
                 await createExpense(record);
               }
             } else {
-              // 생성 모드: 새로 생성
-              await createExpense(
-                record,
-                isBatchCreateAnalytics ? { skipLifecycleLog: true } : undefined,
-              );
-              if (isBatchCreateAnalytics) {
+              // 생성 모드: record_created 건별 발행 (createExpense 내부)
+              await createExpense(record);
+              if (isBatchCreate) {
                 batchCreateSavedCount += 1;
               }
             }
@@ -3331,9 +3325,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           }
         }
 
-        if (isBatchCreateAnalytics && batchCreateSavedCount > 0) {
+        // created_complete: 정기·할부 배치 완료 1회
+        if (isBatchCreate && batchCreateSavedCount > 0) {
           const anchor = recordsToSave[0];
-          logExpenseCreate(
+          logExpenseCreateComplete(
             expenseCreationVariantFromRecord(anchor),
             buildExpenseLifecycleAnalyticsPayload(anchor),
             buildExpenseCreationCompletionPayload(anchor, {
@@ -4063,6 +4058,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           date: originalDateFormatted,
           isPrepaid: false,
           prepaidDate: undefined,
+          wasRestored: true,
           // originalDate는 원래 예정일로 유지 (변경하지 않음)
         });
       } catch (_error) {
@@ -4260,6 +4256,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               await updateExpense(recordId, {
                 isRefunded: false,
                 amount: restoredAmount,
+                wasRestored: true,
               });
             }
           }
@@ -4376,6 +4373,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             await updateExpense(recordId, {
               isRefunded: false,
               amount: restoredRecord.amount,
+              wasRestored: true,
             });
           }
         } catch (_error) {
@@ -4437,6 +4435,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           await updateExpense(recordIdGeneralRestore, {
             isRefunded: false,
             amount: restoredAmount,
+            wasRestored: true,
           });
         } catch (_error) {
           // ignore
@@ -4512,6 +4511,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         settledAt: undefined,
         originalAmountBeforeSettlement: undefined,
         amount: restoredAmount,
+        wasRestored: true,
       });
       if (!syncedRestore) {
         return;

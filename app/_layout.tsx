@@ -120,6 +120,7 @@ export default function RootLayout() {
           timestamp: Date.now(),
           platform: Platform.OS,
           environment: __DEV__ ? 'development' : 'production',
+          app_version: Constants.expoConfig?.version ?? 'unknown',
         });
 
         // 데이터 로딩 시작

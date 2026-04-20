@@ -1,9 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-  logChallengeCreate,
-  logChallengeDelete,
+  logChallengeCreated,
+  logChallengeCreatedComplete,
+  logChallengeDeleted,
+  logChallengeDeletedComplete,
+  logChallengeResult,
   type ChallengeCreationVariant,
   type ChallengeLifecycleAnalyticsPayload,
+  type ChallengeResultOutcome,
 } from '@/utils/analytics';
 
 const CHALLENGE_STORAGE_KEY = 'challengeData';
@@ -53,27 +57,68 @@ function sortChallenges(challenges: ChallengeRecord[]): ChallengeRecord[] {
 }
 
 /** 생성 화면의 반복(2~12개월)과 동일: durationMonths > 1 이면 isrecurring */
-function challengeDeletionVariantFromRecords(
-  records: ChallengeRecord[],
-): ChallengeCreationVariant {
-  if (records.some((r) => typeof r.durationMonths === 'number' && r.durationMonths > 1)) {
+function challengeCreationVariantFromRecord(record: ChallengeRecord): ChallengeCreationVariant {
+  if (typeof record.durationMonths === 'number' && record.durationMonths > 1) {
     return 'isrecurring';
   }
   return 'general';
 }
 
-function challengeLifecyclePayloadFromRecords(
-  records: ChallengeRecord[],
+function formatLocalDateTimeStr(ms: number): string {
+  const d = new Date(ms);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mi = String(d.getMinutes()).padStart(2, '0');
+  const ss = String(d.getSeconds()).padStart(2, '0');
+  return `${yyyy}.${mm}.${dd} ${hh}:${mi}:${ss}`;
+}
+
+function endDateToDateTimeStr(endDate: string): string {
+  // endDate: YYYY.MM.DD → 해당 일 00:00:00
+  const normalized = endDate.replace(/\./g, '-');
+  const d = new Date(`${normalized}T00:00:00`);
+  return isNaN(d.getTime()) ? endDate : formatLocalDateTimeStr(d.getTime());
+}
+
+/** `challenge_created` / `challenge_deleted`의 challenge_id와 동일 규칙 */
+function challengeAnalyticsIdFromRecord(record: ChallengeRecord): string {
+  return record.id ?? record.recurringId ?? '';
+}
+
+function challengeLifecyclePayloadFromRecord(
+  record: ChallengeRecord,
 ): ChallengeLifecycleAnalyticsPayload {
-  if (records.length === 0) {
-    return { is_recurring: false, duration_months: null };
-  }
-  const dm = records[0].durationMonths;
+  const dm = record.durationMonths;
   const isRecurring = typeof dm === 'number' && dm > 1;
   return {
+    challenge_id: challengeAnalyticsIdFromRecord(record),
     is_recurring: isRecurring,
     duration_months: isRecurring && typeof dm === 'number' ? dm : null,
+    created_at: formatLocalDateTimeStr(record.createdAt),
+    end_date: endDateToDateTimeStr(record.endDate),
   };
+}
+
+/** 삭제된 챌린지 건별 `challenge_deleted` + 그룹당 1회 `deleted_challenge_complete` */
+function emitChallengeDeleteLifecycleAnalytics(records: ChallengeRecord[]): void {
+  if (records.length === 0) {
+    return;
+  }
+  const normalizedBatch = records.map(normalizeChallenge);
+  for (const record of normalizedBatch) {
+    const variant = challengeCreationVariantFromRecord(record);
+    logChallengeDeleted(variant, challengeLifecyclePayloadFromRecord(record));
+  }
+  const rep = normalizedBatch[0];
+  const completeVariant = challengeCreationVariantFromRecord(rep);
+  const completeLife = challengeLifecyclePayloadFromRecord(rep);
+  logChallengeDeletedComplete({
+    challenge_variant: completeVariant,
+    is_recurring: completeLife.is_recurring,
+    duration_months: completeLife.duration_months,
+  });
 }
 
 async function loadLocalChallenges(): Promise<ChallengeRecord[]> {
@@ -116,9 +161,19 @@ export async function createChallenges(records: ChallengeRecord[]): Promise<Chal
   ];
 
   await saveLocalChallenges(merged);
-  const variant = challengeDeletionVariantFromRecords(records);
-  const lifecyclePayload = challengeLifecyclePayloadFromRecords(records);
-  logChallengeCreate(variant, lifecyclePayload);
+  const normalizedBatch = records.map(normalizeChallenge);
+  for (const record of normalizedBatch) {
+    const variant = challengeCreationVariantFromRecord(record);
+    logChallengeCreated(variant, challengeLifecyclePayloadFromRecord(record));
+  }
+  const rep = normalizedBatch[0];
+  const completeVariant = challengeCreationVariantFromRecord(rep);
+  const completeLife = challengeLifecyclePayloadFromRecord(rep);
+  logChallengeCreatedComplete({
+    challenge_variant: completeVariant,
+    is_recurring: completeLife.is_recurring,
+    duration_months: completeLife.duration_months,
+  });
   return records;
 }
 
@@ -213,10 +268,7 @@ export async function softDeleteChallengesByRecurringId(recurringId: string): Pr
 
   const deletedAt = new Date().toISOString();
   await updateChallengesByRecurringId(recurringId, { isDeleted: true, deletedAt });
-  logChallengeDelete(
-    challengeDeletionVariantFromRecords(group),
-    challengeLifecyclePayloadFromRecords(group),
-  );
+  emitChallengeDeleteLifecycleAnalytics(group);
 }
 
 export async function hardDeleteChallengesByRecurringId(recurringId: string): Promise<void> {
@@ -229,10 +281,9 @@ export async function hardDeleteChallengesByRecurringId(recurringId: string): Pr
   if (toRemove.length === 0) {
     return;
   }
-  const variant = challengeDeletionVariantFromRecords(toRemove);
   const filtered = challenges.filter((challenge) => challenge.recurringId !== recurringId);
   await saveLocalChallenges(filtered);
-  logChallengeDelete(variant, challengeLifecyclePayloadFromRecords(toRemove));
+  emitChallengeDeleteLifecycleAnalytics(toRemove);
 }
 
 /**
@@ -267,10 +318,20 @@ export async function deleteChallengesByCategory(categoryLabel: string): Promise
   }
   const filtered = challenges.filter((challenge) => challenge.category !== categoryLabel);
   await saveLocalChallenges(filtered);
-  logChallengeDelete(
-    challengeDeletionVariantFromRecords(removedRecords),
-    challengeLifecyclePayloadFromRecords(removedRecords),
-  );
+
+  const byGroup = new Map<string, ChallengeRecord[]>();
+  for (const r of removedRecords) {
+    const key = r.recurringId && r.recurringId.length > 0 ? r.recurringId : r.id;
+    const list = byGroup.get(key);
+    if (list) {
+      list.push(r);
+    } else {
+      byGroup.set(key, [r]);
+    }
+  }
+  for (const group of byGroup.values()) {
+    emitChallengeDeleteLifecycleAnalytics(group);
+  }
 }
 
 export async function getChallengeById(id: string): Promise<ChallengeRecord | null> {
@@ -310,6 +371,27 @@ export async function getChallengesByDateRange(
 
 export async function getAllChallenges(): Promise<ChallengeRecord[]> {
   return loadLocalChallenges();
+}
+
+/** 종료 챌린지 판정 시 `challenge_result` (로컬 시각 `judged_at`). */
+export function logChallengeResultForRecord(
+  record: ChallengeRecord,
+  judgedAtMs: number,
+  result: ChallengeResultOutcome,
+): void {
+  const normalized = normalizeChallenge(record);
+  const life = challengeLifecyclePayloadFromRecord(normalized);
+  const variant = challengeCreationVariantFromRecord(normalized);
+  logChallengeResult({
+    challenge_id: life.challenge_id,
+    challenge_variant: variant,
+    is_recurring: life.is_recurring,
+    duration_months: life.duration_months,
+    created_at: life.created_at,
+    judged_at: formatLocalDateTimeStr(judgedAtMs),
+    end_date: life.end_date,
+    result,
+  });
 }
 
 export async function clearAllChallenges(): Promise<void> {
