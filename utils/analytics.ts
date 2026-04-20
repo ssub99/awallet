@@ -53,9 +53,9 @@ function resolveAmplitudeApiKey(): string | null {
   const debugKey = process.env.EXPO_PUBLIC_AMPLITUDE_API_KEY_DEBUG?.trim();
   const legacyKey = process.env.EXPO_PUBLIC_AMPLITUDE_API_KEY?.trim();
 
-  // 스토어·production 채널: PROD 키만 사용 (legacy 폴백 시 Debug 프로젝트로 잘못 붙는 것 방지)
+  // 스토어·production 채널: PROD 우선, 없으면 legacy(1.1.0과 동일·기존 스토어 빌드 호환)
   if (isProductionRuntime()) {
-    return prodKey || null;
+    return prodKey || legacyKey || null;
   }
   return debugKey || legacyKey || null;
 }
