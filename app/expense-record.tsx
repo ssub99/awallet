@@ -3289,10 +3289,12 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         }
 
         // 지출 기록 저장
-        // record_created: 건별 발행 / created_complete: 정기·할부 배치 성공 후 1회
+        // record_created: 건별 발행 / created_complete: 일반 단건 또는 정기·할부 배치 성공 후 1회
         const isBatchCreate =
           mode !== 'edit' && (isRecurring || isInstallment) && recordsToSave.length > 0;
         let batchCreateSavedCount = 0;
+        let generalCreateSavedCount = 0;
+        let generalCreateAnchor: ExpenseRecordType | null = null;
 
         for (const record of recordsToSave) {
           try {
@@ -3317,12 +3319,34 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               await createExpense(record);
               if (isBatchCreate) {
                 batchCreateSavedCount += 1;
+              } else if (mode !== 'edit') {
+                generalCreateSavedCount += 1;
+                if (generalCreateAnchor === null) {
+                  generalCreateAnchor = record;
+                }
               }
             }
           } catch (error) {
             console.error('[expense-record] Failed to save expense:', record.timestamp, error);
             // 개별 기록 저장 실패해도 다음 기록 계속 처리
           }
+        }
+
+        // created_complete: 일반 단건 생성 완료 1회
+        if (
+          !isBatchCreate &&
+          mode !== 'edit' &&
+          generalCreateSavedCount > 0 &&
+          generalCreateAnchor !== null
+        ) {
+          logExpenseCreateComplete(
+            expenseCreationVariantFromRecord(generalCreateAnchor),
+            buildExpenseLifecycleAnalyticsPayload(generalCreateAnchor),
+            buildExpenseCreationCompletionPayload(generalCreateAnchor, {
+              repeatCountOverride: generalCreateSavedCount,
+              simpleCreation: false,
+            }),
+          );
         }
 
         // created_complete: 정기·할부 배치 완료 1회
