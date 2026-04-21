@@ -381,6 +381,13 @@ export async function getAllChallenges(): Promise<ChallengeRecord[]> {
   return loadLocalChallenges();
 }
 
+/**
+ * 복원용: 전체 챌린지 데이터를 주어진 배열로 교체합니다.
+ */
+export async function replaceAllChallenges(records: ChallengeRecord[]): Promise<void> {
+  await saveLocalChallenges(records.map(normalizeChallenge));
+}
+
 /** 종료 챌린지 판정 시 `challenge_result` (로컬 시각 `judged_at`). */
 export function logChallengeResultForRecord(
   record: ChallengeRecord,

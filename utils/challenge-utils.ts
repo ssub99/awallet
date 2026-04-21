@@ -518,6 +518,63 @@ async function forEachChallengeEndedYesterday(
 }
 
 /**
+ * 백업 복원 직후: 이미 종료된 챌린지는 `challenge_result`를 보내지 않도록
+ * `emitEndedChallengeResultAnalytics`와 동일한 키(`challenge_result_logged_<id>`)를 선마킹합니다.
+ * 진행 중 챌린지(종료일 ≥ 오늘 자정)는 건드리지 않아, 이후 정상 종료 시 결과 이벤트가 나갈 수 있습니다.
+ */
+export async function suppressChallengeResultAnalyticsForRestoredEndedChallenges(
+  challenges: ChallengeData[],
+): Promise<void> {
+  if (challenges.length === 0) {
+    return;
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const pairs: [string, string][] = [];
+  const seenIds = new Set<string>();
+
+  for (const challenge of challenges) {
+    if (challenge.isDeleted) {
+      continue;
+    }
+    const id = typeof challenge.id === 'string' ? challenge.id.trim() : '';
+    if (!id || seenIds.has(id)) {
+      continue;
+    }
+    const endRaw = typeof challenge.endDate === 'string' ? challenge.endDate.trim() : '';
+    if (!endRaw) {
+      continue;
+    }
+
+    const endDate = new Date(endRaw.replace(/\./g, '-'));
+    if (Number.isNaN(endDate.getTime())) {
+      continue;
+    }
+    endDate.setHours(0, 0, 0, 0);
+
+    // `forEachChallengeEndedBeforeToday`와 동일: 종료일 당일은 아직 기간에 포함 → 제외
+    if (endDate.getTime() >= today.getTime()) {
+      continue;
+    }
+
+    seenIds.add(id);
+    pairs.push([`challenge_result_logged_${id}`, '1']);
+  }
+
+  if (pairs.length === 0) {
+    return;
+  }
+
+  try {
+    await AsyncStorage.multiSet(pairs);
+  } catch (error) {
+    console.error('[challenge-utils] Failed to suppress challenge_result after restore:', error);
+  }
+}
+
+/**
  * 기간이 끝난 챌린지에 대해 challenge_result 분석만 기록 (알림·푸시 설정과 무관).
  * 종료 다음날 이후 언제 앱을 열든(또는 포그라운드 복귀) 그 시점 상태로 1회만 전송.
  * `judged_at`은 호출 시각(Date.now) 기준 로컬 시각.
