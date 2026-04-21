@@ -1,7 +1,7 @@
 /**
  * AWallet 백업/복원
  *
- * - 전용 파일(.awbak): JSON (version, exportedAt, expenses, incomes)
+ * - 전용 파일(.awbak): JSON (version, exportedAt, expenses, incomes, challenges)
  *   소비/입금 레코드 전체 필드를 포함해 서비스 기능을 온전히 백업·복원합니다.
  *   포함 항목: (1) 날짜 (2) 카테고리 (3) 수입/소비 (4) 금액 (5) 자산유형(신용/체크/현금)
  *   (6) 반복여부(일반/정기/할부) (7) 정산여부(선결제, 환불, 결산) (8) 주말옵션 (9) 메모
@@ -22,6 +22,12 @@ import {
 import { applySavedOrder, loadCategoryOrder, saveCategoryOrder } from '@/utils/category-order';
 import { loadCategories, saveCategories } from '@/utils/categories';
 import { resetAppStoreReviewProgressAfterRestore } from '@/utils/app-store-review-lifetime';
+import { suppressChallengeResultAnalyticsForRestoredEndedChallenges } from '@/utils/challenge-utils';
+import {
+  getAllChallenges,
+  replaceAllChallenges,
+  type ChallengeRecord,
+} from '@/utils/challenges';
 import { getAllExpenses, replaceAllExpenses, type ExpenseRecord, type PaymentMethod } from '@/utils/expenses';
 import { getAllIncomes, replaceAllIncomes, type IncomeRecord } from '@/utils/incomes';
 import * as XLSX from 'xlsx-js-style';
@@ -76,6 +82,8 @@ export interface BackupPayload {
   exportedAt: string; // ISO 8601
   expenses: ExpenseRecord[];
   incomes: IncomeRecord[];
+  /** 생성된 챌린지 목록. 없으면 구버전 백업으로 간주 */
+  challenges?: ChallengeRecord[];
   /** 수입/소비 카테고리 설정 (복원 시 초기화된 카테고리를 덮어씀). 없으면 기존 .awbak 호환 */
   categoriesExpense?: Category[];
   categoriesIncome?: Category[];
@@ -105,6 +113,7 @@ export async function createBackupPayload(): Promise<BackupPayload> {
   const [
     expenses,
     incomes,
+    challenges,
     categoriesExpenseRaw,
     categoriesIncomeRaw,
     orderExpense,
@@ -112,6 +121,7 @@ export async function createBackupPayload(): Promise<BackupPayload> {
   ] = await Promise.all([
     getAllExpenses(),
     getAllIncomes(),
+    getAllChallenges(),
     loadCategories('expense'),
     loadCategories('income'),
     loadCategoryOrder('expense'),
@@ -126,6 +136,7 @@ export async function createBackupPayload(): Promise<BackupPayload> {
     exportedAt: new Date().toISOString(),
     expenses,
     incomes,
+    challenges,
     categoriesExpense,
     categoriesIncome,
   };
@@ -180,6 +191,7 @@ export function parseBackupPayload(json: string): BackupPayload | null {
       Array.isArray((raw as BackupPayload).incomes)
     ) {
       const payload = raw as BackupPayload;
+      if (payload.challenges !== undefined && !Array.isArray(payload.challenges)) return null;
       if (payload.categoriesExpense !== undefined && !isCategoryArray(payload.categoriesExpense)) return null;
       if (payload.categoriesIncome !== undefined && !isCategoryArray(payload.categoriesIncome)) return null;
       return payload;
@@ -229,6 +241,7 @@ export async function restoreFromBackupFile(fileUri: string): Promise<void> {
 
   const expenses = Array.isArray(payload.expenses) ? payload.expenses : [];
   const incomes = Array.isArray(payload.incomes) ? payload.incomes : [];
+  const challenges = Array.isArray(payload.challenges) ? payload.challenges : [];
 
   if (payload.categoriesExpense?.length) {
     await saveCategories('expense', payload.categoriesExpense);
@@ -242,7 +255,9 @@ export async function restoreFromBackupFile(fileUri: string): Promise<void> {
   await Promise.all([
     replaceAllExpenses(expenses),
     replaceAllIncomes(incomes),
+    replaceAllChallenges(challenges),
   ]);
+  await suppressChallengeResultAnalyticsForRestoredEndedChallenges(challenges);
   await finalizeRestoreSideEffects();
 }
 
@@ -788,10 +803,13 @@ export async function restoreFromFile(fileUri: string): Promise<void> {
         await saveCategories('income', payload.categoriesIncome);
         await saveCategoryOrder('income', payload.categoriesIncome);
       }
+      const restoredChallenges = Array.isArray(payload.challenges) ? payload.challenges : [];
       await Promise.all([
         replaceAllExpenses(Array.isArray(payload.expenses) ? payload.expenses : []),
         replaceAllIncomes(Array.isArray(payload.incomes) ? payload.incomes : []),
+        replaceAllChallenges(restoredChallenges),
       ]);
+      await suppressChallengeResultAnalyticsForRestoredEndedChallenges(restoredChallenges);
       await finalizeRestoreSideEffects();
       return;
     }

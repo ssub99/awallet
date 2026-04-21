@@ -11,6 +11,7 @@ import { useAppData } from '@/contexts/app-data-context';
 import { useLoading } from '@/contexts/loading-context';
 import { useToast } from '@/contexts/toast-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { logEvent } from '@/utils/analytics';
 import { refreshWidgetWithCurrentMonth } from '@/utils/widget-data-sync';
 import { resetAppData } from '@/utils/reset-app-data';
 import { useRouter } from 'expo-router';
@@ -26,6 +27,15 @@ import { ModalPopup } from '@/components/ui/modal-popup';
 const EMAIL_SUBJECT_BACKUP = '[AWallet] 데이터 백업';
 const EMAIL_BODY_BACKUP = 'AWallet 데이터 백업 파일이 첨부되어 있습니다.';
 const SHARE_DIALOG_TITLE = '데이터 백업 파일 보내기';
+type EventStatus = 'success' | 'fail';
+
+function logBackupStatus(status: EventStatus): void {
+  void logEvent('backup', { status });
+}
+
+function logRestoreStatus(status: EventStatus): void {
+  void logEvent('restore', { status });
+}
 
 /**
  * 백업 파일을 시스템 공유 시트로 연다.
@@ -131,8 +141,10 @@ export default function DataBackupScreen() {
           showToast(message);
         },
       );
+      logBackupStatus('success');
     } catch (error) {
       console.error('[data-backup] 엑셀 백업/공유 오류:', error);
+      logBackupStatus('fail');
       showToast('백업이 실패했습니다. 다시 시도해 주세요.');
     } finally {
       setLoading(false);
@@ -147,8 +159,10 @@ export default function DataBackupScreen() {
       await openBackupShare(path, 'application/octet-stream', (_title, message) => {
         showToast(message);
       });
+      logBackupStatus('success');
     } catch (error) {
       console.error('[data-backup] 전용파일 백업/공유 오류:', error);
+      logBackupStatus('fail');
       showToast('백업이 실패했습니다. 다시 시도해 주세요.');
     } finally {
       setLoading(false);
@@ -205,9 +219,11 @@ export default function DataBackupScreen() {
         await restoreFromFile(uri);
         await refresh();
         await refreshWidgetWithCurrentMonth().catch(() => {});
+        logRestoreStatus('success');
         showToast('정상적으로 복원이 되었습니다.');
       } catch (error) {
         console.error('[data-backup] 복원 오류:', error);
+        logRestoreStatus('fail');
         const errMsg = error instanceof Error ? error.message : '';
         const isValidationError = errMsg === 'RESTORE_VALIDATION_FAILED';
         const isVersionTooNew = errMsg === 'BACKUP_VERSION_TOO_NEW';
@@ -222,6 +238,7 @@ export default function DataBackupScreen() {
       }
     } catch (pickError) {
       console.error('[data-backup] 파일 선택 오류:', pickError);
+      logRestoreStatus('fail');
       const isNativeModuleMissing =
         pickError instanceof Error &&
         (pickError.message.includes('Cannot find native module') ||
