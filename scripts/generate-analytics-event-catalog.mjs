@@ -280,7 +280,7 @@ const ANALYTICS_WRAPPERS = [
   {
     fn: 'logRecordLifecycleCount',
     emits: '(create→record_created / delete→record_deleted)',
-    keys: ['record_type', 'app_runtime'],
+    keys: ['record_type', 'repeat_count', 'app_runtime'],
   },
 ];
 
