@@ -293,7 +293,7 @@ function resolveMessageValidationToast(message: string, categoryLabels: string[]
 }
 
 function hasIncomeHintInMessage(message: string): boolean {
-  return /월급|급여|보너스|입금|용돈|환급|수입/.test(message) || /salary|income|bonus/.test(message.toLowerCase());
+  return /월급|급여|보너스|입금|용돈|환급|수입|꽁돈|용돈받/.test(message) || /salary|income|bonus|windfall/.test(message.toLowerCase());
 }
 
 function formatDateDisplay(dateStr: string): string {
@@ -529,6 +529,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
 
   const quickInputRef = useRef<TextInput>(null);
   const paymentSubtypesCacheRef = useRef<PaymentSubtype[]>([]);
+  const expenseCategoriesCacheRef = useRef<Array<{ label: string; emoji: string }>>([]);
+  const incomeCategoriesCacheRef = useRef<Array<{ label: string; emoji: string }>>([]);
   const quickInputBackdropOpacity = useRef(new RNAnimated.Value(0)).current;
   /** 숏/롱 동일 애니메이션: 부모 starScale/starRotate 공유. 새로고침 시 크래시 방지를 위해 fallback 보유 */
   const starRefs = useRef<{ starScale: AnimatedValue; starRotate: AnimatedValue } | null>(null);
@@ -607,6 +609,24 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     return loaded;
   }, []);
 
+  const getExpenseCategoriesCached = useCallback(async () => {
+    if (expenseCategoriesCacheRef.current.length > 0) {
+      return expenseCategoriesCacheRef.current;
+    }
+    const loaded = await loadCategories('expense');
+    expenseCategoriesCacheRef.current = loaded;
+    return loaded;
+  }, []);
+
+  const getIncomeCategoriesCached = useCallback(async () => {
+    if (incomeCategoriesCacheRef.current.length > 0) {
+      return incomeCategoriesCacheRef.current;
+    }
+    const loaded = await loadCategories('income');
+    incomeCategoriesCacheRef.current = loaded;
+    return loaded;
+  }, []);
+
   const handleSend = useCallback(async () => {
     if (!quickInputText.trim()) return;
     if (confirmCardData != null) {
@@ -637,14 +657,12 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     setIsQuickInputSendLoading(true);
 
     try {
-      const categoryList = await loadCategories('expense');
-      const incomeCategoryList = await loadCategories('income');
+      const [categoryList, incomeCategoryList] = await Promise.all([
+        getExpenseCategoriesCached(),
+        getIncomeCategoriesCached(),
+      ]);
       const categories = [...categoryList, ...incomeCategoryList].map((c) => c.label);
-      const paymentSubtypes = await getPaymentSubtypesCached();
-      const paymentSubtypeOptions = paymentSubtypes.map((item) => ({
-        type: item.type,
-        label: item.label,
-      }));
+      const paymentSubtypesPromise = getPaymentSubtypesCached();
       const date = new Date();
       const today = `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}`;
       const securityHeaders = await getApiSecurityHeaders();
@@ -655,7 +673,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
           'Content-Type': 'application/json',
           ...securityHeaders,
         },
-        body: JSON.stringify({ message, categories, paymentSubtypes: paymentSubtypeOptions, today }),
+        body: JSON.stringify({ message, categories, today }),
       });
 
       const data = (await res.json()) as {
@@ -687,6 +705,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
 
       nonRecordCountRef.current = 0;
       const first = applyMessageFallback(records[0], message);
+      const paymentSubtypes = await paymentSubtypesPromise;
       const isIncomeRecord = first.recordType === 'income' || hasIncomeHintInMessage(message);
       const matchedSubtypeForFirst =
         !isIncomeRecord
@@ -777,7 +796,14 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     } finally {
       setIsQuickInputSendLoading(false);
     }
-  }, [quickInputText, confirmCardData, getPaymentSubtypesCached, showToast]);
+  }, [
+    quickInputText,
+    confirmCardData,
+    getExpenseCategoriesCached,
+    getIncomeCategoriesCached,
+    getPaymentSubtypesCached,
+    showToast,
+  ]);
 
   const handleConfirmCardAdd = useCallback(async () => {
     if (isConfirmAddInFlightRef.current || isQuickInputConfirmAdding) {
@@ -1080,6 +1106,17 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       return () => clearTimeout(timer);
     }
   }, [isQuickInputVisible]);
+
+  // 간편입력 체감 성능 개선: 자주 쓰는 데이터 사전 캐시
+  useEffect(() => {
+    void Promise.all([
+      getExpenseCategoriesCached(),
+      getIncomeCategoriesCached(),
+      getPaymentSubtypesCached(),
+    ]).catch(() => {
+      // ignore preload failure
+    });
+  }, [getExpenseCategoriesCached, getIncomeCategoriesCached, getPaymentSubtypesCached]);
 
   // measureInWindow 타이밍/키보드 핸들러 레이스 대비: 오버레이 마운트 후 초기 위치 강화
   useEffect(() => {

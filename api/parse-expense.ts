@@ -82,7 +82,7 @@ function buildExpenseSystemPrompt(
 
 규칙:
 1. 요청 없으면 생성/삭제 금지.
-1-1. 수입 키워드(월급/급여/보너스/입금/용돈/환급)면 recordType을 income으로 설정.
+1-1. 수입 키워드(월급/급여/보너스/입금/용돈/환급/꽁돈)면 recordType을 income으로 설정.
 2. 결제 기본: credit. 체크/현금 요청 시 debit/cash. 기본값 지정 요청 시 기억.
 2-1. 사용자가 카드사/카드명(예: 신한카드)을 언급하면 paymentSubtypeLabel에 해당 결제유형 라벨을 넣음.
 2-2. paymentMethod가 cash면 paymentSubtypeLabel은 반드시 빈 값(생략).
@@ -352,7 +352,7 @@ export async function POST(request: Request): Promise<Response> {
     const hasInstallmentHint = /할부|\d+개월\s*할부/.test(msg);
     if (result.records.length > 0) {
       const first = result.records[0] as ExpenseRecordSuggestion;
-      const hasIncomeHint = /월급|급여|보너스|입금|용돈|환급|수입/.test(msg) || /salary|income|bonus/.test(msg);
+      const hasIncomeHint = /월급|급여|보너스|입금|용돈|환급|수입|꽁돈|용돈받/.test(msg) || /salary|income|bonus|windfall/.test(msg);
       if (hasIncomeHint) {
         result = {
           ...result,
