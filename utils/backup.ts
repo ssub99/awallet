@@ -30,6 +30,12 @@ import {
 } from '@/utils/challenges';
 import { getAllExpenses, replaceAllExpenses, type ExpenseRecord, type PaymentMethod } from '@/utils/expenses';
 import { getAllIncomes, replaceAllIncomes, type IncomeRecord } from '@/utils/incomes';
+import {
+  loadPaymentSubtypes,
+  savePaymentSubtypes,
+  type PaymentSubtype,
+  migrateExpensePaymentSubtypeId,
+} from '@/utils/payment-types';
 import * as XLSX from 'xlsx-js-style';
 
 const CALENDAR_DATA_KEY = 'calendarData';
@@ -39,7 +45,7 @@ const CONSUMPTION_REPORT_RESET_AT_KEY = 'consumptionReportResetAt';
 export const BACKUP_FILE_EXTENSION = '.awbak';
 export const CSV_FILE_EXTENSION = '.csv';
 export const XLSX_FILE_EXTENSION = '.xlsx';
-const BACKUP_VERSION = 1;
+const BACKUP_VERSION = 2;
 
 /** 엑셀 복원 시 필수 항목 공백/형식 오류 시 throw되는 메시지 (화면에서 토스트 문구 분기용) */
 export const RESTORE_VALIDATION_ERROR = 'RESTORE_VALIDATION_FAILED';
@@ -87,6 +93,8 @@ export interface BackupPayload {
   /** 수입/소비 카테고리 설정 (복원 시 초기화된 카테고리를 덮어씀). 없으면 기존 .awbak 호환 */
   categoriesExpense?: Category[];
   categoriesIncome?: Category[];
+  /** 결제 유형 설정(신용/체크 세부 유형) */
+  paymentSubtypes?: PaymentSubtype[];
 }
 
 /** recurringType undefined → null (JSON 저장 시) */
@@ -118,6 +126,7 @@ export async function createBackupPayload(): Promise<BackupPayload> {
     categoriesIncomeRaw,
     orderExpense,
     orderIncome,
+    paymentSubtypes,
   ] = await Promise.all([
     getAllExpenses(),
     getAllIncomes(),
@@ -126,6 +135,7 @@ export async function createBackupPayload(): Promise<BackupPayload> {
     loadCategories('income'),
     loadCategoryOrder('expense'),
     loadCategoryOrder('income'),
+    loadPaymentSubtypes(),
   ]);
   const categoriesExpense =
     orderExpense?.length ? applySavedOrder(categoriesExpenseRaw, orderExpense) : categoriesExpenseRaw;
@@ -139,6 +149,7 @@ export async function createBackupPayload(): Promise<BackupPayload> {
     challenges,
     categoriesExpense,
     categoriesIncome,
+    paymentSubtypes,
   };
 }
 
@@ -194,6 +205,7 @@ export function parseBackupPayload(json: string): BackupPayload | null {
       if (payload.challenges !== undefined && !Array.isArray(payload.challenges)) return null;
       if (payload.categoriesExpense !== undefined && !isCategoryArray(payload.categoriesExpense)) return null;
       if (payload.categoriesIncome !== undefined && !isCategoryArray(payload.categoriesIncome)) return null;
+      if (payload.paymentSubtypes !== undefined && !Array.isArray(payload.paymentSubtypes)) return null;
       return payload;
     }
   } catch {
@@ -251,9 +263,17 @@ export async function restoreFromBackupFile(fileUri: string): Promise<void> {
     await saveCategories('income', payload.categoriesIncome);
     await saveCategoryOrder('income', payload.categoriesIncome);
   }
+  if (Array.isArray(payload.paymentSubtypes) && payload.paymentSubtypes.length > 0) {
+    await savePaymentSubtypes(payload.paymentSubtypes);
+  }
+
+  const resolvedPaymentSubtypes = await loadPaymentSubtypes();
+  const migratedExpenses = expenses.map((record) =>
+    migrateExpensePaymentSubtypeId(record, resolvedPaymentSubtypes)
+  );
 
   await Promise.all([
-    replaceAllExpenses(expenses),
+    replaceAllExpenses(migratedExpenses),
     replaceAllIncomes(incomes),
     replaceAllChallenges(challenges),
   ]);
@@ -803,9 +823,16 @@ export async function restoreFromFile(fileUri: string): Promise<void> {
         await saveCategories('income', payload.categoriesIncome);
         await saveCategoryOrder('income', payload.categoriesIncome);
       }
+      if (Array.isArray(payload.paymentSubtypes) && payload.paymentSubtypes.length > 0) {
+        await savePaymentSubtypes(payload.paymentSubtypes);
+      }
       const restoredChallenges = Array.isArray(payload.challenges) ? payload.challenges : [];
+      const resolvedPaymentSubtypes = await loadPaymentSubtypes();
+      const migratedExpenses = (Array.isArray(payload.expenses) ? payload.expenses : []).map((record) =>
+        migrateExpensePaymentSubtypeId(record, resolvedPaymentSubtypes)
+      );
       await Promise.all([
-        replaceAllExpenses(Array.isArray(payload.expenses) ? payload.expenses : []),
+        replaceAllExpenses(migratedExpenses),
         replaceAllIncomes(Array.isArray(payload.incomes) ? payload.incomes : []),
         replaceAllChallenges(restoredChallenges),
       ]);

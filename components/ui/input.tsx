@@ -207,6 +207,12 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
     : colors.textAssistive;
   const resolvedSortationColor = sortationColor ?? colors.primary;
   const shouldUseCompactEmojiGap = !!sortationEmoji && !showSortationDot;
+  const shouldUseCustomLinePlaceholder =
+    variant === 'line' &&
+    inputType === 'text' &&
+    !buttonMode &&
+    !valueRenderer &&
+    !shortver;
 
   // Format number with commas
   const formatNumber = (text: string) => {
@@ -319,44 +325,60 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
                   {valueRenderer}
                 </View>
               ) : (
-                <TextInput
-                  ref={inputRef}
-                  style={[
-                    styles.input,
-                    { color: textColor },
-                    inputType === 'number' && styles.inputNumber,
-                    variant === 'area' && styles.inputArea,
-                    shortver && styles.inputShort,
-                    shouldUseCompactEmojiGap && styles.inputEmojiGapCompact,
-                    (textInputProps as any).style,
-                  ]}
-                  value={value}
-                  onChangeText={handleChangeText}
-                  onFocus={(e) => {
-                    setIsFocused(true);
-                    textInputProps.onFocus?.(e);
-                  }}
-                  onBlur={(e) => {
-                    setIsFocused(false);
-                    textInputProps.onBlur?.(e);
-                  }}
-                  placeholder={finalPlaceholder}
-                  placeholderTextColor={placeholderColor}
-                  editable={!disabled && textInputProps.editable !== false}
-                  pointerEvents={textInputProps.editable === false ? 'none' : 'auto'}
-                  onPressIn={() => {
-                    // disabled 상태일 때 onPress 호출
-                    if (disabled && onPress) {
-                      onPress();
-                    }
-                  }}
-                  multiline={variant === 'area'}
-                  textAlignVertical={variant === 'area' ? 'top' : 'center'}
-                  keyboardType={externalKeyboardType || (inputType === 'number' ? 'number-pad' : 'default')}
-                  accessibilityLabel={finalPlaceholder}
-                  accessibilityState={{ disabled }}
-                  {...textInputProps}
-                />
+                <View style={styles.inputFieldWrap}>
+                  <TextInput
+                    ref={inputRef}
+                    style={[
+                      styles.input,
+                      { color: textColor },
+                      variant === 'line' && !shortver && styles.inputLine,
+                      inputType === 'number' && styles.inputNumber,
+                      variant === 'area' && styles.inputArea,
+                      shortver && styles.inputShort,
+                      shouldUseCompactEmojiGap && styles.inputEmojiGapCompact,
+                      (textInputProps as any).style,
+                    ]}
+                    value={value}
+                    onChangeText={handleChangeText}
+                    onFocus={(e) => {
+                      setIsFocused(true);
+                      textInputProps.onFocus?.(e);
+                    }}
+                    onBlur={(e) => {
+                      setIsFocused(false);
+                      textInputProps.onBlur?.(e);
+                    }}
+                    placeholder={shouldUseCustomLinePlaceholder ? '' : finalPlaceholder}
+                    placeholderTextColor={placeholderColor}
+                    editable={!disabled && textInputProps.editable !== false}
+                    pointerEvents={textInputProps.editable === false ? 'none' : 'auto'}
+                    onPressIn={() => {
+                      // disabled 상태일 때 onPress 호출
+                      if (disabled && onPress) {
+                        onPress();
+                      }
+                    }}
+                    multiline={variant === 'area'}
+                    textAlignVertical={variant === 'area' ? 'top' : 'center'}
+                    keyboardType={externalKeyboardType || (inputType === 'number' ? 'number-pad' : 'default')}
+                    accessibilityLabel={finalPlaceholder}
+                    accessibilityState={{ disabled }}
+                    {...textInputProps}
+                  />
+                  {shouldUseCustomLinePlaceholder && !value ? (
+                    <Text
+                      pointerEvents="none"
+                      numberOfLines={1}
+                      style={[
+                        styles.inputPlaceholderText,
+                        { color: placeholderColor },
+                        shouldUseCompactEmojiGap && styles.inputEmojiGapCompact,
+                      ]}
+                    >
+                      {finalPlaceholder}
+                    </Text>
+                  ) : null}
+                </View>
               )}
             </View>
 
@@ -422,8 +444,8 @@ const styles = StyleSheet.create({
   },
   containerLine: {
     height: 48,
-    paddingTop: 11,    // 12 - 1 = 11px
-    paddingBottom: 13, // 12 + 1 = 13px
+    // line 입력은 48 높이 내에서 텍스트(24)를 정확히 중앙 정렬
+    paddingVertical: 12,
   },
   containerLineShort: {
     height: 36,
@@ -460,8 +482,25 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Pretendard',
     fontWeight: '400',
+    includeFontPadding: false,
     padding: 0,
     margin: 0,
+  },
+  inputFieldWrap: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  inputLine: {
+    height: 24,
+    textAlignVertical: 'center',
+  },
+  inputPlaceholderText: {
+    ...Typography.body1.l.regular,
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    includeFontPadding: false,
+    lineHeight: 24,
   },
   inputShort: {
     ...Typography.body2.r.regular,

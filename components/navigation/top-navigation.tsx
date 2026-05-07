@@ -6,7 +6,7 @@
  */
 
 import { DatePicker } from '@/components/ui/date-picker';
-import { Icon } from '@/components/ui/icon';
+import { Icon, type IconName } from '@/components/ui/icon';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { logEvent } from '@/utils/analytics';
@@ -79,6 +79,21 @@ export interface TopNavigationProps {
    * Right button press handler
    */
   onRightButtonPress?: () => void;
+
+  /**
+   * Show right icon button (sub type)
+   */
+  showRightIcon?: boolean;
+
+  /**
+   * Right icon name
+   */
+  rightIconName?: IconName;
+
+  /**
+   * Right icon press handler
+   */
+  onRightIconPress?: () => void;
   
   /**
    * Period type for main type (year/month toggle)
@@ -158,6 +173,9 @@ export function TopNavigation({
   showRightButton = false,
   rightButtonText = '확인',
   onRightButtonPress,
+  showRightIcon = false,
+  rightIconName = 'filter',
+  onRightIconPress,
   periodType = 'month',
   onPeriodChange,
   periodToggleAnalyticsScreenName,
@@ -194,6 +212,12 @@ export function TopNavigation({
   const handleRightButtonPress = () => {
     if (onRightButtonPress) {
       onRightButtonPress();
+    }
+  };
+
+  const handleRightIconPress = () => {
+    if (onRightIconPress) {
+      onRightIconPress();
     }
   };
 
@@ -401,6 +425,17 @@ export function TopNavigation({
               <Text style={[styles.rightButtonText, { color: colors.staticWhite }]}>
                 {rightButtonText}
               </Text>
+            </Pressable>
+          )}
+
+          {type === 'sub' && showRightIcon && (
+            <Pressable
+              onPress={handleRightIconPress}
+              style={styles.iconButton}
+              accessibilityRole="button"
+              accessibilityLabel={`${rightIconName} 아이콘 버튼`}
+            >
+              <Icon name={rightIconName} size={24} color={colors.text} />
             </Pressable>
           )}
         </View>

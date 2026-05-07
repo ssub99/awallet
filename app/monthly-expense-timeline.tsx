@@ -5,6 +5,8 @@
  */
 
 import { TopNavigation } from '@/components/navigation/top-navigation';
+import { Icon } from '@/components/ui/icon';
+import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
 import { Tag } from '@/components/ui/tag';
 import { Colors, Typography } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';
@@ -15,7 +17,9 @@ import { applyPendingCalendarTargetEvent, setLatestPendingCalendarTarget } from 
 import { logEvent } from '@/utils/analytics';
 import { loadCategories } from '@/utils/categories';
 import { getCustomMonthRange, isDateInCustomMonth } from '@/utils/custom-month';
+import { initializePaymentSubtypes, type PaymentSubtype } from '@/utils/payment-types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BlurView } from 'expo-blur';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -28,6 +32,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -65,6 +70,7 @@ interface TimelineItem {
   weekendOption?: 'weekend' | 'friday' | 'monday';
   recurringType?: string; // 정기 기록 반복 타입 (매일, 매주, 2주, 3주, 4주, 매월, 2개월 마다, 4개월 마다, 6개월 마다, 주중, 주말)
   paymentMethod?: 'credit' | 'debit' | 'cash';
+  paymentSubtypeId?: string;
   isPrepaid?: boolean;
   prepaidDate?: string; // 선결제 처리 날짜
   recurringId?: string;
@@ -92,7 +98,12 @@ interface ChallengeData {
   recurringId: string; // 반복 챌린지의 그룹 ID
 }
 
+type PaymentFilterType = 'all' | 'cash' | 'subtype';
+
+const TIMELINE_PAYMENT_FILTER_STORAGE_KEY = 'monthlyTimelinePaymentFilter_v1';
+
 export default function MonthlyExpenseTimelineScreen() {
+  const { height: windowHeight } = useWindowDimensions();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
   const categoryEmojiMap = useCategoryEmojiMap();
@@ -110,6 +121,103 @@ export default function MonthlyExpenseTimelineScreen() {
   }, [setLoading]);
   const router = useRouter();
   const [monthStartDay, setMonthStartDay] = useState(1);
+  const [showPaymentFilterSheet, setShowPaymentFilterSheet] = useState(false);
+  const [paymentSubtypes, setPaymentSubtypes] = useState<PaymentSubtype[]>([]);
+  const [paymentFilterKeys, setPaymentFilterKeys] = useState<string[]>([]);
+  const [draftPaymentFilterKeys, setDraftPaymentFilterKeys] = useState<string[]>([]);
+  const handleFilterPress = useCallback(() => {
+    setDraftPaymentFilterKeys(paymentFilterKeys);
+    setShowPaymentFilterSheet(true);
+  }, [paymentFilterKeys]);
+
+  useEffect(() => {
+    let active = true;
+    const loadFilterState = async () => {
+      try {
+        const stored = await AsyncStorage.getItem(TIMELINE_PAYMENT_FILTER_STORAGE_KEY);
+        if (!active || !stored) return;
+        const parsed = JSON.parse(stored) as unknown;
+        if (Array.isArray(parsed) && parsed.every((key) => typeof key === 'string')) {
+          setPaymentFilterKeys(parsed as string[]);
+          return;
+        }
+        // legacy 단일 선택 포맷 마이그레이션
+        const legacy = parsed as { type?: PaymentFilterType; subtypeId?: string };
+        if (legacy?.type === 'cash') {
+          setPaymentFilterKeys(['cash']);
+        } else if (legacy?.type === 'subtype' && typeof legacy.subtypeId === 'string') {
+          setPaymentFilterKeys([legacy.subtypeId]);
+        }
+      } catch {
+        // ignore
+      }
+    };
+    void loadFilterState();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    void AsyncStorage.setItem(TIMELINE_PAYMENT_FILTER_STORAGE_KEY, JSON.stringify(paymentFilterKeys)).catch(() => {
+      // ignore
+    });
+  }, [paymentFilterKeys]);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      const loadSubtypes = async () => {
+        try {
+          const subtypes = await initializePaymentSubtypes();
+          if (!active) return;
+          setPaymentSubtypes(subtypes);
+        } catch {
+          // ignore
+        }
+      };
+      void loadSubtypes();
+      return () => {
+        active = false;
+      };
+    }, [])
+  );
+
+  const creditSubtypes = useMemo(
+    () => paymentSubtypes.filter((item) => item.type === 'credit'),
+    [paymentSubtypes]
+  );
+  const debitSubtypes = useMemo(
+    () => paymentSubtypes.filter((item) => item.type === 'debit'),
+    [paymentSubtypes]
+  );
+  const paymentFilterOptions = useMemo(
+    () => [
+      ...creditSubtypes.map((item) => ({
+        type: 'subtype' as const,
+        id: item.id,
+        label: item.label,
+        description: item.description,
+        color: item.color,
+      })),
+      ...debitSubtypes.map((item) => ({
+        type: 'subtype' as const,
+        id: item.id,
+        label: item.label,
+        description: item.description,
+        color: item.color,
+      })),
+      { type: 'cash' as const, id: 'cash', label: '현금', description: '' },
+      { type: 'income' as const, id: 'income', label: '수입', description: '' },
+    ],
+    [creditSubtypes, debitSubtypes]
+  );
+
+  useEffect(() => {
+    const validKeys = new Set(['cash', 'income', ...paymentSubtypes.map((item) => item.id)]);
+    setPaymentFilterKeys((prev) => prev.filter((key) => validKeys.has(key)));
+    setDraftPaymentFilterKeys((prev) => prev.filter((key) => validKeys.has(key)));
+  }, [paymentSubtypes]);
 
   // Year/Month options for picker (홈 화면과 동일하게 ±10년)
   const yearOptions = useMemo(() => {
@@ -301,6 +409,8 @@ export default function MonthlyExpenseTimelineScreen() {
   
   // Timeline data
   const [timelineData, setTimelineData] = useState<TimelineItem[]>([]);
+  const paymentFilterSheetHeight = useMemo(() => windowHeight * 0.8, [windowHeight]);
+  const paymentFilterSheetContentHeight = useMemo(() => paymentFilterSheetHeight - 56, [paymentFilterSheetHeight]);
   
   const [isContentReady, setIsContentReady] = useState(false);
   const contentOpacity = useRef(new Animated.Value(0)).current;
@@ -353,6 +463,7 @@ export default function MonthlyExpenseTimelineScreen() {
                       amount: record.amount || 0,
                       timestamp: record.timestamp,
                       paymentMethod: record.type === 'expense' ? (record.paymentMethod ?? 'credit') : undefined,
+                      paymentSubtypeId: record.type === 'expense' ? record.paymentSubtypeId : undefined,
                       isRecurring: record.isRecurring,
                       weekendOption: record.weekendOption,
                       recurringType: record.recurringType,
@@ -461,12 +572,35 @@ export default function MonthlyExpenseTimelineScreen() {
 
   // 전역 이벤트 구독은 컨텍스트에서 처리하므로 제거 (중복 새로고침 방지)
 
+  const defaultCreditSubtypeId = useMemo(
+    () => creditSubtypes[0]?.id,
+    [creditSubtypes]
+  );
+  const defaultDebitSubtypeId = useMemo(
+    () => debitSubtypes[0]?.id,
+    [debitSubtypes]
+  );
+
+  const filteredTimelineData = useMemo(() => {
+    if (paymentFilterKeys.length === 0) return timelineData;
+    const selectedKeySet = new Set(paymentFilterKeys);
+
+    return timelineData.filter((item) => {
+      if (item.type === 'income') return selectedKeySet.has('income');
+      if (item.paymentMethod === 'cash') return selectedKeySet.has('cash');
+      const resolvedSubtypeId =
+        item.paymentSubtypeId ??
+        (item.paymentMethod === 'debit' ? defaultDebitSubtypeId : defaultCreditSubtypeId);
+      return typeof resolvedSubtypeId === 'string' ? selectedKeySet.has(resolvedSubtypeId) : false;
+    });
+  }, [defaultCreditSubtypeId, defaultDebitSubtypeId, paymentFilterKeys, timelineData]);
+
   // Calculate monthly totals
   const monthlyTotals = useMemo(() => {
     let income = 0;
     let expense = 0;
     
-    timelineData.forEach((item) => {
+    filteredTimelineData.forEach((item) => {
       if (item.type === 'income') {
         income += item.amount;
       } else {
@@ -475,14 +609,14 @@ export default function MonthlyExpenseTimelineScreen() {
     });
     
     return { income, expense };
-  }, [timelineData]);
+  }, [filteredTimelineData]);
 
   
   // Group timeline items by date
   const groupedTimeline = useMemo(() => {
     const groups: Record<string, TimelineItem[]> = {};
     
-    timelineData.forEach((item) => {
+    filteredTimelineData.forEach((item) => {
       if (!groups[item.date]) {
         groups[item.date] = [];
       }
@@ -490,7 +624,7 @@ export default function MonthlyExpenseTimelineScreen() {
     });
     
     return groups;
-  }, [timelineData]);
+  }, [filteredTimelineData]);
 
   // 월/데이터 변경 시 레이아웃 캐시 초기화 (이전 월 레이아웃으로 잘못 매칭되는 것 방지)
   const timelineDateKeysRef = useRef<string>('');
@@ -743,6 +877,7 @@ export default function MonthlyExpenseTimelineScreen() {
         </View>
         {/* Figma: 월 소비 합계 영역 하단 라인 디바이더 (Line/Normal, rgba(144,146,158,0.16)) */}
         <View style={[styles.summaryBottomDivider, { backgroundColor: colors.border }]} />
+        <View style={styles.headerDivider} />
       </View>
       
       {/* Timeline Content - 로딩 완료 시 페이드인 (박스 디바이더 + 리스트) */}
@@ -750,14 +885,14 @@ export default function MonthlyExpenseTimelineScreen() {
         <ScrollView
           ref={timelineScrollRef}
           style={styles.scrollContainer}
-          bounces={false}
-          overScrollMode="never"
+          bounces
+          alwaysBounceVertical
+          overScrollMode="always"
           contentContainerStyle={[
             styles.scrollContent,
             Object.keys(groupedTimeline).length === 0 && styles.scrollContentEmpty,
           ]}
         >
-        <View style={styles.headerDivider} />
         {Object.keys(groupedTimeline).length === 0 ? (
           <View style={styles.emptyContainer}>
             <Text style={[styles.emptyText, { color: colors.textAssistive }]}>
@@ -1053,6 +1188,109 @@ export default function MonthlyExpenseTimelineScreen() {
       </Animated.View>
       </View>
       </View>
+
+      {showPaymentFilterSheet ? (
+        <ModalBottomsheet
+          visible={true}
+          title="필터"
+          onClose={() => {
+            setDraftPaymentFilterKeys(paymentFilterKeys);
+            setShowPaymentFilterSheet(false);
+          }}
+          onConfirm={() => {
+            setPaymentFilterKeys(draftPaymentFilterKeys);
+            setShowPaymentFilterSheet(false);
+          }}
+          confirmText="확인"
+          closeOnBackdrop={true}
+          style={{ height: paymentFilterSheetHeight }}
+          contentStyle={styles.paymentFilterSheetContent}
+          noPaddingBottom={true}
+          embedded
+        >
+          <View
+            style={[
+              styles.paymentFilterSheetBody,
+              { backgroundColor: colors.fill, height: paymentFilterSheetContentHeight },
+            ]}
+          >
+            <View style={[styles.paymentFilterListCard, { backgroundColor: colors.staticWhite }]}>
+              <ScrollView
+                style={styles.paymentFilterListScroll}
+                contentContainerStyle={styles.paymentFilterListScrollContent}
+                showsVerticalScrollIndicator={true}
+                bounces={false}
+                overScrollMode="never"
+              >
+                {paymentFilterOptions.map((item, index, arr) => (
+                  <View key={item.id}>
+                    {(() => {
+                      const isSelected = draftPaymentFilterKeys.includes(item.id);
+                      return (
+                    <Pressable
+                      style={styles.paymentFilterItem}
+                      onPress={() => {
+                        setDraftPaymentFilterKeys((prev) =>
+                          prev.includes(item.id) ? prev.filter((key) => key !== item.id) : [...prev, item.id]
+                        );
+                      }}
+                    >
+                      {item.type === 'cash' ? (
+                        <View style={styles.paymentFilterEmojiWrap}>
+                          <Text style={styles.paymentFilterCashEmoji}>💰</Text>
+                        </View>
+                      ) : item.type === 'income' ? (
+                        <View style={styles.paymentFilterEmojiWrap}>
+                          <Text style={styles.paymentFilterCashEmoji}>💵</Text>
+                        </View>
+                      ) : (
+                        <View style={[styles.paymentFilterIndicator, { backgroundColor: item.color, borderColor: colors.border }]} />
+                      )}
+                      <View style={[styles.paymentFilterTextBlock, !item.description.trim() && styles.paymentFilterTextBlockSingleLine]}>
+                        <Text style={[styles.paymentFilterTitle, { color: colors.text }]} numberOfLines={1}>
+                          {item.label}
+                        </Text>
+                        {item.description.trim() ? (
+                          <Text style={[styles.paymentFilterSubtitle, { color: colors.textAssistive }]} numberOfLines={1}>
+                            {item.description}
+                          </Text>
+                        ) : null}
+                      </View>
+                      {isSelected ? (
+                        <View style={styles.paymentFilterCheckWrap}>
+                          <Icon name="check" variant="line" size={24} color={colors.primary} />
+                        </View>
+                      ) : null}
+                    </Pressable>
+                      );
+                    })()}
+                    {index < arr.length - 1 ? (
+                      <View style={[styles.paymentFilterDivider, { backgroundColor: colors.border }]} />
+                    ) : null}
+                  </View>
+                ))}
+              </ScrollView>
+            </View>
+            <View style={[styles.paymentFilterBottomSpacer, { backgroundColor: colors.staticWhite }]} />
+          </View>
+        </ModalBottomsheet>
+      ) : null}
+
+      <Pressable
+        style={styles.floatingFilterButton}
+        onPress={handleFilterPress}
+        accessibilityRole="button"
+        accessibilityLabel="결제 유형 필터"
+      >
+        <BlurView
+          intensity={24}
+          tint="light"
+          experimentalBlurMethod="dimezisBlurView"
+          style={[styles.floatingFilterBlur, { backgroundColor: 'rgba(144, 146, 158, 0.1)' }]}
+        />
+        <Text style={[styles.floatingFilterText, { color: colors.textNeutral }]}>필터</Text>
+        <Icon name="arrowDown" variant="line" size={16} color={colors.textNeutral} />
+      </Pressable>
     </SafeAreaView>
   );
 }
@@ -1373,6 +1611,93 @@ const styles = StyleSheet.create({
     ...Typography.body1.l.bold,
     fontSize: 16,
     lineHeight: 24,
+  },
+  paymentFilterSheetContent: {
+    padding: 0,
+  },
+  paymentFilterSheetBody: {
+    paddingTop: 16,
+    paddingHorizontal: 16,
+    flexDirection: 'column',
+  },
+  paymentFilterListCard: {
+    flex: 1,
+    minHeight: 0,
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
+  paymentFilterListScroll: {
+    flex: 1,
+  },
+  paymentFilterListScrollContent: {
+    flexGrow: 1,
+  },
+  paymentFilterItem: {
+    minHeight: 64,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  paymentFilterIndicator: {
+    width: 16,
+    height: 16,
+    borderRadius: 99,
+    borderWidth: 1,
+  },
+  paymentFilterCashEmoji: {
+    ...Typography.body1.l.regular,
+  },
+  paymentFilterEmojiWrap: {
+    width: 16,
+    alignItems: 'center',
+  },
+  paymentFilterTextBlock: {
+    flex: 1,
+    justifyContent: 'center',
+    gap: 2,
+  },
+  paymentFilterTextBlockSingleLine: {
+    gap: 0,
+  },
+  paymentFilterCheckWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  paymentFilterTitle: {
+    ...Typography.body1.l.regular,
+  },
+  paymentFilterSubtitle: {
+    ...Typography.body2.r.regular,
+  },
+  paymentFilterDivider: {
+    height: 1,
+    marginHorizontal: 16,
+  },
+  paymentFilterBottomSpacer: {
+    height: 34,
+    marginHorizontal: -16,
+  },
+  floatingFilterButton: {
+    position: 'absolute',
+    left: 16,
+    bottom: 50,
+    width: 81,
+    height: 40,
+    borderRadius: 24,
+    overflow: 'hidden',
+    paddingLeft: 16,
+    paddingRight: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  floatingFilterBlur: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  floatingFilterText: {
+    ...Typography.body2.r.medium,
   },
 });
 

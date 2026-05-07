@@ -29,6 +29,7 @@ import {
 } from '@/utils/fetch-app-version-policy';
 import { isAtLeastVersion } from '@/utils/app-version';
 import { showStoreUpdateAlert } from '@/utils/show-store-update-alert';
+import { initializePaymentSubtypes } from '@/utils/payment-types';
 import { refreshWidgetWithCurrentMonth, resetMonthlyExpenseMaskInWidget } from '@/utils/widget-data-sync';
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
@@ -120,6 +121,7 @@ export default function RootLayout() {
 
         // Amplitude 가이드 4번: init(API 키) + Session Replay 플러그인 → `utils/analytics`의 `initAmplitude`
         await initAmplitude();
+        await initializePaymentSubtypes();
         await logEvent('app_started', {
           timestamp: Date.now(),
           platform: Platform.OS,

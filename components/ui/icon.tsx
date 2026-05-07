@@ -29,6 +29,7 @@ import CheckLine from '@/assets/images/icons/line/check.svg';
 import CheckboxIconLine from '@/assets/images/icons/line/checkboxIcon.svg';
 import CloseLine from '@/assets/images/icons/line/close.svg';
 import DeleteLine from '@/assets/images/icons/line/delete.svg';
+import FilterLine from '@/assets/images/icons/line/filter.svg';
 import HandleLine from '@/assets/images/icons/line/handle.svg';
 import HomeLine from '@/assets/images/icons/line/home.svg';
 import InfoLine from '@/assets/images/icons/line/info.svg';
@@ -79,6 +80,7 @@ export type IconName =
   | 'checkboxIcon'
   | 'close'
   | 'delete'
+  | 'filter'
   | 'handle'
   | 'home'
   | 'info'
@@ -163,6 +165,7 @@ const iconComponents = {
     checkboxIcon: CheckboxIconLine,
     close: CloseLine,
     delete: DeleteLine,
+    filter: FilterLine,
     handle: HandleLine,
     home: HomeLine,
     info: InfoLine,
