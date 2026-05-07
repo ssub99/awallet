@@ -18,7 +18,6 @@ import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
 import { ModalPopup } from '@/components/ui/modal-popup';
 import { PrepaymentModal } from '@/components/ui/prepayment-modal';
 import { Radio } from '@/components/ui/radio';
-import { SegmentControls } from '@/components/ui/segment-controls';
 import { Switch } from '@/components/ui/switch';
 import { AtomicColors } from '@/constants/atomic-colors';
 import { Colors, Typography } from '@/constants/theme';
@@ -488,7 +487,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   const router = useRouter();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const KEYPAD_HEIGHT = getKeypadHeight(windowWidth);
   const { setLoading } = useLoading();
   const { showToast } = useToast();
@@ -518,6 +517,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   
   const [category, setCategory] = useState<string>(params.category || '');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('credit');
+  const [selectedPaymentSubtypeId, setSelectedPaymentSubtypeId] = useState<string>('credit-shinhan');
 
   interface GoHomeOptions {
     year: number;
@@ -819,6 +819,19 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   
   // 반복/할부 설정 바텀시트 표시 여부
   const [showRecurringInstallmentSheet, setShowRecurringInstallmentSheet] = useState<boolean>(false);
+  const [showPaymentTypeSheet, setShowPaymentTypeSheet] = useState<boolean>(false);
+  const [paymentTypeSheetFilter, setPaymentTypeSheetFilter] = useState<'credit' | 'debit'>('credit');
+  const PAYMENT_TYPE_SHEET_NAV_HEIGHT = 56;
+  const PAYMENT_TYPE_SHEET_FILTER_ROW_HEIGHT = 37;
+  const PAYMENT_TYPE_SHEET_TOP_PADDING = 16;
+  const PAYMENT_TYPE_SHEET_FILTER_LIST_GAP = 16;
+  const PAYMENT_TYPE_SHEET_LIST_HOME_GAP = 16;
+  const PAYMENT_TYPE_SHEET_HOME_INDICATOR_HEIGHT = 34;
+  const paymentTypeSheetHeight = useMemo(() => windowHeight * 0.5, [windowHeight]);
+  const paymentTypeSheetContentHeight = useMemo(
+    () => Math.max(0, paymentTypeSheetHeight - PAYMENT_TYPE_SHEET_NAV_HEIGHT),
+    [paymentTypeSheetHeight]
+  );
 
   // date state 변경 감지
   useEffect(() => {
@@ -933,6 +946,91 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     });
     setPaymentMethod(nextPaymentMethod);
   }, []);
+
+  const handleOpenPaymentTypeSheet = useCallback(() => {
+    void logEvent('sheet_view', {
+      screen_name: analyticsScreenName,
+      target: 'payment-type-sheet',
+    });
+    setPaymentTypeSheetFilter(paymentMethod === 'debit' ? 'debit' : 'credit');
+    setShowPaymentTypeSheet(true);
+  }, [analyticsScreenName, paymentMethod]);
+
+  const handlePaymentTypeSelect = useCallback((val: PaymentMethod, subtypeId?: string) => {
+    handlePaymentMethodChange(val);
+    if (subtypeId) {
+      setSelectedPaymentSubtypeId(subtypeId);
+    }
+    setShowPaymentTypeSheet(false);
+  }, [handlePaymentMethodChange]);
+
+  const paymentTypeSheetItems = useMemo(
+    () => [
+      { id: 'credit-shinhan', type: 'credit' as const, label: '신한카드', description: '1234-1234-1234', color: AtomicColors.blue[500] },
+      { id: 'credit-kb', type: 'credit' as const, label: '국민카드', description: '1234-1234-1234', color: '#FFB33A' },
+      { id: 'credit-hana', type: 'credit' as const, label: '하나카드', description: '1234-1234-1234', color: '#29B3CC' },
+      { id: 'credit-woori', type: 'credit' as const, label: '우리카드', description: '1234-1234-1234', color: '#7E57C2' },
+      { id: 'credit-samsung', type: 'credit' as const, label: '삼성카드', description: '1234-1234-1234', color: '#5C6BC0' },
+      { id: 'credit-lotte', type: 'credit' as const, label: '롯데카드', description: '1234-1234-1234', color: '#EC407A' },
+      { id: 'credit-hyundai', type: 'credit' as const, label: '현대카드', description: '1234-1234-1234', color: '#26A69A' },
+      { id: 'credit-bc', type: 'credit' as const, label: 'BC카드', description: '1234-1234-1234', color: '#42A5F5' },
+      { id: 'credit-kakaobank', type: 'credit' as const, label: '카카오뱅크', description: '1234-1234-1234', color: '#FFCA28' },
+      { id: 'credit-toss', type: 'credit' as const, label: '토스카드', description: '1234-1234-1234', color: '#66BB6A' },
+      { id: 'debit-shinhan', type: 'debit' as const, label: '신한체크', description: '1234-1234-1234', color: AtomicColors.green[500] },
+      { id: 'debit-kb', type: 'debit' as const, label: '국민체크', description: '1234-1234-1234', color: '#36B37E' },
+    ],
+    []
+  );
+
+  const defaultCreditSubtypeId = useMemo(
+    () => paymentTypeSheetItems.find((item) => item.type === 'credit')?.id ?? 'credit-shinhan',
+    [paymentTypeSheetItems]
+  );
+  const defaultDebitSubtypeId = useMemo(
+    () => paymentTypeSheetItems.find((item) => item.type === 'debit')?.id ?? 'debit-shinhan',
+    [paymentTypeSheetItems]
+  );
+  const selectedPaymentSubtype = useMemo(
+    () => paymentTypeSheetItems.find((item) => item.id === selectedPaymentSubtypeId),
+    [paymentTypeSheetItems, selectedPaymentSubtypeId]
+  );
+
+  useEffect(() => {
+    if (paymentMethod === 'credit' && selectedPaymentSubtype?.type !== 'credit') {
+      setSelectedPaymentSubtypeId(defaultCreditSubtypeId);
+      return;
+    }
+    if (paymentMethod === 'debit' && selectedPaymentSubtype?.type !== 'debit') {
+      setSelectedPaymentSubtypeId(defaultDebitSubtypeId);
+    }
+  }, [defaultCreditSubtypeId, defaultDebitSubtypeId, paymentMethod, selectedPaymentSubtype]);
+
+  const stickyPaymentTypeDisplay = useMemo(() => {
+    if (paymentMethod === 'debit') {
+      return {
+        label: selectedPaymentSubtype?.type === 'debit' ? selectedPaymentSubtype.label : '체크카드',
+        emoji: undefined,
+        color: selectedPaymentSubtype?.type === 'debit' ? selectedPaymentSubtype.color : AtomicColors.green[500],
+        showDot: true,
+      };
+    }
+
+    if (paymentMethod === 'cash') {
+      return {
+        label: '현금',
+        emoji: '💰',
+        color: AtomicColors.blue[500],
+        showDot: false,
+      };
+    }
+
+    return {
+      label: selectedPaymentSubtype?.type === 'credit' ? selectedPaymentSubtype.label : '신용카드',
+      emoji: undefined,
+      color: selectedPaymentSubtype?.type === 'credit' ? selectedPaymentSubtype.color : AtomicColors.blue[500],
+      showDot: true,
+    };
+  }, [paymentMethod, selectedPaymentSubtype]);
 
   useEffect(() => {
     if (!showPrepaymentModal) {
@@ -1490,6 +1588,11 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           ? editData.paymentMethod
           : 'credit';
       setPaymentMethod(initialPaymentMethod);
+      if (initialPaymentMethod === 'credit') {
+        setSelectedPaymentSubtypeId(defaultCreditSubtypeId);
+      } else if (initialPaymentMethod === 'debit') {
+        setSelectedPaymentSubtypeId(defaultDebitSubtypeId);
+      }
       
       // 환불 처리된 기록인데 refundedAt이 없으면 AsyncStorage에서 찾아서 업데이트
       if (editData.isRefunded && !editData.refundedAt) {
@@ -1543,7 +1646,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         }
       }
     }
-  }, [mode, editData, formattedToday]);
+  }, [defaultCreditSubtypeId, defaultDebitSubtypeId, mode, editData, formattedToday]);
   
   useEffect(() => {
     const keyboardWillShow = Keyboard.addListener(
@@ -5062,14 +5165,16 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
                   결제 유형 <Text style={{ color: '#EF5252' }}>*</Text>
                 </Text>
-                <SegmentControls
-                  options={[
-                    { label: '신용', value: 'credit' },
-                    { label: '체크', value: 'debit' },
-                    { label: '현금', value: 'cash' },
-                  ]}
-                  value={paymentMethod}
-                  onValueChange={handlePaymentMethodChange}
+                <Input
+                  value={stickyPaymentTypeDisplay.label}
+                  buttonMode={true}
+                  sortation={true}
+                  showSortationDot={stickyPaymentTypeDisplay.showDot}
+                  sortationColor={stickyPaymentTypeDisplay.color}
+                  sortationEmoji={stickyPaymentTypeDisplay.emoji}
+                  showRightArrow={true}
+                  rightIcon="arrowDown"
+                  onPress={handleOpenPaymentTypeSheet}
                 />
               </View>
             )}
@@ -5274,15 +5379,17 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 결제 유형
               </Text>
               <View style={styles.paymentTypeStickyControls}>
-                <SegmentControls
-                  options={[
-                    { label: '신용', value: 'credit' },
-                    { label: '체크', value: 'debit' },
-                    { label: '현금', value: 'cash' },
-                  ]}
-                  value={paymentMethod}
-                  onValueChange={handlePaymentMethodChange}
-                  size="small"
+                <Input
+                  value={stickyPaymentTypeDisplay.label}
+                  buttonMode={true}
+                  shortver={true}
+                  sortation={true}
+                  showSortationDot={stickyPaymentTypeDisplay.showDot}
+                  sortationColor={stickyPaymentTypeDisplay.color}
+                  sortationEmoji={stickyPaymentTypeDisplay.emoji}
+                  showRightArrow={true}
+                  rightIcon="arrowDown"
+                  onPress={handleOpenPaymentTypeSheet}
                 />
               </View>
             </View>
@@ -5541,6 +5648,90 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       ) : null}
 
       {/* 날짜 선택 바텀시트: PrepaymentModal 내부 extraOverlay로 이동 */}
+
+      {/* 결제 유형 선택 바텀시트 */}
+      {showPaymentTypeSheet ? (
+        <ModalBottomsheet
+          visible={true}
+          title="결제 유형 선택"
+          onClose={() => setShowPaymentTypeSheet(false)}
+          closeOnBackdrop={true}
+          style={{ height: paymentTypeSheetHeight }}
+          contentStyle={styles.paymentTypeSheetContent}
+          noPaddingBottom={true}
+          embedded
+        >
+          <View
+            style={[
+              styles.paymentTypeSheetBody,
+              {
+                backgroundColor: colors.fill,
+                height: paymentTypeSheetContentHeight,
+              },
+            ]}
+          >
+            <View style={styles.paymentTypeSheetFilterRow}>
+              <View style={styles.paymentTypeSheetFilterChips}>
+                <Chip
+                  label="신용카드"
+                  active={paymentTypeSheetFilter === 'credit'}
+                  onPress={() => setPaymentTypeSheetFilter('credit')}
+                />
+                <Chip
+                  label="체크카드"
+                  active={paymentTypeSheetFilter === 'debit'}
+                  onPress={() => setPaymentTypeSheetFilter('debit')}
+                />
+              </View>
+              <Pressable
+                style={styles.paymentTypeSheetCashButton}
+                onPress={() => handlePaymentTypeSelect('cash')}
+              >
+                <Text style={styles.paymentTypeSheetCashEmoji}>💰</Text>
+                <Text style={[styles.paymentTypeSheetCashText, { color: colors.textNeutral }]}>현금 선택</Text>
+              </Pressable>
+            </View>
+
+            <View
+              style={[
+                styles.paymentTypeSheetList,
+                { backgroundColor: colors.staticWhite },
+              ]}
+            >
+              <ScrollView
+                style={styles.paymentTypeSheetListScroll}
+                contentContainerStyle={styles.paymentTypeSheetListScrollContent}
+                showsVerticalScrollIndicator={true}
+                bounces={false}
+                overScrollMode="never"
+              >
+                {paymentTypeSheetItems
+                  .filter((item) => item.type === paymentTypeSheetFilter)
+                  .map((item, index, arr) => (
+                    <View key={item.id}>
+                      <Pressable
+                        style={styles.paymentTypeSheetItem}
+                        onPress={() => handlePaymentTypeSelect(item.type, item.id)}
+                      >
+                        <View style={[styles.paymentTypeSheetIndicator, { backgroundColor: item.color, borderColor: colors.border }]} />
+                        <View style={styles.paymentTypeSheetTextBlock}>
+                          <Text style={[styles.paymentTypeSheetTitle, { color: colors.text }]}>{item.label}</Text>
+                          <Text style={[styles.paymentTypeSheetSubtitle, { color: colors.textAssistive }]}>{item.description}</Text>
+                        </View>
+                      </Pressable>
+                      {index < arr.length - 1 ? (
+                        <View style={[styles.paymentTypeSheetDivider, { backgroundColor: colors.border }]} />
+                      ) : null}
+                    </View>
+                  ))}
+              </ScrollView>
+            </View>
+
+            <View style={styles.paymentTypeSheetListHomeGap} />
+            <View style={[styles.paymentTypeSheetHomeIndicatorArea, { backgroundColor: colors.staticWhite }]} />
+          </View>
+        </ModalBottomsheet>
+      ) : null}
 
       {/* 반복/할부 설정 바텀시트 (확인 시에만 옵션 반영) */}
       <ModalBottomsheet
@@ -6771,7 +6962,7 @@ const styles = StyleSheet.create({
   },
   paymentTypeStickyContainer: {
     paddingHorizontal: 16,
-    height: 48,
+    height: 56,
     justifyContent: 'center',
   },
   paymentTypeTopLine: {
@@ -6791,7 +6982,86 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   paymentTypeStickyControls: {
-    width: 190,
+    width: 200,
+  },
+  paymentTypeSheetContent: {
+    padding: 0,
+  },
+  paymentTypeSheetBody: {
+    paddingTop: 16,
+    paddingHorizontal: 16,
+    flexDirection: 'column',
+  },
+  paymentTypeSheetFilterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 37,
+  },
+  paymentTypeSheetFilterChips: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  paymentTypeSheetCashButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  paymentTypeSheetList: {
+    flex: 1,
+    minHeight: 0,
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginTop: 16,
+  },
+  paymentTypeSheetListScroll: {
+    flex: 1,
+  },
+  paymentTypeSheetListScrollContent: {
+    flexGrow: 1,
+  },
+  paymentTypeSheetListHomeGap: {
+    height: 16,
+  },
+  paymentTypeSheetHomeIndicatorArea: {
+    height: 34,
+    marginHorizontal: -16,
+  },
+  paymentTypeSheetItem: {
+    minHeight: 64,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  paymentTypeSheetIndicator: {
+    width: 16,
+    height: 16,
+    borderRadius: 99,
+    borderWidth: 1,
+  },
+  paymentTypeSheetTextBlock: {
+    justifyContent: 'center',
+    gap: 2,
+  },
+  paymentTypeSheetTitle: {
+    ...Typography.body1.l.regular,
+  },
+  paymentTypeSheetSubtitle: {
+    ...Typography.body2.r.regular,
+  },
+  paymentTypeSheetDivider: {
+    height: 1,
+    marginHorizontal: 16,
+  },
+  paymentTypeSheetCashEmoji: {
+    ...Typography.headline4.r.medium,
+    lineHeight: 24,
+  },
+  paymentTypeSheetCashText: {
+    ...Typography.body1.l.regular,
+    textDecorationLine: 'underline',
   },
   alertText: {
     ...Typography.body1.l.regular,

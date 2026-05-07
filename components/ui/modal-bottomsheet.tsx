@@ -359,7 +359,7 @@ const styles = StyleSheet.create({
   sheet: {
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
-    maxHeight: SCREEN_HEIGHT * 0.9, // Max 90% of screen height
+    maxHeight: SCREEN_HEIGHT * 0.8, // Max 80% of screen height
   },
   navigation: {
     // Top navigation section

@@ -1327,6 +1327,33 @@ function InputsContent({ colors }: { colors: typeof Colors.light | typeof Colors
         onChangeText={setTextActive}
       />
 
+      {/* Payment Type Inputs */}
+      <SectionHeader title="Line Input - Payment Type (Regular)" colors={colors} />
+      <Input
+        value="내용 입력"
+        buttonMode
+        sortation
+        sortationColor={colors.primary}
+        showSortationDot
+        showRightArrow
+        rightIcon="arrowDown"
+        onPress={() => {}}
+      />
+
+      <SectionHeader title="Line Input - Payment Type (Short)" colors={colors} />
+      <Input
+        value="내용 입력"
+        buttonMode
+        shortver
+        sortation
+        sortationColor={colors.primary}
+        showSortationDot
+        showRightArrow
+        rightIcon="arrowDown"
+        style={{ width: 200 }}
+        onPress={() => {}}
+      />
+
       {/* Line Inputs - With Time */}
       <SectionHeader title="Line Input - With Time" colors={colors} />
       <Input
