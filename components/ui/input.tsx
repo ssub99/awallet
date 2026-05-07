@@ -11,17 +11,17 @@
  */
 
 import { Icon, IconName } from '@/components/ui/icon';
-import { Colors } from '@/constants/theme';
+import { Colors, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { forwardRef, useImperativeHandle, useRef, useState, type ReactNode } from 'react';
 import {
-    Pressable,
-    StyleSheet,
-    Text,
-    TextInput,
-    TextInputProps,
-    View,
-    ViewStyle,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  TextInputProps,
+  View,
+  ViewStyle,
 } from 'react-native';
 
 export interface InputProps extends Omit<TextInputProps, 'style'> {
@@ -113,6 +113,32 @@ export interface InputProps extends Omit<TextInputProps, 'style'> {
    * Button mode - displays as a button for selection (like category picker)
    */
   buttonMode?: boolean;
+
+  /**
+   * Sortation mode - shows colored dot + optional emoji before value.
+   */
+  sortation?: boolean;
+
+  /**
+   * Whether to show sortation color dot.
+   * Defaults to true when sortation is enabled.
+   */
+  showSortationDot?: boolean;
+
+  /**
+   * Short version for compact button mode (36px height).
+   */
+  shortver?: boolean;
+
+  /**
+   * Sortation indicator color.
+   */
+  sortationColor?: string;
+
+  /**
+   * Sortation indicator emoji.
+   */
+  sortationEmoji?: string;
 }
 
 /**
@@ -131,6 +157,11 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
   calendarDate,
   disabled = false,
   buttonMode = false,
+  sortation = false,
+  showSortationDot = true,
+  shortver = false,
+  sortationColor,
+  sortationEmoji,
   style,
   value = '',
   valueRenderer,
@@ -174,6 +205,8 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
     : hasCalendarDate || isFocused || hasValue
     ? colors.staticBlack
     : colors.textAssistive;
+  const resolvedSortationColor = sortationColor ?? colors.primary;
+  const shouldUseCompactEmojiGap = !!sortationEmoji && !showSortationDot;
 
   // Format number with commas
   const formatNumber = (text: string) => {
@@ -217,13 +250,13 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
       }}
       style={[
         styles.container,
-        variant === 'line' ? styles.containerLine : styles.containerArea,
+        variant === 'line' ? (shortver ? styles.containerLineShort : styles.containerLine) : styles.containerArea,
         { backgroundColor, borderColor },
         style,
       ]}
     >
       {/* Content Frame - matches Figma Frame 2 structure */}
-      <View style={[styles.content, variant === 'area' && styles.contentArea]}>
+      <View style={[styles.content, shortver && styles.contentShort, variant === 'area' && styles.contentArea]}>
         {/* Calendar Mode: Icon + Date */}
         {calendar ? (
           <View style={styles.leftSection}>
@@ -241,6 +274,23 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
           <>
             {/* Normal Mode: Icon + Text Input */}
             <View style={styles.leftSection}>
+              {(sortation || !!sortationEmoji) && (
+                <>
+                  {showSortationDot && (
+                    <View
+                      style={[
+                        styles.sortationIndicator,
+                        { backgroundColor: resolvedSortationColor, borderColor: colors.border },
+                      ]}
+                    />
+                  )}
+                  {sortationEmoji ? (
+                    <Text style={[styles.sortationEmoji, { color: disabled ? colors.textDisabled : colors.textNeutral }]}>
+                      {sortationEmoji}
+                    </Text>
+                  ) : null}
+                </>
+              )}
               {/* Icon */}
               {icon && (
                 <Icon
@@ -256,6 +306,8 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
                 <Text
                   style={[
                     styles.input,
+                    shortver && styles.inputShort,
+                    shouldUseCompactEmojiGap && styles.inputEmojiGapCompact,
                     { color: hasValue ? textColor : placeholderColor },
                     (textInputProps as any).style,
                   ]}
@@ -274,6 +326,8 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
                     { color: textColor },
                     inputType === 'number' && styles.inputNumber,
                     variant === 'area' && styles.inputArea,
+                    shortver && styles.inputShort,
+                    shouldUseCompactEmojiGap && styles.inputEmojiGapCompact,
                     (textInputProps as any).style,
                   ]}
                   value={value}
@@ -310,7 +364,7 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
             {(unit || timeDisplay || rightText || rightIcon || showRightArrow) && (
               <View style={styles.rightSection}>
                 {/* Right Icon */}
-                {rightIcon && (
+                {rightIcon && !showRightArrow && (
                   <Icon
                     name={rightIcon}
                     variant="line"
@@ -344,9 +398,9 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
                 {/* Right Arrow Icon */}
                 {showRightArrow && (
                   <Icon
-                    name="arrowRight"
+                    name={rightIcon ?? (sortation || shortver ? 'arrowDown' : 'arrowRight')}
                     variant="line"
-                    size={24}
+                    size={shortver ? 16 : 24}
                     color={disabled ? colors.textDisabled : colors.staticBlack}
                     style={styles.rightArrow}
                   />
@@ -371,6 +425,11 @@ const styles = StyleSheet.create({
     paddingTop: 11,    // 12 - 1 = 11px
     paddingBottom: 13, // 12 + 1 = 13px
   },
+  containerLineShort: {
+    height: 36,
+    paddingTop: 6,
+    paddingBottom: 9,
+  },
   containerArea: {
     height: 96,
     paddingVertical: 12,
@@ -380,6 +439,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     minHeight: 24,
+  },
+  contentShort: {
+    minHeight: 21,
   },
   contentArea: {
     alignItems: 'flex-start', // area variant는 상단 정렬
@@ -400,6 +462,14 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     padding: 0,
     margin: 0,
+  },
+  inputShort: {
+    ...Typography.body2.r.regular,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  inputEmojiGapCompact: {
+    marginLeft: -4,
   },
   inputNumber: {
     fontWeight: '700',
@@ -445,6 +515,15 @@ const styles = StyleSheet.create({
     fontFamily: 'Pretendard',
     fontWeight: '400',
     lineHeight: 24,
+  },
+  sortationIndicator: {
+    width: 16,
+    height: 16,
+    borderRadius: 99,
+    borderWidth: 1,
+  },
+  sortationEmoji: {
+    ...Typography.body1.l.regular,
   },
 });
 
