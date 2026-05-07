@@ -2603,6 +2603,7 @@ export default function ChallengeTabScreen() {
           >
             {challenges.length === 0 ? (
               <View style={styles.emptyContainer}>
+                <Icon name="info" variant="line" size={24} color={colors.textAssistive} />
                 <Text style={[styles.emptyText, { color: colors.textAssistive }]}>
                   생성된 챌린지가 없습니다.
                 </Text>
@@ -2971,6 +2972,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     ...Typography.body1.l.regular,
+    marginTop: 12,
   },
   placeholderContainer: {
     flex: 1,

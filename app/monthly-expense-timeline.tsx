@@ -895,6 +895,7 @@ export default function MonthlyExpenseTimelineScreen() {
         >
         {Object.keys(groupedTimeline).length === 0 ? (
           <View style={styles.emptyContainer}>
+            <Icon name="info" variant="line" size={24} color={colors.textAssistive} />
             <Text style={[styles.emptyText, { color: colors.textAssistive }]}>
               이 달의 기록이 없습니다.
             </Text>
@@ -1404,6 +1405,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     ...Typography.body1.l.regular,
+    marginTop: 12,
   },
   dateGroup: {
     // No padding - handled by individual items

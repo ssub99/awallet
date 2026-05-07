@@ -75,13 +75,18 @@ async function finalizeRestoreSideEffects(): Promise<void> {
   await resetAppStoreReviewProgressAfterRestore();
 }
 
-/** CSV 헤더 (양식: 날짜, 카테고리, 수입/소비, 금액, 유형, 메모) */
-const CSV_HEADER = '날짜,카테고리,수입/소비,금액,유형,메모';
+/** CSV 헤더 (양식: 날짜, 카테고리, 수입/소비, 금액, 유형, 결제유형, 메모) */
+const CSV_HEADER = '날짜,카테고리,수입/소비,금액,유형,결제유형,메모';
 const CSV_TYPE_EXPENSE = '소비';
 const CSV_TYPE_INCOME = '수입';
 const CSV_PAYMENT_CREDIT = '신용';
 const CSV_PAYMENT_DEBIT = '체크';
 const CSV_PAYMENT_CASH = '현금';
+const DEFAULT_IMPORTED_SUBTYPE_COLOR = '#3664CE';
+
+type ImportedExpenseRecord = ExpenseRecord & {
+  paymentSubtypeLabel?: string;
+};
 
 export interface BackupPayload {
   version: number;
@@ -349,11 +354,78 @@ function parseCsvLine(line: string): string[] {
   return result;
 }
 
+function normalizeSubtypeLabel(label: string): string {
+  return label.trim();
+}
+
+function isValidPaymentSubtypeForImport(paymentMethod: PaymentMethod, subtypeLabel: string): boolean {
+  const normalized = normalizeSubtypeLabel(subtypeLabel);
+  if (paymentMethod === 'cash') {
+    return normalized.length === 0;
+  }
+  return normalized.length > 0;
+}
+
+async function resolveImportedExpenseSubtypeIds(
+  expenses: ImportedExpenseRecord[],
+): Promise<ExpenseRecord[]> {
+  if (expenses.length === 0) return [];
+
+  const currentSubtypes = await loadPaymentSubtypes();
+  const nextSubtypes: PaymentSubtype[] = [...currentSubtypes];
+  const subtypeByTypeAndLabel = new Map<string, PaymentSubtype>();
+
+  for (const subtype of nextSubtypes) {
+    const key = `${subtype.type}:${normalizeSubtypeLabel(subtype.label)}`;
+    subtypeByTypeAndLabel.set(key, subtype);
+  }
+
+  const resolved: ExpenseRecord[] = expenses.map((record) => {
+    if (record.paymentMethod === 'cash') {
+      const { paymentSubtypeLabel: _ignored, ...rest } = record;
+      return {
+        ...rest,
+        paymentSubtypeId: undefined,
+      };
+    }
+
+    const method = record.paymentMethod === 'debit' ? 'debit' : 'credit';
+    const normalizedLabel = normalizeSubtypeLabel(record.paymentSubtypeLabel ?? '');
+    const lookupKey = `${method}:${normalizedLabel}`;
+    let found = subtypeByTypeAndLabel.get(lookupKey);
+
+    if (!found) {
+      const created: PaymentSubtype = {
+        id: `${method}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        type: method,
+        label: normalizedLabel,
+        description: '',
+        color: DEFAULT_IMPORTED_SUBTYPE_COLOR,
+      };
+      nextSubtypes.push(created);
+      subtypeByTypeAndLabel.set(lookupKey, created);
+      found = created;
+    }
+
+    const { paymentSubtypeLabel: _ignored, ...rest } = record;
+    return {
+      ...rest,
+      paymentSubtypeId: found.id,
+    };
+  });
+
+  if (nextSubtypes.length !== currentSubtypes.length) {
+    await savePaymentSubtypes(nextSubtypes);
+  }
+
+  return resolved;
+}
+
 /**
  * CSV 내용을 파싱하여 expenses, incomes 배열로 변환합니다.
- * 헤더: 날짜,카테고리,수입/소비,금액,유형,메모
+ * 헤더: 날짜,카테고리,수입/소비,금액,유형,결제유형,메모
  */
-export function parseCsvContent(content: string): { expenses: ExpenseRecord[]; incomes: IncomeRecord[] } | null {
+export function parseCsvContent(content: string): { expenses: ImportedExpenseRecord[]; incomes: IncomeRecord[] } | null {
   const trimmed = content.trim();
   if (!trimmed) return null;
 
@@ -366,11 +438,12 @@ export function parseCsvContent(content: string): { expenses: ExpenseRecord[]; i
   const categoryCol = header.findIndex((h) => h === '카테고리');
   const amountCol = header.findIndex((h) => h === '금액');
   const paymentCol = header.findIndex((h) => h === '유형');
+  const paymentSubtypeCol = header.findIndex((h) => h === '결제유형');
   const memoCol = header.findIndex((h) => h === '메모');
 
   if (dateCol < 0 || categoryCol < 0 || amountCol < 0 || typeCol < 0) return null;
 
-  const expenses: ExpenseRecord[] = [];
+  const expenses: ImportedExpenseRecord[] = [];
   const incomes: IncomeRecord[] = [];
   const now = Date.now();
 
@@ -397,6 +470,10 @@ export function parseCsvContent(content: string): { expenses: ExpenseRecord[]; i
       });
     } else {
       const paymentMethod = paymentCol >= 0 ? csvToPaymentMethod(cells[paymentCol] ?? '') : 'credit';
+      const paymentSubtypeLabel = paymentSubtypeCol >= 0 ? String(cells[paymentSubtypeCol] ?? '').trim() : '';
+      if (!isValidPaymentSubtypeForImport(paymentMethod, paymentSubtypeLabel)) {
+        continue;
+      }
       expenses.push({
         type: 'expense',
         date: dateStr,
@@ -405,6 +482,7 @@ export function parseCsvContent(content: string): { expenses: ExpenseRecord[]; i
         memo: memo || undefined,
         timestamp,
         paymentMethod,
+        paymentSubtypeLabel: paymentSubtypeLabel || undefined,
       });
     }
   }
@@ -414,14 +492,21 @@ export function parseCsvContent(content: string): { expenses: ExpenseRecord[]; i
 
 /**
  * CSV 백업 파일을 생성하고 파일 경로를 반환합니다.
- * 포맷: 날짜,카테고리,수입/소비,금액,유형,메모 (엑셀 양식 호환)
+ * 포맷: 날짜,카테고리,수입/소비,금액,유형,결제유형,메모 (엑셀 양식 호환)
  */
 export async function writeCsvToFile(): Promise<string> {
-  const [expenses, incomes] = await Promise.all([getAllExpenses(), getAllIncomes()]);
+  const [expenses, incomes, paymentSubtypes] = await Promise.all([
+    getAllExpenses(),
+    getAllIncomes(),
+    loadPaymentSubtypes(),
+  ]);
+  const subtypeLabelById = new Map(paymentSubtypes.map((item) => [item.id, item.label]));
   const rows: string[] = [CSV_HEADER];
 
   for (const r of expenses) {
     if (r.isDeleted) continue;
+    const subtypeLabel =
+      r.paymentMethod === 'cash' ? '' : (r.paymentSubtypeId ? subtypeLabelById.get(r.paymentSubtypeId) ?? '' : '');
     rows.push(
       [
         escapeCsvField(r.date),
@@ -429,6 +514,7 @@ export async function writeCsvToFile(): Promise<string> {
         CSV_TYPE_EXPENSE,
         String(r.amount),
         escapeCsvField(paymentMethodToCsv(r.paymentMethod)),
+        escapeCsvField(subtypeLabel),
         escapeCsvField(r.memo ?? ''),
       ].join(','),
     );
@@ -442,6 +528,7 @@ export async function writeCsvToFile(): Promise<string> {
         CSV_TYPE_INCOME,
         String(r.amount),
         CSV_PAYMENT_CASH,
+        '',
         escapeCsvField(r.memo ?? ''),
       ].join(','),
     );
@@ -474,6 +561,7 @@ const XLSX_HEADER_LABELS = [
   '수입/소비',
   '금액',
   '유형',
+  '결제유형',
   '메모',
   '', // 메모와 카테고리 표 사이 한 칸 띄움
   '소비 카테고리',
@@ -507,8 +595,8 @@ const XLSX_GAP_CELL_STYLE = { font: XLSX_DEFAULT_FONT };
 
 /** 헤더 행(스타일 포함) — aoa_to_sheet에 넣을 첫 행 (9열: 데이터 6 + 빈칸 1 + 카테고리 2) */
 function buildXlsxHeaderRow(): { v: string; t: string; s: object }[] {
-  const dataLabels = XLSX_HEADER_LABELS.slice(0, 6);
-  const gapAndCategoryLabels = XLSX_HEADER_LABELS.slice(6, 9);
+  const dataLabels = XLSX_HEADER_LABELS.slice(0, 7);
+  const gapAndCategoryLabels = XLSX_HEADER_LABELS.slice(7, 10);
   return [
     ...dataLabels.map((label) => ({ v: label, t: 's' as const, s: XLSX_HEADER_CELL_STYLE })),
     { v: gapAndCategoryLabels[0], t: 's' as const, s: XLSX_GAP_CELL_STYLE },
@@ -517,13 +605,14 @@ function buildXlsxHeaderRow(): { v: string; t: string; s: object }[] {
   ];
 }
 
-/** 엑셀 열 너비(문자 수): 기록 6열 + 빈칸 1 + 카테고리 2열 */
+/** 엑셀 열 너비(문자 수): 기록 7열 + 빈칸 1 + 카테고리 2열 */
 const XLSX_COL_WIDTHS = [
   { wch: 12 }, // 날짜
   { wch: 16 }, // 카테고리
   { wch: 10 }, // 수입/소비
   { wch: 12 }, // 금액
   { wch: 8 },  // 유형
+  { wch: 16 }, // 결제유형
   { wch: 24 }, // 메모
   { wch: 6 },  // 빈 칸 (메모와 카테고리 표 사이)
   { wch: 18 }, // 소비 카테고리
@@ -562,7 +651,12 @@ function excelSerialToDateString(serial: number): string {
  * 년도별 시트('2025년', '2026년' 등)로 XLSX 백업 파일을 생성하고 파일 경로를 반환합니다.
  */
 export async function writeExcelToFile(): Promise<string> {
-  const [expenses, incomes] = await Promise.all([getAllExpenses(), getAllIncomes()]);
+  const [expenses, incomes, paymentSubtypes] = await Promise.all([
+    getAllExpenses(),
+    getAllIncomes(),
+    loadPaymentSubtypes(),
+  ]);
+  const subtypeLabelById = new Map(paymentSubtypes.map((item) => [item.id, item.label]));
 
   type RowSource = { date: string; type: 'expense' | 'income'; record: ExpenseRecord | IncomeRecord };
   const all: RowSource[] = [];
@@ -588,6 +682,9 @@ export async function writeExcelToFile(): Promise<string> {
         CSV_TYPE_EXPENSE,
         e.amount,
         paymentMethodToCsv(e.paymentMethod),
+        e.paymentMethod === 'cash'
+          ? ''
+          : (e.paymentSubtypeId ? subtypeLabelById.get(e.paymentSubtypeId) ?? '' : ''),
         e.memo ?? '',
       ]);
     } else {
@@ -598,6 +695,7 @@ export async function writeExcelToFile(): Promise<string> {
         CSV_TYPE_INCOME,
         i.amount,
         CSV_PAYMENT_CASH,
+        '',
         i.memo ?? '',
       ]);
     }
@@ -612,9 +710,9 @@ export async function writeExcelToFile(): Promise<string> {
   const wb = XLSX.utils.book_new();
   const DATE_COL = 0;
   const AMOUNT_COL = 3;
-  const DATA_COLS = 6;
-  const COLS = 9; // 데이터 6 + 빈칸 1 + 카테고리 2
-  const CATEGORY_COL_START = 7;
+  const DATA_COLS = 7;
+  const COLS = 10; // 데이터 7 + 빈칸 1 + 카테고리 2
+  const CATEGORY_COL_START = 8;
   const maxCategoryRows = Math.max(EXPENSE_CATEGORIES.length, INCOME_CATEGORIES.length);
 
   for (const year of years) {
@@ -693,10 +791,10 @@ function isValidPaymentType(s: string): boolean {
  * 모든 시트를 합쳐서 복원합니다.
  * 필수 항목(수입/소비, 날짜, 카테고리, 금액, 유형)에 공백 또는 형식에 맞지 않는 데이터가 있으면 복원 중단을 위해 throw.
  */
-export function parseXlsxContent(base64: string): { expenses: ExpenseRecord[]; incomes: IncomeRecord[] } | null {
+export function parseXlsxContent(base64: string): { expenses: ImportedExpenseRecord[]; incomes: IncomeRecord[] } | null {
   try {
     const wb = XLSX.read(base64, { type: 'base64', raw: true });
-    const allExpenses: ExpenseRecord[] = [];
+    const allExpenses: ImportedExpenseRecord[] = [];
     const allIncomes: IncomeRecord[] = [];
     let timestampBase = Date.now();
 
@@ -711,6 +809,7 @@ export function parseXlsxContent(base64: string): { expenses: ExpenseRecord[]; i
       const categoryCol = header.findIndex((h) => h === '카테고리');
       const amountCol = header.findIndex((h) => h === '금액');
       const paymentCol = header.findIndex((h) => h === '유형');
+      const paymentSubtypeCol = header.findIndex((h) => h === '결제유형');
       const memoCol = header.findIndex((h) => h === '메모');
       if (dateCol < 0 || categoryCol < 0 || amountCol < 0 || typeCol < 0) continue;
 
@@ -732,6 +831,7 @@ export function parseXlsxContent(base64: string): { expenses: ExpenseRecord[]; i
             : Number(get(amountCol).replace(/,/g, ''));
         const memo = memoCol >= 0 ? get(memoCol) : '';
         const paymentStr = paymentCol >= 0 ? get(paymentCol) : '';
+        const paymentSubtypeLabel = paymentSubtypeCol >= 0 ? get(paymentSubtypeCol) : '';
 
         const rowEmpty =
           typeVal === '' && get(dateCol) === '' && category === '' && get(amountCol) === '' && paymentStr === '';
@@ -742,8 +842,11 @@ export function parseXlsxContent(base64: string): { expenses: ExpenseRecord[]; i
         const categoryValid = category.length > 0;
         const amountValid = Number.isFinite(amount) && amount >= 0;
         const paymentValid = typeVal !== CSV_TYPE_EXPENSE || isValidPaymentType(paymentStr);
+        const paymentSubtypeValid =
+          typeVal !== CSV_TYPE_EXPENSE ||
+          isValidPaymentSubtypeForImport(csvToPaymentMethod(paymentStr), paymentSubtypeLabel);
 
-        if (!typeValid || !dateValid || !categoryValid || !amountValid || !paymentValid) {
+        if (!typeValid || !dateValid || !categoryValid || !amountValid || !paymentValid || !paymentSubtypeValid) {
           throw new Error(RESTORE_VALIDATION_ERROR);
         }
 
@@ -767,6 +870,7 @@ export function parseXlsxContent(base64: string): { expenses: ExpenseRecord[]; i
             memo: memo || undefined,
             timestamp,
             paymentMethod,
+            paymentSubtypeLabel: normalizeSubtypeLabel(paymentSubtypeLabel) || undefined,
           });
         }
       }
@@ -793,8 +897,9 @@ export async function restoreFromFile(fileUri: string): Promise<void> {
     });
     const parsed = parseXlsxContent(base64);
     if (parsed) {
+      const resolvedExpenses = await resolveImportedExpenseSubtypeIds(parsed.expenses);
       await Promise.all([
-        replaceAllExpenses(parsed.expenses),
+        replaceAllExpenses(resolvedExpenses),
         replaceAllIncomes(parsed.incomes),
       ]);
       await finalizeRestoreSideEffects();
@@ -844,8 +949,9 @@ export async function restoreFromFile(fileUri: string): Promise<void> {
 
   const csv = parseCsvContent(trimmed);
   if (csv) {
+    const resolvedExpenses = await resolveImportedExpenseSubtypeIds(csv.expenses);
     await Promise.all([
-      replaceAllExpenses(csv.expenses),
+      replaceAllExpenses(resolvedExpenses),
       replaceAllIncomes(csv.incomes),
     ]);
     await finalizeRestoreSideEffects();
