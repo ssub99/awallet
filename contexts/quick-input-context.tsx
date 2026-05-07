@@ -32,8 +32,10 @@ import {
   getNextRecurringDate,
 } from '@/utils/expense-calculations';
 import { createExpensesBatch, type ExpenseRecord, type PaymentMethod } from '@/utils/expenses';
+import { createIncome, type IncomeRecord } from '@/utils/incomes';
 import { generateGroupId, generateRecordId } from '@/utils/id-generator';
 import { loadCategories } from '@/utils/categories';
+import { getDefaultSubtypeIdByMethod, loadPaymentSubtypes, type PaymentSubtype } from '@/utils/payment-types';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
@@ -70,10 +72,14 @@ const NON_RECORD_LOCK_MS = 30_000;
 
 /** parse-expense API가 반환하는 기록 한 건 (확인 카드·기록 생성용) */
 interface PendingParseRecord {
+  recordType?: 'expense' | 'income';
   category: string | null;
   date: string;
   amount: number;
   paymentMethod?: 'credit' | 'debit' | 'cash';
+  paymentSubtypeLabel?: string;
+  paymentSubtypeId?: string;
+  paymentSubtypeColor?: string;
   memo?: string;
   isRecurring?: boolean;
   isInstallment?: boolean;
@@ -88,11 +94,13 @@ function toPendingParseRecord(value: unknown): PendingParseRecord | null {
   }
 
   const candidate = value as Record<string, unknown>;
+  const rawRecordType = candidate.recordType;
   const rawDate = candidate.date;
   const rawAmount = candidate.amount;
   const rawCategory = candidate.category;
   const rawPaymentMethod = candidate.paymentMethod;
   const rawMemo = candidate.memo;
+  const rawPaymentSubtypeLabel = candidate.paymentSubtypeLabel;
   const rawRecurringType = candidate.recurringType;
   const rawWeekendOption = candidate.weekendOption;
 
@@ -104,6 +112,8 @@ function toPendingParseRecord(value: unknown): PendingParseRecord | null {
       ? rawPaymentMethod
       : undefined;
   const memo = typeof rawMemo === 'string' ? rawMemo : undefined;
+  const paymentSubtypeLabel =
+    typeof rawPaymentSubtypeLabel === 'string' ? rawPaymentSubtypeLabel.trim() : undefined;
   const recurringType = typeof rawRecurringType === 'string' ? rawRecurringType : undefined;
   const weekendOption =
     rawWeekendOption === 'weekend' || rawWeekendOption === 'friday' || rawWeekendOption === 'monday'
@@ -115,10 +125,12 @@ function toPendingParseRecord(value: unknown): PendingParseRecord | null {
   }
 
   return {
+    recordType: rawRecordType === 'income' ? 'income' : 'expense',
     category,
     date,
     amount,
     paymentMethod,
+    paymentSubtypeLabel,
     memo,
     isRecurring: candidate.isRecurring as PendingParseRecord['isRecurring'],
     isInstallment: candidate.isInstallment as PendingParseRecord['isInstallment'],
@@ -280,6 +292,10 @@ function resolveMessageValidationToast(message: string, categoryLabels: string[]
   return null;
 }
 
+function hasIncomeHintInMessage(message: string): boolean {
+  return /월급|급여|보너스|입금|용돈|환급|수입/.test(message) || /salary|income|bonus/.test(message.toLowerCase());
+}
+
 function formatDateDisplay(dateStr: string): string {
   const parsed = parsePendingDate(dateStr);
   if (!parsed) return dateStr;
@@ -302,6 +318,99 @@ function paymentMethodToLabel(method?: 'credit' | 'debit' | 'cash'): string {
 
 function formatAmount(amount: number): string {
   return `${amount.toLocaleString('ko-KR')}원`;
+}
+
+function normalizePaymentSubtypeText(value: string): string {
+  return value.replace(/\s+/g, '').toLowerCase();
+}
+
+function normalizePaymentSubtypeStem(value: string): string {
+  return normalizePaymentSubtypeText(value).replace(/(체크카드|신용카드|체크|신용|카드)/g, '');
+}
+
+function inferPaymentMethodFromLabel(
+  label: string | undefined,
+): 'credit' | 'debit' | undefined {
+  const normalized = normalizePaymentSubtypeText(label ?? '');
+  if (!normalized) return undefined;
+  if (normalized.includes('체크')) return 'debit';
+  if (normalized.includes('신용')) return 'credit';
+  return undefined;
+}
+
+function findBestPaymentSubtypeMatch(
+  subtypes: PaymentSubtype[],
+  method: 'credit' | 'debit' | 'cash' | undefined,
+  label: string | undefined,
+): PaymentSubtype | undefined {
+  const normalizedLabel = (label ?? '').trim();
+  if (!normalizedLabel) return undefined;
+
+  const inferredMethod = inferPaymentMethodFromLabel(normalizedLabel);
+  const primaryMethod =
+    method && method !== 'cash' ? method : inferredMethod;
+
+  const pickFromCandidates = (candidates: PaymentSubtype[]): PaymentSubtype | undefined => {
+    if (candidates.length === 0) return undefined;
+
+    const normalized = normalizePaymentSubtypeText(normalizedLabel);
+    const normalizedStem = normalizePaymentSubtypeStem(normalizedLabel);
+
+    const exact = candidates.find((item) => normalizePaymentSubtypeText(item.label) === normalized);
+    if (exact) return exact;
+
+    const stemExact = normalizedStem
+      ? candidates.find((item) => normalizePaymentSubtypeStem(item.label) === normalizedStem)
+      : undefined;
+    if (stemExact) return stemExact;
+
+    return candidates.find((item) => {
+      const target = normalizePaymentSubtypeText(item.label);
+      const targetStem = normalizePaymentSubtypeStem(item.label);
+      return (
+        target.includes(normalized) ||
+        normalized.includes(target) ||
+        (normalizedStem.length > 0 &&
+          (targetStem.includes(normalizedStem) || normalizedStem.includes(targetStem)))
+      );
+    });
+  };
+
+  if (primaryMethod) {
+    const byMethod = pickFromCandidates(subtypes.filter((item) => item.type === primaryMethod));
+    if (byMethod) return byMethod;
+  }
+
+  return pickFromCandidates(subtypes);
+}
+
+function inferSubtypeFromMessage(
+  subtypes: PaymentSubtype[],
+  message: string,
+  method: 'credit' | 'debit' | 'cash' | undefined,
+): PaymentSubtype | undefined {
+  const normalizedMessage = normalizePaymentSubtypeText(message);
+  if (!normalizedMessage) return undefined;
+
+  const inferredMethod = method === 'cash' ? undefined : method;
+  const candidates = inferredMethod
+    ? subtypes.filter((item) => item.type === inferredMethod)
+    : subtypes;
+
+  const scored = candidates
+    .map((item) => {
+      const labelNorm = normalizePaymentSubtypeText(item.label);
+      const labelStem = normalizePaymentSubtypeStem(item.label);
+      const messageStem = normalizePaymentSubtypeStem(message);
+      const directHit = labelNorm.length > 0 && normalizedMessage.includes(labelNorm);
+      const stemHit = labelStem.length > 0 && messageStem.includes(labelStem);
+      const score = (directHit ? 1000 : 0) + (stemHit ? 100 : 0) + labelNorm.length;
+      return { item, score };
+    })
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  return scored[0]?.item;
 }
 
 function toBool(v: unknown): boolean {
@@ -419,6 +528,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const isConfirmAddInFlightRef = useRef(false);
 
   const quickInputRef = useRef<TextInput>(null);
+  const paymentSubtypesCacheRef = useRef<PaymentSubtype[]>([]);
   const quickInputBackdropOpacity = useRef(new RNAnimated.Value(0)).current;
   /** 숏/롱 동일 애니메이션: 부모 starScale/starRotate 공유. 새로고침 시 크래시 방지를 위해 fallback 보유 */
   const starRefs = useRef<{ starScale: AnimatedValue; starRotate: AnimatedValue } | null>(null);
@@ -488,6 +598,15 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     setIsQuickInputConfirmAdding(false);
   }, [overlayStarScale, overlayStarRotate]);
 
+  const getPaymentSubtypesCached = useCallback(async (): Promise<PaymentSubtype[]> => {
+    if (paymentSubtypesCacheRef.current.length > 0) {
+      return paymentSubtypesCacheRef.current;
+    }
+    const loaded = await loadPaymentSubtypes();
+    paymentSubtypesCacheRef.current = loaded;
+    return loaded;
+  }, []);
+
   const handleSend = useCallback(async () => {
     if (!quickInputText.trim()) return;
     if (confirmCardData != null) {
@@ -519,7 +638,13 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
 
     try {
       const categoryList = await loadCategories('expense');
-      const categories = categoryList.map((c) => c.label);
+      const incomeCategoryList = await loadCategories('income');
+      const categories = [...categoryList, ...incomeCategoryList].map((c) => c.label);
+      const paymentSubtypes = await getPaymentSubtypesCached();
+      const paymentSubtypeOptions = paymentSubtypes.map((item) => ({
+        type: item.type,
+        label: item.label,
+      }));
       const date = new Date();
       const today = `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}`;
       const securityHeaders = await getApiSecurityHeaders();
@@ -530,7 +655,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
           'Content-Type': 'application/json',
           ...securityHeaders,
         },
-        body: JSON.stringify({ message, categories, today }),
+        body: JSON.stringify({ message, categories, paymentSubtypes: paymentSubtypeOptions, today }),
       });
 
       const data = (await res.json()) as {
@@ -546,7 +671,6 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
 
       const records = normalizeApiRecords(data.records);
       const suggested = data.suggestedCategory;
-
       if (records.length === 0) {
         const validationToast = resolveMessageValidationToast(message, categories);
         if (validationToast) {
@@ -563,14 +687,50 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
 
       nonRecordCountRef.current = 0;
       const first = applyMessageFallback(records[0], message);
+      const isIncomeRecord = first.recordType === 'income' || hasIncomeHintInMessage(message);
+      const matchedSubtypeForFirst =
+        !isIncomeRecord
+          ? (
+        findBestPaymentSubtypeMatch(
+          paymentSubtypes,
+          first.paymentMethod,
+          first.paymentSubtypeLabel,
+        ) ??
+        inferSubtypeFromMessage(paymentSubtypes, message, first.paymentMethod)
+          )
+          : undefined;
+      const defaultCreditSubtype = paymentSubtypes.find(
+        (item) => item.id === getDefaultSubtypeIdByMethod('credit', paymentSubtypes)
+      );
+      const resolvedPaymentMethod = isIncomeRecord
+        ? undefined
+        : first.paymentMethod === 'cash'
+        ? 'cash'
+        : (matchedSubtypeForFirst?.type ?? first.paymentMethod ?? inferPaymentMethodFromLabel(first.paymentSubtypeLabel) ?? 'credit');
+      const normalizedFirst: PendingParseRecord = {
+        ...first,
+        recordType: isIncomeRecord ? 'income' : 'expense',
+        paymentMethod: isIncomeRecord ? undefined : resolvedPaymentMethod,
+        paymentSubtypeId: isIncomeRecord ? undefined : matchedSubtypeForFirst?.id,
+        paymentSubtypeColor: isIncomeRecord ? undefined : matchedSubtypeForFirst?.color,
+        paymentSubtypeLabel:
+          isIncomeRecord || resolvedPaymentMethod === 'cash'
+            ? undefined
+            : matchedSubtypeForFirst?.label ?? first.paymentSubtypeLabel ?? defaultCreditSubtype?.label,
+        isRecurring: isIncomeRecord ? undefined : first.isRecurring,
+        isInstallment: isIncomeRecord ? undefined : first.isInstallment,
+        recurringType: isIncomeRecord ? undefined : first.recurringType,
+        totalMonths: isIncomeRecord ? undefined : first.totalMonths,
+        weekendOption: isIncomeRecord ? undefined : first.weekendOption,
+      };
       const parsedAmount = Number(first.amount);
-      const normalizedCategory = typeof first.category === 'string' ? first.category.trim() : '';
+      const normalizedCategory = typeof normalizedFirst.category === 'string' ? normalizedFirst.category.trim() : '';
       if (!normalizedCategory) {
         showToast(requiredFieldToast('category'));
         return;
       }
-      if (!isValidPendingDate(first.date) || !Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-        if (!isValidPendingDate(first.date)) {
+      if (!isValidPendingDate(normalizedFirst.date) || !Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+        if (!isValidPendingDate(normalizedFirst.date)) {
           showToast('올바른 날짜를 기입해 주세요.');
           return;
         }
@@ -581,21 +741,35 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         showToast('인식된 기록 정보를 다시 확인해 주세요.');
         return;
       }
-      pendingRecordRef.current = first;
+      pendingRecordRef.current = normalizedFirst;
 
-      const categoryLabel = first.category ?? suggested?.label ?? '기타';
+      const categoryLabel = normalizedFirst.category ?? suggested?.label ?? '기타';
       const matchedCategory = categoryList.find((c) => c.label === categoryLabel);
+      const matchedIncomeCategory = incomeCategoryList.find((c) => c.label === categoryLabel);
       const categoryEmoji = matchedCategory?.emoji ?? suggested?.emoji ?? '';
+      const fallbackSubtypeLabel = paymentMethodToLabel(normalizedFirst.paymentMethod);
+      const inferredSubtypeLabel = normalizedFirst.paymentSubtypeLabel?.trim();
+      const paymentTypeLabel = normalizedFirst.paymentMethod === 'cash'
+        ? '현금'
+        : (inferredSubtypeLabel || fallbackSubtypeLabel);
+      const paymentTypeColor =
+        normalizedFirst.paymentMethod === 'cash'
+          ? undefined
+          : (normalizedFirst.paymentSubtypeColor ?? defaultCreditSubtype?.color);
+      const paymentTypeEmoji = normalizedFirst.paymentMethod === 'cash' ? '💰' : undefined;
 
       setConfirmCardData({
+        recordType: normalizedFirst.recordType,
         category: categoryLabel,
-        categoryEmoji: categoryEmoji || undefined,
-        date: formatDateDisplay(first.date),
+        categoryEmoji: (matchedIncomeCategory?.emoji ?? categoryEmoji) || undefined,
+        date: formatDateDisplay(normalizedFirst.date),
         amount: formatAmount(parsedAmount),
-        paymentType: paymentMethodToLabel(first.paymentMethod),
-        repeatOption1: getRepeatOption1(first),
-        repeatOption2: getRepeatOption2(first),
-        repeatOption3: getRepeatOption3(first),
+        paymentType: normalizedFirst.recordType === 'income' ? undefined : paymentTypeLabel,
+        paymentTypeColor: normalizedFirst.recordType === 'income' ? undefined : paymentTypeColor,
+        paymentTypeEmoji: normalizedFirst.recordType === 'income' ? undefined : paymentTypeEmoji,
+        repeatOption1: normalizedFirst.recordType === 'income' ? undefined : getRepeatOption1(normalizedFirst),
+        repeatOption2: normalizedFirst.recordType === 'income' ? undefined : getRepeatOption2(normalizedFirst),
+        repeatOption3: normalizedFirst.recordType === 'income' ? undefined : getRepeatOption3(normalizedFirst),
       });
     } catch {
       showToast('요청에 실패했습니다. 다시 시도해 주세요.');
@@ -603,7 +777,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     } finally {
       setIsQuickInputSendLoading(false);
     }
-  }, [quickInputText, confirmCardData, showToast]);
+  }, [quickInputText, confirmCardData, getPaymentSubtypesCached, showToast]);
 
   const handleConfirmCardAdd = useCallback(async () => {
     if (isConfirmAddInFlightRef.current || isQuickInputConfirmAdding) {
@@ -639,6 +813,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
 
       const isRecurring = !!pending.isRecurring;
       const isInstallment = !!pending.isInstallment;
+      const isIncomeRecord = pending.recordType === 'income';
       const recurringType = pending.recurringType ?? '매월';
       const totalMonths = Math.max(2, Math.min(12, pending.totalMonths ?? 1));
       const weekendOption = (pending.weekendOption ?? 'weekend') as 'weekend' | 'friday' | 'monday';
@@ -665,10 +840,33 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       const recordId = generateRecordId();
       const recurringId = isRecurring ? generateGroupId('recurring') : undefined;
       const installmentId = isInstallment ? generateGroupId('installment') : undefined;
+      const allPaymentSubtypes = isIncomeRecord ? [] : await getPaymentSubtypesCached();
 
       const expenseAmount = Number(pending.amount);
       if (!Number.isFinite(expenseAmount) || expenseAmount <= 0) {
         showToast('금액을 확인해 주세요.');
+        return;
+      }
+
+      if (isIncomeRecord) {
+        const incomeRecord: IncomeRecord = {
+          type: 'income',
+          id: generateRecordId(),
+          amount: expenseAmount,
+          category: pending.category ?? '기타',
+          date: actualDate,
+          timestamp: Date.now(),
+          memo: pending.memo,
+        };
+        await createIncome(incomeRecord);
+        await refreshWidgetWithCurrentMonth().catch(() => {});
+        pendingRecordRef.current = null;
+        setConfirmCardData(null);
+        hideQuickInput();
+        showToast('기록 생성이 완료되었습니다.');
+        await refresh();
+        calendarRefreshEvent.emit();
+        rescheduleDailyReminderIfNeeded().catch(() => {});
         return;
       }
 
@@ -682,6 +880,20 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       }
 
       const recordsToSave: ExpenseRecord[] = [];
+      const paymentMethod = (pending.paymentMethod as PaymentMethod) ?? 'credit';
+      const paymentSubtypeLabel = pending.paymentSubtypeLabel?.trim() ?? '';
+      let paymentSubtypeId: string | undefined;
+      if (paymentMethod !== 'cash') {
+        const matchedSubtype = pending.paymentSubtypeId
+          ? allPaymentSubtypes.find((item) => item.id === pending.paymentSubtypeId)
+          : findBestPaymentSubtypeMatch(
+              allPaymentSubtypes,
+              paymentMethod,
+              paymentSubtypeLabel,
+            );
+        paymentSubtypeId =
+          matchedSubtype?.id ?? getDefaultSubtypeIdByMethod(paymentMethod, allPaymentSubtypes);
+      }
       const baseRecord: ExpenseRecord = {
         type: 'expense',
         id: recordId,
@@ -689,7 +901,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         category: pending.category ?? '기타',
         date: actualDate,
         timestamp: newTimestamp,
-        paymentMethod: (pending.paymentMethod as PaymentMethod) ?? 'credit',
+        paymentMethod,
+        paymentSubtypeId,
         memo: pending.memo,
         isRecurring,
         weekendOption: (isRecurring || isInstallment) ? weekendOption : undefined,
@@ -826,7 +1039,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       setIsQuickInputConfirmAdding(false);
       isConfirmAddInFlightRef.current = false;
     }
-  }, [hideQuickInput, isQuickInputConfirmAdding, refresh, showToast]);
+  }, [getPaymentSubtypesCached, hideQuickInput, isQuickInputConfirmAdding, refresh, showToast]);
 
   const handleConfirmCardCancel = useCallback(() => {
     void logEvent('btn', {

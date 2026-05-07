@@ -12,15 +12,18 @@ import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from '
 import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 export interface QuickInputConfirmCardData {
+  recordType?: 'expense' | 'income';
   category: string;
   categoryEmoji?: string;
   date: string;
   amount: string;
-  paymentType: string;
+  paymentType?: string;
+  paymentTypeColor?: string;
+  paymentTypeEmoji?: string;
   /** 반복 설정: 1. 정기/할부/일반, 2. 기록 단위, 3. 주말 옵션 */
-  repeatOption1: string;
-  repeatOption2: string;
-  repeatOption3: string;
+  repeatOption1?: string;
+  repeatOption2?: string;
+  repeatOption3?: string;
 }
 
 export interface QuickInputConfirmCardProps {
@@ -54,6 +57,36 @@ function ConfirmRow({
       <Text style={[styles.value, { color: colors.text }]} numberOfLines={1}>
         {value}
       </Text>
+    </View>
+  );
+}
+
+function PaymentTypeRow({
+  label,
+  value,
+  color,
+  emoji,
+  colors,
+}: {
+  label: string;
+  value: string;
+  color?: string;
+  emoji?: string;
+  colors: typeof Colors.light;
+}) {
+  return (
+    <View style={styles.row}>
+      <Text style={[styles.label, { color: colors.textAssistive }]}>{label}</Text>
+      <View style={styles.valueWithIndicator}>
+        {emoji ? (
+          <Text style={[styles.paymentEmoji, { color: colors.text }]}>{emoji}</Text>
+        ) : (
+          <View style={[styles.paymentDot, { backgroundColor: color ?? colors.primary, borderColor: colors.border }]} />
+        )}
+        <Text style={[styles.value, styles.valueNoMarginLeft, { color: colors.text }]} numberOfLines={1}>
+          {value}
+        </Text>
+      </View>
     </View>
   );
 }
@@ -102,7 +135,9 @@ export function QuickInputConfirmCard({ data, onConfirm, onCancel, addLoading = 
     : data.category;
 
   const title =
-    data.repeatOption1 === '정기 기록'
+    data.recordType === 'income'
+      ? '수입 기록 생성'
+      : data.repeatOption1 === '정기 기록'
       ? '정기 기록 생성'
       : data.repeatOption1 === '할부 기록'
         ? '할부 기록 생성'
@@ -116,14 +151,24 @@ export function QuickInputConfirmCard({ data, onConfirm, onCancel, addLoading = 
         <ConfirmRow label={ROW_LABELS.category} value={categoryDisplay} colors={colors} />
         <ConfirmRow label={ROW_LABELS.date} value={data.date} colors={colors} />
         <ConfirmRow label={ROW_LABELS.amount} value={data.amount} colors={colors} />
-        <ConfirmRow label={ROW_LABELS.paymentType} value={data.paymentType} colors={colors} />
-        <ConfirmRow
-          label={ROW_LABELS.repeatOption1}
-          value={[data.repeatOption1, data.repeatOption2, data.repeatOption3]
-            .filter(Boolean)
-            .join(' · ')}
-          colors={colors}
-        />
+        {data.recordType !== 'income' ? (
+          <>
+            <PaymentTypeRow
+              label={ROW_LABELS.paymentType}
+              value={data.paymentType ?? ''}
+              color={data.paymentTypeColor}
+              emoji={data.paymentTypeEmoji}
+              colors={colors}
+            />
+            <ConfirmRow
+              label={ROW_LABELS.repeatOption1}
+              value={[data.repeatOption1, data.repeatOption2, data.repeatOption3]
+                .filter(Boolean)
+                .join(' · ')}
+              colors={colors}
+            />
+          </>
+        ) : null}
       </View>
       <View style={styles.buttonRow}>
         <Pressable
@@ -197,6 +242,26 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     flex: 1,
     textAlign: 'left',
+  },
+  valueNoMarginLeft: {
+    marginLeft: 0,
+  },
+  valueWithIndicator: {
+    marginLeft: 8,
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  paymentDot: {
+    width: 16,
+    height: 16,
+    borderRadius: 99,
+    borderWidth: 1,
+  },
+  paymentEmoji: {
+    ...Typography.body1.l.regular,
+    lineHeight: 24,
   },
   buttonRow: {
     flexDirection: 'row',
