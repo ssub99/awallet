@@ -66,6 +66,21 @@ const CONSUMPTION_REPORT_RESET_AT_KEY = 'consumptionReportResetAt';
 const CONSUMPTION_REPORT_RESET_HANDLED_AT_KEY = 'consumptionReportResetHandledAt';
 const CONSUMPTION_REPORT_API_TIMEOUT_MS = 15000;
 const TREND_PAYMENT_FILTER_STORAGE_KEY = 'challengeTrendPaymentFilter_v1';
+const STANDARD_TREND_PAYMENT_FILTER_KEYS = ['cash'] as const;
+
+function buildAllTrendPaymentFilterKeyIds(subtypes: PaymentSubtype[]): string[] {
+  return [...subtypes.map((item) => item.id), ...STANDARD_TREND_PAYMENT_FILTER_KEYS];
+}
+
+function mergeTrendPaymentFilterKeys(current: string[], idsToAdd: string[]): string[] {
+  const next = [...current];
+  for (const id of idsToAdd) {
+    if (!next.includes(id)) {
+      next.push(id);
+    }
+  }
+  return next;
+}
 /** 이 문자열을 바꾸면 `REPORT_POLICY_FINGERPRINT`가 달라지고, 저장된 소비 리포트 캐시는 복구 시 지문 불일치로 제외될 수 있음 */
 const REPORT_POLICY_FINGERPRINT_SOURCE = [
   'summary_metric_autoinject=false',
@@ -470,6 +485,10 @@ export default function ChallengeTabScreen() {
   const [trendPaymentFilterKeys, setTrendPaymentFilterKeys] = useState<string[]>([]);
   const [draftTrendPaymentFilterKeys, setDraftTrendPaymentFilterKeys] = useState<string[]>([]);
   const [shouldInitTrendFilterDefaults, setShouldInitTrendFilterDefaults] = useState(false);
+  const [shouldBackfillMissingTrendFilterOptions, setShouldBackfillMissingTrendFilterOptions] =
+    useState(false);
+  const [isTrendPaymentFilterLoaded, setIsTrendPaymentFilterLoaded] = useState(false);
+  const prevTrendPaymentSubtypeIdsRef = useRef<string[] | null>(null);
   const [consumptionIndex, setConsumptionIndex] = useState<ConsumptionIndexResult | null>(null);
   const [isConsumptionIndexLoading, setIsConsumptionIndexLoading] = useState(false);
   const [aiSummaryText, setAiSummaryText] = useState<string[] | null>(null);
@@ -1030,14 +1049,25 @@ export default function ChallengeTabScreen() {
         }
         const parsed = JSON.parse(stored) as unknown;
         if (Array.isArray(parsed) && parsed.every((key) => typeof key === 'string')) {
-          setTrendPaymentFilterKeys(parsed as string[]);
-          setShouldInitTrendFilterDefaults(false);
+          const storedKeys = parsed as string[];
+          if (storedKeys.length === 0) {
+            setTrendPaymentFilterKeys([]);
+            setShouldInitTrendFilterDefaults(false);
+          } else {
+            setTrendPaymentFilterKeys(storedKeys);
+            setShouldInitTrendFilterDefaults(false);
+            setShouldBackfillMissingTrendFilterOptions(true);
+          }
           return;
         }
         setShouldInitTrendFilterDefaults(true);
       } catch {
         if (active) {
           setShouldInitTrendFilterDefaults(true);
+        }
+      } finally {
+        if (active) {
+          setIsTrendPaymentFilterLoaded(true);
         }
       }
     };
@@ -1048,10 +1078,12 @@ export default function ChallengeTabScreen() {
   }, []);
 
   useEffect(() => {
+    if (!isTrendPaymentFilterLoaded) return;
+    if (shouldInitTrendFilterDefaults) return;
     void AsyncStorage.setItem(TREND_PAYMENT_FILTER_STORAGE_KEY, JSON.stringify(trendPaymentFilterKeys)).catch(() => {
       // ignore
     });
-  }, [trendPaymentFilterKeys]);
+  }, [isTrendPaymentFilterLoaded, shouldInitTrendFilterDefaults, trendPaymentFilterKeys]);
 
   const creditSubtypes = useMemo(
     () => paymentSubtypes.filter((item) => item.type === 'credit'),
@@ -1082,20 +1114,74 @@ export default function ChallengeTabScreen() {
     [creditSubtypes, debitSubtypes]
   );
 
+  const allTrendPaymentFilterKeyIds = useMemo(
+    () => buildAllTrendPaymentFilterKeyIds(paymentSubtypes),
+    [paymentSubtypes],
+  );
+
+  const trendPaymentFilterValidKeySet = useMemo(
+    () => new Set(allTrendPaymentFilterKeyIds),
+    [allTrendPaymentFilterKeyIds],
+  );
+
   useEffect(() => {
     if (!shouldInitTrendFilterDefaults) return;
-    if (trendPaymentFilterOptions.length === 0) return;
-    const allKeys = trendPaymentFilterOptions.map((item) => item.id);
+    if (paymentSubtypes.length === 0) return;
+
+    const allKeys = buildAllTrendPaymentFilterKeyIds(paymentSubtypes);
     setTrendPaymentFilterKeys(allKeys);
     setDraftTrendPaymentFilterKeys(allKeys);
     setShouldInitTrendFilterDefaults(false);
-  }, [shouldInitTrendFilterDefaults, trendPaymentFilterOptions]);
+    setShouldBackfillMissingTrendFilterOptions(false);
+    prevTrendPaymentSubtypeIdsRef.current = paymentSubtypes.map((item) => item.id);
+  }, [paymentSubtypes, shouldInitTrendFilterDefaults]);
 
   useEffect(() => {
-    const validKeys = new Set(['cash', ...paymentSubtypes.map((item) => item.id)]);
-    setTrendPaymentFilterKeys((prev) => prev.filter((key) => validKeys.has(key)));
-    setDraftTrendPaymentFilterKeys((prev) => prev.filter((key) => validKeys.has(key)));
-  }, [paymentSubtypes]);
+    if (!isTrendPaymentFilterLoaded || shouldInitTrendFilterDefaults) return;
+    if (!shouldBackfillMissingTrendFilterOptions) return;
+    if (paymentSubtypes.length === 0) return;
+
+    const allKeys = buildAllTrendPaymentFilterKeyIds(paymentSubtypes);
+    setTrendPaymentFilterKeys((prev) => {
+      const missingIds = allKeys.filter((id) => !prev.includes(id));
+      return missingIds.length > 0 ? mergeTrendPaymentFilterKeys(prev, missingIds) : prev;
+    });
+    setDraftTrendPaymentFilterKeys((prev) => {
+      const missingIds = allKeys.filter((id) => !prev.includes(id));
+      return missingIds.length > 0 ? mergeTrendPaymentFilterKeys(prev, missingIds) : prev;
+    });
+    setShouldBackfillMissingTrendFilterOptions(false);
+    prevTrendPaymentSubtypeIdsRef.current = paymentSubtypes.map((item) => item.id);
+  }, [
+    isTrendPaymentFilterLoaded,
+    paymentSubtypes,
+    shouldBackfillMissingTrendFilterOptions,
+    shouldInitTrendFilterDefaults,
+  ]);
+
+  useEffect(() => {
+    if (!isTrendPaymentFilterLoaded) return;
+    if (paymentSubtypes.length === 0) return;
+
+    setTrendPaymentFilterKeys((prev) => prev.filter((key) => trendPaymentFilterValidKeySet.has(key)));
+    setDraftTrendPaymentFilterKeys((prev) => prev.filter((key) => trendPaymentFilterValidKeySet.has(key)));
+  }, [isTrendPaymentFilterLoaded, paymentSubtypes.length, trendPaymentFilterValidKeySet]);
+
+  useEffect(() => {
+    if (!isTrendPaymentFilterLoaded || shouldInitTrendFilterDefaults) return;
+
+    const subtypeIds = paymentSubtypes.map((item) => item.id);
+    const prevSubtypeIds = prevTrendPaymentSubtypeIdsRef.current;
+    prevTrendPaymentSubtypeIdsRef.current = subtypeIds;
+
+    if (prevSubtypeIds === null) return;
+
+    const addedSubtypeIds = subtypeIds.filter((id) => !prevSubtypeIds.includes(id));
+    if (addedSubtypeIds.length === 0) return;
+
+    setTrendPaymentFilterKeys((prev) => mergeTrendPaymentFilterKeys(prev, addedSubtypeIds));
+    setDraftTrendPaymentFilterKeys((prev) => mergeTrendPaymentFilterKeys(prev, addedSubtypeIds));
+  }, [isTrendPaymentFilterLoaded, paymentSubtypes, shouldInitTrendFilterDefaults]);
 
   const defaultCreditSubtypeId = useMemo(() => creditSubtypes[0]?.id, [creditSubtypes]);
   const defaultDebitSubtypeId = useMemo(() => debitSubtypes[0]?.id, [debitSubtypes]);
