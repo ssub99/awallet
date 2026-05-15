@@ -100,7 +100,7 @@ interface ChallengeData {
 
 type PaymentFilterType = 'all' | 'cash' | 'subtype';
 
-const TIMELINE_PAYMENT_FILTER_STORAGE_KEY = 'monthlyTimelinePaymentFilter_v1';
+const TIMELINE_PAYMENT_FILTER_STORAGE_KEY = 'monthlyTimelinePaymentFilter';
 
 export default function MonthlyExpenseTimelineScreen() {
   const { height: windowHeight } = useWindowDimensions();
@@ -126,13 +126,32 @@ export default function MonthlyExpenseTimelineScreen() {
   const [paymentFilterKeys, setPaymentFilterKeys] = useState<string[]>([]);
   const [draftPaymentFilterKeys, setDraftPaymentFilterKeys] = useState<string[]>([]);
   const [shouldInitPaymentFilterDefaults, setShouldInitPaymentFilterDefaults] = useState(false);
-  const isPaymentFilterStateReadyRef = useRef(false);
+  const handleFilterPress = useCallback(() => {
+    void logEvent('ui', {
+      screen_name: '/monthly-expense-timeline',
+      target: 'filter',
+    });
+    void logEvent('sheet_view', {
+      screen_name: '/monthly-expense-timeline',
+      target: 'filter',
+    });
+    setDraftPaymentFilterKeys(paymentFilterKeys);
+    setShowPaymentFilterSheet(true);
+  }, [paymentFilterKeys]);
 
   useEffect(() => {
     let active = true;
     const loadFilterState = async () => {
       try {
-        const stored = await AsyncStorage.getItem(TIMELINE_PAYMENT_FILTER_STORAGE_KEY);
+        let stored = await AsyncStorage.getItem(TIMELINE_PAYMENT_FILTER_STORAGE_KEY);
+        if (!stored) {
+          const outdatedStored = await AsyncStorage.getItem('monthlyTimelinePaymentFilter_v1');
+          if (outdatedStored) {
+            stored = outdatedStored;
+            await AsyncStorage.setItem(TIMELINE_PAYMENT_FILTER_STORAGE_KEY, outdatedStored);
+            await AsyncStorage.removeItem('monthlyTimelinePaymentFilter_v1');
+          }
+        }
         if (!active) return;
         if (!stored) {
           setShouldInitPaymentFilterDefaults(true);
@@ -163,10 +182,6 @@ export default function MonthlyExpenseTimelineScreen() {
         if (active) {
           setShouldInitPaymentFilterDefaults(true);
         }
-      } finally {
-        if (active) {
-          isPaymentFilterStateReadyRef.current = true;
-        }
       }
     };
     void loadFilterState();
@@ -176,7 +191,6 @@ export default function MonthlyExpenseTimelineScreen() {
   }, []);
 
   useEffect(() => {
-    if (!isPaymentFilterStateReadyRef.current) return;
     void AsyncStorage.setItem(TIMELINE_PAYMENT_FILTER_STORAGE_KEY, JSON.stringify(paymentFilterKeys)).catch(() => {
       // ignore
     });
@@ -242,35 +256,9 @@ export default function MonthlyExpenseTimelineScreen() {
 
   useEffect(() => {
     const validKeys = new Set(['cash', 'income', ...paymentSubtypes.map((item) => item.id)]);
-    setPaymentFilterKeys((prev) => {
-      const next = prev.filter((key) => validKeys.has(key));
-      if (prev.length > 0 && next.length === 0) {
-        setShouldInitPaymentFilterDefaults(true);
-      }
-      return next;
-    });
+    setPaymentFilterKeys((prev) => prev.filter((key) => validKeys.has(key)));
     setDraftPaymentFilterKeys((prev) => prev.filter((key) => validKeys.has(key)));
   }, [paymentSubtypes]);
-
-  const handleFilterPress = useCallback(() => {
-    void logEvent('ui', {
-      screen_name: '/monthly-expense-timeline',
-      target: 'filter',
-    });
-    void logEvent('sheet_view', {
-      screen_name: '/monthly-expense-timeline',
-      target: 'filter',
-    });
-    const allOptionIds = paymentFilterOptions.map((item) => item.id);
-    const keysForSheet =
-      paymentFilterKeys.length > 0
-        ? paymentFilterKeys
-        : allOptionIds.length > 0
-          ? allOptionIds
-          : paymentFilterKeys;
-    setDraftPaymentFilterKeys(keysForSheet);
-    setShowPaymentFilterSheet(true);
-  }, [paymentFilterKeys, paymentFilterOptions]);
 
   // Year/Month options for picker (홈 화면과 동일하게 ±10년)
   const yearOptions = useMemo(() => {
