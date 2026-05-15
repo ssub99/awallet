@@ -1114,6 +1114,47 @@ export default function ChallengeTabScreen() {
   const isTrendPaymentFilterApplied = trendPaymentFilterKeys.length > 0;
   const isTrendFilterEmptySelection = trendPaymentFilterKeys.length === 0;
 
+  const handleTrendPaymentFilterPress = useCallback(() => {
+    void logEvent('btn', {
+      screen_name: '/challenge',
+      target: 'filter',
+    });
+    void logEvent('sheet_view', {
+      screen_name: '/challenge',
+      target: 'filter',
+    });
+    setDraftTrendPaymentFilterKeys(trendPaymentFilterKeys);
+    setShowTrendPaymentFilterSheet(true);
+  }, [trendPaymentFilterKeys]);
+
+  const handleTrendPaymentFilterSheetClose = useCallback(() => {
+    void logEvent('btn', {
+      screen_name: '/challenge',
+      target: 'filter-close',
+    });
+    setDraftTrendPaymentFilterKeys(trendPaymentFilterKeys);
+    setShowTrendPaymentFilterSheet(false);
+  }, [trendPaymentFilterKeys]);
+
+  const handleTrendPaymentFilterConfirm = useCallback(() => {
+    void logEvent('btn', {
+      screen_name: '/challenge',
+      target: 'filter-confirm',
+    });
+    setTrendPaymentFilterKeys(draftTrendPaymentFilterKeys);
+    setShowTrendPaymentFilterSheet(false);
+  }, [draftTrendPaymentFilterKeys]);
+
+  const handleTrendPaymentFilterListPress = useCallback((itemId: string) => {
+    void logEvent('list', {
+      screen_name: '/challenge',
+      target: 'filter',
+    });
+    setDraftTrendPaymentFilterKeys((prev) =>
+      prev.includes(itemId) ? prev.filter((key) => key !== itemId) : [...prev, itemId]
+    );
+  }, []);
+
   // 이번달 지출 순위 / 정기 지출 집계 (monthly-expense-timeline과 동일)
   const trendCategoryExpenses = useMemo(() => {
     const categoryMap = new Map<string, { count: number; amount: number; memo?: string }>();
@@ -2493,10 +2534,7 @@ export default function ChallengeTabScreen() {
                       />
                     </View>
                     <Pressable
-                      onPress={() => {
-                        setDraftTrendPaymentFilterKeys(trendPaymentFilterKeys);
-                        setShowTrendPaymentFilterSheet(true);
-                      }}
+                      onPress={handleTrendPaymentFilterPress}
                       style={styles.trendFilterButton}
                       accessibilityRole="button"
                       accessibilityLabel="결제 유형 필터"
@@ -2751,14 +2789,8 @@ export default function ChallengeTabScreen() {
           <ModalBottomsheet
             visible={true}
             title="필터"
-            onClose={() => {
-              setDraftTrendPaymentFilterKeys(trendPaymentFilterKeys);
-              setShowTrendPaymentFilterSheet(false);
-            }}
-            onConfirm={() => {
-              setTrendPaymentFilterKeys(draftTrendPaymentFilterKeys);
-              setShowTrendPaymentFilterSheet(false);
-            }}
+            onClose={handleTrendPaymentFilterSheetClose}
+            onConfirm={handleTrendPaymentFilterConfirm}
             confirmText="확인"
             closeOnBackdrop={true}
             style={{ height: trendPaymentFilterSheetHeight }}
@@ -2785,11 +2817,7 @@ export default function ChallengeTabScreen() {
                       <View key={item.id}>
                         <Pressable
                           style={styles.trendPaymentFilterItem}
-                          onPress={() => {
-                            setDraftTrendPaymentFilterKeys((prev) =>
-                              prev.includes(item.id) ? prev.filter((key) => key !== item.id) : [...prev, item.id]
-                            );
-                          }}
+                          onPress={() => handleTrendPaymentFilterListPress(item.id)}
                         >
                           {item.type === 'cash' ? (
                             <View style={styles.trendPaymentFilterEmojiWrap}>

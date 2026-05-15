@@ -598,7 +598,6 @@ export async function setUserId(userId: string | null): Promise<void> {
  */
 export async function logScreenView(
   screenName: string,
-  screenClass?: string,
   params?: Record<string, unknown>,
 ): Promise<void> {
   if (!assertReady()) return;
@@ -607,7 +606,6 @@ export async function logScreenView(
     track('screen_view', {
       app_runtime: Platform.OS,
       screen_name: screenName,
-      screen_class: screenClass ?? screenName,
       ...(params ?? {}),
     });
   } catch (error) {

@@ -11,9 +11,9 @@ import { Tag } from '@/components/ui/tag';
 import { Colors, Typography } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';
 import { useLoading } from '@/contexts/loading-context';
+import { applyPendingCalendarTargetEvent, setLatestPendingCalendarTarget } from '@/hooks/calendar-events';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
-import { applyPendingCalendarTargetEvent, setLatestPendingCalendarTarget } from '@/hooks/calendar-events';
 import { logEvent } from '@/utils/analytics';
 import { loadCategories } from '@/utils/categories';
 import { getCustomMonthRange, isDateInCustomMonth } from '@/utils/custom-month';
@@ -126,6 +126,14 @@ export default function MonthlyExpenseTimelineScreen() {
   const [paymentFilterKeys, setPaymentFilterKeys] = useState<string[]>([]);
   const [draftPaymentFilterKeys, setDraftPaymentFilterKeys] = useState<string[]>([]);
   const handleFilterPress = useCallback(() => {
+    void logEvent('ui', {
+      screen_name: '/monthly-expense-timeline',
+      target: 'filter',
+    });
+    void logEvent('sheet_view', {
+      screen_name: '/monthly-expense-timeline',
+      target: 'filter',
+    });
     setDraftPaymentFilterKeys(paymentFilterKeys);
     setShowPaymentFilterSheet(true);
   }, [paymentFilterKeys]);
@@ -1195,10 +1203,18 @@ export default function MonthlyExpenseTimelineScreen() {
           visible={true}
           title="필터"
           onClose={() => {
+            void logEvent('btn', {
+              screen_name: '/monthly-expense-timeline',
+              target: 'filter-close',
+            });
             setDraftPaymentFilterKeys(paymentFilterKeys);
             setShowPaymentFilterSheet(false);
           }}
           onConfirm={() => {
+            void logEvent('btn', {
+              screen_name: '/monthly-expense-timeline',
+              target: 'filter-confirm',
+            });
             setPaymentFilterKeys(draftPaymentFilterKeys);
             setShowPaymentFilterSheet(false);
           }}
@@ -1231,6 +1247,10 @@ export default function MonthlyExpenseTimelineScreen() {
                     <Pressable
                       style={styles.paymentFilterItem}
                       onPress={() => {
+                        void logEvent('list', {
+                          screen_name: '/monthly-expense-timeline',
+                          target: 'filter',
+                        });
                         setDraftPaymentFilterKeys((prev) =>
                           prev.includes(item.id) ? prev.filter((key) => key !== item.id) : [...prev, item.id]
                         );

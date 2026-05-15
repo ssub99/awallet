@@ -933,38 +933,49 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     });
   }, [analyticsScreenName, showNoChangesModal]);
 
-  const handlePaymentMethodChange = useCallback((val: string) => {
-    const nextPaymentMethod = val as PaymentMethod;
-    const target =
-      nextPaymentMethod === 'credit'
-        ? 'payment-credit'
-        : nextPaymentMethod === 'debit'
-        ? 'payment-debit'
-        : 'payment-cash';
-
-    void logEvent('ui', {
-      screen_name: analyticsScreenName,
-      target,
-    });
-    setPaymentMethod(nextPaymentMethod);
+  const applyPaymentMethod = useCallback((val: PaymentMethod) => {
+    setPaymentMethod(val);
   }, []);
 
   const handleOpenPaymentTypeSheet = useCallback(() => {
+    void logEvent('ui', {
+      screen_name: analyticsScreenName,
+      target: 'payment',
+    });
     void logEvent('sheet_view', {
       screen_name: analyticsScreenName,
-      target: 'payment-type-sheet',
+      target: 'payment',
     });
     setPaymentTypeSheetFilter(paymentMethod === 'debit' ? 'debit' : 'credit');
     setShowPaymentTypeSheet(true);
   }, [analyticsScreenName, paymentMethod]);
 
+  const handlePaymentTypeSheetClose = useCallback(() => {
+    void logEvent('btn', {
+      screen_name: analyticsScreenName,
+      target: 'payment-close',
+    });
+    setShowPaymentTypeSheet(false);
+  }, [analyticsScreenName]);
+
   const handlePaymentTypeSelect = useCallback((val: PaymentMethod, subtypeId?: string) => {
-    handlePaymentMethodChange(val);
+    if (val === 'cash') {
+      void logEvent('btn', {
+        screen_name: analyticsScreenName,
+        target: 'payment-cash',
+      });
+    } else {
+      void logEvent('list', {
+        screen_name: analyticsScreenName,
+        target: val === 'credit' ? 'payment-credit' : 'payment-debit',
+      });
+    }
+    applyPaymentMethod(val);
     if (subtypeId) {
       setSelectedPaymentSubtypeId(subtypeId);
     }
     setShowPaymentTypeSheet(false);
-  }, [handlePaymentMethodChange]);
+  }, [analyticsScreenName, applyPaymentMethod]);
 
   const [paymentTypeSheetItems, setPaymentTypeSheetItems] = useState<
     Array<{ id: string; type: 'credit' | 'debit'; label: string; description: string; color: string }>
@@ -5700,7 +5711,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         <ModalBottomsheet
           visible={true}
           title="결제 유형 선택"
-          onClose={() => setShowPaymentTypeSheet(false)}
+          onClose={handlePaymentTypeSheetClose}
           closeOnBackdrop={true}
           style={{ height: paymentTypeSheetHeight }}
           contentStyle={styles.paymentTypeSheetContent}

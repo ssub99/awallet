@@ -12,7 +12,8 @@ export function AnalyticsRouteListener() {
   const prevRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!pathname) return;
+    // Expo Router 부트 시 잠깐 `/`만 잡히는 중간 상태 — 실제 화면이 아니므로 screen_view 생략
+    if (!pathname || pathname === '/') return;
 
     const screenName = pathname;
     let mode: 'income' | 'expense' | 'challenge' | undefined;
@@ -27,7 +28,7 @@ export function AnalyticsRouteListener() {
     const dedupeKey = `${screenName}|${mode ?? ''}`;
     if (dedupeKey === prevRef.current) return;
     prevRef.current = dedupeKey;
-    void logScreenView(screenName, undefined, mode ? { mode } : undefined);
+    void logScreenView(screenName, mode ? { mode } : undefined);
   }, [pathname, params.mode, params.type]);
 
   return null;
