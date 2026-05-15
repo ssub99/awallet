@@ -98,9 +98,17 @@ interface ChallengeData {
   recurringId: string; // 반복 챌린지의 그룹 ID
 }
 
-type PaymentFilterType = 'all' | 'cash' | 'subtype';
-
 const TIMELINE_PAYMENT_FILTER_STORAGE_KEY = 'monthlyTimelinePaymentFilter';
+
+function mergePaymentFilterKeys(current: string[], idsToAdd: string[]): string[] {
+  const next = [...current];
+  for (const id of idsToAdd) {
+    if (!next.includes(id)) {
+      next.push(id);
+    }
+  }
+  return next;
+}
 
 export default function MonthlyExpenseTimelineScreen() {
   const { height: windowHeight } = useWindowDimensions();
@@ -126,6 +134,8 @@ export default function MonthlyExpenseTimelineScreen() {
   const [paymentFilterKeys, setPaymentFilterKeys] = useState<string[]>([]);
   const [draftPaymentFilterKeys, setDraftPaymentFilterKeys] = useState<string[]>([]);
   const [shouldInitPaymentFilterDefaults, setShouldInitPaymentFilterDefaults] = useState(false);
+  const [isPaymentFilterLoaded, setIsPaymentFilterLoaded] = useState(false);
+  const prevPaymentSubtypeIdsRef = useRef<string[] | null>(null);
   const handleFilterPress = useCallback(() => {
     void logEvent('ui', {
       screen_name: '/monthly-expense-timeline',
@@ -159,28 +169,19 @@ export default function MonthlyExpenseTimelineScreen() {
         }
         const parsed = JSON.parse(stored) as unknown;
         if (Array.isArray(parsed) && parsed.every((key) => typeof key === 'string')) {
-          if (parsed.length === 0) {
-            setShouldInitPaymentFilterDefaults(true);
-          } else {
-            setPaymentFilterKeys(parsed as string[]);
-            setShouldInitPaymentFilterDefaults(false);
-          }
+          setPaymentFilterKeys(parsed as string[]);
+          setShouldInitPaymentFilterDefaults(false);
           return;
         }
-        // legacy 단일 선택 포맷 마이그레이션
-        const legacy = parsed as { type?: PaymentFilterType; subtypeId?: string };
-        if (legacy?.type === 'cash') {
-          setPaymentFilterKeys(['cash']);
-          setShouldInitPaymentFilterDefaults(false);
-        } else if (legacy?.type === 'subtype' && typeof legacy.subtypeId === 'string') {
-          setPaymentFilterKeys([legacy.subtypeId]);
-          setShouldInitPaymentFilterDefaults(false);
-        } else {
-          setShouldInitPaymentFilterDefaults(true);
-        }
+        // legacy 단일 선택 포맷 → 전체 선택 기본값
+        setShouldInitPaymentFilterDefaults(true);
       } catch {
         if (active) {
           setShouldInitPaymentFilterDefaults(true);
+        }
+      } finally {
+        if (active) {
+          setIsPaymentFilterLoaded(true);
         }
       }
     };
@@ -191,10 +192,12 @@ export default function MonthlyExpenseTimelineScreen() {
   }, []);
 
   useEffect(() => {
+    if (!isPaymentFilterLoaded) return;
+    if (shouldInitPaymentFilterDefaults) return;
     void AsyncStorage.setItem(TIMELINE_PAYMENT_FILTER_STORAGE_KEY, JSON.stringify(paymentFilterKeys)).catch(() => {
       // ignore
     });
-  }, [paymentFilterKeys]);
+  }, [isPaymentFilterLoaded, paymentFilterKeys, shouldInitPaymentFilterDefaults]);
 
   useFocusEffect(
     useCallback(() => {
@@ -245,20 +248,44 @@ export default function MonthlyExpenseTimelineScreen() {
     [creditSubtypes, debitSubtypes]
   );
 
-  useEffect(() => {
-    if (!shouldInitPaymentFilterDefaults) return;
-    if (paymentFilterOptions.length === 0) return;
-    const allKeys = paymentFilterOptions.map((item) => item.id);
-    setPaymentFilterKeys(allKeys);
-    setDraftPaymentFilterKeys(allKeys);
-    setShouldInitPaymentFilterDefaults(false);
-  }, [paymentFilterOptions, shouldInitPaymentFilterDefaults]);
+  const allPaymentFilterKeyIds = useMemo(
+    () => paymentFilterOptions.map((item) => item.id),
+    [paymentFilterOptions],
+  );
 
   useEffect(() => {
-    const validKeys = new Set(['cash', 'income', ...paymentSubtypes.map((item) => item.id)]);
-    setPaymentFilterKeys((prev) => prev.filter((key) => validKeys.has(key)));
-    setDraftPaymentFilterKeys((prev) => prev.filter((key) => validKeys.has(key)));
-  }, [paymentSubtypes]);
+    if (!shouldInitPaymentFilterDefaults) return;
+    if (allPaymentFilterKeyIds.length === 0) return;
+    setPaymentFilterKeys(allPaymentFilterKeyIds);
+    setDraftPaymentFilterKeys(allPaymentFilterKeyIds);
+    setShouldInitPaymentFilterDefaults(false);
+    prevPaymentSubtypeIdsRef.current = paymentSubtypes.map((item) => item.id);
+  }, [allPaymentFilterKeyIds, paymentSubtypes, shouldInitPaymentFilterDefaults]);
+
+  useEffect(() => {
+    if (!isPaymentFilterLoaded) return;
+    if (allPaymentFilterKeyIds.length === 0) return;
+
+    const validKeySet = new Set(allPaymentFilterKeyIds);
+    setPaymentFilterKeys((prev) => prev.filter((key) => validKeySet.has(key)));
+    setDraftPaymentFilterKeys((prev) => prev.filter((key) => validKeySet.has(key)));
+  }, [allPaymentFilterKeyIds, isPaymentFilterLoaded]);
+
+  useEffect(() => {
+    if (!isPaymentFilterLoaded || shouldInitPaymentFilterDefaults) return;
+
+    const subtypeIds = paymentSubtypes.map((item) => item.id);
+    const prevSubtypeIds = prevPaymentSubtypeIdsRef.current;
+    prevPaymentSubtypeIdsRef.current = subtypeIds;
+
+    if (prevSubtypeIds === null) return;
+
+    const addedSubtypeIds = subtypeIds.filter((id) => !prevSubtypeIds.includes(id));
+    if (addedSubtypeIds.length === 0) return;
+
+    setPaymentFilterKeys((prev) => mergePaymentFilterKeys(prev, addedSubtypeIds));
+    setDraftPaymentFilterKeys((prev) => mergePaymentFilterKeys(prev, addedSubtypeIds));
+  }, [isPaymentFilterLoaded, paymentSubtypes, shouldInitPaymentFilterDefaults]);
 
   // Year/Month options for picker (홈 화면과 동일하게 ±10년)
   const yearOptions = useMemo(() => {
@@ -623,7 +650,7 @@ export default function MonthlyExpenseTimelineScreen() {
   );
 
   const filteredTimelineData = useMemo(() => {
-    if (paymentFilterKeys.length === 0) return timelineData;
+    if (paymentFilterKeys.length === 0) return [];
     const selectedKeySet = new Set(paymentFilterKeys);
 
     return timelineData.filter((item) => {
