@@ -320,6 +320,7 @@ export default function RootLayout() {
                       <Stack.Screen name="expense-category-detail" options={{ headerShown: false }} />
                       <Stack.Screen name="notification-setting" options={{ headerShown: false }} />
                       <Stack.Screen name="data-backup" options={{ headerShown: false }} />
+                      <Stack.Screen name="recurring-record-management" options={{ headerShown: false }} />
                       <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
                     </Stack>
                     <StatusBar style="dark" />

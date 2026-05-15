@@ -695,23 +695,31 @@ export async function deleteExpensesByGroup(params: {
 
   // record_deleted: 건별 발행
   for (const r of toRemove) {
-    logExpenseDelete(
-      expenseCreationVariantFromRecord(r),
-      buildExpenseLifecycleAnalyticsPayload(r),
-      buildExpenseCreationCompletionPayload(r, {
-        repeatCountOverride: toRemove.length,
-      }),
-    );
+    try {
+      logExpenseDelete(
+        expenseCreationVariantFromRecord(r),
+        buildExpenseLifecycleAnalyticsPayload(r),
+        buildExpenseCreationCompletionPayload(r, {
+          repeatCountOverride: toRemove.length,
+        }),
+      );
+    } catch (error) {
+      console.warn('[expenses] deleteExpensesByGroup record_deleted analytics skipped:', error);
+    }
   }
 
   // deleted_complete: 완료 1회
   const anchor = toRemove[0];
-  logExpenseDeleteComplete(
-    expenseCreationVariantFromRecord(anchor),
-    buildExpenseLifecycleAnalyticsPayload(anchor),
-    buildExpenseCreationCompletionPayload(anchor, {
-      repeatCountOverride: toRemove.length,
-    }),
-  );
+  try {
+    logExpenseDeleteComplete(
+      expenseCreationVariantFromRecord(anchor),
+      buildExpenseLifecycleAnalyticsPayload(anchor),
+      buildExpenseCreationCompletionPayload(anchor, {
+        repeatCountOverride: toRemove.length,
+      }),
+    );
+  } catch (error) {
+    console.warn('[expenses] deleteExpensesByGroup deleted_complete analytics skipped:', error);
+  }
 }
 

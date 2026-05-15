@@ -351,6 +351,21 @@ export default function MyPageScreen() {
               <Text style={[styles.menuLabel, { color: colors.text }]}>결제 유형 설정</Text>
               <Icon name="arrowRight" size={24} color={colors.text} />
             </Pressable>
+
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+            {/* Recurring Record Management */}
+            <Pressable
+              style={styles.menuRow}
+              onPress={() => {
+                router.push('/recurring-record-management');
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="반복 기록 관리"
+            >
+              <Text style={[styles.menuLabel, { color: colors.text }]}>반복 기록 관리</Text>
+              <Icon name="arrowRight" size={24} color={colors.text} />
+            </Pressable>
           </View>
 
           {/* Inquiry & Review Card */}

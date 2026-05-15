@@ -3221,8 +3221,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           
           calendarData[futureDateKey].totalExpense = (calendarData[futureDateKey].totalExpense || 0) + futureMonthlyAmount;
           
-          // 다음 반복을 위해 현재 날짜 업데이트
-          currentDate = futureDate;
+          // 다음 반복은 보정 전 날짜(nextDate)를 기준으로 계산해 드리프트를 방지
+          currentDate = nextDate;
         }
 
       }
@@ -3431,8 +3431,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 createdVia: 'screen',
               });
               
-              // 다음 반복을 위해 현재 날짜 업데이트
-              currentDate = futureDate;
+              // 다음 반복은 보정 전 날짜(nextDate)를 기준으로 계산해 드리프트를 방지
+              currentDate = nextDate;
             }
           }
         }
