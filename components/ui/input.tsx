@@ -452,11 +452,6 @@ const styles = StyleSheet.create({
     paddingTop: 6,
     paddingBottom: 9,
   },
-  containerLineShort: {
-    height: 36,
-    paddingTop: 6,
-    paddingBottom: 9,
-  },
   containerArea: {
     height: 96,
     paddingVertical: 12,
