@@ -27,7 +27,7 @@ export const DEFAULT_PAYMENT_SUBTYPES: PaymentSubtype[] = [
     type: 'debit',
     label: '체크카드',
     description: '기본 결제 유형',
-    color: '#3664CE',
+    color: '#07B63B',
   },
 ];
 
