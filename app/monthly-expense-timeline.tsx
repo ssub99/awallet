@@ -99,6 +99,11 @@ interface ChallengeData {
 }
 
 const TIMELINE_PAYMENT_FILTER_STORAGE_KEY = 'monthlyTimelinePaymentFilter';
+const STANDARD_PAYMENT_FILTER_KEYS = ['cash', 'income'] as const;
+
+function buildAllPaymentFilterKeyIds(subtypes: PaymentSubtype[]): string[] {
+  return [...subtypes.map((item) => item.id), ...STANDARD_PAYMENT_FILTER_KEYS];
+}
 
 function mergePaymentFilterKeys(current: string[], idsToAdd: string[]): string[] {
   const next = [...current];
@@ -134,6 +139,7 @@ export default function MonthlyExpenseTimelineScreen() {
   const [paymentFilterKeys, setPaymentFilterKeys] = useState<string[]>([]);
   const [draftPaymentFilterKeys, setDraftPaymentFilterKeys] = useState<string[]>([]);
   const [shouldInitPaymentFilterDefaults, setShouldInitPaymentFilterDefaults] = useState(false);
+  const [shouldBackfillMissingFilterOptions, setShouldBackfillMissingFilterOptions] = useState(false);
   const [isPaymentFilterLoaded, setIsPaymentFilterLoaded] = useState(false);
   const prevPaymentSubtypeIdsRef = useRef<string[] | null>(null);
   const handleFilterPress = useCallback(() => {
@@ -169,8 +175,15 @@ export default function MonthlyExpenseTimelineScreen() {
         }
         const parsed = JSON.parse(stored) as unknown;
         if (Array.isArray(parsed) && parsed.every((key) => typeof key === 'string')) {
-          setPaymentFilterKeys(parsed as string[]);
-          setShouldInitPaymentFilterDefaults(false);
+          const storedKeys = parsed as string[];
+          if (storedKeys.length === 0) {
+            setPaymentFilterKeys([]);
+            setShouldInitPaymentFilterDefaults(false);
+          } else {
+            setPaymentFilterKeys(storedKeys);
+            setShouldInitPaymentFilterDefaults(false);
+            setShouldBackfillMissingFilterOptions(true);
+          }
           return;
         }
         // legacy 단일 선택 포맷 → 전체 선택 기본값
@@ -249,27 +262,54 @@ export default function MonthlyExpenseTimelineScreen() {
   );
 
   const allPaymentFilterKeyIds = useMemo(
-    () => paymentFilterOptions.map((item) => item.id),
-    [paymentFilterOptions],
+    () => buildAllPaymentFilterKeyIds(paymentSubtypes),
+    [paymentSubtypes],
   );
+
+  const paymentFilterValidKeySet = useMemo(() => new Set(allPaymentFilterKeyIds), [allPaymentFilterKeyIds]);
 
   useEffect(() => {
     if (!shouldInitPaymentFilterDefaults) return;
-    if (allPaymentFilterKeyIds.length === 0) return;
-    setPaymentFilterKeys(allPaymentFilterKeyIds);
-    setDraftPaymentFilterKeys(allPaymentFilterKeyIds);
+    if (paymentSubtypes.length === 0) return;
+
+    const allKeys = buildAllPaymentFilterKeyIds(paymentSubtypes);
+    setPaymentFilterKeys(allKeys);
+    setDraftPaymentFilterKeys(allKeys);
     setShouldInitPaymentFilterDefaults(false);
+    setShouldBackfillMissingFilterOptions(false);
     prevPaymentSubtypeIdsRef.current = paymentSubtypes.map((item) => item.id);
-  }, [allPaymentFilterKeyIds, paymentSubtypes, shouldInitPaymentFilterDefaults]);
+  }, [paymentSubtypes, shouldInitPaymentFilterDefaults]);
+
+  useEffect(() => {
+    if (!isPaymentFilterLoaded || shouldInitPaymentFilterDefaults) return;
+    if (!shouldBackfillMissingFilterOptions) return;
+    if (paymentSubtypes.length === 0) return;
+
+    const allKeys = buildAllPaymentFilterKeyIds(paymentSubtypes);
+    setPaymentFilterKeys((prev) => {
+      const missingIds = allKeys.filter((id) => !prev.includes(id));
+      return missingIds.length > 0 ? mergePaymentFilterKeys(prev, missingIds) : prev;
+    });
+    setDraftPaymentFilterKeys((prev) => {
+      const missingIds = allKeys.filter((id) => !prev.includes(id));
+      return missingIds.length > 0 ? mergePaymentFilterKeys(prev, missingIds) : prev;
+    });
+    setShouldBackfillMissingFilterOptions(false);
+    prevPaymentSubtypeIdsRef.current = paymentSubtypes.map((item) => item.id);
+  }, [
+    isPaymentFilterLoaded,
+    paymentSubtypes,
+    shouldBackfillMissingFilterOptions,
+    shouldInitPaymentFilterDefaults,
+  ]);
 
   useEffect(() => {
     if (!isPaymentFilterLoaded) return;
-    if (allPaymentFilterKeyIds.length === 0) return;
+    if (paymentSubtypes.length === 0) return;
 
-    const validKeySet = new Set(allPaymentFilterKeyIds);
-    setPaymentFilterKeys((prev) => prev.filter((key) => validKeySet.has(key)));
-    setDraftPaymentFilterKeys((prev) => prev.filter((key) => validKeySet.has(key)));
-  }, [allPaymentFilterKeyIds, isPaymentFilterLoaded]);
+    setPaymentFilterKeys((prev) => prev.filter((key) => paymentFilterValidKeySet.has(key)));
+    setDraftPaymentFilterKeys((prev) => prev.filter((key) => paymentFilterValidKeySet.has(key)));
+  }, [isPaymentFilterLoaded, paymentFilterValidKeySet, paymentSubtypes.length]);
 
   useEffect(() => {
     if (!isPaymentFilterLoaded || shouldInitPaymentFilterDefaults) return;
