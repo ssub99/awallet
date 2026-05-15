@@ -19,6 +19,7 @@ import { ModalPopup } from '@/components/ui/modal-popup';
 import { PrepaymentModal } from '@/components/ui/prepayment-modal';
 import { Radio } from '@/components/ui/radio';
 import { Switch } from '@/components/ui/switch';
+import { Tag } from '@/components/ui/tag';
 import { AtomicColors } from '@/constants/atomic-colors';
 import { Colors, Typography } from '@/constants/theme';
 import { useLoading } from '@/contexts/loading-context';
@@ -30,6 +31,7 @@ import { logEvent, logExpenseAdjustment, logExpenseCreateComplete, mapRefundOpti
 import { loadCategories } from '@/utils/categories';
 import { triggerChallengeNotifications } from '@/utils/challenge-utils';
 import { getCustomMonthInfo } from '@/utils/custom-month';
+import { initializePaymentSubtypes, type PaymentSubtype } from '@/utils/payment-types';
 import {
   buildExpenseCreationCompletionPayload,
   buildExpenseLifecycleAnalyticsPayload,
@@ -517,7 +519,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   
   const [category, setCategory] = useState<string>(params.category || '');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('credit');
-  const [selectedPaymentSubtypeId, setSelectedPaymentSubtypeId] = useState<string>('credit-shinhan');
+  const [selectedPaymentSubtypeId, setSelectedPaymentSubtypeId] = useState<string>('');
 
   interface GoHomeOptions {
     year: number;
@@ -931,21 +933,130 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     });
   }, [analyticsScreenName, showNoChangesModal]);
 
-  const handlePaymentMethodChange = useCallback((val: string) => {
-    const nextPaymentMethod = val as PaymentMethod;
-    const target =
-      nextPaymentMethod === 'credit'
-        ? 'payment-credit'
-        : nextPaymentMethod === 'debit'
-        ? 'payment-debit'
-        : 'payment-cash';
+  const applyPaymentMethod = useCallback((val: PaymentMethod) => {
+    setPaymentMethod(val);
+  }, []);
 
+  const handleOpenPaymentTypeSheet = useCallback(() => {
     void logEvent('ui', {
       screen_name: analyticsScreenName,
-      target,
+      target: 'payment',
     });
-    setPaymentMethod(nextPaymentMethod);
-  }, []);
+    void logEvent('sheet_view', {
+      screen_name: analyticsScreenName,
+      target: 'payment',
+    });
+    setPaymentTypeSheetFilter(paymentMethod === 'debit' ? 'debit' : 'credit');
+    setShowPaymentTypeSheet(true);
+  }, [analyticsScreenName, paymentMethod]);
+
+  const handlePaymentTypeSheetClose = useCallback(() => {
+    void logEvent('btn', {
+      screen_name: analyticsScreenName,
+      target: 'payment-close',
+    });
+    setShowPaymentTypeSheet(false);
+  }, [analyticsScreenName]);
+
+  const handlePaymentTypeSelect = useCallback((val: PaymentMethod, subtypeId?: string) => {
+    if (val === 'cash') {
+      void logEvent('btn', {
+        screen_name: analyticsScreenName,
+        target: 'payment-cash',
+      });
+    } else {
+      void logEvent('list', {
+        screen_name: analyticsScreenName,
+        target: val === 'credit' ? 'payment-credit' : 'payment-debit',
+      });
+    }
+    applyPaymentMethod(val);
+    if (subtypeId) {
+      setSelectedPaymentSubtypeId(subtypeId);
+    }
+    setShowPaymentTypeSheet(false);
+  }, [analyticsScreenName, applyPaymentMethod]);
+
+  const [paymentTypeSheetItems, setPaymentTypeSheetItems] = useState<
+    Array<{ id: string; type: 'credit' | 'debit'; label: string; description: string; color: string }>
+  >([]);
+
+  useFocusEffect(
+    useCallback(() => {
+      let isActive = true;
+      const loadItems = async () => {
+        try {
+          const subtypes = await initializePaymentSubtypes();
+          if (!isActive) return;
+          setPaymentTypeSheetItems(
+            subtypes.map((item: PaymentSubtype) => ({
+              id: item.id,
+              type: item.type,
+              label: item.label,
+              description: item.description,
+              color: item.color,
+            }))
+          );
+        } catch (error) {
+          console.error('결제 유형 목록 로드 실패:', error);
+        }
+      };
+      void loadItems();
+      return () => {
+        isActive = false;
+      };
+    }, [])
+  );
+
+  const defaultCreditSubtypeId = useMemo(
+    () => paymentTypeSheetItems.find((item) => item.type === 'credit')?.id ?? 'credit-default',
+    [paymentTypeSheetItems]
+  );
+  const defaultDebitSubtypeId = useMemo(
+    () => paymentTypeSheetItems.find((item) => item.type === 'debit')?.id ?? 'debit-default',
+    [paymentTypeSheetItems]
+  );
+  const selectedPaymentSubtype = useMemo(
+    () => paymentTypeSheetItems.find((item) => item.id === selectedPaymentSubtypeId),
+    [paymentTypeSheetItems, selectedPaymentSubtypeId]
+  );
+
+  useEffect(() => {
+    if (paymentMethod === 'credit' && selectedPaymentSubtype?.type !== 'credit') {
+      setSelectedPaymentSubtypeId(defaultCreditSubtypeId);
+      return;
+    }
+    if (paymentMethod === 'debit' && selectedPaymentSubtype?.type !== 'debit') {
+      setSelectedPaymentSubtypeId(defaultDebitSubtypeId);
+    }
+  }, [defaultCreditSubtypeId, defaultDebitSubtypeId, paymentMethod, selectedPaymentSubtype]);
+
+  const stickyPaymentTypeDisplay = useMemo(() => {
+    if (paymentMethod === 'debit') {
+      return {
+        label: selectedPaymentSubtype?.type === 'debit' ? selectedPaymentSubtype.label : '체크카드',
+        emoji: undefined,
+        color: selectedPaymentSubtype?.type === 'debit' ? selectedPaymentSubtype.color : AtomicColors.green[500],
+        showDot: true,
+      };
+    }
+
+    if (paymentMethod === 'cash') {
+      return {
+        label: '현금',
+        emoji: '💰',
+        color: AtomicColors.blue[500],
+        showDot: false,
+      };
+    }
+
+    return {
+      label: selectedPaymentSubtype?.type === 'credit' ? selectedPaymentSubtype.label : '신용카드',
+      emoji: undefined,
+      color: selectedPaymentSubtype?.type === 'credit' ? selectedPaymentSubtype.color : AtomicColors.blue[500],
+      showDot: true,
+    };
+  }, [paymentMethod, selectedPaymentSubtype]);
 
   const handleOpenPaymentTypeSheet = useCallback(() => {
     void logEvent('sheet_view', {
@@ -1588,7 +1699,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           ? editData.paymentMethod
           : 'credit';
       setPaymentMethod(initialPaymentMethod);
-      if (initialPaymentMethod === 'credit') {
+      const hasStoredSubtypeId =
+        initialPaymentMethod !== 'cash' &&
+        typeof editData.paymentSubtypeId === 'string' &&
+        editData.paymentSubtypeId.length > 0;
+      if (hasStoredSubtypeId) {
+        setSelectedPaymentSubtypeId(editData.paymentSubtypeId as string);
+      } else if (initialPaymentMethod === 'credit') {
         setSelectedPaymentSubtypeId(defaultCreditSubtypeId);
       } else if (initialPaymentMethod === 'debit') {
         setSelectedPaymentSubtypeId(defaultDebitSubtypeId);
@@ -2572,6 +2689,18 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     const weekendOptionChanged = weekendOption !== (editData.weekendOption || 'weekend');
     const paymentMethodChanged =
       paymentMethod !== ((editData.paymentMethod as PaymentMethod | undefined) ?? 'credit');
+    const originalPaymentSubtypeId =
+      editData.paymentMethod === 'cash'
+        ? undefined
+        : (editData.paymentSubtypeId as string | undefined) ??
+          ((editData.paymentMethod as PaymentMethod | undefined) === 'debit'
+            ? defaultDebitSubtypeId
+            : defaultCreditSubtypeId);
+    const currentPaymentSubtypeId =
+      paymentMethod === 'cash'
+        ? undefined
+        : selectedPaymentSubtype?.id ?? (paymentMethod === 'debit' ? defaultDebitSubtypeId : defaultCreditSubtypeId);
+    const paymentSubtypeChanged = currentPaymentSubtypeId !== originalPaymentSubtypeId;
 
     return (
       categoryChanged ||
@@ -2582,7 +2711,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       totalMonthsChanged ||
       installmentChanged ||
       weekendOptionChanged ||
-      paymentMethodChanged
+      paymentMethodChanged ||
+      paymentSubtypeChanged
     );
   };
 
@@ -2767,6 +2897,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         date: actualDate,
         timestamp: newTimestamp,
         paymentMethod,
+        paymentSubtypeId:
+          paymentMethod === 'cash'
+            ? undefined
+            : selectedPaymentSubtype?.id ?? (paymentMethod === 'debit' ? defaultDebitSubtypeId : defaultCreditSubtypeId),
         isRecurring,
         weekendOption: (isRecurring || isInstallment) ? weekendOption : undefined,
         recurringId: isRecurring ? recurringId : undefined, // 정기 기록 전용
@@ -3183,8 +3317,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           
           calendarData[futureDateKey].totalExpense = (calendarData[futureDateKey].totalExpense || 0) + futureMonthlyAmount;
           
-          // 다음 반복을 위해 현재 날짜 업데이트
-          currentDate = futureDate;
+          // 다음 반복은 보정 전 날짜(nextDate)를 기준으로 계산해 드리프트를 방지
+          currentDate = nextDate;
         }
 
       }
@@ -3203,6 +3337,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             date: actualDate,
             timestamp: editData.timestamp, // 기존 timestamp 유지
             paymentMethod,
+            paymentSubtypeId:
+              paymentMethod === 'cash'
+                ? undefined
+                : selectedPaymentSubtype?.id ?? (paymentMethod === 'debit' ? defaultDebitSubtypeId : defaultCreditSubtypeId),
             isRecurring,
             weekendOption: (isRecurring || isInstallment) ? weekendOption : undefined,
             recurringId: isRecurring ? recurringId : undefined,
@@ -3249,6 +3387,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             date: actualDate,
             timestamp: newTimestamp,
             paymentMethod,
+            paymentSubtypeId:
+              paymentMethod === 'cash'
+                ? undefined
+                : selectedPaymentSubtype?.id ?? (paymentMethod === 'debit' ? defaultDebitSubtypeId : defaultCreditSubtypeId),
             isRecurring,
             weekendOption: (isRecurring || isInstallment) ? weekendOption : undefined,
             recurringId: isRecurring ? recurringId : undefined,
@@ -3385,8 +3527,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 createdVia: 'screen',
               });
               
-              // 다음 반복을 위해 현재 날짜 업데이트
-              currentDate = futureDate;
+              // 다음 반복은 보정 전 날짜(nextDate)를 기준으로 계산해 드리프트를 방지
+              currentDate = nextDate;
             }
           }
         }
@@ -5654,7 +5796,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         <ModalBottomsheet
           visible={true}
           title="결제 유형 선택"
-          onClose={() => setShowPaymentTypeSheet(false)}
+          onClose={handlePaymentTypeSheetClose}
           closeOnBackdrop={true}
           style={{ height: paymentTypeSheetHeight }}
           contentStyle={styles.paymentTypeSheetContent}
@@ -5713,11 +5855,29 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                         style={styles.paymentTypeSheetItem}
                         onPress={() => handlePaymentTypeSelect(item.type, item.id)}
                       >
-                        <View style={[styles.paymentTypeSheetIndicator, { backgroundColor: item.color, borderColor: colors.border }]} />
-                        <View style={styles.paymentTypeSheetTextBlock}>
-                          <Text style={[styles.paymentTypeSheetTitle, { color: colors.text }]}>{item.label}</Text>
-                          <Text style={[styles.paymentTypeSheetSubtitle, { color: colors.textAssistive }]}>{item.description}</Text>
+                        <View style={styles.paymentTypeSheetLeft}>
+                          <View style={[styles.paymentTypeSheetIndicator, { backgroundColor: item.color, borderColor: colors.border }]} />
+                          <View
+                            style={[
+                              styles.paymentTypeSheetTextBlock,
+                              !item.description.trim() && styles.paymentTypeSheetTextBlockSingleLine,
+                            ]}
+                          >
+                            <Text style={[styles.paymentTypeSheetTitle, { color: colors.text }]} numberOfLines={1}>
+                              {item.label}
+                            </Text>
+                            {item.description.trim() ? (
+                              <Text style={[styles.paymentTypeSheetSubtitle, { color: colors.textAssistive }]} numberOfLines={1}>
+                                {item.description}
+                              </Text>
+                            ) : null}
+                          </View>
                         </View>
+                        {index === 0 ? (
+                          <View style={styles.paymentTypeSheetDefaultTagWrap}>
+                            <Tag label="기본" status="normal" />
+                          </View>
+                        ) : null}
                       </Pressable>
                       {index < arr.length - 1 ? (
                         <View style={[styles.paymentTypeSheetDivider, { backgroundColor: colors.border }]} />
@@ -7029,11 +7189,16 @@ const styles = StyleSheet.create({
     marginHorizontal: -16,
   },
   paymentTypeSheetItem: {
-    minHeight: 64,
+    height: 56,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    gap: 12,
+    justifyContent: 'space-between',
+  },
+  paymentTypeSheetLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
   },
   paymentTypeSheetIndicator: {
     width: 16,
@@ -7042,8 +7207,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   paymentTypeSheetTextBlock: {
+    marginLeft: 12,
+    flex: 1,
     justifyContent: 'center',
     gap: 2,
+  },
+  paymentTypeSheetTextBlockSingleLine: {
+    justifyContent: 'center',
+  },
+  paymentTypeSheetDefaultTagWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   paymentTypeSheetTitle: {
     ...Typography.body1.l.regular,

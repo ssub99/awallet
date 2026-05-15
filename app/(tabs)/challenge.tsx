@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Icon } from '@/components/ui/icon';
+import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
 import { CONSUMPTION_REPORT_API_URL } from '@/constants/api';
 import { Colors, Typography } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';
@@ -35,6 +36,7 @@ import {
   isDateInCustomMonth,
   parseCalendarDateKeyLocal,
 } from '@/utils/custom-month';
+import { initializePaymentSubtypes, type PaymentSubtype } from '@/utils/payment-types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -51,7 +53,7 @@ import {
     useWindowDimensions,
     View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const FAB_SIZE = 48;
 const FAB_OFFSET_ABOVE_TABS = 16;
@@ -63,6 +65,7 @@ const REPORT_CACHE_PREFIX = 'consumptionReportCtx';
 const CONSUMPTION_REPORT_RESET_AT_KEY = 'consumptionReportResetAt';
 const CONSUMPTION_REPORT_RESET_HANDLED_AT_KEY = 'consumptionReportResetHandledAt';
 const CONSUMPTION_REPORT_API_TIMEOUT_MS = 15000;
+const TREND_PAYMENT_FILTER_STORAGE_KEY = 'challengeTrendPaymentFilter_v1';
 /** 이 문자열을 바꾸면 `REPORT_POLICY_FINGERPRINT`가 달라지고, 저장된 소비 리포트 캐시는 복구 시 지문 불일치로 제외될 수 있음 */
 const REPORT_POLICY_FINGERPRINT_SOURCE = [
   'summary_metric_autoinject=false',
@@ -351,6 +354,8 @@ interface TrendTimelineItem {
   memo?: string;
   amount: number;
   isRecurring?: boolean;
+  paymentMethod?: 'credit' | 'debit' | 'cash';
+  paymentSubtypeId?: string;
 }
 
 interface ChallengeData {
@@ -450,6 +455,9 @@ const REPORT_SCORE_CARD_MAX = 454;
 
 export default function ChallengeTabScreen() {
   const { height: windowHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const trendPaymentFilterSheetHeight = windowHeight * 0.8;
+  const trendPaymentFilterSheetContentHeight = trendPaymentFilterSheetHeight - 56;
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
   const iconWhite = useThemeColor({}, 'staticWhite');
@@ -457,6 +465,11 @@ export default function ChallengeTabScreen() {
   const [reportSubTab, setReportSubTab] = useState<ReportSubTabId>('score');
   const [trendTimelineData, setTrendTimelineData] = useState<TrendTimelineItem[]>([]);
   const [trendCategoryFilter, setTrendCategoryFilter] = useState<'all' | 'recurring'>('all');
+  const [showTrendPaymentFilterSheet, setShowTrendPaymentFilterSheet] = useState(false);
+  const [paymentSubtypes, setPaymentSubtypes] = useState<PaymentSubtype[]>([]);
+  const [trendPaymentFilterKeys, setTrendPaymentFilterKeys] = useState<string[]>([]);
+  const [draftTrendPaymentFilterKeys, setDraftTrendPaymentFilterKeys] = useState<string[]>([]);
+  const [shouldInitTrendFilterDefaults, setShouldInitTrendFilterDefaults] = useState(false);
   const [consumptionIndex, setConsumptionIndex] = useState<ConsumptionIndexResult | null>(null);
   const [isConsumptionIndexLoading, setIsConsumptionIndexLoading] = useState(false);
   const [aiSummaryText, setAiSummaryText] = useState<string[] | null>(null);
@@ -947,6 +960,8 @@ export default function ChallengeTabScreen() {
               memo?: string;
               isRecurring?: boolean;
               isDeleted?: boolean;
+              paymentMethod?: 'credit' | 'debit' | 'cash';
+              paymentSubtypeId?: string;
             }>;
           }
         >;
@@ -964,6 +979,8 @@ export default function ChallengeTabScreen() {
               amount: record.amount || 0,
               memo: record.memo,
               isRecurring: record.isRecurring,
+              paymentMethod: record.paymentMethod ?? 'credit',
+              paymentSubtypeId: record.paymentSubtypeId,
             });
           });
         });
@@ -982,10 +999,166 @@ export default function ChallengeTabScreen() {
     return () => { cancelled = true; };
   }, [reportTrendYear, reportTrendMonth, dataVersion]);
 
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      const loadSubtypes = async () => {
+        try {
+          const subtypes = await initializePaymentSubtypes();
+          if (!active) return;
+          setPaymentSubtypes(subtypes);
+        } catch {
+          // ignore
+        }
+      };
+      void loadSubtypes();
+      return () => {
+        active = false;
+      };
+    }, [])
+  );
+
+  useEffect(() => {
+    let active = true;
+    const loadStoredFilter = async () => {
+      try {
+        const stored = await AsyncStorage.getItem(TREND_PAYMENT_FILTER_STORAGE_KEY);
+        if (!active) return;
+        if (!stored) {
+          setShouldInitTrendFilterDefaults(true);
+          return;
+        }
+        const parsed = JSON.parse(stored) as unknown;
+        if (Array.isArray(parsed) && parsed.every((key) => typeof key === 'string')) {
+          setTrendPaymentFilterKeys(parsed as string[]);
+          setShouldInitTrendFilterDefaults(false);
+          return;
+        }
+        setShouldInitTrendFilterDefaults(true);
+      } catch {
+        if (active) {
+          setShouldInitTrendFilterDefaults(true);
+        }
+      }
+    };
+    void loadStoredFilter();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    void AsyncStorage.setItem(TREND_PAYMENT_FILTER_STORAGE_KEY, JSON.stringify(trendPaymentFilterKeys)).catch(() => {
+      // ignore
+    });
+  }, [trendPaymentFilterKeys]);
+
+  const creditSubtypes = useMemo(
+    () => paymentSubtypes.filter((item) => item.type === 'credit'),
+    [paymentSubtypes]
+  );
+  const debitSubtypes = useMemo(
+    () => paymentSubtypes.filter((item) => item.type === 'debit'),
+    [paymentSubtypes]
+  );
+  const trendPaymentFilterOptions = useMemo(
+    () => [
+      ...creditSubtypes.map((item) => ({
+        type: 'subtype' as const,
+        id: item.id,
+        label: item.label,
+        description: item.description,
+        color: item.color,
+      })),
+      ...debitSubtypes.map((item) => ({
+        type: 'subtype' as const,
+        id: item.id,
+        label: item.label,
+        description: item.description,
+        color: item.color,
+      })),
+      { type: 'cash' as const, id: 'cash', label: '현금', description: '' },
+    ],
+    [creditSubtypes, debitSubtypes]
+  );
+
+  useEffect(() => {
+    if (!shouldInitTrendFilterDefaults) return;
+    if (trendPaymentFilterOptions.length === 0) return;
+    const allKeys = trendPaymentFilterOptions.map((item) => item.id);
+    setTrendPaymentFilterKeys(allKeys);
+    setDraftTrendPaymentFilterKeys(allKeys);
+    setShouldInitTrendFilterDefaults(false);
+  }, [shouldInitTrendFilterDefaults, trendPaymentFilterOptions]);
+
+  useEffect(() => {
+    const validKeys = new Set(['cash', ...paymentSubtypes.map((item) => item.id)]);
+    setTrendPaymentFilterKeys((prev) => prev.filter((key) => validKeys.has(key)));
+    setDraftTrendPaymentFilterKeys((prev) => prev.filter((key) => validKeys.has(key)));
+  }, [paymentSubtypes]);
+
+  const defaultCreditSubtypeId = useMemo(() => creditSubtypes[0]?.id, [creditSubtypes]);
+  const defaultDebitSubtypeId = useMemo(() => debitSubtypes[0]?.id, [debitSubtypes]);
+  const filteredTrendTimelineData = useMemo(() => {
+    if (trendPaymentFilterKeys.length === 0) return [];
+    const selectedKeySet = new Set(trendPaymentFilterKeys);
+    return trendTimelineData.filter((item) => {
+      if (item.paymentMethod === 'cash') return selectedKeySet.has('cash');
+      const resolvedSubtypeId =
+        item.paymentSubtypeId ??
+        (item.paymentMethod === 'debit' ? defaultDebitSubtypeId : defaultCreditSubtypeId);
+      return typeof resolvedSubtypeId === 'string' ? selectedKeySet.has(resolvedSubtypeId) : false;
+    });
+  }, [defaultCreditSubtypeId, defaultDebitSubtypeId, trendPaymentFilterKeys, trendTimelineData]);
+
+  const isTrendPaymentFilterApplied = trendPaymentFilterKeys.length > 0;
+  const isTrendFilterEmptySelection = trendPaymentFilterKeys.length === 0;
+
+  const handleTrendPaymentFilterPress = useCallback(() => {
+    void logEvent('btn', {
+      screen_name: '/challenge',
+      target: 'filter',
+    });
+    void logEvent('sheet_view', {
+      screen_name: '/challenge',
+      target: 'filter',
+    });
+    setDraftTrendPaymentFilterKeys(trendPaymentFilterKeys);
+    setShowTrendPaymentFilterSheet(true);
+  }, [trendPaymentFilterKeys]);
+
+  const handleTrendPaymentFilterSheetClose = useCallback(() => {
+    void logEvent('btn', {
+      screen_name: '/challenge',
+      target: 'filter-close',
+    });
+    setDraftTrendPaymentFilterKeys(trendPaymentFilterKeys);
+    setShowTrendPaymentFilterSheet(false);
+  }, [trendPaymentFilterKeys]);
+
+  const handleTrendPaymentFilterConfirm = useCallback(() => {
+    void logEvent('btn', {
+      screen_name: '/challenge',
+      target: 'filter-confirm',
+    });
+    setTrendPaymentFilterKeys(draftTrendPaymentFilterKeys);
+    setShowTrendPaymentFilterSheet(false);
+  }, [draftTrendPaymentFilterKeys]);
+
+  const handleTrendPaymentFilterListPress = useCallback((itemId: string) => {
+    void logEvent('list', {
+      screen_name: '/challenge',
+      target: 'filter',
+    });
+    setDraftTrendPaymentFilterKeys((prev) =>
+      prev.includes(itemId) ? prev.filter((key) => key !== itemId) : [...prev, itemId]
+    );
+  }, []);
+
   // 이번달 지출 순위 / 정기 지출 집계 (monthly-expense-timeline과 동일)
   const trendCategoryExpenses = useMemo(() => {
     const categoryMap = new Map<string, { count: number; amount: number; memo?: string }>();
-    trendTimelineData.forEach((item) => {
+    filteredTrendTimelineData.forEach((item) => {
       if (trendCategoryFilter === 'recurring' && !item.isRecurring) return;
       if (trendCategoryFilter === 'all' && item.isRecurring) return;
       const category = item.category || '기타';
@@ -1002,7 +1175,7 @@ export default function ChallengeTabScreen() {
     return Array.from(categoryMap.entries())
       .map(([category, data]) => ({ category, count: data.count, amount: data.amount, memo: data.memo }))
       .sort((a, b) => b.amount - a.amount);
-  }, [trendTimelineData, trendCategoryFilter]);
+  }, [filteredTrendTimelineData, trendCategoryFilter]);
 
   // 챌린지 탭에서 FAB를 열 때도, 홈과 동일하게 현재 보고 있는 년/월 정보를 공유
   useEffect(() => {
@@ -2348,23 +2521,56 @@ export default function ChallengeTabScreen() {
                   </View>
                   {/* 이번달 지출 순위 / 정기 지출 칩 - 고정 */}
                   <View style={styles.trendFilterContainer}>
-                    <Chip
-                      label="이번달 지출 순위"
-                      active={trendCategoryFilter === 'all'}
-                      onPress={() => setTrendCategoryFilter('all')}
-                    />
-                    <Chip
-                      label="정기 지출"
-                      active={trendCategoryFilter === 'recurring'}
-                      onPress={() => setTrendCategoryFilter('recurring')}
-                    />
+                    <View style={styles.trendFilterChips}>
+                      <Chip
+                        label="이번달 지출 순위"
+                        active={trendCategoryFilter === 'all'}
+                        onPress={() => setTrendCategoryFilter('all')}
+                      />
+                      <Chip
+                        label="정기 지출"
+                        active={trendCategoryFilter === 'recurring'}
+                        onPress={() => setTrendCategoryFilter('recurring')}
+                      />
+                    </View>
+                    <Pressable
+                      onPress={handleTrendPaymentFilterPress}
+                      style={styles.trendFilterButton}
+                      accessibilityRole="button"
+                      accessibilityLabel="결제 유형 필터"
+                    >
+                      <View
+                        style={[
+                          styles.trendFilterIconBox,
+                          {
+                            borderColor: isTrendPaymentFilterApplied ? '#424242' : colors.border,
+                            backgroundColor: colors.staticWhite,
+                          },
+                        ]}
+                      >
+                        <Icon
+                          name="filter"
+                          variant="line"
+                          size={24}
+                          color={isTrendPaymentFilterApplied ? colors.primary : colors.textAssistive}
+                        />
+                        {isTrendPaymentFilterApplied ? (
+                          <View style={[styles.trendFilterBadge, { backgroundColor: colors.primary }]} />
+                        ) : null}
+                      </View>
+                    </Pressable>
                   </View>
                   {/* 순위 리스트 - 로딩 완료 시 페이드인 */}
                   <Animated.View style={{ opacity: reportContentOpacity }}>
                   {trendCategoryExpenses.length === 0 ? (
                     <View style={styles.placeholderContainer}>
-                      <Text style={[styles.placeholderText, { color: colors.textAssistive }]}>
-                        {trendCategoryFilter === 'all' ? '이번달 지출 내역이 없습니다.' : '정기 지출 내역이 없습니다.'}
+                      <Icon name="info" variant="line" size={24} color={colors.textAssistive} />
+                      <Text style={[styles.placeholderInfoText, { color: colors.textAssistive }]}>
+                        {isTrendFilterEmptySelection
+                          ? '소비내역이 존재하지 않습니다.'
+                          : trendCategoryFilter === 'all'
+                            ? '이번달 지출 내역이 없습니다.'
+                            : '정기 지출 내역이 없습니다.'}
                       </Text>
                     </View>
                   ) : (
@@ -2435,6 +2641,7 @@ export default function ChallengeTabScreen() {
           >
             {challenges.length === 0 ? (
               <View style={styles.emptyContainer}>
+                <Icon name="info" variant="line" size={24} color={colors.textAssistive} />
                 <Text style={[styles.emptyText, { color: colors.textAssistive }]}>
                   생성된 챌린지가 없습니다.
                 </Text>
@@ -2578,6 +2785,94 @@ export default function ChallengeTabScreen() {
           )}
         </Animated.View>
 
+        {showTrendPaymentFilterSheet ? (
+          <ModalBottomsheet
+            visible={true}
+            title="필터"
+            onClose={handleTrendPaymentFilterSheetClose}
+            onConfirm={handleTrendPaymentFilterConfirm}
+            confirmText="확인"
+            closeOnBackdrop={true}
+            style={{ height: trendPaymentFilterSheetHeight }}
+            contentStyle={styles.trendPaymentFilterSheetContent}
+            noPaddingBottom={true}
+          >
+            <View
+              style={[
+                styles.trendPaymentFilterSheetBody,
+                { backgroundColor: colors.fill, minHeight: trendPaymentFilterSheetContentHeight },
+              ]}
+            >
+              <View style={[styles.trendPaymentFilterListCard, { backgroundColor: colors.staticWhite }]}>
+                <ScrollView
+                  style={styles.trendPaymentFilterListScroll}
+                  contentContainerStyle={styles.trendPaymentFilterListScrollContent}
+                  showsVerticalScrollIndicator={true}
+                  bounces={false}
+                  overScrollMode="never"
+                >
+                  {trendPaymentFilterOptions.map((item, index, arr) => {
+                    const isSelected = draftTrendPaymentFilterKeys.includes(item.id);
+                    return (
+                      <View key={item.id}>
+                        <Pressable
+                          style={styles.trendPaymentFilterItem}
+                          onPress={() => handleTrendPaymentFilterListPress(item.id)}
+                        >
+                          {item.type === 'cash' ? (
+                            <View style={styles.trendPaymentFilterEmojiWrap}>
+                              <Text style={styles.trendPaymentFilterCashEmoji}>💰</Text>
+                            </View>
+                          ) : (
+                            <View
+                              style={[
+                                styles.trendPaymentFilterIndicator,
+                                { backgroundColor: item.color, borderColor: colors.border },
+                              ]}
+                            />
+                          )}
+                          <View
+                            style={[
+                              styles.trendPaymentFilterTextBlock,
+                              !item.description.trim() && styles.trendPaymentFilterTextBlockSingleLine,
+                            ]}
+                          >
+                            <Text style={[styles.trendPaymentFilterTitle, { color: colors.text }]} numberOfLines={1}>
+                              {item.label}
+                            </Text>
+                            {item.description.trim() ? (
+                              <Text
+                                style={[styles.trendPaymentFilterSubtitle, { color: colors.textAssistive }]}
+                                numberOfLines={1}
+                              >
+                                {item.description}
+                              </Text>
+                            ) : null}
+                          </View>
+                          {isSelected ? (
+                            <View style={styles.trendPaymentFilterCheckWrap}>
+                              <Icon name="check" variant="line" size={24} color={colors.primary} />
+                            </View>
+                          ) : null}
+                        </Pressable>
+                        {index < arr.length - 1 ? (
+                          <View style={[styles.trendPaymentFilterDivider, { backgroundColor: colors.border }]} />
+                        ) : null}
+                      </View>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+              <View
+                style={[
+                  styles.trendPaymentFilterBottomSpacer,
+                  { backgroundColor: colors.staticWhite, height: Math.max(16, insets.bottom) },
+                ]}
+              />
+            </View>
+          </ModalBottomsheet>
+        ) : null}
+
         {/* 년/월 피커 (타임라인 탑 네비와 100% 동일한 DatePicker) */}
         <DatePicker
           visible={showYearMonthPicker}
@@ -2705,6 +3000,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     ...Typography.body1.l.regular,
+    marginTop: 12,
   },
   placeholderContainer: {
     flex: 1,
@@ -2716,6 +3012,10 @@ const styles = StyleSheet.create({
   placeholderText: {
     ...Typography.body1.l.regular,
     fontSize: 16,
+  },
+  placeholderInfoText: {
+    ...Typography.body1.l.regular,
+    marginTop: 12,
   },
   reportContent: {
     flex: 1,
@@ -2771,6 +3071,32 @@ const styles = StyleSheet.create({
     height: 24,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  reportMonthFilterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 8,
+    paddingLeft: 8,
+    height: 24,
+  },
+  reportMonthFilterDivider: {
+    width: 1,
+    height: 16,
+    marginRight: 8,
+  },
+  reportMonthFilterIconWrap: {
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reportMonthFilterBadge: {
+    position: 'absolute',
+    top: 1,
+    right: 1,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   reportMonthTextWrap: {
     flex: 1,
@@ -2878,9 +3204,36 @@ const styles = StyleSheet.create({
   },
   trendFilterContainer: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingTop: 0,
     paddingBottom: 16,
+  },
+  trendFilterChips: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
+  },
+  trendFilterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 36,
+  },
+  trendFilterIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  trendFilterBadge: {
+    position: 'absolute',
+    top: 5,
+    right: 5,
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
   },
   trendCategoryList: {
     paddingBottom: 20,
@@ -2986,5 +3339,74 @@ const styles = StyleSheet.create({
     ...Typography.body1.l.bold,
     fontSize: 16,
     lineHeight: 24,
+  },
+  trendPaymentFilterSheetContent: {
+    padding: 0,
+  },
+  trendPaymentFilterSheetBody: {
+    paddingTop: 16,
+    paddingHorizontal: 16,
+    flexDirection: 'column',
+  },
+  trendPaymentFilterListCard: {
+    flex: 1,
+    minHeight: 0,
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
+  trendPaymentFilterListScroll: {
+    flex: 1,
+  },
+  trendPaymentFilterListScrollContent: {
+    flexGrow: 1,
+  },
+  trendPaymentFilterItem: {
+    minHeight: 64,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+  },
+  trendPaymentFilterIndicator: {
+    width: 16,
+    height: 16,
+    borderRadius: 99,
+    borderWidth: 1,
+  },
+  trendPaymentFilterCashEmoji: {
+    ...Typography.body1.l.regular,
+  },
+  trendPaymentFilterEmojiWrap: {
+    width: 16,
+    alignItems: 'center',
+  },
+  trendPaymentFilterTextBlock: {
+    marginLeft: 12,
+    flex: 1,
+    justifyContent: 'center',
+    gap: 2,
+  },
+  trendPaymentFilterTextBlockSingleLine: {
+    justifyContent: 'center',
+  },
+  trendPaymentFilterCheckWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  trendPaymentFilterTitle: {
+    ...Typography.body1.l.regular,
+  },
+  trendPaymentFilterSubtitle: {
+    ...Typography.body2.r.regular,
+  },
+  trendPaymentFilterDivider: {
+    height: 1,
+    marginHorizontal: 16,
+  },
+  trendPaymentFilterBottomSpacer: {
+    height: 16,
+    marginHorizontal: -16,
   },
 });

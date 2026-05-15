@@ -32,6 +32,7 @@ export interface ExpenseRecord {
   date: string; // YYYY.MM.DD 형식
   timestamp: number;
   paymentMethod?: PaymentMethod;
+  paymentSubtypeId?: string;
   isRecurring?: boolean;
   weekendOption?: 'friday' | 'monday' | 'weekend';
   recurringId?: string;
@@ -122,6 +123,14 @@ function normalizeExpense(record: ExpenseRecord): ExpenseRecord {
     updatedAt = createdAt;
   }
 
+  const normalizedPaymentMethod: PaymentMethod = record.paymentMethod ?? 'credit';
+  const normalizedPaymentSubtypeId =
+    normalizedPaymentMethod === 'cash'
+      ? undefined
+      : normalizedPaymentMethod === 'debit'
+      ? (record.paymentSubtypeId ?? 'debit-default')
+      : (record.paymentSubtypeId ?? 'credit-default');
+
   const normalized: ExpenseRecord = {
     ...record,
     id: record.id ?? generateRecordId(),
@@ -131,7 +140,8 @@ function normalizeExpense(record: ExpenseRecord): ExpenseRecord {
     updatedAt,
     isDeleted: record.isDeleted ?? false,
     deletedAt: record.deletedAt ?? null,
-    paymentMethod: record.paymentMethod ?? 'credit',
+    paymentMethod: normalizedPaymentMethod,
+    paymentSubtypeId: normalizedPaymentSubtypeId,
   };
 
   return normalized;
@@ -685,23 +695,31 @@ export async function deleteExpensesByGroup(params: {
 
   // record_deleted: 건별 발행
   for (const r of toRemove) {
-    logExpenseDelete(
-      expenseCreationVariantFromRecord(r),
-      buildExpenseLifecycleAnalyticsPayload(r),
-      buildExpenseCreationCompletionPayload(r, {
-        repeatCountOverride: toRemove.length,
-      }),
-    );
+    try {
+      logExpenseDelete(
+        expenseCreationVariantFromRecord(r),
+        buildExpenseLifecycleAnalyticsPayload(r),
+        buildExpenseCreationCompletionPayload(r, {
+          repeatCountOverride: toRemove.length,
+        }),
+      );
+    } catch (error) {
+      console.warn('[expenses] deleteExpensesByGroup record_deleted analytics skipped:', error);
+    }
   }
 
   // deleted_complete: 완료 1회
   const anchor = toRemove[0];
-  logExpenseDeleteComplete(
-    expenseCreationVariantFromRecord(anchor),
-    buildExpenseLifecycleAnalyticsPayload(anchor),
-    buildExpenseCreationCompletionPayload(anchor, {
-      repeatCountOverride: toRemove.length,
-    }),
-  );
+  try {
+    logExpenseDeleteComplete(
+      expenseCreationVariantFromRecord(anchor),
+      buildExpenseLifecycleAnalyticsPayload(anchor),
+      buildExpenseCreationCompletionPayload(anchor, {
+        repeatCountOverride: toRemove.length,
+      }),
+    );
+  } catch (error) {
+    console.warn('[expenses] deleteExpensesByGroup deleted_complete analytics skipped:', error);
+  }
 }
 

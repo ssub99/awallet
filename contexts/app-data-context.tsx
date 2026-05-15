@@ -139,6 +139,7 @@ export const AppDataProvider: React.FC<AppDataProviderProps> = ({ children, enab
             date: expense.date,
             timestamp: expense.timestamp,
             paymentMethod: expense.paymentMethod,
+            paymentSubtypeId: expense.paymentSubtypeId,
             isRecurring: expense.isRecurring,
             weekendOption: expense.weekendOption,
             recurringType: expense.recurringType,

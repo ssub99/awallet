@@ -17,12 +17,20 @@ import {
 
 const PAYMENT_METHODS = ['credit', 'debit', 'cash'] as const;
 type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+type PaymentSubtypeType = Exclude<PaymentMethod, 'cash'>;
+
+interface PaymentSubtypeOption {
+  type: PaymentSubtypeType;
+  label: string;
+}
 
 interface ExpenseRecordSuggestion {
+  recordType?: 'expense' | 'income';
   category: string;
   date: string;
   amount: number;
   paymentMethod?: PaymentMethod;
+  paymentSubtypeLabel?: string;
   memo?: string;
   /** 정기 기록 여부. 할부와 동시에 true 불가 */
   isRecurring?: boolean;
@@ -49,10 +57,24 @@ interface ParseExpenseResponse {
 
 const MAX_HISTORY_MESSAGES = 6;
 
-function buildExpenseSystemPrompt(categories: string[], today: string): string {
+function buildExpenseSystemPrompt(
+  categories: string[],
+  today: string,
+  paymentSubtypeOptions: PaymentSubtypeOption[],
+): string {
   const base = getBaseSystemPrompt();
   const categoryList =
     categories.length > 0 ? categories.join(', ') : '(없음. suggestedCategory로만 제안)';
+  const creditSubtypeLabels = paymentSubtypeOptions
+    .filter((item) => item.type === 'credit')
+    .map((item) => item.label);
+  const debitSubtypeLabels = paymentSubtypeOptions
+    .filter((item) => item.type === 'debit')
+    .map((item) => item.label);
+  const paymentSubtypeGuide =
+    paymentSubtypeOptions.length > 0
+      ? `신용 결제유형: ${creditSubtypeLabels.join(', ') || '(없음)'}\n체크 결제유형: ${debitSubtypeLabels.join(', ') || '(없음)'}`
+      : '결제유형 목록: (없음)';
 
   return `${base}
 
@@ -60,15 +82,20 @@ function buildExpenseSystemPrompt(categories: string[], today: string): string {
 
 규칙:
 1. 요청 없으면 생성/삭제 금지.
+1-1. 수입 키워드(월급/급여/보너스/입금/용돈/환급/꽁돈)면 recordType을 income으로 설정.
 2. 결제 기본: credit. 체크/현금 요청 시 debit/cash. 기본값 지정 요청 시 기억.
+2-1. 사용자가 카드사/카드명(예: 신한카드)을 언급하면 paymentSubtypeLabel에 해당 결제유형 라벨을 넣음.
+2-2. paymentMethod가 cash면 paymentSubtypeLabel은 반드시 빈 값(생략).
 3. 날짜는 기준일 ${today} 기준. YYYY.MM.DD. (저번주/이번주/다음주+요일 조합은 서버에서 월요일 시작 주로 재계산해 보정될 수 있음)
 4. 소비 외 질문→reply에 "소비 기록 관련해서만 답변드릴 수 있어요."
 5. 부족한 항목 있으면 reply에 요청. 카테고리 목록에 없거나 비어있으면 반드시 suggestedCategory 1개 제안(이모지+이름 10자).
 6. 메모는 사용자가 별도로 요청할 때만 기록에 넣음.
 
 카테고리: ${categoryList}
+${paymentSubtypeGuide}
 - 목록이 비어있거나 매칭 없으면 records[].category는 null, suggestedCategory는 반드시 채움(예: 옷→쇼핑).
 금액: 숫자만. 2만원→20000. paymentMethod: 신용/카드→credit, 체크/현금→debit/cash. 여러 건이면 records에 복수.
+recordType이 income이면 paymentMethod/paymentSubtypeLabel은 비움.
 
 반복/할부: **반드시** 사용자 메시지에서 정기(월세·구독·정기결제·매달·매월) 또는 할부(3개월 할부 등) 의도가 있으면 해당 필드를 채움.
 - 구독/매달/매월/월세/정기결제 → isRecurring: true, recurringType: "매월", totalMonths: 12, weekendOption: "weekend"
@@ -80,7 +107,7 @@ function buildExpenseSystemPrompt(categories: string[], today: string): string {
 
 예: "티빙 구독 8천원 매달" → {"category":"구독 서비스","date":"오늘","amount":8000,"isRecurring":true,"recurringType":"매월","totalMonths":12,"weekendOption":"weekend"}
 
-JSON 형식: {"records":[{"category","date","amount","paymentMethod","memo","isRecurring","isInstallment","recurringType","totalMonths","weekendOption"}],"suggestedCategory":null 또는 {"label","emoji"},"reply":null}
+JSON 형식: {"records":[{"recordType","category","date","amount","paymentMethod","paymentSubtypeLabel","memo","isRecurring","isInstallment","recurringType","totalMonths","weekendOption"}],"suggestedCategory":null 또는 {"label","emoji"},"reply":null}
 reply는 사용자에게 할 말(부족한 항목 안내·거절 멘트 등) 있을 때만 문자열, 없으면 null.
 `;
 }
@@ -156,6 +183,7 @@ function normalizeRecord(raw: Record<string, unknown>): ExpenseRecordSuggestion 
     wo === 'weekend' || wo === 'friday' || wo === 'monday' ? (wo as 'weekend' | 'friday' | 'monday') : 'weekend';
 
   return {
+    recordType: raw.recordType === 'income' ? 'income' : 'expense',
     category: typeof raw.category === 'string' ? raw.category : '',
     date: typeof raw.date === 'string' ? raw.date : '',
     amount: typeof raw.amount === 'number' ? raw.amount : toNum(raw.amount, 0),
@@ -163,6 +191,7 @@ function normalizeRecord(raw: Record<string, unknown>): ExpenseRecordSuggestion 
       raw.paymentMethod === 'credit' || raw.paymentMethod === 'debit' || raw.paymentMethod === 'cash'
         ? raw.paymentMethod
         : undefined,
+    paymentSubtypeLabel: typeof raw.paymentSubtypeLabel === 'string' ? raw.paymentSubtypeLabel.trim() : undefined,
     memo: typeof raw.memo === 'string' ? raw.memo : undefined,
     isRecurring: isRecurring || undefined,
     isInstallment: isInstallment || undefined,
@@ -239,6 +268,25 @@ export async function POST(request: Request): Promise<Response> {
     const categories = Array.isArray(body?.categories)
       ? (body.categories as string[]).filter((c): c is string => typeof c === 'string')
       : [];
+    const paymentSubtypeOptions = Array.isArray(body?.paymentSubtypes)
+      ? (body.paymentSubtypes as unknown[])
+          .map((item) => {
+            if (!item || typeof item !== 'object') return null;
+            const option = item as { type?: unknown; label?: unknown };
+            if (
+              (option.type === 'credit' || option.type === 'debit') &&
+              typeof option.label === 'string' &&
+              option.label.trim().length > 0
+            ) {
+              return {
+                type: option.type,
+                label: option.label.trim(),
+              } as PaymentSubtypeOption;
+            }
+            return null;
+          })
+          .filter((item): item is PaymentSubtypeOption => item != null)
+      : [];
     const today =
       typeof body?.today === 'string' && /^\d{4}\.\d{2}\.\d{2}$/.test(body.today)
         ? body.today
@@ -251,7 +299,7 @@ export async function POST(request: Request): Promise<Response> {
       );
     }
 
-    const systemPrompt = buildExpenseSystemPrompt(categories, today);
+    const systemPrompt = buildExpenseSystemPrompt(categories, today, paymentSubtypeOptions);
     const userPrompt = buildExpenseUserPrompt(message, history);
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${apiKey}`;
     const res = await fetch(url, {
@@ -304,7 +352,26 @@ export async function POST(request: Request): Promise<Response> {
     const hasInstallmentHint = /할부|\d+개월\s*할부/.test(msg);
     if (result.records.length > 0) {
       const first = result.records[0] as ExpenseRecordSuggestion;
-      if (hasRecurringHint && !first.isRecurring && !first.isInstallment) {
+      const hasIncomeHint = /월급|급여|보너스|입금|용돈|환급|수입|꽁돈|용돈받/.test(msg) || /salary|income|bonus|windfall/.test(msg);
+      if (hasIncomeHint) {
+        result = {
+          ...result,
+          records: [
+            {
+              ...first,
+              recordType: 'income',
+              paymentMethod: undefined,
+              paymentSubtypeLabel: undefined,
+              isRecurring: undefined,
+              isInstallment: undefined,
+              recurringType: undefined,
+              totalMonths: undefined,
+              weekendOption: undefined,
+            },
+            ...result.records.slice(1),
+          ],
+        };
+      } else if (hasRecurringHint && !first.isRecurring && !first.isInstallment) {
         result = {
           ...result,
           records: [

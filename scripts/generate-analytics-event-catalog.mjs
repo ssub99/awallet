@@ -334,7 +334,7 @@ function scanLogScreenView(filePath, content) {
       kind: 'logScreenView',
       event: 'screen_view',
       line,
-      keys: ['screen_name', 'screen_class', '...(params)', 'app_runtime'],
+      keys: ['screen_name', '...(params)', 'app_runtime'],
       snippet: 'track in utils/analytics.ts',
       note: '추가 params는 라우트 리스너 등 호출부에서 전달',
       file: rel,
@@ -466,7 +466,7 @@ const schemaRows = [
   },
   {
     이벤트명: 'screen_view',
-    속성명: 'screen_name, screen_class, app_runtime, ...(params)',
+    속성명: 'screen_name, app_runtime, ...(params)',
     속성_역할: 'string + optional',
     출처: 'utils/analytics.ts logScreenView',
     비고: '예: mode (analytics-route-listener)',
