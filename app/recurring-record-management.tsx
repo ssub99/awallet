@@ -22,7 +22,6 @@ import {
   listRecurringInstallmentGroups,
   type RecurringInstallmentGroupSummary,
 } from '@/utils/recurring-record-management';
-import * as Haptics from 'expo-haptics';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -234,7 +233,6 @@ export default function RecurringRecordManagementScreen() {
     if (!canGoPrevYear) {
       return;
     }
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     changeYearBy(-1);
   }, [canGoPrevYear, changeYearBy]);
 
@@ -242,7 +240,6 @@ export default function RecurringRecordManagementScreen() {
     if (!canGoNextYear) {
       return;
     }
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     changeYearBy(1);
   }, [canGoNextYear, changeYearBy]);
 

@@ -125,6 +125,7 @@ export default function MonthlyExpenseTimelineScreen() {
   const [paymentSubtypes, setPaymentSubtypes] = useState<PaymentSubtype[]>([]);
   const [paymentFilterKeys, setPaymentFilterKeys] = useState<string[]>([]);
   const [draftPaymentFilterKeys, setDraftPaymentFilterKeys] = useState<string[]>([]);
+  const [shouldInitPaymentFilterDefaults, setShouldInitPaymentFilterDefaults] = useState(false);
   const handleFilterPress = useCallback(() => {
     void logEvent('ui', {
       screen_name: '/monthly-expense-timeline',
@@ -143,21 +144,36 @@ export default function MonthlyExpenseTimelineScreen() {
     const loadFilterState = async () => {
       try {
         const stored = await AsyncStorage.getItem(TIMELINE_PAYMENT_FILTER_STORAGE_KEY);
-        if (!active || !stored) return;
+        if (!active) return;
+        if (!stored) {
+          setShouldInitPaymentFilterDefaults(true);
+          return;
+        }
         const parsed = JSON.parse(stored) as unknown;
         if (Array.isArray(parsed) && parsed.every((key) => typeof key === 'string')) {
-          setPaymentFilterKeys(parsed as string[]);
+          if (parsed.length === 0) {
+            setShouldInitPaymentFilterDefaults(true);
+          } else {
+            setPaymentFilterKeys(parsed as string[]);
+            setShouldInitPaymentFilterDefaults(false);
+          }
           return;
         }
         // legacy 단일 선택 포맷 마이그레이션
         const legacy = parsed as { type?: PaymentFilterType; subtypeId?: string };
         if (legacy?.type === 'cash') {
           setPaymentFilterKeys(['cash']);
+          setShouldInitPaymentFilterDefaults(false);
         } else if (legacy?.type === 'subtype' && typeof legacy.subtypeId === 'string') {
           setPaymentFilterKeys([legacy.subtypeId]);
+          setShouldInitPaymentFilterDefaults(false);
+        } else {
+          setShouldInitPaymentFilterDefaults(true);
         }
       } catch {
-        // ignore
+        if (active) {
+          setShouldInitPaymentFilterDefaults(true);
+        }
       }
     };
     void loadFilterState();
@@ -220,6 +236,15 @@ export default function MonthlyExpenseTimelineScreen() {
     ],
     [creditSubtypes, debitSubtypes]
   );
+
+  useEffect(() => {
+    if (!shouldInitPaymentFilterDefaults) return;
+    if (paymentFilterOptions.length === 0) return;
+    const allKeys = paymentFilterOptions.map((item) => item.id);
+    setPaymentFilterKeys(allKeys);
+    setDraftPaymentFilterKeys(allKeys);
+    setShouldInitPaymentFilterDefaults(false);
+  }, [paymentFilterOptions, shouldInitPaymentFilterDefaults]);
 
   useEffect(() => {
     const validKeys = new Set(['cash', 'income', ...paymentSubtypes.map((item) => item.id)]);
