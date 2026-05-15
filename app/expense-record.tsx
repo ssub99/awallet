@@ -2905,21 +2905,28 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           // 정기 기록 또는 할부 기록 수정 (선결제 기록 제외)
           // 개별 수정: 해당 건만 수정 (부모/자식 관계 유지)
           // 할부 기록 수정 시에는 기존 금액을 사용하여 재할부 방지
-          const singleUpdateAmount = (editData.isInstallment && editData.originalInstallment) 
-            ? editData.amount  // 할부 기록은 기존 금액 사용
-            : monthlyAmount;    // 일반 기록은 새 금액 사용
+          const singleUpdateAmount =
+            editData.isRefunded || editData.isSettled
+              ? 0
+              : editData.isInstallment && editData.originalInstallment
+                ? editData.amount // 할부 기록은 기존 금액 사용
+                : monthlyAmount; // 일반 기록은 새 금액 사용
 
           await handleSingleRecordUpdate(calendarData, editData, newRecord, actualDateKey, singleUpdateAmount);
 
-          if (editData.isRecurring && !editData.isPrepaid && !editData.isRefunded) {
+          if (editData.isRecurring && !editData.isPrepaid) {
             try {
               const recordKey = editData.timestamp
                 ? editData.timestamp.toString()
                 : (typeof editData.id === 'string' ? editData.id : null);
               if (recordKey) {
+                const isRefundedRecurringEdit = editData.isRefunded === true;
+                const isSettledRecurringEdit = editData.isSettled === true;
+                const persistedAmount =
+                  isRefundedRecurringEdit || isSettledRecurringEdit ? 0 : monthlyAmount;
                 const updateData: Partial<ExpenseRecordType> = {
                   type: 'expense',
-                  amount: monthlyAmount,
+                  amount: persistedAmount,
                   category,
                   memo,
                   date: actualDate,
@@ -2933,16 +2940,28 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                   isPrepaid: editData.isPrepaid,
                   prepaidDate: editData.prepaidDate,
                   originalDate: editData.originalDate,
-                  isRefunded: editData.isRefunded,
                   paymentMethod,
+                  paymentSubtypeId:
+                    paymentMethod === 'cash'
+                      ? undefined
+                      : selectedPaymentSubtype?.id ??
+                        (paymentMethod === 'debit' ? defaultDebitSubtypeId : defaultCreditSubtypeId),
                 };
-                if (editData.isSettled === true) {
+                if (isSettledRecurringEdit) {
                   updateData.isSettled = true;
                   if (typeof editData.settledAt === 'string') {
                     updateData.settledAt = editData.settledAt;
                   }
                   if (typeof editData.originalAmountBeforeSettlement === 'number') {
                     updateData.originalAmountBeforeSettlement = editData.originalAmountBeforeSettlement;
+                  }
+                } else if (isRefundedRecurringEdit) {
+                  updateData.isRefunded = true;
+                  if (typeof editData.refundedAt === 'string') {
+                    updateData.refundedAt = editData.refundedAt;
+                  }
+                  if (typeof editData.originalAmountBeforeRefund === 'number') {
+                    updateData.originalAmountBeforeRefund = editData.originalAmountBeforeRefund;
                   }
                 } else if (editData.isRecurring) {
                   updateData.originalAmountBeforeRefund = monthlyAmount;
