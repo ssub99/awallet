@@ -23,6 +23,10 @@ import { isAtLeastVersion, QUICK_INPUT_MIN_VERSION } from '@/utils/app-version';
 import { triggerChallengeNotifications } from '@/utils/challenge-utils';
 import { getCustomMonthInfo } from '@/utils/custom-month';
 import { rescheduleDailyReminderIfNeeded } from '@/utils/notification-scheduler';
+import {
+  resolveExpenseSeriesStartDateFromMessage,
+  resolveRelativeWeekdayDateFromMessage,
+} from '@/utils/parse-expense-relative-date';
 import { logEvent } from '@/utils/analytics';
 import { refreshWidgetWithCurrentMonth } from '@/utils/widget-data-sync';
 import {
@@ -31,6 +35,8 @@ import {
   getActualDayForMonth,
   getDayOfWeekLabel,
   getNextRecurringDate,
+  resolveExpenseRecurringTypeFromMessage,
+  getRecurringWeekendOptionDisplayLabel,
 } from '@/utils/expense-calculations';
 import { createExpensesBatch, type ExpenseRecord, type PaymentMethod } from '@/utils/expenses';
 import { createIncome, type IncomeRecord } from '@/utils/incomes';
@@ -263,14 +269,15 @@ function hasInvalidDateToken(message: string): boolean {
   return false;
 }
 
-function resolveMessageValidationToast(message: string, categoryLabels: string[]): string | null {
+function resolveMessageValidationToast(message: string, categoryLabels: string[], today: string): string | null {
   const normalizedMessage = message.trim();
   const hasCategory = categoryLabels.some((label) => normalizedMessage.includes(label));
   const hasDate =
     /\d{4}[.\-/]\d{1,2}[.\-/]\d{1,2}/.test(normalizedMessage) ||
     /\d{1,2}월\s*\d{1,2}일/.test(normalizedMessage) ||
     /\d{1,2}[.\-/]\d{1,2}/.test(normalizedMessage) ||
-    /오늘|어제|그제|내일|모레/.test(normalizedMessage);
+    /오늘|어제|그제|내일|모레/.test(normalizedMessage) ||
+    resolveRelativeWeekdayDateFromMessage(normalizedMessage, today) != null;
   const hasAmount =
     /(\d[\d,]*)\s*원/.test(normalizedMessage) ||
     /(\d[\d,]*)\s*(만원|천원|백원)/.test(normalizedMessage);
@@ -291,6 +298,20 @@ function resolveMessageValidationToast(message: string, categoryLabels: string[]
   if (noDate) return requiredFieldToast('date');
   if (noAmount) return requiredFieldToast('amount');
   return null;
+}
+
+function hasUnresolvablePersonalDateHint(message: string): boolean {
+  return /카드\s*결제일|결제일|월급날|급여일/.test(message);
+}
+
+function hasConcreteDateHint(message: string, today: string): boolean {
+  return (
+    /\d{4}[.\-/]\d{1,2}[.\-/]\d{1,2}/.test(message) ||
+    /\d{1,2}월\s*\d{1,2}일/.test(message) ||
+    /\d{1,2}[.\-/]\d{1,2}/.test(message) ||
+    /오늘|어제|그제|내일|모레/.test(message) ||
+    resolveRelativeWeekdayDateFromMessage(message, today) != null
+  );
 }
 
 function hasIncomeHintInMessage(message: string): boolean {
@@ -446,13 +467,25 @@ function applyMessageFallback(raw: PendingParseRecord, message: string): Pending
   const record = normalizePendingRecord(raw);
   const msg = message.trim();
   if (!msg) return record;
+  const inferredRecurringType = resolveExpenseRecurringTypeFromMessage(msg, record.recurringType);
   const hasRecurring =
-    /구독|매달|매월|월세|정기|매주|매일/.test(msg) || /subscription|monthly|recurring/.test(msg);
+    inferredRecurringType != null ||
+    /구독|매달|매월|월세|정기|매주|매일/.test(msg) ||
+    /subscription|monthly|recurring/.test(msg);
   const hasInstallment = /할부|\d+개월\s*할부/.test(msg);
+  if (hasRecurring && toBool(record.isRecurring) && !toBool(record.isInstallment)) {
+    return normalizePendingRecord({
+      ...record,
+      recurringType: inferredRecurringType || record.recurringType || '매월',
+      totalMonths: record.totalMonths ?? 12,
+      weekendOption: (record.weekendOption as 'weekend' | 'friday' | 'monday') || 'weekend',
+    });
+  }
   if (hasRecurring && !toBool(record.isRecurring) && !toBool(record.isInstallment)) {
     let recurringType = record.recurringType;
     if (!recurringType) {
-      if (/매주|주간|weekly/.test(msg)) recurringType = '매주';
+      if (inferredRecurringType) recurringType = inferredRecurringType;
+      else if (/매주|주간|weekly/.test(msg)) recurringType = '매주';
       else if (/매일|일간|daily/.test(msg)) recurringType = '매일';
       else recurringType = '매월';
     }
@@ -494,17 +527,9 @@ function getRepeatOption2(record: PendingParseRecord): string {
 function getRepeatOption3(record: PendingParseRecord): string {
   const r = normalizePendingRecord(record);
   if (!r.isRecurring && !r.isInstallment) return '';
-  const shouldIgnore =
-    r.isRecurring && r.recurringType && ['매일', '주중', '주말'].includes(r.recurringType);
-  if (shouldIgnore) return '주말 관계없이 기록';
-  switch (r.weekendOption) {
-    case 'friday':
-      return '금주 금요일 기록';
-    case 'monday':
-      return '차주 월요일 기록';
-    default:
-      return '관계없이 주말 기록';
-  }
+  return getRecurringWeekendOptionDisplayLabel(r.recurringType, r.weekendOption ?? 'weekend', {
+    isRecurring: !!r.isRecurring,
+  });
 }
 
 export const QuickInputProvider = ({ children }: PropsWithChildren) => {
@@ -666,6 +691,10 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       const paymentSubtypesPromise = getPaymentSubtypesCached();
       const date = new Date();
       const today = `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}`;
+      if (hasUnresolvablePersonalDateHint(message) && !hasConcreteDateHint(message, today)) {
+        showToast(requiredFieldToast('date'));
+        return;
+      }
       const securityHeaders = await getApiSecurityHeaders();
 
       const res = await fetch(PARSE_EXPENSE_API_URL, {
@@ -691,7 +720,11 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       const records = normalizeApiRecords(data.records);
       const suggested = data.suggestedCategory;
       if (records.length === 0) {
-        const validationToast = resolveMessageValidationToast(message, categories);
+        if (data.reply === requiredFieldToast('date')) {
+          showToast(data.reply);
+          return;
+        }
+        const validationToast = resolveMessageValidationToast(message, categories, today);
         if (validationToast) {
           showToast(validationToast);
           return;
@@ -727,7 +760,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         : first.paymentMethod === 'cash'
         ? 'cash'
         : (matchedSubtypeForFirst?.type ?? first.paymentMethod ?? inferPaymentMethodFromLabel(first.paymentSubtypeLabel) ?? 'credit');
-      const normalizedFirst: PendingParseRecord = {
+      const normalizedFirstBase: PendingParseRecord = {
         ...first,
         recordType: isIncomeRecord ? 'income' : 'expense',
         paymentMethod: isIncomeRecord ? undefined : resolvedPaymentMethod,
@@ -743,6 +776,17 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         totalMonths: isIncomeRecord ? undefined : first.totalMonths,
         weekendOption: isIncomeRecord ? undefined : first.weekendOption,
       };
+      const relativeDate = resolveRelativeWeekdayDateFromMessage(message, today);
+      const normalizedFirstWithRelativeDate: PendingParseRecord = relativeDate
+        ? { ...normalizedFirstBase, date: relativeDate }
+        : normalizedFirstBase;
+      const seriesStartDate =
+        !isIncomeRecord && (normalizedFirstWithRelativeDate.isRecurring || normalizedFirstWithRelativeDate.isInstallment)
+          ? resolveExpenseSeriesStartDateFromMessage(message, today, normalizedFirstWithRelativeDate.date)
+          : null;
+      const normalizedFirst: PendingParseRecord = seriesStartDate
+        ? { ...normalizedFirstWithRelativeDate, date: seriesStartDate }
+        : normalizedFirstWithRelativeDate;
       const parsedAmount = Number(first.amount);
       const normalizedCategory = typeof normalizedFirst.category === 'string' ? normalizedFirst.category.trim() : '';
       if (!normalizedCategory) {

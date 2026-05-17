@@ -1,5 +1,9 @@
 import { loadAllCategories } from '@/utils/categories';
-import { calculateRecurringIterations } from '@/utils/expense-calculations';
+import {
+  calculateRecurringIterations,
+  getRecurringWeekendOptionDisplayLabel,
+  shouldIgnoreWeekendOptionForRecurringType,
+} from '@/utils/expense-calculations';
 import {
   deleteExpensesByGroup,
   getAllExpenses,
@@ -24,8 +28,6 @@ export interface RecurringInstallmentGroupSummary {
   endDate: string;
 }
 
-const DAILY_RECURRING_TYPES = new Set(['매일', '매주', '2주', '3주', '4주', '주중', '주말']);
-
 function parseExpenseDate(date: string): Date | null {
   const parts = date.split('.').map((part) => parseInt(part.trim(), 10));
   if (parts.length < 3 || parts.some((value) => Number.isNaN(value))) {
@@ -46,22 +48,15 @@ function getWeekendLabel(
   recurringType?: string,
   isRecurring?: boolean,
 ): string {
-  const shouldIgnoreWeekendOption =
-    isRecurring === true &&
-    typeof recurringType === 'string' &&
-    DAILY_RECURRING_TYPES.has(recurringType);
-
-  if (shouldIgnoreWeekendOption) {
-    return '주말 관계없이 기록';
+  if (isRecurring === true && shouldIgnoreWeekendOptionForRecurringType(recurringType)) {
+    return getRecurringWeekendOptionDisplayLabel(recurringType, weekendOption ?? 'weekend', {
+      isRecurring: true,
+    });
   }
 
-  if (weekendOption === 'friday') {
-    return '금주 금요일 기록';
-  }
-  if (weekendOption === 'monday') {
-    return '차주 월요일 기록';
-  }
-  return '관계없이 주말 기록';
+  return getRecurringWeekendOptionDisplayLabel(recurringType, weekendOption ?? 'weekend', {
+    isRecurring: false,
+  });
 }
 
 function buildRepeatSettingLabel(anchor: ExpenseRecord, monthCount: number): string {
@@ -173,7 +168,7 @@ function resolveEndDate(
     }
   });
 
-  if (anchor.isRecurring && anchor.recurringType && DAILY_RECURRING_TYPES.has(anchor.recurringType)) {
+  if (anchor.isRecurring && shouldIgnoreWeekendOptionForRecurringType(anchor.recurringType)) {
     const yearEnd = new Date(startDate.getFullYear(), 11, 31);
     return latest > yearEnd ? latest : yearEnd;
   }

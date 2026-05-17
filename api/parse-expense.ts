@@ -6,7 +6,12 @@
  * Response: { records, suggestedCategory?, reply? }
  */
 
-import { resolveRelativeWeekdayDateFromMessage } from '../utils/parse-expense-relative-date';
+import {
+  resolveExpenseSeriesStartDateFromMessage,
+  resolveRelativeWeekdayDateFromMessage,
+} from '../utils/parse-expense-relative-date';
+import { resolveExpenseRecurringTypeFromMessage } from '../utils/expense-calculations';
+import { resolveHolidayDateFromMessage } from './holiday-calendar';
 import { getBaseSystemPrompt } from './ai-system-prompts';
 import {
   checkRateLimit,
@@ -96,10 +101,13 @@ ${paymentSubtypeGuide}
 - 목록이 비어있거나 매칭 없으면 records[].category는 null, suggestedCategory는 반드시 채움(예: 옷→쇼핑).
 금액: 숫자만. 2만원→20000. paymentMethod: 신용/카드→credit, 체크/현금→debit/cash. 여러 건이면 records에 복수.
 recordType이 income이면 paymentMethod/paymentSubtypeLabel은 비움.
+수입은 반복 기록 미지원: recordType이 income이면 isRecurring/isInstallment를 넣지 않음.
 
 반복/할부: **반드시** 사용자 메시지에서 정기(월세·구독·정기결제·매달·매월) 또는 할부(3개월 할부 등) 의도가 있으면 해당 필드를 채움.
 - 구독/매달/매월/월세/정기결제 → isRecurring: true, recurringType: "매월", totalMonths: 12, weekendOption: "weekend"
+- 주중/평일/주말 + 반복 표현(씩/마다 등) → isRecurring: true, recurringType: "주중" 또는 "주말"
 - 할부 N개월 → isInstallment: true, totalMonths: N(2~12), weekendOption: "weekend"
+- 올해초부터/올해 N월부터/저번달부터 등은 반복·할부 지출의 시작일.
 - 일반 지출 → isRecurring, isInstallment 모두 생략 또는 false
 - recurringType: 매일|매주|2주|3주|4주|매월|2개월 마다|4개월 마다|6개월 마다|주중|주말. 매달/매월/월세/구독이면 "매월".
 - totalMonths: 정기 매월이면 12. 할부면 개월수.
@@ -347,8 +355,11 @@ export async function POST(request: Request): Promise<Response> {
 
     // 메시지 기반 fallback: 구독/매달/매월 등이 있는데 AI가 isRecurring을 안 준 경우
     const msg = message.toLowerCase();
+    const inferredRecurringType = resolveExpenseRecurringTypeFromMessage(message);
     const hasRecurringHint =
-      /구독|매달|매월|월세|정기|매주|매일/.test(msg) || /subscription|monthly|recurring/.test(msg);
+      inferredRecurringType != null ||
+      /구독|매달|매월|월세|정기|매주|매일/.test(msg) ||
+      /subscription|monthly|recurring/.test(msg);
     const hasInstallmentHint = /할부|\d+개월\s*할부/.test(msg);
     if (result.records.length > 0) {
       const first = result.records[0] as ExpenseRecordSuggestion;
@@ -378,9 +389,20 @@ export async function POST(request: Request): Promise<Response> {
             {
               ...first,
               isRecurring: true,
-              recurringType: first.recurringType || '매월',
+              recurringType: inferredRecurringType || first.recurringType || '매월',
               totalMonths: first.totalMonths ?? 12,
               weekendOption: first.weekendOption ?? 'weekend',
+            },
+            ...result.records.slice(1),
+          ],
+        };
+      } else if (first.isRecurring && inferredRecurringType && inferredRecurringType !== first.recurringType) {
+        result = {
+          ...result,
+          records: [
+            {
+              ...first,
+              recurringType: inferredRecurringType,
             },
             ...result.records.slice(1),
           ],
@@ -403,11 +425,36 @@ export async function POST(request: Request): Promise<Response> {
       }
     }
 
-    const relativeDate = resolveRelativeWeekdayDateFromMessage(message, today);
+    const holidayDate = await resolveHolidayDateFromMessage(message, today);
+    if (holidayDate.status === 'unresolved') {
+      return Response.json({
+        records: [],
+        suggestedCategory: result.suggestedCategory ?? null,
+        reply: '날짜를 기입해 주세요.',
+      });
+    }
+
+    const relativeDate =
+      holidayDate.status === 'matched'
+        ? holidayDate.date
+        : resolveRelativeWeekdayDateFromMessage(message, today);
     if (relativeDate != null && result.records.length > 0) {
       result = {
         ...result,
         records: result.records.map((r) => ({ ...r, date: relativeDate })),
+      };
+    }
+
+    if (result.records.length > 0) {
+      result = {
+        ...result,
+        records: result.records.map((r) => {
+          const isExpenseSeries =
+            r.recordType !== 'income' && (r.isRecurring === true || r.isInstallment === true);
+          if (!isExpenseSeries) return r;
+          const seriesStartDate = resolveExpenseSeriesStartDateFromMessage(message, today, r.date);
+          return seriesStartDate ? { ...r, date: seriesStartDate } : r;
+        }),
       };
     }
 

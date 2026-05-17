@@ -31,6 +31,7 @@ import { logEvent, logExpenseAdjustment, logExpenseCreateComplete, mapRefundOpti
 import { loadCategories } from '@/utils/categories';
 import { triggerChallengeNotifications } from '@/utils/challenge-utils';
 import { getCustomMonthInfo } from '@/utils/custom-month';
+import { getRecurringWeekendOptionDisplayLabel } from '@/utils/expense-calculations';
 import { initializePaymentSubtypes, type PaymentSubtype } from '@/utils/payment-types';
 import {
   buildExpenseCreationCompletionPayload,
@@ -5298,15 +5299,11 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                     }
                   ]}>
                     {(() => {
-                      const shouldIgnoreWeekendOption =
-                        isRecurring && ['매일', '주중', '주말'].includes(recurringType);
-                      const weekendText = shouldIgnoreWeekendOption
-                        ? '주말 관계없이 기록'
-                        : weekendOption === 'weekend' 
-                        ? '관계없이 주말 기록' 
-                        : weekendOption === 'friday' 
-                        ? '금주 금요일 기록' 
-                        : '차주 월요일 기록';
+                      const weekendText = getRecurringWeekendOptionDisplayLabel(
+                        isRecurring ? recurringType : undefined,
+                        weekendOption,
+                        { isRecurring },
+                      );
                       if (isRecurring) {
                         // 정기 지출: "정기지출 ・ [반복기간] ・ [주말옵션]"
                         return `정기지출 ・ ${recurringType} ・ ${weekendText}`;
