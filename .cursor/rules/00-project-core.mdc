@@ -50,6 +50,26 @@ git commit -m "[$(date '+%y.%m.%d %H:%M:%S')] 변경 내용 설명"
 - **Format compliance**: Must follow `yy.mm.dd HH:MM:SS` format (2-digit year, 24-hour notation)
 - **When amending**: Also use current time when amending commits with `--amend`
 
+### 🚫 Commit Message — No Extra Trailers
+커밋 메시지에는 **제목(필요 시 본문)만** 넣고, 아래와 같은 부가 작명(trailer)은 **절대 포함하지 않는다**.
+
+- `Co-authored-by: ...` (예: `Co-authored-by: Cursor <cursoragent@cursor.com>`)
+- `Signed-off-by: ...`
+- `Reviewed-by: ...`
+- 에디터·에이전트·도구가 자동으로 붙이는 기타 Git trailer
+
+**예외:** 사용자가 명시적으로 trailer 추가를 요청한 경우에만 포함한다.
+
+```bash
+# ✅ CORRECT — 제목만
+git commit -m "[$(date '+%y.%m.%d %H:%M:%S')] 간편입력 날짜 보정"
+
+# ❌ WRONG — Co-authored-by 등 부가 작명 포함
+git commit -m "[$(date '+%y.%m.%d %H:%M:%S')] 간편입력 날짜 보정
+
+Co-authored-by: Cursor <cursoragent@cursor.com>"
+```
+
 ## ⚠️ CRITICAL - MUST FOLLOW
 
 ### 🚫 NEVER DO THESE:

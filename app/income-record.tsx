@@ -559,10 +559,11 @@ export default function IncomeRecordScreen() {
         category,
         memo,
         timestamp: incomeTimestamp,
+        createdVia: 'screen',
       };
 
       try {
-        await createIncome(incomeRecord);
+        await createIncome(incomeRecord, { simpleCreation: false });
       } catch (error) {
         console.error('[수입 생성] 저장 실패:', error);
       }

@@ -1,7 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { registerReviewPromptLifetimeCreations } from '@/utils/app-store-review-lifetime';
 import { scheduleMaybePromptWriteReview } from '@/utils/app-store-review-scheduler';
-import { logRecordLifecycleCount } from '@/utils/analytics';
+import {
+  logRecordLifecycleCount,
+  type ExpenseSimpleCreationValue,
+} from '@/utils/analytics';
 import { generateRecordId } from './id-generator';
 
 const INCOME_STORAGE_KEY = 'incomeData';
@@ -16,6 +19,25 @@ export interface IncomeRecord {
   timestamp: number;
   isDeleted?: boolean;
   deletedAt?: string | null;
+  /** 생성 경로: 간편입력(simple) / 생성 화면(screen). 분석 simple_creation 판별용 */
+  createdVia?: 'simple' | 'screen';
+}
+
+export type CreateIncomeOptions = {
+  /** 간편입력 경로 여부. 기본은 false (생성 화면 경로) */
+  simpleCreation?: boolean;
+};
+
+function resolveIncomeSimpleCreation(
+  record: IncomeRecord,
+  opts?: CreateIncomeOptions,
+): ExpenseSimpleCreationValue {
+  if (typeof opts?.simpleCreation === 'boolean') {
+    return opts.simpleCreation;
+  }
+  if (record.createdVia === 'simple') return true;
+  if (record.createdVia === 'screen') return false;
+  return 'unknown';
 }
 
 const DATE_TOKEN_REGEX = /\./g;
@@ -73,7 +95,10 @@ function isWithinDateRange(date: string, startDate: string, endDate: string): bo
   return normalizedDate >= normalizedStart && normalizedDate <= normalizedEnd;
 }
 
-export async function createIncome(record: IncomeRecord): Promise<IncomeRecord> {
+export async function createIncome(
+  record: IncomeRecord,
+  options?: CreateIncomeOptions,
+): Promise<IncomeRecord> {
   const income = normalizeIncome(record);
   const existing = await loadLocalIncomes();
   const filtered = existing.filter(
@@ -83,7 +108,10 @@ export async function createIncome(record: IncomeRecord): Promise<IncomeRecord> 
   filtered.push(income);
   await persistIncomes(filtered);
   const memo = typeof income.memo === 'string' && income.memo.trim().length > 0;
-  logRecordLifecycleCount('create', 'income', { memo });
+  logRecordLifecycleCount('create', 'income', {
+    memo,
+    simple_creation: resolveIncomeSimpleCreation(income, options),
+  });
   await registerReviewPromptLifetimeCreations(1);
   scheduleMaybePromptWriteReview();
   return income;
@@ -121,7 +149,10 @@ export async function softDeleteIncome(id: string): Promise<void> {
   const updated = await updateIncome(id, { isDeleted: true, deletedAt });
   if (updated) {
     const memo = typeof updated.memo === 'string' && updated.memo.trim().length > 0;
-    logRecordLifecycleCount('delete', 'income', { memo });
+    logRecordLifecycleCount('delete', 'income', {
+      memo,
+      simple_creation: resolveIncomeSimpleCreation(updated),
+    });
   }
 }
 
@@ -173,7 +204,10 @@ export async function deleteIncomesByCategory(categoryLabel: string): Promise<vo
   await persistIncomes(filtered);
   for (const r of removedRecords) {
     const memo = typeof r.memo === 'string' && r.memo.trim().length > 0;
-    logRecordLifecycleCount('delete', 'income', { memo });
+    logRecordLifecycleCount('delete', 'income', {
+      memo,
+      simple_creation: resolveIncomeSimpleCreation(r),
+    });
   }
 }
 
