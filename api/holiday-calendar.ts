@@ -34,6 +34,30 @@ interface PublicHolidayResponse {
 
 const holidayCache = new Map<number, Promise<KoreanHoliday[]>>();
 
+const COMMON_HOLIDAY_NAMES = [
+  '1월1일',
+  '신정',
+  '설날',
+  '구정',
+  '추석',
+  '한가위',
+  '어린이날',
+  '제헌절',
+  '광복절',
+  '삼일절',
+  '3.1절',
+  '현충일',
+  '개천절',
+  '한글날',
+  '성탄절',
+  '크리스마스',
+  '기독탄신일',
+  '부처님오신날',
+  '석가탄신일',
+  '석탄일',
+  '근로자의날',
+] as const;
+
 const HOLIDAY_ALIASES: Record<string, readonly string[]> = {
   신정: ['1월1일'],
   설: ['설날'],
@@ -163,7 +187,11 @@ function buildCandidateNames(message: string): string[] {
   const compact = message.replace(/\s+/g, '');
   const candidates = new Set<string>();
 
-  for (const holiday of [...Object.keys(HOLIDAY_ALIASES), ...Object.values(HOLIDAY_ALIASES).flat()]) {
+  for (const holiday of [
+    ...COMMON_HOLIDAY_NAMES,
+    ...Object.keys(HOLIDAY_ALIASES),
+    ...Object.values(HOLIDAY_ALIASES).flat(),
+  ]) {
     if (compact.includes(holiday)) {
       candidates.add(holiday);
       for (const aliasTarget of HOLIDAY_ALIASES[holiday] ?? []) {
@@ -173,6 +201,32 @@ function buildCandidateNames(message: string): string[] {
   }
 
   return [...candidates].map(normalizeHolidayName);
+}
+
+function isHolidayNameMatched(holiday: KoreanHoliday, candidateNames: string[]): boolean {
+  const normalizedName = normalizeHolidayName(holiday.name);
+  return candidateNames.some(
+    (candidate) => normalizedName.includes(candidate) || candidate.includes(normalizedName),
+  );
+}
+
+function resolvePreferredHolidayMatch(
+  holidays: KoreanHoliday[],
+  candidateNames: string[],
+): KoreanHoliday | undefined {
+  const matched = holidays
+    .filter((holiday) => isHolidayNameMatched(holiday, candidateNames))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  if (matched.length === 0) return undefined;
+
+  const isLunarMajorHoliday = candidateNames.some((candidate) => candidate === '설날' || candidate === '추석');
+  if (!isLunarMajorHoliday) return matched[0];
+
+  const regularHolidays = matched.filter((holiday) => !normalizeHolidayName(holiday.name).includes('대체'));
+  const targetGroup = regularHolidays.length > 0 ? regularHolidays : matched;
+
+  // 공공데이터는 설날/추석 연휴 여러 날짜를 같은 명칭으로 내려줄 수 있어 당일인 가운데 날짜를 우선합니다.
+  return targetGroup[Math.floor((targetGroup.length - 1) / 2)];
 }
 
 export function hasHolidayDateHint(message: string): boolean {
@@ -199,12 +253,7 @@ export async function resolveHolidayDateFromMessage(
 
   const year = resolveYearFromMessage(message, today);
   const holidays = await getKoreanHolidays(year);
-  const matched = holidays.find((holiday) => {
-    const normalizedName = normalizeHolidayName(holiday.name);
-    return candidateNames.some(
-      (candidate) => normalizedName.includes(candidate) || candidate.includes(normalizedName),
-    );
-  });
+  const matched = resolvePreferredHolidayMatch(holidays, candidateNames);
 
   return matched ? { status: 'matched', date: matched.date } : { status: 'unresolved' };
 }
