@@ -3,6 +3,7 @@
  *
  * - TIP 태그 고정
  * - 한 번에 한 문장, 우→좌 자동 흐름(마키 1회) + 사용자 좌우 드래그
+ * - 첫 문장: 랜덤 시작, 이후 교체는 배열 순서(예: 2번 → 3 → 4 → 1)
  * - 문장 교체: 다음(아래→위), 이전(위→아래) 전환
  * - 문장 상/하 스와이프로 이전/다음 문장 전환
  * - 우측 접기/펼치기 버튼 (Figma: icon/solid/arrowLeft, 24px 원형)
@@ -11,7 +12,12 @@
 
 import { Icon } from '@/components/ui/icon';
 import { AtomicColors } from '@/constants/atomic-colors';
-import { QUICK_INPUT_TIPS } from '@/constants/quick-input-tips';
+import {
+  pickInitialQuickInputTipIndex,
+  QUICK_INPUT_TIPS,
+  rememberQuickInputTipIndex,
+  resolveSequentialTipIndex,
+} from '@/constants/quick-input-tips';
 import { Colors, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
@@ -402,7 +408,13 @@ export function QuickInputTipBox() {
   const [viewportWidth, setViewportWidth] = useState(0);
   const [contentWidth, setContentWidth] = useState(0);
   const [measuredForTip, setMeasuredForTip] = useState('');
-  const [tipIndex, setTipIndex] = useState(0);
+  const [tipIndex, setTipIndex] = useState(() => {
+    const initial = pickInitialQuickInputTipIndex();
+    rememberQuickInputTipIndex(initial);
+    return initial;
+  });
+  const tipIndexRef = useRef(tipIndex);
+  tipIndexRef.current = tipIndex;
   const [isExpanded, setIsExpanded] = useState(true);
   const [isPreferenceLoaded, setIsPreferenceLoaded] = useState(false);
   const [autoEnabled, setAutoEnabled] = useState(true);
@@ -533,12 +545,25 @@ export function QuickInputTipBox() {
     clearAutoResumeTimer();
   }, [clearAutoResumeTimer, isExpanded]);
 
+  useEffect(() => {
+    rememberQuickInputTipIndex(tipIndex);
+  }, [tipIndex]);
+
+  useEffect(() => {
+    return () => {
+      rememberQuickInputTipIndex(tipIndexRef.current);
+    };
+  }, []);
+
   const transitionToTip = useCallback(
     (nextIndex: number, direction: TipTransitionDirection) => {
       if (isTransitioning) return;
 
-      const normalized =
-        ((nextIndex % QUICK_INPUT_TIPS.length) + QUICK_INPUT_TIPS.length) % QUICK_INPUT_TIPS.length;
+      const normalized = resolveSequentialTipIndex(
+        tipIndexRef.current,
+        nextIndex,
+        direction
+      );
 
       const exitToValue =
         direction === 'next' ? -CONTENT_ROW_HEIGHT : CONTENT_ROW_HEIGHT;
@@ -561,7 +586,9 @@ export function QuickInputTipBox() {
           return;
         }
 
+        tipIndexRef.current = normalized;
         setTipIndex(normalized);
+        rememberQuickInputTipIndex(normalized);
         slideY.setValue(enterFromValue);
 
         Animated.timing(slideY, {
@@ -583,12 +610,12 @@ export function QuickInputTipBox() {
   );
 
   const goToNextTip = useCallback(() => {
-    transitionToTip(tipIndex + 1, 'next');
-  }, [tipIndex, transitionToTip]);
+    transitionToTip(tipIndexRef.current + 1, 'next');
+  }, [transitionToTip]);
 
   const goToPrevTip = useCallback(() => {
-    transitionToTip(tipIndex - 1, 'prev');
-  }, [tipIndex, transitionToTip]);
+    transitionToTip(tipIndexRef.current - 1, 'prev');
+  }, [transitionToTip]);
 
   const handleFlowComplete = useCallback(() => {
     if (pendingCollapseRef.current || !autoEnabled || isTransitioning) return;
