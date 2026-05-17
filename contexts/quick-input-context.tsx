@@ -928,8 +928,9 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
           date: actualDate,
           timestamp: Date.now(),
           memo: pending.memo,
+          createdVia: 'simple',
         };
-        await createIncome(incomeRecord);
+        await createIncome(incomeRecord, { simpleCreation: true });
         await refreshWidgetWithCurrentMonth().catch(() => {});
         pendingRecordRef.current = null;
         setConfirmCardData(null);

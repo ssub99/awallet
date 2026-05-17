@@ -322,7 +322,7 @@ export function mapRefundOptionToAnalytics(
 export function logRecordLifecycleCount(
   action: 'create' | 'delete',
   entity: RecordLifecycleEntity,
-  extra?: { memo?: boolean },
+  extra?: { memo?: boolean; simple_creation?: ExpenseSimpleCreationValue },
 ): void {
   const eventName = action === 'create' ? 'record_created' : 'record_deleted';
   const completeEventName = action === 'create' ? 'created_complete' : 'deleted_complete';
@@ -334,6 +334,9 @@ export function logRecordLifecycleCount(
   if (typeof extra?.memo === 'boolean') {
     payload.memo = extra.memo;
   }
+  if (extra?.simple_creation !== undefined) {
+    payload.simple_creation = extra.simple_creation;
+  }
   void logEvent(eventName, payload);
   const completePayload: Record<string, unknown> = {
     record_type: entity,
@@ -341,6 +344,9 @@ export function logRecordLifecycleCount(
   };
   if (typeof extra?.memo === 'boolean') {
     completePayload.memo = extra.memo;
+  }
+  if (extra?.simple_creation !== undefined) {
+    completePayload.simple_creation = extra.simple_creation;
   }
   void logEvent(completeEventName, completePayload);
 }
