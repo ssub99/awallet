@@ -103,7 +103,7 @@ export function QuickInputShort({
         handlePress();
       }}
       accessibilityRole="button"
-      accessibilityLabel="간편입력"
+      accessibilityLabel="기록 간편입력"
     >
       <BlurView intensity={48} tint="light" style={styles.quickInputBlur}>
         <View
@@ -114,7 +114,7 @@ export function QuickInputShort({
           <View style={styles.quickInputLeft}>
             {/* 소비 에이전트 카드와 동일한 그라데이션 circle + star 애니메이션 */}
             <QuickInputStar size={20} starScale={starScale} starRotate={starRotate} />
-            <Text style={[styles.quickInputText, { color: colors.textNeutral }]}>간편입력</Text>
+            <Text style={[styles.quickInputText, { color: colors.textNeutral }]}>기록 간편입력</Text>
           </View>
           <View style={styles.quickInputArrow}>
             <Icon name="arrowRight" variant="line" size={16} color={colors.textAssistive} />

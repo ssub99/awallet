@@ -22,6 +22,7 @@ import {
 import { applySavedOrder, loadCategoryOrder, saveCategoryOrder } from '@/utils/category-order';
 import { loadCategories, saveCategories } from '@/utils/categories';
 import { resetAppStoreReviewProgressAfterRestore } from '@/utils/app-store-review-lifetime';
+import { clearQuickInputTipBoxExpanded } from '@/utils/quick-input-tip-preference';
 import { suppressChallengeResultAnalyticsForRestoredEndedChallenges } from '@/utils/challenge-utils';
 import {
   getAllChallenges,
@@ -73,6 +74,7 @@ async function finalizeRestoreSideEffects(): Promise<void> {
   await AsyncStorage.removeItem(CALENDAR_DATA_KEY);
   await clearConsumptionReportCaches();
   await resetAppStoreReviewProgressAfterRestore();
+  await clearQuickInputTipBoxExpanded();
 }
 
 /** CSV 헤더 (양식: 날짜, 카테고리, 수입/소비, 금액, 유형, 결제유형, 메모) */

@@ -270,7 +270,7 @@ const styles = StyleSheet.create({
   },
   button: {
     flex: 1,
-    height: 48,
+    height: 40,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',

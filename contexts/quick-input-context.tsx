@@ -11,6 +11,7 @@
 
 import { QuickInputConfirmCard, type QuickInputConfirmCardData } from '@/components/ui/quick-input-confirm-card';
 import { QuickInputField } from '@/components/ui/quick-input-field';
+import { QuickInputTipBox } from '@/components/ui/quick-input-tip-box';
 import { PARSE_EXPENSE_API_URL } from '@/constants/api';
 import { getRandomQuickInputPlaceholder } from '@/constants/quick-input-placeholders';
 import { useAppData } from '@/contexts/app-data-context';
@@ -1184,7 +1185,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                 <Pressable style={StyleSheet.absoluteFill} onPress={hideQuickInput} />
               </RNAnimated.View>
               {confirmCardData != null && (
-                <View style={[styles.confirmCardContainer, { top: insets.top + 16 }]}>
+                <View style={[styles.confirmCardContainer, { top: insets.top + 8 }]}>
                   <QuickInputConfirmCard
                     data={confirmCardData}
                     onConfirm={handleConfirmCardAdd}
@@ -1194,6 +1195,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                 </View>
               )}
               <Animated.View style={[styles.container, containerAnimatedStyle]}>
+                <QuickInputTipBox />
                 <QuickInputField
                   ref={quickInputRef}
                   value={quickInputText}
@@ -1248,5 +1250,7 @@ const styles = StyleSheet.create({
     left: 16,
     right: 16,
     zIndex: 101,
+    /** TIP 박스 ↔ 롱버전 입력창 간격 */
+    gap: 12,
   },
 });
