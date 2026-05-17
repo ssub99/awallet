@@ -68,7 +68,7 @@ interface TimelineItem {
   timestamp?: number;
   isRecurring?: boolean;
   weekendOption?: 'weekend' | 'friday' | 'monday';
-  recurringType?: string; // 정기 기록 반복 타입 (매일, 매주, 2주, 3주, 4주, 매월, 2개월 마다, 4개월 마다, 6개월 마다, 주중, 주말)
+  recurringType?: string; // 정기 기록 반복 타입 (매일, 매주, 2주, 3주, 4주, 매월, 2개월 마다, 3개월 마다, 4개월 마다, 5개월 마다, 6개월 마다, 주중, 주말)
   paymentMethod?: 'credit' | 'debit' | 'cash';
   paymentSubtypeId?: string;
   isPrepaid?: boolean;

@@ -41,7 +41,7 @@ interface ExpenseRecordSuggestion {
   isRecurring?: boolean;
   /** 할부 기록 여부. 정기와 동시에 true 불가 */
   isInstallment?: boolean;
-  /** 정기: 매일, 매주, 2주, 3주, 4주, 매월, 2개월 마다, 4개월 마다, 6개월 마다, 주중, 주말. 할부: 무시 */
+  /** 정기: 매일, 매주, 2주, 3주, 4주, 매월, 2개월 마다, 3개월 마다, 4개월 마다, 5개월 마다, 6개월 마다, 주중, 주말. 할부: 무시 */
   recurringType?: string;
   /** 정기: 해당 년도 내 반복 개월 수. 할부: 할부 개월 수(2~12) */
   totalMonths?: number;
@@ -109,7 +109,7 @@ recordType이 income이면 paymentMethod/paymentSubtypeLabel은 비움.
 - 할부 N개월 → isInstallment: true, totalMonths: N(2~12), weekendOption: "weekend"
 - 올해초부터/올해 N월부터/저번달부터 등은 반복·할부 지출의 시작일.
 - 일반 지출 → isRecurring, isInstallment 모두 생략 또는 false
-- recurringType: 매일|매주|2주|3주|4주|매월|2개월 마다|4개월 마다|6개월 마다|주중|주말. 매달/매월/월세/구독이면 "매월".
+- recurringType: 매일|매주|2주|3주|4주|매월|2개월 마다|3개월 마다|4개월 마다|5개월 마다|6개월 마다|주중|주말. 매달/매월/월세/구독이면 "매월".
 - totalMonths: 정기 매월이면 12. 할부면 개월수.
 - weekendOption: "weekend"|"friday"|"monday". 기본 "weekend". 주말 날짜+금요일 기록 원하면 "friday".
 

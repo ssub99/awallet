@@ -233,7 +233,9 @@ export function resolveExpenseRecurringTypeFromMessage(
   if (/매주|(?:^|[^\d])주마다|weekly/.test(compact)) return '매주';
 
   if (/2개월마다|2개월간격|2개월주기|매2개월/.test(compact)) return '2개월 마다';
+  if (/3개월마다|3개월간격|3개월주기|매3개월|분기마다/.test(compact)) return '3개월 마다';
   if (/4개월마다|4개월간격|4개월주기|매4개월/.test(compact)) return '4개월 마다';
+  if (/5개월마다|5개월간격|5개월주기|매5개월/.test(compact)) return '5개월 마다';
   if (/6개월마다|6개월간격|6개월주기|매6개월|반기마다/.test(compact)) return '6개월 마다';
 
   if (
@@ -289,9 +291,17 @@ export function getNextRecurringDate(
       nextDate = new Date(dateObj);
       nextDate.setMonth(dateObj.getMonth() + 2);
       break;
+    case '3개월 마다':
+      nextDate = new Date(dateObj);
+      nextDate.setMonth(dateObj.getMonth() + 3);
+      break;
     case '4개월 마다':
       nextDate = new Date(dateObj);
       nextDate.setMonth(dateObj.getMonth() + 4);
+      break;
+    case '5개월 마다':
+      nextDate = new Date(dateObj);
+      nextDate.setMonth(dateObj.getMonth() + 5);
       break;
     case '6개월 마다':
       nextDate = new Date(dateObj);
@@ -359,8 +369,14 @@ export function calculateRecurringIterations(startDate: string, recurringType: s
       case '2개월 마다':
         currentDate.setMonth(currentDate.getMonth() + 2);
         break;
+      case '3개월 마다':
+        currentDate.setMonth(currentDate.getMonth() + 3);
+        break;
       case '4개월 마다':
         currentDate.setMonth(currentDate.getMonth() + 4);
+        break;
+      case '5개월 마다':
+        currentDate.setMonth(currentDate.getMonth() + 5);
         break;
       case '6개월 마다':
         currentDate.setMonth(currentDate.getMonth() + 6);

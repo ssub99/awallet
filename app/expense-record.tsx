@@ -150,9 +150,17 @@ function getNextRecurringDate(
       nextDate = new Date(dateObj);
       nextDate.setMonth(dateObj.getMonth() + 2);
       break;
+    case '3개월 마다':
+      nextDate = new Date(dateObj);
+      nextDate.setMonth(dateObj.getMonth() + 3);
+      break;
     case '4개월 마다':
       nextDate = new Date(dateObj);
       nextDate.setMonth(dateObj.getMonth() + 4);
+      break;
+    case '5개월 마다':
+      nextDate = new Date(dateObj);
+      nextDate.setMonth(dateObj.getMonth() + 5);
       break;
     case '6개월 마다':
       nextDate = new Date(dateObj);
@@ -238,8 +246,14 @@ function calculateRecurringIterations(startDate: string, recurringType: string):
       case '2개월 마다':
         currentDate.setMonth(currentDate.getMonth() + 2);
         break;
+      case '3개월 마다':
+        currentDate.setMonth(currentDate.getMonth() + 3);
+        break;
       case '4개월 마다':
         currentDate.setMonth(currentDate.getMonth() + 4);
+        break;
+      case '5개월 마다':
+        currentDate.setMonth(currentDate.getMonth() + 5);
         break;
       case '6개월 마다':
         currentDate.setMonth(currentDate.getMonth() + 6);
@@ -812,10 +826,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   const [hasSelectedInstallment, setHasSelectedInstallment] = useState<boolean>(false); // 할부 옵션을 한 번이라도 선택했는지 추적
   const [isPeriodExpanded, setIsPeriodExpanded] = useState(false);
   const [weekendOption, setWeekendOption] = useState<'weekend' | 'friday' | 'monday'>('weekend');
-  // 정기 옵션의 반복 형태 (매일, 매주, 2주, 3주, 4주, 매월, 2개월 마다, 4개월 마다, 6개월 마다, 주중, 주말)
+  // 정기 옵션의 반복 형태
   const [recurringType, setRecurringType] = useState<string>('매월');
   const recurringPeriodOptions = useMemo(
-    () => ['매일', '매주', '매월', '2주', '3주', '4주', '2개월 마다', '4개월 마다', '6개월 마다', '주중', '주말'],
+    () => ['매일', '매주', '매월', '2주', '3주', '4주', '2개월 마다', '3개월 마다', '4개월 마다', '5개월 마다', '6개월 마다', '주중', '주말'],
     []
   );
   const installmentPeriodOptions = useMemo(() => [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], []);
@@ -1519,8 +1533,12 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             setTotalMonths(1);
           } else if (editData.recurringType === '2개월 마다') {
             setTotalMonths(2);
+          } else if (editData.recurringType === '3개월 마다') {
+            setTotalMonths(3);
           } else if (editData.recurringType === '4개월 마다') {
             setTotalMonths(4);
+          } else if (editData.recurringType === '5개월 마다') {
+            setTotalMonths(5);
           } else if (editData.recurringType === '6개월 마다') {
             setTotalMonths(6);
           } else {
@@ -6011,7 +6029,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                           '3주': 'recurring-3weeks',
                           '4주': 'recurring-4weeks',
                           '2개월 마다': 'recurring-2months',
+                          '3개월 마다': 'recurring-3months',
                           '4개월 마다': 'recurring-4months',
+                          '5개월 마다': 'recurring-5months',
                           '6개월 마다': 'recurring-6months',
                           주중: 'recurring-weekdays',
                           주말: 'recurring-weekends',
@@ -6028,8 +6048,12 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                           setDraftTotalMonths(1);
                         } else if (label === '2개월 마다') {
                           setDraftTotalMonths(2);
+                        } else if (label === '3개월 마다') {
+                          setDraftTotalMonths(3);
                         } else if (label === '4개월 마다') {
                           setDraftTotalMonths(4);
+                        } else if (label === '5개월 마다') {
+                          setDraftTotalMonths(5);
                         } else if (label === '6개월 마다') {
                           setDraftTotalMonths(6);
                         }
