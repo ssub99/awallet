@@ -189,7 +189,9 @@ export type ExpensePeriodUnit =
   | '3weeks'
   | '4weeks'
   | '2months'
+  | '3months'
   | '4months'
+  | '5months'
   | '6months'
   | 'weekdays'
   | 'weekends';

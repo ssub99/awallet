@@ -42,7 +42,7 @@ export interface ExpenseRecord {
   totalMonths?: number; // 정기 기록 개월 수
   installmentMonths?: number; // 할부 기록 개월 수
   originalInstallment?: boolean;
-  recurringType?: string; // 정기 기록의 반복 타입 (매일, 매주, 2주, 3주, 4주, 매월, 2개월 마다, 4개월 마다, 6개월 마다, 주중, 주말)
+  recurringType?: string; // 정기 기록의 반복 타입 (매일, 매주, 2주, 3주, 4주, 매월, 2개월 마다, 3개월 마다, 4개월 마다, 5개월 마다, 6개월 마다, 주중, 주말)
   isPrepaid?: boolean;
   prepaidDate?: string; // YYYY.MM.DD 형식
   isRefunded?: boolean;
@@ -305,8 +305,12 @@ function mapRecurringTypeToPeriodUnit(recurringType: string): ExpensePeriodUnit 
       return '4weeks';
     case '2개월 마다':
       return '2months';
+    case '3개월 마다':
+      return '3months';
     case '4개월 마다':
       return '4months';
+    case '5개월 마다':
+      return '5months';
     case '6개월 마다':
       return '6months';
     case '주중':

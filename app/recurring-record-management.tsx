@@ -115,7 +115,11 @@ function DetailRow({
   return (
     <View style={styles.detailRow}>
       <Text style={[styles.detailLabel, { color: colors.textAssistive }]}>{label}</Text>
-      <Text style={[styles.detailValue, { color: colors.textNeutral }]} numberOfLines={2}>
+      <Text
+        style={[styles.detailValue, { color: colors.textNeutral }]}
+        numberOfLines={1}
+        ellipsizeMode="tail"
+      >
         {value}
       </Text>
     </View>
@@ -533,6 +537,8 @@ const styles = StyleSheet.create({
   detailValue: {
     ...Typography.body2.r.regular,
     flex: 1,
+    flexShrink: 1,
+    minWidth: 0,
     textAlign: 'right',
   },
   globalEmptyContainer: {
