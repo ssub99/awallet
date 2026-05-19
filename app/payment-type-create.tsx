@@ -20,7 +20,6 @@ import {
   StatusBar,
   StyleSheet,
   Text,
-  TextInput,
   TouchableWithoutFeedback,
   View,
 } from 'react-native';
@@ -278,22 +277,20 @@ export default function PaymentTypeCreateScreen() {
                   *
                 </Text>
               </Text>
-              <View style={styles.radioRowWrap}>
-                <View style={styles.radioRow}>
-                  <View style={styles.radioCol}>
-                    <Radio
-                      checked={selectedType === 'credit'}
-                      label="신용카드"
-                      onPress={() => setSelectedType('credit')}
-                    />
-                  </View>
-                  <View style={styles.radioCol}>
-                    <Radio
-                      checked={selectedType === 'debit'}
-                      label="체크카드"
-                      onPress={() => setSelectedType('debit')}
-                    />
-                  </View>
+              <View style={styles.radioRow}>
+                <View style={styles.radioCol}>
+                  <Radio
+                    checked={selectedType === 'credit'}
+                    label="신용카드"
+                    onPress={() => setSelectedType('credit')}
+                  />
+                </View>
+                <View style={styles.radioCol}>
+                  <Radio
+                    checked={selectedType === 'debit'}
+                    label="체크카드"
+                    onPress={() => setSelectedType('debit')}
+                  />
                 </View>
               </View>
             </View>
@@ -305,19 +302,14 @@ export default function PaymentTypeCreateScreen() {
               }}
             >
               <Text style={[styles.label, { color: colors.text }]}>설명</Text>
-              <View style={[styles.textAreaWrap, { backgroundColor: colors.staticWhite, borderColor: colors.border }]}>
-                <TextInput
-                  value={description}
-                  onChangeText={setDescription}
-                  onFocus={handleDescriptionFocus}
-                  placeholder="설명을 입력해 주세요.(최대 20자)"
-                  placeholderTextColor={colors.textAssistive}
-                  style={[styles.textArea, { color: colors.text }]}
-                  multiline
-                  maxLength={20}
-                  textAlignVertical="top"
-                />
-              </View>
+              <Input
+                variant="area"
+                value={description}
+                onChangeText={setDescription}
+                onFocus={handleDescriptionFocus}
+                placeholder="설명을 입력해 주세요.(최대 20자)"
+                maxLength={20}
+              />
             </View>
           </ScrollView>
 
@@ -403,24 +395,12 @@ const styles = StyleSheet.create({
   colorPanel: { width: '100%', height: 220, borderRadius: 12 },
   hueSlider: { width: '100%', height: 36, marginTop: 12, borderRadius: 12 },
 
-  section: { marginBottom: 32 },
+  section: {
+    marginBottom: 32,
+    gap: 8,
+  },
   label: { ...Typography.body1.l.bold },
-  radioRowWrap: { marginTop: 8 },
   radioRow: { flexDirection: 'row', alignItems: 'center' },
   radioCol: { flex: 1, alignItems: 'flex-start' },
-
-  textAreaWrap: {
-    height: 96,
-    borderRadius: 12,
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    marginTop: 8,
-  },
-  textArea: {
-    ...Typography.body1.l.regular,
-    flex: 1,
-    padding: 0,
-  },
 });
 

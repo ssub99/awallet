@@ -4,6 +4,12 @@
  * Challenge calculation and notification trigger logic
  */
 
+import { parseCalendarDateKeyLocal } from '@/utils/custom-month';
+import type { CalendarData, CalendarRecord } from '@/utils/consumption-index';
+import { parseCalendarDataFromJson } from '@/utils/calendar-data-parse';
+import { extractTimestampFromId } from '@/utils/id-generator';
+import { getAllExpenses, type ExpenseRecord } from '@/utils/expenses';
+import { rebuildCalendarDataFromStores } from '@/utils/rebuild-calendar-data';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import {
@@ -14,6 +20,7 @@ import {
 import {
     cancelChallengeFailureNotification,
     cancelChallengeProgressNotifications,
+    cancelChallengeProgressNotificationsByCategory,
     cancelChallengeSuccessNotification,
     getChallengeNotificationsEnabled,
     notifyChallengeFailure,
@@ -30,37 +37,58 @@ export interface ChallengeStatus {
   daysLeft: number;
 }
 
+function parseChallengeDateLocal(dateString: string): Date {
+  const parsed = new Date(dateString.replace(/\./g, '-'));
+  parsed.setHours(0, 0, 0, 0);
+  return parsed;
+}
+
+function normalizeChallengeLookupDate(date: Date): Date {
+  const normalized = new Date(date);
+  if (!Number.isFinite(normalized.getTime())) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return today;
+  }
+  normalized.setHours(0, 0, 0, 0);
+  return normalized;
+}
+
+function isChallengeActiveOnDate(challenge: ChallengeData, date: Date): boolean {
+  const targetTime = normalizeChallengeLookupDate(date);
+  const startDate = parseChallengeDateLocal(challenge.startDate);
+  const endDate = parseChallengeDateLocal(challenge.endDate);
+  return targetTime >= startDate && targetTime <= endDate;
+}
+
 /**
- * 특정 카테고리의 활성 챌린지 찾기
+ * 특정 카테고리·날짜에 겹치는 활성 챌린지 전부 (동일 카테고리 복수 챌린지 대응)
  */
-export async function getActiveChallengeByCategory(
+export async function getActiveChallengesByCategory(
   category: string,
-  date: Date = new Date()
-): Promise<ChallengeData | null> {
+  date: Date = new Date(),
+): Promise<ChallengeData[]> {
   try {
     const challenges = await getAllChallenges();
-    
-    const targetTime = new Date(date);
-    targetTime.setHours(0, 0, 0, 0);
-
-    const activeChallenge = challenges.find((challenge) => {
-      if (challenge.category !== category || challenge.isDeleted) {
-        return false;
-      }
-      
-      const startDate = new Date(challenge.startDate.replace(/\./g, '-'));
-      const endDate = new Date(challenge.endDate.replace(/\./g, '-'));
-      startDate.setHours(0, 0, 0, 0);
-      endDate.setHours(0, 0, 0, 0);
-      
-      return targetTime >= startDate && targetTime <= endDate;
-    });
-    
-    return activeChallenge ?? null;
+    return challenges.filter(
+      (challenge) =>
+        !challenge.isDeleted &&
+        challenge.category === category &&
+        isChallengeActiveOnDate(challenge, date),
+    );
   } catch (error) {
-    console.error('[challenge-utils] Failed to get active challenge:', error);
-    return null;
+    console.error('[challenge-utils] Failed to get active challenges:', error);
+    return [];
   }
+}
+
+/** @deprecated 단일 조회가 필요할 때 — 복수 중 첫 항목 */
+export async function getActiveChallengeByCategory(
+  category: string,
+  date: Date = new Date(),
+): Promise<ChallengeData | null> {
+  const active = await getActiveChallengesByCategory(category, date);
+  return active[0] ?? null;
 }
 
 /**
@@ -68,17 +96,25 @@ export async function getActiveChallengeByCategory(
  * @param challenge 챌린지 데이터
  * @param calendarData 캐시된 calendarData (선택적, 제공되지 않으면 AsyncStorage에서 로드)
  */
+function readScheduledNotificationChallengeId(
+  data: Notifications.NotificationContent['data'],
+): string | undefined {
+  if (!data || typeof data !== 'object') return undefined;
+  const challengeId = (data as Record<string, unknown>).challengeId;
+  return typeof challengeId === 'string' && challengeId.length > 0 ? challengeId : undefined;
+}
+
 export async function calculateChallengeAmount(
   challenge: ChallengeData,
-  calendarData?: Record<string, any>
+  calendarData?: CalendarData
 ): Promise<number> {
   try {
     // calendarData가 제공되지 않으면 AsyncStorage에서 로드
-    let data = calendarData;
+    let data: CalendarData | undefined = calendarData;
     if (!data) {
       const storedData = await AsyncStorage.getItem('calendarData');
       if (!storedData) return 0;
-      data = JSON.parse(storedData);
+      data = parseCalendarDataFromJson(storedData);
     }
 
     let totalAmount = 0;
@@ -86,9 +122,9 @@ export async function calculateChallengeAmount(
     const startDate = new Date(challenge.startDate.replace(/\./g, '-'));
     const endDate = new Date(challenge.endDate.replace(/\./g, '-'));
 
-    Object.entries(data).forEach(([dateString, dateData]: [string, any]) => {
-      if (dateData.records && Array.isArray(dateData.records)) {
-        dateData.records.forEach((record: any) => {
+    Object.entries(data).forEach(([dateString, dateData]) => {
+      if (dateData?.records && Array.isArray(dateData.records)) {
+        dateData.records.forEach((record) => {
           if (record.type === 'expense' && record.category === challenge.category) {
             const itemDate = new Date(dateString);
             
@@ -110,13 +146,412 @@ export async function calculateChallengeAmount(
 
 const PROGRESS_MILESTONES = [10, 30, 50, 70, 90] as const;
 
+let challengeNotificationOperationQueue: Promise<void> = Promise.resolve();
+
+function runChallengeNotificationExclusive<T>(operation: () => Promise<T>): Promise<T> {
+  const nextOperation = challengeNotificationOperationQueue.then(operation, operation);
+  challengeNotificationOperationQueue = nextOperation.then(
+    () => undefined,
+    () => undefined,
+  );
+  return nextOperation;
+}
+
+async function loadCalendarDataFromStorage(): Promise<CalendarData> {
+  const storedData = await AsyncStorage.getItem('calendarData');
+  return parseCalendarDataFromJson(storedData);
+}
+
+/** 현재 소비율이 속한 진행현황 마일스톤(10·30·50·70·90). 100% 이상이면 null */
+export function getProgressMilestoneForPercentage(percentage: number): number | null {
+  if (percentage >= 100) {
+    return null;
+  }
+  for (let i = 0; i < PROGRESS_MILESTONES.length; i++) {
+    const milestone = PROGRESS_MILESTONES[i];
+    const max = i < PROGRESS_MILESTONES.length - 1 ? PROGRESS_MILESTONES[i + 1] : 100;
+    if (percentage >= milestone && percentage < max) {
+      return milestone;
+    }
+  }
+  return null;
+}
+
+export function parseProgressNotificationMilestone(
+  identifier: string,
+  challengeId: string,
+): number | null {
+  const prefix = `challenge_progress_${challengeId}_`;
+  if (!identifier.startsWith(prefix)) {
+    return null;
+  }
+  const value = Number(identifier.slice(prefix.length));
+  return Number.isFinite(value) ? value : null;
+}
+
+function getExpenseCreatedAtMs(expense: ExpenseRecord): number | null {
+  if (typeof expense.createdAt === 'string' && expense.createdAt.length > 0) {
+    const fromCreatedAt = parseOptionalDateTimeToMs(expense.createdAt);
+    if (fromCreatedAt !== null) {
+      return fromCreatedAt;
+    }
+  }
+  if (typeof expense.timestamp === 'number' && Number.isFinite(expense.timestamp) && expense.timestamp > 0) {
+    return expense.timestamp;
+  }
+  if (typeof expense.id === 'string' && expense.id.length > 0) {
+    return extractTimestampFromId(expense.id);
+  }
+  return null;
+}
+
+function isExpenseInChallengePeriod(expense: ExpenseRecord, challenge: ChallengeData): boolean {
+  const startDate = parseChallengeDateLocal(challenge.startDate);
+  const endDate = parseChallengeDateLocal(challenge.endDate);
+  const itemDate = parseChallengeDateLocal(expense.date);
+  return itemDate >= startDate && itemDate <= endDate;
+}
+
+/** 알림 판정용 — expenseData(원본) 기준 합산 (calendar 미러와 어긋남 방지) */
+async function calculateChallengePercentageFromExpenseStore(
+  challenge: ChallengeData,
+): Promise<{ currentAmount: number; percentage: number }> {
+  const expenses = await getAllExpenses();
+  const startDate = parseChallengeDateLocal(challenge.startDate);
+  const endDate = parseChallengeDateLocal(challenge.endDate);
+  let totalAmount = 0;
+
+  for (const expense of expenses) {
+    if (expense.isDeleted || expense.isRefunded) {
+      continue;
+    }
+    if (expense.category !== challenge.category) {
+      continue;
+    }
+    const itemDate = parseChallengeDateLocal(expense.date);
+    if (itemDate >= startDate && itemDate <= endDate) {
+      totalAmount += expense.amount || 0;
+    }
+  }
+
+  const percentage =
+    challenge.targetAmount > 0 ? (totalAmount / challenge.targetAmount) * 100 : 0;
+  return { currentAmount: totalAmount, percentage };
+}
+
+async function hasChallengeCategoryExpenseInStore(challenge: ChallengeData): Promise<boolean> {
+  const expenses = await getAllExpenses();
+  return expenses.some(
+    (expense) =>
+      !expense.isDeleted &&
+      !expense.isRefunded &&
+      expense.category === challenge.category &&
+      isExpenseInChallengePeriod(expense, challenge),
+  );
+}
+
+async function hasPostAnchorChallengeCategoryExpenseFromStore(
+  challenge: ChallengeData,
+  anchorMs: number,
+): Promise<boolean> {
+  const expenses = await getAllExpenses();
+  return expenses.some((expense) => {
+    if (expense.isDeleted || expense.isRefunded) {
+      return false;
+    }
+    if (expense.category !== challenge.category || !isExpenseInChallengePeriod(expense, challenge)) {
+      return false;
+    }
+    const createdMs = getExpenseCreatedAtMs(expense);
+    return createdMs !== null && createdMs >= anchorMs;
+  });
+}
+
+async function getReferenceDateForProgressNotificationFromStore(
+  challenge: ChallengeData,
+  milestone: number,
+  fullPercentage: number,
+  anchorMs: number,
+): Promise<Date | null> {
+  const next = PROGRESS_MILESTONES.find((m) => m > milestone) ?? 100;
+  if (fullPercentage < milestone || fullPercentage >= next) {
+    return null;
+  }
+
+  const expenses = await getAllExpenses();
+  let latest: Date | null = null;
+
+  for (const expense of expenses) {
+    if (expense.isDeleted || expense.isRefunded) {
+      continue;
+    }
+    if (expense.category !== challenge.category || !isExpenseInChallengePeriod(expense, challenge)) {
+      continue;
+    }
+    const createdMs = getExpenseCreatedAtMs(expense);
+    if (createdMs === null || createdMs < anchorMs) {
+      continue;
+    }
+    const itemDate = parseChallengeDateLocal(expense.date);
+    if (!latest || itemDate.getTime() > latest.getTime()) {
+      latest = itemDate;
+    }
+  }
+
+  return latest;
+}
+
+/** OS에 남은 진행 알림이 현재 마일스톤·소비율과 일치하는지 강제 */
+async function enforceChallengeProgressNotificationState(
+  challenge: ChallengeData,
+  expectedMilestone: number | null,
+  livePercentage: number,
+): Promise<void> {
+  const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
+  const categoryTag = `[#${challenge.category}]`;
+  const liveRounded = Math.round(livePercentage);
+
+  for (const notification of scheduledNotifications) {
+    const data = notification.content.data;
+    if (!data || typeof data !== 'object' || (data as Record<string, unknown>).type !== 'challenge_progress') {
+      continue;
+    }
+
+    const notifChallengeId = readScheduledNotificationChallengeId(data);
+    const dataCategory = (data as Record<string, unknown>).category;
+    const title = notification.content.title ?? '';
+    const matchesChallenge =
+      notifChallengeId === challenge.id ||
+      dataCategory === challenge.category ||
+      (notifChallengeId === undefined && title.includes(categoryTag));
+
+    if (!matchesChallenge) {
+      continue;
+    }
+
+    const identifierMilestone = parseProgressNotificationMilestone(
+      notification.identifier,
+      challenge.id,
+    );
+    const payloadPercentage = (data as Record<string, unknown>).percentage;
+    const payloadRounded =
+      typeof payloadPercentage === 'number' && Number.isFinite(payloadPercentage)
+        ? Math.round(payloadPercentage)
+        : null;
+
+    const shouldKeep =
+      expectedMilestone !== null &&
+      identifierMilestone === expectedMilestone &&
+      payloadRounded === liveRounded;
+
+    if (!shouldKeep) {
+      try {
+        await Notifications.cancelScheduledNotificationAsync(notification.identifier);
+      } catch {
+        // ignore
+      }
+      const milestoneToClear = identifierMilestone ?? expectedMilestone;
+      if (milestoneToClear !== null) {
+        await AsyncStorage.removeItem(`challenge_progress_${challenge.id}_${milestoneToClear}`);
+      }
+    }
+  }
+}
+
+/**
+ * 진행현황 알림: expenseData 기준 % 판정 → 취소 → 현재 구간 1개만 재스케줄
+ */
+async function syncChallengeProgressNotification(
+  challenge: ChallengeData,
+  today: Date,
+  options?: { skipCalendarRebuild?: boolean },
+): Promise<void> {
+  const endDate = parseChallengeDateLocal(challenge.endDate);
+  const todayNorm = new Date(today);
+  todayNorm.setHours(0, 0, 0, 0);
+  if (todayNorm > endDate) {
+    return;
+  }
+
+  if (!options?.skipCalendarRebuild) {
+    await rebuildCalendarDataFromStores();
+  }
+
+  const relatedIds = (await getActiveChallengesByCategory(challenge.category, today)).map((c) => c.id);
+  await cancelChallengeProgressNotifications(challenge.id);
+  await cancelChallengeProgressNotificationsByCategory(challenge.category, relatedIds);
+
+  if (!(await hasChallengeCategoryExpenseInStore(challenge))) {
+    await enforceChallengeProgressNotificationState(challenge, null, 0);
+    return;
+  }
+
+  const { percentage } = await calculateChallengePercentageFromExpenseStore(challenge);
+
+  if (percentage >= 100) {
+    await enforceChallengeProgressNotificationState(challenge, null, percentage);
+    return;
+  }
+
+  const expectedMilestone = getProgressMilestoneForPercentage(percentage);
+  const anchorMs = getChallengeProgressNotificationAnchorMs(challenge);
+
+  if (!(await hasPostAnchorChallengeCategoryExpenseFromStore(challenge, anchorMs))) {
+    await enforceChallengeProgressNotificationState(challenge, null, percentage);
+    return;
+  }
+
+  if (expectedMilestone === null) {
+    await enforceChallengeProgressNotificationState(challenge, null, percentage);
+    return;
+  }
+
+  const referenceDate = await getReferenceDateForProgressNotificationFromStore(
+    challenge,
+    expectedMilestone,
+    percentage,
+    anchorMs,
+  );
+
+  if (!referenceDate || !isScheduleTimeInFuture(referenceDate)) {
+    await enforceChallengeProgressNotificationState(challenge, null, percentage);
+    return;
+  }
+
+  await notifyChallengeProgress(
+    challenge.category,
+    percentage,
+    challenge.id,
+    expectedMilestone,
+    referenceDate,
+  );
+
+  await enforceChallengeProgressNotificationState(challenge, expectedMilestone, percentage);
+}
+
+type ExpenseCalendarRecord = CalendarRecord & {
+  createdAt?: string;
+  timestamp?: number;
+};
+
+/** 진행현황 알림: 챌린지 생성(또는 재생성) 이후 기록만 대상으로 하는 기준 시각 */
+export function getChallengeProgressNotificationAnchorMs(challenge: ChallengeData): number {
+  if (typeof challenge.createdAt === 'number' && Number.isFinite(challenge.createdAt) && challenge.createdAt > 0) {
+    return challenge.createdAt;
+  }
+  const start = new Date(challenge.startDate.replace(/\./g, '-'));
+  start.setHours(0, 0, 0, 0);
+  return start.getTime();
+}
+
+function parseOptionalDateTimeToMs(value: string): number | null {
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function getExpenseRecordCreatedAtMs(record: ExpenseCalendarRecord): number | null {
+  if (typeof record.createdAt === 'string' && record.createdAt.length > 0) {
+    const fromCreatedAt = parseOptionalDateTimeToMs(record.createdAt);
+    if (fromCreatedAt !== null) {
+      return fromCreatedAt;
+    }
+  }
+  if (typeof record.timestamp === 'number' && Number.isFinite(record.timestamp) && record.timestamp > 0) {
+    return record.timestamp;
+  }
+  if (typeof record.id === 'string' && record.id.length > 0) {
+    return extractTimestampFromId(record.id);
+  }
+  return null;
+}
+
+function isPostAnchorExpenseRecord(
+  record: ExpenseCalendarRecord,
+  challenge: ChallengeData,
+  anchorMs: number,
+): boolean {
+  if (record.type !== 'expense' || record.category !== challenge.category || record.isDeleted) {
+    return false;
+  }
+  const createdMs = getExpenseRecordCreatedAtMs(record);
+  if (createdMs === null) {
+    return false;
+  }
+  return createdMs >= anchorMs;
+}
+
+export function hasPostAnchorChallengeCategoryExpense(
+  challenge: ChallengeData,
+  calendarData: CalendarData,
+  anchorMs?: number,
+): boolean {
+  const anchor = anchorMs ?? getChallengeProgressNotificationAnchorMs(challenge);
+  return Object.values(calendarData).some((dateData) => {
+    if (!dateData?.records?.length) {
+      return false;
+    }
+    return dateData.records.some((record) =>
+      isPostAnchorExpenseRecord(record as ExpenseCalendarRecord, challenge, anchor),
+    );
+  });
+}
+
+/**
+ * 진행현황 알림용 referenceDate.
+ * 화면 소비율(전체 기간) 기준 현재 마일스톤 구간에 들어 있고,
+ * 챌린지 생성 이후(post-anchor) 소비 기록이 있을 때 그중 가장 최근 기록일을 반환합니다.
+ */
+export function getReferenceDateForProgressNotification(
+  challenge: ChallengeData,
+  milestone: number,
+  calendarData: CalendarData,
+  fullPercentage: number,
+): Date | null {
+  const next = PROGRESS_MILESTONES.find((m) => m > milestone) ?? 100;
+  if (fullPercentage < milestone || fullPercentage >= next) {
+    return null;
+  }
+
+  const anchorMs = getChallengeProgressNotificationAnchorMs(challenge);
+  const startDate = new Date(challenge.startDate.replace(/\./g, '-'));
+  const endDate = new Date(challenge.endDate.replace(/\./g, '-'));
+  startDate.setHours(0, 0, 0, 0);
+  endDate.setHours(0, 0, 0, 0);
+
+  let latest: Date | null = null;
+
+  Object.entries(calendarData).forEach(([dateString, dateData]) => {
+    const itemDate = parseCalendarDateKeyLocal(dateString) ?? new Date(dateString);
+    itemDate.setHours(0, 0, 0, 0);
+    if (itemDate < startDate || itemDate > endDate) {
+      return;
+    }
+    if (!dateData?.records?.length) {
+      return;
+    }
+
+    const hasPostAnchorOnDay = dateData.records.some((record) =>
+      isPostAnchorExpenseRecord(record as ExpenseCalendarRecord, challenge, anchorMs),
+    );
+    if (!hasPostAnchorOnDay) {
+      return;
+    }
+
+    if (!latest || itemDate.getTime() > latest.getTime()) {
+      latest = itemDate;
+    }
+  });
+
+  return latest;
+}
+
 /**
  * 특정 날짜(asOfDate) 기준으로 챌린지 소비금액 계산
  * record 날짜 ≤ asOfDate 이고 챌린지 기간·카테고리 맞는 소비만 합산
  */
 export function calculateChallengeAmountAsOfDate(
   challenge: ChallengeData,
-  calendarData: Record<string, any>,
+  calendarData: CalendarData,
   asOfDate: Date
 ): number {
   try {
@@ -128,11 +563,11 @@ export function calculateChallengeAmountAsOfDate(
     const asOf = new Date(asOfDate);
     asOf.setHours(23, 59, 59, 999);
 
-    Object.entries(calendarData).forEach(([dateString, dateData]: [string, any]) => {
+    Object.entries(calendarData).forEach(([dateString, dateData]) => {
       if (dateData?.records && Array.isArray(dateData.records)) {
         const itemDate = new Date(dateString);
         if (itemDate > asOf) return;
-        dateData.records.forEach((record: any) => {
+        dateData.records.forEach((record) => {
           if (record.type === 'expense' && record.category === challenge.category) {
             if (itemDate >= startDate && itemDate <= endDate) {
               totalAmount += record.amount || 0;
@@ -154,7 +589,7 @@ export function calculateChallengeAmountAsOfDate(
 export function getReferenceDateForMilestone(
   challenge: ChallengeData,
   milestone: number,
-  calendarData: Record<string, any>
+  calendarData: CalendarData
 ): Date | null {
   try {
     const startDate = new Date(challenge.startDate.replace(/\./g, '-'));
@@ -165,12 +600,12 @@ export function getReferenceDateForMilestone(
     if (targetAmount <= 0) return null;
 
     const recordDates: string[] = [];
-    Object.entries(calendarData).forEach(([dateString, dateData]: [string, any]) => {
+    Object.entries(calendarData).forEach(([dateString, dateData]) => {
       if (dateData?.records && Array.isArray(dateData.records)) {
         const itemDate = new Date(dateString);
         if (itemDate >= startDate && itemDate <= endDate) {
           const hasMatch = dateData.records.some(
-            (r: any) => r.type === 'expense' && r.category === challenge.category
+            (r) => r.type === 'expense' && r.category === challenge.category,
           );
           if (hasMatch) recordDates.push(dateString);
         }
@@ -193,6 +628,15 @@ export function getReferenceDateForMilestone(
   }
 }
 
+function hasChallengeCategoryExpenseRecord(challenge: ChallengeData, calendarData: CalendarData): boolean {
+  return Object.values(calendarData).some((dateData) => {
+    if (!dateData?.records || !Array.isArray(dateData.records)) return false;
+    return dateData.records.some(
+      (record) => record.type === 'expense' && record.category === challenge.category,
+    );
+  });
+}
+
 /**
  * 챌린지 상태 계산
  * @param challenge 챌린지 데이터
@@ -200,7 +644,7 @@ export function getReferenceDateForMilestone(
  */
 export async function getChallengeStatus(
   challenge: ChallengeData,
-  calendarData?: Record<string, any>
+  calendarData?: CalendarData
 ): Promise<ChallengeStatus> {
   const currentAmount = await calculateChallengeAmount(challenge, calendarData);
   const percentage = challenge.targetAmount > 0 ? (currentAmount / challenge.targetAmount) * 100 : 0;
@@ -234,75 +678,56 @@ export function isScheduleTimeInFuture(referenceDate: Date): boolean {
  * 소비 기록이 저장/삭제될 때 호출하여 조건에 맞는 알림 발송
  */
 export async function triggerChallengeNotifications(category: string, recordDate: Date): Promise<void> {
-  try {
-    // 1. 해당 카테고리의 활성 챌린지 찾기
-    const challenge = await getActiveChallengeByCategory(category, recordDate);
-    if (!challenge) {
-      return;
-    }
+  return runChallengeNotificationExclusive(async () => {
+    try {
+      const lookupDate = normalizeChallengeLookupDate(recordDate);
+      const challenges = await getActiveChallengesByCategory(category, lookupDate);
+      if (challenges.length === 0) {
+        return;
+      }
 
-    // 2. calendarData 로드 (진행현황 referenceDate 계산에 필요)
-    const storedData = await AsyncStorage.getItem('calendarData');
-    const calendarData = storedData ? JSON.parse(storedData) : {};
+      await rebuildCalendarDataFromStores();
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
 
-    // 3. 챌린지 상태 계산 (최신 calendarData 기준)
-    const status = await getChallengeStatus(challenge, calendarData);
-    const endDate = new Date(challenge.endDate.replace(/\./g, '-'));
-    endDate.setHours(0, 0, 0, 0);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const isEndedByToday = today > endDate;
-    
-    // 4. 진행현황 알림 (10%, 30%, 50%, 70%, 90%)
-    // 챌린지가 종료된 이후에는 진행현황 알림을 더 이상 스케줄링하지 않음
-    if (!isEndedByToday) {
-      await cancelChallengeProgressNotifications(challenge.id);
-      
-      for (let i = 0; i < PROGRESS_MILESTONES.length; i++) {
-        const milestone = PROGRESS_MILESTONES[i];
-        const max = i < PROGRESS_MILESTONES.length - 1 ? PROGRESS_MILESTONES[i + 1] : 100;
-        const isInRange = status.percentage >= milestone && status.percentage < max;
-        
-        if (isInRange) {
-          const referenceDate = getReferenceDateForMilestone(challenge, milestone, calendarData);
-          if (referenceDate && isScheduleTimeInFuture(referenceDate)) {
-            await notifyChallengeProgress(challenge.category, status.percentage, challenge.id, milestone, referenceDate);
+      for (const challenge of challenges) {
+        const endDate = parseChallengeDateLocal(challenge.endDate);
+        const isEndedByToday = today > endDate;
+
+        if (!isEndedByToday) {
+          await syncChallengeProgressNotification(challenge, today, { skipCalendarRebuild: true });
+
+          if (!(await hasChallengeCategoryExpenseInStore(challenge))) {
+            await cancelChallengeSuccessNotification(challenge.id);
+            await cancelChallengeFailureNotification(challenge.id);
+            continue;
           }
-          break;
+        }
+
+        const { percentage } = await calculateChallengePercentageFromExpenseStore(challenge);
+
+        const successKey = `challenge_success_${challenge.id}`;
+        const failureKey = `challenge_failure_${challenge.id}`;
+        const [successSent, failureSent] = await Promise.all([
+          AsyncStorage.getItem(successKey),
+          AsyncStorage.getItem(failureKey),
+        ]);
+
+        if (!isEndedByToday) {
+          if (percentage > 100) {
+            await cancelChallengeSuccessNotification(challenge.id);
+            if (!failureSent) {
+              await notifyChallengeFailure(challenge.category, percentage, challenge.id, endDate);
+            }
+          } else if (!successSent && !failureSent) {
+            await notifyChallengeSuccess(challenge.category, percentage, challenge.id, endDate);
+          }
         }
       }
+    } catch (error) {
+      console.error('[challenge-utils] Failed to trigger challenge notifications:', error);
     }
-    
-    // 3-2. 결과 알림 (성공 / 실패) - 챌린지당 최대 1회
-    const successKey = `challenge_success_${challenge.id}`;
-    const failureKey = `challenge_failure_${challenge.id}`;
-    const [successSent, failureSent] = await Promise.all([
-      AsyncStorage.getItem(successKey),
-      AsyncStorage.getItem(failureKey),
-    ]);
-    
-    const hasResultScheduled = !!successSent || !!failureSent;
-    
-    // 챌린지가 아직 종료되지 않았고, 성공/실패 알림이 한 번도 잡히지 않은 경우에만 스케줄링
-    if (!isEndedByToday && !hasResultScheduled) {
-      if (status.percentage > 100) {
-        // 실패 조건: 소비율 100% 초과
-        // 실패 알림 발송 전, 기존 성공 알림 취소
-        await cancelChallengeSuccessNotification(challenge.id);
-        await notifyChallengeFailure(challenge.category, status.percentage, challenge.id, endDate);
-      } else {
-        // 성공 조건: 소비율 100% 이하
-        await notifyChallengeSuccess(
-          challenge.category,
-          status.percentage,
-          challenge.id,
-          endDate
-        );
-      }
-    }
-
-  } catch (error) {
-  }
+  });
 }
 
 /**
@@ -310,143 +735,97 @@ export async function triggerChallengeNotifications(category: string, recordDate
  * 이미 저장된 소비 기록이 있어도 알림이 누락된 경우 보완
  */
 export async function checkActiveChallengesNotifications(): Promise<void> {
-  try {
-    const challengeNotificationsEnabled = await getChallengeNotificationsEnabled();
-    if (!challengeNotificationsEnabled) {
-      return;
-    }
-
-    const challenges = await getAllChallenges();
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    // ✅ 성능 최적화: calendarData를 한 번만 로드하여 재사용
-    const storedData = await AsyncStorage.getItem('calendarData');
-    const calendarData = storedData ? JSON.parse(storedData) : {};
-    
-    // 1단계: 스케줄된 모든 챌린지 알림 확인 및 취소
-    // getAllChallenges()에 없는 챌린지의 알림도 정리하기 위해 스케줄된 알림을 직접 확인
-    const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
-    const progressNotifications = scheduledNotifications.filter(
-      n => n.content.data?.type === 'challenge_progress'
-    );
-    const failureNotifications = scheduledNotifications.filter(
-      n => n.content.data?.type === 'challenge_failure'
-    );
-    const successNotifications = scheduledNotifications.filter(
-      n => n.content.data?.type === 'challenge_success'
-    );
-    
-    // 스케줄된 알림의 challengeId 수집 (진행현황 + 실패 + 성공)
-    const scheduledChallengeIds = new Set<string>();
-    progressNotifications.forEach(n => {
-      const challengeId = n.content.data?.challengeId;
-      if (challengeId) {
-        scheduledChallengeIds.add(challengeId);
-      }
-    });
-    failureNotifications.forEach(n => {
-      const challengeId = n.content.data?.challengeId;
-      if (challengeId) {
-        scheduledChallengeIds.add(challengeId);
-      }
-    });
-    successNotifications.forEach(n => {
-      const challengeId = n.content.data?.challengeId;
-      if (challengeId) {
-        scheduledChallengeIds.add(challengeId);
-      }
-    });
-    
-    // 모든 스케줄된 알림의 챌린지 ID에 대해 취소 실행
-    for (const challengeId of scheduledChallengeIds) {
-      await cancelChallengeProgressNotifications(challengeId);
-      await cancelChallengeFailureNotification(challengeId);
-      await cancelChallengeSuccessNotification(challengeId);
-    }
-    
-    // 2단계: 활성 챌린지만 재스케줄링
-    for (const challenge of challenges) {
-      if (challenge.isDeleted) {
-        continue;
+  return runChallengeNotificationExclusive(async () => {
+    try {
+      const challengeNotificationsEnabled = await getChallengeNotificationsEnabled();
+      if (!challengeNotificationsEnabled) {
+        return;
       }
 
-      const startDate = new Date(challenge.startDate.replace(/\./g, '-'));
-      const endDate = new Date(challenge.endDate.replace(/\./g, '-'));
-      startDate.setHours(0, 0, 0, 0);
-      endDate.setHours(0, 0, 0, 0);
-      
-      // 활성 챌린지만 체크
-      if (today < startDate || today > endDate) {
-        continue;
+      const challenges = await getAllChallenges();
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      // 1단계: 스케줄된 모든 챌린지 알림 확인 및 취소
+      const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
+      const progressNotifications = scheduledNotifications.filter(
+        (n) => n.content.data?.type === 'challenge_progress',
+      );
+      const failureNotifications = scheduledNotifications.filter(
+        (n) => n.content.data?.type === 'challenge_failure',
+      );
+      const successNotifications = scheduledNotifications.filter(
+        (n) => n.content.data?.type === 'challenge_success',
+      );
+
+      const scheduledChallengeIds = new Set<string>();
+      progressNotifications.forEach((n) => {
+        const challengeId = readScheduledNotificationChallengeId(n.content.data);
+        if (challengeId) {
+          scheduledChallengeIds.add(challengeId);
+        }
+      });
+      failureNotifications.forEach((n) => {
+        const challengeId = readScheduledNotificationChallengeId(n.content.data);
+        if (challengeId) {
+          scheduledChallengeIds.add(challengeId);
+        }
+      });
+      successNotifications.forEach((n) => {
+        const challengeId = readScheduledNotificationChallengeId(n.content.data);
+        if (challengeId) {
+          scheduledChallengeIds.add(challengeId);
+        }
+      });
+
+      for (const challengeId of scheduledChallengeIds) {
+        await cancelChallengeProgressNotifications(challengeId);
+        await cancelChallengeFailureNotification(challengeId);
+        await cancelChallengeSuccessNotification(challengeId);
       }
-      
-      // ✅ 성능 최적화: 캐시된 calendarData 재사용
-      const status = await getChallengeStatus(challenge, calendarData);
-      
-      // ✅ 소비 기록이 있는지 확인 (소비 기록이 없으면 알림 스케줄링하지 않음)
-      let hasRecord = false;
-      for (const [dateString, dateData] of Object.entries(calendarData)) {
-        if (dateData && typeof dateData === 'object' && dateData.records && Array.isArray(dateData.records)) {
-          const found = dateData.records.some((record: any) => {
-            return record.type === 'expense' && record.category === challenge.category;
-          });
-          if (found) {
-            hasRecord = true;
-            break;
+
+      await rebuildCalendarDataFromStores();
+
+      for (const challenge of challenges) {
+        if (challenge.isDeleted) {
+          continue;
+        }
+
+        const startDate = new Date(challenge.startDate.replace(/\./g, '-'));
+        const endDate = new Date(challenge.endDate.replace(/\./g, '-'));
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setHours(0, 0, 0, 0);
+
+        if (today < startDate || today > endDate) {
+          continue;
+        }
+
+        if (!(await hasChallengeCategoryExpenseInStore(challenge))) {
+          continue;
+        }
+
+        await syncChallengeProgressNotification(challenge, today, { skipCalendarRebuild: true });
+
+        const { percentage } = await calculateChallengePercentageFromExpenseStore(challenge);
+
+        if (percentage > 100) {
+          const sentKey = `challenge_failure_${challenge.id}`;
+          const alreadySent = await AsyncStorage.getItem(sentKey);
+
+          if (!alreadySent) {
+            await cancelChallengeSuccessNotification(challenge.id);
+            await notifyChallengeFailure(challenge.category, percentage, challenge.id, endDate);
           }
         }
-      }
-      
-      // 소비 기록이 없으면 알림 스케줄링하지 않음
-      if (!hasRecord) {
-        continue;
-      }
-      
-      // ✅ 달성된 챌린지(100% 이상)는 진행현황 알림 불필요
-      if (status.percentage >= 100) {
-        // 실패 알림과 성공 알림만 체크하고 진행현황 알림은 건너뜀
-      } else {
-        // 진행현황 알림: 해당 날짜(referenceDate)+1일 9:30이 미래일 때만 스케줄
-        const milestones = [90, 70, 50, 30, 10];
-        for (let i = 0; i < milestones.length; i++) {
-          const milestone = milestones[i];
-          const max = i === 0 ? 100 : milestones[i - 1];
-          const isInRange = status.percentage >= milestone && status.percentage < max;
-          
-          if (isInRange) {
-            const referenceDate = getReferenceDateForMilestone(challenge, milestone, calendarData);
-            if (referenceDate && isScheduleTimeInFuture(referenceDate)) {
-              await notifyChallengeProgress(challenge.category, status.percentage, challenge.id, milestone, referenceDate);
-            }
-            break;
-          }
+
+        if (percentage <= 100) {
+          await notifyChallengeSuccess(challenge.category, percentage, challenge.id, endDate);
         }
       }
-      
-      // 실패 알림 체크 (100% 초과)
-      if (status.percentage > 100) {
-        const sentKey = `challenge_failure_${challenge.id}`;
-        const alreadySent = await AsyncStorage.getItem(sentKey);
-        
-        if (!alreadySent) {
-          await notifyChallengeFailure(challenge.category, status.percentage, challenge.id, endDate);
-        }
-      }
-      
-      // 성공 알림 체크 (100% 이하)
-      if (status.percentage <= 100) {
-        await notifyChallengeSuccess(
-          challenge.category,
-          status.percentage,
-          challenge.id,
-          endDate
-        );
-      }
+    } catch (error) {
+      console.error('[challenge-utils] Failed to check active challenges notifications:', error);
     }
-  } catch (error) {
-    console.error('[challenge-utils] Failed to check active challenges notifications:', error);
-  }
+  });
 }
 
 type EndedYesterdayPayload = {

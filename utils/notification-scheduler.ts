@@ -8,7 +8,31 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 
+import { parseCalendarDataFromJson } from '@/utils/calendar-data-parse';
+import type { CalendarData, CalendarDayData, CalendarRecord } from '@/utils/consumption-index';
 import { getAllExpenses } from '@/utils/expenses';
+
+type CalendarDayBucket = CalendarDayData & { totalExpense?: number };
+
+type ExpenseActivityRecord = CalendarRecord & {
+  isRefunded?: boolean;
+  isSettled?: boolean;
+};
+
+function calendarDataHasCategoryExpense(calendarData: CalendarData, category: string): boolean {
+  for (const dateData of Object.values(calendarData)) {
+    if (!dateData?.records?.length) {
+      continue;
+    }
+    const found = dateData.records.some(
+      (record) => record.type === 'expense' && record.category === category,
+    );
+    if (found) {
+      return true;
+    }
+  }
+  return false;
+}
 
 export const GENERAL_NOTIFICATIONS_ENABLED_KEY = 'generalNotificationsEnabled';
 export const CHALLENGE_NOTIFICATIONS_ENABLED_KEY = 'challengeNotificationsEnabled';
@@ -99,6 +123,29 @@ async function cancelScheduledNotificationsByTypes(types: string[]): Promise<voi
   }
 }
 
+function getNotificationDataString(
+  data: Notifications.NotificationContent['data'],
+  key: string,
+): string | undefined {
+  if (!data || typeof data !== 'object') return undefined;
+  const value = (data as Record<string, unknown>)[key];
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+async function cancelScheduledNotificationByIdentifier(identifier: string): Promise<void> {
+  await Notifications.cancelScheduledNotificationAsync(identifier).catch(() => {
+    // 이미 OS에서 제거된 식별자는 무시합니다.
+  });
+}
+
+function challengeSuccessNotificationIdentifier(challengeId: string): string {
+  return `challenge_success_${challengeId}`;
+}
+
+function challengeFailureNotificationIdentifier(challengeId: string): string {
+  return `challenge_failure_${challengeId}`;
+}
+
 function isGeneralReminderNotification(notification: Notifications.NotificationRequest): boolean {
   const notificationType = notification.content.data?.type;
   return (
@@ -187,35 +234,21 @@ export async function setChallengeNotificationsEnabled(enabled: boolean): Promis
  * - 금액이 남은 지출, 또는 환불/결산 처리로 금액은 0이어도 사용자가 기록·후속 조치를 한 경우 포함
  * - totalExpense > 0 은 records 합계와 어긋날 때를 위한 보조 조건
  */
-function calendarDayHasExpenseActivity(dayData: unknown): boolean {
-  if (dayData === null || dayData === undefined || typeof dayData !== 'object') {
+function calendarDayHasExpenseActivity(dayData: CalendarDayBucket | undefined): boolean {
+  if (!dayData) {
     return false;
   }
-  const bucket = dayData as {
-    totalExpense?: unknown;
-    records?: unknown;
-  };
 
-  if (typeof bucket.totalExpense === 'number' && bucket.totalExpense > 0) {
+  if (typeof dayData.totalExpense === 'number' && dayData.totalExpense > 0) {
     return true;
   }
 
-  const { records } = bucket;
-  if (!Array.isArray(records)) {
+  const { records } = dayData;
+  if (!records?.length) {
     return false;
   }
 
-  return records.some((raw) => {
-    if (raw === null || typeof raw !== 'object') {
-      return false;
-    }
-    const record = raw as {
-      type?: unknown;
-      isDeleted?: unknown;
-      amount?: unknown;
-      isRefunded?: unknown;
-      isSettled?: unknown;
-    };
+  return records.some((record: ExpenseActivityRecord) => {
     if (record.type !== 'expense') {
       return false;
     }
@@ -288,8 +321,8 @@ async function hasExpenseToday(): Promise<boolean> {
 
     const calendarRaw = await AsyncStorage.getItem('calendarData');
     if (calendarRaw) {
-      const data = JSON.parse(calendarRaw) as Record<string, unknown>;
-      if (calendarDayHasExpenseActivity(data[dateKey])) {
+      const calendarData = parseCalendarDataFromJson(calendarRaw);
+      if (calendarDayHasExpenseActivity(calendarData[dateKey])) {
         return true;
       }
     }
@@ -298,6 +331,35 @@ async function hasExpenseToday(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/** 개발·테스트용: 일반(소비 유도) 알림 스케줄 판단에 쓰이는 상태 */
+export type DailyReminderDebugSnapshot = {
+  generalEnabled: boolean;
+  permissionGranted: boolean;
+  hasExpenseToday: boolean;
+  todayScheduleMarkPresent: boolean;
+  /** 설정 ON + 권한 + 오늘 소비 없음 → setupDailyReminder가 예약을 시도하는 조건 */
+  wouldSchedule: boolean;
+};
+
+export async function getDailyReminderDebugSnapshot(): Promise<DailyReminderDebugSnapshot> {
+  const [generalEnabled, permissionGranted, hasExpense] = await Promise.all([
+    getGeneralNotificationsEnabled(),
+    shouldSendNotification(),
+    hasExpenseToday(),
+  ]);
+  const today = new Date().toDateString();
+  const mark = await AsyncStorage.getItem(`daily_reminder_${today}`);
+  const settingsAndPermissionOk = generalEnabled && permissionGranted;
+
+  return {
+    generalEnabled,
+    permissionGranted,
+    hasExpenseToday: hasExpense,
+    todayScheduleMarkPresent: mark === 'true',
+    wouldSchedule: settingsAndPermissionOk && !hasExpense,
+  };
 }
 
 /**
@@ -458,34 +520,6 @@ async function rescheduleDailyReminderIfNeededInternal(): Promise<void> {
 }
 
 /**
- * 챌린지에 소비 기록이 있는지 확인
- */
-async function hasChallengeRecords(challengeId: string): Promise<boolean> {
-  try {
-    const storedData = await AsyncStorage.getItem('calendarData');
-    if (!storedData) return false;
-    
-    const calendarData = JSON.parse(storedData);
-    
-    // 모든 날짜의 기록을 확인하여 해당 챌린지 카테고리의 소비 기록이 있는지 체크
-    for (const [dateString, dateData] of Object.entries(calendarData)) {
-      if (dateData && typeof dateData === 'object' && dateData.records && Array.isArray(dateData.records)) {
-        const hasRecord = dateData.records.some((record: any) => {
-          return record.type === 'expense' && record.challengeId === challengeId;
-        });
-        if (hasRecord) {
-          return true;
-        }
-      }
-    }
-    
-    return false;
-  } catch (error) {
-    return false;
-  }
-}
-
-/**
  * 2. 챌린지 현황 알림
  * 소비율 10%, 30%, 50%, 70%, 90% 도달 시, 해당 날짜(referenceDate) 다음날 오전 9시 30분
  * ✅ 소비 기록이 있는 경우에만 알림 스케줄링
@@ -495,61 +529,49 @@ export async function notifyChallengeProgress(
   percentage: number,
   challengeId: string,
   milestone: number,
-  referenceDate: Date
+  referenceDate: Date,
 ): Promise<void> {
   try {
     if (!(await shouldSendChallengeNotification())) {
       return;
     }
-    
+
     if (percentage >= 100) {
       return;
     }
-    
+
     const storedData = await AsyncStorage.getItem('calendarData');
-    if (storedData) {
-      const calendarData = JSON.parse(storedData);
-      let hasRecord = false;
-      for (const [dateString, dateData] of Object.entries(calendarData)) {
-        if (dateData && typeof dateData === 'object' && dateData.records && Array.isArray(dateData.records)) {
-          const found = dateData.records.some((record: any) => {
-            return record.type === 'expense' && record.category === category;
-          });
-          if (found) {
-            hasRecord = true;
-            break;
-          }
-        }
-      }
-      if (!hasRecord) return;
-    } else {
+    if (!storedData) {
       return;
     }
-    
-    // 해당 날짜+1일 9:30이 이미 과거면 스케줄하지 않음 (이미 받은 푸시 재발송 방지)
+    const calendarData = parseCalendarDataFromJson(storedData);
+    if (!calendarDataHasCategoryExpense(calendarData, category)) {
+      return;
+    }
+
     const scheduleAt = new Date(referenceDate);
     scheduleAt.setDate(scheduleAt.getDate() + 1);
     scheduleAt.setHours(9, 30, 0, 0);
     if (scheduleAt.getTime() <= Date.now()) {
       return;
     }
-    
-    const sentKey = `challenge_progress_${challengeId}_${milestone}`;
-    const alreadySent = await AsyncStorage.getItem(sentKey);
-    if (alreadySent) {
-      return;
-    }
-    
+
     const identifier = `challenge_progress_${challengeId}_${milestone}`;
+    // 동일 마일스톤 재스케줄 시 payload·시각을 반드시 갱신 (alreadySent로 스킵하지 않음)
+    await cancelScheduledNotificationByIdentifier(identifier);
+    await AsyncStorage.removeItem(`challenge_progress_${challengeId}_${milestone}`);
+
     await Notifications.scheduleNotificationAsync({
       identifier,
       content: {
         title: `[#${category}] 챌린지 진행현황`,
         body: `${Math.round(100 - percentage)}% 남음. 오늘은 어떤 소비를 하실 예정이신가요?`,
-        data: { 
+        data: {
           type: 'challenge_progress',
           challengeId,
+          category,
           percentage,
+          milestone,
         },
       },
       trigger: {
@@ -557,9 +579,6 @@ export async function notifyChallengeProgress(
         date: scheduleAt,
       },
     });
-    
-    await AsyncStorage.setItem(sentKey, 'true');
-    
   } catch (error) {
     console.error('[notification-scheduler] Failed to schedule challenge progress notification:', error);
   }
@@ -581,9 +600,8 @@ export async function notifyChallengeSuccess(
       return;
     }
     
-    // Check if already sent
-    const sentKey = `challenge_success_${challengeId}`;
-    const alreadySent = await AsyncStorage.getItem(sentKey);
+    const identifier = challengeSuccessNotificationIdentifier(challengeId);
+    const alreadySent = await AsyncStorage.getItem(identifier);
     if (alreadySent) {
       return;
     }
@@ -599,6 +617,7 @@ export async function notifyChallengeSuccess(
     notificationDate.setHours(9, 30, 0, 0);
     
     await Notifications.scheduleNotificationAsync({
+      identifier,
       content: {
         title: `[#${category}] 챌린지 성공! 🎉`,
         body: `소비율 ${Math.round(percentage)}%, 축하드려요. 이 소비패턴을 유지하기 위해 챌린지를 지속해 보세요!`,
@@ -614,10 +633,10 @@ export async function notifyChallengeSuccess(
       },
     });
     
-    // Mark as sent
-    await AsyncStorage.setItem(sentKey, 'true');
+    await AsyncStorage.setItem(identifier, 'true');
     
   } catch (error) {
+    console.error('[notification-scheduler] Failed to schedule challenge success notification:', error);
   }
 }
 
@@ -627,21 +646,24 @@ export async function notifyChallengeSuccess(
  */
 export async function cancelChallengeSuccessNotification(challengeId: string): Promise<void> {
   try {
-    // 스케줄된 알림 중 해당 챌린지의 성공 알림 찾아서 취소
+    const identifier = challengeSuccessNotificationIdentifier(challengeId);
+    await cancelScheduledNotificationByIdentifier(identifier);
+
+    // identifier 미지정 시점에 잡힌 UUID 예약 정리
     const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
     
     for (const notification of scheduledNotifications) {
+      const notifChallengeId = getNotificationDataString(notification.content.data, 'challengeId');
+      const notifType = getNotificationDataString(notification.content.data, 'type');
       if (
-        notification.content.data?.type === 'challenge_success' &&
-        notification.content.data?.challengeId === challengeId
+        notifType === 'challenge_success' &&
+        notifChallengeId === challengeId
       ) {
         await Notifications.cancelScheduledNotificationAsync(notification.identifier);
       }
     }
     
-    // AsyncStorage 마킹도 제거
-    const sentKey = `challenge_success_${challengeId}`;
-    await AsyncStorage.removeItem(sentKey);
+    await AsyncStorage.removeItem(identifier);
   } catch (error) {
     console.error('[notification-scheduler] Failed to cancel success notification:', error);
   }
@@ -651,32 +673,74 @@ export async function cancelChallengeSuccessNotification(challengeId: string): P
  * 챌린지 진행현황 알림 취소
  * 특정 챌린지의 모든 진행현황 알림(10%, 30%, 50%, 70%, 90%)을 취소하고 마킹도 제거
  */
-export async function cancelChallengeProgressNotifications(challengeId: string): Promise<void> {
+/**
+ * 동일 카테고리 진행 알림 전부 취소 (challengeId 변경·복원 후 잔여 OS 예약 정리)
+ */
+export async function cancelChallengeProgressNotificationsByCategory(
+  category: string,
+  relatedChallengeIds: string[] = [],
+): Promise<void> {
   try {
-    // 스케줄된 알림 중 해당 챌린지의 모든 진행현황 알림 찾아서 취소
+    const categoryTag = `[#${category}]`;
     const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
-    
+
     for (const notification of scheduledNotifications) {
-      const notifChallengeId = notification.content.data?.challengeId;
-      const notifType = notification.content.data?.type;
-      
-      if (
-        notifType === 'challenge_progress' &&
-        notifChallengeId === challengeId
-      ) {
-        try {
-          await Notifications.cancelScheduledNotificationAsync(notification.identifier);
-        } catch (cancelError) {
-          console.error(`[notification-scheduler] 알림 취소 실패: ${notification.identifier}`, cancelError);
-        }
+      const notifType = getNotificationDataString(notification.content.data, 'type');
+      if (notifType !== 'challenge_progress') {
+        continue;
+      }
+
+      const notifChallengeId = getNotificationDataString(notification.content.data, 'challengeId');
+      const dataCategory = getNotificationDataString(notification.content.data, 'category');
+      const title = notification.content.title ?? '';
+      const identifierMatches = relatedChallengeIds.some((id) =>
+        notification.identifier.startsWith(`challenge_progress_${id}_`),
+      );
+
+      const matches =
+        identifierMatches ||
+        (notifChallengeId !== undefined && relatedChallengeIds.includes(notifChallengeId)) ||
+        dataCategory === category ||
+        title.includes(categoryTag);
+
+      if (matches) {
+        await cancelScheduledNotificationByIdentifier(notification.identifier);
       }
     }
-    
-    // 모든 마일스톤의 AsyncStorage 마킹 제거
+
+    for (const challengeId of relatedChallengeIds) {
+      const milestones = [10, 30, 50, 70, 90];
+      for (const milestone of milestones) {
+        await cancelScheduledNotificationByIdentifier(`challenge_progress_${challengeId}_${milestone}`);
+        await AsyncStorage.removeItem(`challenge_progress_${challengeId}_${milestone}`);
+      }
+    }
+  } catch (error) {
+    console.error('[notification-scheduler] Failed to cancel progress by category:', error);
+  }
+}
+
+export async function cancelChallengeProgressNotifications(challengeId: string): Promise<void> {
+  try {
+    const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
+
+    for (const notification of scheduledNotifications) {
+      const notifChallengeId = getNotificationDataString(notification.content.data, 'challengeId');
+      const notifType = getNotificationDataString(notification.content.data, 'type');
+      const identifierMatches = notification.identifier.startsWith(`challenge_progress_${challengeId}_`);
+
+      if (
+        (notifType === 'challenge_progress' && notifChallengeId === challengeId) ||
+        identifierMatches
+      ) {
+        await cancelScheduledNotificationByIdentifier(notification.identifier);
+      }
+    }
+
     const milestones = [10, 30, 50, 70, 90];
     for (const milestone of milestones) {
-      const sentKey = `challenge_progress_${challengeId}_${milestone}`;
-      await AsyncStorage.removeItem(sentKey);
+      await cancelScheduledNotificationByIdentifier(`challenge_progress_${challengeId}_${milestone}`);
+      await AsyncStorage.removeItem(`challenge_progress_${challengeId}_${milestone}`);
     }
   } catch (error) {
     console.error('[notification-scheduler] Failed to cancel progress notifications:', error);
@@ -689,12 +753,15 @@ export async function cancelChallengeProgressNotifications(challengeId: string):
  */
 export async function cancelChallengeFailureNotification(challengeId: string): Promise<void> {
   try {
-    // 스케줄된 알림 중 해당 챌린지의 실패 알림 찾아서 취소
+    const identifier = challengeFailureNotificationIdentifier(challengeId);
+    await cancelScheduledNotificationByIdentifier(identifier);
+
+    // identifier 미지정 시점에 잡힌 UUID 예약 정리
     const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
     
     for (const notification of scheduledNotifications) {
-      const notifChallengeId = notification.content.data?.challengeId;
-      const notifType = notification.content.data?.type;
+      const notifChallengeId = getNotificationDataString(notification.content.data, 'challengeId');
+      const notifType = getNotificationDataString(notification.content.data, 'type');
       
       if (
         notifType === 'challenge_failure' &&
@@ -708,11 +775,32 @@ export async function cancelChallengeFailureNotification(challengeId: string): P
       }
     }
     
-    // AsyncStorage 마킹도 제거
-    const sentKey = `challenge_failure_${challengeId}`;
-    await AsyncStorage.removeItem(sentKey);
+    await AsyncStorage.removeItem(identifier);
   } catch (error) {
     console.error('[notification-scheduler] Failed to cancel failure notification:', error);
+  }
+}
+
+/**
+ * 복원 직후에는 새 알림을 스케줄하지 않고, 이전 데이터 기준으로 남아 있던
+ * 챌린지 예약/마킹만 정리합니다.
+ */
+export async function clearChallengeNotificationSchedulesForRestore(): Promise<void> {
+  try {
+    await cancelScheduledNotificationsByTypes(['challenge_progress', 'challenge_success', 'challenge_failure']);
+
+    const keys = await AsyncStorage.getAllKeys();
+    const challengeNotificationKeys = keys.filter(
+      (key) =>
+        key.startsWith('challenge_progress_') ||
+        key.startsWith('challenge_success_') ||
+        key.startsWith('challenge_failure_'),
+    );
+    if (challengeNotificationKeys.length > 0) {
+      await AsyncStorage.multiRemove(challengeNotificationKeys);
+    }
+  } catch (error) {
+    console.error('[notification-scheduler] Failed to clear challenge schedules after restore:', error);
   }
 }
 
@@ -737,17 +825,17 @@ export async function notifyChallengeFailure(
       return;
     }
     
-    // Check if already sent (only once when first exceeding 100%)
-    const sentKey = `challenge_failure_${challengeId}`;
-    const alreadySent = await AsyncStorage.getItem(sentKey);
+    const identifier = challengeFailureNotificationIdentifier(challengeId);
+    const alreadySent = await AsyncStorage.getItem(identifier);
     
     if (alreadySent) {
       // Double check: verify if notification is actually scheduled
       const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
-      const existingNotification = scheduledNotifications.find(
-        n => n.content.data?.challengeId === challengeId && 
-             n.content.data?.type === 'challenge_failure'
-      );
+      const existingNotification = scheduledNotifications.find((n) => {
+        const notifChallengeId = getNotificationDataString(n.content.data, 'challengeId');
+        const notifType = getNotificationDataString(n.content.data, 'type');
+        return notifType === 'challenge_failure' && notifChallengeId === challengeId;
+      });
       
       // If notification exists, don't schedule again
       if (existingNotification) {
@@ -761,6 +849,7 @@ export async function notifyChallengeFailure(
     notificationDate.setHours(9, 30, 0, 0);
     
     await Notifications.scheduleNotificationAsync({
+      identifier,
       content: {
         title: `[#${category}] 목표 금액 초과 ⚠️`,
         body: `소비율 ${Math.round(percentage)}%, 목표 소비금액을 초과하였습니다. 내역을 확인하시고 소비를 줄여보시는건 어떨까요?`,
@@ -776,10 +865,10 @@ export async function notifyChallengeFailure(
       },
     });
     
-    // Mark as sent
-    await AsyncStorage.setItem(sentKey, 'true');
+    await AsyncStorage.setItem(identifier, 'true');
     
   } catch (error) {
+    console.error('[notification-scheduler] Failed to schedule challenge failure notification:', error);
   }
 }
 

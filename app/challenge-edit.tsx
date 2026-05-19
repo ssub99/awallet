@@ -66,6 +66,7 @@ export default function ChallengeEditScreen() {
 
   // Delete confirmation modal state
   const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
+  const [showTargetAmountAlert, setShowTargetAmountAlert] = useState(false);
   
   const [isContentReady, setIsContentReady] = useState(false);
   const contentOpacity = useRef(new Animated.Value(0)).current;
@@ -380,7 +381,7 @@ export default function ChallengeEditScreen() {
     logChallengeEditEvent('btn', 'cta');
     // 필수값 검증
     if (!targetAmount || targetAmount === '0' || targetAmount.trim() === '') {
-      Alert.alert('알림', '목표 소비 금액을 입력해주세요.');
+      setShowTargetAmountAlert(true);
       return;
     }
     
@@ -600,7 +601,7 @@ export default function ChallengeEditScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.staticWhite }]} edges={['top']}>
-        <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
+        <StatusBar barStyle="dark-content" />
       
         <TopNavigation
           type="sub"
@@ -850,6 +851,16 @@ export default function ChallengeEditScreen() {
               저장
             </Button>
           </View>
+
+        <ModalPopup
+          visible={showTargetAmountAlert}
+          onConfirm={() => setShowTargetAmountAlert(false)}
+          confirmText="확인"
+        >
+          <Text style={[styles.modalText, { color: colors.text }]}>
+            목표 소비 금액을 입력해 주세요.
+          </Text>
+        </ModalPopup>
 
         {/* 삭제 확인 모달 */}
         <ModalPopup

@@ -11,10 +11,17 @@ import { ThemeColors } from '@/constants/theme-colors';
 import { Typography } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { monthStartEvent } from '@/hooks/use-month-start';
-import { getChallengeStatus, getReferenceDateForMilestone, isScheduleTimeInFuture } from '@/utils/challenge-utils';
+import {
+  getChallengeStatus,
+  getReferenceDateForProgressNotification,
+  hasPostAnchorChallengeCategoryExpense,
+  isScheduleTimeInFuture,
+} from '@/utils/challenge-utils';
+import { parseCalendarDataFromJson } from '@/utils/calendar-data-parse';
 import { createChallenges, getAllChallenges, type ChallengeRecord } from '@/utils/challenges';
 import { getCustomMonthInfo } from '@/utils/custom-month';
 import { generateGroupId, generateRecordId } from '@/utils/id-generator';
+import { rebuildCalendarDataFromStores } from '@/utils/rebuild-calendar-data';
 import { cancelChallengeProgressNotifications, cancelChallengeSuccessNotification, notifyChallengeFailure, notifyChallengeProgress, notifyChallengeSuccess } from '@/utils/notification-scheduler';
 import { refreshWidgetWithCurrentMonth } from '@/utils/widget-data-sync';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -161,9 +168,9 @@ export default function MonthStartDayScreen() {
       if (newChallenges.length > 0) {
         await createChallenges(newChallenges);
         
-        // 각 새 챌린지에 대해 알림 스케줄링 (calendarData 기준 referenceDate 사용)
+        await rebuildCalendarDataFromStores();
         const storedData = await AsyncStorage.getItem('calendarData');
-        const calendarData = storedData ? JSON.parse(storedData) : {};
+        const calendarData = parseCalendarDataFromJson(storedData);
         for (const challenge of newChallenges) {
           try {
             const status = await getChallengeStatus(challenge, calendarData);
@@ -175,17 +182,30 @@ export default function MonthStartDayScreen() {
             
             if (!isEndedByToday) {
               await cancelChallengeProgressNotifications(challenge.id);
-              const milestones = [10, 30, 50, 70, 90];
-              for (let i = 0; i < milestones.length; i++) {
-                const milestone = milestones[i];
-                const max = i < milestones.length - 1 ? milestones[i + 1] : 100;
-                const isInRange = status.percentage >= milestone && status.percentage < max;
-                if (isInRange) {
-                  const referenceDate = getReferenceDateForMilestone(challenge, milestone, calendarData);
-                  if (referenceDate && isScheduleTimeInFuture(referenceDate)) {
-                    await notifyChallengeProgress(challenge.category, status.percentage, challenge.id, milestone, referenceDate);
+              if (hasPostAnchorChallengeCategoryExpense(challenge, calendarData)) {
+                const milestones = [10, 30, 50, 70, 90];
+                for (let i = 0; i < milestones.length; i++) {
+                  const milestone = milestones[i];
+                  const max = i < milestones.length - 1 ? milestones[i + 1] : 100;
+                  const isInRange = status.percentage >= milestone && status.percentage < max;
+                  if (isInRange) {
+                    const referenceDate = getReferenceDateForProgressNotification(
+                      challenge,
+                      milestone,
+                      calendarData,
+                      status.percentage,
+                    );
+                    if (referenceDate && isScheduleTimeInFuture(referenceDate)) {
+                      await notifyChallengeProgress(
+                        challenge.category,
+                        status.percentage,
+                        challenge.id,
+                        milestone,
+                        referenceDate,
+                      );
+                    }
+                    break;
                   }
-                  break;
                 }
               }
             }
@@ -316,7 +336,7 @@ export default function MonthStartDayScreen() {
       style={[styles.container, { backgroundColor: colors.staticWhite }]} 
       edges={['top', 'bottom']}
     >
-      <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
+      <StatusBar barStyle="dark-content" />
 
       {/* Top Navigation */}
       <TopNavigation

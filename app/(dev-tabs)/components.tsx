@@ -28,6 +28,8 @@ import {
   checkEndedChallenges,
   emitEndedChallengeResultAnalytics,
   getChallengeStatus,
+  getProgressMilestoneForPercentage,
+  parseProgressNotificationMilestone,
 } from '@/utils/challenge-utils';
 import { getAllChallenges } from '@/utils/challenges';
 import {
@@ -35,6 +37,7 @@ import {
     cancelDailyReminder,
     clearChallengeNotificationMarks,
     getChallengeNotificationsEnabled,
+    getDailyReminderDebugSnapshot,
     getGeneralNotificationsEnabled,
     getScheduledNotifications,
     sendTestNotification,
@@ -42,12 +45,162 @@ import {
 } from '@/utils/notification-scheduler';
 import { storageCache } from '@/utils/storage-cache';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Notifications from 'expo-notifications';
+import { SchedulableTriggerInputTypes } from 'expo-notifications';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 type ComponentTab = 'test' | 'buttons' | 'inputs' | 'selectboxs' | 'radios' | 'checkboxes' | 'switches' | 'modals' | 'bottomsheets' | 'tags' | 'calendars' | 'tabs' | 'topnav';
+
+function getRecordValue(value: unknown, key: string): unknown {
+  return value && typeof value === 'object' ? (value as Record<string, unknown>)[key] : undefined;
+}
+
+function getNotificationDataString(data: unknown, key: string, fallback: string): string {
+  const value = getRecordValue(data, key);
+  return typeof value === 'string' ? value : fallback;
+}
+
+function getNotificationDataNumber(data: unknown, key: string, fallback = 0): number {
+  const value = getRecordValue(data, key);
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const numericValue = Number(value);
+    if (Number.isFinite(numericValue)) return numericValue;
+  }
+  return fallback;
+}
+
+function getRecordNumber(value: unknown, key: string): number | null {
+  const recordValue = getRecordValue(value, key);
+  if (typeof recordValue === 'number' && Number.isFinite(recordValue)) return recordValue;
+  if (typeof recordValue === 'string') {
+    const numericValue = Number(recordValue);
+    if (Number.isFinite(numericValue)) return numericValue;
+  }
+  return null;
+}
+
+function toSchedulableTriggerInput(
+  trigger: unknown
+): Notifications.SchedulableNotificationTriggerInput | null {
+  if (!trigger || typeof trigger !== 'object') return null;
+
+  const triggerType = getTriggerType(trigger);
+  if (triggerType === 'timeInterval') {
+    const seconds = getRecordNumber(trigger, 'seconds');
+    if (seconds === null) return null;
+    return {
+      type: SchedulableTriggerInputTypes.TIME_INTERVAL,
+      seconds,
+      repeats: getRecordValue(trigger, 'repeats') === true,
+    };
+  }
+
+  if (triggerType === 'calendar') {
+    const dateComponents = getRecordValue(trigger, 'dateComponents');
+    if (!dateComponents || typeof dateComponents !== 'object') return null;
+
+    const calendarTrigger: Notifications.CalendarTriggerInput = {
+      type: SchedulableTriggerInputTypes.CALENDAR,
+      repeats: getRecordValue(trigger, 'repeats') === true,
+    };
+    const componentKeys = [
+      'year',
+      'month',
+      'day',
+      'hour',
+      'minute',
+      'second',
+      'weekday',
+      'weekdayOrdinal',
+    ] as const;
+
+    for (const key of componentKeys) {
+      const value = getRecordNumber(dateComponents, key);
+      if (value !== null) {
+        calendarTrigger[key] = value;
+      }
+    }
+
+    return calendarTrigger;
+  }
+
+  if (triggerType === 'daily') {
+    const hour = getRecordNumber(trigger, 'hour');
+    const minute = getRecordNumber(trigger, 'minute');
+    if (hour === null || minute === null) return null;
+    return { type: SchedulableTriggerInputTypes.DAILY, hour, minute };
+  }
+
+  const timestamp = getRecordValue(trigger, 'timestamp');
+  if (triggerType === 'date' && (typeof timestamp === 'number' || typeof timestamp === 'string')) {
+    const date = new Date(timestamp);
+    if (!Number.isNaN(date.getTime())) {
+      return { type: SchedulableTriggerInputTypes.DATE, date };
+    }
+  }
+
+  return null;
+}
+
+async function formatTriggerDateLabel(trigger: unknown): Promise<string> {
+  const syncDate = getTriggerDate(trigger);
+  if (syncDate) return syncDate.toLocaleString('ko-KR');
+
+  const dailyTriggerText = getDailyTriggerText(trigger);
+  if (dailyTriggerText) return dailyTriggerText;
+
+  const triggerInput = toSchedulableTriggerInput(trigger);
+  if (triggerInput) {
+    try {
+      const nextTriggerMs = await Notifications.getNextTriggerDateAsync(triggerInput);
+      if (nextTriggerMs != null) {
+        return new Date(nextTriggerMs).toLocaleString('ko-KR');
+      }
+    } catch {
+      // dev 표시용 — 실패 시 아래 fallback 사용
+    }
+  }
+
+  return '발송일 없음';
+}
+
+function getTriggerDate(trigger: unknown): Date | null {
+  const value = getRecordValue(trigger, 'date') ?? getRecordValue(trigger, 'timestamp');
+  if (value instanceof Date) return value;
+  if (typeof value === 'string' || typeof value === 'number') {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  const dateComponents = getRecordValue(trigger, 'dateComponents');
+  const year = getRecordNumber(dateComponents, 'year');
+  const month = getRecordNumber(dateComponents, 'month');
+  const day = getRecordNumber(dateComponents, 'day');
+  if (year === null || month === null || day === null) return null;
+
+  const hour = getRecordNumber(dateComponents, 'hour') ?? 0;
+  const minute = getRecordNumber(dateComponents, 'minute') ?? 0;
+  const second = getRecordNumber(dateComponents, 'second') ?? 0;
+  const date = new Date(year, month - 1, day, hour, minute, second);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function getDailyTriggerText(trigger: unknown): string | null {
+  const hour = getRecordValue(trigger, 'hour');
+  const minute = getRecordValue(trigger, 'minute');
+  if (typeof hour !== 'number' || typeof minute !== 'number') return null;
+
+  return `매일 ${hour}시 ${minute}분`;
+}
+
+function getTriggerType(trigger: unknown): string {
+  const type = getRecordValue(trigger, 'type');
+  return typeof type === 'string' ? type : '알 수 없음';
+}
 
 export default function ComponentsScreen() {
   const colorScheme = useColorScheme();
@@ -467,27 +620,55 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
             style={[styles.testButtonSmall, { backgroundColor: colors.primary }]}
             onPress={async () => {
               const scheduled = await getScheduledNotifications();
+              const generalNotifications = scheduled.filter(isGeneralNotification);
               const successNotifications = scheduled.filter(
-                n => n.content.data?.type === 'challenge_success'
+                (n) => n.content.data?.type === 'challenge_success'
               );
-              
-              if (successNotifications.length > 0) {
-                const details = successNotifications.map(n => {
-                  const challengeId = n.content.data?.challengeId || 'ID 없음';
-                  // title에서 category 추출: "[#카테고리] 챌린지 성공! 🎉" 형식
-                  const title = n.content.title || '';
-                  const categoryMatch = title.match(/\[#(.+?)\]/);
-                  const category = categoryMatch ? categoryMatch[1] : '카테고리 없음';
-                  const percentage = n.content.data?.percentage || 0;
-                  const triggerDate = n.trigger && 'date' in n.trigger 
-                    ? new Date(n.trigger.date).toLocaleString('ko-KR')
-                    : '발송일 없음';
-                  return `- ${title}\n  카테고리: ${category}\n  소비율: ${Math.round(percentage)}%\n  발송일: ${triggerDate}\n  ID: ${challengeId.substring(0, 8)}...`;
-                }).join('\n\n');
-                alert(`챌린지 성공 알림: ${successNotifications.length}개\n\n${details}`);
-              } else {
-                alert(`예약된 알림: ${scheduled.length}개\n챌린지 성공 알림: 0개`);
+              const progressCount = scheduled.filter(
+                (n) => n.content.data?.type === 'challenge_progress'
+              ).length;
+              const failureCount = scheduled.filter(
+                (n) => n.content.data?.type === 'challenge_failure'
+              ).length;
+
+              let summary =
+                `전체 예약: ${scheduled.length}개\n` +
+                `일반: ${generalNotifications.length} · 진행: ${progressCount} · 성공: ${successNotifications.length} · 실패: ${failureCount}\n\n`;
+
+              if (generalNotifications.length > 0) {
+                const generalDetails = (
+                  await Promise.all(
+                    generalNotifications.map(async (n) => {
+                      const triggerDate = await formatTriggerDateLabel(n.trigger);
+                      return `- ${n.identifier}\n  발송: ${triggerDate}`;
+                    })
+                  )
+                ).join('\n\n');
+                summary += `[일반]\n${generalDetails}\n\n`;
               }
+
+              if (successNotifications.length > 0) {
+                const details = (
+                  await Promise.all(
+                    successNotifications.map(async (n) => {
+                      const challengeId = getNotificationDataString(n.content.data, 'challengeId', 'ID 없음');
+                      const title = n.content.title || '';
+                      const categoryMatch = title.match(/\[#(.+?)\]/);
+                      const category = categoryMatch ? categoryMatch[1] : '카테고리 없음';
+                      const percentage = getNotificationDataNumber(n.content.data, 'percentage');
+                      const triggerDate = await formatTriggerDateLabel(n.trigger);
+                      return `- ${title}\n  카테고리: ${category}\n  소비율: ${Math.round(percentage)}%\n  발송일: ${triggerDate}\n  ID: ${challengeId.substring(0, 8)}...`;
+                    })
+                  )
+                ).join('\n\n');
+                summary += `[챌린지 성공]\n${details}`;
+              } else if (scheduled.length === 0) {
+                summary += '예약된 알림이 없습니다.';
+              } else if (generalNotifications.length === 0) {
+                summary += '일반 알림 예약 없음. 챌린지 성공 알림도 없음.';
+              }
+
+              alert(summary);
             }}
           >
             <Text style={[styles.testButtonSmallText, { color: colors.staticWhite }]}>
@@ -501,7 +682,7 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
               const remaining = await cancelAllNotifications();
               if (remaining.length > 0) {
                 const details = remaining.map(n => {
-                  const triggerType = n.trigger?.type || 'unknown';
+                  const triggerType = getTriggerType(n.trigger);
                   const identifier = n.identifier || 'no identifier';
                   const title = n.content.title || 'no title';
                   return `- ${title}\n  ID: ${identifier}\n  Type: ${triggerType}`;
@@ -523,7 +704,7 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
             style={[styles.testButtonSmall, { backgroundColor: '#ff9800' }]}
             onPress={async () => {
               await clearChallengeNotificationMarks();
-              alert('챌린지 알림 마킹 초기화 완료\n앱을 재시작하면 알림이 다시 스케줄됩니다.');
+              alert('챌린지·일반 알림 마킹 초기화 + OS 예약 전체 취소 완료\n앱을 재시작하면 알림이 다시 스케줄됩니다.');
             }}
           >
             <Text style={[styles.testButtonSmallText, { color: colors.staticWhite }]}>
@@ -531,6 +712,59 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
             </Text>
           </Pressable>
         </View>
+
+        <Pressable
+          style={[styles.testButton, { backgroundColor: '#2E7D32', marginTop: 8 }]}
+          onPress={async () => {
+            try {
+              const [snapshot, scheduled] = await Promise.all([
+                getDailyReminderDebugSnapshot(),
+                getScheduledNotifications(),
+              ]);
+              const generalScheduled = scheduled.filter(isGeneralNotification);
+
+              let result = '일반 알림 (소비 유도 · 매일 20:00)\n\n';
+              result += `설정: ${snapshot.generalEnabled ? 'ON' : 'OFF'}\n`;
+              result += `시스템 권한: ${snapshot.permissionGranted ? '허용' : '거부/미확인'}\n`;
+              result += `오늘 소비 기록: ${snapshot.hasExpenseToday ? '있음 → 당일 미스케줄' : '없음'}\n`;
+              result += `오늘 스케줄 마킹: ${snapshot.todayScheduleMarkPresent ? '✅' : '❌'}\n`;
+              result += `스케줄 조건 충족: ${snapshot.wouldSchedule ? '✅ (예약 시도 가능)' : '❌'}\n`;
+              result += `OS 예약: ${generalScheduled.length}개\n\n`;
+
+              if (generalScheduled.length > 0) {
+                for (const notification of generalScheduled) {
+                  const triggerDate = await formatTriggerDateLabel(notification.trigger);
+                  const triggerType = getTriggerType(notification.trigger);
+                  result += `- ${notification.identifier}\n`;
+                  result += `  제목: ${notification.content.title ?? '(없음)'}\n`;
+                  result += `  발송: ${triggerDate}\n`;
+                  result += `  trigger: ${triggerType}\n\n`;
+                }
+              } else if (snapshot.wouldSchedule) {
+                result +=
+                  '⚠️ 조건은 충족인데 OS 예약 없음\n' +
+                  '「일반 알림 재스케줄」또는 앱 재시작 후 setupDailyReminder를 확인하세요.';
+              } else if (!snapshot.generalEnabled) {
+                result += '일반 알림 OFF — 예약 없음이 정상입니다.';
+              } else if (!snapshot.permissionGranted) {
+                result += '권한 없음 — 예약 없음이 정상입니다.';
+              } else if (snapshot.hasExpenseToday) {
+                result += '오늘 소비 있음 — 당일 예약 없음이 정상입니다.';
+              } else {
+                result += '예약된 일반 알림이 없습니다.';
+              }
+
+              alert(result);
+            } catch (error) {
+              console.error('[test] Failed to check general notifications:', error);
+              alert('일반 알림 확인 중 오류가 발생했습니다.');
+            }
+          }}
+        >
+          <Text style={[styles.testButtonText, { color: colors.staticWhite }]}>
+            📝 일반 알림 확인 (20:00 소비 유도)
+          </Text>
+        </Pressable>
       </View>
 
       <SectionHeader title="🎯 챌린지 알림 테스트" colors={colors} />
@@ -566,47 +800,49 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
                 
                 // 진행현황 알림 확인 (10%, 30%, 50%, 70%, 90%)
                 const milestones = [10, 30, 50, 70, 90];
+                const expectedMilestone = getProgressMilestoneForPercentage(status.percentage);
                 const progressAlerts: string[] = [];
                 for (let i = 0; i < milestones.length; i++) {
                   const milestone = milestones[i];
                   const max = i < milestones.length - 1 ? milestones[i + 1] : 100;
-                  
-                  // 스케줄된 알림 중에서 해당 마일스톤 범위에 속하는 알림 찾기
-                  const hasProgressNotif = progressNotifications.some(
-                    n => {
-                      if (n.content.data?.challengeId !== challenge.id || n.content.data?.percentage === undefined) {
-                        return false;
-                      }
-                      const notifPercentage = n.content.data.percentage as number;
-                      // 알림이 스케줄될 때의 소비율이 해당 마일스톤 범위에 속하는지 확인
-                      return notifPercentage >= milestone && notifPercentage < max;
-                    }
-                  );
-                  
+                  const isCurrentBand = expectedMilestone === milestone;
                   const isInRange = status.percentage >= milestone && status.percentage < max;
-                  
-                  if (hasProgressNotif) {
-                    const notif = progressNotifications.find(
-                      n => {
-                        if (n.content.data?.challengeId !== challenge.id || n.content.data?.percentage === undefined) {
-                          return false;
-                        }
-                        const notifPercentage = n.content.data.percentage as number;
-                        return notifPercentage >= milestone && notifPercentage < max;
-                      }
+
+                  const notif = progressNotifications.find((n) => {
+                    if (n.content.data?.challengeId !== challenge.id) {
+                      return false;
+                    }
+                    const idMilestone = parseProgressNotificationMilestone(n.identifier, challenge.id);
+                    if (idMilestone === milestone) {
+                      return true;
+                    }
+                    const dataMilestone = getNotificationDataNumber(n.content.data, 'milestone', -1);
+                    return dataMilestone === milestone;
+                  });
+
+                  if (notif) {
+                    const storedPct = getNotificationDataNumber(notif.content.data, 'percentage');
+                    const triggerDate = notif.trigger
+                      ? await formatTriggerDateLabel(notif.trigger)
+                      : '발송일 없음';
+                    const pctMismatch =
+                      isCurrentBand && Math.round(storedPct) !== Math.round(status.percentage);
+                    const staleNote = !isCurrentBand
+                      ? ' · 현재 구간과 불일치(잔여)'
+                      : pctMismatch
+                        ? ` · payload ${Math.round(storedPct)}% ≠ 현재 ${Math.round(status.percentage)}%`
+                        : '';
+                    progressAlerts.push(
+                      triggerDate !== '발송일 없음'
+                        ? `  ${milestone}%: ✅ ${triggerDate}${staleNote}\n     예약 시점 소비율: ${Math.round(storedPct)}%`
+                        : `  ${milestone}%: ✅ 스케줄됨${staleNote}\n     예약 시점 소비율: ${Math.round(storedPct)}%`,
                     );
-                    if (notif && notif.trigger && 'date' in notif.trigger) {
-                      const triggerDate = new Date(notif.trigger.date);
-                      progressAlerts.push(`  ${milestone}%: ✅ ${triggerDate.toLocaleString('ko-KR')}`);
-                    } else {
-                      progressAlerts.push(`  ${milestone}%: ✅ 스케줄됨`);
-                    }
+                  } else if (isInRange && isCurrentBand) {
+                    progressAlerts.push(
+                      `  ${milestone}%: ⚠️ 구간 해당·미예약 (post-anchor 없음 또는 발송 시각 과거)`,
+                    );
                   } else {
-                    if (isInRange) {
-                      progressAlerts.push(`  ${milestone}%: ⚠️ 범위 내 (스케줄 안 됨)`);
-                    } else {
-                      progressAlerts.push(`  ${milestone}%: ❌ 없음`);
-                    }
+                    progressAlerts.push(`  ${milestone}%: ❌ 없음`);
                   }
                 }
                 result += progressAlerts.join('\n') + '\n\n';
@@ -645,24 +881,21 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
                 const title = notif.content.title || '';
                 const categoryMatch = title.match(/\[#(.+?)\]/);
                 const category = categoryMatch ? categoryMatch[1] : (title ? '카테고리 추출 실패' : '제목 없음');
-                const challengeId = notif.content.data?.challengeId || 'ID 없음';
-                const percentage = notif.content.data?.percentage || 0;
+                const challengeId = getNotificationDataString(notif.content.data, 'challengeId', 'ID 없음');
+                const percentage = getNotificationDataNumber(notif.content.data, 'percentage');
                 const body = notif.content.body || '';
                 
                 // trigger 정보 확인
                 let triggerDate = '발송일 없음';
                 let triggerInfo = '';
                 if (notif.trigger) {
-                  if ('date' in notif.trigger && notif.trigger.date) {
-                    // DATE 타입 트리거 (진행현황 알림은 이것을 사용)
-                    triggerDate = new Date(notif.trigger.date).toLocaleString('ko-KR');
-                    triggerInfo = '스케줄됨 (아직 발송 안 됨)';
-                  } else if ('hour' in notif.trigger) {
-                    // DAILY 타입 트리거
-                    triggerDate = `매일 ${notif.trigger.hour}시 ${notif.trigger.minute}분`;
-                    triggerInfo = '반복 알림';
+                  triggerDate = await formatTriggerDateLabel(notif.trigger);
+                  if (triggerDate !== '발송일 없음') {
+                    triggerInfo = getDailyTriggerText(notif.trigger)
+                      ? '반복 알림'
+                      : '스케줄됨 (아직 발송 안 됨)';
                   } else {
-                    triggerInfo = `트리거 타입: ${notif.trigger.type || '알 수 없음'}`;
+                    triggerInfo = `트리거 타입: ${getTriggerType(notif.trigger)}`;
                   }
                 } else {
                   triggerInfo = '트리거 정보 없음';
@@ -731,12 +964,17 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
                 
                 if (hasFailureNotif) {
                   result += `  실패 알림: ✅\n  예약 발송일(종료일+1일 09:30 기준): ${expectedTriggerText}\n`;
-                } else {
-                  if (status.percentage > 100) {
-                    result += `  실패 알림: ⚠️ 범위 초과 (스케줄 안 됨)\n`;
+                } else if (status.percentage > 100) {
+                  const successMarked = await AsyncStorage.getItem(`challenge_success_${challenge.id}`);
+                  const failureMarked = await AsyncStorage.getItem(`challenge_failure_${challenge.id}`);
+                  if (successMarked && !failureMarked) {
+                    result +=
+                      `  실패 알림: ⚠️ OS 예약 없음 (성공만 마킹됨 — 해당 카테고리 기록 저장 한 번 더 하거나 앱 재실행)\n`;
                   } else {
-                    result += `  실패 알림: ❌ 없음\n`;
+                    result += `  실패 알림: ⚠️ 100% 초과 — OS 예약 없음 (챌린지 알림 ON·기록 저장 후 확인)\n`;
                   }
+                } else {
+                  result += `  실패 알림: ❌ 없음 (100% 이하)\n`;
                 }
                 result += '\n';
               }
@@ -1017,41 +1255,30 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
             const challengeFailure = scheduled.filter(
               (notification) => notification.content.data?.type === 'challenge_failure'
             ).length;
-            const getTriggerSummary = (trigger: unknown): string => {
+            const getTriggerSummary = async (trigger: unknown): Promise<string> => {
               if (!trigger || typeof trigger !== 'object') {
                 return 'none';
               }
 
-              const triggerWithType = trigger as { type?: unknown };
-              const triggerType =
-                typeof triggerWithType.type === 'string' ? triggerWithType.type : 'unknown';
-
-              if ('date' in trigger) {
-                const dateValue = (trigger as { date?: unknown }).date;
-                if (dateValue) {
-                  return `${triggerType} @ ${new Date(String(dateValue)).toLocaleString('ko-KR')}`;
-                }
-              }
-
-              if ('hour' in trigger && 'minute' in trigger) {
-                const hour = (trigger as { hour?: unknown }).hour;
-                const minute = (trigger as { minute?: unknown }).minute;
-                if (typeof hour === 'number' && typeof minute === 'number') {
-                  return `${triggerType} @ ${hour}:${String(minute).padStart(2, '0')}`;
-                }
+              const triggerType = getTriggerType(trigger);
+              const triggerDate = await formatTriggerDateLabel(trigger);
+              if (triggerDate !== '발송일 없음') {
+                return `${triggerType} @ ${triggerDate}`;
               }
 
               return triggerType;
             };
 
-            const details = scheduled
-              .map((notification, index) => {
-                const type = String(notification.content.data?.type ?? 'unknown');
-                const title = notification.content.title ?? '(제목 없음)';
-                const trigger = getTriggerSummary(notification.trigger);
-                return `${index + 1}. ${title}\n- id: ${notification.identifier}\n- type: ${type}\n- trigger: ${trigger}`;
-              })
-              .join('\n\n');
+            const details = (
+              await Promise.all(
+                scheduled.map(async (notification, index) => {
+                  const type = String(notification.content.data?.type ?? 'unknown');
+                  const title = notification.content.title ?? '(제목 없음)';
+                  const trigger = await getTriggerSummary(notification.trigger);
+                  return `${index + 1}. ${title}\n- id: ${notification.identifier}\n- type: ${type}\n- trigger: ${trigger}`;
+                })
+              )
+            ).join('\n\n');
             alert(
               `타입별 예약 목록\n\n` +
                 `expense_reminder: ${expenseReminder}\n` +

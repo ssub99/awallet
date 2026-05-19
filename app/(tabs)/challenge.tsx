@@ -43,7 +43,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     Animated,
     GestureResponderEvent,
-    InteractionManager,
     PanResponder,
     PanResponderGestureState,
     Pressable,
@@ -383,6 +382,64 @@ interface ChallengeData {
   recurringId: string;
 }
 
+function calendarDataJsonReviver(key: string, value: unknown): unknown {
+  if (key === 'recurringType' && value === null) return undefined;
+  return value;
+}
+
+/** 챌린지 목록별 소비 합산 (calendarData 1회 로드) */
+async function computeChallengeAmountsForList(
+  challengeList: ChallengeData[],
+): Promise<Record<string, number>> {
+  const amounts: Record<string, number> = {};
+  for (const challenge of challengeList) {
+    amounts[challenge.id] = 0;
+  }
+  if (challengeList.length === 0) return amounts;
+
+  const storedData = await AsyncStorage.getItem('calendarData');
+  if (!storedData) return amounts;
+
+  const calendarData = JSON.parse(storedData, calendarDataJsonReviver) as Record<string, unknown>;
+
+  for (const challenge of challengeList) {
+    let totalAmount = 0;
+    const startDate = new Date(challenge.startDate.replace(/\./g, '-'));
+    const endDate = new Date(challenge.endDate.replace(/\./g, '-'));
+
+    Object.entries(calendarData).forEach(([dateString, data]) => {
+      const itemDate = new Date(dateString);
+      if (
+        itemDate >= startDate &&
+        itemDate <= endDate &&
+        data &&
+        typeof data === 'object' &&
+        'records' in data
+      ) {
+        const records = (data as { records?: unknown[] }).records;
+        if (Array.isArray(records)) {
+          records.forEach((value) => {
+            const record = value as {
+              isDeleted?: boolean;
+              isRefunded?: boolean;
+              type?: string;
+              category?: string;
+              amount?: number;
+            };
+            if (record.isDeleted || record.isRefunded) return;
+            if (record.type === 'expense' && record.category === challenge.category) {
+              totalAmount += record.amount || 0;
+            }
+          });
+        }
+      }
+    });
+    amounts[challenge.id] = totalAmount;
+  }
+
+  return amounts;
+}
+
 const useCategoryEmojiMap = () => {
   const [map, setMap] = useState<Record<string, string>>({});
 
@@ -666,7 +723,9 @@ export default function ChallengeTabScreen() {
         const startDate = new Date(startY, startM - 1, startD);
         return isDateInCustomMonth(startDate, challengeYear, challengeMonth, monthStart);
       });
+      const amounts = await computeChallengeAmountsForList(activeChallenges);
       setChallenges(activeChallenges);
+      setChallengeAmounts(amounts);
 
       setIsContentReady(true);
       hasAnimatedRef.current = true;
@@ -684,6 +743,7 @@ export default function ChallengeTabScreen() {
     } catch (err) {
       console.error('[challenge-tab] Failed to load challenges:', err);
       setChallenges([]);
+      setChallengeAmounts({});
       setIsContentReady(true);
       hasAnimatedRef.current = true;
       challengeRefreshedForRef.current = { year: challengeYear, month: challengeMonth };
@@ -1449,52 +1509,6 @@ export default function ChallengeTabScreen() {
     if (activeTopTab === 'report') prevReportSubTabRef.current = reportSubTab;
     else prevReportSubTabRef.current = null;
   }, [activeTopTab, reportSubTab, reportContentOpacity]);
-
-  // reset() 직후 언마운트·마운트가 겹치지 않도록 무거운 계산을 인터랙션 종료 후로 지연
-  useEffect(() => {
-    const task = InteractionManager.runAfterInteractions(() => {
-      const calculateChallengeAmounts = async () => {
-        const amounts: Record<string, number> = {};
-        for (const challenge of challenges) {
-          let totalAmount = 0;
-          const startDate = new Date(challenge.startDate.replace(/\./g, '-'));
-          const endDate = new Date(challenge.endDate.replace(/\./g, '-'));
-          const storedData = await AsyncStorage.getItem('calendarData');
-          if (storedData) {
-            const calendarData = JSON.parse(storedData, (key: string, value: unknown) => {
-              if (key === 'recurringType' && value === null) return undefined;
-              return value;
-            });
-            Object.entries(calendarData).forEach(([dateString, data]: [string, unknown]) => {
-              const itemDate = new Date(dateString);
-              if (itemDate >= startDate && itemDate <= endDate && data && typeof data === 'object' && 'records' in data) {
-                const records = (data as { records?: unknown[] }).records;
-                if (Array.isArray(records)) {
-                  records.forEach((value) => {
-                    const record = value as {
-                      isDeleted?: boolean;
-                      isRefunded?: boolean;
-                      type?: string;
-                      category?: string;
-                      amount?: number;
-                    };
-                    if (record.isDeleted || record.isRefunded) return;
-                    if (record.type === 'expense' && record.category === challenge.category) {
-                      totalAmount += record.amount || 0;
-                    }
-                  });
-                }
-              }
-            });
-          }
-          amounts[challenge.id] = totalAmount;
-        }
-        setChallengeAmounts(amounts);
-      };
-      calculateChallengeAmounts();
-    });
-    return () => task.cancel();
-  }, [challenges]);
 
   // 오늘 날짜 기준으로, 커스텀 월 시작일을 반영한 년/월로 이동
   const resetToCurrentMonth = useCallback(async () => {

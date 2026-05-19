@@ -15,7 +15,7 @@ import {
 } from '@/utils/payment-types';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Dimensions, Easing, Keyboard, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableWithoutFeedback, View } from 'react-native';
+import { Animated, Dimensions, Easing, Keyboard, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, TouchableWithoutFeedback, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import ColorPicker, { HueSlider, Panel1 } from 'reanimated-color-picker';
 
@@ -366,15 +366,13 @@ export default function PaymentTypeEditScreen() {
                   *
                 </Text>
               </Text>
-              <View style={styles.radioRowWrap}>
-                <View style={styles.radioRow}>
+              <View style={styles.radioRow}>
                 <View style={styles.radioCol}>
                   <Radio checked={currentSubtype?.type === 'credit'} label="신용카드" disabled />
                 </View>
                 <View style={styles.radioCol}>
                   <Radio checked={currentSubtype?.type === 'debit'} label="체크카드" disabled />
                 </View>
-              </View>
               </View>
             </View>
 
@@ -385,19 +383,14 @@ export default function PaymentTypeEditScreen() {
               }}
             >
               <Text style={[styles.label, { color: colors.text }]}>설명</Text>
-              <View style={[styles.textAreaWrap, { backgroundColor: colors.staticWhite, borderColor: colors.border }]}>
-                <TextInput
-                  value={description}
-                  onChangeText={setDescription}
-                  onFocus={handleDescriptionFocus}
-                  placeholder="설명을 입력해 주세요.(최대 20자)"
-                  placeholderTextColor={colors.textAssistive}
-                  style={[styles.textArea, { color: colors.text }]}
-                  multiline
-                  maxLength={20}
-                  textAlignVertical="top"
-                />
-              </View>
+              <Input
+                variant="area"
+                value={description}
+                onChangeText={setDescription}
+                onFocus={handleDescriptionFocus}
+                placeholder="설명을 입력해 주세요.(최대 20자)"
+                maxLength={20}
+              />
             </View>
           </ScrollView>
           {isColorPickerMounted ? (
@@ -514,13 +507,15 @@ const styles = StyleSheet.create({
   colorPanel: { width: '100%', height: 220, borderRadius: 12 },
   hueSlider: { width: '100%', height: 36, marginTop: 12, borderRadius: 12 },
 
-  // 피그마: 섹션 간 32px 간격
-  section: { marginBottom: 32 },
+  // 피그마: 섹션 간 32px 간격, 라벨-필드 8px
+  section: {
+    marginBottom: 32,
+    gap: 8,
+  },
   inputHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
   },
   label: { ...Typography.body1.l.bold },
   deleteText: {
@@ -529,22 +524,9 @@ const styles = StyleSheet.create({
   },
   // 피그마: 신용(좌) / 체크(우)로 고정 배치
   // - 2컬럼(각 50%)으로 쪼개서, 체크카드가 화면 중앙(50%)에서 시작하도록 맞춤
-  radioRowWrap: { marginTop: 8 },
   radioRow: { flexDirection: 'row', alignItems: 'center' },
   radioCol: { flex: 1, alignItems: 'flex-start' },
 
-  textAreaWrap: {
-    height: 96,
-    borderRadius: 12,
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-  },
-  textArea: {
-    ...Typography.body1.l.regular,
-    flex: 1,
-    padding: 0,
-  },
   modalText: {
     ...Typography.body1.l.regular,
     textAlign: 'center',

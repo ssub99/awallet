@@ -602,7 +602,10 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const showQuickInput = useCallback((starScale: AnimatedValue, starRotate: AnimatedValue, shortBottom?: number) => {
     if (!isAtLeastVersion(Constants.expoConfig?.version, QUICK_INPUT_MIN_VERSION)) return;
     starRefs.current = { starScale, starRotate };
-    const bottom = Number.isFinite(shortBottom) ? Math.max(KEYBOARD_GAP, shortBottom) : KEYBOARD_GAP;
+    const bottom =
+      typeof shortBottom === 'number' && Number.isFinite(shortBottom)
+        ? Math.max(KEYBOARD_GAP, shortBottom)
+        : KEYBOARD_GAP;
     lastShortBottomRef.current = bottom;
     shortBottomFromScreen.value = bottom;
     animatedBottom.value = bottom;
@@ -1102,7 +1105,9 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       calendarRefreshEvent.emit();
       if (challengeCategory) {
         const recordDateObj = new Date(actualDateKey);
-        triggerChallengeNotifications(challengeCategory, recordDateObj).catch(() => {});
+        await triggerChallengeNotifications(challengeCategory, recordDateObj).catch((error) => {
+          console.error('[quick-input] Failed to trigger challenge notifications:', error);
+        });
       }
       rescheduleDailyReminderIfNeeded().catch(() => {});
     } catch {

@@ -156,7 +156,7 @@ export function DatePicker({
   // 모달이 닫히는 중인지 추적 (prop 변경 무시하기 위함)
   const isClosingRef = useRef(false);
   // 완료 시 적용 지연 타이머 (iOS wheel 관성 대비)
-  const applyTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const applyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   // Animation values (same as TopNavigation)
   const dimOpacity = useRef(new Animated.Value(0)).current;

@@ -28,6 +28,7 @@ const KEYS_TO_REMOVE = [
   'userCategories_income',
   'categoryOrder_expense',
   'categoryOrder_income',
+  'notificationsEnabled',
   GENERAL_NOTIFICATIONS_ENABLED_KEY,
   CHALLENGE_NOTIFICATIONS_ENABLED_KEY,
   'calendarData',

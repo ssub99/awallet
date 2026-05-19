@@ -43,6 +43,14 @@ export interface ExpressionToken {
   value: string;
 }
 
+function createNumberToken(value: string): ExpressionToken {
+  return { type: 'number', value };
+}
+
+function createOperatorToken(value: CustomKeypadOperator): ExpressionToken {
+  return { type: 'operator', value };
+}
+
 interface KeyDefinition {
   type: KeyType;
   label: string;
@@ -211,7 +219,7 @@ export function CustomKeypad({
     if (tokens.length > 1) return;
 
     const nextValue = stripNonDigits(value);
-    const nextTokens = nextValue ? [{ type: 'number', value: nextValue }] : [];
+    const nextTokens = nextValue ? [createNumberToken(nextValue)] : [];
     const isSame =
       tokens.length === nextTokens.length &&
       tokens[0]?.type === nextTokens[0]?.type &&
@@ -261,7 +269,7 @@ export function CustomKeypad({
         const nextNumber = normalizeNumberString(
           digit === '0' || digit === '00' ? '0' : digit
         );
-        emitState([...tokens, { type: 'number', value: nextNumber }], null);
+        emitState([...tokens, createNumberToken(nextNumber)], null);
         return;
       }
 
@@ -270,7 +278,7 @@ export function CustomKeypad({
           ? digit
           : lastToken.value + digit
       );
-      const nextTokens = [...tokens.slice(0, -1), { type: 'number', value: nextValue }];
+      const nextTokens = [...tokens.slice(0, -1), createNumberToken(nextValue)];
       emitState(nextTokens, null);
     },
     [emitState, tokens]
@@ -286,7 +294,7 @@ export function CustomKeypad({
     const nextOperator = getNextOperator(baseOperator);
 
     if (lastToken?.type === 'operator') {
-      const nextTokens = [...tokens.slice(0, -1), { type: 'operator', value: nextOperator }];
+      const nextTokens = [...tokens.slice(0, -1), createOperatorToken(nextOperator)];
       emitState(nextTokens, nextOperator);
       return;
     }
@@ -294,16 +302,13 @@ export function CustomKeypad({
     if (tokens.length >= 3) {
       const result = evaluateTokens(tokens);
       const nextTokens = result
-        ? [
-            { type: 'number', value: result },
-            { type: 'operator', value: nextOperator },
-          ]
-        : [{ type: 'operator', value: nextOperator }];
+        ? [createNumberToken(result), createOperatorToken(nextOperator)]
+        : [createOperatorToken(nextOperator)];
       emitState(nextTokens, nextOperator);
       return;
     }
 
-    emitState([...tokens, { type: 'operator', value: nextOperator }], nextOperator);
+    emitState([...tokens, createOperatorToken(nextOperator)], nextOperator);
   }, [emitState, operatorSelection, tokens]);
 
   const handleClear = useCallback(() => {
@@ -324,7 +329,7 @@ export function CustomKeypad({
       return;
     }
 
-    const nextTokens = [...tokens.slice(0, -1), { type: 'number', value: nextValue }];
+    const nextTokens = [...tokens.slice(0, -1), createNumberToken(nextValue)];
     emitState(nextTokens, operatorSelection);
   }, [emitState, operatorSelection, tokens]);
 
@@ -344,7 +349,7 @@ export function CustomKeypad({
       return;
     }
 
-    const nextTokens = [...currentTokens.slice(0, -1), { type: 'number', value: nextValue }];
+    const nextTokens = [...currentTokens.slice(0, -1), createNumberToken(nextValue)];
     emitState(nextTokens, operatorSelectionRef.current);
   }, [emitState]);
 
@@ -356,7 +361,7 @@ export function CustomKeypad({
     if (!isComplete) return;
 
     const result = evaluateTokens(tokens);
-    const nextTokens = result ? [{ type: 'number', value: result }] : [];
+    const nextTokens = result ? [createNumberToken(result)] : [];
     emitState(nextTokens, null);
   }, [emitState, tokens]);
 

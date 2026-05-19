@@ -408,11 +408,10 @@ export default function CategorySettingScreen() {
               onRelease={handleRelease}
               onDragEnd={handleDragEnd}
               animationConfig={{
-                damping: 50, // 증가: 더 부드러운 애니메이션 (100 -> 50)
-                stiffness: 1000, // 감소: 더 부드러운 반응 (1000 -> 500)
-                mass: 0.5, // 증가: 더 안정적인 움직임 (0.5 -> 1)
-                overshootClamping: true, // 오버슈트 방지
-                duration: 100, // 애니메이션 지속 시간 (밀리초)
+                damping: 50,
+                stiffness: 1000,
+                mass: 0.5,
+                overshootClamping: true,
               }}
               keyExtractor={(item) => item.label}
               renderItem={renderItem}

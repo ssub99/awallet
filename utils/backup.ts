@@ -8,17 +8,17 @@
  *   및 관련 ID·원본금액·타임스탬프 등.
  *
  * - CSV: 날짜,카테고리,수입/소비,금액,유형,메모 (엑셀 양식 호환)
- * - XLSX: 년도별 시트('2025년', '2026년' 등), 동일 열 구조
+ * - XLSX: 년도별 시트 + 카테고리 시트(이름만, 이모지 제외). 복원 시 기본 카테고리는 내장 이모지, 사용자 카테고리는 ✅
  * - 암호화 없음. 파일은 사용자가 안전한 곳에 보관.
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
+import { type Category } from '@/constants/categories';
 import {
-  type Category,
-  EXPENSE_CATEGORIES,
-  INCOME_CATEGORIES,
-} from '@/constants/categories';
+  normalizeExcelCategoryLabel,
+  resolveCategoryLabelsForExcelRestore,
+} from '@/utils/category-emoji-inference';
 import { applySavedOrder, loadCategoryOrder, saveCategoryOrder } from '@/utils/category-order';
 import { loadCategories, saveCategories } from '@/utils/categories';
 import { resetAppStoreReviewProgressAfterRestore } from '@/utils/app-store-review-lifetime';
@@ -37,6 +37,8 @@ import {
   type PaymentSubtype,
   migrateExpensePaymentSubtypeId,
 } from '@/utils/payment-types';
+import { rebuildCalendarDataFromStores } from '@/utils/rebuild-calendar-data';
+import { clearChallengeNotificationSchedulesForRestore } from '@/utils/notification-scheduler';
 import * as XLSX from 'xlsx-js-style';
 
 const CALENDAR_DATA_KEY = 'calendarData';
@@ -69,9 +71,11 @@ async function clearConsumptionReportCaches(): Promise<void> {
   }
 }
 
-/** 캘린더 제거 + 리포트 캐시 정리 + 인앱 리뷰 누적·유도 플래그 초기화(복원분은 리뷰 카운트에 포함하지 않음) */
+/** 캘린더 제거 + expense 기준 재구성 + 챌린지 OS 예약 정리 (복원 직후 진행 알림 신규 스케줄 없음) */
 async function finalizeRestoreSideEffects(): Promise<void> {
   await AsyncStorage.removeItem(CALENDAR_DATA_KEY);
+  await clearChallengeNotificationSchedulesForRestore();
+  await rebuildCalendarDataFromStores();
   await clearConsumptionReportCaches();
   await resetAppStoreReviewProgressAfterRestore();
   await clearQuickInputTipBoxExpanded();
@@ -120,6 +124,25 @@ function jsonReviver(_key: string, value: unknown): unknown {
   return value;
 }
 
+/** 저장된 카테고리를 표시 순서(드래그 편집 순서)대로 반환 */
+async function loadOrderedCategoriesForBackup(): Promise<{
+  categoriesExpense: Category[];
+  categoriesIncome: Category[];
+}> {
+  const [categoriesExpenseRaw, categoriesIncomeRaw, orderExpense, orderIncome] = await Promise.all([
+    loadCategories('expense'),
+    loadCategories('income'),
+    loadCategoryOrder('expense'),
+    loadCategoryOrder('income'),
+  ]);
+  return {
+    categoriesExpense:
+      orderExpense?.length ? applySavedOrder(categoriesExpenseRaw, orderExpense) : categoriesExpenseRaw,
+    categoriesIncome:
+      orderIncome?.length ? applySavedOrder(categoriesIncomeRaw, orderIncome) : categoriesIncomeRaw,
+  };
+}
+
 /**
  * 현재 저장된 소비/입금 데이터와 카테고리(수입·소비) 설정으로 백업 페이로드를 만듭니다.
  * 카테고리는 사용자가 설정한 표시 순서(드래그 편집 순서)대로 포함됩니다.
@@ -129,25 +152,15 @@ export async function createBackupPayload(): Promise<BackupPayload> {
     expenses,
     incomes,
     challenges,
-    categoriesExpenseRaw,
-    categoriesIncomeRaw,
-    orderExpense,
-    orderIncome,
+    { categoriesExpense, categoriesIncome },
     paymentSubtypes,
   ] = await Promise.all([
     getAllExpenses(),
     getAllIncomes(),
     getAllChallenges(),
-    loadCategories('expense'),
-    loadCategories('income'),
-    loadCategoryOrder('expense'),
-    loadCategoryOrder('income'),
+    loadOrderedCategoriesForBackup(),
     loadPaymentSubtypes(),
   ]);
-  const categoriesExpense =
-    orderExpense?.length ? applySavedOrder(categoriesExpenseRaw, orderExpense) : categoriesExpenseRaw;
-  const categoriesIncome =
-    orderIncome?.length ? applySavedOrder(categoriesIncomeRaw, orderIncome) : categoriesIncomeRaw;
   return {
     version: BACKUP_VERSION,
     exportedAt: new Date().toISOString(),
@@ -595,8 +608,14 @@ const XLSX_CATEGORY_CELL_STYLE = {
 /** G열(메모와 카테고리 표 사이 빈 칸): 텍스트·배경 없음 */
 const XLSX_GAP_CELL_STYLE = { font: XLSX_DEFAULT_FONT };
 
+/** SheetJS aoa_to_sheet 셀 값 (문자/숫자 또는 스타일 포함 객체) */
+type XlsxStyledCell = { v: string; t: string; s: object };
+type XlsxCellValue = string | number | XlsxStyledCell;
+type XlsxRow = XlsxCellValue[];
+type XlsxSheetRows = XlsxRow[];
+
 /** 헤더 행(스타일 포함) — aoa_to_sheet에 넣을 첫 행 (9열: 데이터 6 + 빈칸 1 + 카테고리 2) */
-function buildXlsxHeaderRow(): { v: string; t: string; s: object }[] {
+function buildXlsxHeaderRow(): XlsxRow {
   const dataLabels = XLSX_HEADER_LABELS.slice(0, 7);
   const gapAndCategoryLabels = XLSX_HEADER_LABELS.slice(7, 10);
   return [
@@ -606,6 +625,10 @@ function buildXlsxHeaderRow(): { v: string; t: string; s: object }[] {
     { v: gapAndCategoryLabels[2], t: 's' as const, s: XLSX_CATEGORY_HEADER_STYLE },
   ];
 }
+
+/** XLSX 카테고리 전용 시트 이름 */
+const XLSX_EXPENSE_CATEGORY_SHEET = '소비카테고리';
+const XLSX_INCOME_CATEGORY_SHEET = '수입카테고리';
 
 /** 엑셀 열 너비(문자 수): 기록 7열 + 빈칸 1 + 카테고리 2열 */
 const XLSX_COL_WIDTHS = [
@@ -640,7 +663,81 @@ function dateStringToExcelSerial(dateStr: string): number {
   return Math.round((t - EXCEL_EPOCH) / 86400000);
 }
 
-/** 엑셀 날짜 시리얼을 YYYY.MM.DD 문자열로 변환 */
+function parseCategoryLabelsFromSheetRows(rows: string[][]): string[] | null {
+  if (rows.length < 2) return null;
+  const header = rows[0].map((c) => String(c ?? '').trim());
+  const labelCol = header.findIndex((h) => h === '카테고리');
+  if (labelCol < 0) return null;
+
+  const labels: string[] = [];
+  for (let i = 1; i < rows.length; i++) {
+    const cells = rows[i] ?? [];
+    const raw = String(cells[labelCol] ?? '').trim();
+    const label = normalizeExcelCategoryLabel(raw);
+    if (label) labels.push(label);
+  }
+  return labels.length > 0 ? labels : null;
+}
+
+function extractCategoryLabelsFromYearSheetReference(
+  wb: XLSX.WorkBook,
+): { expenseLabels?: string[]; incomeLabels?: string[] } {
+  const expenseSeen = new Set<string>();
+  const incomeSeen = new Set<string>();
+  const expenseLabels: string[] = [];
+  const incomeLabels: string[] = [];
+
+  for (const sheetName of wb.SheetNames) {
+    if (!sheetName.endsWith('년')) continue;
+    const ws = wb.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1 }) as string[][];
+    if (rows.length < 2) continue;
+
+    const header = rows[0].map((c) => String(c ?? '').trim());
+    const expenseCol = header.findIndex((h) => h === '소비 카테고리');
+    const incomeCol = header.findIndex((h) => h === '수입 카테고리');
+    if (expenseCol < 0 && incomeCol < 0) continue;
+
+    for (let i = 1; i < rows.length; i++) {
+      const cells = rows[i] ?? [];
+      const get = (col: number) => (col >= 0 ? String(cells[col] ?? '').trim() : '');
+
+      if (expenseCol >= 0) {
+        const label = normalizeExcelCategoryLabel(get(expenseCol));
+        if (label && !expenseSeen.has(label)) {
+          expenseSeen.add(label);
+          expenseLabels.push(label);
+        }
+      }
+      if (incomeCol >= 0) {
+        const label = normalizeExcelCategoryLabel(get(incomeCol));
+        if (label && !incomeSeen.has(label)) {
+          incomeSeen.add(label);
+          incomeLabels.push(label);
+        }
+      }
+    }
+    break;
+  }
+
+  return {
+    expenseLabels: expenseLabels.length > 0 ? expenseLabels : undefined,
+    incomeLabels: incomeLabels.length > 0 ? incomeLabels : undefined,
+  };
+}
+
+function appendCategorySheet(wb: XLSX.WorkBook, sheetName: string, labels: string[]): void {
+  const headerRow: XlsxRow = [{ v: '카테고리', t: 's', s: XLSX_CATEGORY_HEADER_STYLE }];
+  const bodyRows: XlsxSheetRows = labels.map((label) => [label]);
+  const ws = XLSX.utils.aoa_to_sheet([headerRow, ...bodyRows]);
+  ws['!cols'] = [{ wch: 18 }];
+  for (let r = 1; r <= labels.length; r++) {
+    const ref = XLSX.utils.encode_cell({ r, c: 0 });
+    if (ws[ref]) ws[ref].s = XLSX_CATEGORY_CELL_STYLE;
+  }
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+}
+
 function excelSerialToDateString(serial: number): string {
   const date = new Date(EXCEL_EPOCH + serial * 86400000);
   const y = date.getFullYear();
@@ -653,11 +750,13 @@ function excelSerialToDateString(serial: number): string {
  * 년도별 시트('2025년', '2026년' 등)로 XLSX 백업 파일을 생성하고 파일 경로를 반환합니다.
  */
 export async function writeExcelToFile(): Promise<string> {
-  const [expenses, incomes, paymentSubtypes] = await Promise.all([
-    getAllExpenses(),
-    getAllIncomes(),
-    loadPaymentSubtypes(),
-  ]);
+  const [expenses, incomes, paymentSubtypes, { categoriesExpense, categoriesIncome }] =
+    await Promise.all([
+      getAllExpenses(),
+      getAllIncomes(),
+      loadPaymentSubtypes(),
+      loadOrderedCategoriesForBackup(),
+    ]);
   const subtypeLabelById = new Map(paymentSubtypes.map((item) => [item.id, item.label]));
 
   type RowSource = { date: string; type: 'expense' | 'income'; record: ExpenseRecord | IncomeRecord };
@@ -671,7 +770,7 @@ export async function writeExcelToFile(): Promise<string> {
     all.push({ date: r.date, type: 'income', record: r });
   }
 
-  const yearToRows = new Map<number, (string | number)[][]>();
+  const yearToRows = new Map<number, XlsxSheetRows>();
   for (const { date, type, record } of all) {
     const year = parseInt(date.slice(0, 4), 10);
     if (!yearToRows.has(year)) yearToRows.set(year, [buildXlsxHeaderRow()]);
@@ -715,20 +814,19 @@ export async function writeExcelToFile(): Promise<string> {
   const DATA_COLS = 7;
   const COLS = 10; // 데이터 7 + 빈칸 1 + 카테고리 2
   const CATEGORY_COL_START = 8;
-  const maxCategoryRows = Math.max(EXPENSE_CATEGORIES.length, INCOME_CATEGORIES.length);
+  const maxCategoryRows = Math.max(categoriesExpense.length, categoriesIncome.length);
 
   for (const year of years) {
     const rawRows = yearToRows.get(year)!;
-    const extendedRows: (string | number | { v: string; t: string; s: object })[][] = [
-      buildXlsxHeaderRow(),
-    ];
+    const extendedRows: XlsxSheetRows = [buildXlsxHeaderRow()];
     const maxRows = Math.max(rawRows.length - 1, maxCategoryRows);
     for (let i = 1; i <= maxRows; i++) {
       const dataRow = rawRows[i] as (string | number)[] | undefined;
       const dataCells = dataRow ? dataRow.slice(0, DATA_COLS) : Array(DATA_COLS).fill('');
-      const expenseLabel = i <= EXPENSE_CATEGORIES.length ? EXPENSE_CATEGORIES[i - 1].label : '';
-      const incomeLabel = i <= INCOME_CATEGORIES.length ? INCOME_CATEGORIES[i - 1].label : '';
-      extendedRows.push([...dataCells, '', expenseLabel, incomeLabel]);
+      const expenseRef =
+        i <= categoriesExpense.length ? categoriesExpense[i - 1].label : '';
+      const incomeRef = i <= categoriesIncome.length ? categoriesIncome[i - 1].label : '';
+      extendedRows.push([...dataCells, '', expenseRef, incomeRef]);
     }
 
     const ws = XLSX.utils.aoa_to_sheet(extendedRows);
@@ -757,6 +855,21 @@ export async function writeExcelToFile(): Promise<string> {
     }
 
     XLSX.utils.book_append_sheet(wb, ws, `${year}년`);
+  }
+
+  if (categoriesExpense.length > 0) {
+    appendCategorySheet(
+      wb,
+      XLSX_EXPENSE_CATEGORY_SHEET,
+      categoriesExpense.map((cat) => cat.label),
+    );
+  }
+  if (categoriesIncome.length > 0) {
+    appendCategorySheet(
+      wb,
+      XLSX_INCOME_CATEGORY_SHEET,
+      categoriesIncome.map((cat) => cat.label),
+    );
   }
 
   const base64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
@@ -793,17 +906,35 @@ function isValidPaymentType(s: string): boolean {
  * 모든 시트를 합쳐서 복원합니다.
  * 필수 항목(수입/소비, 날짜, 카테고리, 금액, 유형)에 공백 또는 형식에 맞지 않는 데이터가 있으면 복원 중단을 위해 throw.
  */
-export function parseXlsxContent(base64: string): { expenses: ImportedExpenseRecord[]; incomes: IncomeRecord[] } | null {
+export function parseXlsxContent(base64: string): {
+  expenses: ImportedExpenseRecord[];
+  incomes: IncomeRecord[];
+  categoriesExpense?: Category[];
+  categoriesIncome?: Category[];
+} | null {
   try {
     const wb = XLSX.read(base64, { type: 'base64', raw: true });
     const allExpenses: ImportedExpenseRecord[] = [];
     const allIncomes: IncomeRecord[] = [];
+    let expenseLabels: string[] | undefined;
+    let incomeLabels: string[] | undefined;
     let timestampBase = Date.now();
 
     for (const sheetName of wb.SheetNames) {
       const ws = wb.Sheets[sheetName];
       const rows = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1 }) as string[][];
       if (rows.length < 2) continue;
+
+      if (sheetName === XLSX_EXPENSE_CATEGORY_SHEET) {
+        const parsed = parseCategoryLabelsFromSheetRows(rows);
+        if (parsed?.length) expenseLabels = parsed;
+        continue;
+      }
+      if (sheetName === XLSX_INCOME_CATEGORY_SHEET) {
+        const parsed = parseCategoryLabelsFromSheetRows(rows);
+        if (parsed?.length) incomeLabels = parsed;
+        continue;
+      }
 
       const header = rows[0].map((c) => String(c ?? '').trim());
       const typeCol = header.findIndex((h) => h === '수입/소비' || h.includes('수입'));
@@ -879,7 +1010,30 @@ export function parseXlsxContent(base64: string): { expenses: ImportedExpenseRec
     }
 
     if (allExpenses.length === 0 && allIncomes.length === 0) return null;
-    return { expenses: allExpenses, incomes: allIncomes };
+
+    if (!expenseLabels?.length || !incomeLabels?.length) {
+      const reference = extractCategoryLabelsFromYearSheetReference(wb);
+      if (!expenseLabels?.length && reference.expenseLabels?.length) {
+        expenseLabels = reference.expenseLabels;
+      }
+      if (!incomeLabels?.length && reference.incomeLabels?.length) {
+        incomeLabels = reference.incomeLabels;
+      }
+    }
+
+    const categoriesExpense = expenseLabels?.length
+      ? resolveCategoryLabelsForExcelRestore(expenseLabels, 'expense')
+      : undefined;
+    const categoriesIncome = incomeLabels?.length
+      ? resolveCategoryLabelsForExcelRestore(incomeLabels, 'income')
+      : undefined;
+
+    return {
+      expenses: allExpenses,
+      incomes: allIncomes,
+      categoriesExpense,
+      categoriesIncome,
+    };
   } catch (err) {
     if (err instanceof Error && err.message === RESTORE_VALIDATION_ERROR) throw err;
     return null;
@@ -899,6 +1053,14 @@ export async function restoreFromFile(fileUri: string): Promise<void> {
     });
     const parsed = parseXlsxContent(base64);
     if (parsed) {
+      if (parsed.categoriesExpense?.length) {
+        await saveCategories('expense', parsed.categoriesExpense);
+        await saveCategoryOrder('expense', parsed.categoriesExpense);
+      }
+      if (parsed.categoriesIncome?.length) {
+        await saveCategories('income', parsed.categoriesIncome);
+        await saveCategoryOrder('income', parsed.categoriesIncome);
+      }
       const resolvedExpenses = await resolveImportedExpenseSubtypeIds(parsed.expenses);
       await Promise.all([
         replaceAllExpenses(resolvedExpenses),

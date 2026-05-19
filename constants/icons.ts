@@ -106,6 +106,7 @@ export const IconSizes = {
  */
 export const IconDescriptions: Record<IconName, string> = {
   addTask: 'Add new task',
+  addTaskFab: 'Add task floating action button',
   arrowDown: 'Arrow pointing down',
   arrowLeft: 'Arrow pointing left',
   arrowRight: 'Arrow pointing right',
@@ -118,6 +119,7 @@ export const IconDescriptions: Record<IconName, string> = {
   checkboxIcon: 'Checkbox checkmark icon',
   close: 'Close or dismiss',
   delete: 'Delete or remove',
+  filter: 'Filter',
   handle: 'Drag handle',
   home: 'Home or main screen',
   info: 'Information',
@@ -179,7 +181,18 @@ export function getIconMetadata(name: IconName): IconMetadata {
   }
   
   // Check if has solid variant
-  const solidIcons: IconName[] = ['arrowDown', 'arrowUp', 'arrowLeft', 'arrowRight', 'challenge', 'delete', 'home', 'mypage', 'setting'];
+  const solidIcons: IconName[] = [
+    'arrowDown',
+    'arrowUp',
+    'arrowLeft',
+    'arrowRight',
+    'cancel',
+    'challenge',
+    'delete',
+    'home',
+    'mypage',
+    'setting',
+  ];
   const hasSolid = solidIcons.includes(name);
   
   return {

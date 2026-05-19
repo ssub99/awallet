@@ -10,24 +10,23 @@ import { CustomKeypad, getKeypadHeight, type CustomKeypadOperator, type Expressi
 import { DatePicker } from '@/components/ui/date-picker';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
+import { ModalPopup } from '@/components/ui/modal-popup';
 import { Switch } from '@/components/ui/switch';
 import { AtomicColors } from '@/constants/atomic-colors';
-import {
-  buildChallengeRecurringMonthPickerOptions,
-  CHALLENGE_RECURRING_MONTH_MIN,
-} from '@/constants/challenge-recurring-months';
 import { type Category } from '@/constants/categories';
-import { loadCategories } from '@/utils/categories';
+import {
+    buildChallengeRecurringMonthPickerOptions,
+    CHALLENGE_RECURRING_MONTH_MIN,
+} from '@/constants/challenge-recurring-months';
 import { Colors, Typography } from '@/constants/theme';
 import { useLoading } from '@/contexts/loading-context';
 import { useToast } from '@/contexts/toast-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { logEvent } from '@/utils/analytics';
-import { getChallengeStatus } from '@/utils/challenge-utils';
-import { createChallenges, getAllChallenges, type ChallengeRecord } from '@/utils/challenges';
+import { loadCategories } from '@/utils/categories';
+import { createChallenges, type ChallengeRecord } from '@/utils/challenges';
 import { generateGroupId, generateRecordId } from '@/utils/id-generator';
-import { cancelChallengeProgressNotifications, notifyChallengeFailure, notifyChallengeProgress, notifyChallengeSuccess } from '@/utils/notification-scheduler';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BlurView } from 'expo-blur';
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
@@ -85,6 +84,7 @@ export default function ChallengeCreateScreen() {
   const [category, setCategory] = useState<string>(params.category || '');
   
   const [targetAmount, setTargetAmount] = useState<string>('');
+  const [showTargetAmountAlert, setShowTargetAmountAlert] = useState(false);
   const [amountExpression, setAmountExpression] = useState<ExpressionToken[]>([]);
   const [isKeypadVisible, setIsKeypadVisible] = useState(false);
   const [isKeypadMounted, setIsKeypadMounted] = useState(false);
@@ -368,6 +368,7 @@ export default function ChallengeCreateScreen() {
     }
     
     if (!targetAmount || targetAmount === '0' || targetAmount.trim() === '') {
+      setShowTargetAmountAlert(true);
       return;
     }
     
@@ -488,7 +489,7 @@ export default function ChallengeCreateScreen() {
       }}
     >
       <SafeAreaView style={[styles.container, { backgroundColor: colors.staticWhite }]} edges={['top']}>
-        <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
+        <StatusBar barStyle="dark-content" />
       
         <TopNavigation
           type="sub"
@@ -741,6 +742,16 @@ export default function ChallengeCreateScreen() {
           </Button>
         </View>
 
+        <ModalPopup
+          visible={showTargetAmountAlert}
+          onConfirm={() => setShowTargetAmountAlert(false)}
+          confirmText="확인"
+        >
+          <Text style={[styles.modalText, { color: colors.text }]}>
+            목표 소비 금액을 입력해 주세요.
+          </Text>
+        </ModalPopup>
+
         {/* 시작 년월 선택 피커 */}
         <DatePicker
           visible={showYearMonthPicker}
@@ -913,6 +924,10 @@ const styles = StyleSheet.create({
   bottomButtonContainer: {
     paddingHorizontal: 16,
     paddingTop: 16,
+  },
+  modalText: {
+    ...Typography.body1.l.regular,
+    textAlign: 'center',
   },
   amountExpression: {
     flex: 1,

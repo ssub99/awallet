@@ -62,55 +62,11 @@ import MypageSolid from '@/assets/images/icons/solid/mypage.svg';
 import SettingSolid from '@/assets/images/icons/solid/setting.svg';
 
 /**
- * Available icon names (camelCase)
- * Converted from kebab-case filenames
- */
-export type IconName =
-  | 'addTask'
-  | 'addTaskFab'
-  | 'arrowDown'
-  | 'arrowLeft'
-  | 'arrowRight'
-  | 'arrowUp'
-  | 'calendarMonth'
-  | 'calendarYear'
-  | 'cancel'
-  | 'challenge'
-  | 'check'
-  | 'checkboxIcon'
-  | 'close'
-  | 'delete'
-  | 'filter'
-  | 'handle'
-  | 'home'
-  | 'info'
-  | 'keypadDelete'
-  | 'lock'
-  | 'mypage'
-  | 'operationAddition'
-  | 'operationDivision'
-  | 'operation'
-  | 'operationEqual'
-  | 'operationMultiplication'
-  | 'operationSubtraction'
-  | 'person'
-  | 'profile'
-  | 'search'
-  | 'send'
-  | 'setting'
-  | 'star';
-
-/**
  * Icon variant types
  * - line: Outlined/stroke style icons
  * - solid: Filled style icons (limited availability)
  */
 export type IconVariant = 'line' | 'solid';
-
-/**
- * Icons available in solid variant
- */
-export type SolidIconName = 'arrowDown' | 'arrowLeft' | 'arrowRight' | 'arrowUp' | 'challenge' | 'delete' | 'home' | 'mypage' | 'setting';
 
 export interface IconProps {
   /**
@@ -199,32 +155,49 @@ const iconComponents = {
   },
 } as const;
 
+/** Line-variant icon names derived from the component map */
+export type LineIconName = keyof typeof iconComponents.line;
+
+/** Solid-variant icon names derived from the component map */
+export type SolidIconName = keyof typeof iconComponents.solid;
+
 /**
- * Icons available in solid variant
+ * Available icon names (camelCase)
+ * Union of line and solid maps — cancel is solid-only.
  */
-const solidIcons = new Set<IconName>(['arrowDown', 'arrowLeft', 'arrowRight', 'arrowUp', 'cancel', 'challenge', 'delete', 'home', 'mypage', 'setting']);
+export type IconName = LineIconName | SolidIconName;
+
+const solidIcons = new Set<SolidIconName>(Object.keys(iconComponents.solid) as SolidIconName[]);
+
+function hasLineIcon(name: IconName): name is LineIconName {
+  return name in iconComponents.line;
+}
+
+function hasSolidIcon(name: IconName): name is SolidIconName {
+  return name in iconComponents.solid;
+}
 
 /**
  * Get icon component based on name and variant
  */
 function getIconComponent(name: IconName, variant: IconVariant) {
   if (variant === 'solid') {
-    // Check if solid variant exists
-    if (solidIcons.has(name)) {
-      return iconComponents.solid[name as SolidIconName];
+    if (hasSolidIcon(name)) {
+      return iconComponents.solid[name];
     }
-    // Fallback to line if solid not available
+    if (hasLineIcon(name)) {
+      return iconComponents.line[name];
+    }
+    console.error(`Icon component not found: ${name} (${variant})`);
+    return iconComponents.line.close;
+  }
+
+  if (hasLineIcon(name)) {
     return iconComponents.line[name];
   }
-  
-  const component = iconComponents.line[name];
-  if (!component) {
-    console.error(`Icon component not found: ${name} (${variant})`);
-    // Return a fallback component
-    return iconComponents.line.close; // Use close icon as fallback
-  }
-  
-  return component;
+
+  console.error(`Icon component not found: ${name} (${variant})`);
+  return iconComponents.line.close;
 }
 
 /**
@@ -276,14 +249,18 @@ export const IconUtils = {
    * Check if an icon has a solid variant
    */
   hasSolidVariant: (name: IconName): name is SolidIconName => {
-    return solidIcons.has(name);
+    return hasSolidIcon(name);
   },
   
   /**
    * Get all available icon names
    */
   getAllIconNames: (): IconName[] => {
-    return Object.keys(iconComponents.line) as IconName[];
+    const names = new Set<IconName>([
+      ...(Object.keys(iconComponents.line) as LineIconName[]),
+      ...(Object.keys(iconComponents.solid) as SolidIconName[]),
+    ]);
+    return Array.from(names);
   },
   
   /**

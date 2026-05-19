@@ -30,6 +30,7 @@ import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { logEvent, logExpenseAdjustment, logExpenseCreateComplete, mapRefundOptionToAnalytics } from '@/utils/analytics';
 import { loadCategories } from '@/utils/categories';
 import { triggerChallengeNotifications } from '@/utils/challenge-utils';
+import { rebuildCalendarDataFromStores } from '@/utils/rebuild-calendar-data';
 import { getCustomMonthInfo } from '@/utils/custom-month';
 import { getRecurringWeekendOptionDisplayLabel } from '@/utils/expense-calculations';
 import { initializePaymentSubtypes, type PaymentSubtype } from '@/utils/payment-types';
@@ -3001,7 +3002,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
             if (category) {
               const recordDateObj = new Date(actualDateKey);
-              triggerChallengeNotifications(category, recordDateObj).catch((_error) => {});
+              await triggerChallengeNotifications(category, recordDateObj).catch((error) => {
+                console.error('[expense-record] Failed to trigger challenge notifications:', error);
+              });
             }
             
             // 소비 기록 저장 후 일일 리마인더 정책 재적용
@@ -3585,11 +3588,11 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       // 6-1.6. 위젯에 이번달 소비 즉시 반영 (동기화 완료 후 화면 전환)
       await refreshWidgetWithCurrentMonth().catch(() => {});
 
-      // 6-2. 챌린지 알림 트리거 (비동기이지만 대기하지 않음)
+      // 6-2. 챌린지 알림 트리거 (진행 알림 취소/재스케줄 완료 후 이동)
       if (category) {
         const recordDateObj = new Date(actualDateKey);
-        triggerChallengeNotifications(category, recordDateObj).catch(error => {
-
+        await triggerChallengeNotifications(category, recordDateObj).catch((error) => {
+          console.error('[expense-record] Failed to trigger challenge notifications:', error);
         });
       }
       
@@ -3829,15 +3832,15 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         }
       }
 
-      await rebuildCalendarData();
+      await rebuildCalendarDataFromStores();
 
       // 위젯에 이번달 소비 즉시 반영 (동기화 완료 후 화면 전환)
       await refreshWidgetWithCurrentMonth().catch(() => {});
 
-      // 챌린지 알림 재계산 (삭제 후 소비율 변경 반영)
+      // 챌린지 알림 재계산 (삭제 후 소비율 변경 반영 — trigger 내부에서도 store 기준 재구성)
       if (editData.category) {
-        const recordDateObj = new Date(editData.date || date);
-        triggerChallengeNotifications(editData.category, recordDateObj).catch(error => {
+        const recordDateObj = parseRecordDate(editData.date || date, new Date());
+        await triggerChallengeNotifications(editData.category, recordDateObj).catch(error => {
           console.error('[expense-record] Failed to trigger challenge notifications after delete:', error);
         });
       }
