@@ -51,7 +51,7 @@ git commit -m "[$(date '+%y.%m.%d %H:%M:%S')] 변경 내용 설명"
 - **When amending**: Also use current time when amending commits with `--amend`
 
 ### 🚫 Commit Message — No Extra Trailers
-커밋 메시지에는 **제목(필요 시 본문)만** 넣고, 아래와 같은 부가 작명(trailer)은 **절대 포함하지 않는다**.
+커밋 메시지에는 **제목 한 줄만** 넣고, 아래와 같은 부가 작명(trailer)은 **절대 포함하지 않는다**.
 
 - `Co-authored-by: ...` (예: `Co-authored-by: Cursor <cursoragent@cursor.com>`)
 - `Signed-off-by: ...`
@@ -60,14 +60,13 @@ git commit -m "[$(date '+%y.%m.%d %H:%M:%S')] 변경 내용 설명"
 
 **예외:** 사용자가 명시적으로 trailer 추가를 요청한 경우에만 포함한다.
 
+**에이전트 실행 절차(검증·`-m` 단일 사용·IDE 커밋 금지)는 `12-git-commit-message.mdc`를 따른다.**
+
 ```bash
-# ✅ CORRECT — 제목만
+# ✅ CORRECT — 제목 한 줄만 (-m 한 번)
 git commit -m "[$(date '+%y.%m.%d %H:%M:%S')] 간편입력 날짜 보정"
 
-# ❌ WRONG — Co-authored-by 등 부가 작명 포함
-git commit -m "[$(date '+%y.%m.%d %H:%M:%S')] 간편입력 날짜 보정
-
-Co-authored-by: Cursor <cursoragent@cursor.com>"
+# ❌ WRONG — trailer 또는 여러 줄 본문
 ```
 
 ## ⚠️ CRITICAL - MUST FOLLOW

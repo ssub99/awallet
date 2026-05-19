@@ -1,0 +1,11 @@
+#!/bin/sh
+# Strip forbidden Git trailers (see .cursor/rules/12-git-commit-message.mdc)
+msg_file=$1
+[ -n "$msg_file" ] && [ -f "$msg_file" ] || exit 0
+
+tmp=$(mktemp) || exit 0
+trap 'rm -f "$tmp"' EXIT HUP INT TERM
+
+grep -v -E '^(Co-authored-by|Signed-off-by|Reviewed-by):' "$msg_file" >"$tmp"
+mv "$tmp" "$msg_file"
+exit 0

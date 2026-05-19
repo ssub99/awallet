@@ -41,3 +41,5 @@ Example template (Korean):
 Notes:
 - If push failed, state it clearly and include the error summary with a recommended fix.
 - If multiple commits were made in one operation, summarize the most recent commit and mention there were N additional commits.
+
+**Before reporting a commit:** run `git log -1 --format=%B` and confirm the message has **no** `Co-authored-by` / `Signed-off-by` / `Reviewed-by` lines (`12-git-commit-message.mdc`). If present and not pushed yet, amend with a single-line `-m` message first.

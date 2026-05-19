@@ -1,0 +1,64 @@
+---
+alwaysApply: true
+description: Git 커밋 메시지 형식·trailer 금지 및 에이전트 커밋 절차 (Co-authored-by 등)
+---
+
+# Git 커밋 메시지 (에이전트 필수)
+
+`00-project-core.mdc`의 커밋 규칙을 **실행할 때** 아래를 반드시 따른다.  
+**이미 푸시·배포된 과거 커밋은 수정하지 않는다.** 앞으로 만들 커밋만 적용한다.
+
+## 절대 금지 (메시지 본문·trailer)
+
+다음은 커밋 메시지에 **한 글자도** 넣지 않는다.
+
+- `Co-authored-by:` (예: `Co-authored-by: Cursor <cursoragent@cursor.com>`)
+- `Signed-off-by:`, `Reviewed-by:`
+- Cursor·에디터·도구가 자동으로 붙이는 기타 Git trailer
+
+**예외:** 사용자가 명시적으로 trailer 추가를 요청한 경우만.
+
+## 에이전트 커밋 방법 (필수)
+
+1. **제목 한 줄만** — 형식: `[yy.mm.dd HH:MM:SS] 한국어 설명` (실제 시각은 `date '+%y.%m.%d %H:%M:%S'`).
+2. **반드시 `-m` 한 번**으로만 커밋한다. 본문·빈 줄·trailer를 위한 여러 `-m` / 여러 줄 HEREDOC **사용 금지**.
+3. **커밋 메시지용 에디터를 열지 않는다** (`git commit`만 단독 호출 금지).
+4. Cursor IDE **Source Control UI로 커밋하지 않는다** (trailer 자동 삽입될 수 있음). 터미널 `git commit`만 사용.
+
+```bash
+git commit -m "[$(date '+%y.%m.%d %H:%M:%S')] 변경 내용 요약"
+```
+
+```bash
+# ❌ 금지 — 본문·Co-authored-by가 섞이기 쉬움
+git commit -m "$(cat <<'EOF'
+[26.05.19 15:31:10] 제목
+
+Co-authored-by: Cursor <cursoragent@cursor.com>
+EOF
+)"
+```
+
+## 커밋 직후 검증 (필수)
+
+커밋 결과를 사용자에게 보고하기 **전에** 실행:
+
+```bash
+git log -1 --format=%B
+```
+
+출력에 `Co-authored-by`, `Signed-off-by`, `Reviewed-by`가 있으면:
+
+- **아직 push 안 됨:** `git commit --amend -m "[$(date '+%y.%m.%d %H:%M:%S')] 동일 제목"` 으로 trailer 없이 다시 만든 뒤 보고.
+- **이미 push 됨:** 사용자에게 알리고, **임의로 amend/force push 하지 않음.**
+
+## 로컬 훅 (선택, trailer 자동 제거)
+
+에디터/Cursor가 trailer를 넣는 경우를 막으려면 **한 번만**:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+`.githooks/prepare-commit-msg`가 커밋 직전 메시지에서 금지 trailer 줄을 제거한다.  
+에이전트는 훅 유무와 관계없이 위 규칙을 지킨다.
