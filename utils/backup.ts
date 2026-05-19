@@ -39,7 +39,10 @@ import {
 } from '@/utils/payment-types';
 import { rebuildCalendarDataFromStores } from '@/utils/rebuild-calendar-data';
 import { clearChallengeNotificationSchedulesForRestore } from '@/utils/notification-scheduler';
-import * as XLSX from 'xlsx-js-style';
+/** 복원(사용자 파일 파싱): 패치된 SheetJS. 백업(스타일 출력): xlsx-js-style. */
+import * as XLSX from 'xlsx';
+import * as XLSXStyle from 'xlsx-js-style';
+import type { WorkBook } from 'xlsx';
 
 const CALENDAR_DATA_KEY = 'calendarData';
 const CONSUMPTION_REPORT_CACHE_PREFIXES = ['consumptionReport_', 'consumptionReportCtx_'] as const;
@@ -680,7 +683,7 @@ function parseCategoryLabelsFromSheetRows(rows: string[][]): string[] | null {
 }
 
 function extractCategoryLabelsFromYearSheetReference(
-  wb: XLSX.WorkBook,
+  wb: WorkBook,
 ): { expenseLabels?: string[]; incomeLabels?: string[] } {
   const expenseSeen = new Set<string>();
   const incomeSeen = new Set<string>();
@@ -726,16 +729,16 @@ function extractCategoryLabelsFromYearSheetReference(
   };
 }
 
-function appendCategorySheet(wb: XLSX.WorkBook, sheetName: string, labels: string[]): void {
+function appendCategorySheet(wb: XLSXStyle.WorkBook, sheetName: string, labels: string[]): void {
   const headerRow: XlsxRow = [{ v: '카테고리', t: 's', s: XLSX_CATEGORY_HEADER_STYLE }];
   const bodyRows: XlsxSheetRows = labels.map((label) => [label]);
-  const ws = XLSX.utils.aoa_to_sheet([headerRow, ...bodyRows]);
+  const ws = XLSXStyle.utils.aoa_to_sheet([headerRow, ...bodyRows]);
   ws['!cols'] = [{ wch: 18 }];
   for (let r = 1; r <= labels.length; r++) {
-    const ref = XLSX.utils.encode_cell({ r, c: 0 });
+    const ref = XLSXStyle.utils.encode_cell({ r, c: 0 });
     if (ws[ref]) ws[ref].s = XLSX_CATEGORY_CELL_STYLE;
   }
-  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  XLSXStyle.utils.book_append_sheet(wb, ws, sheetName);
 }
 
 function excelSerialToDateString(serial: number): string {
@@ -808,7 +811,7 @@ export async function writeExcelToFile(): Promise<string> {
     yearToRows.set(currentYear, [buildXlsxHeaderRow()]);
     years = [currentYear];
   }
-  const wb = XLSX.utils.book_new();
+  const wb = XLSXStyle.utils.book_new();
   const DATE_COL = 0;
   const AMOUNT_COL = 3;
   const DATA_COLS = 7;
@@ -829,32 +832,32 @@ export async function writeExcelToFile(): Promise<string> {
       extendedRows.push([...dataCells, '', expenseRef, incomeRef]);
     }
 
-    const ws = XLSX.utils.aoa_to_sheet(extendedRows);
+    const ws = XLSXStyle.utils.aoa_to_sheet(extendedRows);
     ws['!cols'] = XLSX_COL_WIDTHS;
 
     const dataCellFont = { font: XLSX_DEFAULT_FONT };
 
     for (let r = 1; r < extendedRows.length; r++) {
       for (let c = 0; c < DATA_COLS; c++) {
-        const ref = XLSX.utils.encode_cell({ r, c });
+        const ref = XLSXStyle.utils.encode_cell({ r, c });
         if (ws[ref]) ws[ref].s = { ...dataCellFont };
       }
       for (let c = CATEGORY_COL_START; c < COLS; c++) {
-        const ref = XLSX.utils.encode_cell({ r, c });
+        const ref = XLSXStyle.utils.encode_cell({ r, c });
         if (ws[ref]) ws[ref].s = XLSX_CATEGORY_CELL_STYLE;
       }
       const dateVal = extendedRows[r][DATE_COL];
       const dateSerial =
         typeof dateVal === 'string' ? dateStringToExcelSerial(dateVal) : Number(dateVal);
       if (Number.isFinite(dateSerial) && dateSerial > 0) {
-        const ref = XLSX.utils.encode_cell({ r, c: DATE_COL });
+        const ref = XLSXStyle.utils.encode_cell({ r, c: DATE_COL });
         ws[ref] = { t: 'n', v: dateSerial, s: { numFmt: XLSX_DATE_NUMFMT, ...dataCellFont } };
       }
-      const amountRef = XLSX.utils.encode_cell({ r, c: AMOUNT_COL });
+      const amountRef = XLSXStyle.utils.encode_cell({ r, c: AMOUNT_COL });
       if (ws[amountRef]) ws[amountRef].s = { numFmt: XLSX_ACCOUNTING_NUMFMT, ...dataCellFont };
     }
 
-    XLSX.utils.book_append_sheet(wb, ws, `${year}년`);
+    XLSXStyle.utils.book_append_sheet(wb, ws, `${year}년`);
   }
 
   if (categoriesExpense.length > 0) {
@@ -872,7 +875,7 @@ export async function writeExcelToFile(): Promise<string> {
     );
   }
 
-  const base64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
+  const base64 = XLSXStyle.write(wb, { type: 'base64', bookType: 'xlsx' });
   const filename = getExcelBackupFileName();
   const path = `${FileSystem.documentDirectory}${filename}`;
   await FileSystem.writeAsStringAsync(path, base64, {

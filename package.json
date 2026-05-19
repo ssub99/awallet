@@ -65,16 +65,25 @@
     "react-native-worklets": "0.5.1",
     "reanimated-color-picker": "^4.2.0",
     "ulid": "^3.0.1",
-    "xlsx": "^0.18.5",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "xlsx-js-style": "^1.2.0"
   },
   "overrides": {
-    "react-native-safe-area-context": "5.6.1"
+    "react-native-safe-area-context": "5.6.1",
+    "postcss": "^8.5.14",
+    "tar": "^7.5.15",
+    "node-forge": "^1.4.0",
+    "@xmldom/xmldom": "^0.9.10",
+    "minimatch": "^10.2.5",
+    "yaml": "^2.8.3",
+    "ajv": "^8.18.0",
+    "diff": "^8.0.3",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
     "@types/react": "~19.1.0",
     "@types/react-native-calendars": "^1.1264.7",
-    "eas-cli": "^5.9.3",
+    "eas-cli": "^18.13.1",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~10.0.0",
     "react-native-svg-transformer": "^1.5.1",
