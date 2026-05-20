@@ -11,7 +11,6 @@
  */
 
 import { Icon, IconName } from '@/components/ui/icon';
-import { pretendardTextStyle } from '@/constants/fonts';
 import { Colors, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { forwardRef, useImperativeHandle, useRef, useState, type ReactNode } from 'react';
@@ -313,6 +312,7 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
                 <Text
                   style={[
                     styles.input,
+                    variant === 'line' && !shortver && styles.inputLineButtonText,
                     shortver && styles.inputShort,
                     shouldUseCompactEmojiGap && styles.inputEmojiGapCompact,
                     { color: hasValue ? textColor : placeholderColor },
@@ -480,8 +480,7 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    fontSize: 16,
-    ...pretendardTextStyle('400'),
+    ...Typography.body1.l.regular,
     includeFontPadding: false,
     padding: 0,
     margin: 0,
@@ -494,13 +493,16 @@ const styles = StyleSheet.create({
     height: 24,
     textAlignVertical: 'center',
   },
+  /** buttonMode + line: iOS에서 Text 세로 중앙 (TextInput inputLine과 동일 박스) */
+  inputLineButtonText: {
+    lineHeight: 24,
+  },
   inputPlaceholderText: {
     ...Typography.body1.l.regular,
     position: 'absolute',
     left: 0,
     right: 0,
     includeFontPadding: false,
-    lineHeight: 24,
   },
   inputShort: {
     ...Typography.body2.r.regular,
@@ -511,7 +513,7 @@ const styles = StyleSheet.create({
     marginLeft: -4,
   },
   inputNumber: {
-    ...pretendardTextStyle('700'),
+    ...Typography.body1.l.bold,
     textAlign: 'right',
   },
   inputArea: {
@@ -526,19 +528,13 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   unit: {
-    fontSize: 16,
-    ...pretendardTextStyle('500'),
-    lineHeight: 24,
+    ...Typography.body1.l.medium,
   },
   time: {
-    fontSize: 16,
-    ...pretendardTextStyle('400'),
-    lineHeight: 24,
+    ...Typography.body1.l.regular,
   },
   rightText: {
-    fontSize: 16,
-    ...pretendardTextStyle('400'),
-    lineHeight: 24,
+    ...Typography.body1.l.regular,
   },
   rightArrow: {
     // Icon is 24x24
@@ -547,9 +543,7 @@ const styles = StyleSheet.create({
     // Icon is 24x24
   },
   calendarDate: {
-    fontSize: 16,
-    ...pretendardTextStyle('400'),
-    lineHeight: 24,
+    ...Typography.body1.l.regular,
   },
   sortationIndicator: {
     width: 16,

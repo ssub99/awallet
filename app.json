@@ -123,7 +123,8 @@
       "@react-native-firebase/app",
       "expo-web-browser",
       "expo-mail-composer",
-      "react-native-fbsdk-next"
+      "react-native-fbsdk-next",
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -245,15 +245,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   monthText: {
-    ...Typography.headline1.xl.bold,
-    fontSize: 28,
-    lineHeight: 42,
+    ...Typography.headline2.l.bold,
     color: '#ffffff',
   },
   statusText: {
-    ...Typography.headline1.xl.bold,
-    fontSize: 28,
-    lineHeight: 42,
+    ...Typography.headline2.l.bold,
     color: '#ffffff',
   },
   cardInfo: {
@@ -269,13 +265,9 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     ...Typography.body2.r.regular,
-    fontSize: 14,
-    lineHeight: 21,
   },
   infoValue: {
-    ...Typography.headline2.l.bold,
-    fontSize: 21,
-    lineHeight: 31.5,
+    ...Typography.headline4.r.bold,
     color: '#ffffff',
   },
   infoValueRight: {

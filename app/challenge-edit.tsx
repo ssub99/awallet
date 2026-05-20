@@ -24,7 +24,6 @@ import { loadCategories } from '@/utils/categories';
 import { cancelChallengeFailureNotification, cancelChallengeProgressNotifications, cancelChallengeSuccessNotification } from '@/utils/notification-scheduler';
 import { getChallengeById, getChallengesByRecurringId, softDeleteChallengesByRecurringId, updateChallengesByRecurringId, type ChallengeRecord } from '@/utils/challenges';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { KeypadGlassShell } from '@/components/ui/keypad-glass-shell';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Animated, Dimensions, Easing, Keyboard, Pressable, ScrollView, StatusBar, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
@@ -803,18 +802,16 @@ export default function ChallengeEditScreen() {
                   { transform: [{ translateY: keypadTranslateY }] },
                 ]}
               >
-                <KeypadGlassShell style={styles.customKeypadBlur}>
-                  <CustomKeypad
-                    value={targetAmount}
-                    onValueChange={handleAmountChange}
-                    onConfirm={(nextValue) => {
-                      handleAmountChange(nextValue);
-                      setIsKeypadVisible(false);
-                      setAmountExpression([]);
-                    }}
-                    onExpressionChange={setAmountExpression}
-                  />
-                </KeypadGlassShell>
+                <CustomKeypad
+                  value={targetAmount}
+                  onValueChange={handleAmountChange}
+                  onConfirm={(nextValue) => {
+                    handleAmountChange(nextValue);
+                    setIsKeypadVisible(false);
+                    setAmountExpression([]);
+                  }}
+                  onExpressionChange={setAmountExpression}
+                />
               </Animated.View>
             </CustomKeypadOverlay>
           )}
@@ -917,14 +914,10 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   categoryText: {
-    ...Typography.body1.l.bold,
-    fontSize: 21,
-    lineHeight: 31.5,
+    ...Typography.headline4.r.bold,
   },
   ddayText: {
-    ...Typography.body1.l.bold,
-    fontSize: 21,
-    lineHeight: 31.5,
+    ...Typography.headline4.r.bold,
   },
   statusContainer: {
     flexDirection: 'row',
@@ -936,9 +929,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   statusText: {
-    ...Typography.tiny.r.bold,
-    fontSize: 12,
-    lineHeight: 18,
+    ...Typography.detail.r.bold,
   },
   modalText: {
     ...Typography.body1.l.regular,

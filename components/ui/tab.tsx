@@ -5,10 +5,9 @@
  * Supports multiple tabs with active indicator.
  */
 
-import { Colors } from '@/constants/theme';
+import { Colors, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Pressable, ScrollView, StyleSheet, Text, View, ViewStyle } from 'react-native';
-import { pretendardFontFamily } from '@/constants/fonts';
 
 export interface TabOption {
   label: string;
@@ -80,10 +79,9 @@ export function Tab({
             <View style={tabContentStyle}>
               <Text
                 style={[
-                  styles.tabText,
+                  isActive ? styles.tabTextActive : styles.tabTextDefault,
                   {
                     color: isActive ? colors.staticBlack : colors.textAssistive,
-                    fontFamily: pretendardFontFamily(isActive ? '700' : '500'),
                   },
                 ]}
               >
@@ -173,9 +171,12 @@ const styles = StyleSheet.create({
     position: 'relative',
     paddingHorizontal: 8,
   },
-  tabText: {
-    fontSize: 16,
-    lineHeight: 24,
+  tabTextActive: {
+    ...Typography.body1.l.bold,
+    textAlign: 'center',
+  },
+  tabTextDefault: {
+    ...Typography.body1.l.medium,
     textAlign: 'center',
   },
   indicator: {

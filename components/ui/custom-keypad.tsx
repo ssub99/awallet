@@ -1,4 +1,6 @@
+import { GlassSurface } from '@/components/ui/glass-surface';
 import { Icon } from '@/components/ui/icon';
+import { BlurRuntime } from '@/constants/blur-runtime';
 import { AtomicColors } from '@/constants/atomic-colors';
 import { Colors, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -448,7 +450,16 @@ export function CustomKeypad({
   };
 
   return (
-    <View style={styles.container} onLayout={onContainerLayout}>
+    <GlassSurface
+      enableAndroidBlur
+      topCornerRadius={16}
+      intensity={BlurRuntime.keypadIntensity}
+      tint="light"
+      overlayColor={BlurRuntime.keypadOverlay}
+      androidFallbackBackground={BlurRuntime.keypadAndroidFallback}
+      style={styles.glassShell}
+    >
+      <View style={styles.container} onLayout={onContainerLayout}>
       <View style={styles.keypadSection}>
         {KEY_ROWS.map((row, rowIndex) => (
           <View key={`row-${rowIndex}`} style={styles.row}>
@@ -492,18 +503,18 @@ export function CustomKeypad({
       ) : (
         <View style={styles.androidBottomPadding} />
       )}
-    </View>
+      </View>
+    </GlassSurface>
   );
 }
 
 const styles = StyleSheet.create({
+  glassShell: {
+    width: '100%',
+    overflow: 'hidden',
+  },
   container: {
     width: '100%',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    borderBottomLeftRadius: 0,
-    borderBottomRightRadius: 0,
-    overflow: 'hidden',
     backgroundColor: 'transparent',
   },
   keypadSection: {

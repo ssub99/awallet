@@ -7,12 +7,11 @@
 
 import { DatePicker } from '@/components/ui/date-picker';
 import { Icon, type IconName } from '@/components/ui/icon';
-import { Colors } from '@/constants/theme';
+import { Colors, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { logEvent } from '@/utils/analytics';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
-import { pretendardFontFamily, pretendardTextStyle } from '@/constants/fonts';
 
 export interface TopNavigationProps {
   /**
@@ -136,6 +135,11 @@ export interface TopNavigationProps {
    * Year change handler
    */
   onYearChange?: (year: number) => void;
+
+  /**
+   * Year + month apply in one callback (fewer home re-renders on confirm)
+   */
+  onYearMonthChange?: (year: number, month: number | undefined) => void;
   
   /**
    * Month options for picker (main type with day)
@@ -185,6 +189,7 @@ export function TopNavigation({
   yearOptions,
   selectedYear,
   onYearChange,
+  onYearMonthChange,
   monthOptions,
   selectedMonth,
   onMonthChange,
@@ -446,7 +451,7 @@ export function TopNavigation({
       <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
       {/* Year/Month Picker */}
-      {yearOptions && yearOptions.length > 0 && (
+      {yearOptions && yearOptions.length > 0 && showMonthPicker ? (
         <DatePicker
           visible={showMonthPicker}
           onClose={() => setShowMonthPicker(false)}
@@ -454,11 +459,12 @@ export function TopNavigation({
           yearOptions={yearOptions}
           selectedYear={selectedYear}
           onYearChange={onYearChange}
+          onYearMonthChange={onYearMonthChange}
           monthOptions={monthOptions}
           selectedMonth={selectedMonth}
           onMonthChange={onMonthChange}
         />
-      )}
+      ) : null}
     </View>
   );
 }
@@ -496,9 +502,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   mainTitle: {
-    fontSize: 21,
-    ...pretendardTextStyle('700'),
-    lineHeight: 31.5,
+    ...Typography.headline4.r.bold,
   },
   centerSection: {
     position: 'absolute',
@@ -514,9 +518,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   subTitle: {
-    fontSize: 16,
-    ...pretendardTextStyle('700'),
-    lineHeight: 24,
+    ...Typography.body1.l.bold,
   },
   rightSection: {
     flexDirection: 'row',
@@ -549,9 +551,7 @@ const styles = StyleSheet.create({
     // Removed - using animated background instead
   },
   periodText: {
-    fontSize: 14,
-    ...pretendardTextStyle('700'),
-    lineHeight: 21,
+    ...Typography.body2.r.bold,
   },
   rightButton: {
     paddingHorizontal: 16,
@@ -561,9 +561,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   rightButtonText: {
-    fontSize: 14,
-    ...pretendardTextStyle('500'),
-    lineHeight: 21,
+    ...Typography.body2.r.medium,
   },
   divider: {
     height: 1,

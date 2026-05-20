@@ -7,7 +7,7 @@
 import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, Text, ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { pretendardFontFamily, pretendardTextStyle } from '@/constants/fonts';
+import { Typography } from '@/constants/typography';
 
 export interface ToastProps {
   /**
@@ -126,10 +126,7 @@ const styles = StyleSheet.create({
   },
   text: {
     color: '#ffffff', // Figma design
-    fontFamily: pretendardFontFamily('400'),
-    fontSize: 16,
-    fontWeight: '400',
-    lineHeight: 24,
+    ...Typography.body1.l.regular,
   },
 });
 

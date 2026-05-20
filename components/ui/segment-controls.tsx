@@ -93,25 +93,13 @@ export function SegmentControls({
 
   // Size-based typography
   const baseTextStyle: TextStyle = {
-    ...(size === 'small' 
-      ? (Typography.body2.r.regular as TextStyle)
-      : ({
-          ...Typography.body2.r.regular,
-          fontSize: 16,
-          lineHeight: 24,
-        } as TextStyle)),
+    ...(size === 'small' ? Typography.body2.r.regular : Typography.body1.l.regular),
     textAlign: 'center',
     color: colors.textAssistive,
   };
 
   const activeTextStyle: TextStyle = {
-    ...(size === 'small'
-      ? (Typography.body2.r.bold as TextStyle)
-      : ({
-          ...Typography.body2.r.bold,
-          fontSize: 16,
-          lineHeight: 24,
-        } as TextStyle)),
+    ...(size === 'small' ? Typography.body2.r.bold : Typography.body1.l.bold),
     color: colors.primaryHeavy,
   };
 

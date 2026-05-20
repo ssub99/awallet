@@ -98,6 +98,46 @@ function typo(scale: TypoScaleKey, weight: PretendardWeight): TextStyle {
 }
 
 /**
+ * iOS Figma px → platform fontSize/lineHeight (TYPO_SCALE 매칭, 없으면 Android −2pt).
+ * StyleSheet에서 Typography 대신 고정 px를 쓰는 컴포넌트용.
+ */
+export function resolvePlatformTypoSize(iosFontSize: number, iosLineHeight?: number): TypoSize {
+  const iosLh = iosLineHeight ?? iosFontSize * 1.5;
+  if (Platform.OS !== 'android') {
+    return { fontSize: iosFontSize, lineHeight: iosLh };
+  }
+
+  const entry = (Object.values(TYPO_SCALE) as TypoScaleEntry[]).find(
+    (e) =>
+      e.ios.fontSize === iosFontSize &&
+      (iosLineHeight == null || Math.abs(e.ios.lineHeight - iosLineHeight) < 0.01),
+  );
+  if (entry) {
+    return entry.android;
+  }
+
+  return {
+    fontSize: Math.max(8, iosFontSize - 2),
+    lineHeight: Math.max(12, iosLh - 3),
+  };
+}
+
+/** iOS 메트릭 기준 TextStyle (컴포넌트 StyleSheet 마이그레이션용) */
+export function textStyleFromIosMetrics(
+  iosFontSize: number,
+  weight: PretendardWeight,
+  iosLineHeight?: number,
+): TextStyle {
+  const sizes = resolvePlatformTypoSize(iosFontSize, iosLineHeight);
+  return {
+    ...pretendardTextStyle(weight),
+    fontSize: sizes.fontSize,
+    lineHeight: sizes.lineHeight,
+    ...(Platform.OS === 'android' ? { includeFontPadding: false } : null),
+  };
+}
+
+/**
  * Typography system with all text styles
  */
 export const Typography = {

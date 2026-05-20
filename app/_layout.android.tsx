@@ -1,6 +1,8 @@
 import 'react-native-gesture-handler';
 
+import { AndroidJsStack } from '@/components/navigation/android-js-stack';
 import { RootLayoutShell } from '@/components/root-layout-shell';
+import { ANDROID_JS_STACK_SCREEN_OPTIONS } from '@/constants/navigation-options';
 import { rootLayoutUnstableSettings } from '@/constants/root-layout-unstable-settings';
 import {
   ROOT_STACK_MODAL_ROUTE_NAME,
@@ -8,7 +10,6 @@ import {
 } from '@/constants/root-stack-routes';
 import { useRootLayoutBootstrap } from '@/hooks/use-root-layout-bootstrap';
 import { configureForegroundNotificationHandler } from '@/utils/expo-notifications-client';
-import { Stack } from 'expo-router';
 import 'react-native-reanimated';
 
 configureForegroundNotificationHandler();
@@ -25,15 +26,15 @@ export default function RootLayout() {
       showApp={showApp}
       navigation={
         showApp ? (
-          <Stack screenOptions={{ headerShown: false }}>
+          <AndroidJsStack screenOptions={ANDROID_JS_STACK_SCREEN_OPTIONS}>
             {ROOT_STACK_ROUTE_NAMES.map((name) => (
-              <Stack.Screen key={name} name={name} />
+              <AndroidJsStack.Screen key={name} name={name} />
             ))}
-            <Stack.Screen
+            <AndroidJsStack.Screen
               name={ROOT_STACK_MODAL_ROUTE_NAME}
               options={{ presentation: 'modal', title: 'Modal' }}
             />
-          </Stack>
+          </AndroidJsStack>
         ) : null
       }
     />

@@ -405,14 +405,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   categoryName: {
-    ...Typography.body1.l.bold,
-    fontSize: 21,
-    lineHeight: 31.5,
+    ...Typography.headline4.r.bold,
   },
   progressLabel: {
-    ...Typography.body1.l.bold,
-    fontSize: 21,
-    lineHeight: 31.5,
+    ...Typography.headline4.r.bold,
   },
   progressBarBackground: {
     height: 10,
@@ -485,7 +481,6 @@ const styles = StyleSheet.create({
   },
   categoryText: {
     ...Typography.body1.l.bold,
-    lineHeight: 24,
   },
   amountContainer: {
     flex: 4,
@@ -502,7 +497,6 @@ const styles = StyleSheet.create({
   },
   memoText: {
     ...Typography.body2.r.regular,
-    lineHeight: 21,
     flex: 1,
   },
   itemDivider: {

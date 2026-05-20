@@ -1,15 +1,10 @@
-import { BlurTokens } from '@/constants/blur-tokens';
+import { BlurRuntime } from '@/constants/blur-runtime';
 import { Colors, Typography } from '@/constants/theme';
 import { Icon } from '@/components/ui/icon';
+import { GlassSurface } from '@/components/ui/glass-surface';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import {
-  EXPO_BLUR_ANDROID_PROPS,
-  resolveBlurIntensity,
-  resolveBlurTint,
-  shouldApplyReactBlurOverlay,
-} from '@/utils/expo-blur-platform';
+import { shouldApplyReactBlurOverlay } from '@/utils/expo-blur-platform';
 import { logEvent } from '@/utils/analytics';
-import { BlurView } from 'expo-blur';
 import type { ComponentRef } from 'react';
 import { useCallback, useRef } from 'react';
 import { Animated, Dimensions, LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -97,6 +92,8 @@ export function QuickInputShort({
     });
   }, [onPress, bottom]);
 
+  const fillOverlay = shouldApplyReactBlurOverlay() ? colors.fill : undefined;
+
   return (
     <Pressable
       ref={containerRef}
@@ -113,18 +110,14 @@ export function QuickInputShort({
       accessibilityRole="button"
       accessibilityLabel="기록 간편입력"
     >
-      <BlurView
-        intensity={resolveBlurIntensity(BlurTokens.quickInputShort)}
-        tint={resolveBlurTint('light')}
+      <GlassSurface
+        intensity={BlurRuntime.quickInputShortIntensity}
+        tint="light"
+        borderRadius={QUICK_INPUT_HEIGHT / 2}
         style={styles.quickInputBlur}
-        {...EXPO_BLUR_ANDROID_PROPS}
+        overlayColor={fillOverlay}
+        androidFallbackBackground={BlurRuntime.quickInputShortAndroidFallback}
       >
-        {shouldApplyReactBlurOverlay() ? (
-          <View
-            pointerEvents="none"
-            style={[styles.quickInputTint, { backgroundColor: colors.fill }]}
-          />
-        ) : null}
         <View style={styles.quickInputContent} pointerEvents="box-none">
           <View style={styles.quickInputLeft}>
             <QuickInputStar size={20} starScale={starScale} starRotate={starRotate} />
@@ -134,7 +127,7 @@ export function QuickInputShort({
             <Icon name="arrowRight" variant="line" size={16} color={colors.textAssistive} />
           </View>
         </View>
-      </BlurView>
+      </GlassSurface>
     </Pressable>
   );
 }
@@ -155,9 +148,6 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: QUICK_INPUT_HEIGHT / 2,
     overflow: 'hidden',
-  },
-  quickInputTint: {
-    ...StyleSheet.absoluteFillObject,
   },
   quickInputContent: {
     flexDirection: 'row',

@@ -163,6 +163,32 @@ function challengeFailureNotificationIdentifier(challengeId: string): string {
   return `challenge_failure_${challengeId}`;
 }
 
+/** 종료일 다음날 09:30. iOS는 과거 DATE 트리거 시 UNNotificationTrigger assertion 실패. */
+function getChallengeOutcomeNotificationDate(endDate: Date): Date | null {
+  if (!Number.isFinite(endDate.getTime())) {
+    return null;
+  }
+
+  const notificationDate = new Date(endDate);
+  notificationDate.setDate(notificationDate.getDate() + 1);
+  notificationDate.setHours(9, 30, 0, 0);
+
+  if (!Number.isFinite(notificationDate.getTime())) {
+    return null;
+  }
+
+  if (notificationDate.getTime() <= Date.now()) {
+    return null;
+  }
+
+  return notificationDate;
+}
+
+/** 스케줄 불가(과거·무효) 시 재시도 방지용 마킹 */
+async function markChallengeOutcomeNotificationHandled(storageKey: string): Promise<void> {
+  await AsyncStorage.setItem(storageKey, 'true');
+}
+
 function isGeneralReminderNotification(notification: NotificationRequest): boolean {
   const notificationType = notification.content.data?.type;
   return (
@@ -655,12 +681,15 @@ export async function notifyChallengeSuccess(
     if (percentage > 100) {
       return;
     }
-    
-    // Schedule for next day after end date, 9:30 AM
-    const notificationDate = new Date(endDate);
-    notificationDate.setDate(notificationDate.getDate() + 1);
-    notificationDate.setHours(9, 30, 0, 0);
-    
+
+    const notificationDate = getChallengeOutcomeNotificationDate(endDate);
+    if (!notificationDate) {
+      await markChallengeOutcomeNotificationHandled(identifier);
+      return;
+    }
+
+    await cancelScheduledNotificationByIdentifier(identifier);
+
     await Notifications.scheduleNotificationAsync({
       identifier,
       content: {
@@ -908,11 +937,14 @@ export async function notifyChallengeFailure(
       }
     }
     
-    // Schedule for next day after end date, 9:30 AM
-    const notificationDate = new Date(endDate);
-    notificationDate.setDate(notificationDate.getDate() + 1);
-    notificationDate.setHours(9, 30, 0, 0);
-    
+    const notificationDate = getChallengeOutcomeNotificationDate(endDate);
+    if (!notificationDate) {
+      await markChallengeOutcomeNotificationHandled(identifier);
+      return;
+    }
+
+    await cancelScheduledNotificationByIdentifier(identifier);
+
     await Notifications.scheduleNotificationAsync({
       identifier,
       content: {

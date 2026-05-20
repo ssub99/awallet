@@ -346,8 +346,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   categoryEmoji: {
-    fontSize: 21,
-    lineHeight: 31.5,
+    ...Typography.headline4.r.bold,
     width: 21,
     textAlign: 'center',
   },

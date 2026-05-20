@@ -24,7 +24,6 @@ import { loadCategories } from '@/utils/categories';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { calendarRefreshEvent } from '@/hooks/calendar-events';
 import { updateIncome, softDeleteIncome } from '@/utils/incomes';
-import { KeypadGlassShell } from '@/components/ui/keypad-glass-shell';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -937,18 +936,16 @@ export default function IncomeEditScreen() {
               { transform: [{ translateY: keypadTranslateY }] },
             ]}
           >
-            <KeypadGlassShell style={styles.customKeypadBlur}>
-              <CustomKeypad
-                value={amount}
-                onValueChange={handleAmountChange}
-                onConfirm={(nextValue) => {
-                  handleAmountChange(nextValue);
-                  setIsKeypadVisible(false);
-                  setAmountExpression([]);
-                }}
-                onExpressionChange={setAmountExpression}
-              />
-            </KeypadGlassShell>
+            <CustomKeypad
+              value={amount}
+              onValueChange={handleAmountChange}
+              onConfirm={(nextValue) => {
+                handleAmountChange(nextValue);
+                setIsKeypadVisible(false);
+                setAmountExpression([]);
+              }}
+              onExpressionChange={setAmountExpression}
+            />
           </Animated.View>
         </CustomKeypadOverlay>
       )}

@@ -11,7 +11,6 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useWeekStart } from '@/hooks/use-week-start';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Dimensions, LayoutAnimation, Platform, Pressable, ScrollView, StyleSheet, Text, UIManager, View, ViewStyle } from 'react-native';
-import { pretendardFontFamily, pretendardTextStyle } from '@/constants/fonts';
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -519,9 +518,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   navTitle: {
-    fontSize: 14,
-    ...pretendardTextStyle('700'),
-    lineHeight: 21,
+    ...Typography.body2.r.bold,
   },
   weekdayHeader: {
     flexDirection: 'row',
@@ -534,9 +531,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   weekdayText: {
-    fontSize: 12,
-    ...pretendardTextStyle('500'),
-    lineHeight: 18,
+    ...Typography.detail.r.medium,
   },
   scrollView: {
     width: '100%',

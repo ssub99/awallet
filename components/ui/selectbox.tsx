@@ -10,12 +10,12 @@
  */
 
 import { Icon } from '@/components/ui/icon';
-import { Colors } from '@/constants/theme';
+import { Colors, Typography } from '@/constants/theme';
+import { textStyleFromIosMetrics } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Picker } from '@react-native-picker/picker';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Keyboard, Modal, Platform, Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
-import { pretendardFontFamily, pretendardTextStyle } from '@/constants/fonts';
 
 export interface SelectboxOption {
   label: string;
@@ -311,9 +311,7 @@ const styles = StyleSheet.create({
     height: 24,
   },
   text: {
-    fontSize: 16,
-    ...pretendardTextStyle('400'),
-    lineHeight: 24,
+    ...Typography.body1.l.regular,
   },
   // Android Picker
   androidPicker: {
@@ -356,18 +354,15 @@ const styles = StyleSheet.create({
     minWidth: 60,
   },
   cancelButton: {
-    fontSize: 17,
-    ...pretendardTextStyle('400'),
+    ...textStyleFromIosMetrics(17, '400'),
   },
   pickerTitle: {
-    fontSize: 17,
-    ...pretendardTextStyle('500'),
+    ...textStyleFromIosMetrics(17, '500'),
     flex: 1,
     textAlign: 'center',
   },
   doneButton: {
-    fontSize: 17,
-    ...pretendardTextStyle('500'),
+    ...textStyleFromIosMetrics(17, '500'),
     textAlign: 'right',
   },
   iosPicker: {

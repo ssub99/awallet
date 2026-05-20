@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
 import { type CategoryType } from '@/constants/categories';
 import { Colors, Typography } from '@/constants/theme';
+import { textStyleFromIosMetrics } from '@/constants/typography';
 import { useToast } from '@/contexts/toast-context';
 import { loadCategories, saveCategories } from '@/utils/categories';
 import type { FlashListRef } from '@shopify/flash-list';
@@ -504,8 +505,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.staticWhite,
   },
   emojiText: {
-    fontSize: 36,
-    lineHeight: 54,
+    ...textStyleFromIosMetrics(36, '400', 54),
   },
   inputSection: {
     marginBottom: 24,
@@ -588,8 +588,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   emojiItemText: {
-    fontSize: 40,
-    lineHeight: 48,
+    ...textStyleFromIosMetrics(40, '400', 48),
   },
   homeIndicatorContainer: {
     width: '100%',

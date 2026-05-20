@@ -53,7 +53,6 @@ import {
     View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { pretendardFontFamily, pretendardTextStyle } from '@/constants/fonts';
 
 const FAB_SIZE = 48;
 const FAB_OFFSET_ABOVE_TABS = 16;
@@ -3075,8 +3074,6 @@ const styles = StyleSheet.create({
   },
   periodText: {
     ...Typography.body1.l.bold,
-    fontSize: 16,
-    lineHeight: 24,
     textAlign: 'center',
   },
   monthArrowButton: {
@@ -3112,7 +3109,6 @@ const styles = StyleSheet.create({
   },
   placeholderText: {
     ...Typography.body1.l.regular,
-    fontSize: 16,
   },
   placeholderInfoText: {
     ...Typography.body1.l.regular,
@@ -3225,15 +3221,11 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   reportScoreEmoji: {
-    ...Typography.headline1.xl.bold,
-    fontSize: 28,
-    lineHeight: 40,
+    ...Typography.headline2.l.bold,
     marginRight: 4,
   },
   reportScoreValue: {
     ...Typography.headline1.xl.bold,
-    fontSize: 32,
-    lineHeight: 48,
   },
   reportScoreUnit: {
     ...Typography.body1.l.bold,
@@ -3356,15 +3348,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   trendCategoryName: {
-    fontSize: 16,
-    ...pretendardTextStyle('700'),
-    lineHeight: 24,
+    ...Typography.body1.l.bold,
     flex: 1,
   },
   trendCategoryStats: {
-    fontSize: 16,
-    ...pretendardTextStyle('700'),
-    lineHeight: 24,
+    ...Typography.body1.l.bold,
   },
   challengeList: {
     paddingHorizontal: 16,
@@ -3389,8 +3377,6 @@ const styles = StyleSheet.create({
   },
   challengeCategoryName: {
     ...Typography.body1.l.bold,
-    fontSize: 16,
-    lineHeight: 24,
   },
   statusBadge: {
     borderRadius: 4,
@@ -3398,14 +3384,10 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   statusText: {
-    ...Typography.tiny.r.bold,
-    fontSize: 12,
-    lineHeight: 18,
+    ...Typography.detail.r.bold,
   },
   statusLabel: {
     ...Typography.body1.l.bold,
-    fontSize: 16,
-    lineHeight: 24,
   },
   progressContainer: {
     height: 10,
@@ -3429,15 +3411,11 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   amountLabel: {
-    ...Typography.tiny.r.regular,
-    fontSize: 12,
-    lineHeight: 18,
+    ...Typography.detail.r.regular,
     marginBottom: 2,
   },
   amountValue: {
     ...Typography.body1.l.bold,
-    fontSize: 16,
-    lineHeight: 24,
   },
   trendPaymentFilterSheetContent: {
     padding: 0,

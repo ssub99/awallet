@@ -5,14 +5,13 @@
  * Used as the main navigation for the app.
  */
 
-import { Colors } from '@/constants/theme';
+import { Colors, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { createSheetEvent } from '@/utils/create-sheet-event';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useRef } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { pretendardFontFamily } from '@/constants/fonts';
 
 /**
  * Tab Bar matching Figma design
@@ -132,10 +131,9 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
               {/* Label */}
               <Text
                 style={[
-                  styles.label,
+                  isFocused ? styles.labelActive : styles.labelDefault,
                   {
                     color: isFocused ? colors.text : colors.textAssistive,
-                    fontFamily: pretendardFontFamily(isFocused ? '700' : '400'),
                   },
                 ]}
               >
@@ -173,9 +171,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  label: {
-    fontSize: 12,
-    lineHeight: 18,
+  labelActive: {
+    ...Typography.detail.r.bold,
+    textAlign: 'center',
+  },
+  labelDefault: {
+    ...Typography.detail.r.regular,
     textAlign: 'center',
   },
 });

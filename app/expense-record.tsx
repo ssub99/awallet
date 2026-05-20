@@ -23,6 +23,7 @@ import { Switch } from '@/components/ui/switch';
 import { Tag } from '@/components/ui/tag';
 import { AtomicColors } from '@/constants/atomic-colors';
 import { Colors, Typography } from '@/constants/theme';
+import { textStyleFromIosMetrics } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
 import { useToast } from '@/contexts/toast-context';
 import { calendarRefreshEvent } from '@/hooks/calendar-events';
@@ -54,7 +55,6 @@ import { getAllIncomes } from '@/utils/incomes';
 import { rescheduleDailyReminderIfNeeded } from '@/utils/notification-scheduler';
 import { refreshWidgetWithCurrentMonth } from '@/utils/widget-data-sync';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { KeypadGlassShell } from '@/components/ui/keypad-glass-shell';
 import { GlassSurface } from '@/components/ui/glass-surface';
 import { BlurTokens } from '@/constants/blur-tokens';
 import { resolveBlurIntensity } from '@/utils/expo-blur-platform';
@@ -78,7 +78,6 @@ import {
     View
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { pretendardFontFamily, pretendardTextStyle } from '@/constants/fonts';
 
 interface ExpenseRecordProps {
   mode?: 'create' | 'edit';
@@ -835,9 +834,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   const PAYMENT_TYPE_SHEET_FILTER_ROW_HEIGHT = 37;
   const PAYMENT_TYPE_SHEET_TOP_PADDING = 16;
   const PAYMENT_TYPE_SHEET_FILTER_LIST_GAP = 16;
-  const PAYMENT_TYPE_SHEET_LIST_HOME_GAP = 16;
-  const PAYMENT_TYPE_SHEET_HOME_INDICATOR_HEIGHT = 34;
+  const PAYMENT_TYPE_SHEET_LIST_BOTTOM_GAP = 16;
   const paymentTypeSheetHeight = useMemo(() => windowHeight * 0.5, [windowHeight]);
+  const paymentTypeSheetHomeIndicatorHeight =
+    Platform.OS === 'ios' ? Math.max(insets.bottom, 34) : 0;
   const paymentTypeSheetContentHeight = useMemo(
     () => Math.max(0, paymentTypeSheetHeight - PAYMENT_TYPE_SHEET_NAV_HEIGHT),
     [paymentTypeSheetHeight]
@@ -877,6 +877,15 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   const [draftIsPeriodExpanded, setDraftIsPeriodExpanded] = useState(false);
   const [monthStartDay, setMonthStartDay] = useState(1);
   const [showDayPicker, setShowDayPicker] = useState<boolean>(false);
+  const dayPickerReference = useMemo(() => {
+    if (mode === 'edit' && editData?.date) {
+      const normalizedDate = editData.date.replace(/-/g, '.');
+      const [year, month] = normalizedDate.split('.').map(Number);
+      return { year, month };
+    }
+    const today = new Date();
+    return { year: today.getFullYear(), month: today.getMonth() + 1 };
+  }, [mode, editData?.date]);
   const [tempSelectedDate, setTempSelectedDate] = useState<string>(date.replace(/\./g, '-'));
   const [selectedDay, setSelectedDay] = useState<number>(() => {
     // 수정 모드이고 editData가 있으면 해당 날짜의 일자 사용
@@ -5333,6 +5342,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               <Input
                 variant="line"
                 icon="calendarMonth"
+                buttonMode
                 value={(() => {
                   if (!date) return '';
                   const [year, month, day] = date.split('.').map(d => parseInt(d, 10));
@@ -5346,7 +5356,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                   
                   return `${year}.${String(month).padStart(2, '0')}.${String(day).padStart(2, '0')}(${actualDayOfWeekLabel})`;
                 })()}
-                editable={false}
                 disabled={mode === 'edit' && !!editData?.isPrepaid}
                 placeholder="날짜 선택"
                 onPress={handleDatePress}
@@ -5505,20 +5514,18 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               ]}
               pointerEvents="box-none"
             >
-              <KeypadGlassShell style={styles.customKeypadBlur}>
-                <View style={styles.customKeypadContent} pointerEvents="auto">
-                  <CustomKeypad
-                    value={amount}
-                    onValueChange={handleAmountChange}
-                    onConfirm={(nextValue) => {
-                      handleAmountChange(nextValue);
-                      setIsKeypadVisible(false);
-                      setAmountExpression([]);
-                    }}
-                    onExpressionChange={setAmountExpression}
-                  />
-                </View>
-              </KeypadGlassShell>
+              <View style={styles.customKeypadContent} pointerEvents="auto">
+                <CustomKeypad
+                  value={amount}
+                  onValueChange={handleAmountChange}
+                  onConfirm={(nextValue) => {
+                    handleAmountChange(nextValue);
+                    setIsKeypadVisible(false);
+                    setAmountExpression([]);
+                  }}
+                  onExpressionChange={setAmountExpression}
+                />
+              </View>
             </Animated.View>
           </CustomKeypadOverlay>
         )}
@@ -5697,7 +5704,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           onClose={handleDatePickerClose}
           closeOnBackdrop={true}
           contentStyle={styles.dateBottomsheetContent}
-          embedded
         >
           <BasicCalendarDaySelect
             selectedDate={tempSelectedDate ?? undefined}
@@ -5742,8 +5748,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           closeOnBackdrop={true}
           style={{ height: paymentTypeSheetHeight }}
           contentStyle={styles.paymentTypeSheetContent}
-          noPaddingBottom={true}
-          embedded
+          noPaddingBottom
         >
           <View
             style={[
@@ -5829,8 +5834,18 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               </ScrollView>
             </View>
 
-            <View style={styles.paymentTypeSheetListHomeGap} />
-            <View style={[styles.paymentTypeSheetHomeIndicatorArea, { backgroundColor: colors.staticWhite }]} />
+            <View style={{ height: PAYMENT_TYPE_SHEET_LIST_BOTTOM_GAP }} />
+            {paymentTypeSheetHomeIndicatorHeight > 0 ? (
+              <View
+                style={[
+                  styles.paymentTypeSheetHomeIndicatorArea,
+                  {
+                    backgroundColor: colors.staticWhite,
+                    height: paymentTypeSheetHomeIndicatorHeight,
+                  },
+                ]}
+              />
+            ) : null}
           </View>
         </ModalBottomsheet>
       ) : null}
@@ -6813,6 +6828,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         visible={showDayPicker}
         onClose={() => setShowDayPicker(false)}
         title="일자 선택"
+        referenceYear={dayPickerReference.year}
+        referenceMonth={dayPickerReference.month}
         dayOptions={Array.from({ length: 31 }, (_, i) => {
           const day = i + 1;
           
@@ -6934,8 +6951,6 @@ const styles = StyleSheet.create({
   },
   recurringInstallmentButtonText: {
     ...Typography.body1.l.regular,
-    fontSize: 16,
-    lineHeight: 24,
     textDecorationLine: 'underline',
   },
   card: {
@@ -6973,9 +6988,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   weekendOptionText: {
-    fontSize: 16,
-    ...pretendardTextStyle('400'),
-    lineHeight: 24,
+    ...Typography.body1.l.regular,
     color: '#222222',
   },
   amountInput: {
@@ -7009,18 +7022,15 @@ const styles = StyleSheet.create({
     minWidth: 60,
   },
   cancelButton: {
-    fontSize: 17,
-    ...pretendardTextStyle('400'),
+    ...textStyleFromIosMetrics(17, '400'),
   },
   pickerTitle: {
-    fontSize: 17,
-    ...pretendardTextStyle('500'),
+    ...textStyleFromIosMetrics(17, '500'),
     flex: 1,
     textAlign: 'center',
   },
   doneButton: {
-    fontSize: 17,
-    ...pretendardTextStyle('500'),
+    ...textStyleFromIosMetrics(17, '500'),
     textAlign: 'right',
   },
   pickerRow: {
@@ -7069,8 +7079,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   paymentTypeStickyLabel: {
-    ...Typography.body2.r.bold,
-    fontSize: 16,
+    ...Typography.body1.l.bold,
   },
   paymentTypeStickyControls: {
     width: 200,
@@ -7112,11 +7121,7 @@ const styles = StyleSheet.create({
   paymentTypeSheetListScrollContent: {
     flexGrow: 1,
   },
-  paymentTypeSheetListHomeGap: {
-    height: 16,
-  },
   paymentTypeSheetHomeIndicatorArea: {
-    height: 34,
     marginHorizontal: -16,
   },
   paymentTypeSheetItem: {
@@ -7162,7 +7167,6 @@ const styles = StyleSheet.create({
   },
   paymentTypeSheetCashEmoji: {
     ...Typography.headline4.r.medium,
-    lineHeight: 24,
   },
   paymentTypeSheetCashText: {
     ...Typography.body1.l.regular,
@@ -7175,7 +7179,6 @@ const styles = StyleSheet.create({
   weekendConfirmText: {
     ...Typography.body1.l.regular,
     textAlign: 'center',
-    lineHeight: 24,
   },
   // 새로운 스타일들
   installmentButton: {
@@ -7184,7 +7187,6 @@ const styles = StyleSheet.create({
   },
   installmentText: {
     ...Typography.body2.r.medium,
-    fontSize: 14,
   },
   recurringAmountRow: {
     flexDirection: 'row',
@@ -7248,7 +7250,6 @@ const styles = StyleSheet.create({
   },
   installmentAmountValue: {
     ...Typography.body1.l.bold,
-    fontSize: 16,
   },
   // 정기 지출 날짜 선택 스타일
   recurringDateContainer: {
@@ -7380,21 +7381,16 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(0, 0, 0, 0.12)',
   },
   settlementDropdownMenuLabel: {
-    ...Typography.body1.l.regular,
-    fontSize: 17,
+    ...textStyleFromIosMetrics(17, '400'),
   },
   expenseCategory: {
-    ...Typography.body1.l.bold,
-    fontSize: 21,
-    lineHeight: 31.5,
+    ...Typography.headline4.r.bold,
   },
   expenseDate: {
     ...Typography.body2.r.regular,
   },
   expenseAmount: {
-    ...Typography.body1.l.bold,
-    fontSize: 21,
-    lineHeight: 31.5,
+    ...Typography.headline4.r.bold,
   },
   expenseMemo: {
     ...Typography.body2.r.regular,
@@ -7403,7 +7399,6 @@ const styles = StyleSheet.create({
   deleteConfirmText: {
     ...Typography.body1.l.regular,
     textAlign: 'center',
-    lineHeight: 24,
   },
   // 정기 기록 삭제 옵션 모달 스타일
   deleteOptionsContainer: {
@@ -7412,7 +7407,6 @@ const styles = StyleSheet.create({
   deleteOptionsDescription: {
     ...Typography.body1.l.regular,
     textAlign: 'center',
-    lineHeight: 24,
   },
   recurringInfoCard: {
     borderRadius: 16,
@@ -7426,13 +7420,9 @@ const styles = StyleSheet.create({
   },
   recurringCategory: {
     ...Typography.body1.l.bold,
-    fontSize: 16,
-    lineHeight: 24,
   },
   recurringAmount: {
     ...Typography.body1.l.bold,
-    fontSize: 16,
-    lineHeight: 24,
   },
   recurringPeriodRow: {
     flexDirection: 'row',
@@ -7440,8 +7430,6 @@ const styles = StyleSheet.create({
   },
   recurringPeriod: {
     ...Typography.body2.r.regular,
-    fontSize: 14,
-    lineHeight: 21,
   },
   settlementInfoCard: {
     borderRadius: 16,
@@ -7484,13 +7472,9 @@ const styles = StyleSheet.create({
   },
   deleteOptionTitle: {
     ...Typography.body1.l.medium,
-    fontSize: 16,
-    lineHeight: 24,
   },
   deleteOptionDescription: {
     ...Typography.body1.l.regular,
-    fontSize: 16,
-    lineHeight: 24,
   },
   deleteOptionDivider: {
     height: 1,

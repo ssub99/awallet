@@ -1,3 +1,5 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 type CalendarRefreshCallback = () => void;
 type PendingCalendarTarget = { year: number; month: number; targetDate: string };
 
@@ -32,6 +34,21 @@ export const setLatestPendingCalendarTarget = (target: PendingCalendarTarget): v
 
 export const getLatestPendingCalendarTarget = (): PendingCalendarTarget | null =>
   latestPendingCalendarTarget;
+
+/** consume 없이 최신 pending 조회 (홈 focus가 blur보다 먼저 올 때 사용) */
+export const peekLatestPendingCalendarTarget = (): PendingCalendarTarget | null =>
+  latestPendingCalendarTarget;
+
+export const persistPendingCalendarTarget = async (
+  target: PendingCalendarTarget,
+): Promise<void> => {
+  setLatestPendingCalendarTarget(target);
+  try {
+    await AsyncStorage.setItem('pendingCalendarTarget', JSON.stringify(target));
+  } catch {
+    // ignore
+  }
+};
 
 export const consumeLatestPendingCalendarTarget = (): PendingCalendarTarget | null => {
   const target = latestPendingCalendarTarget;

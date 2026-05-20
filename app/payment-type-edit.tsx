@@ -530,7 +530,6 @@ const styles = StyleSheet.create({
   modalText: {
     ...Typography.body1.l.regular,
     textAlign: 'center',
-    lineHeight: 24,
   },
 });
 

@@ -10,10 +10,15 @@ export interface DayDataRecord {
   [date: string]: any;
 }
 
+export interface RefreshOptions {
+  /** false면 GlobalProgressBar(전체 로딩) 미표시. 기본 true */
+  showLoading?: boolean;
+}
+
 interface AppDataContextType {
   calendarData: DayDataRecord;
   monthStartDay: number;
-  refresh: () => Promise<void>;
+  refresh: (options?: RefreshOptions) => Promise<void>;
   isReady: boolean;
   dataVersion: number;
 }
@@ -40,12 +45,15 @@ export const AppDataProvider: React.FC<AppDataProviderProps> = ({ children, enab
   const refreshingRef = useRef(false);
   const initializedRef = useRef(false);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (options?: RefreshOptions) => {
     if (refreshingRef.current) {
       return;
     }
     refreshingRef.current = true;
-    setLoading(true);
+    const showLoading = options?.showLoading !== false;
+    if (showLoading) {
+      setLoading(true);
+    }
     try {
       const [storedData, msd, allCategories] = await Promise.all([
         AsyncStorage.getItem('calendarData'),
@@ -339,7 +347,9 @@ export const AppDataProvider: React.FC<AppDataProviderProps> = ({ children, enab
       setDataVersion((v) => v + 1);
     } finally {
       refreshingRef.current = false;
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
     }
   }, [setLoading]);
 

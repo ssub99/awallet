@@ -1,23 +1,40 @@
 /**
  * Date Picker Component
- * 
- * A flexible date picker component that can select year, month, and/or day.
- * Uses native Picker with custom animations matching the design system.
- * 
- * Features:
- * - Year selection (optional)
- * - Month selection (optional) 
- * - Day selection (optional)
- * - Custom animations (same as TopNavigation)
- * - Platform-specific behavior (iOS/Android)
+ *
+ * - iOS: bottom sheet + wheel picker (취소/완료)
+ * - Android (년/월·년도): 스피너 휠 다이얼로그 — 년·월만 (시스템 DatePicker는 일 컬럼 제거 불가)
+ * - Android (일 전용): 시스템 DatePickerDialog 스피너 (`DateTimePickerAndroid`)
+ * - Android (비날짜 목록, 예: N개월): 네이티브 `Picker` dialog
  */
 
+import { AndroidSpinnerWheelColumn } from '@/components/ui/android-spinner-wheel-column';
 import { Colors } from '@/constants/theme';
+import { resolvePlatformTypoSize, textStyleFromIosMetrics, Typography } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import {
+  buildNativePickerDate,
+  isCustomListDayPicker,
+  resolveNativePickerBounds,
+  resolvePickerValue,
+  shouldUseAndroidNativeDayPicker,
+  shouldUseAndroidYearMonthSpinner,
+} from '@/utils/android-date-picker';
+import {
+  DateTimePickerAndroid,
+  type DateTimePickerEvent,
+} from '@react-native-community/datetimepicker';
 import { Picker } from '@react-native-picker/picker';
-import { useEffect, useRef, useState } from 'react';
-import { Animated, Modal, Platform, Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
-import { pretendardFontFamily, pretendardTextStyle } from '@/constants/fonts';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Animated,
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type ViewStyle,
+} from 'react-native';
 
 export interface DatePickerOption {
   label: string;
@@ -25,85 +42,28 @@ export interface DatePickerOption {
 }
 
 export interface DatePickerProps {
-  /**
-   * Whether the picker is visible
-   */
   visible: boolean;
-  
-  /**
-   * Close handler
-   */
   onClose: () => void;
-
-  /**
-   * Cancel button press handler (header "취소")
-   */
   onCancelPress?: () => void;
-
-  /**
-   * Done button press handler (header "완료")
-   */
   onDonePress?: () => void;
-  
-  /**
-   * Title shown in picker header
-   */
   title?: string;
-  
-  /**
-   * Year options (if provided, enables year selection)
-   */
   yearOptions?: DatePickerOption[];
-  
-  /**
-   * Selected year value
-   */
   selectedYear?: number;
-  
-  /**
-   * Year change handler
-   */
   onYearChange?: (year: number) => void;
-  
-  /**
-   * Month options (if provided, enables month selection)
-   */
+  /** 년·월을 한 번에 반영 (홈 리렌더 1회용, Android 확인 속도) */
+  onYearMonthChange?: (year: number, month: number | undefined) => void;
   monthOptions?: DatePickerOption[];
-  
-  /**
-   * Selected month value
-   */
   selectedMonth?: number;
-  
-  /**
-   * Month change handler
-   */
   onMonthChange?: (month: number) => void;
-  
-  /**
-   * Day options (if provided, enables day selection)
-   */
   dayOptions?: DatePickerOption[];
-  
-  /**
-   * Selected day value
-   */
   selectedDay?: number;
-  
-  /**
-   * Day change handler
-   */
   onDayChange?: (day: number) => void;
-  
-  /**
-   * Container style
-   */
+  /** Android 일(day) 전용 네이티브 피커 기준 년·월 */
+  referenceYear?: number;
+  referenceMonth?: number;
   style?: ViewStyle;
 }
 
-/**
- * Date Picker Component
- */
 export function DatePicker({
   visible,
   onClose,
@@ -113,105 +73,89 @@ export function DatePicker({
   yearOptions,
   selectedYear,
   onYearChange,
+  onYearMonthChange,
   monthOptions,
   selectedMonth,
   onMonthChange,
   dayOptions,
   selectedDay,
   onDayChange,
-  style,
+  referenceYear,
+  referenceMonth,
 }: DatePickerProps) {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const isAndroid = Platform.OS === 'android';
+  const isIos = Platform.OS === 'ios';
 
-  // 휠 배경은 항상 staticWhite라 라벨은 항상 어두운 고정색을 씁니다.
-  // (다크 모드에서 시스템 라벨 색이 밝게 잡히면 흰 배경 위에서 글자가 사라짐)
-  const iosWheelItemStyle =
-    Platform.OS === 'ios'
-      ? { color: colors.staticBlack, fontSize: 22 }
-      : undefined;
-  
-  const clampToOptions = (value: number | undefined, options?: DatePickerOption[]) => {
-    if (!options || options.length === 0 || value === undefined) {
-      return value;
-    }
-    const min = options[0].value;
-    const max = options[options.length - 1].value;
-    return Math.min(max, Math.max(min, value));
-  };
-  
-  // Temporary values for iOS (to handle cancel/confirm)
-  const [tempYear, setTempYear] = useState<number | undefined>(
-    clampToOptions(selectedYear, yearOptions)
+  const isCustomListOnly = useMemo(
+    () => isCustomListDayPicker(dayOptions, yearOptions, monthOptions),
+    [dayOptions, yearOptions, monthOptions],
   );
-  const [tempMonth, setTempMonth] = useState<number | undefined>(
-    clampToOptions(selectedMonth, monthOptions)
+
+  const isAndroidYearMonthSpinner = useMemo(
+    () =>
+      isAndroid &&
+      shouldUseAndroidYearMonthSpinner(dayOptions, yearOptions, monthOptions, isCustomListOnly),
+    [dayOptions, isAndroid, isCustomListOnly, monthOptions, yearOptions],
   );
-  const [tempDay, setTempDay] = useState<number | undefined>(
-    clampToOptions(selectedDay, dayOptions)
+
+  const isAndroidNativeDayPicker = useMemo(
+    () =>
+      isAndroid &&
+      shouldUseAndroidNativeDayPicker(dayOptions, yearOptions, monthOptions, isCustomListOnly),
+    [dayOptions, isAndroid, isCustomListOnly, monthOptions, yearOptions],
+  );
+
+  const wheelTypo = resolvePlatformTypoSize(22);
+  const iosWheelItemStyle = isIos
+    ? { color: colors.staticBlack, fontSize: wheelTypo.fontSize, lineHeight: wheelTypo.lineHeight }
+    : undefined;
+
+  const [tempYear, setTempYear] = useState<number | undefined>(() =>
+    resolvePickerValue(selectedYear, yearOptions),
+  );
+  const [tempMonth, setTempMonth] = useState<number | undefined>(() =>
+    resolvePickerValue(selectedMonth, monthOptions),
+  );
+  const [tempDay, setTempDay] = useState<number | undefined>(() =>
+    resolvePickerValue(selectedDay, dayOptions),
   );
   const tempYearRef = useRef<number | undefined>(tempYear);
   const tempMonthRef = useRef<number | undefined>(tempMonth);
   const tempDayRef = useRef<number | undefined>(tempDay);
-  
-  // 모달이 닫히는 중인지 추적 (prop 변경 무시하기 위함)
+
   const isClosingRef = useRef(false);
-  // 완료 시 적용 지연 타이머 (iOS wheel 관성 대비)
   const applyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  
-  // Animation values (same as TopNavigation)
+  const androidNativeOpenedRef = useRef(false);
+  const prevVisibleRef = useRef(false);
+
   const dimOpacity = useRef(new Animated.Value(0)).current;
   const pickerTranslateY = useRef(new Animated.Value(300)).current;
-  
-  // Track if picker has been opened (to prevent prop updates while open)
   const wasOpenRef = useRef(false);
-  
-  // Update temp values when props change
+
   useEffect(() => {
-    if (__DEV__) {
-    }
-    
-    // 모달이 닫히는 중이면 prop 변경 무시
     if (isClosingRef.current) {
-      if (__DEV__) {
-      }
       return;
     }
-    
-    // 피커가 열려있는 동안에는 prop 변경 완전히 무시
     if (visible) {
-      // 피커가 막 열릴 때만 초기값 설정 (이미 열려있으면 무시)
       if (!wasOpenRef.current) {
         wasOpenRef.current = true;
-        if (__DEV__) {
-        }
-        if (selectedYear !== undefined) {
-          const next = clampToOptions(selectedYear, yearOptions);
-          setTempYear(next);
-          tempYearRef.current = next;
-        }
-        if (selectedMonth !== undefined) {
-          const next = clampToOptions(selectedMonth, monthOptions);
-          setTempMonth(next);
-          tempMonthRef.current = next;
-        }
-        if (selectedDay !== undefined) {
-          const next = clampToOptions(selectedDay, dayOptions);
-          setTempDay(next);
-          tempDayRef.current = next;
-        }
-      } else {
-        if (__DEV__) {
-        }
+        const nextYear = resolvePickerValue(selectedYear, yearOptions);
+        const nextMonth = resolvePickerValue(selectedMonth, monthOptions);
+        const nextDay = resolvePickerValue(selectedDay, dayOptions);
+        setTempYear(nextYear);
+        setTempMonth(nextMonth);
+        setTempDay(nextDay);
+        tempYearRef.current = nextYear;
+        tempMonthRef.current = nextMonth;
+        tempDayRef.current = nextDay;
       }
     } else {
-      // 피커가 닫혀있을 때는 항상 prop 값으로 동기화
       wasOpenRef.current = false;
-      if (__DEV__) {
-      }
-      const nextYear = clampToOptions(selectedYear, yearOptions);
-      const nextMonth = clampToOptions(selectedMonth, monthOptions);
-      const nextDay = clampToOptions(selectedDay, dayOptions);
+      const nextYear = resolvePickerValue(selectedYear, yearOptions);
+      const nextMonth = resolvePickerValue(selectedMonth, monthOptions);
+      const nextDay = resolvePickerValue(selectedDay, dayOptions);
       setTempYear(nextYear);
       setTempMonth(nextMonth);
       setTempDay(nextDay);
@@ -220,348 +164,476 @@ export function DatePicker({
       tempDayRef.current = nextDay;
     }
   }, [selectedYear, selectedMonth, selectedDay, visible, yearOptions, monthOptions, dayOptions]);
-  
-  // Animate picker open/close (same as TopNavigation)
+
   useEffect(() => {
-    if (__DEV__) {
+    if (!isIos) {
+      return;
     }
     if (visible) {
-      // 모달이 열릴 때 isClosing 플래그 리셋
       isClosingRef.current = false;
-      
-      // Reset animation values before opening
       dimOpacity.setValue(0);
       pickerTranslateY.setValue(300);
-      
-      // Opening: Dim appears instantly, then picker slides up
       Animated.parallel([
-        Animated.timing(dimOpacity, {
-          toValue: 1,
-          duration: 100,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pickerTranslateY, {
-          toValue: 0,
-          duration: 250,
-          useNativeDriver: true,
-        }),
-      ]).start(() => {
-        if (__DEV__) {
-        }
-      });
+        Animated.timing(dimOpacity, { toValue: 1, duration: 100, useNativeDriver: true }),
+        Animated.timing(pickerTranslateY, { toValue: 0, duration: 250, useNativeDriver: true }),
+      ]).start();
     } else {
-      // 모달이 닫히기 시작할 때 플래그 설정
       isClosingRef.current = true;
-      if (__DEV__) {
-      }
-      
-      // Closing: Both fade out together
       Animated.parallel([
-        Animated.timing(dimOpacity, {
-          toValue: 0,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pickerTranslateY, {
-          toValue: 300,
-          duration: 200,
-          useNativeDriver: true,
-        }),
+        Animated.timing(dimOpacity, { toValue: 0, duration: 150, useNativeDriver: true }),
+        Animated.timing(pickerTranslateY, { toValue: 300, duration: 200, useNativeDriver: true }),
       ]).start(() => {
-        if (__DEV__) {
-        }
-        // 애니메이션 완료 후 플래그 리셋 (약간의 지연을 두어 prop 변경이 완료될 때까지 대기)
         setTimeout(() => {
           isClosingRef.current = false;
         }, 100);
       });
     }
-  }, [visible, dimOpacity, pickerTranslateY]);
-  
-  const handleDone = () => {
-    if (__DEV__) {
-    }
-    try {
-      // 먼저 닫기 플래그 설정 (prop 변경 무시)
-      isClosingRef.current = true;
-      // 기존 적용 타이머가 있으면 취소
-      if (applyTimerRef.current) {
-        clearTimeout(applyTimerRef.current);
-        applyTimerRef.current = null;
-      }
-      if (__DEV__) {
-      }
-      
-      // iOS wheel 관성으로 인한 값 변화를 흡수하기 위해 짧은 지연 후 적용
-      applyTimerRef.current = setTimeout(() => {
-        try {
-          if (onYearChange && tempYear !== undefined) {
-            onYearChange(tempYear);
-          }
-          if (onMonthChange && tempMonth !== undefined) {
-            onMonthChange(tempMonth);
-          }
-          if (onDayChange && tempDay !== undefined) {
-            onDayChange(tempDay);
-          }
-        } catch (error) {
-          if (__DEV__) {
-            console.error('❌ [DatePicker] 상태 변경 에러:', error);
-          }
-        } finally {
-          onClose();
-          setTimeout(() => {
-            isClosingRef.current = false;
-          }, 100);
-        }
-      }, 150); // 관성 마무리 대기 (150ms)
-    } catch (error) {
-      if (__DEV__) {
-        console.error('❌ [DatePicker] handleDone 에러:', error);
-      }
-      isClosingRef.current = false;
-      // 에러 발생 시에도 모달은 닫기
-      onClose();
-    }
-  };
-  
-  const handleCancel = () => {
-    if (__DEV__) {
-    }
-    try {
-      // 먼저 닫기 플래그 설정 (prop 변경 무시)
-      isClosingRef.current = true;
-      // 적용 타이머가 있으면 취소
-      if (applyTimerRef.current) {
-        clearTimeout(applyTimerRef.current);
-        applyTimerRef.current = null;
-      }
-      if (__DEV__) {
-      }
-      
-      // 먼저 모달을 닫기
-      if (__DEV__) {
-      }
-      onClose();
-      
-      // 모달이 닫힌 후 temp 값을 원래 값으로 복원 (다음 프레임에서 실행)
-      setTimeout(() => {
-        if (__DEV__) {
-        }
-        try {
-          setTempYear(selectedYear);
-          setTempMonth(selectedMonth);
-          setTempDay(selectedDay);
-          if (__DEV__) {
-          }
-          
-          // 복원 완료 후 플래그 리셋
-          setTimeout(() => {
-            isClosingRef.current = false;
-            if (__DEV__) {
-            }
-          }, 100);
-        } catch (error) {
-          if (__DEV__) {
-            console.error('❌ [DatePicker] temp 값 복원 에러:', error);
-          }
-          isClosingRef.current = false;
-        }
-      }, 50);
-    } catch (error) {
-      if (__DEV__) {
-        console.error('❌ [DatePicker] handleCancel 에러:', error);
-      }
-      isClosingRef.current = false;
-      // 에러 발생 시에도 모달은 닫기
-      onClose();
-    }
-  };
-  
-  const handleYearValueChange = (itemValue: number) => {
-    const clamped = clampToOptions(itemValue, yearOptions);
-    if (Platform.OS === 'android') {
-      if (clamped !== undefined) {
-        onYearChange?.(clamped);
-      }
-    } else {
-      setTempYear(clamped);
-      tempYearRef.current = clamped;
-    }
-  };
-  
-  const handleMonthValueChange = (itemValue: number) => {
-    const clamped = clampToOptions(itemValue, monthOptions);
-    if (Platform.OS === 'android') {
-      if (clamped !== undefined) {
-        onMonthChange?.(clamped);
-      }
-    } else {
-      setTempMonth(clamped);
-      tempMonthRef.current = clamped;
-    }
-  };
-  
-  const handleDayValueChange = (itemValue: number) => {
-    const clamped = clampToOptions(itemValue, dayOptions);
-    if (Platform.OS === 'android') {
-      if (clamped !== undefined) {
-        onDayChange?.(clamped);
-      }
-    } else {
-      setTempDay(clamped);
-      tempDayRef.current = clamped;
-    }
-  };
-  
-  // Count how many pickers we have
-  const pickerCount = [yearOptions, monthOptions, dayOptions].filter(Boolean).length;
-  
-  // Android: Direct Picker rendering (if only one picker)
-  if (Platform.OS === 'android' && pickerCount === 1) {
-    // For Android with single picker, we can use the native dropdown
-    // This would need to be handled differently based on the specific use case
-    // For now, we'll use the modal approach for consistency
-  }
-  
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="none"
-      onRequestClose={onClose}
-    >
-      <Animated.View 
-        style={[
-          styles.modalOverlay,
-          { opacity: dimOpacity }
-        ]}
-      >
-        <Pressable 
-          style={styles.backdrop}
-          onPress={() => {
-            if (__DEV__) {
-            }
-            handleCancel();
-          }}
-        />
-      </Animated.View>
+  }, [visible, dimOpacity, pickerTranslateY, isIos]);
 
-      <Animated.View
-        style={[
-          styles.modalContent,
-          { transform: [{ translateY: pickerTranslateY }] }
-        ]}
+  const applyTempValues = useCallback(() => {
+    const year = tempYearRef.current;
+    const month = tempMonthRef.current;
+    const day = tempDayRef.current;
+
+    if (yearOptions?.length && year !== undefined) {
+      const yearChanged = year !== selectedYear;
+      const monthChanged =
+        monthOptions?.length &&
+        month !== undefined &&
+        month !== selectedMonth;
+
+      if (onYearMonthChange && (yearChanged || monthChanged)) {
+        onYearMonthChange(year, monthOptions?.length ? month : undefined);
+      } else {
+        if (onYearChange && yearChanged) {
+          onYearChange(year);
+        }
+        if (monthOptions?.length && onMonthChange && month !== undefined && monthChanged) {
+          onMonthChange(month);
+        }
+      }
+    }
+
+    if (dayOptions?.length && onDayChange && day !== undefined && day !== selectedDay) {
+      onDayChange(day);
+    }
+  }, [
+    dayOptions,
+    monthOptions,
+    onDayChange,
+    onMonthChange,
+    onYearChange,
+    onYearMonthChange,
+    selectedDay,
+    selectedMonth,
+    selectedYear,
+    yearOptions,
+  ]);
+
+  const closePicker = useCallback(() => {
+    isClosingRef.current = true;
+    if (applyTimerRef.current) {
+      clearTimeout(applyTimerRef.current);
+      applyTimerRef.current = null;
+    }
+    onClose();
+    if (isIos) {
+      setTimeout(() => {
+        isClosingRef.current = false;
+      }, 100);
+      return;
+    }
+    isClosingRef.current = false;
+  }, [isIos, onClose]);
+
+  const applyNativeDayDate = useCallback(
+    (date: Date) => {
+      if (dayOptions?.length && onDayChange) {
+        const day = resolvePickerValue(date.getDate(), dayOptions);
+        if (day !== undefined) {
+          onDayChange(day);
+        }
+      }
+    },
+    [dayOptions, onDayChange],
+  );
+
+  const handleAndroidNativeChange = useCallback(
+    (event: DateTimePickerEvent, date?: Date) => {
+      androidNativeOpenedRef.current = false;
+
+      if (event.type === 'dismissed') {
+        onCancelPress?.();
+        closePicker();
+        return;
+      }
+
+      if (event.type === 'set' && date) {
+        applyNativeDayDate(date);
+        onDonePress?.();
+        closePicker();
+      }
+    },
+    [applyNativeDayDate, closePicker, onCancelPress, onDonePress],
+  );
+
+  const openAndroidNativeDatePicker = useCallback(() => {
+    const value = buildNativePickerDate({
+      selectedYear,
+      selectedMonth,
+      selectedDay,
+      yearOptions,
+      monthOptions,
+      dayOptions,
+      referenceYear,
+      referenceMonth,
+    });
+    const { minimumDate, maximumDate } = resolveNativePickerBounds({
+      yearOptions,
+      dayOptions,
+      referenceYear,
+      referenceMonth,
+    });
+
+    DateTimePickerAndroid.open({
+      value,
+      mode: 'date',
+      display: 'spinner',
+      minimumDate,
+      maximumDate,
+      onChange: handleAndroidNativeChange,
+    });
+  }, [
+    dayOptions,
+    handleAndroidNativeChange,
+    monthOptions,
+    referenceMonth,
+    referenceYear,
+    selectedDay,
+    selectedMonth,
+    selectedYear,
+    yearOptions,
+  ]);
+
+  useEffect(() => {
+    if (!isAndroid) {
+      return;
+    }
+
+    const justOpened = visible && !prevVisibleRef.current;
+    prevVisibleRef.current = visible;
+
+    if (!visible) {
+      androidNativeOpenedRef.current = false;
+      return;
+    }
+
+    if (!justOpened || androidNativeOpenedRef.current) {
+      return;
+    }
+
+    if (isCustomListOnly || isAndroidYearMonthSpinner) {
+      return;
+    }
+
+    if (!isAndroidNativeDayPicker) {
+      return;
+    }
+
+    androidNativeOpenedRef.current = true;
+    openAndroidNativeDatePicker();
+  }, [
+    isAndroid,
+    isAndroidNativeDayPicker,
+    isAndroidYearMonthSpinner,
+    isCustomListOnly,
+    openAndroidNativeDatePicker,
+    visible,
+  ]);
+
+  const handleDone = useCallback(() => {
+    isClosingRef.current = true;
+    if (applyTimerRef.current) {
+      clearTimeout(applyTimerRef.current);
+      applyTimerRef.current = null;
+    }
+
+    const finishIos = () => {
+      applyTempValues();
+      closePicker();
+    };
+
+    const finishAndroid = () => {
+      closePicker();
+      // 데이터 reload 없음 — 보기 년/월만 반영 (모달은 이미 닫힘)
+      applyTempValues();
+    };
+
+    // iOS 휠 관성 대기 — Android는 모달 닫기와 년/월 반영을 같은 턴에 처리
+    if (isIos) {
+      applyTimerRef.current = setTimeout(finishIos, 150);
+      return;
+    }
+
+    finishAndroid();
+  }, [applyTempValues, closePicker, isIos]);
+
+  const handleCancel = useCallback(() => {
+    isClosingRef.current = true;
+    if (applyTimerRef.current) {
+      clearTimeout(applyTimerRef.current);
+      applyTimerRef.current = null;
+    }
+
+    setTempYear(selectedYear);
+    setTempMonth(selectedMonth);
+    setTempDay(selectedDay);
+    tempYearRef.current = selectedYear;
+    tempMonthRef.current = selectedMonth;
+    tempDayRef.current = selectedDay;
+    closePicker();
+  }, [closePicker, selectedDay, selectedMonth, selectedYear]);
+
+  const handleYearValueChange = useCallback(
+    (itemValue: number) => {
+      tempYearRef.current = resolvePickerValue(itemValue, yearOptions);
+    },
+    [yearOptions],
+  );
+
+  const handleMonthValueChange = useCallback(
+    (itemValue: number) => {
+      tempMonthRef.current = resolvePickerValue(itemValue, monthOptions);
+    },
+    [monthOptions],
+  );
+
+  const handleDayValueChange = (itemValue: number) => {
+    const next = resolvePickerValue(itemValue, dayOptions);
+    setTempDay(next);
+    tempDayRef.current = next;
+  };
+
+  const handleAndroidListPickerChange = (itemValue: number) => {
+    const next = resolvePickerValue(itemValue, dayOptions);
+    if (next !== undefined) {
+      onDayChange?.(next);
+    }
+    onDonePress?.();
+    closePicker();
+  };
+
+  const pickerCount = [yearOptions, monthOptions, dayOptions].filter(
+    (options) => options && options.length > 0,
+  ).length;
+
+  const renderIosPickerColumn = (
+    options: DatePickerOption[],
+    selected: number | undefined,
+    onValueChange: (value: number) => void,
+  ) => (
+    <Picker
+      selectedValue={selected}
+      onValueChange={onValueChange}
+      style={[styles.iosPicker, { backgroundColor: colors.staticWhite, color: colors.text }]}
+      itemStyle={iosWheelItemStyle}
+    >
+      {options.map((option) => (
+        <Picker.Item key={option.value} label={option.label} value={option.value} />
+      ))}
+    </Picker>
+  );
+
+  if (isAndroid && isAndroidYearMonthSpinner && visible) {
+    return (
+      <Modal
+        visible
+        transparent
+        animationType="none"
+        onRequestClose={handleCancel}
+        statusBarTranslucent
+        presentationStyle="overFullScreen"
       >
-        <Pressable onPress={(e) => e.stopPropagation()}>
-          <View style={[styles.pickerHeader, { backgroundColor: colors.background }]}>
-            <Pressable 
+        <View style={styles.androidYearMonthRoot}>
+          <Pressable style={styles.androidYearMonthDim} onPress={handleCancel} />
+          <View style={styles.androidYearMonthContainer} pointerEvents="box-none">
+          <View
+            style={[styles.androidYearMonthDialog, { backgroundColor: colors.background }]}
+            pointerEvents="auto"
+          >
+          <Text style={[styles.androidYearMonthTitle, { color: colors.text }]}>{title}</Text>
+
+          <View
+            style={[
+              styles.androidYearMonthSpinnerRow,
+              { backgroundColor: colors.staticWhite },
+            ]}
+          >
+            {yearOptions && yearOptions.length > 0 ? (
+              <View
+                style={[styles.pickerColumn, pickerCount === 1 && styles.pickerColumnFull]}
+              >
+                <AndroidSpinnerWheelColumn
+                  key={`year-${visible}-${tempYear ?? 'x'}`}
+                  options={yearOptions}
+                  value={tempYear}
+                  onValueChange={handleYearValueChange}
+                  active={visible}
+                />
+              </View>
+            ) : null}
+
+            {monthOptions && monthOptions.length > 0 ? (
+              <View
+                style={[styles.pickerColumn, pickerCount === 1 && styles.pickerColumnFull]}
+              >
+                <AndroidSpinnerWheelColumn
+                  key={`month-${visible}-${tempMonth ?? 'x'}`}
+                  options={monthOptions}
+                  value={tempMonth}
+                  onValueChange={handleMonthValueChange}
+                  active={visible}
+                />
+              </View>
+            ) : null}
+          </View>
+
+          <View
+            style={[
+              styles.androidYearMonthActions,
+              { borderTopColor: colors.border, backgroundColor: colors.fill },
+            ]}
+          >
+            <Pressable
               onPress={() => {
-                if (__DEV__) {
-                }
                 onCancelPress?.();
                 handleCancel();
-              }} 
-              style={styles.headerButton}
+              }}
+              style={styles.androidYearMonthActionButton}
+              accessibilityRole="button"
+              accessibilityLabel="취소"
             >
-              <Text style={[styles.cancelButton, { color: colors.textNeutral }]}>
+              <Text style={[styles.androidYearMonthCancel, { color: colors.textNeutral }]}>
                 취소
               </Text>
             </Pressable>
-            
-            <Text style={[styles.pickerTitle, { color: colors.text }]}>
-              {title}
-            </Text>
-            
-            <Pressable 
+            <Pressable
               onPress={() => {
-                if (__DEV__) {
-                }
-                onDonePress?.();
                 handleDone();
-              }} 
-              style={styles.headerButton}
+                onDonePress?.();
+              }}
+              style={styles.androidYearMonthActionButton}
+              accessibilityRole="button"
+              accessibilityLabel="확인"
             >
-              <Text style={[styles.doneButton, { color: colors.primary }]}>
-                완료
+              <Text style={[styles.androidYearMonthConfirm, { color: colors.primary }]}>
+                확인
               </Text>
             </Pressable>
           </View>
-          
-          {/* Pickers Row */}
+          </View>
+          </View>
+        </View>
+      </Modal>
+    );
+  }
+
+  if (isAndroid && isCustomListOnly && visible) {
+    return (
+      <Modal
+        visible
+        transparent
+        animationType="fade"
+        onRequestClose={handleCancel}
+        statusBarTranslucent
+        presentationStyle="overFullScreen"
+      >
+        <View style={styles.androidYearMonthRoot}>
+          <Pressable style={styles.androidYearMonthDim} onPress={handleCancel} />
+          <View style={styles.androidListOverlay} pointerEvents="box-none">
+          <Pressable
+            style={[styles.androidListCard, { backgroundColor: colors.background }]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <Text style={[styles.androidListTitle, { color: colors.text }]}>{title}</Text>
+            <Picker
+              selectedValue={tempDay ?? dayOptions?.[0]?.value}
+              onValueChange={handleAndroidListPickerChange}
+              mode="dialog"
+              prompt={title}
+              dropdownIconColor={colors.textNeutral}
+              style={styles.androidListPicker}
+            >
+              {dayOptions?.map((option) => (
+                <Picker.Item key={option.value} label={option.label} value={option.value} />
+              ))}
+            </Picker>
+            <Text style={[styles.androidListHint, { color: colors.textAssistive }]}>
+              항목을 탭하면 선택 창이 열립니다.
+            </Text>
+          </Pressable>
+          </View>
+        </View>
+      </Modal>
+    );
+  }
+
+  if (isAndroid) {
+    return null;
+  }
+
+  return (
+    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
+      <Animated.View style={[styles.modalOverlay, { opacity: dimOpacity }]}>
+        <Pressable style={styles.backdrop} onPress={handleCancel} />
+      </Animated.View>
+
+      <Animated.View
+        style={[styles.modalContent, { transform: [{ translateY: pickerTranslateY }] }]}
+      >
+        <Pressable onPress={(e) => e.stopPropagation()}>
+          <View style={[styles.pickerHeader, { backgroundColor: colors.background }]}>
+            <Pressable
+              onPress={() => {
+                onCancelPress?.();
+                handleCancel();
+              }}
+              style={styles.headerButton}
+            >
+              <Text style={[styles.cancelButton, { color: colors.textNeutral }]}>취소</Text>
+            </Pressable>
+
+            <Text style={[styles.pickerTitle, { color: colors.text }]}>{title}</Text>
+
+            <Pressable
+              onPress={() => {
+                onDonePress?.();
+                handleDone();
+              }}
+              style={styles.headerButton}
+            >
+              <Text style={[styles.doneButton, { color: colors.primary }]}>완료</Text>
+            </Pressable>
+          </View>
+
           <View style={styles.pickerRow}>
-            {/* Year Picker */}
-            {yearOptions && yearOptions.length > 0 && (
-              <View style={[
-                styles.pickerColumn,
-                pickerCount === 1 && styles.pickerColumnFull
-              ]}>
-                <Picker
-                  selectedValue={Platform.OS === 'ios' ? tempYear : selectedYear}
-                  onValueChange={handleYearValueChange}
-                  style={[styles.iosPicker, { backgroundColor: colors.staticWhite }]}
-                  itemStyle={iosWheelItemStyle}
-                >
-                  {yearOptions.map((option) => (
-                    <Picker.Item
-                      key={option.value}
-                      label={option.label}
-                      value={option.value}
-                    />
-                  ))}
-                </Picker>
+            {yearOptions && yearOptions.length > 0 ? (
+              <View style={[styles.pickerColumn, pickerCount === 1 && styles.pickerColumnFull]}>
+                {renderIosPickerColumn(yearOptions, tempYear, handleYearValueChange)}
               </View>
-            )}
-            
-            {/* Month Picker */}
-            {monthOptions && monthOptions.length > 0 && (
-              <View
-                style={[
-                  styles.pickerColumn,
-                  pickerCount === 1 && styles.pickerColumnFull,
-                ]}
-              >
-                <Picker
-                  selectedValue={Platform.OS === 'ios' ? tempMonth : selectedMonth}
-                  onValueChange={handleMonthValueChange}
-                  style={[styles.iosPicker, { backgroundColor: colors.staticWhite }]}
-                  itemStyle={iosWheelItemStyle}
-                >
-                  {monthOptions.map((option) => (
-                    <Picker.Item
-                      key={option.value}
-                      label={option.label}
-                      value={option.value}
-                    />
-                  ))}
-                </Picker>
+            ) : null}
+
+            {monthOptions && monthOptions.length > 0 ? (
+              <View style={[styles.pickerColumn, pickerCount === 1 && styles.pickerColumnFull]}>
+                {renderIosPickerColumn(monthOptions, tempMonth, handleMonthValueChange)}
               </View>
-            )}
-            
-            {/* Day Picker */}
-            {dayOptions && dayOptions.length > 0 && (
-              <View
-                style={[
-                  styles.pickerColumn,
-                  pickerCount === 1 && styles.pickerColumnFull,
-                ]}
-              >
-                <Picker
-                  selectedValue={Platform.OS === 'ios' ? tempDay : selectedDay}
-                  onValueChange={handleDayValueChange}
-                  style={[styles.iosPicker, { backgroundColor: colors.staticWhite }]}
-                  itemStyle={iosWheelItemStyle}
-                >
-                  {dayOptions.map((option) => (
-                    <Picker.Item
-                      key={option.value}
-                      label={option.label}
-                      value={option.value}
-                    />
-                  ))}
-                </Picker>
+            ) : null}
+
+            {dayOptions && dayOptions.length > 0 ? (
+              <View style={[styles.pickerColumn, pickerCount === 1 && styles.pickerColumnFull]}>
+                {renderIosPickerColumn(dayOptions, tempDay, handleDayValueChange)}
               </View>
-            )}
+            ) : null}
           </View>
         </Pressable>
       </Animated.View>
@@ -602,18 +674,15 @@ const styles = StyleSheet.create({
     minWidth: 60,
   },
   cancelButton: {
-    fontSize: 17,
-    ...pretendardTextStyle('400'),
+    ...textStyleFromIosMetrics(17, '400'),
   },
   pickerTitle: {
-    fontSize: 17,
-    ...pretendardTextStyle('500'),
+    ...textStyleFromIosMetrics(17, '500'),
     flex: 1,
     textAlign: 'center',
   },
   doneButton: {
-    fontSize: 17,
-    ...pretendardTextStyle('500'),
+    ...textStyleFromIosMetrics(17, '500'),
     textAlign: 'right',
   },
   pickerRow: {
@@ -630,5 +699,80 @@ const styles = StyleSheet.create({
   iosPicker: {
     width: '100%',
     height: 216,
+  },
+  androidYearMonthRoot: {
+    flex: 1,
+  },
+  androidYearMonthDim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  androidListOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  androidListCard: {
+    borderRadius: 12,
+    padding: 20,
+    gap: 12,
+  },
+  androidListTitle: {
+    ...Typography.headline4.r.bold,
+    textAlign: 'center',
+  },
+  androidListPicker: {
+    width: '100%',
+    height: 48,
+  },
+  androidListHint: {
+    ...Typography.body2.r.regular,
+    textAlign: 'center',
+  },
+  androidYearMonthContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  androidYearMonthDialog: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    elevation: 8,
+    zIndex: 1,
+  },
+  androidYearMonthTitle: {
+    ...Typography.body1.l.bold,
+    textAlign: 'center',
+    paddingTop: 20,
+    paddingBottom: 8,
+    paddingHorizontal: 16,
+  },
+  androidYearMonthSpinnerRow: {
+    flexDirection: 'row',
+    minHeight: 240,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  androidYearMonthActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  androidYearMonthActionButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    minHeight: 48,
+    justifyContent: 'center',
+  },
+  androidYearMonthCancel: {
+    ...Typography.body1.l.medium,
+  },
+  androidYearMonthConfirm: {
+    ...Typography.body1.l.bold,
   },
 });

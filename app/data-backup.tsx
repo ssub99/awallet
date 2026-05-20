@@ -438,11 +438,9 @@ const styles = StyleSheet.create({
   },
   noticeBullet: {
     ...Typography.body2.r.regular,
-    lineHeight: 21,
   },
   noticeBody: {
     ...Typography.body2.r.regular,
-    lineHeight: 21,
     flex: 1,
   },
 });

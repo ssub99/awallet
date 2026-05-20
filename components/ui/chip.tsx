@@ -9,10 +9,9 @@
  * - option: Used for option selection (borderRadius: 12)
  */
 
-import { Colors } from '@/constants/theme';
+import { Colors, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Pressable, StyleSheet, Text, ViewStyle } from 'react-native';
-import { pretendardFontFamily, pretendardTextStyle } from '@/constants/fonts';
 
 export type ChipType = 'topic' | 'option';
 
@@ -151,24 +150,15 @@ const styles = StyleSheet.create({
     // height can be overridden via style prop
   },
   textActive: {
-    fontFamily: pretendardFontFamily('400'),
-    fontSize: 14,
-    fontWeight: '700',
-    lineHeight: 21,
+    ...Typography.body2.r.bold,
     textAlign: 'center',
   },
   textDefault: {
-    fontFamily: pretendardFontFamily('400'),
-    fontSize: 14,
-    fontWeight: '500',
-    lineHeight: 21,
+    ...Typography.body2.r.medium,
     textAlign: 'center',
   },
   textDisabled: {
-    fontFamily: pretendardFontFamily('400'),
-    fontSize: 14,
-    fontWeight: '500',
-    lineHeight: 21,
+    ...Typography.body2.r.medium,
     textAlign: 'center',
   },
 });

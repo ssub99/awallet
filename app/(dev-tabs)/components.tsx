@@ -2787,8 +2787,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   testButtonSmallText: {
-    ...Typography.body2.r.bold,
-    fontSize: 12,
+    ...Typography.detail.r.bold,
   },
   infoBox: {
     padding: 16,
@@ -2797,7 +2796,6 @@ const styles = StyleSheet.create({
   },
   infoText: {
     ...Typography.body2.r.regular,
-    lineHeight: 21,
   },
   switchLabel: {
     ...Typography.body1.l.regular,
@@ -2828,13 +2826,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   dateButtonText: {
-    ...Typography.body2.r.bold,
-    fontSize: 12,
+    ...Typography.detail.r.bold,
     marginBottom: 2,
   },
   dateButtonSubText: {
     ...Typography.detail.r.regular,
-    fontSize: 10,
   },
   restoreButton: {
     paddingVertical: 12,
@@ -2844,8 +2840,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   restoreButtonText: {
-    ...Typography.body2.r.bold,
-    fontSize: 12,
+    ...Typography.detail.r.bold,
   },
   deleteButton: {
     paddingVertical: 14,

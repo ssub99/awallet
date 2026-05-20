@@ -27,7 +27,6 @@ import { createIncome, type IncomeRecord as IncomeRecordType } from '@/utils/inc
 import { refreshWidgetWithCurrentMonth } from '@/utils/widget-data-sync';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
-import { KeypadGlassShell } from '@/components/ui/keypad-glass-shell';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -804,18 +803,16 @@ export default function IncomeRecordScreen() {
                 { transform: [{ translateY: keypadTranslateY }] },
               ]}
             >
-              <KeypadGlassShell style={styles.customKeypadBlur}>
-                <CustomKeypad
-                  value={amount}
-                  onValueChange={handleAmountChange}
-                  onConfirm={(nextValue) => {
-                    handleAmountChange(nextValue);
-                    setIsKeypadVisible(false);
-                    setAmountExpression([]);
-                  }}
-                  onExpressionChange={setAmountExpression}
-                />
-              </KeypadGlassShell>
+              <CustomKeypad
+                value={amount}
+                onValueChange={handleAmountChange}
+                onConfirm={(nextValue) => {
+                  handleAmountChange(nextValue);
+                  setIsKeypadVisible(false);
+                  setAmountExpression([]);
+                }}
+                onExpressionChange={setAmountExpression}
+              />
             </Animated.View>
           </CustomKeypadOverlay>
         )}

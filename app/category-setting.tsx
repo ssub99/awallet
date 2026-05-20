@@ -45,7 +45,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 16,
     paddingHorizontal: 16,
     height: 56,
     minHeight: 56,
@@ -65,8 +64,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   categoryEmoji: {
-    fontSize: 21,
-    lineHeight: 31.5,
+    ...Typography.headline4.r.bold,
+    width: 21,
+    textAlign: 'center',
   },
   categoryLabel: {
     ...Typography.body1.l.regular,

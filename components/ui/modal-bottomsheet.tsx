@@ -10,8 +10,10 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ReactNode, useEffect, useRef, useState } from 'react';
 import {
     Animated,
+    BackHandler,
     Dimensions,
     Modal,
+    Platform,
     Pressable,
     StyleSheet,
     Text,
@@ -71,13 +73,15 @@ export interface ModalBottomsheetProps {
   contentStyle?: ViewStyle;
   
   /**
-   * Disable bottom padding (insets.bottom)
-   * Use when content handles home indicator internally
+   * Disable bottom safe-area padding on the sheet container.
+   * Default: iOS only — reserves home indicator area (insets.bottom). Android: none.
+   * Use when children handle the iOS home indicator area themselves.
    */
   noPaddingBottom?: boolean;
 
   /**
-   * Render as embedded overlay (no RN Modal). Use when inside another Modal.
+   * Render as overlay inside a parent RN Modal (no second Modal).
+   * Use only with ModalPopup `extraOverlay` (e.g. prepayment date picker). Default: false.
    */
   embedded?: boolean;
 }
@@ -101,7 +105,9 @@ export function ModalBottomsheet({
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
   const insets = useSafeAreaInsets();
-  
+  const sheetBottomInset =
+    noPaddingBottom || Platform.OS !== 'ios' ? 0 : insets.bottom;
+
   // Internal state to control actual Modal visibility (Modal mode only)
   const [isModalVisible, setIsModalVisible] = useState(false);
   
@@ -194,6 +200,20 @@ export function ModalBottomsheet({
     }
   };
 
+  // embedded: 상위 RN Modal 안에서만 사용 — 하드웨어 뒤로가기는 onRequestClose 대신 여기서 처리
+  useEffect(() => {
+    if (!embedded || !visible) {
+      return undefined;
+    }
+
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      onClose();
+      return true;
+    });
+
+    return () => subscription.remove();
+  }, [embedded, visible, onClose]);
+
   if (embedded) {
     // Embedded render (no RN Modal)
     return (
@@ -216,7 +236,7 @@ export function ModalBottomsheet({
             {
               transform: [{ translateY: sheetTranslateY }],
               backgroundColor: colors.staticWhite,
-              paddingBottom: noPaddingBottom ? 0 : insets.bottom,
+              paddingBottom: sheetBottomInset,
               // Ensure overlay is above popup content when embedded
               zIndex: 100002,
             },
@@ -289,7 +309,7 @@ export function ModalBottomsheet({
           {
             transform: [{ translateY: sheetTranslateY }],
             backgroundColor: colors.staticWhite,
-            paddingBottom: noPaddingBottom ? 0 : insets.bottom,
+            paddingBottom: sheetBottomInset,
           },
         ]}
       >

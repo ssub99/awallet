@@ -9,10 +9,9 @@ import { Colors, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useWeekStart } from '@/hooks/use-week-start';
 import { formatCustomMonth } from '@/utils/custom-month';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Dimensions, LayoutAnimation, Platform, Pressable, ScrollView, StyleSheet, Text, UIManager, View, ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { pretendardFontFamily, pretendardTextStyle } from '@/constants/fonts';
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -27,6 +26,8 @@ const DAY_HEADER_HEIGHT = 40;
 const TAB_BAR_BASE_HEIGHT = 64;
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
+const CALENDAR_CENTER_PAGE_INDEX = 3;
+const CALENDAR_CENTER_SCROLL_X = SCREEN_WIDTH * CALENDAR_CENTER_PAGE_INDEX;
 const DAY_CELL_WIDTH = Math.floor(SCREEN_WIDTH / 7);
 /** Figma: 선택/포커스 원형 32×32 */
 const DAY_CIRCLE_SIZE = 32;
@@ -223,7 +224,11 @@ export function CalendarMain({
   const initialDate = selectedDate ? new Date(selectedDate) : new Date();
   const [currentYear, setCurrentYear] = useState(initialYear ?? initialDate.getFullYear());
   const [currentMonth, setCurrentMonth] = useState(initialMonth ?? (initialDate.getMonth() + 1));
-  
+
+  /** Parent props take effect immediately (timeline → home) before internal state effect runs. */
+  const displayYear = initialYear ?? currentYear;
+  const displayMonth = initialMonth ?? currentMonth;
+
   // Animation lock to prevent rapid swipes
   const [isAnimating, setIsAnimating] = useState(false);
 
@@ -231,7 +236,7 @@ export function CalendarMain({
 
   // Calculate dynamic day cell height (containerHeight 있으면 그걸 쓰고, 없으면 화면 높이 기준)
   const dayCellHeight = useMemo(() => {
-    const grid = generateMonthGrid(currentYear, currentMonth, adjustFirstDayOfWeek, monthStartDay);
+    const grid = generateMonthGrid(displayYear, displayMonth, adjustFirstDayOfWeek, monthStartDay);
     const weeks = Math.ceil(grid.length / 7);
     if (weeks <= 0) return 40;
 
@@ -251,15 +256,15 @@ export function CalendarMain({
       insets.bottom;
     const remainingHeight = screenHeight - fixedHeight;
     return Math.floor(remainingHeight / weeks);
-  }, [currentYear, currentMonth, insets.bottom, adjustFirstDayOfWeek, monthStartDay, containerHeight, showTitle]);
+  }, [displayYear, displayMonth, insets.bottom, adjustFirstDayOfWeek, monthStartDay, containerHeight, showTitle]);
 
   // Generate grids for 7 months (prev3, prev2, prev1, current, next1, next2, next3)
   const monthGrids = useMemo(() => {
     const grids = [];
     
     for (let offset = -3; offset <= 3; offset++) {
-      let targetMonth = currentMonth + offset;
-      let targetYear = currentYear;
+      let targetMonth = displayMonth + offset;
+      let targetYear = displayYear;
       
       // Handle month overflow/underflow
       while (targetMonth < 1) {
@@ -279,18 +284,20 @@ export function CalendarMain({
     }
     
     return grids;
-  }, [currentYear, currentMonth, adjustFirstDayOfWeek, monthStartDay]);
+  }, [displayYear, displayMonth, adjustFirstDayOfWeek, monthStartDay]);
   
   // ScrollView ref and initialization
   const scrollViewRef = useRef<ScrollView>(null);
+  const scrollOffsetRef = useRef(CALENDAR_CENTER_SCROLL_X);
   const [scrollInitialized, setScrollInitialized] = useState(false);
   
   // Initialize scroll to center (index 3)
   useEffect(() => {
     if (!scrollInitialized && scrollViewRef.current) {
       setTimeout(() => {
+        scrollOffsetRef.current = CALENDAR_CENTER_SCROLL_X;
         scrollViewRef.current?.scrollTo({
-          x: SCREEN_WIDTH * 3, // Center of 7 months (index 3)
+          x: CALENDAR_CENTER_SCROLL_X,
           animated: false,
         });
         setScrollInitialized(true);
@@ -298,15 +305,64 @@ export function CalendarMain({
     }
   }, [scrollInitialized]);
   
-  // Sync external year/month changes
-  useEffect(() => {
-    if (initialYear !== undefined && initialYear !== currentYear) {
+  // Sync external year/month before paint; keep horizontal offset at center.
+  useLayoutEffect(() => {
+    if (initialYear === undefined && initialMonth === undefined) {
+      return;
+    }
+
+    const yearChanged = initialYear !== undefined && initialYear !== currentYear;
+    const monthChanged = initialMonth !== undefined && initialMonth !== currentMonth;
+
+    if (!yearChanged && !monthChanged) {
+      return;
+    }
+
+    if (yearChanged) {
       setCurrentYear(initialYear);
     }
-    if (initialMonth !== undefined && initialMonth !== currentMonth) {
+    if (monthChanged) {
       setCurrentMonth(initialMonth);
     }
+
+    scrollOffsetRef.current = CALENDAR_CENTER_SCROLL_X;
+    scrollViewRef.current?.scrollTo({
+      x: CALENDAR_CENTER_SCROLL_X,
+      animated: false,
+    });
   }, [initialYear, initialMonth, currentYear, currentMonth]);
+
+  /** dayData 객체 참조만 바뀌고 내용이 같을 때 스크롤 복구를 막기 위한 시그니처 */
+  const dayDataSignature = useMemo(() => {
+    const keys = Object.keys(dayData);
+    if (keys.length === 0) return '';
+    keys.sort();
+    let sig = `${keys.length}:`;
+    for (let i = 0; i < keys.length; i += 1) {
+      const k = keys[i];
+      const d = dayData[k];
+      sig += `${k}|${d?.totalExpense ?? 0}|${d?.totalIncome ?? 0};`;
+    }
+    return sig;
+  }, [dayData]);
+
+  // refresh() 후 dayData 갱신 시 ScrollView가 x=0으로 리셋되는 경우 복구
+  useLayoutEffect(() => {
+    if (!scrollInitialized || !scrollViewRef.current) {
+      return;
+    }
+
+    const offset = scrollOffsetRef.current;
+    if (offset >= SCREEN_WIDTH * 2) {
+      return;
+    }
+
+    scrollOffsetRef.current = CALENDAR_CENTER_SCROLL_X;
+    scrollViewRef.current.scrollTo({
+      x: CALENDAR_CENTER_SCROLL_X,
+      animated: false,
+    });
+  }, [dayDataSignature, scrollInitialized]);
   
   // Handle scroll end
   const handleScrollEnd = (event: any) => {
@@ -315,7 +371,7 @@ export function CalendarMain({
     
     const offsetX = event.nativeEvent.contentOffset.x;
     const page = Math.round(offsetX / SCREEN_WIDTH);
-    const centerPage = 3; // Center index of 7-month array
+    const centerPage = CALENDAR_CENTER_PAGE_INDEX;
     
     // Calculate how many months to move (positive = forward, negative = backward)
     const monthsToMove = page - centerPage;
@@ -339,11 +395,12 @@ export function CalendarMain({
     });
     
     // Reset scroll to center
+    scrollOffsetRef.current = CALENDAR_CENTER_SCROLL_X;
     scrollViewRef.current?.scrollTo({
-      x: SCREEN_WIDTH * 3,
+      x: CALENDAR_CENTER_SCROLL_X,
       animated: false,
     });
-    
+
     // Change month by the calculated amount (LayoutAnimation will handle the transition)
     changeMonthBy(monthsToMove);
     
@@ -404,9 +461,17 @@ export function CalendarMain({
         style={[styles.dayContainer, { width: DAY_CELL_WIDTH, height: dayCellHeight }]}
       >
         <Pressable
-          onPress={() => {
-            handleDayPress(item.date);
-          }}
+          {...(Platform.OS === 'android'
+            ? {
+                onPressIn: () => {
+                  handleDayPress(item.date);
+                },
+              }
+            : {
+                onPress: () => {
+                  handleDayPress(item.date);
+                },
+              })}
           style={({ pressed }) => [
             styles.dayPressable,
             Platform.OS === 'ios' && pressed && !isSelected && styles.dayCirclePressed,
@@ -471,7 +536,7 @@ export function CalendarMain({
       {showTitle && (
         <View style={styles.titleContainer}>
           <Text style={[styles.titleText, { color: colors.text }]}>
-            {formatCustomMonth(currentYear, currentMonth, monthStartDay)}
+            {formatCustomMonth(displayYear, displayMonth, monthStartDay)}
           </Text>
         </View>
       )}
@@ -494,6 +559,9 @@ export function CalendarMain({
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         scrollEventThrottle={16}
+        onScroll={(event) => {
+          scrollOffsetRef.current = event.nativeEvent.contentOffset.x;
+        }}
         onMomentumScrollEnd={handleScrollEnd}
         onScrollBeginDrag={() => {}}
         scrollEnabled={!isAnimating}
@@ -503,7 +571,7 @@ export function CalendarMain({
         {monthGrids.map((monthData, index) => {
           const gridType = index === 3 ? 'current' : (index < 3 ? 'prev' : 'next');
           return (
-            <View key={`${monthData.year}-${monthData.month}`} style={[styles.monthPage, { width: SCREEN_WIDTH }]}>
+            <View key={`month-slot-${index}`} style={[styles.monthPage, { width: SCREEN_WIDTH }]}>
               <View style={styles.weeksContainer}>
                 {monthData.grid.map((item, dayIndex) => renderDay(item, dayIndex, gridType))}
               </View>
@@ -528,9 +596,7 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(144, 146, 158, 0.16)',
   },
   titleText: {
-    fontSize: 18,
-    ...pretendardTextStyle('700'),
-    lineHeight: 27,
+    ...Typography.headline4.r.bold,
   },
   weekdayHeader: {
     flexDirection: 'row',
@@ -543,9 +609,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   weekdayText: {
-    fontSize: 12,
-    ...pretendardTextStyle('500'),
-    lineHeight: 18,
+    ...Typography.detail.r.medium,
   },
   scrollView: {
     width: '100%',
@@ -592,15 +656,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   expenseText: {
-    fontSize: 10,
-    ...pretendardTextStyle('400'),
-    lineHeight: 15,
+    ...Typography.tiny.r.regular,
     color: '#ef2a2a',
   },
   incomeText: {
-    fontSize: 10,
-    ...pretendardTextStyle('400'),
-    lineHeight: 15,
+    ...Typography.tiny.r.regular,
     color: '#058943',
   },
 });

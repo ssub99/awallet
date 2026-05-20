@@ -559,6 +559,5 @@ const styles = StyleSheet.create({
   deleteConfirmText: {
     ...Typography.body1.l.regular,
     textAlign: 'center',
-    lineHeight: 24,
   },
 });

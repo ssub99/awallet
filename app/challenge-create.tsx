@@ -29,7 +29,6 @@ import { loadCategories } from '@/utils/categories';
 import { createChallenges, type ChallengeRecord } from '@/utils/challenges';
 import { generateGroupId, generateRecordId } from '@/utils/id-generator';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { KeypadGlassShell } from '@/components/ui/keypad-glass-shell';
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Dimensions, Easing, Keyboard, Pressable, ScrollView, StatusBar, StyleSheet, Text, TouchableWithoutFeedback, useWindowDimensions, View } from 'react-native';
@@ -693,18 +692,16 @@ export default function ChallengeCreateScreen() {
                 { transform: [{ translateY: keypadTranslateY }] },
               ]}
             >
-              <KeypadGlassShell style={styles.customKeypadBlur}>
-                <CustomKeypad
-                  value={targetAmount}
-                  onValueChange={handleAmountChange}
-                  onConfirm={(nextValue) => {
-                    handleAmountChange(nextValue);
-                    setIsKeypadVisible(false);
-                    setAmountExpression([]);
-                  }}
-                  onExpressionChange={setAmountExpression}
-                />
-              </KeypadGlassShell>
+              <CustomKeypad
+                value={targetAmount}
+                onValueChange={handleAmountChange}
+                onConfirm={(nextValue) => {
+                  handleAmountChange(nextValue);
+                  setIsKeypadVisible(false);
+                  setAmountExpression([]);
+                }}
+                onExpressionChange={setAmountExpression}
+              />
             </Animated.View>
           </CustomKeypadOverlay>
         )}

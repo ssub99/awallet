@@ -5,10 +5,9 @@
  * Supports checked/unchecked states with optional label.
  */
 
-import { Colors } from '@/constants/theme';
+import { Colors, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
-import { pretendardFontFamily, pretendardTextStyle } from '@/constants/fonts';
 
 export interface RadioProps {
   /**
@@ -138,9 +137,7 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   label: {
-    fontSize: 14,
-    ...pretendardTextStyle('500'),
-    lineHeight: 21,
+    ...Typography.body2.r.medium,
     marginLeft: 8,
   },
 });
