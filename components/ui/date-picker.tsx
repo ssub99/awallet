@@ -396,16 +396,25 @@ export function DatePicker({
 
   const handleYearValueChange = useCallback(
     (itemValue: number) => {
-      tempYearRef.current = resolvePickerValue(itemValue, yearOptions);
+      const next = resolvePickerValue(itemValue, yearOptions);
+      tempYearRef.current = next;
+      // iOS Picker는 selectedValue(temp state)와 동기화 필요 — ref만 갱신 시 스크롤 후 되돌아감
+      if (isIos) {
+        setTempYear(next);
+      }
     },
-    [yearOptions],
+    [isIos, yearOptions],
   );
 
   const handleMonthValueChange = useCallback(
     (itemValue: number) => {
-      tempMonthRef.current = resolvePickerValue(itemValue, monthOptions);
+      const next = resolvePickerValue(itemValue, monthOptions);
+      tempMonthRef.current = next;
+      if (isIos) {
+        setTempMonth(next);
+      }
     },
-    [monthOptions],
+    [isIos, monthOptions],
   );
 
   const handleDayValueChange = (itemValue: number) => {
