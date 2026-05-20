@@ -8,6 +8,7 @@
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { pretendardFontFamily, pretendardTextStyle } from '@/constants/fonts';
 
 export interface RadioProps {
   /**
@@ -138,8 +139,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    fontFamily: 'Pretendard',
-    fontWeight: '500',
+    ...pretendardTextStyle('500'),
     lineHeight: 21,
     marginLeft: 8,
   },

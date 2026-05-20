@@ -52,7 +52,10 @@ export default function HomeScreen() {
   const appState = useRef<AppStateStatus>(AppState.currentState);
   const insets = useSafeAreaInsets();
   
-  const { isQuickInputVisible, showQuickInput } = useQuickInputContext();
+  const { isQuickInputContentVisible, isQuickInputShortVisible, showQuickInput } =
+    useQuickInputContext();
+
+  const isQuickInputShortHidden = isQuickInputContentVisible && !isQuickInputShortVisible;
   const beginLoad = useCallback(() => {
     pendingOpsRef.current += 1;
     setLoading(true);
@@ -840,15 +843,15 @@ export default function HomeScreen() {
         </>
       )}
 
-    </SafeAreaView>
-      {/* 간편입력: 월 캘린더에서만 노출 + 1.0.3 이상에서만 노출 (구버전 OTA 시 크래시 방지) */}
+      {/* 간편입력: SafeAreaView 안에 두어 Android dimezisBlurView가 캘린더를 샘플링하도록 함 */}
       {periodType === 'month' && isAtLeastVersion(Constants.expoConfig?.version, QUICK_INPUT_MIN_VERSION) && (
         <View
+          collapsable={false}
           style={[
-            styles.quickInputShortWrap,
-            isQuickInputVisible && styles.quickInputShortHidden,
+            styles.quickInputAnchor,
+            isQuickInputShortHidden && styles.quickInputShortHidden,
           ]}
-          pointerEvents={isQuickInputVisible ? 'none' : 'auto'}
+          pointerEvents={isQuickInputShortHidden ? 'none' : 'box-none'}
         >
           <QuickInputShort
             bottom={FAB_OFFSET_ABOVE_TABS}
@@ -858,6 +861,8 @@ export default function HomeScreen() {
           />
         </View>
       )}
+
+    </SafeAreaView>
 
       {/* FAB: 홈에서만 노출, 기록/챌린지 선택 바텀시트 오픈 */}
       <Pressable
@@ -903,14 +908,11 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 8,
   },
-  quickInputShortWrap: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
+  quickInputAnchor: {
+    ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'flex-end',
+    zIndex: 10,
   },
   quickInputShortHidden: {
     opacity: 0,

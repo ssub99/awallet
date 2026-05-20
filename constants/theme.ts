@@ -23,6 +23,14 @@ export const Colors = ThemeColors;
 export { Typography, TypographyPresets } from './typography';
 export type { FontWeight, SizeCategory } from './typography';
 
+export {
+  PRETENDARD_FAMILY,
+  PRETENDARD_FONT_ASSETS,
+  pretendardFontFamily,
+  pretendardTextStyle,
+} from './fonts';
+export type { PretendardWeight } from './fonts';
+
 export const Fonts = Platform.select({
   ios: {
     /** iOS `UIFontDescriptorSystemDesignDefault` */

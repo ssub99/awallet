@@ -7,32 +7,33 @@ import Constants from 'expo-constants';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Updates from 'expo-updates';
 // useColorScheme import 제거 - OS 강제 다크 모드 영향 방지를 위해 항상 'light' 사용
+import { AnalyticsRouteListener } from '@/components/analytics-route-listener';
+import { useAppFonts } from '@/hooks/use-app-fonts';
 import { useMetaFacebookAttSync } from '@/hooks/use-meta-facebook-att-sync';
 import { useFirstLaunchNotificationPermission } from '@/hooks/use-notifications';
-import { AnalyticsRouteListener } from '@/components/analytics-route-listener';
 import { initAmplitude, logEvent } from '@/utils/analytics';
-import {
-  checkActiveChallengesNotifications,
-  checkEndedChallenges,
-  emitEndedChallengeResultAnalytics,
-} from '@/utils/challenge-utils';
-import {
-  cancelDailyReminder,
-  cleanupOldSchedules,
-  getChallengeNotificationsEnabled,
-  getGeneralNotificationsEnabled,
-  setupDailyReminder,
-} from '@/utils/notification-scheduler';
-import {
-  fetchAppVersionPolicy,
-  getEffectiveMinVersion,
-} from '@/utils/fetch-app-version-policy';
 import { isAtLeastVersion } from '@/utils/app-version';
-import { showStoreUpdateAlert } from '@/utils/show-store-update-alert';
+import {
+    checkActiveChallengesNotifications,
+    checkEndedChallenges,
+    emitEndedChallengeResultAnalytics,
+} from '@/utils/challenge-utils';
+import { configureForegroundNotificationHandler } from '@/utils/expo-notifications-client';
+import {
+    fetchAppVersionPolicy,
+    getEffectiveMinVersion,
+} from '@/utils/fetch-app-version-policy';
+import {
+    cancelDailyReminder,
+    cleanupOldSchedules,
+    getChallengeNotificationsEnabled,
+    getGeneralNotificationsEnabled,
+    setupDailyReminder,
+} from '@/utils/notification-scheduler';
 import { initializePaymentSubtypes } from '@/utils/payment-types';
+import { showStoreUpdateAlert } from '@/utils/show-store-update-alert';
 import { refreshWidgetWithCurrentMonth, resetMonthlyExpenseMaskInWidget } from '@/utils/widget-data-sync';
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import * as Notifications from 'expo-notifications';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -42,16 +43,7 @@ import { KeyboardProvider } from 'react-native-keyboard-controller';
 import 'react-native-reanimated';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 
-// Configure how notifications should be handled when app is in foreground
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+configureForegroundNotificationHandler();
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -63,6 +55,7 @@ interface StoreUpdateGateState {
 }
 
 export default function RootLayout() {
+  const { fontsLoaded, fontError } = useAppFonts();
   // OS 강제 다크 모드 영향 방지를 위해 항상 'light'로 고정
   const colorScheme: 'light' = 'light';
   const [splashFinished, setSplashFinished] = useState(false);
@@ -71,6 +64,8 @@ export default function RootLayout() {
   const storeAlertPresentedRef = useRef(false);
   const storeGateResumeFromBackgroundRef = useRef(false);
   const colors = Colors[colorScheme] as typeof Colors.light;
+  const androidSlideOptions =
+    Platform.OS === 'android' ? ({ animation: 'slide_from_right' as const } as const) : {};
   
   // 스플래시 자동 숨김 방지 (컴포넌트 최상단에서 즉시 호출)
   // Promise를 반환하지만 await하지 않아도 됨 (백그라운드에서 실행)
@@ -189,21 +184,23 @@ export default function RootLayout() {
     return () => sub.remove();
   }, [storeUpdateGate]);
 
-  // appIsReady가 true가 되면 스플래시 숨기기
+  const fontsReady = fontsLoaded || fontError != null;
+
+  // appIsReady + 폰트 로드 후 스플래시 숨기기
   useEffect(() => {
-    if (appIsReady) {
+    if (appIsReady && fontsReady) {
       SplashScreen.hideAsync().catch(() => {
         // 에러가 발생해도 계속 진행
       });
     }
-  }, [appIsReady]);
+  }, [appIsReady, fontsReady]);
   
   const onLayoutRootView = useCallback(async () => {
-    if (appIsReady) {
+    if (appIsReady && fontsReady) {
       // 레이아웃이 완료된 후 스플래시 숨기기 (이중 안전장치)
       await SplashScreen.hideAsync();
     }
-  }, [appIsReady]);
+  }, [appIsReady, fontsReady]);
   
   // Request notification permission on first app launch
   const { permissionChecked } = useFirstLaunchNotificationPermission();
@@ -298,29 +295,29 @@ export default function RootLayout() {
               enabled={appIsReady && splashFinished && !(storeUpdateGate?.forceUpdate === true)}
             >
               <ToastProvider>
-                {appIsReady && !(storeUpdateGate?.forceUpdate === true) ? (
+                {appIsReady && fontsReady && !(storeUpdateGate?.forceUpdate === true) ? (
                   <>
                     <AnalyticsRouteListener />
                     <Stack>
                       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                       <Stack.Screen name="(dev-tabs)" options={{ headerShown: false }} />
-                      <Stack.Screen name="expense-category" options={{ headerShown: false }} />
-                      <Stack.Screen name="expense-record" options={{ headerShown: false }} />
-                      <Stack.Screen name="expense-edit" options={{ headerShown: false }} />
-                      <Stack.Screen name="income-record" options={{ headerShown: false }} />
-                      <Stack.Screen name="income-edit" options={{ headerShown: false }} />
-                      <Stack.Screen name="challenge-create" options={{ headerShown: false }} />
-                      <Stack.Screen name="challenge-edit" options={{ headerShown: false }} />
-                      <Stack.Screen name="challenge-detail" options={{ headerShown: false }} />
-                      <Stack.Screen name="monthly-expense-timeline" options={{ headerShown: false }} />
-                      <Stack.Screen name="month-start-day" options={{ headerShown: false }} />
-                      <Stack.Screen name="category-setting" options={{ headerShown: false }} />
-                      <Stack.Screen name="category-create" options={{ headerShown: false }} />
-                      <Stack.Screen name="category-edit" options={{ headerShown: false }} />
-                      <Stack.Screen name="expense-category-detail" options={{ headerShown: false }} />
-                      <Stack.Screen name="notification-setting" options={{ headerShown: false }} />
-                      <Stack.Screen name="data-backup" options={{ headerShown: false }} />
-                      <Stack.Screen name="recurring-record-management" options={{ headerShown: false }} />
+                      <Stack.Screen name="expense-category" options={{ headerShown: false, ...androidSlideOptions }} />
+                      <Stack.Screen name="expense-record" options={{ headerShown: false, ...androidSlideOptions }} />
+                      <Stack.Screen name="expense-edit" options={{ headerShown: false, ...androidSlideOptions }} />
+                      <Stack.Screen name="income-record" options={{ headerShown: false, ...androidSlideOptions }} />
+                      <Stack.Screen name="income-edit" options={{ headerShown: false, ...androidSlideOptions }} />
+                      <Stack.Screen name="challenge-create" options={{ headerShown: false, ...androidSlideOptions }} />
+                      <Stack.Screen name="challenge-edit" options={{ headerShown: false, ...androidSlideOptions }} />
+                      <Stack.Screen name="challenge-detail" options={{ headerShown: false, ...androidSlideOptions }} />
+                      <Stack.Screen name="monthly-expense-timeline" options={{ headerShown: false, ...androidSlideOptions }} />
+                      <Stack.Screen name="month-start-day" options={{ headerShown: false, ...androidSlideOptions }} />
+                      <Stack.Screen name="category-setting" options={{ headerShown: false, ...androidSlideOptions }} />
+                      <Stack.Screen name="category-create" options={{ headerShown: false, ...androidSlideOptions }} />
+                      <Stack.Screen name="category-edit" options={{ headerShown: false, ...androidSlideOptions }} />
+                      <Stack.Screen name="expense-category-detail" options={{ headerShown: false, ...androidSlideOptions }} />
+                      <Stack.Screen name="notification-setting" options={{ headerShown: false, ...androidSlideOptions }} />
+                      <Stack.Screen name="data-backup" options={{ headerShown: false, ...androidSlideOptions }} />
+                      <Stack.Screen name="recurring-record-management" options={{ headerShown: false, ...androidSlideOptions }} />
                       <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
                     </Stack>
                     <StatusBar style="dark" />

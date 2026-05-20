@@ -7,6 +7,7 @@
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Button } from '@/components/ui/button';
 import { CustomKeypad, getKeypadHeight, type CustomKeypadOperator, type ExpressionToken } from '@/components/ui/custom-keypad';
+import { CustomKeypadOverlay, getCustomKeypadScrollPaddingBottom } from '@/components/ui/custom-keypad-overlay';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { ModalPopup } from '@/components/ui/modal-popup';
@@ -23,7 +24,7 @@ import { loadCategories } from '@/utils/categories';
 import { cancelChallengeFailureNotification, cancelChallengeProgressNotifications, cancelChallengeSuccessNotification } from '@/utils/notification-scheduler';
 import { getChallengeById, getChallengesByRecurringId, softDeleteChallengesByRecurringId, updateChallengesByRecurringId, type ChallengeRecord } from '@/utils/challenges';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { BlurView } from 'expo-blur';
+import { KeypadGlassShell } from '@/components/ui/keypad-glass-shell';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Animated, Dimensions, Easing, Keyboard, Pressable, ScrollView, StatusBar, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
@@ -218,19 +219,6 @@ export default function ChallengeEditScreen() {
     if (!Number.isFinite(numeric)) return raw;
     return numeric.toLocaleString();
   }, []);
-
-  const getRgbaColor = useCallback((hex: string, opacity: number) => {
-    const normalized = hex.replace('#', '');
-    const r = parseInt(normalized.slice(0, 2), 16);
-    const g = parseInt(normalized.slice(2, 4), 16);
-    const b = parseInt(normalized.slice(4, 6), 16);
-    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
-  }, []);
-
-  const keypadTintColor = useMemo(
-    () => getRgbaColor(AtomicColors.neutral[300], 0.8),
-    [getRgbaColor]
-  );
 
   const getOperatorSymbol = useCallback((operator: CustomKeypadOperator) => {
     switch (operator) {
@@ -616,7 +604,7 @@ export default function ChallengeEditScreen() {
             style={[styles.content, { backgroundColor: colors.fill }]}
             contentContainerStyle={[
               styles.contentContainer,
-              { paddingBottom: isKeypadVisible ? KEYPAD_HEIGHT + 16 - insets.bottom : 24 }
+              { paddingBottom: isKeypadVisible ? getCustomKeypadScrollPaddingBottom(KEYPAD_HEIGHT, insets.bottom) : 24 }
             ]}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
@@ -801,7 +789,7 @@ export default function ChallengeEditScreen() {
           </ScrollView>
 
           {isKeypadMounted && (
-            <View style={styles.customKeypadOverlay} pointerEvents="box-none">
+            <CustomKeypadOverlay>
               <Animated.View
                 pointerEvents="none"
                 style={[
@@ -815,15 +803,7 @@ export default function ChallengeEditScreen() {
                   { transform: [{ translateY: keypadTranslateY }] },
                 ]}
               >
-                <BlurView
-                  intensity={16}
-                  tint="light"
-                  style={styles.customKeypadBlur}
-                >
-                  <View
-                    pointerEvents="none"
-                    style={[styles.customKeypadTint, { backgroundColor: keypadTintColor }]}
-                  />
+                <KeypadGlassShell style={styles.customKeypadBlur}>
                   <CustomKeypad
                     value={targetAmount}
                     onValueChange={handleAmountChange}
@@ -834,9 +814,9 @@ export default function ChallengeEditScreen() {
                     }}
                     onExpressionChange={setAmountExpression}
                   />
-                </BlurView>
+                </KeypadGlassShell>
               </Animated.View>
-            </View>
+            </CustomKeypadOverlay>
           )}
 
           {/* 하단 고정 버튼 */}
@@ -899,16 +879,6 @@ const styles = StyleSheet.create({
     gap: 24,
     paddingBottom: 24,
   },
-  customKeypadOverlay: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    top: 0,
-    justifyContent: 'flex-end',
-    zIndex: 100,
-    elevation: 100,
-  },
   customKeypadBackdrop: {
     flex: 1,
   },
@@ -917,9 +887,6 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     overflow: 'hidden',
-  },
-  customKeypadTint: {
-    ...StyleSheet.absoluteFillObject,
   },
   customKeypadContainer: {
     width: '100%',

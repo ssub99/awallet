@@ -11,6 +11,7 @@
  */
 
 import { Icon, IconName } from '@/components/ui/icon';
+import { pretendardTextStyle } from '@/constants/fonts';
 import { Colors, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { forwardRef, useImperativeHandle, useRef, useState, type ReactNode } from 'react';
@@ -480,8 +481,7 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 16,
-    fontFamily: 'Pretendard',
-    fontWeight: '400',
+    ...pretendardTextStyle('400'),
     includeFontPadding: false,
     padding: 0,
     margin: 0,
@@ -511,7 +511,7 @@ const styles = StyleSheet.create({
     marginLeft: -4,
   },
   inputNumber: {
-    fontWeight: '700',
+    ...pretendardTextStyle('700'),
     textAlign: 'right',
   },
   inputArea: {
@@ -527,20 +527,17 @@ const styles = StyleSheet.create({
   },
   unit: {
     fontSize: 16,
-    fontFamily: 'Pretendard',
-    fontWeight: '500',
+    ...pretendardTextStyle('500'),
     lineHeight: 24,
   },
   time: {
     fontSize: 16,
-    fontFamily: 'Pretendard',
-    fontWeight: '400',
+    ...pretendardTextStyle('400'),
     lineHeight: 24,
   },
   rightText: {
     fontSize: 16,
-    fontFamily: 'Pretendard',
-    fontWeight: '400',
+    ...pretendardTextStyle('400'),
     lineHeight: 24,
   },
   rightArrow: {
@@ -551,8 +548,7 @@ const styles = StyleSheet.create({
   },
   calendarDate: {
     fontSize: 16,
-    fontFamily: 'Pretendard',
-    fontWeight: '400',
+    ...pretendardTextStyle('400'),
     lineHeight: 24,
   },
   sortationIndicator: {

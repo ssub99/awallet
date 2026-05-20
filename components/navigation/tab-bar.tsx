@@ -12,6 +12,7 @@ import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useRef } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { pretendardFontFamily } from '@/constants/fonts';
 
 /**
  * Tab Bar matching Figma design
@@ -134,7 +135,7 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
                   styles.label,
                   {
                     color: isFocused ? colors.text : colors.textAssistive,
-                    fontWeight: isFocused ? '700' : '400',
+                    fontFamily: pretendardFontFamily(isFocused ? '700' : '400'),
                   },
                 ]}
               >
@@ -174,7 +175,6 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 12,
-    fontFamily: 'Pretendard',
     lineHeight: 18,
     textAlign: 'center',
   },

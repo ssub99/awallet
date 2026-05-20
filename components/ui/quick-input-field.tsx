@@ -90,6 +90,7 @@ export const QuickInputField = forwardRef<TextInput, QuickInputFieldProps>(
     },
     ref
   ) {
+    const { style: textInputStyle, ...restTextInputProps } = textInputProps;
     const colorScheme = useColorScheme();
     const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
 
@@ -113,11 +114,13 @@ export const QuickInputField = forwardRef<TextInput, QuickInputFieldProps>(
             <View style={styles.inputWrap}>
               <TextInput
                 ref={inputRef}
-                style={[styles.input, { color: colors.text }]}
+                style={[styles.input, { color: colors.text }, textInputStyle]}
                 value={value}
                 onChangeText={onChangeText}
                 placeholder=""
                 placeholderTextColor={colors.textAssistive}
+                selectionColor={colors.primary}
+                cursorColor={colors.primary}
                 keyboardType="default"
                 returnKeyType="send"
                 // 쿼티 키패드 전송 버튼도 컴포넌트 내 보내기 버튼과 동일하게 처리
@@ -126,7 +129,7 @@ export const QuickInputField = forwardRef<TextInput, QuickInputFieldProps>(
                   onSend?.();
                 }}
                 textAlignVertical="center"
-                {...textInputProps}
+                {...restTextInputProps}
               />
               {!hasValue && (
                 <View style={styles.placeholderWrap} pointerEvents="none">
@@ -240,9 +243,11 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     ...Typography.body1.l.regular,
-    // TextInput에서 커서/텍스트 라인 박스가 하단으로 밀리는 문제 방지용
-    // (otp-inputs와 동일 패턴: lineHeight를 0으로 덮어써서 캐럿이 중앙에 오도록 맞춤)
-    lineHeight: 0,
+    // iOS: 캐럿 수직 정렬용. Android는 lineHeight 0 시 글자가 보이지 않음 → Typography lineHeight 유지
+    ...Platform.select({
+      ios: { lineHeight: 0 },
+      default: {},
+    }),
     padding: 0,
     margin: 0,
     includeFontPadding: false,

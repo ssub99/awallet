@@ -15,6 +15,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Picker } from '@react-native-picker/picker';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Keyboard, Modal, Platform, Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { pretendardFontFamily, pretendardTextStyle } from '@/constants/fonts';
 
 export interface SelectboxOption {
   label: string;
@@ -311,8 +312,7 @@ const styles = StyleSheet.create({
   },
   text: {
     fontSize: 16,
-    fontFamily: 'Pretendard',
-    fontWeight: '400',
+    ...pretendardTextStyle('400'),
     lineHeight: 24,
   },
   // Android Picker
@@ -357,20 +357,17 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     fontSize: 17,
-    fontFamily: 'Pretendard',
-    fontWeight: '400',
+    ...pretendardTextStyle('400'),
   },
   pickerTitle: {
     fontSize: 17,
-    fontFamily: 'Pretendard',
-    fontWeight: '600',
+    ...pretendardTextStyle('500'),
     flex: 1,
     textAlign: 'center',
   },
   doneButton: {
     fontSize: 17,
-    fontFamily: 'Pretendard',
-    fontWeight: '600',
+    ...pretendardTextStyle('500'),
     textAlign: 'right',
   },
   iosPicker: {

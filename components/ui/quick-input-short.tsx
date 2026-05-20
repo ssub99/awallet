@@ -1,8 +1,15 @@
-import { BlurView } from 'expo-blur';
+import { BlurTokens } from '@/constants/blur-tokens';
 import { Colors, Typography } from '@/constants/theme';
 import { Icon } from '@/components/ui/icon';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import {
+  EXPO_BLUR_ANDROID_PROPS,
+  resolveBlurIntensity,
+  resolveBlurTint,
+  shouldApplyReactBlurOverlay,
+} from '@/utils/expo-blur-platform';
 import { logEvent } from '@/utils/analytics';
+import { BlurView } from 'expo-blur';
 import type { ComponentRef } from 'react';
 import { useCallback, useRef } from 'react';
 import { Animated, Dimensions, LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -93,6 +100,7 @@ export function QuickInputShort({
   return (
     <Pressable
       ref={containerRef}
+      collapsable={false}
       style={[styles.quickInput, { bottom }]}
       onLayout={handleLayout}
       onPress={() => {
@@ -105,14 +113,20 @@ export function QuickInputShort({
       accessibilityRole="button"
       accessibilityLabel="기록 간편입력"
     >
-      <BlurView intensity={48} tint="light" style={styles.quickInputBlur}>
-        <View
-          pointerEvents="none"
-          style={[styles.quickInputTint, { backgroundColor: colors.fill }]}
-        />
+      <BlurView
+        intensity={resolveBlurIntensity(BlurTokens.quickInputShort)}
+        tint={resolveBlurTint('light')}
+        style={styles.quickInputBlur}
+        {...EXPO_BLUR_ANDROID_PROPS}
+      >
+        {shouldApplyReactBlurOverlay() ? (
+          <View
+            pointerEvents="none"
+            style={[styles.quickInputTint, { backgroundColor: colors.fill }]}
+          />
+        ) : null}
         <View style={styles.quickInputContent} pointerEvents="box-none">
           <View style={styles.quickInputLeft}>
-            {/* 소비 에이전트 카드와 동일한 그라데이션 circle + star 애니메이션 */}
             <QuickInputStar size={20} starScale={starScale} starRotate={starRotate} />
             <Text style={[styles.quickInputText, { color: colors.textNeutral }]}>기록 간편입력</Text>
           </View>
@@ -133,6 +147,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     overflow: 'hidden',
     zIndex: 10,
+    backgroundColor: 'transparent',
   },
   quickInputBlur: {
     flex: 1,
@@ -166,4 +181,3 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 });
-

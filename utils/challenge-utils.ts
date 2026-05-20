@@ -11,7 +11,9 @@ import { extractTimestampFromId } from '@/utils/id-generator';
 import { getAllExpenses, type ExpenseRecord } from '@/utils/expenses';
 import { rebuildCalendarDataFromStores } from '@/utils/rebuild-calendar-data';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Notifications from 'expo-notifications';
+import type { NotificationContent } from 'expo-notifications';
+
+import { getExpoNotifications } from '@/utils/expo-notifications-client';
 import {
     getAllChallenges,
     logChallengeResultForRecord,
@@ -97,7 +99,7 @@ export async function getActiveChallengeByCategory(
  * @param calendarData 캐시된 calendarData (선택적, 제공되지 않으면 AsyncStorage에서 로드)
  */
 function readScheduledNotificationChallengeId(
-  data: Notifications.NotificationContent['data'],
+  data: NotificationContent['data'],
 ): string | undefined {
   if (!data || typeof data !== 'object') return undefined;
   const challengeId = (data as Record<string, unknown>).challengeId;
@@ -307,6 +309,10 @@ async function enforceChallengeProgressNotificationState(
   expectedMilestone: number | null,
   livePercentage: number,
 ): Promise<void> {
+  const Notifications = getExpoNotifications();
+  if (!Notifications) {
+    return;
+  }
   const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
   const categoryTag = `[#${challenge.category}]`;
   const liveRounded = Math.round(livePercentage);
@@ -745,6 +751,11 @@ export async function checkActiveChallengesNotifications(): Promise<void> {
       const challenges = await getAllChallenges();
       const today = new Date();
       today.setHours(0, 0, 0, 0);
+
+      const Notifications = getExpoNotifications();
+      if (!Notifications) {
+        return;
+      }
 
       // 1단계: 스케줄된 모든 챌린지 알림 확인 및 취소
       const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();

@@ -45,9 +45,10 @@ import {
 } from '@/utils/notification-scheduler';
 import { storageCache } from '@/utils/storage-cache';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Notifications from 'expo-notifications';
-import { SchedulableTriggerInputTypes } from 'expo-notifications';
+import type * as ExpoNotifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
+
+import { getExpoNotifications } from '@/utils/expo-notifications-client';
 import { useState } from 'react';
 import { Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -85,7 +86,11 @@ function getRecordNumber(value: unknown, key: string): number | null {
 
 function toSchedulableTriggerInput(
   trigger: unknown
-): Notifications.SchedulableNotificationTriggerInput | null {
+): ExpoNotifications.SchedulableNotificationTriggerInput | null {
+  const SchedulableTriggerInputTypes = getExpoNotifications()?.SchedulableTriggerInputTypes;
+  if (!SchedulableTriggerInputTypes) {
+    return null;
+  }
   if (!trigger || typeof trigger !== 'object') return null;
 
   const triggerType = getTriggerType(trigger);
@@ -103,7 +108,7 @@ function toSchedulableTriggerInput(
     const dateComponents = getRecordValue(trigger, 'dateComponents');
     if (!dateComponents || typeof dateComponents !== 'object') return null;
 
-    const calendarTrigger: Notifications.CalendarTriggerInput = {
+    const calendarTrigger: ExpoNotifications.CalendarTriggerInput = {
       type: SchedulableTriggerInputTypes.CALENDAR,
       repeats: getRecordValue(trigger, 'repeats') === true,
     };
@@ -154,7 +159,8 @@ async function formatTriggerDateLabel(trigger: unknown): Promise<string> {
   if (dailyTriggerText) return dailyTriggerText;
 
   const triggerInput = toSchedulableTriggerInput(trigger);
-  if (triggerInput) {
+  const Notifications = getExpoNotifications();
+  if (triggerInput && Notifications) {
     try {
       const nextTriggerMs = await Notifications.getNextTriggerDateAsync(triggerInput);
       if (nextTriggerMs != null) {

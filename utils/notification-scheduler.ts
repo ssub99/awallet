@@ -6,7 +6,12 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Notifications from 'expo-notifications';
+import type * as ExpoNotifications from 'expo-notifications';
+
+import { getExpoNotifications } from '@/utils/expo-notifications-client';
+
+type NotificationRequest = ExpoNotifications.NotificationRequest;
+type NotificationContentData = ExpoNotifications.NotificationContent['data'];
 
 import { parseCalendarDataFromJson } from '@/utils/calendar-data-parse';
 import type { CalendarData, CalendarDayData, CalendarRecord } from '@/utils/consumption-index';
@@ -55,6 +60,10 @@ function runDailyReminderExclusive<T>(operation: () => Promise<T>): Promise<T> {
  */
 async function shouldSendNotification(): Promise<boolean> {
   try {
+    const Notifications = getExpoNotifications();
+    if (!Notifications) {
+      return false;
+    }
     // Check system permission
     const { status } = await Notifications.getPermissionsAsync();
     if (status !== 'granted') {
@@ -110,6 +119,10 @@ async function shouldSendChallengeNotification(): Promise<boolean> {
 }
 
 async function cancelScheduledNotificationsByTypes(types: string[]): Promise<void> {
+  const Notifications = getExpoNotifications();
+  if (!Notifications) {
+    return;
+  }
   const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
   for (const notification of scheduledNotifications) {
     const notificationType = notification.content.data?.type;
@@ -124,7 +137,7 @@ async function cancelScheduledNotificationsByTypes(types: string[]): Promise<voi
 }
 
 function getNotificationDataString(
-  data: Notifications.NotificationContent['data'],
+  data: NotificationContentData,
   key: string,
 ): string | undefined {
   if (!data || typeof data !== 'object') return undefined;
@@ -133,6 +146,10 @@ function getNotificationDataString(
 }
 
 async function cancelScheduledNotificationByIdentifier(identifier: string): Promise<void> {
+  const Notifications = getExpoNotifications();
+  if (!Notifications) {
+    return;
+  }
   await Notifications.cancelScheduledNotificationAsync(identifier).catch(() => {
     // 이미 OS에서 제거된 식별자는 무시합니다.
   });
@@ -146,7 +163,7 @@ function challengeFailureNotificationIdentifier(challengeId: string): string {
   return `challenge_failure_${challengeId}`;
 }
 
-function isGeneralReminderNotification(notification: Notifications.NotificationRequest): boolean {
+function isGeneralReminderNotification(notification: NotificationRequest): boolean {
   const notificationType = notification.content.data?.type;
   return (
     notification.identifier === 'daily_expense_reminder' ||
@@ -156,12 +173,20 @@ function isGeneralReminderNotification(notification: Notifications.NotificationR
   );
 }
 
-async function getGeneralReminderNotifications(): Promise<Notifications.NotificationRequest[]> {
+async function getGeneralReminderNotifications(): Promise<NotificationRequest[]> {
+  const Notifications = getExpoNotifications();
+  if (!Notifications) {
+    return [];
+  }
   const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
   return scheduledNotifications.filter(isGeneralReminderNotification);
 }
 
 async function dedupeGeneralReminderNotifications(): Promise<void> {
+  const Notifications = getExpoNotifications();
+  if (!Notifications) {
+    return;
+  }
   const generalNotifications = await getGeneralReminderNotifications();
   if (generalNotifications.length <= 1) {
     return;
@@ -174,6 +199,10 @@ async function dedupeGeneralReminderNotifications(): Promise<void> {
 }
 
 async function cancelGeneralReminderNotifications(): Promise<void> {
+  const Notifications = getExpoNotifications();
+  if (!Notifications) {
+    return;
+  }
   // 1) Known fixed identifier cancellation
   await Notifications.cancelScheduledNotificationAsync('daily_expense_reminder').catch(() => {});
 
@@ -374,6 +403,10 @@ export async function setupDailyReminder(): Promise<void> {
 
 async function setupDailyReminderInternal(): Promise<void> {
   try {
+    const Notifications = getExpoNotifications();
+    if (!Notifications) {
+      return;
+    }
     // ✅ 항상 먼저 취소 → 최대 1개만 유지 (중복 푸시 방지)
     await cancelDailyReminderInternal();
 
@@ -458,6 +491,10 @@ export async function rescheduleDailyReminderIfNeeded(): Promise<void> {
 
 async function rescheduleDailyReminderIfNeededInternal(): Promise<void> {
   try {
+    const Notifications = getExpoNotifications();
+    if (!Notifications) {
+      return;
+    }
     // ✅ 항상 먼저 취소 → 최대 1개만 유지 (중복 푸시 방지)
     await cancelDailyReminderInternal();
 
@@ -532,6 +569,10 @@ export async function notifyChallengeProgress(
   referenceDate: Date,
 ): Promise<void> {
   try {
+    const Notifications = getExpoNotifications();
+    if (!Notifications) {
+      return;
+    }
     if (!(await shouldSendChallengeNotification())) {
       return;
     }
@@ -595,6 +636,10 @@ export async function notifyChallengeSuccess(
   endDate: Date
 ): Promise<void> {
   try {
+    const Notifications = getExpoNotifications();
+    if (!Notifications) {
+      return;
+    }
     // Global check
     if (!(await shouldSendChallengeNotification())) {
       return;
@@ -646,6 +691,10 @@ export async function notifyChallengeSuccess(
  */
 export async function cancelChallengeSuccessNotification(challengeId: string): Promise<void> {
   try {
+    const Notifications = getExpoNotifications();
+    if (!Notifications) {
+      return;
+    }
     const identifier = challengeSuccessNotificationIdentifier(challengeId);
     await cancelScheduledNotificationByIdentifier(identifier);
 
@@ -681,6 +730,10 @@ export async function cancelChallengeProgressNotificationsByCategory(
   relatedChallengeIds: string[] = [],
 ): Promise<void> {
   try {
+    const Notifications = getExpoNotifications();
+    if (!Notifications) {
+      return;
+    }
     const categoryTag = `[#${category}]`;
     const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
 
@@ -722,6 +775,10 @@ export async function cancelChallengeProgressNotificationsByCategory(
 
 export async function cancelChallengeProgressNotifications(challengeId: string): Promise<void> {
   try {
+    const Notifications = getExpoNotifications();
+    if (!Notifications) {
+      return;
+    }
     const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
 
     for (const notification of scheduledNotifications) {
@@ -753,6 +810,10 @@ export async function cancelChallengeProgressNotifications(challengeId: string):
  */
 export async function cancelChallengeFailureNotification(challengeId: string): Promise<void> {
   try {
+    const Notifications = getExpoNotifications();
+    if (!Notifications) {
+      return;
+    }
     const identifier = challengeFailureNotificationIdentifier(challengeId);
     await cancelScheduledNotificationByIdentifier(identifier);
 
@@ -815,6 +876,10 @@ export async function notifyChallengeFailure(
   endDate: Date
 ): Promise<void> {
   try {
+    const Notifications = getExpoNotifications();
+    if (!Notifications) {
+      return;
+    }
     // Global check
     if (!(await shouldSendChallengeNotification())) {
       return;
@@ -877,8 +942,12 @@ export async function notifyChallengeFailure(
  * Handles both one-time (DATE) and recurring (DAILY) notifications
  * Returns information about any remaining notifications
  */
-export async function cancelAllNotifications(): Promise<Array<Notifications.NotificationRequest>> {
+export async function cancelAllNotifications(): Promise<NotificationRequest[]> {
   try {
+    const Notifications = getExpoNotifications();
+    if (!Notifications) {
+      return [];
+    }
     // Dev 테스트 버튼 용도: 단일 호출로 전체 취소 후 남은 항목 조회
     await Notifications.cancelAllScheduledNotificationsAsync();
     const remaining = await Notifications.getAllScheduledNotificationsAsync();
@@ -886,6 +955,10 @@ export async function cancelAllNotifications(): Promise<Array<Notifications.Noti
   } catch (error) {
     // If error occurs, return whatever we can find
     try {
+      const Notifications = getExpoNotifications();
+      if (!Notifications) {
+        return [];
+      }
       const finalCheck = await Notifications.getAllScheduledNotificationsAsync();
       return finalCheck;
     } catch (e) {
@@ -951,8 +1024,12 @@ export async function cleanupOldSchedules(): Promise<void> {
 /**
  * Get all scheduled notifications (for debugging)
  */
-export async function getScheduledNotifications(): Promise<Notifications.NotificationRequest[]> {
+export async function getScheduledNotifications(): Promise<NotificationRequest[]> {
   try {
+    const Notifications = getExpoNotifications();
+    if (!Notifications) {
+      return [];
+    }
     const notifications = await Notifications.getAllScheduledNotificationsAsync();
 
     return notifications;
@@ -968,6 +1045,10 @@ export async function getScheduledNotifications(): Promise<Notifications.Notific
  */
 export async function sendTestNotification(type: 'expense' | 'progress' | 'success' | 'failure' = 'expense'): Promise<void> {
   try {
+    const Notifications = getExpoNotifications();
+    if (!Notifications) {
+      return;
+    }
     // Global check: 알림 설정 + 권한
     if (!(await shouldSendNotification())) {
 

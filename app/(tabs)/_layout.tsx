@@ -1,6 +1,6 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 
 import { TabBar } from '@/components/navigation/tab-bar';
 import { Icon } from '@/components/ui/icon';
@@ -23,6 +23,18 @@ export default function TabLayout() {
         screenOptions={{
           tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
           headerShown: false,
+          // Android: 키보드 시 탭바가 IME inset으로 같이 올라가는 것 방지 (edge-to-edge)
+          ...(Platform.OS === 'android'
+            ? {
+                tabBarStyle: {
+                  position: 'absolute',
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  elevation: 8,
+                },
+              }
+            : null),
         }}>
         {/* Main App Screens */}
         <Tabs.Screen

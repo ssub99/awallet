@@ -1,32 +1,32 @@
 /**
  * Typography System
- * 
+ *
  * Text styles for AWallet design system.
  * Based on Figma text styles and Notion Typography documentation.
- * 
+ *
+ * - Design baseline: iOS (Figma values)
+ * - Android: optical adjustment per token (see TYPO_SCALE)
+ *
  * Font Family: Pretendard
  * Weights: Bold (700), Medium (500), Regular (400)
  * Size Categories: xl, l, m, r
- * 
+ *
  * Naming Convention:
  * - Figma/Notion: "headline01/xl_32/bold"
  * - Code: Typography.headline1.xl.bold (nested object, camelCase)
- * 
+ *
  * @example
  * ```tsx
  * import { Typography } from '@/constants/typography';
- * 
+ *
  * <Text style={Typography.headline1.xl.bold}>Title</Text>
  * <Text style={Typography.body1.l.regular}>Body text</Text>
  * ```
  */
 
-import { TextStyle } from 'react-native';
+import { Platform, TextStyle } from 'react-native';
 
-/**
- * Base typography configuration
- */
-const FONT_FAMILY = 'Pretendard';
+import { pretendardTextStyle, type PretendardWeight } from './fonts';
 
 const FONT_WEIGHTS = {
   bold: '700' as const,
@@ -34,277 +34,190 @@ const FONT_WEIGHTS = {
   regular: '400' as const,
 } as const;
 
+type TypoSize = { fontSize: number; lineHeight: number };
+
+type TypoScaleEntry = {
+  ios: TypoSize;
+  android: TypoSize;
+};
+
+/** iOS = Figma. Android = platform-adjusted sizes (fontSize / lineHeight). */
+const TYPO_SCALE = {
+  headline01: {
+    ios: { fontSize: 32, lineHeight: 48 },
+    android: { fontSize: 30, lineHeight: 45 },
+  },
+  headline02: {
+    ios: { fontSize: 28, lineHeight: 42 },
+    android: { fontSize: 26, lineHeight: 39 },
+  },
+  headline03: {
+    ios: { fontSize: 24, lineHeight: 36 },
+    android: { fontSize: 22, lineHeight: 33 },
+  },
+  headline04: {
+    ios: { fontSize: 21, lineHeight: 31.5 },
+    android: { fontSize: 18, lineHeight: 27 },
+  },
+  body01: {
+    ios: { fontSize: 16, lineHeight: 24 },
+    android: { fontSize: 14, lineHeight: 21 },
+  },
+  body02: {
+    ios: { fontSize: 14, lineHeight: 21 },
+    android: { fontSize: 12, lineHeight: 18 },
+  },
+  detail: {
+    ios: { fontSize: 12, lineHeight: 18 },
+    android: { fontSize: 10, lineHeight: 15 },
+  },
+  button01: {
+    ios: { fontSize: 16, lineHeight: 24 },
+    android: { fontSize: 14, lineHeight: 21 },
+  },
+  button02: {
+    ios: { fontSize: 14, lineHeight: 21 },
+    android: { fontSize: 12, lineHeight: 18 },
+  },
+  tiny: {
+    ios: { fontSize: 10, lineHeight: 15 },
+    android: { fontSize: 8, lineHeight: 12 },
+  },
+} as const satisfies Record<string, TypoScaleEntry>;
+
+type TypoScaleKey = keyof typeof TYPO_SCALE;
+
+function typo(scale: TypoScaleKey, weight: PretendardWeight): TextStyle {
+  const sizes = Platform.OS === 'android' ? TYPO_SCALE[scale].android : TYPO_SCALE[scale].ios;
+  return {
+    ...pretendardTextStyle(weight),
+    fontSize: sizes.fontSize,
+    lineHeight: sizes.lineHeight,
+    ...(Platform.OS === 'android' ? { includeFontPadding: false } : null),
+  };
+}
+
 /**
  * Typography system with all text styles
  */
 export const Typography = {
   /**
-   * Headline 01 - Extra Large (32px)
+   * Headline 01 - Extra Large (iOS 32px / Android 30px)
    * Usage: Main page titles, hero text
    */
   headline1: {
     xl: {
-      bold: {
-        fontFamily: FONT_FAMILY,
-        fontSize: 32,
-        lineHeight: 48,
-        fontWeight: FONT_WEIGHTS.bold,
-      } as TextStyle,
-      medium: {
-        fontFamily: FONT_FAMILY,
-        fontSize: 32,
-        lineHeight: 48,
-        fontWeight: FONT_WEIGHTS.medium,
-      } as TextStyle,
-      regular: {
-        fontFamily: FONT_FAMILY,
-        fontSize: 32,
-        lineHeight: 48,
-        fontWeight: FONT_WEIGHTS.regular,
-      } as TextStyle,
+      bold: typo('headline01', FONT_WEIGHTS.bold),
+      medium: typo('headline01', FONT_WEIGHTS.medium),
+      regular: typo('headline01', FONT_WEIGHTS.regular),
     },
   },
 
   /**
-   * Headline 02 - Large (28px)
+   * Headline 02 - Large (iOS 28px / Android 26px)
    * Usage: Section titles, important headings
    */
   headline2: {
     l: {
-      bold: {
-        fontFamily: FONT_FAMILY,
-        fontSize: 28,
-        lineHeight: 42,
-        fontWeight: FONT_WEIGHTS.bold,
-      } as TextStyle,
-      medium: {
-        fontFamily: FONT_FAMILY,
-        fontSize: 28,
-        lineHeight: 42,
-        fontWeight: FONT_WEIGHTS.medium,
-      } as TextStyle,
-      regular: {
-        fontFamily: FONT_FAMILY,
-        fontSize: 28,
-        lineHeight: 42,
-        fontWeight: FONT_WEIGHTS.regular,
-      } as TextStyle,
+      bold: typo('headline02', FONT_WEIGHTS.bold),
+      medium: typo('headline02', FONT_WEIGHTS.medium),
+      regular: typo('headline02', FONT_WEIGHTS.regular),
     },
   },
 
   /**
-   * Headline 03 - Medium (24px)
+   * Headline 03 - Medium (iOS 24px / Android 22px)
    * Usage: Subsection titles, card headers
    */
   headline3: {
     m: {
-      bold: {
-        fontFamily: FONT_FAMILY,
-        fontSize: 24,
-        lineHeight: 36,
-        fontWeight: FONT_WEIGHTS.bold,
-      } as TextStyle,
-      medium: {
-        fontFamily: FONT_FAMILY,
-        fontSize: 24,
-        lineHeight: 36,
-        fontWeight: FONT_WEIGHTS.medium,
-      } as TextStyle,
-      regular: {
-        fontFamily: FONT_FAMILY,
-        fontSize: 24,
-        lineHeight: 36,
-        fontWeight: FONT_WEIGHTS.regular,
-      } as TextStyle,
+      bold: typo('headline03', FONT_WEIGHTS.bold),
+      medium: typo('headline03', FONT_WEIGHTS.medium),
+      regular: typo('headline03', FONT_WEIGHTS.regular),
     },
   },
 
   /**
-   * Headline 04 - Regular (21px)
+   * Headline 04 - Regular (iOS 21px / Android 18px)
    * Usage: Small headings, emphasized text blocks
    */
   headline4: {
     r: {
-      bold: {
-        fontFamily: FONT_FAMILY,
-        fontSize: 21,
-        lineHeight: 31.5,
-        fontWeight: FONT_WEIGHTS.bold,
-      } as TextStyle,
-      medium: {
-        fontFamily: FONT_FAMILY,
-        fontSize: 21,
-        lineHeight: 31.5,
-        fontWeight: FONT_WEIGHTS.medium,
-      } as TextStyle,
-      regular: {
-        fontFamily: FONT_FAMILY,
-        fontSize: 21,
-        lineHeight: 31.5,
-        fontWeight: FONT_WEIGHTS.regular,
-      } as TextStyle,
+      bold: typo('headline04', FONT_WEIGHTS.bold),
+      medium: typo('headline04', FONT_WEIGHTS.medium),
+      regular: typo('headline04', FONT_WEIGHTS.regular),
     },
   },
 
   /**
-   * Body 01 - Large (16px)
+   * Body 01 - Large (iOS 16px / Android 14px)
    * Usage: Primary body text, paragraphs
    */
   body1: {
     l: {
-      bold: {
-        fontFamily: FONT_FAMILY,
-        fontSize: 16,
-        lineHeight: 24,
-        fontWeight: FONT_WEIGHTS.bold,
-      } as TextStyle,
-      medium: {
-        fontFamily: FONT_FAMILY,
-        fontSize: 16,
-        lineHeight: 24,
-        fontWeight: FONT_WEIGHTS.medium,
-      } as TextStyle,
-      regular: {
-        fontFamily: FONT_FAMILY,
-        fontSize: 16,
-        lineHeight: 24,
-        fontWeight: FONT_WEIGHTS.regular,
-      } as TextStyle,
+      bold: typo('body01', FONT_WEIGHTS.bold),
+      medium: typo('body01', FONT_WEIGHTS.medium),
+      regular: typo('body01', FONT_WEIGHTS.regular),
     },
   },
 
   /**
-   * Body 02 - Regular (14px)
+   * Body 02 - Regular (iOS 14px / Android 12px)
    * Usage: Secondary body text, descriptions
    */
   body2: {
     r: {
-      bold: {
-        fontFamily: FONT_FAMILY,
-        fontSize: 14,
-        lineHeight: 21,
-        fontWeight: FONT_WEIGHTS.bold,
-      } as TextStyle,
-      medium: {
-        fontFamily: FONT_FAMILY,
-        fontSize: 14,
-        lineHeight: 21,
-        fontWeight: FONT_WEIGHTS.medium,
-      } as TextStyle,
-      regular: {
-        fontFamily: FONT_FAMILY,
-        fontSize: 14,
-        lineHeight: 21,
-        fontWeight: FONT_WEIGHTS.regular,
-      } as TextStyle,
+      bold: typo('body02', FONT_WEIGHTS.bold),
+      medium: typo('body02', FONT_WEIGHTS.medium),
+      regular: typo('body02', FONT_WEIGHTS.regular),
     },
   },
 
   /**
-   * Detail - Regular (12px)
+   * Detail - Regular (iOS 12px / Android 10px)
    * Usage: Captions, metadata, labels
    */
   detail: {
     r: {
-      bold: {
-        fontFamily: FONT_FAMILY,
-        fontSize: 12,
-        lineHeight: 18,
-        fontWeight: FONT_WEIGHTS.bold,
-      } as TextStyle,
-      medium: {
-        fontFamily: FONT_FAMILY,
-        fontSize: 12,
-        lineHeight: 18,
-        fontWeight: FONT_WEIGHTS.medium,
-      } as TextStyle,
-      regular: {
-        fontFamily: FONT_FAMILY,
-        fontSize: 12,
-        lineHeight: 18,
-        fontWeight: FONT_WEIGHTS.regular,
-      } as TextStyle,
+      bold: typo('detail', FONT_WEIGHTS.bold),
+      medium: typo('detail', FONT_WEIGHTS.medium),
+      regular: typo('detail', FONT_WEIGHTS.regular),
     },
   },
 
   /**
-   * Button 01 - Large (16px)
+   * Button 01 - Large (iOS 16px / Android 14px)
    * Usage: Primary buttons, call-to-action text
    */
   button1: {
     l: {
-      bold: {
-        fontFamily: FONT_FAMILY,
-        fontSize: 16,
-        lineHeight: 24,
-        fontWeight: FONT_WEIGHTS.bold,
-      } as TextStyle,
-      medium: {
-        fontFamily: FONT_FAMILY,
-        fontSize: 16,
-        lineHeight: 24,
-        fontWeight: FONT_WEIGHTS.medium,
-      } as TextStyle,
-      regular: {
-        fontFamily: FONT_FAMILY,
-        fontSize: 16,
-        lineHeight: 24,
-        fontWeight: FONT_WEIGHTS.regular,
-      } as TextStyle,
+      bold: typo('button01', FONT_WEIGHTS.bold),
+      medium: typo('button01', FONT_WEIGHTS.medium),
+      regular: typo('button01', FONT_WEIGHTS.regular),
     },
   },
 
   /**
-   * Button 02 - Regular (14px)
+   * Button 02 - Regular (iOS 14px / Android 12px)
    * Usage: Secondary buttons, smaller actions
    */
   button2: {
     r: {
-      bold: {
-        fontFamily: FONT_FAMILY,
-        fontSize: 14,
-        lineHeight: 21,
-        fontWeight: FONT_WEIGHTS.bold,
-      } as TextStyle,
-      medium: {
-        fontFamily: FONT_FAMILY,
-        fontSize: 14,
-        lineHeight: 21,
-        fontWeight: FONT_WEIGHTS.medium,
-      } as TextStyle,
-      regular: {
-        fontFamily: FONT_FAMILY,
-        fontSize: 14,
-        lineHeight: 21,
-        fontWeight: FONT_WEIGHTS.regular,
-      } as TextStyle,
+      bold: typo('button02', FONT_WEIGHTS.bold),
+      medium: typo('button02', FONT_WEIGHTS.medium),
+      regular: typo('button02', FONT_WEIGHTS.regular),
     },
   },
 
   /**
-   * Tiny - Regular (10px)
+   * Tiny - Regular (iOS 10px / Android 8px)
    * Usage: Very small text, fine print, badges
    */
   tiny: {
     r: {
-      bold: {
-        fontFamily: FONT_FAMILY,
-        fontSize: 10,
-        lineHeight: 15,
-        fontWeight: FONT_WEIGHTS.bold,
-      } as TextStyle,
-      medium: {
-        fontFamily: FONT_FAMILY,
-        fontSize: 10,
-        lineHeight: 15,
-        fontWeight: FONT_WEIGHTS.medium,
-      } as TextStyle,
-      regular: {
-        fontFamily: FONT_FAMILY,
-        fontSize: 10,
-        lineHeight: 15,
-        fontWeight: FONT_WEIGHTS.regular,
-      } as TextStyle,
+      bold: typo('tiny', FONT_WEIGHTS.bold),
+      medium: typo('tiny', FONT_WEIGHTS.medium),
+      regular: typo('tiny', FONT_WEIGHTS.regular),
     },
   },
 } as const;
@@ -352,7 +265,7 @@ export type UtilityCategory = 'detail' | 'tiny';
 
 /**
  * Helper function to get typography style
- * 
+ *
  * @example
  * ```ts
  * const style = getTypographyStyle('headline1', 'xl', 'bold');
@@ -370,8 +283,7 @@ export function getTypographyStyle(
       return sizeStyles[weight];
     }
   }
-  
+
   // Fallback to body1 regular
   return Typography.body1.l.regular;
 }
-

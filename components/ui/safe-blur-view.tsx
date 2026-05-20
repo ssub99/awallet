@@ -1,25 +1,12 @@
-import { BlurView, type BlurViewProps } from 'expo-blur';
-import { useMemo } from 'react';
-import { UIManager, View } from 'react-native';
+import type { BlurViewProps } from 'expo-blur';
 
-const canUseBlurView = () => {
-  if (typeof UIManager.getViewManagerConfig !== 'function') {
-    return false;
-  }
-  return !!UIManager.getViewManagerConfig('ExpoBlurView');
-};
+import { GlassSurface } from '@/components/ui/glass-surface';
 
-export function SafeBlurView(props: BlurViewProps) {
-  const isSupported = useMemo(() => canUseBlurView(), []);
-
-  if (!isSupported) {
-    const { children, style } = props;
-    return (
-      <View style={style}>
-        {children}
-      </View>
-    );
-  }
-
-  return <BlurView {...props} />;
+/** @deprecated Prefer GlassSurface for layered blur; kept for existing imports. */
+export function SafeBlurView({ style, children, intensity, tint }: BlurViewProps) {
+  return (
+    <GlassSurface intensity={intensity} tint={tint} style={style}>
+      {children}
+    </GlassSurface>
+  );
 }

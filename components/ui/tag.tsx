@@ -6,6 +6,7 @@
  */
 
 import { StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { pretendardFontFamily, pretendardTextStyle } from '@/constants/fonts';
 
 export type TagStatus = 'normal' | 'positive' | 'negative';
 
@@ -90,7 +91,7 @@ const styles = StyleSheet.create({
     minHeight: 26, // Figma design height
   },
   text: {
-    fontFamily: 'Pretendard',
+    fontFamily: pretendardFontFamily('400'),
     fontSize: 12,
     fontWeight: '700',
     lineHeight: 18,

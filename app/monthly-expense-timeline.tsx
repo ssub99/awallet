@@ -19,7 +19,9 @@ import { loadCategories } from '@/utils/categories';
 import { getCustomMonthRange, isDateInCustomMonth } from '@/utils/custom-month';
 import { initializePaymentSubtypes, type PaymentSubtype } from '@/utils/payment-types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { BlurView } from 'expo-blur';
+import { GlassSurface } from '@/components/ui/glass-surface';
+import { BlurTokens } from '@/constants/blur-tokens';
+import { resolveBlurIntensity, resolveBlurOverlay } from '@/utils/expo-blur-platform';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -36,6 +38,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { pretendardFontFamily, pretendardTextStyle } from '@/constants/fonts';
 
 // 카테고리별 이모지 매핑 (통합 카테고리 로드)
 const useCategoryEmojiMap = () => {
@@ -1403,14 +1406,18 @@ export default function MonthlyExpenseTimelineScreen() {
         accessibilityRole="button"
         accessibilityLabel="결제 유형 필터"
       >
-        <BlurView
-          intensity={24}
+        <GlassSurface
+          intensity={resolveBlurIntensity(BlurTokens.timelineFilter)}
           tint="light"
-          experimentalBlurMethod="dimezisBlurView"
-          style={[styles.floatingFilterBlur, { backgroundColor: 'rgba(144, 146, 158, 0.1)' }]}
-        />
-        <Text style={[styles.floatingFilterText, { color: colors.textNeutral }]}>필터</Text>
-        <Icon name="arrowDown" variant="line" size={16} color={colors.textNeutral} />
+          overlayColor={resolveBlurOverlay(BlurTokens.timelineFilter.overlay)}
+          borderRadius={24}
+          style={styles.floatingFilterBlur}
+        >
+          <View style={styles.floatingFilterContent}>
+            <Text style={[styles.floatingFilterText, { color: colors.textNeutral }]}>필터</Text>
+            <Icon name="arrowDown" variant="line" size={16} color={colors.textNeutral} />
+          </View>
+        </GlassSurface>
       </Pressable>
     </SafeAreaView>
   );
@@ -1626,15 +1633,13 @@ const styles = StyleSheet.create({
   },
   categoryName: {
     fontSize: 16,
-    fontFamily: 'Pretendard',
-    fontWeight: '700',
+    ...pretendardTextStyle('700'),
     lineHeight: 24,
     flex: 1,
   },
   categoryStatsText: {
     fontSize: 16,
-    fontFamily: 'Pretendard',
-    fontWeight: '700',
+    ...pretendardTextStyle('700'),
     lineHeight: 24,
   },
   categorySeparator: {
@@ -1809,14 +1814,17 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 24,
     overflow: 'hidden',
-    paddingLeft: 16,
-    paddingRight: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
   },
   floatingFilterBlur: {
     ...StyleSheet.absoluteFillObject,
+  },
+  floatingFilterContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingLeft: 16,
+    paddingRight: 16,
   },
   floatingFilterText: {
     ...Typography.body2.r.medium,

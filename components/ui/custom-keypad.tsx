@@ -3,23 +3,29 @@ import { AtomicColors } from '@/constants/atomic-colors';
 import { Colors, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 const PADDING_H = 8;
 const GAP = 8;
 const COLS = 4;
 const ROWS = 4;
 const PADDING_TOP = 16;
+/** Figma customKeypad: 8px below last key row, then Home indicator (iOS only) */
+const BOTTOM_PADDING = PADDING_H;
 const HOME_INDICATOR_HEIGHT = 34;
 const BUTTON_ASPECT = 48 / 84;
 
-/** 컨테이너 너비로 버튼 너비·높이·키패드 전체 높이 계산 (여백 8 유지) */
+function getKeypadFooterHeight(): number {
+  return BOTTOM_PADDING + (Platform.OS === 'ios' ? HOME_INDICATOR_HEIGHT : 0);
+}
+
+/** 컨테이너 너비로 버튼 너비·높이·키패드 전체 높이 계산 (Figma customKeypad 기준) */
 function getKeypadDimensions(containerWidth: number) {
   const contentWidth = Math.max(0, containerWidth - PADDING_H * 2 - GAP * (COLS - 1));
   const buttonWidth = contentWidth / COLS;
   const buttonHeight = buttonWidth * BUTTON_ASPECT;
-  const sectionHeight = PADDING_TOP + ROWS * buttonHeight + GAP * (ROWS - 1);
-  const totalHeight = sectionHeight + HOME_INDICATOR_HEIGHT;
+  const keysHeight = PADDING_TOP + ROWS * buttonHeight + GAP * (ROWS - 1);
+  const totalHeight = keysHeight + getKeypadFooterHeight();
   return { buttonWidth, buttonHeight, totalHeight };
 }
 
@@ -479,9 +485,13 @@ export function CustomKeypad({
           </View>
         ))}
       </View>
-      <View style={styles.homeIndicator}>
-        <View style={styles.homeIndicatorLine} />
-      </View>
+      {Platform.OS === 'ios' ? (
+        <View style={styles.homeIndicator}>
+          <View style={styles.homeIndicatorLine} />
+        </View>
+      ) : (
+        <View style={styles.androidBottomPadding} />
+      )}
     </View>
   );
 }
@@ -491,13 +501,15 @@ const styles = StyleSheet.create({
     width: '100%',
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
     overflow: 'hidden',
     backgroundColor: 'transparent',
   },
   keypadSection: {
-    paddingHorizontal: 8,
-    paddingTop: 16,
-    rowGap: 8,
+    paddingHorizontal: PADDING_H,
+    paddingTop: PADDING_TOP,
+    rowGap: GAP,
   },
   row: {
     flexDirection: 'row',
@@ -528,7 +540,8 @@ const styles = StyleSheet.create({
     ...Typography.button1.l.bold,
   },
   homeIndicator: {
-    height: 34,
+    height: HOME_INDICATOR_HEIGHT,
+    marginTop: BOTTOM_PADDING,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -536,5 +549,8 @@ const styles = StyleSheet.create({
     width: 135,
     height: 1,
     backgroundColor: AtomicColors.neutral[100],
+  },
+  androidBottomPadding: {
+    height: BOTTOM_PADDING,
   },
 });

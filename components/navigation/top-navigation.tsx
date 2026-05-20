@@ -12,6 +12,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { logEvent } from '@/utils/analytics';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { pretendardFontFamily, pretendardTextStyle } from '@/constants/fonts';
 
 export interface TopNavigationProps {
   /**
@@ -496,8 +497,7 @@ const styles = StyleSheet.create({
   },
   mainTitle: {
     fontSize: 21,
-    fontFamily: 'Pretendard',
-    fontWeight: '700',
+    ...pretendardTextStyle('700'),
     lineHeight: 31.5,
   },
   centerSection: {
@@ -515,8 +515,7 @@ const styles = StyleSheet.create({
   },
   subTitle: {
     fontSize: 16,
-    fontFamily: 'Pretendard',
-    fontWeight: '700',
+    ...pretendardTextStyle('700'),
     lineHeight: 24,
   },
   rightSection: {
@@ -551,8 +550,7 @@ const styles = StyleSheet.create({
   },
   periodText: {
     fontSize: 14,
-    fontFamily: 'Pretendard',
-    fontWeight: '700',
+    ...pretendardTextStyle('700'),
     lineHeight: 21,
   },
   rightButton: {
@@ -564,8 +562,7 @@ const styles = StyleSheet.create({
   },
   rightButtonText: {
     fontSize: 14,
-    fontFamily: 'Pretendard',
-    fontWeight: '500',
+    ...pretendardTextStyle('500'),
     lineHeight: 21,
   },
   divider: {

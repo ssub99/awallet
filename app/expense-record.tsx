@@ -12,6 +12,7 @@ import { BasicCalendarDaySelect } from '@/components/ui/calendar-day-basic';
 import { CalendarDaySelect } from '@/components/ui/calendar-day-select';
 import { Chip } from '@/components/ui/chip';
 import { CustomKeypad, getKeypadHeight, type CustomKeypadOperator, type ExpressionToken } from '@/components/ui/custom-keypad';
+import { CustomKeypadOverlay, getCustomKeypadScrollPaddingBottom } from '@/components/ui/custom-keypad-overlay';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Input } from '@/components/ui/input';
 import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
@@ -53,7 +54,10 @@ import { getAllIncomes } from '@/utils/incomes';
 import { rescheduleDailyReminderIfNeeded } from '@/utils/notification-scheduler';
 import { refreshWidgetWithCurrentMonth } from '@/utils/widget-data-sync';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { BlurView } from 'expo-blur';
+import { KeypadGlassShell } from '@/components/ui/keypad-glass-shell';
+import { GlassSurface } from '@/components/ui/glass-surface';
+import { BlurTokens } from '@/constants/blur-tokens';
+import { resolveBlurIntensity } from '@/utils/expo-blur-platform';
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -74,6 +78,7 @@ import {
     View
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { pretendardFontFamily, pretendardTextStyle } from '@/constants/fonts';
 
 interface ExpenseRecordProps {
   mode?: 'create' | 'edit';
@@ -680,19 +685,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     if (!Number.isFinite(numeric)) return raw;
     return numeric.toLocaleString();
   }, []);
-
-  const getRgbaColor = useCallback((hex: string, opacity: number) => {
-    const normalized = hex.replace('#', '');
-    const r = parseInt(normalized.slice(0, 2), 16);
-    const g = parseInt(normalized.slice(2, 4), 16);
-    const b = parseInt(normalized.slice(4, 6), 16);
-    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
-  }, []);
-
-  const keypadTintColor = useMemo(
-    () => getRgbaColor(AtomicColors.neutral[300], 0.8),
-    [getRgbaColor]
-  );
 
   const getOperatorSymbol = useCallback((operator: CustomKeypadOperator) => {
     switch (operator) {
@@ -5023,7 +5015,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               paddingBottom: keyboardHeight > 0 
                 ? keyboardHeight + 16 - insets.bottom 
                 : isKeypadVisible
-                ? KEYPAD_HEIGHT + 16 - insets.bottom
+                ? getCustomKeypadScrollPaddingBottom(KEYPAD_HEIGHT, insets.bottom)
                 : 16 // 메모와 하단 영역 사이 여백
             }
           ]}
@@ -5505,7 +5497,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         </View>
 
         {isKeypadMounted && (
-          <View style={styles.customKeypadOverlay} pointerEvents="box-none">
+          <CustomKeypadOverlay>
             <Animated.View
               style={[
                 styles.customKeypadContainer,
@@ -5513,18 +5505,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               ]}
               pointerEvents="box-none"
             >
-              <BlurView
-                intensity={16}
-                tint="light"
-                style={styles.customKeypadBlur}
-              >
-                <View
-                  pointerEvents="none"
-                  style={[
-                    styles.customKeypadTint,
-                    { backgroundColor: keypadTintColor },
-                  ]}
-                />
+              <KeypadGlassShell style={styles.customKeypadBlur}>
                 <View style={styles.customKeypadContent} pointerEvents="auto">
                   <CustomKeypad
                     value={amount}
@@ -5537,9 +5518,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                     onExpressionChange={setAmountExpression}
                   />
                 </View>
-              </BlurView>
+              </KeypadGlassShell>
             </Animated.View>
-          </View>
+          </CustomKeypadOverlay>
         )}
 
       
@@ -5579,7 +5560,11 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               >
                 <View style={styles.settlementDropdownMenuClip}>
                   {Platform.OS === 'ios' ? (
-                    <BlurView intensity={100} tint="light" style={styles.settlementDropdownMenuBlur}>
+                    <GlassSurface
+                      intensity={resolveBlurIntensity(BlurTokens.settlementDropdown)}
+                      tint="light"
+                      style={styles.settlementDropdownMenuBlur}
+                    >
                       {/* Liquid Glass: 반투명 하이라이트 + 가장자리 쉰 */}
                       <View style={StyleSheet.absoluteFill} pointerEvents="none">
                         <View style={[StyleSheet.absoluteFill, styles.settlementDropdownMenuGlassOverlay]} />
@@ -5599,9 +5584,14 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                           </Text>
                         </Pressable>
                       ))}
-                    </BlurView>
+                    </GlassSurface>
                   ) : (
-                    <View style={[styles.settlementDropdownMenuBlur, { backgroundColor: 'rgba(253, 253, 253, 0.98)' }]}>
+                    <View
+                      style={[
+                        styles.settlementDropdownMenuBlur,
+                        { backgroundColor: BlurTokens.settlementDropdown.androidFallbackBackground },
+                      ]}
+                    >
                       {(['선결제', '환불', '결산'] as const).map((label, index) => (
                         <Pressable
                           key={label}
@@ -6894,24 +6884,11 @@ const styles = StyleSheet.create({
   scrollContent: {
     gap: 0,
   },
-  customKeypadOverlay: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    top: 0,
-    justifyContent: 'flex-end',
-    zIndex: 100,
-    elevation: 100,
-  },
   customKeypadBlur: {
     width: '100%',
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     overflow: 'hidden',
-  },
-  customKeypadTint: {
-    ...StyleSheet.absoluteFillObject,
   },
   customKeypadContent: {
     width: '100%',
@@ -6997,8 +6974,7 @@ const styles = StyleSheet.create({
   },
   weekendOptionText: {
     fontSize: 16,
-    fontFamily: 'Pretendard',
-    fontWeight: '400',
+    ...pretendardTextStyle('400'),
     lineHeight: 24,
     color: '#222222',
   },
@@ -7034,20 +7010,17 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     fontSize: 17,
-    fontFamily: 'Pretendard',
-    fontWeight: '400',
+    ...pretendardTextStyle('400'),
   },
   pickerTitle: {
     fontSize: 17,
-    fontFamily: 'Pretendard',
-    fontWeight: '600',
+    ...pretendardTextStyle('500'),
     flex: 1,
     textAlign: 'center',
   },
   doneButton: {
     fontSize: 17,
-    fontFamily: 'Pretendard',
-    fontWeight: '600',
+    ...pretendardTextStyle('500'),
     textAlign: 'right',
   },
   pickerRow: {

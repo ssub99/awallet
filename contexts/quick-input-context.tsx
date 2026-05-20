@@ -4,9 +4,8 @@
  * 간편입력 오버레이를 탭바 바깥(전체 화면) 레벨에서 렌더링하여
  * 키보드와 동일한 좌표계를 사용하도록 함.
  *
- * react-native-keyboard-controller의 useKeyboardHandler onStart에서
- * duration + height를 받아, withTiming으로 키보드와 동일한 시간에 맞춰
- * 애니메이션하여 겹침/엇박자 감소.
+ * iOS: useGenericKeyboardHandler + bottom 애니메이션.
+ * Android: ADJUST_NOTHING(탭바 고정) + RN/controller 다중 소스 max bottom.
  */
 
 import { QuickInputConfirmCard, type QuickInputConfirmCardData } from '@/components/ui/quick-input-confirm-card';
@@ -18,47 +17,88 @@ import { useAppData } from '@/contexts/app-data-context';
 import { useToast } from '@/contexts/toast-context';
 import { applyPendingCalendarTargetEvent, calendarRefreshEvent } from '@/hooks/calendar-events';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
+import { logEvent } from '@/utils/analytics';
 import { getApiSecurityHeaders } from '@/utils/api-security-headers';
 import { isAtLeastVersion, QUICK_INPUT_MIN_VERSION } from '@/utils/app-version';
+import { loadCategories } from '@/utils/categories';
 import { triggerChallengeNotifications } from '@/utils/challenge-utils';
 import { getCustomMonthInfo } from '@/utils/custom-month';
-import { rescheduleDailyReminderIfNeeded } from '@/utils/notification-scheduler';
 import {
-  resolveExpenseSeriesStartDateFromMessage,
-  resolveRelativeWeekdayDateFromMessage,
-} from '@/utils/parse-expense-relative-date';
-import { logEvent } from '@/utils/analytics';
-import { refreshWidgetWithCurrentMonth } from '@/utils/widget-data-sync';
-import {
-  adjustWeekendDate,
-  calculateRecurringIterations,
-  getActualDayForMonth,
-  getDayOfWeekLabel,
-  getNextRecurringDate,
-  resolveExpenseRecurringTypeFromMessage,
-  getRecurringWeekendOptionDisplayLabel,
+    adjustWeekendDate,
+    calculateRecurringIterations,
+    getActualDayForMonth,
+    getDayOfWeekLabel,
+    getNextRecurringDate,
+    getRecurringWeekendOptionDisplayLabel,
+    resolveExpenseRecurringTypeFromMessage,
 } from '@/utils/expense-calculations';
 import { createExpensesBatch, type ExpenseRecord, type PaymentMethod } from '@/utils/expenses';
-import { createIncome, type IncomeRecord } from '@/utils/incomes';
 import { generateGroupId, generateRecordId } from '@/utils/id-generator';
-import { loadCategories } from '@/utils/categories';
+import { createIncome, type IncomeRecord } from '@/utils/incomes';
+import { rescheduleDailyReminderIfNeeded } from '@/utils/notification-scheduler';
+import {
+    resolveExpenseSeriesStartDateFromMessage,
+    resolveRelativeWeekdayDateFromMessage,
+} from '@/utils/parse-expense-relative-date';
 import { getDefaultSubtypeIdByMethod, loadPaymentSubtypes, type PaymentSubtype } from '@/utils/payment-types';
-import Constants from 'expo-constants';
+import {
+    keyboardMetricsToEndCoordinates,
+    QUICK_INPUT_KEYBOARD_GAP,
+    resolveBottomFromKeyboardScreenY,
+    resolveQuickInputBottomAboveKeyboard,
+} from '@/utils/quick-input-keyboard-position';
+import { refreshWidgetWithCurrentMonth } from '@/utils/widget-data-sync';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
 import type { TextInput } from 'react-native';
-import { Keyboard, Pressable, Animated as RNAnimated, StyleSheet, View } from 'react-native';
+import {
+    AppState,
+    Keyboard,
+    Platform,
+    Pressable,
+    Animated as RNAnimated,
+    StyleSheet,
+    View,
+    type AppStateStatus
+} from 'react-native';
+import {
+    AndroidSoftInputModes,
+    KeyboardController,
+    useGenericKeyboardHandler,
+    useKeyboardContext,
+} from 'react-native-keyboard-controller';
+import Animated, {
+    Easing,
+    runOnJS,
+    useAnimatedReaction,
+    useAnimatedStyle,
+    useSharedValue,
+    withTiming,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useKeyboardHandler } from 'react-native-keyboard-controller';
-import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 type AnimatedValue = RNAnimated.Value;
 
 const FAB_OFFSET_ABOVE_TABS = 16;
 
+export type ShowQuickInputOptions = {
+  /** 기본 true. false면 롱 입력·키패드 자동 오픈 없음 */
+  autoFocus?: boolean;
+};
+
 interface QuickInputContextValue {
   isQuickInputVisible: boolean;
-  showQuickInput: (starScale: AnimatedValue, starRotate: AnimatedValue, shortBottomFromScreen?: number) => void;
+  /** 롱(팁+입력) 노출 중 */
+  isQuickInputContentVisible: boolean;
+  /** 롱 닫힘과 동시에 숏 표시 여부 (홈 z-index는 앵커 기본값 = 키패드 뒤) */
+  isQuickInputShortVisible: boolean;
+  showQuickInput: (
+    starScale: AnimatedValue,
+    starRotate: AnimatedValue,
+    shortBottomFromScreen?: number,
+    options?: ShowQuickInputOptions
+  ) => void;
   hideQuickInput: () => void;
   quickInputText: string;
   setQuickInputText: (text: string) => void;
@@ -66,7 +106,21 @@ interface QuickInputContextValue {
 
 const QuickInputContext = createContext<QuickInputContextValue | undefined>(undefined);
 
-const KEYBOARD_GAP = 16;
+const KEYBOARD_GAP = QUICK_INPUT_KEYBOARD_GAP;
+
+/**
+ * Android edge-to-edge + adjustResize 시 탭바·캘린더가 키보드와 함께 올라가는 것을 막음.
+ * 오버레이 위치는 useKeyboardHandler로 따로 맞춤 (app.json pan만으로는 부족할 수 있음).
+ */
+function applyAndroidQuickInputKeyboardMode(): void {
+  if (Platform.OS !== 'android') return;
+  KeyboardController.setInputMode(AndroidSoftInputModes.SOFT_INPUT_ADJUST_NOTHING);
+}
+
+function restoreAndroidQuickInputKeyboardMode(): void {
+  if (Platform.OS !== 'android') return;
+  KeyboardController.setDefaultMode();
+}
 
 /** 토큰 비용 절감: 메시지 최대 길이(자). 초과 시 요청 거부 */
 const MAX_MESSAGE_LENGTH = 100;
@@ -537,13 +591,20 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const { showToast } = useToast();
   const { refresh } = useAppData();
   const [isQuickInputVisible, setIsQuickInputVisible] = useState(false);
+  /** 닫을 때 팁·입력만 즉시 숨김(키보드는 이후 dismiss) */
+  const [isQuickInputContentVisible, setIsQuickInputContentVisible] = useState(false);
+  const [isQuickInputShortVisible, setIsQuickInputShortVisible] = useState(false);
   const [quickInputText, setQuickInputText] = useState('');
   const [quickInputPlaceholder, setQuickInputPlaceholder] = useState(getRandomQuickInputPlaceholder);
   const [confirmCardData, setConfirmCardData] = useState<QuickInputConfirmCardData | null>(null);
   const [isQuickInputSendLoading, setIsQuickInputSendLoading] = useState(false);
   const [isQuickInputConfirmAdding, setIsQuickInputConfirmAdding] = useState(false);
   const shortBottomFromScreen = useSharedValue(KEYBOARD_GAP);
+  const animatedBottom = useSharedValue(KEYBOARD_GAP);
+  const shouldFollowKeyboard = useSharedValue(false);
+  const shouldFollowKeyboardRef = useRef(false);
   const lastShortBottomRef = useRef<number>(KEYBOARD_GAP);
+  const pendingAutoFocusRef = useRef(false);
   const pendingRecordRef = useRef<PendingParseRecord | null>(null);
   /** 토큰 비용 절감: 최근 요청 시각 목록 (rate limit용) */
   const rateLimitTimestampsRef = useRef<number[]>([]);
@@ -552,82 +613,292 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const lockEndTimeRef = useRef<number>(0);
   /** 간헐적 중복 탭/중복 실행 방지용 in-flight lock */
   const isConfirmAddInFlightRef = useRef(false);
+  /** 닫기 중: UI를 키보드와 함께 내린 뒤 언마운트 */
+  const isClosingRef = useRef(false);
+  const hideFinishTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const androidKeyboardSyncRafRef = useRef<number | null>(null);
+  /** Android: controller만으로 bottom이 내려가며 깜빡이는 것 방지 */
+  const lastAndroidBottomRef = useRef(0);
+  /** keyboardDidShow withTiming 중 sync가 끼어들면 깜빡임 */
+  const androidKeyboardSettlingRef = useRef(false);
 
   const quickInputRef = useRef<TextInput>(null);
   const paymentSubtypesCacheRef = useRef<PaymentSubtype[]>([]);
   const expenseCategoriesCacheRef = useRef<Array<{ label: string; emoji: string }>>([]);
   const incomeCategoriesCacheRef = useRef<Array<{ label: string; emoji: string }>>([]);
   const quickInputBackdropOpacity = useRef(new RNAnimated.Value(0)).current;
+  /** 롱·팁: React 커밋 전에도 즉시 숨김 (딤 페이드와 분리) */
+  const quickInputLongOpacity = useRef(new RNAnimated.Value(1)).current;
   /** 숏/롱 동일 애니메이션: 부모 starScale/starRotate 공유. 새로고침 시 크래시 방지를 위해 fallback 보유 */
   const starRefs = useRef<{ starScale: AnimatedValue; starRotate: AnimatedValue } | null>(null);
   const overlayStarScale = useRef(new RNAnimated.Value(1)).current;
   const overlayStarRotate = useRef(new RNAnimated.Value(0)).current;
+  const { reanimated: keyboardReanimated } = useKeyboardContext();
+  const navigationInsetBottomRef = useRef(insets.bottom);
 
-  // 키보드와 동일한 duration으로 애니메이션하여 겹침/엇박자 감소
-  const animatedBottom = useSharedValue(KEYBOARD_GAP);
-  useKeyboardHandler(
+  useEffect(() => {
+    navigationInsetBottomRef.current = insets.bottom;
+  }, [insets.bottom]);
+
+  const applyAndroidKeyboardGeometry = useCallback(
+    (endCoordinates: KeyboardEvent['endCoordinates'], animated = false) => {
+      const nativeHeight = keyboardReanimated.height.value;
+      let target = resolveQuickInputBottomAboveKeyboard(
+        endCoordinates,
+        navigationInsetBottomRef.current,
+        nativeHeight
+      );
+
+      const previousBottom = lastAndroidBottomRef.current;
+      if (previousBottom > 0 && target < previousBottom - 8) {
+        const fromScreenY = resolveBottomFromKeyboardScreenY(endCoordinates.screenY);
+        if (fromScreenY <= 0 || fromScreenY < previousBottom - 8) {
+          target = previousBottom;
+        }
+      }
+      lastAndroidBottomRef.current = target;
+
+      if (animated) {
+        animatedBottom.value = withTiming(target, {
+          duration: 250,
+          easing: Easing.out(Easing.cubic),
+        });
+      } else {
+        animatedBottom.value = target;
+      }
+    },
+    [animatedBottom, keyboardReanimated]
+  );
+
+  /** 삼성 툴바/추천 on·off: controller height + Keyboard.metrics screenY 동기화 */
+  const cancelAndroidKeyboardSync = useCallback(() => {
+    if (androidKeyboardSyncRafRef.current != null) {
+      cancelAnimationFrame(androidKeyboardSyncRafRef.current);
+      androidKeyboardSyncRafRef.current = null;
+    }
+  }, []);
+
+  const scheduleAndroidKeyboardSync = useCallback(() => {
+    if (
+      Platform.OS !== 'android' ||
+      !shouldFollowKeyboardRef.current ||
+      androidKeyboardSettlingRef.current
+    ) {
+      return;
+    }
+    if (androidKeyboardSyncRafRef.current != null) {
+      return;
+    }
+    androidKeyboardSyncRafRef.current = requestAnimationFrame(() => {
+      androidKeyboardSyncRafRef.current = null;
+      const metrics = Keyboard.metrics();
+      if (metrics && metrics.height > 0) {
+        applyAndroidKeyboardGeometry(keyboardMetricsToEndCoordinates(metrics), false);
+      }
+    });
+  }, [applyAndroidKeyboardGeometry]);
+
+  const setShouldFollowKeyboard = useCallback(
+    (follow: boolean) => {
+      shouldFollowKeyboardRef.current = follow;
+      shouldFollowKeyboard.value = follow;
+    },
+    [shouldFollowKeyboard]
+  );
+
+  useGenericKeyboardHandler(
     {
-      onStart: (e) => {
+      onStart: (event) => {
         'worklet';
-        const keyboardHeight = Number.isFinite(e.height) ? e.height : 0;
-        const target = keyboardHeight + KEYBOARD_GAP;
+        if (!shouldFollowKeyboard.value) {
+          animatedBottom.value = shortBottomFromScreen.value;
+          return;
+        }
+        const keyboardHeight = Number.isFinite(event.height) ? event.height : 0;
+        if (Platform.OS === 'android') {
+          if (keyboardHeight > 0) {
+            runOnJS(scheduleAndroidKeyboardSync)();
+          }
+          return;
+        }
         if (keyboardHeight > 0) {
           const rawDuration =
-            Number.isFinite(e.duration) && e.duration > 0 && e.duration <= 1000
-              ? e.duration
+            Number.isFinite(event.duration) && event.duration > 0 && event.duration <= 1000
+              ? event.duration
               : 250;
-          const duration = rawDuration * 0.89;
-          animatedBottom.value = withTiming(target, {
-            duration,
-            // 쿼티 키패드의 자연스러운 ease-out 커브에 가까운 감쇠
+          animatedBottom.value = withTiming(keyboardHeight + KEYBOARD_GAP, {
+            duration: rawDuration * 0.89,
             easing: Easing.out(Easing.cubic),
           });
         } else {
           animatedBottom.value = shortBottomFromScreen.value;
         }
       },
-      onEnd: (e) => {
+      onMove: (event) => {
         'worklet';
-        const keyboardHeight = Number.isFinite(e.height) ? e.height : 0;
+        if (!shouldFollowKeyboard.value) {
+          return;
+        }
+        const keyboardHeight = Number.isFinite(event.height) ? event.height : 0;
+        if (keyboardHeight <= 0) {
+          return;
+        }
+        if (Platform.OS === 'android') {
+          runOnJS(scheduleAndroidKeyboardSync)();
+          return;
+        }
         animatedBottom.value = keyboardHeight + KEYBOARD_GAP;
       },
+      onEnd: (event) => {
+        'worklet';
+        if (!shouldFollowKeyboard.value) {
+          animatedBottom.value = shortBottomFromScreen.value;
+          return;
+        }
+        const keyboardHeight = Number.isFinite(event.height) ? event.height : 0;
+        if (Platform.OS === 'android') {
+          if (keyboardHeight > 0) {
+            runOnJS(scheduleAndroidKeyboardSync)();
+          } else {
+            animatedBottom.value = shortBottomFromScreen.value;
+          }
+          return;
+        }
+        animatedBottom.value =
+          keyboardHeight > 0 ? keyboardHeight + KEYBOARD_GAP : shortBottomFromScreen.value;
+      },
     },
-    []
+    [scheduleAndroidKeyboardSync]
   );
 
-  const containerAnimatedStyle = useAnimatedStyle(() => ({
-    bottom: animatedBottom.value,
-  }));
+  const containerAnimatedStyle = useAnimatedStyle(() => {
+    const shortBottom = shortBottomFromScreen.value;
 
-  const showQuickInput = useCallback((starScale: AnimatedValue, starRotate: AnimatedValue, shortBottom?: number) => {
-    if (!isAtLeastVersion(Constants.expoConfig?.version, QUICK_INPUT_MIN_VERSION)) return;
-    starRefs.current = { starScale, starRotate };
-    const bottom =
-      typeof shortBottom === 'number' && Number.isFinite(shortBottom)
-        ? Math.max(KEYBOARD_GAP, shortBottom)
-        : KEYBOARD_GAP;
-    lastShortBottomRef.current = bottom;
-    shortBottomFromScreen.value = bottom;
-    animatedBottom.value = bottom;
-    setQuickInputPlaceholder(getRandomQuickInputPlaceholder());
-    setIsQuickInputVisible(true);
-  }, []);
+    if (!shouldFollowKeyboard.value) {
+      return { bottom: shortBottom };
+    }
+
+    return { bottom: animatedBottom.value };
+  });
+
+  const showQuickInput = useCallback(
+    (starScale: AnimatedValue, starRotate: AnimatedValue, shortBottom?: number, options?: ShowQuickInputOptions) => {
+      if (!isAtLeastVersion(Constants.expoConfig?.version, QUICK_INPUT_MIN_VERSION)) return;
+      isClosingRef.current = false;
+      if (hideFinishTimeoutRef.current != null) {
+        clearTimeout(hideFinishTimeoutRef.current);
+        hideFinishTimeoutRef.current = null;
+      }
+      const autoFocus = options?.autoFocus ?? true;
+      pendingAutoFocusRef.current = autoFocus;
+      setShouldFollowKeyboard(autoFocus);
+      starRefs.current = { starScale, starRotate };
+      const bottom =
+        typeof shortBottom === 'number' && Number.isFinite(shortBottom)
+          ? Math.max(KEYBOARD_GAP, shortBottom)
+          : KEYBOARD_GAP;
+      lastShortBottomRef.current = bottom;
+      lastAndroidBottomRef.current = 0;
+      shortBottomFromScreen.value = bottom;
+      animatedBottom.value = bottom;
+      applyAndroidQuickInputKeyboardMode();
+      setQuickInputPlaceholder(getRandomQuickInputPlaceholder());
+      quickInputLongOpacity.setValue(1);
+      setIsQuickInputShortVisible(false);
+      setIsQuickInputContentVisible(true);
+      setIsQuickInputVisible(true);
+    },
+    [animatedBottom, setShouldFollowKeyboard, shortBottomFromScreen]
+  );
+
+  const handleQuickInputFieldFocus = useCallback(() => {
+    setShouldFollowKeyboard(true);
+  }, [setShouldFollowKeyboard]);
 
   const setQuickInputTextTruncated = useCallback((text: string) => {
     setQuickInputText(text.slice(0, MAX_MESSAGE_LENGTH));
   }, []);
 
-  const hideQuickInput = useCallback(() => {
+  const finishHideQuickInput = useCallback(() => {
+    if (hideFinishTimeoutRef.current != null) {
+      clearTimeout(hideFinishTimeoutRef.current);
+      hideFinishTimeoutRef.current = null;
+    }
+    if (!isClosingRef.current) {
+      return;
+    }
+    // 4) 오버레이 정리 (숏은 3단계에서 이미 표시됨)
+    isClosingRef.current = false;
+    cancelAndroidKeyboardSync();
+    androidKeyboardSettlingRef.current = false;
+    lastAndroidBottomRef.current = 0;
+    restoreAndroidQuickInputKeyboardMode();
+    setShouldFollowKeyboard(false);
+    pendingAutoFocusRef.current = false;
     overlayStarScale.stopAnimation();
     overlayStarRotate.stopAnimation();
     starRefs.current = null;
     setIsQuickInputVisible(false);
+    setIsQuickInputContentVisible(false);
+    setIsQuickInputShortVisible(false);
     setQuickInputText('');
     setConfirmCardData(null);
     pendingRecordRef.current = null;
     setIsQuickInputSendLoading(false);
     setIsQuickInputConfirmAdding(false);
-  }, [overlayStarScale, overlayStarRotate]);
+  }, [cancelAndroidKeyboardSync, overlayStarScale, overlayStarRotate, setShouldFollowKeyboard]);
+
+  const hideQuickInput = useCallback(() => {
+    if (isClosingRef.current || !isQuickInputVisible) {
+      return;
+    }
+    isClosingRef.current = true;
+    pendingAutoFocusRef.current = false;
+
+    // 1) 즉시 — 키패드 dismiss + 숏 표시(키패드 뒤)
+    setIsQuickInputShortVisible(true);
+    setShouldFollowKeyboard(false);
+    quickInputRef.current?.blur();
+
+    const metrics = Keyboard.metrics();
+    const keyboardVisible = metrics != null && metrics.height > 0;
+
+    if (keyboardVisible) {
+      Keyboard.dismiss();
+    }
+
+    const hideLongAndDimFade = () => {
+      // 2) rAF — 딤 페이드 + 롱·팁 제거
+      quickInputLongOpacity.setValue(0);
+      setIsQuickInputContentVisible(false);
+      RNAnimated.timing(quickInputBackdropOpacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    };
+
+    requestAnimationFrame(() => {
+      hideLongAndDimFade();
+
+      // 4) 오버레이 정리
+      if (!keyboardVisible) {
+        hideFinishTimeoutRef.current = setTimeout(() => {
+          finishHideQuickInput();
+        }, 220);
+        return;
+      }
+      hideFinishTimeoutRef.current = setTimeout(() => {
+        finishHideQuickInput();
+      }, 600);
+    });
+  }, [
+    finishHideQuickInput,
+    isQuickInputVisible,
+    quickInputBackdropOpacity,
+    quickInputLongOpacity,
+    setShouldFollowKeyboard,
+  ]);
 
   const getPaymentSubtypesCached = useCallback(async (): Promise<PaymentSubtype[]> => {
     if (paymentSubtypesCacheRef.current.length > 0) {
@@ -1140,8 +1411,11 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     setQuickInputText('');
   }, []);
 
-  // 백드롭 딤 애니메이션
+  // 백드롭 딤 애니메이션 (닫기 중에는 hideQuickInput에서 페이드 처리)
   useEffect(() => {
+    if (isClosingRef.current) {
+      return;
+    }
     RNAnimated.timing(quickInputBackdropOpacity, {
       toValue: isQuickInputVisible ? 1 : 0,
       duration: 200,
@@ -1149,14 +1423,127 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     }).start();
   }, [isQuickInputVisible, quickInputBackdropOpacity]);
 
+  // iOS: 키패드 애니메이션 종료 후 오버레이만 정리
   useEffect(() => {
-    if (isQuickInputVisible) {
-      const timer = setTimeout(() => {
-        quickInputRef.current?.focus();
-      }, 100);
-      return () => clearTimeout(timer);
+    if (Platform.OS === 'ios') {
+      const onHide = Keyboard.addListener('keyboardDidHide', () => {
+        if (isClosingRef.current) {
+          finishHideQuickInput();
+        }
+      });
+      return () => onHide.remove();
     }
-  }, [isQuickInputVisible]);
+    return undefined;
+  }, [finishHideQuickInput]);
+
+  useEffect(() => {
+    if (!isQuickInputVisible || !pendingAutoFocusRef.current) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      quickInputRef.current?.focus();
+      if (Platform.OS === 'android' && shouldFollowKeyboardRef.current) {
+        scheduleAndroidKeyboardSync();
+      }
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [isQuickInputVisible, scheduleAndroidKeyboardSync]);
+
+  /**
+   * Android ADJUST_NOTHING: generic handler·resize 없이도 IME 추적.
+   * 1) keyboard-controller reanimated.height (useAnimatedStyle)
+   * 2) RN Keyboard didShow / didChangeFrame (JS fallback)
+   */
+  useEffect(() => {
+    if (Platform.OS !== 'android' || !isQuickInputVisible) {
+      return;
+    }
+
+    const syncFromMetrics = () => {
+      if (!shouldFollowKeyboardRef.current) {
+        return;
+      }
+      const metrics = Keyboard.metrics();
+      if (metrics && metrics.height > 0) {
+        applyAndroidKeyboardGeometry(keyboardMetricsToEndCoordinates(metrics), false);
+      }
+    };
+
+    const onShow = Keyboard.addListener('keyboardDidShow', (event) => {
+      if (!shouldFollowKeyboardRef.current) {
+        return;
+      }
+      androidKeyboardSettlingRef.current = true;
+      applyAndroidKeyboardGeometry(event.endCoordinates, true);
+      setTimeout(() => {
+        androidKeyboardSettlingRef.current = false;
+        scheduleAndroidKeyboardSync();
+      }, 280);
+    });
+
+    const onFrame = Keyboard.addListener('keyboardDidChangeFrame', (event) => {
+      if (!shouldFollowKeyboardRef.current) {
+        return;
+      }
+      applyAndroidKeyboardGeometry(event.endCoordinates, false);
+    });
+
+    const onHide = Keyboard.addListener('keyboardDidHide', () => {
+      if (isClosingRef.current) {
+        finishHideQuickInput();
+        return;
+      }
+      if (!shouldFollowKeyboardRef.current) {
+        return;
+      }
+      animatedBottom.value = shortBottomFromScreen.value;
+    });
+
+    const onAppStateChange = (next: AppStateStatus) => {
+      if (next === 'active') {
+        navigationInsetBottomRef.current = insets.bottom;
+        syncFromMetrics();
+      }
+    };
+
+    const appStateSub = AppState.addEventListener('change', onAppStateChange);
+    syncFromMetrics();
+
+    return () => {
+      onShow.remove();
+      onFrame.remove();
+      onHide.remove();
+      appStateSub.remove();
+    };
+  }, [
+    animatedBottom,
+    applyAndroidKeyboardGeometry,
+    finishHideQuickInput,
+    insets.bottom,
+    isQuickInputVisible,
+    shortBottomFromScreen,
+    scheduleAndroidKeyboardSync,
+  ]);
+
+  useAnimatedReaction(
+    () => keyboardReanimated.height.value,
+    (height, previous) => {
+      'worklet';
+      if (Platform.OS !== 'android' || !shouldFollowKeyboard.value) {
+        return;
+      }
+      if (height > 0 && height !== previous) {
+        runOnJS(scheduleAndroidKeyboardSync)();
+      }
+    },
+    [scheduleAndroidKeyboardSync]
+  );
+
+  useEffect(() => {
+    return () => {
+      cancelAndroidKeyboardSync();
+    };
+  }, [cancelAndroidKeyboardSync]);
 
   // 간편입력 체감 성능 개선: 자주 쓰는 데이터 사전 캐시
   useEffect(() => {
@@ -1168,17 +1555,6 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       // ignore preload failure
     });
   }, [getExpenseCategoriesCached, getIncomeCategoriesCached, getPaymentSubtypesCached]);
-
-  // measureInWindow 타이밍/키보드 핸들러 레이스 대비: 오버레이 마운트 후 초기 위치 강화
-  useEffect(() => {
-    if (!isQuickInputVisible) return;
-    const id = requestAnimationFrame(() => {
-      const bottom = lastShortBottomRef.current;
-      shortBottomFromScreen.value = bottom;
-      animatedBottom.value = bottom;
-    });
-    return () => cancelAnimationFrame(id);
-  }, [isQuickInputVisible]);
 
   /** 부모 starScale/starRotate → overlay 값 동기화. 오버레이는 overlay 값만 사용해 새로고침 크래시 방지 */
   useEffect(() => {
@@ -1205,6 +1581,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   // 언마운트 시 정리: 새로고침 등으로 Provider가 unmount될 때 크래시 방지
   useEffect(() => {
     return () => {
+      restoreAndroidQuickInputKeyboardMode();
       starRefs.current = null;
       overlayStarScale.stopAnimation();
       overlayStarRotate.stopAnimation();
@@ -1214,12 +1591,22 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const value = useMemo<QuickInputContextValue>(
     () => ({
       isQuickInputVisible,
+      isQuickInputContentVisible,
+      isQuickInputShortVisible,
       showQuickInput,
       hideQuickInput,
       quickInputText,
       setQuickInputText: setQuickInputTextTruncated,
     }),
-    [isQuickInputVisible, showQuickInput, hideQuickInput, quickInputText, setQuickInputTextTruncated]
+    [
+      isQuickInputContentVisible,
+      isQuickInputShortVisible,
+      isQuickInputVisible,
+      showQuickInput,
+      hideQuickInput,
+      quickInputText,
+      setQuickInputTextTruncated,
+    ]
   );
 
   return (
@@ -1234,31 +1621,39 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
               >
                 <Pressable style={StyleSheet.absoluteFill} onPress={hideQuickInput} />
               </RNAnimated.View>
-              {confirmCardData != null && (
-                <View style={[styles.confirmCardContainer, { top: insets.top + 8 }]}>
-                  <QuickInputConfirmCard
-                    data={confirmCardData}
-                    onConfirm={handleConfirmCardAdd}
-                    onCancel={handleConfirmCardCancel}
-                    addLoading={isQuickInputConfirmAdding}
-                  />
-                </View>
+              {isQuickInputContentVisible && (
+                <RNAnimated.View
+                  pointerEvents="box-none"
+                  style={[styles.longContentLayer, { opacity: quickInputLongOpacity }]}
+                >
+                  {confirmCardData != null && (
+                    <View style={[styles.confirmCardContainer, { top: insets.top + 8 }]}>
+                      <QuickInputConfirmCard
+                        data={confirmCardData}
+                        onConfirm={handleConfirmCardAdd}
+                        onCancel={handleConfirmCardCancel}
+                        addLoading={isQuickInputConfirmAdding}
+                      />
+                    </View>
+                  )}
+                  <Animated.View style={[styles.container, containerAnimatedStyle]}>
+                    <QuickInputTipBox />
+                    <QuickInputField
+                      ref={quickInputRef}
+                      value={quickInputText}
+                      onChangeText={setQuickInputTextTruncated}
+                      placeholder={quickInputPlaceholder}
+                      starScale={overlayStarScale}
+                      starRotate={overlayStarRotate}
+                      onFocus={handleQuickInputFieldFocus}
+                      onSend={handleSend}
+                      onCancel={handleCancel}
+                      sendLoading={isQuickInputSendLoading}
+                      sendDisabled={confirmCardData != null}
+                    />
+                  </Animated.View>
+                </RNAnimated.View>
               )}
-              <Animated.View style={[styles.container, containerAnimatedStyle]}>
-                <QuickInputTipBox />
-                <QuickInputField
-                  ref={quickInputRef}
-                  value={quickInputText}
-                  onChangeText={setQuickInputTextTruncated}
-                  placeholder={quickInputPlaceholder}
-                  starScale={overlayStarScale}
-                  starRotate={overlayStarRotate}
-                  onSend={handleSend}
-                  onCancel={handleCancel}
-                  sendLoading={isQuickInputSendLoading}
-                  sendDisabled={confirmCardData != null}
-                />
-              </Animated.View>
             </View>
         )}
       </View>
@@ -1295,11 +1690,16 @@ const styles = StyleSheet.create({
     right: 16,
     zIndex: 102,
   },
+  longContentLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 101,
+    justifyContent: 'flex-end',
+  },
   container: {
     position: 'absolute',
     left: 16,
     right: 16,
-    zIndex: 101,
+    bottom: 0,
     /** TIP 박스 ↔ 롱버전 입력창 간격 */
     gap: 12,
   },

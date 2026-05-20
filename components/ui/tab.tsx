@@ -8,6 +8,7 @@
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Pressable, ScrollView, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { pretendardFontFamily } from '@/constants/fonts';
 
 export interface TabOption {
   label: string;
@@ -82,7 +83,7 @@ export function Tab({
                   styles.tabText,
                   {
                     color: isActive ? colors.staticBlack : colors.textAssistive,
-                    fontWeight: isActive ? '700' : '500',
+                    fontFamily: pretendardFontFamily(isActive ? '700' : '500'),
                   },
                 ]}
               >
@@ -174,7 +175,6 @@ const styles = StyleSheet.create({
   },
   tabText: {
     fontSize: 16,
-    fontFamily: 'Pretendard',
     lineHeight: 24,
     textAlign: 'center',
   },

@@ -11,6 +11,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useWeekStart } from '@/hooks/use-week-start';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Dimensions, LayoutAnimation, Platform, Pressable, ScrollView, StyleSheet, Text, UIManager, View, ViewStyle } from 'react-native';
+import { pretendardFontFamily, pretendardTextStyle } from '@/constants/fonts';
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -19,6 +20,9 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const DAY_CELL_WIDTH = Math.floor(SCREEN_WIDTH / 7);
+/** Figma: 선택/포커스 원형 32×32 */
+const DAY_CIRCLE_SIZE = 32;
+const DAY_CIRCLE_RADIUS = DAY_CIRCLE_SIZE / 2;
 const DAY_CELL_HEIGHT = 48;
 const NAV_BAR_HEIGHT = 50;
 const DAY_HEADER_HEIGHT = 40;
@@ -378,31 +382,51 @@ export function CalendarDaySelect({
       : styles.dayTextDefault;
 
     return (
-      <Pressable
+      <View
         key={`${gridType}-${item.date}-${index}`}
-        onPress={() => {
-          if (isPast) {
-            onInvalidPastDate?.();
-            return;
-          }
-          handleDayPress(item.date);
-        }}
         style={[styles.dayContainer, { width: DAY_CELL_WIDTH }]}
-        accessibilityRole="button"
-        accessibilityLabel={item.date}
       >
-        {/* Day Number */}
-        <View
-          style={[
-            styles.dayCircle,
-            isSelected && !isPast && { backgroundColor: colors.primary },
+        <Pressable
+          onPress={() => {
+            if (isPast) {
+              onInvalidPastDate?.();
+              return;
+            }
+            handleDayPress(item.date);
+          }}
+          style={({ pressed }) => [
+            styles.dayPressable,
+            Platform.OS === 'ios' && pressed && !isSelected && !isPast && styles.dayCirclePressed,
           ]}
+          android_ripple={
+            Platform.OS === 'android'
+              ? {
+                  color: isSelected ? 'rgba(255, 255, 255, 0.35)' : 'rgba(54, 100, 206, 0.2)',
+                  radius: DAY_CIRCLE_RADIUS,
+                  borderless: false,
+                }
+              : undefined
+          }
+          accessibilityRole="button"
+          accessibilityState={{ selected: isSelected }}
+          accessibilityLabel={item.date}
+          disabled={isPast}
         >
-          <Text style={[dayTextStyle, { color: dayTextColor }]}>
-            {item.day}
-          </Text>
-        </View>
-      </Pressable>
+          <View
+            style={[
+              styles.dayCircle,
+              {
+                backgroundColor:
+                  isSelected && !isPast ? colors.primary : 'transparent',
+              },
+            ]}
+          >
+            <Text style={[dayTextStyle, { color: dayTextColor }]}>
+              {item.day}
+            </Text>
+          </View>
+        </Pressable>
+      </View>
     );
   };
 
@@ -496,8 +520,7 @@ const styles = StyleSheet.create({
   },
   navTitle: {
     fontSize: 14,
-    fontFamily: 'Pretendard',
-    fontWeight: '700',
+    ...pretendardTextStyle('700'),
     lineHeight: 21,
   },
   weekdayHeader: {
@@ -512,8 +535,7 @@ const styles = StyleSheet.create({
   },
   weekdayText: {
     fontSize: 12,
-    fontFamily: 'Pretendard',
-    fontWeight: '500',
+    ...pretendardTextStyle('500'),
     lineHeight: 18,
   },
   scrollView: {
@@ -531,12 +553,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  dayPressable: {
+    width: DAY_CIRCLE_SIZE,
+    height: DAY_CIRCLE_SIZE,
+    borderRadius: DAY_CIRCLE_RADIUS,
+    overflow: 'hidden',
+  },
   dayCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: DAY_CIRCLE_SIZE,
+    height: DAY_CIRCLE_SIZE,
+    borderRadius: DAY_CIRCLE_RADIUS,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  dayCirclePressed: {
+    opacity: 0.7,
   },
   dayTextSelected: {
     ...Typography.body1.l.bold,

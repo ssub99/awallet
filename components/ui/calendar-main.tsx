@@ -12,6 +12,7 @@ import { formatCustomMonth } from '@/utils/custom-month';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Dimensions, LayoutAnimation, Platform, Pressable, ScrollView, StyleSheet, Text, UIManager, View, ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { pretendardFontFamily, pretendardTextStyle } from '@/constants/fonts';
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -27,6 +28,9 @@ const TAB_BAR_BASE_HEIGHT = 64;
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const DAY_CELL_WIDTH = Math.floor(SCREEN_WIDTH / 7);
+/** Figma: 선택/포커스 원형 32×32 */
+const DAY_CIRCLE_SIZE = 32;
+const DAY_CIRCLE_RADIUS = DAY_CIRCLE_SIZE / 2;
 
 export interface DayData {
   totalIncome?: number;
@@ -395,26 +399,42 @@ export function CalendarMain({
       : styles.dayTextDefault;
 
     return (
-      <Pressable
+      <View
         key={`${gridType}-${item.date}-${index}`}
-        onPress={() => {
-          handleDayPress(item.date);
-        }}
         style={[styles.dayContainer, { width: DAY_CELL_WIDTH, height: dayCellHeight }]}
-        accessibilityRole="button"
-        accessibilityLabel={item.date}
       >
-        {/* Day Number */}
-        <View
-          style={[
-            styles.dayCircle,
-            isSelected && { backgroundColor: colors.primary },
+        <Pressable
+          onPress={() => {
+            handleDayPress(item.date);
+          }}
+          style={({ pressed }) => [
+            styles.dayPressable,
+            Platform.OS === 'ios' && pressed && !isSelected && styles.dayCirclePressed,
           ]}
+          android_ripple={
+            Platform.OS === 'android'
+              ? {
+                  color: isSelected ? 'rgba(255, 255, 255, 0.35)' : 'rgba(54, 100, 206, 0.2)',
+                  radius: DAY_CIRCLE_RADIUS,
+                  borderless: false,
+                }
+              : undefined
+          }
+          accessibilityRole="button"
+          accessibilityState={{ selected: isSelected }}
+          accessibilityLabel={item.date}
         >
-          <Text style={[dayTextStyle, { color: dayTextColor }]}>
-            {item.day}
-          </Text>
-        </View>
+          <View
+            style={[
+              styles.dayCircle,
+              { backgroundColor: isSelected ? colors.primary : 'transparent' },
+            ]}
+          >
+            <Text style={[dayTextStyle, { color: dayTextColor }]}>
+              {item.day}
+            </Text>
+          </View>
+        </Pressable>
 
         {/* Income/Expense */}
         {data && isCurrentMonthForStyling && (
@@ -441,7 +461,7 @@ export function CalendarMain({
             )}
           </View>
         )}
-      </Pressable>
+      </View>
     );
   };
 
@@ -509,8 +529,7 @@ const styles = StyleSheet.create({
   },
   titleText: {
     fontSize: 18,
-    fontFamily: 'Pretendard',
-    fontWeight: '700',
+    ...pretendardTextStyle('700'),
     lineHeight: 27,
   },
   weekdayHeader: {
@@ -525,8 +544,7 @@ const styles = StyleSheet.create({
   },
   weekdayText: {
     fontSize: 12,
-    fontFamily: 'Pretendard',
-    fontWeight: '500',
+    ...pretendardTextStyle('500'),
     lineHeight: 18,
   },
   scrollView: {
@@ -543,12 +561,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: 8,
   },
+  dayPressable: {
+    width: DAY_CIRCLE_SIZE,
+    height: DAY_CIRCLE_SIZE,
+    borderRadius: DAY_CIRCLE_RADIUS,
+    overflow: 'hidden',
+  },
   dayCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: DAY_CIRCLE_SIZE,
+    height: DAY_CIRCLE_SIZE,
+    borderRadius: DAY_CIRCLE_RADIUS,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  dayCirclePressed: {
+    opacity: 0.7,
   },
   dayTextSelected: {
     ...Typography.body1.l.bold,
@@ -566,15 +593,13 @@ const styles = StyleSheet.create({
   },
   expenseText: {
     fontSize: 10,
-    fontFamily: 'Pretendard',
-    fontWeight: '400',
+    ...pretendardTextStyle('400'),
     lineHeight: 15,
     color: '#ef2a2a',
   },
   incomeText: {
     fontSize: 10,
-    fontFamily: 'Pretendard',
-    fontWeight: '400',
+    ...pretendardTextStyle('400'),
     lineHeight: 15,
     color: '#058943',
   },

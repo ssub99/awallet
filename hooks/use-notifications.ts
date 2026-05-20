@@ -7,8 +7,9 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Notifications from 'expo-notifications';
 import { useEffect, useState } from 'react';
+
+import { getExpoNotifications } from '@/utils/expo-notifications-client';
 import { Alert, Linking, Platform } from 'react-native';
 
 const HAS_REQUESTED_PERMISSION_KEY = 'hasRequestedNotificationPermission';
@@ -19,6 +20,10 @@ const HAS_REQUESTED_PERMISSION_KEY = 'hasRequestedNotificationPermission';
  */
 export async function requestNotificationPermission(): Promise<boolean> {
   try {
+    const Notifications = getExpoNotifications();
+    if (!Notifications) {
+      return false;
+    }
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     
     let finalStatus = existingStatus;
@@ -66,6 +71,10 @@ export async function markPermissionAsRequested(): Promise<void> {
  */
 export async function getNotificationPermissionStatus(): Promise<'granted' | 'denied' | 'undetermined'> {
   try {
+    const Notifications = getExpoNotifications();
+    if (!Notifications) {
+      return 'undetermined';
+    }
     const { status } = await Notifications.getPermissionsAsync();
     return status as 'granted' | 'denied' | 'undetermined';
   } catch (error) {

@@ -53,6 +53,7 @@ import {
     View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { pretendardFontFamily, pretendardTextStyle } from '@/constants/fonts';
 
 const FAB_SIZE = 48;
 const FAB_OFFSET_ABOVE_TABS = 16;
@@ -3356,15 +3357,13 @@ const styles = StyleSheet.create({
   },
   trendCategoryName: {
     fontSize: 16,
-    fontFamily: 'Pretendard',
-    fontWeight: '700',
+    ...pretendardTextStyle('700'),
     lineHeight: 24,
     flex: 1,
   },
   trendCategoryStats: {
     fontSize: 16,
-    fontFamily: 'Pretendard',
-    fontWeight: '700',
+    ...pretendardTextStyle('700'),
     lineHeight: 24,
   },
   challengeList: {
