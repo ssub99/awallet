@@ -23,7 +23,7 @@ import { Switch } from '@/components/ui/switch';
 import { Tag } from '@/components/ui/tag';
 import { AtomicColors } from '@/constants/atomic-colors';
 import { Colors, Typography } from '@/constants/theme';
-import { TypographyLayout } from '@/constants/typography';
+import { TypographyLayout, TypographyLayoutFieldLineRowHeight } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
 import { useToast } from '@/contexts/toast-context';
 import { calendarRefreshEvent } from '@/hooks/calendar-events';
@@ -1713,6 +1713,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     blurMemoInput,
     handleMemoFocus: scrollMemoOnFocus,
     handleMemoBlur: clearMemoFocusState,
+    focusMemoInput,
+    hideAndroidRecordFormBottomChrome,
   } = useRecordFormMemoKeyboard({
     scrollViewRef,
     memoSectionYRef,
@@ -2552,6 +2554,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
   useAndroidKeypadBackDismiss(isKeypadVisible, handleKeypadDismiss, {
     isMemoSystemKeyboardOpen,
+    isMemoFocusedRef,
     onDismissMemoInput: dismissMemoInput,
   });
 
@@ -2567,6 +2570,15 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     }
   }, []);
 
+  const handleMemoPressIn = () => {
+    clearDismissTimeout();
+    skipNextDismissRef.current = true;
+    if (isKeypadVisible) {
+      handleKeypadDismiss();
+    }
+    focusMemoInput();
+  };
+
   const handleMemoFocus = () => {
     void logEvent('ui', {
       screen_name: analyticsScreenName,
@@ -2576,7 +2588,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     clearDismissTimeout();
     skipNextDismissRef.current = true;
     setIsMemoFocused(true);
-    handleKeypadDismiss();
     scrollMemoOnFocus();
   };
 
@@ -5422,7 +5433,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             </View>
 
           {/* 메모 */}
-          <View 
+          <View
             style={styles.section}
             onLayout={(event) => {
               const layout = event.nativeEvent.layout;
@@ -5442,9 +5453,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               placeholder="메모를 입력해 주세요.(최대 20자)"
               maxLength={20}
               multiline
-              onPressIn={() => {
-                skipNextDismissRef.current = true;
-              }}
+              onPressIn={handleMemoPressIn}
               onFocus={handleMemoFocus}
               onBlur={() => {
                 setIsMemoFocused(false);
@@ -5458,8 +5467,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           </ScrollView>
         </View>
 
-        {/* 하단 sticky 영역 - 생성 모드: 결제 유형, 수정 모드: 기간 행 */}
-        {mode === 'create' && (
+        {/* 하단 sticky 영역 - 생성 모드: 결제 유형 (Android 메모 키보드 시 숨김) */}
+        {mode === 'create' && !hideAndroidRecordFormBottomChrome && (
           <View style={[
             styles.paymentTypeStickyContainer,
             {
@@ -5490,7 +5499,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           </View>
         )}
 
-        {/* 하단 스티키 버튼 */}
+        {/* 하단 스티키 버튼 (Android 메모 키보드 시 숨김) */}
+        {!hideAndroidRecordFormBottomChrome && (
         <View style={[
           styles.bottomButtonContainer, 
           { 
@@ -5503,6 +5513,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             {mode === 'edit' ? '저장' : '확인'}
           </Button>
         </View>
+        )}
 
         {isKeypadMounted && (
           <CustomKeypadOverlay>
@@ -7221,6 +7232,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-end',
     gap: 6,
+    minHeight: TypographyLayoutFieldLineRowHeight,
   },
   amountExpressionText: TypographyLayout.fieldNumber,
   amountExpressionOperator: TypographyLayout.fieldNumber,

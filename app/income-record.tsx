@@ -326,9 +326,10 @@ export default function IncomeRecordScreen() {
     isMemoSystemKeyboardOpen,
     isMemoFocusedRef,
     blurMemoInput,
-    prepareMemoFocus,
     handleMemoFocus: scrollMemoOnFocus,
     handleMemoBlur,
+    focusMemoInput,
+    hideAndroidRecordFormBottomChrome,
   } = useRecordFormMemoKeyboard({
     scrollViewRef,
     memoSectionYRef,
@@ -357,6 +358,7 @@ export default function IncomeRecordScreen() {
 
   useAndroidKeypadBackDismiss(isKeypadVisible, handleKeypadDismiss, {
     isMemoSystemKeyboardOpen,
+    isMemoFocusedRef,
     onDismissMemoInput: blurMemoInput,
   });
 
@@ -431,12 +433,22 @@ export default function IncomeRecordScreen() {
 
   // amount auto-scroll removed per request
 
+  const handleMemoPressIn = () => {
+    clearDismissTimeout();
+    skipNextDismissRef.current = true;
+    if (isKeypadVisible) {
+      handleKeypadDismiss();
+    }
+    focusMemoInput();
+  };
+
   const handleMemoFocus = () => {
     void logEvent('ui', {
       screen_name: '/income-record',
       target: 'memo',
     });
-    handleKeypadDismiss();
+    clearDismissTimeout();
+    skipNextDismissRef.current = true;
     scrollMemoOnFocus();
   };
 
@@ -754,10 +766,6 @@ export default function IncomeRecordScreen() {
             {/* 메모 */}
             <View 
               style={styles.section}
-              onTouchStart={() => {
-                skipNextDismissRef.current = true;
-                prepareMemoFocus();
-              }}
               onLayout={(event) => {
                 const layout = event.nativeEvent.layout;
                 setMemoSectionY(layout.y);
@@ -776,10 +784,7 @@ export default function IncomeRecordScreen() {
                 onChangeText={handleMemoChange}
                 placeholder="메모를 입력해 주세요.(최대 20자)"
                 maxLength={20}
-                onPressIn={() => {
-                  skipNextDismissRef.current = true;
-                  prepareMemoFocus();
-                }}
+                onPressIn={handleMemoPressIn}
                 onFocus={handleMemoFocus}
                 onBlur={handleMemoBlur}
                 onKeyPress={handleMemoKeyPress}
@@ -788,7 +793,6 @@ export default function IncomeRecordScreen() {
               />
             </View>
           </ScrollView>
-        </View>
 
         {isKeypadMounted && (
           <CustomKeypadOverlay>
@@ -819,7 +823,8 @@ export default function IncomeRecordScreen() {
           </CustomKeypadOverlay>
         )}
 
-        {/* 하단 고정 버튼 */}
+        {/* 하단 고정 버튼 (Android 메모 키보드 시 숨김) */}
+        {!hideAndroidRecordFormBottomChrome && (
         <View
           style={[
             styles.bottomButtonContainer,
@@ -838,6 +843,8 @@ export default function IncomeRecordScreen() {
             확인
           </Button>
         </View>
+        )}
+      </View>
 
       {/* 날짜 선택 바텀시트 */}
       {showDatePicker && (

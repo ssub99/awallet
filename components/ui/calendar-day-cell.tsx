@@ -2,6 +2,7 @@
  * Home calendar day cell (memoized for month transitions).
  */
 
+import { AutoShrinkSingleLineText } from '@/components/ui/auto-shrink-single-line-text';
 import { Typography } from '@/constants/theme';
 import { memo, useCallback } from 'react';
 import { Dimensions, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -111,16 +112,24 @@ function CalendarDayCellComponent({
       </Pressable>
 
       {(showExpense || showIncome) && (
-        <View style={styles.costContainer}>
+        <View style={[styles.costContainer, { width: DAY_CELL_WIDTH }]}>
           {showExpense ? (
-            <Text style={styles.expenseText} numberOfLines={1} ellipsizeMode="tail">
+            <AutoShrinkSingleLineText
+              textStyle={styles.expenseText}
+              minFontScale={0.55}
+              horizontalInset={2}
+            >
               {formatCurrency(dayRecord!.totalExpense!)}
-            </Text>
+            </AutoShrinkSingleLineText>
           ) : null}
           {showIncome ? (
-            <Text style={styles.incomeText} numberOfLines={1} ellipsizeMode="tail">
+            <AutoShrinkSingleLineText
+              textStyle={styles.incomeText}
+              minFontScale={0.55}
+              horizontalInset={2}
+            >
               {formatCurrency(dayRecord!.totalIncome!)}
-            </Text>
+            </AutoShrinkSingleLineText>
           ) : null}
         </View>
       )}
@@ -164,6 +173,8 @@ const styles = StyleSheet.create({
     marginTop: 4,
     gap: 0,
     alignItems: 'center',
+    minWidth: 0,
+    overflow: 'visible',
   },
   expenseText: {
     ...Typography.tiny.r.regular,

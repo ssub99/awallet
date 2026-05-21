@@ -217,9 +217,10 @@ export default function IncomeEditScreen() {
     isMemoSystemKeyboardOpen,
     isMemoFocusedRef,
     blurMemoInput,
-    prepareMemoFocus,
     handleMemoFocus: scrollMemoOnFocus,
     handleMemoBlur,
+    focusMemoInput,
+    hideAndroidRecordFormBottomChrome,
   } = useRecordFormMemoKeyboard({
     scrollViewRef,
     memoSectionYRef,
@@ -248,6 +249,7 @@ export default function IncomeEditScreen() {
 
   useAndroidKeypadBackDismiss(isKeypadVisible, handleKeypadDismiss, {
     isMemoSystemKeyboardOpen,
+    isMemoFocusedRef,
     onDismissMemoInput: blurMemoInput,
   });
 
@@ -510,12 +512,22 @@ export default function IncomeEditScreen() {
   const getCategoryEmojiSafe = (label: string): string => categoryEmojiMap[label] ?? '';
   const categoryDisplay = category ? `${getCategoryEmojiSafe(category)} ${category}` : '';
 
+  const handleMemoPressIn = () => {
+    clearDismissTimeout();
+    skipNextDismissRef.current = true;
+    if (isKeypadVisible) {
+      handleKeypadDismiss();
+    }
+    focusMemoInput();
+  };
+
   const handleMemoFocus = () => {
     void logEvent('ui', {
       screen_name: '/income-edit',
       target: 'memo',
     });
-    handleKeypadDismiss();
+    clearDismissTimeout();
+    skipNextDismissRef.current = true;
     scrollMemoOnFocus();
   };
 
@@ -887,10 +899,6 @@ export default function IncomeEditScreen() {
           {/* 메모 */}
           <View 
             style={styles.section}
-            onTouchStart={() => {
-              skipNextDismissRef.current = true;
-              prepareMemoFocus();
-            }}
             onLayout={(event) => {
               const layout = event.nativeEvent.layout;
               setMemoSectionY(layout.y);
@@ -909,10 +917,7 @@ export default function IncomeEditScreen() {
               onChangeText={handleMemoChange}
               placeholder="메모를 입력해 주세요.(최대 20자)"
               maxLength={20}
-              onPressIn={() => {
-                skipNextDismissRef.current = true;
-                prepareMemoFocus();
-              }}
+              onPressIn={handleMemoPressIn}
               onFocus={handleMemoFocus}
               onBlur={handleMemoBlur}
               onKeyPress={handleMemoKeyPress}
@@ -921,7 +926,6 @@ export default function IncomeEditScreen() {
             />
           </View>
         </ScrollView>
-      </View>
 
       {isKeypadMounted && (
         <CustomKeypadOverlay>
@@ -952,7 +956,8 @@ export default function IncomeEditScreen() {
         </CustomKeypadOverlay>
       )}
 
-      {/* 하단 고정 버튼 */}
+      {/* 하단 고정 버튼 (Android 메모 키보드 시 숨김) */}
+      {!hideAndroidRecordFormBottomChrome && (
       <View style={[
         styles.bottomButtonContainer, 
         { 
@@ -969,6 +974,8 @@ export default function IncomeEditScreen() {
         <Button onPress={handleCtaPress}>
           저장
         </Button>
+      </View>
+      )}
       </View>
 
       {/* 날짜 선택 바텀시트 */}

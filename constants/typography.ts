@@ -71,11 +71,8 @@ export const TypographyLayoutFieldAreaInputHeight = 72;
 /** iOS area TextInput — body01 lh(24)는 Pretendard 글리프가 하단으로 쳐지고 상단이 잘림 */
 export const TypographyLayoutFieldAreaLineHeightIos = 20;
 
-/** iOS 48px line 필드(카테고리·날짜·금액·수정 화면 결제유형) — Pretendard 글리프 하단 쳐짐 */
-export const TypographyLayoutFieldLineOpticalYIos = -3;
-
-/** iOS 36px short line(결제유형 sticky 등) — 동일 -2 시 상단으로 치우침 */
-export const TypographyLayoutFieldLineShortOpticalYIos = 0;
+/** iOS TextInput 전용 — Text는 fieldLineWrap flex 중앙, Input만 미세 보정 */
+export const TypographyLayoutFieldLineInputOpticalYIos = -2;
 
 /**
  * 단일 행 UI용 lineHeight — iOS는 행 높이에 맞춤, Android는 Pretendard 메트릭 보정.
@@ -365,28 +362,43 @@ export function getTypographyStyle(
 const fieldLineSingleLineBase = singleRowCenteredTextStyle(Typography.body1.l.regular);
 const fieldLineSingleLineBoldBase = singleRowCenteredTextStyle(Typography.body1.l.bold);
 
-const iosFieldLineBoxMetrics = Platform.select<TextStyle>({
+/** Text — 높이·transform 없음, 부모 fieldLineWrap에서 세로 중앙 */
+const iosFieldLineTextMetrics = Platform.select<TextStyle>({
+  ios: { includeFontPadding: false },
+  default: { includeFontPadding: false },
+});
+
+/** TextInput — iOS 글리프만 translateY */
+const iosFieldLineInputMetrics = Platform.select<TextStyle>({
   ios: {
     height: TypographyLayoutFieldLineRowHeight,
     includeFontPadding: false,
-    transform: [{ translateY: TypographyLayoutFieldLineOpticalYIos }],
+    transform: [{ translateY: TypographyLayoutFieldLineInputOpticalYIos }],
   },
-  default: { includeFontPadding: false },
+  default: {
+    height: TypographyLayoutFieldLineRowHeight,
+    includeFontPadding: false,
+  },
 });
 
 const fieldLineSingleLine: TextStyle = {
   ...fieldLineSingleLineBase,
-  ...iosFieldLineBoxMetrics,
+  ...iosFieldLineTextMetrics,
 };
 const fieldLineSingleLineBold: TextStyle = {
   ...fieldLineSingleLineBoldBase,
-  ...iosFieldLineBoxMetrics,
+  ...iosFieldLineTextMetrics,
 };
 
 export const lineFieldRowText: TextStyle = fieldLineSingleLine;
 
 export const lineFieldRowTextWrap: ViewStyle = {
   height: TypographyLayoutFieldLineRowHeight,
+  justifyContent: 'center',
+};
+
+export const lineFieldRowTextShortWrap: ViewStyle = {
+  height: TypographyLayoutFieldLineShortMinHeight,
   justifyContent: 'center',
 };
 
@@ -398,16 +410,10 @@ export const TypographyLayout = {
   /** 48px line — buttonMode·calendar·line TextInput */
   fieldLine: lineFieldRowText,
   fieldLineWrap: lineFieldRowTextWrap,
+  fieldLineShortWrap: lineFieldRowTextShortWrap,
   fieldLineShort: {
     ...singleRowCenteredTextStyle(Typography.body2.r.regular),
-    ...Platform.select({
-      ios: {
-        height: TypographyLayoutFieldLineShortMinHeight,
-        includeFontPadding: false,
-        transform: [{ translateY: TypographyLayoutFieldLineShortOpticalYIos }],
-      },
-      default: { includeFontPadding: false },
-    }),
+    ...iosFieldLineTextMetrics,
   } satisfies TextStyle,
   /** 96px area — multiline 메모 */
   fieldArea: {
@@ -419,14 +425,34 @@ export const TypographyLayout = {
     position: 'absolute' as const,
     left: 0,
     right: 0,
+    top: 0,
+    height: TypographyLayoutFieldLineRowHeight,
+    lineHeight: TypographyLayoutFieldLineRowHeight,
   } satisfies TextStyle,
   fieldLineInput: {
     ...fieldLineSingleLine,
     flex: 1,
     padding: 0,
     margin: 0,
-    height: TypographyLayoutFieldLineRowHeight,
     textAlignVertical: 'center' as const,
+    ...iosFieldLineInputMetrics,
+  } satisfies TextStyle,
+  fieldLineShortInput: {
+    ...singleRowCenteredTextStyle(Typography.body2.r.regular),
+    flex: 1,
+    padding: 0,
+    margin: 0,
+    textAlignVertical: 'center' as const,
+    ...Platform.select({
+      ios: {
+        height: TypographyLayoutFieldLineShortMinHeight,
+        includeFontPadding: false,
+      },
+      default: {
+        height: TypographyLayoutFieldLineShortMinHeight,
+        includeFontPadding: false,
+      },
+    }),
   } satisfies TextStyle,
   fieldAreaInput: {
     ...pretendardTextStyle('400'),

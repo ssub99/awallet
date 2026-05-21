@@ -21,7 +21,6 @@ import {
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { forwardRef, useImperativeHandle, useRef, useState, type ReactNode } from 'react';
 import {
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -285,18 +284,20 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
               name="calendarMonth"
               size={24}
               color={iconColor}
-              style={[styles.icon, styles.iconLineIos]}
+              style={styles.icon}
             />
             <View style={styles.inputFieldWrap}>
-              <Text
-                style={[
-                  styles.calendarDate,
-                  variant === 'line' && !shortver && styles.inputLineButtonText,
-                  { color: calendarDate ? textColor : placeholderColor },
-                ]}
-              >
-                {calendarDate ?? '--'}
-              </Text>
+              <View style={variant === 'line' && !shortver ? styles.inputLineTextWrap : undefined}>
+                <Text
+                  style={[
+                    styles.calendarDate,
+                    variant === 'line' && !shortver && styles.inputLineButtonText,
+                    { color: calendarDate ? textColor : placeholderColor },
+                  ]}
+                >
+                  {calendarDate ?? '--'}
+                </Text>
+              </View>
             </View>
           </View>
         ) : (
@@ -309,15 +310,16 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
                     <View
                       style={[
                         styles.sortationIndicator,
-                        variant === 'line' && !shortver && styles.sortationIndicatorFieldIos,
                         { backgroundColor: resolvedSortationColor, borderColor: colors.border },
                       ]}
                     />
                   )}
                   {sortationEmoji ? (
-                    <Text style={[styles.sortationEmoji, { color: disabled ? colors.textDisabled : colors.textNeutral }]}>
-                      {sortationEmoji}
-                    </Text>
+                    <View style={shortver ? styles.inputLineTextWrapShort : styles.inputLineTextWrap}>
+                      <Text style={[styles.sortationEmoji, { color: disabled ? colors.textDisabled : colors.textNeutral }]}>
+                        {sortationEmoji}
+                      </Text>
+                    </View>
                   ) : null}
                 </>
               )}
@@ -327,29 +329,31 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
                   name={icon}
                   size={24}
                   color={iconColor}
-                  style={[styles.icon, variant === 'line' && !shortver && styles.iconLineFieldIos]}
+                  style={styles.icon}
                 />
               )}
 
               {/* Text Input or Button Mode Text */}
               {buttonMode ? (
-                variant === 'line' && !shortver ? (
+                variant === 'line' ? (
                   <View style={styles.inputFieldWrap}>
-                    <Text
-                      style={[
-                        styles.inputLineButtonText,
-                        shouldUseCompactEmojiGap && styles.inputEmojiGapCompact,
-                        { color: hasValue ? textColor : placeholderColor },
-                        (textInputProps as any).style,
-                      ]}
-                    >
-                      {hasValue ? value : finalPlaceholder}
-                    </Text>
+                    <View style={shortver ? styles.inputLineTextWrapShort : styles.inputLineTextWrap}>
+                      <Text
+                        style={[
+                          shortver ? styles.inputShort : styles.inputLineButtonText,
+                          shouldUseCompactEmojiGap && styles.inputEmojiGapCompact,
+                          { color: hasValue ? textColor : placeholderColor },
+                          (textInputProps as any).style,
+                        ]}
+                      >
+                        {hasValue ? value : finalPlaceholder}
+                      </Text>
+                    </View>
                   </View>
                 ) : (
                   <Text
                     style={[
-                      shortver ? styles.inputShort : styles.inputLineButtonText,
+                      styles.inputLineButtonText,
                       shouldUseCompactEmojiGap && styles.inputEmojiGapCompact,
                       { color: hasValue ? textColor : placeholderColor },
                       (textInputProps as any).style,
@@ -380,7 +384,7 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
                       variant === 'area'
                         ? styles.inputAreaField
                         : shortver
-                          ? styles.inputShort
+                          ? styles.inputShortField
                           : inputType === 'number'
                             ? styles.inputNumber
                             : styles.inputLine,
@@ -402,18 +406,18 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
                     placeholderTextColor={placeholderColor}
                     editable={!disabled && textInputProps.editable !== false}
                     pointerEvents={textInputProps.editable === false ? 'none' : 'auto'}
-                    onPressIn={() => {
-                      // disabled 상태일 때 onPress 호출
-                      if (disabled && onPress) {
-                        onPress();
-                      }
-                    }}
                     multiline={variant === 'area'}
                     textAlignVertical={variant === 'area' ? 'top' : 'center'}
                     keyboardType={externalKeyboardType || (inputType === 'number' ? 'number-pad' : 'default')}
                     accessibilityLabel={finalPlaceholder}
                     accessibilityState={{ disabled }}
                     {...textInputProps}
+                    onPressIn={(event) => {
+                      if (disabled && onPress) {
+                        onPress();
+                      }
+                      textInputProps.onPressIn?.(event);
+                    }}
                   />
                   {shouldUseCustomLinePlaceholder && !value ? (
                     <Text
@@ -442,7 +446,7 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
                     variant="line"
                     size={10}
                     color={disabled ? colors.textDisabled : colors.textNeutral}
-                    style={[styles.rightIcon, variant === 'line' && !shortver && styles.iconLineFieldIos]}
+                    style={styles.rightIcon}
                   />
                 )}
 
@@ -474,7 +478,7 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
                     variant="line"
                     size={shortver ? 16 : 24}
                     color={disabled ? colors.textDisabled : colors.staticBlack}
-                    style={[styles.rightArrow, variant === 'line' && !shortver && styles.iconLineFieldIos]}
+                    style={styles.rightArrow}
                   />
                 )}
               </View>
@@ -494,13 +498,11 @@ const styles = StyleSheet.create({
   },
   containerLine: {
     height: 48,
-    // line 입력은 48 높이 내에서 텍스트(24)를 정확히 중앙 정렬
-    paddingVertical: 12,
+    justifyContent: 'center',
   },
   containerLineShort: {
     height: 36,
-    paddingTop: 6,
-    paddingBottom: 9,
+    justifyContent: 'center',
   },
   containerArea: {
     height: 96,
@@ -534,11 +536,8 @@ const styles = StyleSheet.create({
   icon: {
     // Icon is 24x24
   },
-  /** iOS 48px line — 텍스트(fieldLine -3px)와 아이콘·도트 정렬 맞춤 */
-  iconLineFieldIos: Platform.select({
-    ios: { transform: [{ translateY: -2 }] },
-    default: null,
-  }),
+  inputLineTextWrap: TypographyLayout.fieldLineWrap,
+  inputLineTextWrapShort: TypographyLayout.fieldLineShortWrap,
   inputFieldWrap: {
     flex: 1,
     justifyContent: 'center',
@@ -554,6 +553,7 @@ const styles = StyleSheet.create({
   inputLineButtonText: TypographyLayout.fieldLine,
   inputPlaceholderText: TypographyLayout.fieldLinePlaceholder,
   inputShort: TypographyLayout.fieldLineShort,
+  inputShortField: TypographyLayout.fieldLineShortInput,
   inputEmojiGapCompact: {
     marginLeft: -4,
   },
@@ -582,10 +582,6 @@ const styles = StyleSheet.create({
     borderRadius: 99,
     borderWidth: 1,
   },
-  sortationIndicatorFieldIos: Platform.select({
-    ios: { transform: [{ translateY: -2 }] },
-    default: null,
-  }),
   sortationEmoji: TypographyLayout.fieldLine,
 });
 

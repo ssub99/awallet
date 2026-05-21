@@ -1,7 +1,8 @@
 import {
-  computeAndroidMemoScrollY,
+  computeMemoScrollY,
   getSystemKeyboardScrollPaddingBottom,
   keyboardMetricsToEndCoordinates,
+  MEMO_KEYBOARD_GAP,
 } from '@/utils/record-form-keyboard-scroll';
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import {
@@ -21,11 +22,9 @@ type UseRecordFormMemoKeyboardParams = {
   safeAreaBottom: number;
 };
 
-const ANDROID_MEMO_SCROLL_RETRY_MS = [0, 50, 150, 300] as const;
-const IOS_MEMO_SCROLL_RETRY_MS = [0, 100, 350] as const;
-
 /**
- * 수입/소비 기록 화면: 메모 시스템 키보드 패딩·Android 스크롤(툴바 on/off)·블러 처리.
+ * 수입/소비 기록: 메모 키보드 패딩·스크롤 (caa76df 기준).
+ * Android keyboardDidHide 시 blur 하지 않음(포커스 직후 키보드가 바로 닫히는 충돌 방지).
  */
 export function useRecordFormMemoKeyboard({
   scrollViewRef,
@@ -37,59 +36,69 @@ export function useRecordFormMemoKeyboard({
 }: UseRecordFormMemoKeyboardParams) {
   const memoInputRef = useRef<TextInput>(null);
   const isMemoFocusedRef = useRef(false);
+  const suppressKeyboardHideBlurRef = useRef(false);
   const pendingAndroidMemoScrollRef = useRef(false);
-  const androidScrollRetryTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
-  const iosScrollRetryTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
-  const [keyboardPaddingBottom, setKeyboardPaddingBottom] = useState(16);
+  const iosScrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [keyboardPaddingBottom, setKeyboardPaddingBottom] = useState(MEMO_KEYBOARD_GAP);
   const [isMemoSystemKeyboardOpen, setIsMemoSystemKeyboardOpen] = useState(false);
+  /** Android resize 시 하단 CTA·결제유형이 키보드 위로 붙는 것 방지 */
+  const [hideAndroidRecordFormBottomChrome, setHideAndroidRecordFormBottomChrome] =
+    useState(false);
 
-  const clearAndroidScrollRetries = useCallback(() => {
-    androidScrollRetryTimeoutsRef.current.forEach(clearTimeout);
-    androidScrollRetryTimeoutsRef.current = [];
-  }, []);
-
-  const clearIosScrollRetries = useCallback(() => {
-    iosScrollRetryTimeoutsRef.current.forEach(clearTimeout);
-    iosScrollRetryTimeoutsRef.current = [];
+  const clearIosScrollTimeout = useCallback(() => {
+    if (iosScrollTimeoutRef.current) {
+      clearTimeout(iosScrollTimeoutRef.current);
+      iosScrollTimeoutRef.current = null;
+    }
   }, []);
 
   const blurMemoInput = useCallback(() => {
     isMemoFocusedRef.current = false;
-    setIsMemoSystemKeyboardOpen(false);
+    suppressKeyboardHideBlurRef.current = false;
     pendingAndroidMemoScrollRef.current = false;
-    clearAndroidScrollRetries();
-    clearIosScrollRetries();
+    clearIosScrollTimeout();
     memoInputRef.current?.blur();
     Keyboard.dismiss();
-    setKeyboardPaddingBottom(16);
-  }, [clearAndroidScrollRetries, clearIosScrollRetries]);
+    setKeyboardPaddingBottom(MEMO_KEYBOARD_GAP);
+    setIsMemoSystemKeyboardOpen(false);
+    setHideAndroidRecordFormBottomChrome(false);
+  }, [clearIosScrollTimeout]);
 
-  const scrollAndroidMemoToKeyboard = useCallback(
+  const applyKeyboardGeometry = useCallback(
     (endCoordinates: KeyboardEvent['endCoordinates']) => {
-      if (
-        Platform.OS !== 'android' ||
-        !isMemoFocusedRef.current ||
-        memoSectionYRef.current <= 0 ||
-        memoSectionHeightRef.current <= 0 ||
-        endCoordinates.height <= 0
-      ) {
-        return false;
-      }
-
       const metrics = Keyboard.metrics();
       const nativeHeight = metrics?.height ?? 0;
-      const scrollY = computeAndroidMemoScrollY({
+      setKeyboardPaddingBottom(
+        getSystemKeyboardScrollPaddingBottom(
+          endCoordinates,
+          safeAreaBottom,
+          nativeHeight,
+        ),
+      );
+      setIsMemoSystemKeyboardOpen(
+        endCoordinates.height > 0 && isMemoFocusedRef.current,
+      );
+
+      if (
+        Platform.OS !== 'android' ||
+        !pendingAndroidMemoScrollRef.current ||
+        memoSectionYRef.current <= 0 ||
+        memoSectionHeightRef.current <= 0
+      ) {
+        return;
+      }
+
+      pendingAndroidMemoScrollRef.current = false;
+      const scrollY = computeMemoScrollY({
         memoSectionY: memoSectionYRef.current,
         memoSectionHeight: memoSectionHeightRef.current,
         windowHeight,
         keyboardEnd: endCoordinates,
         safeAreaTop,
         safeAreaBottom,
-        nativeKeyboardHeight: nativeHeight,
       });
       scrollViewRef.current?.scrollTo({ y: scrollY, animated: true });
-      pendingAndroidMemoScrollRef.current = false;
-      return true;
     },
     [
       memoSectionHeightRef,
@@ -99,83 +108,6 @@ export function useRecordFormMemoKeyboard({
       scrollViewRef,
       windowHeight,
     ],
-  );
-
-  const scrollIosMemoIntoView = useCallback(() => {
-    if (Platform.OS !== 'ios' || memoSectionYRef.current <= 0) {
-      return;
-    }
-    const scrollOffset = windowHeight * 0.266;
-    scrollViewRef.current?.scrollTo({
-      y: Math.max(0, memoSectionYRef.current - scrollOffset),
-      animated: true,
-    });
-  }, [memoSectionYRef, scrollViewRef, windowHeight]);
-
-  const scheduleAndroidMemoScrollRetries = useCallback(
-    (endCoordinates?: KeyboardEvent['endCoordinates']) => {
-      if (Platform.OS !== 'android') {
-        return;
-      }
-      clearAndroidScrollRetries();
-      ANDROID_MEMO_SCROLL_RETRY_MS.forEach((delayMs) => {
-        const timeoutId = setTimeout(() => {
-          const metrics = Keyboard.metrics();
-          const coords =
-            endCoordinates ??
-            (metrics && metrics.height > 0
-              ? keyboardMetricsToEndCoordinates(metrics)
-              : null);
-          if (coords && coords.height > 0) {
-            scrollAndroidMemoToKeyboard(coords);
-          }
-        }, delayMs);
-        androidScrollRetryTimeoutsRef.current.push(timeoutId);
-      });
-    },
-    [clearAndroidScrollRetries, scrollAndroidMemoToKeyboard],
-  );
-
-  const scheduleIosMemoScrollRetries = useCallback(() => {
-    if (Platform.OS !== 'ios') {
-      return;
-    }
-    clearIosScrollRetries();
-    IOS_MEMO_SCROLL_RETRY_MS.forEach((delayMs) => {
-      const timeoutId = setTimeout(() => {
-        if (isMemoFocusedRef.current) {
-          scrollIosMemoIntoView();
-        }
-      }, delayMs);
-      iosScrollRetryTimeoutsRef.current.push(timeoutId);
-    });
-  }, [clearIosScrollRetries, scrollIosMemoIntoView]);
-
-  const applyKeyboardGeometry = useCallback(
-    (endCoordinates: KeyboardEvent['endCoordinates']) => {
-      const metrics = Keyboard.metrics();
-      const nativeHeight = metrics?.height ?? 0;
-      const padding = getSystemKeyboardScrollPaddingBottom(
-        endCoordinates,
-        safeAreaBottom,
-        nativeHeight,
-      );
-      setKeyboardPaddingBottom(padding);
-      setIsMemoSystemKeyboardOpen(
-        endCoordinates.height > 0 && isMemoFocusedRef.current,
-      );
-
-      if (Platform.OS !== 'android' || endCoordinates.height <= 0) {
-        return;
-      }
-
-      if (!isMemoFocusedRef.current) {
-        return;
-      }
-
-      scrollAndroidMemoToKeyboard(endCoordinates);
-    },
-    [safeAreaBottom, scrollAndroidMemoToKeyboard],
   );
 
   const scheduleAndroidKeyboardGeometrySync = useCallback(() => {
@@ -197,10 +129,8 @@ export function useRecordFormMemoKeyboard({
     const showSub = Keyboard.addListener(showEvent, (event) => {
       applyKeyboardGeometry(event.endCoordinates);
       scheduleAndroidKeyboardGeometrySync();
-      if (Platform.OS === 'ios' && isMemoFocusedRef.current) {
-        scheduleIosMemoScrollRetries();
-      }
     });
+
     const frameSub =
       Platform.OS === 'android'
         ? Keyboard.addListener('keyboardDidChangeFrame', (event) => {
@@ -211,70 +141,80 @@ export function useRecordFormMemoKeyboard({
             scheduleAndroidKeyboardGeometrySync();
           })
         : null;
-    const hideSub = Keyboard.addListener(hideEvent, () => {
-      if (isMemoFocusedRef.current) {
-        blurMemoInput();
-      } else {
-        setKeyboardPaddingBottom(16);
-        setIsMemoSystemKeyboardOpen(false);
+
+    const hideSub = Keyboard.addListener(hideEvent, (event) => {
+      if (Platform.OS === 'android') {
         pendingAndroidMemoScrollRef.current = false;
+        if (!isMemoFocusedRef.current) {
+          setKeyboardPaddingBottom(MEMO_KEYBOARD_GAP);
+          setIsMemoSystemKeyboardOpen(false);
+          setHideAndroidRecordFormBottomChrome(false);
+        }
+        return;
       }
+
+      if (suppressKeyboardHideBlurRef.current) {
+        return;
+      }
+
+      const hideHeight = event.endCoordinates.height;
+      if (isMemoFocusedRef.current && hideHeight === 0) {
+        blurMemoInput();
+        return;
+      }
+
+      if (!isMemoFocusedRef.current) {
+        setKeyboardPaddingBottom(MEMO_KEYBOARD_GAP);
+        setIsMemoSystemKeyboardOpen(false);
+      }
+      pendingAndroidMemoScrollRef.current = false;
     });
 
     return () => {
       showSub.remove();
       frameSub?.remove();
       hideSub.remove();
-      clearAndroidScrollRetries();
-      clearIosScrollRetries();
     };
-  }, [
-    applyKeyboardGeometry,
-    blurMemoInput,
-    clearAndroidScrollRetries,
-    clearIosScrollRetries,
-    scheduleAndroidKeyboardGeometrySync,
-    scheduleIosMemoScrollRetries,
-  ]);
+  }, [applyKeyboardGeometry, blurMemoInput, scheduleAndroidKeyboardGeometrySync]);
 
-  /** Android: focus 전 onPressIn에서 pending 설정. iOS: 첫 탭 레이스 완화 */
-  const prepareMemoFocus = useCallback(() => {
-    isMemoFocusedRef.current = true;
-    if (Platform.OS === 'android') {
-      pendingAndroidMemoScrollRef.current = true;
-    }
-  }, []);
+  useEffect(() => () => clearIosScrollTimeout(), [clearIosScrollTimeout]);
 
   const handleMemoFocus = useCallback(() => {
     isMemoFocusedRef.current = true;
+    suppressKeyboardHideBlurRef.current = true;
 
     if (Platform.OS === 'android') {
       pendingAndroidMemoScrollRef.current = true;
-      const metrics = Keyboard.metrics();
-      if (metrics && metrics.height > 0) {
-        const coords = keyboardMetricsToEndCoordinates(metrics);
-        applyKeyboardGeometry(coords);
-        scheduleAndroidMemoScrollRetries(coords);
-      } else {
-        scheduleAndroidMemoScrollRetries();
-      }
+      setHideAndroidRecordFormBottomChrome(true);
       return;
     }
 
-    scheduleIosMemoScrollRetries();
-  }, [
-    applyKeyboardGeometry,
-    scheduleAndroidMemoScrollRetries,
-    scheduleIosMemoScrollRetries,
-  ]);
+    clearIosScrollTimeout();
+    iosScrollTimeoutRef.current = setTimeout(() => {
+      iosScrollTimeoutRef.current = null;
+      suppressKeyboardHideBlurRef.current = false;
+      if (memoSectionYRef.current > 0) {
+        const scrollOffset = windowHeight * 0.266;
+        scrollViewRef.current?.scrollTo({
+          y: Math.max(0, memoSectionYRef.current - scrollOffset),
+          animated: true,
+        });
+      }
+    }, 350);
+  }, [clearIosScrollTimeout, memoSectionYRef, scrollViewRef, windowHeight]);
 
   const handleMemoBlur = useCallback(() => {
     isMemoFocusedRef.current = false;
+    suppressKeyboardHideBlurRef.current = false;
     pendingAndroidMemoScrollRef.current = false;
-    clearAndroidScrollRetries();
-    clearIosScrollRetries();
+    clearIosScrollTimeout();
     setIsMemoSystemKeyboardOpen(false);
-  }, [clearAndroidScrollRetries, clearIosScrollRetries]);
+    setHideAndroidRecordFormBottomChrome(false);
+  }, [clearIosScrollTimeout]);
+
+  const focusMemoInput = useCallback(() => {
+    memoInputRef.current?.focus();
+  }, []);
 
   return {
     memoInputRef,
@@ -282,8 +222,9 @@ export function useRecordFormMemoKeyboard({
     isMemoSystemKeyboardOpen,
     isMemoFocusedRef,
     blurMemoInput,
-    prepareMemoFocus,
     handleMemoFocus,
     handleMemoBlur,
+    focusMemoInput,
+    hideAndroidRecordFormBottomChrome,
   };
 }
