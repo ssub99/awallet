@@ -10,6 +10,7 @@
  */
 
 import { Colors, Typography } from '@/constants/theme';
+import { compactSingleLineTextStyle } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Pressable, StyleSheet, Text, ViewStyle } from 'react-native';
 
@@ -145,20 +146,22 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderWidth: 1,
     alignSelf: 'flex-start',
+    justifyContent: 'center',
+    alignItems: 'center',
     minHeight: 37, // Figma design height
     // borderRadius is set dynamically based on type
     // height can be overridden via style prop
   },
   textActive: {
-    ...Typography.body2.r.bold,
+    ...compactSingleLineTextStyle(Typography.body2.r.bold),
     textAlign: 'center',
   },
   textDefault: {
-    ...Typography.body2.r.medium,
+    ...compactSingleLineTextStyle(Typography.body2.r.medium),
     textAlign: 'center',
   },
   textDisabled: {
-    ...Typography.body2.r.medium,
+    ...compactSingleLineTextStyle(Typography.body2.r.medium),
     textAlign: 'center',
   },
 });

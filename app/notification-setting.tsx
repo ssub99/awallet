@@ -8,7 +8,7 @@
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Switch } from '@/components/ui/switch';
 import { ThemeColors } from '@/constants/theme-colors';
-import { Typography } from '@/constants/typography';
+import { Typography, TypographyLayout } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { handleNotificationToggle } from '@/hooks/use-notifications';
@@ -148,7 +148,7 @@ const styles = StyleSheet.create({
     paddingTop: 24,
   },
   sectionTitle: {
-    ...Typography.body1.l.bold,
+    ...TypographyLayout.sectionTitle,
     marginBottom: 8,
   },
   card: {

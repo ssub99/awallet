@@ -12,6 +12,7 @@
 
 import { AtomicColors } from '@/constants/atomic-colors';
 import { Colors, Typography } from '@/constants/theme';
+import { compactSingleLineTextStyle } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import type { TextStyle, ViewStyle } from 'react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -93,13 +94,17 @@ export function SegmentControls({
 
   // Size-based typography
   const baseTextStyle: TextStyle = {
-    ...(size === 'small' ? Typography.body2.r.regular : Typography.body1.l.regular),
+    ...compactSingleLineTextStyle(
+      size === 'small' ? Typography.body2.r.regular : Typography.body1.l.regular,
+    ),
     textAlign: 'center',
     color: colors.textAssistive,
   };
 
   const activeTextStyle: TextStyle = {
-    ...(size === 'small' ? Typography.body2.r.bold : Typography.body1.l.bold),
+    ...compactSingleLineTextStyle(
+      size === 'small' ? Typography.body2.r.bold : Typography.body1.l.bold,
+    ),
     color: colors.primaryHeavy,
   };
 

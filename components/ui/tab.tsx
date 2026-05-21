@@ -6,6 +6,7 @@
  */
 
 import { Colors, Typography } from '@/constants/theme';
+import { compactSingleLineTextStyle } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Pressable, ScrollView, StyleSheet, Text, View, ViewStyle } from 'react-native';
 
@@ -172,11 +173,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   tabTextActive: {
-    ...Typography.body1.l.bold,
+    ...compactSingleLineTextStyle(Typography.body1.l.bold),
     textAlign: 'center',
   },
   tabTextDefault: {
-    ...Typography.body1.l.medium,
+    ...compactSingleLineTextStyle(Typography.body1.l.medium),
     textAlign: 'center',
   },
   indicator: {

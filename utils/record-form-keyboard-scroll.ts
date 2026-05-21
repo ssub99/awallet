@@ -46,11 +46,8 @@ export function getSystemKeyboardScrollPaddingBottom(
   }
 
   if (Platform.OS === 'android') {
-    return resolveQuickInputBottomAboveKeyboard(
-      keyboardEnd,
-      safeAreaBottom,
-      nativeKeyboardHeight,
-    );
+    // 스크롤(computeAndroidMemoScrollY)로 메모 위치를 맞추므로 content padding은 최소만
+    return MEMO_KEYBOARD_GAP;
   }
 
   return keyboardEnd.height + MEMO_KEYBOARD_GAP - safeAreaBottom;

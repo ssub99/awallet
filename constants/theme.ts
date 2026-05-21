@@ -20,7 +20,19 @@ import { ThemeColors } from './theme-colors';
 export const Colors = ThemeColors;
 
 // Re-export Typography system
-export { Typography, TypographyPresets } from './typography';
+export {
+  Typography,
+  TypographyScale,
+  TypographyPresets,
+  TypographyLayout,
+  TypographyLayoutFieldAreaInputHeight,
+  TypographyLayoutFieldLineRowHeight,
+  TypographyLayoutFieldLineShortMinHeight,
+  compactSingleLineTextStyle,
+  singleRowCenteredTextStyle,
+  lineFieldRowText,
+  lineFieldRowTextWrap,
+} from './typography';
 export type { FontWeight, SizeCategory } from './typography';
 
 export {

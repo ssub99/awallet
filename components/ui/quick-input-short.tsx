@@ -1,5 +1,6 @@
 import { BlurRuntime } from '@/constants/blur-runtime';
 import { Colors, Typography } from '@/constants/theme';
+import { compactSingleLineTextStyle } from '@/constants/typography';
 import { Icon } from '@/components/ui/icon';
 import { GlassSurface } from '@/components/ui/glass-surface';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -162,7 +163,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   quickInputText: {
-    ...Typography.body2.r.medium,
+    ...compactSingleLineTextStyle(Typography.body2.r.medium),
   },
   quickInputArrow: {
     width: 16,

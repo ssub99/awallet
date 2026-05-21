@@ -15,7 +15,7 @@ import { Switch } from '@/components/ui/switch';
 import { AtomicColors } from '@/constants/atomic-colors';
 import { type Category } from '@/constants/categories';
 import { Colors, Typography } from '@/constants/theme';
-import { lineFieldRowText, lineFieldRowTextWrap } from '@/constants/typography';
+import { TypographyLayout, lineFieldRowText, lineFieldRowTextWrap } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
 import { useToast } from '@/contexts/toast-context';
 import { useAndroidKeypadBackDismiss } from '@/hooks/use-android-keypad-back-dismiss';
@@ -694,7 +694,7 @@ export default function ChallengeEditScreen() {
           {/* 시작 년월 */}
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
-              시작 년월 <Text style={{ color: '#EF5252' }}>*</Text>
+              시작 년월 <Text style={{ color: colors.statusNegative }}>*</Text>
             </Text>
             <Pressable onPress={handleCalendarPress}>
               <View style={[styles.disabledCard, { backgroundColor: 'rgba(144, 146, 158, 0.12)' }]}>
@@ -904,9 +904,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  sectionTitle: {
-    ...Typography.body1.l.bold,
-  },
+  sectionTitle: TypographyLayout.sectionTitle,
   deleteText: {
     ...Typography.body1.l.regular,
     textDecorationLine: 'underline',
@@ -1020,10 +1018,6 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     gap: 6,
   },
-  amountExpressionText: {
-    ...Typography.body1.l.bold,
-  },
-  amountExpressionOperator: {
-    ...Typography.body1.l.bold,
-  },
+  amountExpressionText: TypographyLayout.fieldNumber,
+  amountExpressionOperator: TypographyLayout.fieldNumber,
 });

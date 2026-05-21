@@ -181,6 +181,14 @@ export function shouldIgnoreWeekendOptionForRecurringType(recurringType: string 
   return typeof recurringType === 'string' && RECURRING_TYPES_WITHOUT_WEEKEND_OPTION.has(recurringType);
 }
 
+/** 반복/할부 설정 요약 문구 구분자 (가운뎃점 ·, U+00B7 — 본문과 동일 크기) */
+export const RECURRING_SUMMARY_SEPARATOR = '\u00B7';
+
+/** 반복/할부 요약 — `할부 · 1개월 · 금주 금요일 기록` 형식 */
+export function formatRecurringSummaryLabel(...parts: string[]): string {
+  return parts.join(` ${RECURRING_SUMMARY_SEPARATOR} `);
+}
+
 /**
  * 정기 기록 확인 카드·반복설정 요약용 주말 옵션 표시 문구.
  * - 주말 반복: 주중 관계없이 기록

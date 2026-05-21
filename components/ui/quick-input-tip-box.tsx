@@ -903,7 +903,6 @@ const styles = StyleSheet.create({
   message: {
     ...Typography.body1.l.regular,
     flexShrink: 0,
-    includeFontPadding: false,
   },
   collapseButtonHitArea: {
     position: 'absolute',

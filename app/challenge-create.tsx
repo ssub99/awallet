@@ -20,7 +20,7 @@ import {
     CHALLENGE_RECURRING_MONTH_MIN,
 } from '@/constants/challenge-recurring-months';
 import { Colors, Typography } from '@/constants/theme';
-import { lineFieldRowText, lineFieldRowTextWrap } from '@/constants/typography';
+import { TypographyLayout, lineFieldRowText, lineFieldRowTextWrap } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
 import { useToast } from '@/contexts/toast-context';
 import { useAndroidKeypadBackDismiss } from '@/hooks/use-android-keypad-back-dismiss';
@@ -526,7 +526,7 @@ export default function ChallengeCreateScreen() {
           {/* 카테고리 */}
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
-              카테고리 <Text style={{ color: '#EF5252' }}>*</Text>
+              카테고리 <Text style={{ color: colors.statusNegative }}>*</Text>
             </Text>
             <Pressable onPress={() => {
               void logEvent('ui', {
@@ -562,7 +562,7 @@ export default function ChallengeCreateScreen() {
           {/* 시작 년월 */}
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
-              시작 년월 <Text style={{ color: '#EF5252' }}>*</Text>
+              시작 년월 <Text style={{ color: colors.statusNegative }}>*</Text>
             </Text>
             <Pressable onPress={() => {
               void logEvent('ui', {
@@ -600,7 +600,7 @@ export default function ChallengeCreateScreen() {
             }}
           >
             <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
-              목표 소비 금액 <Text style={{ color: '#EF5252' }}>*</Text>
+              목표 소비 금액 <Text style={{ color: colors.statusNegative }}>*</Text>
             </Text>
             <Input
               variant="line"
@@ -826,9 +826,7 @@ const styles = StyleSheet.create({
   section: {
     gap: 8,
   },
-  sectionTitle: {
-    ...Typography.body1.l.bold,
-  },
+  sectionTitle: TypographyLayout.sectionTitle,
   card: {
     borderRadius: 12,
     borderWidth: 1,
@@ -902,10 +900,6 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     gap: 6,
   },
-  amountExpressionText: {
-    ...Typography.body1.l.bold,
-  },
-  amountExpressionOperator: {
-    ...Typography.body1.l.bold,
-  },
+  amountExpressionText: TypographyLayout.fieldNumber,
+  amountExpressionOperator: TypographyLayout.fieldNumber,
 });

@@ -116,7 +116,6 @@ const styles = StyleSheet.create({
   desc: {
     ...Typography.body1.l.regular,
     textAlign: 'center',
-    lineHeight: 24,
   },
   card: {
     borderRadius: 16,

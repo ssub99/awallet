@@ -12,7 +12,7 @@ import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
 import { ModalPopup } from '@/components/ui/modal-popup';
 import { type CategoryType } from '@/constants/categories';
 import { Colors, Typography } from '@/constants/theme';
-import { textStyleFromIosMetrics } from '@/constants/typography';
+import { TypographyLayout } from '@/constants/typography';
 import { useToast } from '@/contexts/toast-context';
 import { loadCategories, saveCategories } from '@/utils/categories';
 import { loadCategoryOrder, saveCategoryOrder } from '@/utils/category-order';
@@ -729,7 +729,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.staticWhite,
   },
   emojiText: {
-    ...textStyleFromIosMetrics(40, '400', 48),
+    ...TypographyLayout.categoryEmojiLarge,
   },
   inputSection: {
     marginBottom: 24,
@@ -817,7 +817,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   emojiItemText: {
-    ...textStyleFromIosMetrics(40, '400', 48),
+    ...TypographyLayout.categoryEmojiLarge,
   },
   homeIndicatorContainer: {
     width: '100%',

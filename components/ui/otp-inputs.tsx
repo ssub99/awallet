@@ -1,5 +1,5 @@
 import { Colors } from '@/constants/theme';
-import { Typography } from '@/constants/typography';
+import { Typography, compactSingleLineTextStyle } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, TextInputProps, View } from 'react-native';
@@ -177,10 +177,8 @@ const styles = StyleSheet.create({
     minWidth: 0,
     paddingTop: 0,
     paddingBottom: 0,
-    ...Typography.headline3.m.bold,
-    // 라인박스가 하단으로 밀리는 문제를 방지하기 위해 0으로 덮어쓰기
-    lineHeight: 0,
-    textAlignVertical: 'center', // Android
+    ...compactSingleLineTextStyle(Typography.headline3.m.bold),
+    textAlignVertical: 'center',
   },
   errorText: {
     marginTop: 24,

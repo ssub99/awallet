@@ -11,7 +11,8 @@
 
 import { Icon } from '@/components/ui/icon';
 import { Colors, Typography } from '@/constants/theme';
-import { textStyleFromIosMetrics } from '@/constants/typography';
+import { compactSingleLineTextStyle } from '@/constants/typography';
+import { TypographyLayout } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Picker } from '@react-native-picker/picker';
 import { useEffect, useRef, useState } from 'react';
@@ -311,7 +312,7 @@ const styles = StyleSheet.create({
     height: 24,
   },
   text: {
-    ...Typography.body1.l.regular,
+    ...compactSingleLineTextStyle(Typography.body1.l.regular),
   },
   // Android Picker
   androidPicker: {
@@ -353,16 +354,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     minWidth: 60,
   },
-  cancelButton: {
-    ...textStyleFromIosMetrics(17, '400'),
-  },
+  cancelButton: TypographyLayout.pickerNavRegular,
   pickerTitle: {
-    ...textStyleFromIosMetrics(17, '500'),
+    ...TypographyLayout.pickerNavMedium,
     flex: 1,
     textAlign: 'center',
   },
   doneButton: {
-    ...textStyleFromIosMetrics(17, '500'),
+    ...TypographyLayout.pickerNavMedium,
     textAlign: 'right',
   },
   iosPicker: {

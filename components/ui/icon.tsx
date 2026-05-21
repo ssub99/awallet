@@ -12,8 +12,9 @@
  */
 
 import { Colors } from '@/constants/theme';
+import { pretendardIconOpticalAdjust } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { ViewStyle } from 'react-native';
+import { View, ViewStyle } from 'react-native';
 
 // Import line SVGs
 import AddTaskLine from '@/assets/images/icons/line/addTask.svg';
@@ -229,15 +230,17 @@ export function Icon({
   const IconElement = IconComponent as any;
   
   return (
-    <IconElement
-      width={size}
-      height={size}
-      color={iconColor}
-      fill={iconColor}
-      style={style}
+    <View
+      style={[
+        { width: size, height: size, alignItems: 'center', justifyContent: 'center' },
+        pretendardIconOpticalAdjust(),
+        style,
+      ]}
       accessibilityLabel={accessibilityLabel ?? `${name} icon`}
       accessibilityRole="image"
-    />
+    >
+      <IconElement width={size} height={size} color={iconColor} fill={iconColor} />
+    </View>
   );
 }
 

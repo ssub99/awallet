@@ -6,6 +6,7 @@
 
 import { Icon } from '@/components/ui/icon';
 import { Colors, Typography } from '@/constants/theme';
+import { compactSingleLineTextStyle } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ReactNode, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
@@ -82,9 +83,11 @@ export function Accordion({
 
   const textStyle = useMemo(() => {
     if (disabled) {
-      return Typography.button2.r.medium;
+      return compactSingleLineTextStyle(Typography.button2.r.medium);
     }
-    return expanded ? Typography.button2.r.regular : Typography.button2.r.medium;
+    return compactSingleLineTextStyle(
+      expanded ? Typography.button2.r.regular : Typography.button2.r.medium,
+    );
   }, [disabled, expanded]);
 
   const handlePress = () => {

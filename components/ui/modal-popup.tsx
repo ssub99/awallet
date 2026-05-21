@@ -342,7 +342,6 @@ const styles = StyleSheet.create({
   message: {
     ...Typography.body1.l.regular,
     textAlign: 'center',
-    lineHeight: 24,
   },
   buttons: {
     flexDirection: 'row',

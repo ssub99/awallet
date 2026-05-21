@@ -7,6 +7,7 @@
 
 import { Icon } from '@/components/ui/icon';
 import { Colors, Typography } from '@/constants/theme';
+import { compactSingleLineTextStyle } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
 
@@ -135,11 +136,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   label: {
-    ...Typography.body2.r.medium,
+    ...compactSingleLineTextStyle(Typography.body2.r.medium),
     marginLeft: 8,
   },
   requiredMark: {
-    ...Typography.body2.r.medium,
+    ...compactSingleLineTextStyle(Typography.body2.r.medium),
   },
 });
 

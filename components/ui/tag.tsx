@@ -6,7 +6,7 @@
  */
 
 import { StyleSheet, Text, View, ViewStyle } from 'react-native';
-import { Typography } from '@/constants/typography';
+import { compactSingleLineTextStyle, Typography } from '@/constants/typography';
 
 export type TagStatus = 'normal' | 'positive' | 'negative';
 
@@ -91,7 +91,7 @@ const styles = StyleSheet.create({
     minHeight: 26, // Figma design height
   },
   text: {
-    ...Typography.detail.r.bold,
+    ...compactSingleLineTextStyle(Typography.detail.r.bold),
     textAlign: 'center',
   },
 });

@@ -23,7 +23,7 @@ import { Switch } from '@/components/ui/switch';
 import { Tag } from '@/components/ui/tag';
 import { AtomicColors } from '@/constants/atomic-colors';
 import { Colors, Typography } from '@/constants/theme';
-import { textStyleFromIosMetrics } from '@/constants/typography';
+import { TypographyLayout } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
 import { useToast } from '@/contexts/toast-context';
 import { calendarRefreshEvent } from '@/hooks/calendar-events';
@@ -36,7 +36,10 @@ import { loadCategories } from '@/utils/categories';
 import { triggerChallengeNotifications } from '@/utils/challenge-utils';
 import { rebuildCalendarDataFromStores } from '@/utils/rebuild-calendar-data';
 import { getCustomMonthInfo } from '@/utils/custom-month';
-import { getRecurringWeekendOptionDisplayLabel } from '@/utils/expense-calculations';
+import {
+  getRecurringWeekendOptionDisplayLabel,
+  formatRecurringSummaryLabel,
+} from '@/utils/expense-calculations';
 import { initializePaymentSubtypes, type PaymentSubtype } from '@/utils/payment-types';
 import {
   buildExpenseCreationCompletionPayload,
@@ -2571,6 +2574,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     });
 
     clearDismissTimeout();
+    skipNextDismissRef.current = true;
     setIsMemoFocused(true);
     handleKeypadDismiss();
     scrollMemoOnFocus();
@@ -5056,8 +5060,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 skipNextDismissRef.current = false;
                 return;
               }
-              if (isMemoFocusedRef.current) {
-                handleKeypadDismiss();
+              if (isMemoFocusedRef.current || isMemoFocused) {
                 return;
               }
               handleKeypadDismiss();
@@ -5239,7 +5242,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             {/* 카테고리 */}
             <View style={styles.section}>
               <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
-                카테고리 <Text style={{ color: '#EF5252' }}>*</Text>
+                카테고리 <Text style={{ color: colors.statusNegative }}>*</Text>
               </Text>
               <Input
                 value={categoryDisplay}
@@ -5256,7 +5259,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             {mode === 'edit' && (
               <View style={styles.section}>
                 <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
-                  결제 유형 <Text style={{ color: '#EF5252' }}>*</Text>
+                  결제 유형 <Text style={{ color: colors.statusNegative }}>*</Text>
                 </Text>
                 <Input
                   value={stickyPaymentTypeDisplay.label}
@@ -5276,7 +5279,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
-                  날짜 <Text style={{ color: '#EF5252' }}>*</Text>
+                  날짜 <Text style={{ color: colors.statusNegative }}>*</Text>
                 </Text>
                 <Pressable
                   style={styles.recurringInstallmentButton}
@@ -5321,12 +5324,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                         { isRecurring },
                       );
                       if (isRecurring) {
-                        // 정기 지출: "정기지출 ・ [반복기간] ・ [주말옵션]"
-                        return `정기지출 ・ ${recurringType} ・ ${weekendText}`;
+                        return formatRecurringSummaryLabel('정기지출', recurringType, weekendText);
                       }
                       if (isInstallment) {
-                        // 할부: "할부 ・ [개월수] ・ [주말옵션]"
-                        return `할부 ・ ${totalMonths}개월 ・ ${weekendText}`;
+                        return formatRecurringSummaryLabel('할부', `${totalMonths}개월`, weekendText);
                       }
                       return '반복/할부 설정';
                     })()}
@@ -5367,7 +5368,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             >
               <View style={styles.sectionHeader}>
                 <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
-                  금액 <Text style={{ color: '#EF5252' }}>*</Text>
+                  금액 <Text style={{ color: colors.statusNegative }}>*</Text>
                 </Text>
               </View>
               
@@ -5441,6 +5442,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               placeholder="메모를 입력해 주세요.(최대 20자)"
               maxLength={20}
               multiline
+              onPressIn={() => {
+                skipNextDismissRef.current = true;
+              }}
               onFocus={handleMemoFocus}
               onBlur={() => {
                 setIsMemoFocused(false);
@@ -6918,9 +6922,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  sectionTitle: {
-    ...Typography.body1.l.bold,
-  },
+  sectionTitle: TypographyLayout.sectionTitle,
   currentYearMonth: {
     ...Typography.body2.r.regular,
   },
@@ -6945,7 +6947,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   recurringInstallmentButtonText: {
-    ...Typography.body1.l.regular,
+    ...TypographyLayout.fieldLine,
     textDecorationLine: 'underline',
   },
   card: {
@@ -6982,10 +6984,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  weekendOptionText: {
-    ...Typography.body1.l.regular,
-    color: '#222222',
-  },
+  weekendOptionText: TypographyLayout.fieldLine,
   amountInput: {
     flex: 1,
   },
@@ -7016,16 +7015,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     minWidth: 60,
   },
-  cancelButton: {
-    ...textStyleFromIosMetrics(17, '400'),
-  },
+  cancelButton: TypographyLayout.pickerNavRegular,
   pickerTitle: {
-    ...textStyleFromIosMetrics(17, '500'),
+    ...TypographyLayout.pickerNavMedium,
     flex: 1,
     textAlign: 'center',
   },
   doneButton: {
-    ...textStyleFromIosMetrics(17, '500'),
+    ...TypographyLayout.pickerNavMedium,
     textAlign: 'right',
   },
   pickerRow: {
@@ -7225,12 +7222,8 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     gap: 6,
   },
-  amountExpressionText: {
-    ...Typography.body1.l.bold,
-  },
-  amountExpressionOperator: {
-    ...Typography.body1.l.bold,
-  },
+  amountExpressionText: TypographyLayout.fieldNumber,
+  amountExpressionOperator: TypographyLayout.fieldNumber,
   installmentAmountContainer: {
     marginTop: 12,
     padding: 12,
@@ -7375,20 +7368,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: 'rgba(0, 0, 0, 0.12)',
   },
-  settlementDropdownMenuLabel: {
-    ...textStyleFromIosMetrics(17, '400'),
-  },
-  expenseCategory: {
-    ...Typography.headline4.r.bold,
-  },
-  expenseDate: {
-    ...Typography.body2.r.regular,
-  },
-  expenseAmount: {
-    ...Typography.headline4.r.bold,
-  },
+  settlementDropdownMenuLabel: TypographyLayout.pickerNavRegular,
+  expenseCategory: TypographyLayout.infoCardTitle,
+  expenseDate: TypographyLayout.infoCardMeta,
+  expenseAmount: TypographyLayout.infoCardTitle,
   expenseMemo: {
-    ...Typography.body2.r.regular,
+    ...TypographyLayout.infoCardMeta,
     textAlign: 'right',
   },
   deleteConfirmText: {

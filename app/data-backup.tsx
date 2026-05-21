@@ -6,7 +6,7 @@
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Icon } from '@/components/ui/icon';
 import { ThemeColors } from '@/constants/theme-colors';
-import { Typography } from '@/constants/typography';
+import { Typography, TypographyLayout } from '@/constants/typography';
 import { useAppData } from '@/contexts/app-data-context';
 import { useLoading } from '@/contexts/loading-context';
 import { useToast } from '@/contexts/toast-context';
@@ -395,7 +395,7 @@ const styles = StyleSheet.create({
     gap: 0,
   },
   sectionTitle: {
-    ...Typography.body1.l.bold,
+    ...TypographyLayout.sectionTitle,
     marginBottom: 8,
   },
   card: {

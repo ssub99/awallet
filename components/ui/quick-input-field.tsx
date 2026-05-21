@@ -7,13 +7,13 @@
 
 import { Icon } from '@/components/ui/icon';
 import { Colors, Typography } from '@/constants/theme';
+import { TypographyLayout } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { logEvent } from '@/utils/analytics';
 import { forwardRef, useImperativeHandle, useRef } from 'react';
 import {
   ActivityIndicator,
   Animated,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -237,22 +237,8 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
   },
-  placeholder: {
-    ...Typography.body1.l.regular,
-  },
-  input: {
-    flex: 1,
-    ...Typography.body1.l.regular,
-    // iOS: 캐럿 수직 정렬용. Android는 lineHeight 0 시 글자가 보이지 않음 → Typography lineHeight 유지
-    ...Platform.select({
-      ios: { lineHeight: 0 },
-      default: {},
-    }),
-    padding: 0,
-    margin: 0,
-    includeFontPadding: false,
-    textAlignVertical: 'center',
-  },
+  placeholder: TypographyLayout.fieldLinePlaceholder,
+  input: TypographyLayout.fieldLineInput,
   cancelButton: {
     width: 24,
     height: 24,

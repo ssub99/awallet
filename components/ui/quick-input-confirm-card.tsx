@@ -6,6 +6,7 @@
  */
 
 import { Colors, Typography } from '@/constants/theme';
+import { TypographyLayout } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -259,10 +260,7 @@ const styles = StyleSheet.create({
     borderRadius: 99,
     borderWidth: 1,
   },
-  paymentEmoji: {
-    ...Typography.body1.l.regular,
-    lineHeight: 24,
-  },
+  paymentEmoji: TypographyLayout.fieldLine,
   buttonRow: {
     flexDirection: 'row',
     gap: 8,

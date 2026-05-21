@@ -1,6 +1,7 @@
 import { loadAllCategories } from '@/utils/categories';
 import {
   calculateRecurringIterations,
+  formatRecurringSummaryLabel,
   getRecurringWeekendOptionDisplayLabel,
   shouldIgnoreWeekendOptionForRecurringType,
 } from '@/utils/expense-calculations';
@@ -63,11 +64,11 @@ function buildRepeatSettingLabel(anchor: ExpenseRecord, monthCount: number): str
   const weekendText = getWeekendLabel(anchor.weekendOption, anchor.recurringType, anchor.isRecurring);
 
   if (anchor.isInstallment) {
-    return `할부 ⋅ ${monthCount}개월 ⋅ ${weekendText}`;
+    return formatRecurringSummaryLabel('할부', `${monthCount}개월`, weekendText);
   }
 
   const recurringType = anchor.recurringType?.trim() || '매월';
-  return `정기지출 ⋅ ${recurringType} ⋅ ${weekendText}`;
+  return formatRecurringSummaryLabel('정기지출', recurringType, weekendText);
 }
 
 function resolveRecordStartDate(record: ExpenseRecord): Date | null {

@@ -15,6 +15,7 @@ import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
 import { ModalPopup } from '@/components/ui/modal-popup';
 import { AtomicColors } from '@/constants/atomic-colors';
 import { Colors, Typography } from '@/constants/theme';
+import { TypographyLayout } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
 import { calendarRefreshEvent } from '@/hooks/calendar-events';
 import { useAndroidKeypadBackDismiss } from '@/hooks/use-android-keypad-back-dismiss';
@@ -325,6 +326,7 @@ export default function IncomeRecordScreen() {
     isMemoSystemKeyboardOpen,
     isMemoFocusedRef,
     blurMemoInput,
+    prepareMemoFocus,
     handleMemoFocus: scrollMemoOnFocus,
     handleMemoBlur,
   } = useRecordFormMemoKeyboard({
@@ -690,7 +692,7 @@ export default function IncomeRecordScreen() {
             {/* 카테고리 */}
             <View style={styles.section}>
               <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
-                카테고리 <Text style={{ color: '#EF5252' }}>*</Text>
+                카테고리 <Text style={{ color: colors.statusNegative }}>*</Text>
               </Text>
               <Input
                 value={categoryDisplay}
@@ -704,7 +706,7 @@ export default function IncomeRecordScreen() {
             {/* 날짜 */}
             <View style={styles.section}>
               <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
-                날짜 <Text style={{ color: '#EF5252' }}>*</Text>
+                날짜 <Text style={{ color: colors.statusNegative }}>*</Text>
               </Text>
               <Pressable onPress={handleDatePress}>
                 <View style={[styles.card, { backgroundColor: colors.staticWhite }]}>
@@ -732,7 +734,7 @@ export default function IncomeRecordScreen() {
               }}
             >
               <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
-                금액 <Text style={{ color: '#EF5252' }}>*</Text>
+                금액 <Text style={{ color: colors.statusNegative }}>*</Text>
               </Text>
               <Input
                 variant="line"
@@ -752,6 +754,10 @@ export default function IncomeRecordScreen() {
             {/* 메모 */}
             <View 
               style={styles.section}
+              onTouchStart={() => {
+                skipNextDismissRef.current = true;
+                prepareMemoFocus();
+              }}
               onLayout={(event) => {
                 const layout = event.nativeEvent.layout;
                 setMemoSectionY(layout.y);
@@ -770,6 +776,10 @@ export default function IncomeRecordScreen() {
                 onChangeText={handleMemoChange}
                 placeholder="메모를 입력해 주세요.(최대 20자)"
                 maxLength={20}
+                onPressIn={() => {
+                  skipNextDismissRef.current = true;
+                  prepareMemoFocus();
+                }}
                 onFocus={handleMemoFocus}
                 onBlur={handleMemoBlur}
                 onKeyPress={handleMemoKeyPress}
@@ -914,9 +924,7 @@ const styles = StyleSheet.create({
     paddingTop: 24,
     gap: 8,
   },
-  sectionTitle: {
-    ...Typography.body1.l.bold,
-  },
+  sectionTitle: TypographyLayout.sectionTitle,
   card: {
     borderRadius: 12,
     borderWidth: 1,
@@ -964,11 +972,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     gap: 6,
   },
-  amountExpressionText: {
-    ...Typography.body1.l.bold,
-  },
-  amountExpressionOperator: {
-    ...Typography.body1.l.bold,
-  },
+  amountExpressionText: TypographyLayout.fieldNumber,
+  amountExpressionOperator: TypographyLayout.fieldNumber,
 });
 

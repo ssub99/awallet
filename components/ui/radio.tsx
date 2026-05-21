@@ -6,6 +6,7 @@
  */
 
 import { Colors, Typography } from '@/constants/theme';
+import { compactSingleLineTextStyle } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
 
@@ -137,7 +138,7 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   label: {
-    ...Typography.body2.r.medium,
+    ...compactSingleLineTextStyle(Typography.body2.r.medium),
     marginLeft: 8,
   },
 });

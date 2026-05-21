@@ -13,7 +13,7 @@
  */
 
 import { Colors } from '@/constants/theme';
-import { Typography } from '@/constants/typography';
+import { compactSingleLineTextStyle, Typography } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ActivityIndicator, Platform, Pressable, PressableProps, StyleSheet, Text, TextStyle, View, ViewStyle } from 'react-native';
 
@@ -299,11 +299,11 @@ const styles = StyleSheet.create({
     minWidth: 48,
   },
   textLarge: {
-    ...Typography.button1.l.medium,
+    ...compactSingleLineTextStyle(Typography.button1.l.medium),
     textAlign: 'center',
   },
   textSmall: {
-    ...Typography.button2.r.medium,
+    ...compactSingleLineTextStyle(Typography.button2.r.medium),
     textAlign: 'center',
   },
   spinnerOverlay: {

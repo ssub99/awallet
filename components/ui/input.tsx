@@ -11,7 +11,13 @@
  */
 
 import { Icon, IconName } from '@/components/ui/icon';
-import { Colors, Typography } from '@/constants/theme';
+import { Colors } from '@/constants/theme';
+import {
+  TypographyLayout,
+  TypographyLayoutFieldAreaInputHeight,
+  TypographyLayoutFieldLineRowHeight,
+  TypographyLayoutFieldLineShortMinHeight,
+} from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { forwardRef, useImperativeHandle, useRef, useState, type ReactNode } from 'react';
 import {
@@ -241,20 +247,28 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
     }
   };
 
+  const isMultilineArea = variant === 'area' && !buttonMode && !calendar;
+  const Container = isMultilineArea ? View : Pressable;
+  const containerPressProps = isMultilineArea
+    ? {}
+    : {
+        onPress: () => {
+          // onPress prop이 있으면 disabled 상태여도 호출 (토스트 메시지 등)
+          if (onPress) {
+            onPress();
+          } else if (disabled && !buttonMode) {
+            // onPress가 없고 disabled 상태면 차단
+            return;
+          } else if (!calendar && !buttonMode) {
+            // 일반 입력 모드: 포커스
+            inputRef.current?.focus();
+          }
+        },
+      };
+
   return (
-    <Pressable
-      onPress={() => {
-        // onPress prop이 있으면 disabled 상태여도 호출 (토스트 메시지 등)
-        if (onPress) {
-          onPress();
-        } else if (disabled && !buttonMode) {
-          // onPress가 없고 disabled 상태면 차단
-          return;
-        } else if (!calendar && !buttonMode) {
-          // 일반 입력 모드: 포커스
-          inputRef.current?.focus();
-        }
-      }}
+    <Container
+      {...containerPressProps}
       style={[
         styles.container,
         variant === 'line' ? (shortver ? styles.containerLineShort : styles.containerLine) : styles.containerArea,
@@ -271,7 +285,7 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
               name="calendarMonth"
               size={24}
               color={iconColor}
-              style={styles.icon}
+              style={[styles.icon, styles.iconLineIos]}
             />
             <View style={styles.inputFieldWrap}>
               <Text
@@ -288,13 +302,14 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
         ) : (
           <>
             {/* Normal Mode: Icon + Text Input */}
-            <View style={styles.leftSection}>
+            <View style={[styles.leftSection, variant === 'area' && styles.leftSectionArea]}>
               {(sortation || !!sortationEmoji) && (
                 <>
                   {showSortationDot && (
                     <View
                       style={[
                         styles.sortationIndicator,
+                        variant === 'line' && !shortver && styles.sortationIndicatorFieldIos,
                         { backgroundColor: resolvedSortationColor, borderColor: colors.border },
                       ]}
                     />
@@ -312,7 +327,7 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
                   name={icon}
                   size={24}
                   color={iconColor}
-                  style={styles.icon}
+                  style={[styles.icon, variant === 'line' && !shortver && styles.iconLineFieldIos]}
                 />
               )}
 
@@ -322,7 +337,6 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
                   <View style={styles.inputFieldWrap}>
                     <Text
                       style={[
-                        styles.input,
                         styles.inputLineButtonText,
                         shouldUseCompactEmojiGap && styles.inputEmojiGapCompact,
                         { color: hasValue ? textColor : placeholderColor },
@@ -335,8 +349,7 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
                 ) : (
                   <Text
                     style={[
-                      styles.input,
-                      shortver && styles.inputShort,
+                      shortver ? styles.inputShort : styles.inputLineButtonText,
                       shouldUseCompactEmojiGap && styles.inputEmojiGapCompact,
                       { color: hasValue ? textColor : placeholderColor },
                       (textInputProps as any).style,
@@ -346,20 +359,32 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
                   </Text>
                 )
               ) : valueRenderer ? (
-                <View style={styles.valueRenderer}>
+                <View
+                  style={[
+                    styles.valueRenderer,
+                    variant === 'line' && !shortver && styles.inputFieldWrap,
+                  ]}
+                >
                   {valueRenderer}
                 </View>
               ) : (
-                <View style={styles.inputFieldWrap}>
+                <View
+                  style={[
+                    styles.inputFieldWrap,
+                    variant === 'area' && styles.inputFieldWrapArea,
+                  ]}
+                >
                   <TextInput
                     ref={inputRef}
                     style={[
-                      styles.input,
+                      variant === 'area'
+                        ? styles.inputAreaField
+                        : shortver
+                          ? styles.inputShort
+                          : inputType === 'number'
+                            ? styles.inputNumber
+                            : styles.inputLine,
                       { color: textColor },
-                      variant === 'line' && !shortver && styles.inputLine,
-                      inputType === 'number' && styles.inputNumber,
-                      variant === 'area' && styles.inputArea,
-                      shortver && styles.inputShort,
                       shouldUseCompactEmojiGap && styles.inputEmojiGapCompact,
                       (textInputProps as any).style,
                     ]}
@@ -417,7 +442,7 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
                     variant="line"
                     size={10}
                     color={disabled ? colors.textDisabled : colors.textNeutral}
-                    style={styles.rightIcon}
+                    style={[styles.rightIcon, variant === 'line' && !shortver && styles.iconLineFieldIos]}
                   />
                 )}
 
@@ -449,7 +474,7 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
                     variant="line"
                     size={shortver ? 16 : 24}
                     color={disabled ? colors.textDisabled : colors.staticBlack}
-                    style={styles.rightArrow}
+                    style={[styles.rightArrow, variant === 'line' && !shortver && styles.iconLineFieldIos]}
                   />
                 )}
               </View>
@@ -457,7 +482,7 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
           </>
         )}
       </View>
-    </Pressable>
+    </Container>
   );
 });
 
@@ -485,13 +510,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    minHeight: 24,
+    minHeight: TypographyLayoutFieldLineRowHeight,
   },
   contentShort: {
-    minHeight: 21,
+    minHeight: TypographyLayoutFieldLineShortMinHeight,
   },
   contentArea: {
-    alignItems: 'flex-start', // area variant는 상단 정렬
+    alignItems: 'flex-start',
+    alignSelf: 'stretch',
+    flex: 1,
+    minHeight: TypographyLayoutFieldAreaInputHeight,
   },
   leftSection: {
     flex: 1,
@@ -499,52 +527,37 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
+  leftSectionArea: {
+    alignItems: 'flex-start',
+    alignSelf: 'stretch',
+  },
   icon: {
     // Icon is 24x24
   },
-  input: {
-    flex: 1,
-    ...Typography.body1.l.regular,
-    includeFontPadding: false,
-    padding: 0,
-    margin: 0,
-  },
+  /** iOS 48px line — 텍스트(fieldLine -3px)와 아이콘·도트 정렬 맞춤 */
+  iconLineFieldIos: Platform.select({
+    ios: { transform: [{ translateY: -2 }] },
+    default: null,
+  }),
   inputFieldWrap: {
     flex: 1,
     justifyContent: 'center',
+    minHeight: TypographyLayoutFieldLineRowHeight,
   },
-  inputLine: {
-    height: 24,
-    textAlignVertical: 'center',
+  inputFieldWrapArea: {
+    alignSelf: 'stretch',
+    justifyContent: 'flex-start',
+    minHeight: TypographyLayoutFieldAreaInputHeight,
   },
-  /** buttonMode / calendar + line: TextInput inputLine과 동일 24px 박스 내 세로 중앙 */
-  inputLineButtonText: {
-    height: 24,
-    lineHeight: Platform.select({ ios: 24, android: 21, default: 24 }),
-    includeFontPadding: false,
-  },
-  inputPlaceholderText: {
-    ...Typography.body1.l.regular,
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    includeFontPadding: false,
-  },
-  inputShort: {
-    ...Typography.body2.r.regular,
-    includeFontPadding: false,
-    textAlignVertical: 'center',
-  },
+  inputLine: TypographyLayout.fieldLineInput,
+  inputAreaField: TypographyLayout.fieldAreaInput,
+  inputLineButtonText: TypographyLayout.fieldLine,
+  inputPlaceholderText: TypographyLayout.fieldLinePlaceholder,
+  inputShort: TypographyLayout.fieldLineShort,
   inputEmojiGapCompact: {
     marginLeft: -4,
   },
-  inputNumber: {
-    ...Typography.body1.l.bold,
-    textAlign: 'right',
-  },
-  inputArea: {
-    height: 72, // containerArea (96px) - paddingVertical (12px * 2)
-  },
+  inputNumber: TypographyLayout.fieldNumber,
   valueRenderer: {
     flex: 1,
   },
@@ -553,33 +566,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  unit: {
-    ...Typography.body1.l.medium,
-  },
-  time: {
-    ...Typography.body1.l.regular,
-  },
-  rightText: {
-    ...Typography.body1.l.regular,
-  },
+  unit: TypographyLayout.fieldLine,
+  time: TypographyLayout.fieldLine,
+  rightText: TypographyLayout.fieldLine,
   rightArrow: {
     // Icon is 24x24
   },
   rightIcon: {
     // Icon is 24x24
   },
-  calendarDate: {
-    ...Typography.body1.l.regular,
-    includeFontPadding: false,
-  },
+  calendarDate: TypographyLayout.fieldLine,
   sortationIndicator: {
     width: 16,
     height: 16,
     borderRadius: 99,
     borderWidth: 1,
   },
-  sortationEmoji: {
-    ...Typography.body1.l.regular,
-  },
+  sortationIndicatorFieldIos: Platform.select({
+    ios: { transform: [{ translateY: -2 }] },
+    default: null,
+  }),
+  sortationEmoji: TypographyLayout.fieldLine,
 });
 

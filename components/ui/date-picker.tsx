@@ -9,7 +9,11 @@
 
 import { AndroidSpinnerWheelColumn } from '@/components/ui/android-spinner-wheel-column';
 import { Colors } from '@/constants/theme';
-import { resolvePlatformTypoSize, textStyleFromIosMetrics, Typography } from '@/constants/typography';
+import {
+  resolvePlatformTypographySize,
+  Typography,
+  TypographyLayout,
+} from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
   buildNativePickerDate,
@@ -107,7 +111,7 @@ export function DatePicker({
     [dayOptions, isAndroid, isCustomListOnly, monthOptions, yearOptions],
   );
 
-  const wheelTypo = resolvePlatformTypoSize(22);
+  const wheelTypo = resolvePlatformTypographySize(22);
   const iosWheelItemStyle = isIos
     ? { color: colors.staticBlack, fontSize: wheelTypo.fontSize, lineHeight: wheelTypo.lineHeight }
     : undefined;
@@ -652,16 +656,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     minWidth: 60,
   },
-  cancelButton: {
-    ...textStyleFromIosMetrics(17, '400'),
-  },
+  cancelButton: TypographyLayout.pickerNavRegular,
   pickerTitle: {
-    ...textStyleFromIosMetrics(17, '500'),
+    ...TypographyLayout.pickerNavMedium,
     flex: 1,
     textAlign: 'center',
   },
   doneButton: {
-    ...textStyleFromIosMetrics(17, '500'),
+    ...TypographyLayout.pickerNavMedium,
     textAlign: 'right',
   },
   pickerRow: {
