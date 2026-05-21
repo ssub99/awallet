@@ -71,9 +71,6 @@ export const TypographyLayoutFieldAreaInputHeight = 72;
 /** iOS area TextInput — body01 lh(24)는 Pretendard 글리프가 하단으로 쳐지고 상단이 잘림 */
 export const TypographyLayoutFieldAreaLineHeightIos = 20;
 
-/** iOS TextInput 전용 — Text는 fieldLineWrap flex 중앙, Input만 미세 보정 */
-export const TypographyLayoutFieldLineInputOpticalYIos = -2;
-
 /**
  * 단일 행 UI용 lineHeight — iOS는 행 높이에 맞춤, Android는 Pretendard 메트릭 보정.
  * (기록폼 Input·칩·버튼 등 — caa76df lineFieldRowText / inputLineButtonText 기준)
@@ -358,27 +355,32 @@ export function getTypographyStyle(
   return Typography.body1.l.regular;
 }
 
-/** 48px line·buttonMode — body01, iOS 24px 박스 고정 (TextInput inputLine과 동일) */
+/** 48px line·buttonMode — body01, iOS 24px 박스 고정 (TextInput과 분리) */
 const fieldLineSingleLineBase = singleRowCenteredTextStyle(Typography.body1.l.regular);
 const fieldLineSingleLineBoldBase = singleRowCenteredTextStyle(Typography.body1.l.bold);
+
+/**
+ * iOS line TextInput
+ * - fieldLineWrap 24px: Figma 콘텐츠 행(레이아웃 박스), flex로 자식 세로 중앙
+ * - lineHeight 20: UITextField 글리프 메트릭(lh 24와 동일하면 행이 꽉 차 하단 쏠림)
+ * 두 값을 같게 두지 않음.
+ */
+const iosFieldLineInputStyle: TextStyle = {
+  ...pretendardTextStyle('400'),
+  fontSize: TypographyScale.body01.ios.fontSize,
+  lineHeight: TypographyLayoutFieldAreaLineHeightIos,
+  padding: 0,
+  margin: 0,
+  flex: 1,
+  alignSelf: 'stretch',
+  includeFontPadding: false,
+  textAlignVertical: 'center',
+};
 
 /** Text — 높이·transform 없음, 부모 fieldLineWrap에서 세로 중앙 */
 const iosFieldLineTextMetrics = Platform.select<TextStyle>({
   ios: { includeFontPadding: false },
   default: { includeFontPadding: false },
-});
-
-/** TextInput — iOS 글리프만 translateY */
-const iosFieldLineInputMetrics = Platform.select<TextStyle>({
-  ios: {
-    height: TypographyLayoutFieldLineRowHeight,
-    includeFontPadding: false,
-    transform: [{ translateY: TypographyLayoutFieldLineInputOpticalYIos }],
-  },
-  default: {
-    height: TypographyLayoutFieldLineRowHeight,
-    includeFontPadding: false,
-  },
 });
 
 const fieldLineSingleLine: TextStyle = {
@@ -420,23 +422,20 @@ export const TypographyLayout = {
     ...Typography.body1.l.regular,
     ...androidTextMetrics(),
   } satisfies TextStyle,
-  fieldLinePlaceholder: {
-    ...fieldLineSingleLine,
-    position: 'absolute' as const,
-    left: 0,
-    right: 0,
-    top: 0,
-    height: TypographyLayoutFieldLineRowHeight,
-    lineHeight: TypographyLayoutFieldLineRowHeight,
-  } satisfies TextStyle,
-  fieldLineInput: {
-    ...fieldLineSingleLine,
-    flex: 1,
-    padding: 0,
-    margin: 0,
-    textAlignVertical: 'center' as const,
-    ...iosFieldLineInputMetrics,
-  } satisfies TextStyle,
+  /** line 커스텀 placeholder(Android) — absoluteFill + justifyContent center */
+  fieldLinePlaceholder: fieldLineSingleLine,
+  fieldLineInput: Platform.select({
+    ios: iosFieldLineInputStyle,
+    default: {
+      ...fieldLineSingleLine,
+      flex: 1,
+      padding: 0,
+      margin: 0,
+      textAlignVertical: 'center' as const,
+      height: TypographyLayoutFieldLineRowHeight,
+      includeFontPadding: false,
+    },
+  }) as TextStyle,
   fieldLineShortInput: {
     ...singleRowCenteredTextStyle(Typography.body2.r.regular),
     flex: 1,
@@ -469,10 +468,7 @@ export const TypographyLayout = {
     height: TypographyLayoutFieldAreaInputHeight,
     textAlignVertical: 'top' as const,
     ...Platform.select({
-      ios: {
-        paddingTop: 0,
-        transform: [{ translateY: -2 }],
-      },
+      ios: { paddingTop: 0 },
       default: { paddingTop: 0 },
     }),
   } satisfies TextStyle,

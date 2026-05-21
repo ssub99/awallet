@@ -782,6 +782,8 @@ export default function HomeScreen() {
 
   const monthlyBalanceText = useMemo(() => {
     const amount = Number(financialData.balance) || 0;
+    if (amount === 0) return '0원';
+    if (amount < 0) return `- ${Math.abs(amount).toLocaleString()}원`;
     return `${amount.toLocaleString()}원`;
   }, [financialData.balance]);
 

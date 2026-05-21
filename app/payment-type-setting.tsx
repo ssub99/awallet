@@ -257,7 +257,12 @@ export default function PaymentTypeSettingScreen() {
     (item: PaymentTypeItemData) => {
       router.push({
         pathname: '/payment-type-edit' as any,
-        params: { id: item.id },
+        params: {
+          id: item.id,
+          label: item.label,
+          description: item.description,
+          color: item.color,
+        },
       });
     },
     [router]

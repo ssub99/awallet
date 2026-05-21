@@ -454,6 +454,7 @@ const styles = StyleSheet.create({
   },
   timelineItem: {
     flexDirection: 'row',
+    gap: 8,
     paddingHorizontal: 16,
     paddingVertical: 16,
   },
@@ -501,7 +502,7 @@ const styles = StyleSheet.create({
   },
   itemDivider: {
     height: 1,
-    marginLeft: 110,
+    marginLeft: 118, // 16 + 94 + 8 = padding + date column + gap
   },
   dateGroupDivider: {
     height: 1,

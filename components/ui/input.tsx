@@ -21,6 +21,7 @@ import {
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { forwardRef, useImperativeHandle, useRef, useState, type ReactNode } from 'react';
 import {
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -177,6 +178,14 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
   keyboardType: externalKeyboardType,
   ...textInputProps
 }, ref) {
+  const {
+    style: textInputStyle,
+    onFocus: onFocusProp,
+    onBlur: onBlurProp,
+    onPressIn: onPressInProp,
+    editable: editableProp,
+    ...restTextInputProps
+  } = textInputProps;
   // Default placeholder based on inputType
   const defaultPlaceholder = inputType === 'number' ? '0' : '내용 입력';
   const finalPlaceholder = placeholder ?? defaultPlaceholder;
@@ -184,7 +193,7 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
   
   const inputRef = useRef<TextInput>(null);
-  
+
   // 외부 ref를 내부 inputRef에 연결
   useImperativeHandle(ref, () => inputRef.current as TextInput);
   const [isFocused, setIsFocused] = useState(false);
@@ -213,12 +222,16 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
     : colors.textAssistive;
   const resolvedSortationColor = sortationColor ?? colors.primary;
   const shouldUseCompactEmojiGap = !!sortationEmoji && !showSortationDot;
+  // iOS: 네이티브 placeholder·입력 텍스트를 동일 UITextField 경로로 맞춤 (커스텀 Text 오버레이는 살짝 위로 쏠림)
   const shouldUseCustomLinePlaceholder =
+    Platform.OS !== 'ios' &&
     variant === 'line' &&
     inputType === 'text' &&
     !buttonMode &&
     !valueRenderer &&
     !shortver;
+
+  const useLineFieldWrap = variant === 'line' && !shortver && inputType === 'text';
 
   // Format number with commas
   const formatNumber = (text: string) => {
@@ -237,7 +250,7 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
 
   const handleChangeText = (text: string) => {
     if (!onChangeText || disabled || buttonMode) return;
-    
+
     if (inputType === 'number') {
       const formatted = formatNumber(text);
       onChangeText(formatted);
@@ -247,6 +260,55 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
   };
 
   const isMultilineArea = variant === 'area' && !buttonMode && !calendar;
+
+  const renderLineTextInput = () => {
+    const textInput = (
+      <TextInput
+        ref={inputRef}
+        {...restTextInputProps}
+        value={value}
+        onChangeText={handleChangeText}
+        onFocus={(e) => {
+          setIsFocused(true);
+          onFocusProp?.(e);
+        }}
+        onBlur={(e) => {
+          setIsFocused(false);
+          onBlurProp?.(e);
+        }}
+        placeholder={shouldUseCustomLinePlaceholder ? '' : finalPlaceholder}
+        placeholderTextColor={placeholderColor}
+        editable={!disabled && editableProp !== false}
+        pointerEvents={editableProp === false ? 'none' : 'auto'}
+        multiline={variant === 'area'}
+        textAlignVertical={variant === 'area' ? 'top' : 'center'}
+        keyboardType={externalKeyboardType || (inputType === 'number' ? 'number-pad' : 'default')}
+        accessibilityLabel={finalPlaceholder}
+        accessibilityState={{ disabled }}
+        style={[
+          variant === 'area'
+            ? styles.inputAreaField
+            : shortver
+              ? styles.inputShortField
+              : inputType === 'number'
+                ? styles.inputNumber
+                : styles.inputLine,
+          { color: textColor },
+          shouldUseCompactEmojiGap && styles.inputEmojiGapCompact,
+          textInputStyle,
+        ]}
+        onPressIn={(event) => {
+          if (disabled && onPress) {
+            onPress();
+          }
+          onPressInProp?.(event);
+        }}
+      />
+    );
+
+    return useLineFieldWrap ? <View style={styles.inputLineTextWrap}>{textInput}</View> : textInput;
+  };
+
   const Container = isMultilineArea ? View : Pressable;
   const containerPressProps = isMultilineArea
     ? {}
@@ -378,59 +440,22 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
                     variant === 'area' && styles.inputFieldWrapArea,
                   ]}
                 >
-                  <TextInput
-                    ref={inputRef}
-                    style={[
-                      variant === 'area'
-                        ? styles.inputAreaField
-                        : shortver
-                          ? styles.inputShortField
-                          : inputType === 'number'
-                            ? styles.inputNumber
-                            : styles.inputLine,
-                      { color: textColor },
-                      shouldUseCompactEmojiGap && styles.inputEmojiGapCompact,
-                      (textInputProps as any).style,
-                    ]}
-                    value={value}
-                    onChangeText={handleChangeText}
-                    onFocus={(e) => {
-                      setIsFocused(true);
-                      textInputProps.onFocus?.(e);
-                    }}
-                    onBlur={(e) => {
-                      setIsFocused(false);
-                      textInputProps.onBlur?.(e);
-                    }}
-                    placeholder={shouldUseCustomLinePlaceholder ? '' : finalPlaceholder}
-                    placeholderTextColor={placeholderColor}
-                    editable={!disabled && textInputProps.editable !== false}
-                    pointerEvents={textInputProps.editable === false ? 'none' : 'auto'}
-                    multiline={variant === 'area'}
-                    textAlignVertical={variant === 'area' ? 'top' : 'center'}
-                    keyboardType={externalKeyboardType || (inputType === 'number' ? 'number-pad' : 'default')}
-                    accessibilityLabel={finalPlaceholder}
-                    accessibilityState={{ disabled }}
-                    {...textInputProps}
-                    onPressIn={(event) => {
-                      if (disabled && onPress) {
-                        onPress();
-                      }
-                      textInputProps.onPressIn?.(event);
-                    }}
-                  />
+                  {renderLineTextInput()}
                   {shouldUseCustomLinePlaceholder && !value ? (
-                    <Text
-                      pointerEvents="none"
-                      numberOfLines={1}
-                      style={[
-                        styles.inputPlaceholderText,
-                        { color: placeholderColor },
-                        shouldUseCompactEmojiGap && styles.inputEmojiGapCompact,
-                      ]}
-                    >
-                      {finalPlaceholder}
-                    </Text>
+                    <View style={styles.inputPlaceholderWrap} pointerEvents="none">
+                      <View style={styles.inputLineTextWrap}>
+                        <Text
+                          numberOfLines={1}
+                          style={[
+                            styles.inputPlaceholderText,
+                            { color: placeholderColor },
+                            shouldUseCompactEmojiGap && styles.inputEmojiGapCompact,
+                          ]}
+                        >
+                          {finalPlaceholder}
+                        </Text>
+                      </View>
+                    </View>
                   ) : null}
                 </View>
               )}
@@ -542,6 +567,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     minHeight: TypographyLayoutFieldLineRowHeight,
+    position: 'relative',
+  },
+  inputPlaceholderWrap: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
   },
   inputFieldWrapArea: {
     alignSelf: 'stretch',

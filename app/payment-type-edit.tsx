@@ -25,14 +25,21 @@ export default function PaymentTypeEditScreen() {
   const router = useRouter();
   const { showToast } = useToast();
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ id?: string }>();
+  const params = useLocalSearchParams<{
+    id?: string;
+    label?: string;
+    description?: string;
+    color?: string;
+  }>();
 
   const subtypeId = params.id ?? '';
 
   const [paymentSubtypes, setPaymentSubtypes] = useState<PaymentSubtype[]>([]);
-  const [label, setLabel] = useState('');
-  const [description, setDescription] = useState('');
-  const [color, setColor] = useState<string>('#3664CE');
+  const [label, setLabel] = useState(params.label ?? '');
+  const [description, setDescription] = useState(params.description ?? '');
+  const [color, setColor] = useState<string>(
+    typeof params.color === 'string' && params.color.length > 0 ? params.color : '#3664CE'
+  );
   const [isColorPickerMounted, setIsColorPickerMounted] = useState(false);
   const [isColorPickerVisible, setIsColorPickerVisible] = useState(false);
   const [isColorPickerReady, setIsColorPickerReady] = useState(false);
