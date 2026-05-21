@@ -22,9 +22,13 @@ type UseRecordFormMemoKeyboardParams = {
   safeAreaBottom: number;
 };
 
+/** 메모 포커스 후 스크롤 지연 (iOS·Android 동일) */
+const MEMO_FOCUS_SCROLL_DELAY_MS = 350;
+
 /**
  * 수입/소비 기록: 메모 키보드 패딩·스크롤 (caa76df 기준).
- * Android keyboardDidHide 시 blur 하지 않음(포커스 직후 키보드가 바로 닫히는 충돌 방지).
+ * Android keyboardDidHide: 키보드가 실제로 열린 뒤 닫힐 때만 blur(백버튼·시스템 dismiss).
+ * 포커스 직후 spurious hide는 androidMemoKeyboardVisibleRef로 제외.
  */
 export function useRecordFormMemoKeyboard({
   scrollViewRef,
@@ -36,9 +40,11 @@ export function useRecordFormMemoKeyboard({
 }: UseRecordFormMemoKeyboardParams) {
   const memoInputRef = useRef<TextInput>(null);
   const isMemoFocusedRef = useRef(false);
+  /** Android: 메모 키보드가 실제로 열린 뒤 hide일 때만 blur */
+  const androidMemoKeyboardVisibleRef = useRef(false);
   const suppressKeyboardHideBlurRef = useRef(false);
   const pendingAndroidMemoScrollRef = useRef(false);
-  const iosScrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const memoScrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [keyboardPaddingBottom, setKeyboardPaddingBottom] = useState(MEMO_KEYBOARD_GAP);
   const [isMemoSystemKeyboardOpen, setIsMemoSystemKeyboardOpen] = useState(false);
@@ -46,24 +52,63 @@ export function useRecordFormMemoKeyboard({
   const [hideAndroidRecordFormBottomChrome, setHideAndroidRecordFormBottomChrome] =
     useState(false);
 
-  const clearIosScrollTimeout = useCallback(() => {
-    if (iosScrollTimeoutRef.current) {
-      clearTimeout(iosScrollTimeoutRef.current);
-      iosScrollTimeoutRef.current = null;
+  const clearMemoScrollTimeout = useCallback(() => {
+    if (memoScrollTimeoutRef.current) {
+      clearTimeout(memoScrollTimeoutRef.current);
+      memoScrollTimeoutRef.current = null;
     }
   }, []);
 
+  const scheduleAndroidMemoScroll = useCallback(() => {
+    clearMemoScrollTimeout();
+    memoScrollTimeoutRef.current = setTimeout(() => {
+      memoScrollTimeoutRef.current = null;
+      if (
+        !isMemoFocusedRef.current ||
+        !pendingAndroidMemoScrollRef.current ||
+        memoSectionYRef.current <= 0 ||
+        memoSectionHeightRef.current <= 0
+      ) {
+        return;
+      }
+      const metrics = Keyboard.metrics();
+      if (!metrics || metrics.height <= 0) {
+        return;
+      }
+      pendingAndroidMemoScrollRef.current = false;
+      const keyboardEnd = keyboardMetricsToEndCoordinates(metrics);
+      const scrollY = computeMemoScrollY({
+        memoSectionY: memoSectionYRef.current,
+        memoSectionHeight: memoSectionHeightRef.current,
+        windowHeight,
+        keyboardEnd,
+        safeAreaTop,
+        safeAreaBottom,
+      });
+      scrollViewRef.current?.scrollTo({ y: scrollY, animated: true });
+    }, MEMO_FOCUS_SCROLL_DELAY_MS);
+  }, [
+    clearMemoScrollTimeout,
+    memoSectionHeightRef,
+    memoSectionYRef,
+    safeAreaBottom,
+    safeAreaTop,
+    scrollViewRef,
+    windowHeight,
+  ]);
+
   const blurMemoInput = useCallback(() => {
     isMemoFocusedRef.current = false;
+    androidMemoKeyboardVisibleRef.current = false;
     suppressKeyboardHideBlurRef.current = false;
     pendingAndroidMemoScrollRef.current = false;
-    clearIosScrollTimeout();
+    clearMemoScrollTimeout();
     memoInputRef.current?.blur();
     Keyboard.dismiss();
     setKeyboardPaddingBottom(MEMO_KEYBOARD_GAP);
     setIsMemoSystemKeyboardOpen(false);
     setHideAndroidRecordFormBottomChrome(false);
-  }, [clearIosScrollTimeout]);
+  }, [clearMemoScrollTimeout]);
 
   const applyKeyboardGeometry = useCallback(
     (endCoordinates: KeyboardEvent['endCoordinates']) => {
@@ -76,38 +121,26 @@ export function useRecordFormMemoKeyboard({
           nativeHeight,
         ),
       );
-      setIsMemoSystemKeyboardOpen(
-        endCoordinates.height > 0 && isMemoFocusedRef.current,
-      );
+      const keyboardOpen =
+        endCoordinates.height > 0 && isMemoFocusedRef.current;
+      setIsMemoSystemKeyboardOpen(keyboardOpen);
+      if (Platform.OS === 'android') {
+        androidMemoKeyboardVisibleRef.current = keyboardOpen;
+      }
 
       if (
         Platform.OS !== 'android' ||
         !pendingAndroidMemoScrollRef.current ||
         memoSectionYRef.current <= 0 ||
-        memoSectionHeightRef.current <= 0
+        memoSectionHeightRef.current <= 0 ||
+        !keyboardOpen
       ) {
         return;
       }
 
-      pendingAndroidMemoScrollRef.current = false;
-      const scrollY = computeMemoScrollY({
-        memoSectionY: memoSectionYRef.current,
-        memoSectionHeight: memoSectionHeightRef.current,
-        windowHeight,
-        keyboardEnd: endCoordinates,
-        safeAreaTop,
-        safeAreaBottom,
-      });
-      scrollViewRef.current?.scrollTo({ y: scrollY, animated: true });
+      scheduleAndroidMemoScroll();
     },
-    [
-      memoSectionHeightRef,
-      memoSectionYRef,
-      safeAreaBottom,
-      safeAreaTop,
-      scrollViewRef,
-      windowHeight,
-    ],
+    [memoSectionHeightRef, memoSectionYRef, scheduleAndroidMemoScroll],
   );
 
   const scheduleAndroidKeyboardGeometrySync = useCallback(() => {
@@ -145,6 +178,16 @@ export function useRecordFormMemoKeyboard({
     const hideSub = Keyboard.addListener(hideEvent, (event) => {
       if (Platform.OS === 'android') {
         pendingAndroidMemoScrollRef.current = false;
+        clearMemoScrollTimeout();
+        if (
+          isMemoFocusedRef.current &&
+          androidMemoKeyboardVisibleRef.current &&
+          event.endCoordinates.height === 0
+        ) {
+          blurMemoInput();
+          return;
+        }
+        androidMemoKeyboardVisibleRef.current = false;
         if (!isMemoFocusedRef.current) {
           setKeyboardPaddingBottom(MEMO_KEYBOARD_GAP);
           setIsMemoSystemKeyboardOpen(false);
@@ -175,9 +218,14 @@ export function useRecordFormMemoKeyboard({
       frameSub?.remove();
       hideSub.remove();
     };
-  }, [applyKeyboardGeometry, blurMemoInput, scheduleAndroidKeyboardGeometrySync]);
+  }, [
+    applyKeyboardGeometry,
+    blurMemoInput,
+    clearMemoScrollTimeout,
+    scheduleAndroidKeyboardGeometrySync,
+  ]);
 
-  useEffect(() => () => clearIosScrollTimeout(), [clearIosScrollTimeout]);
+  useEffect(() => () => clearMemoScrollTimeout(), [clearMemoScrollTimeout]);
 
   const handleMemoFocus = useCallback(() => {
     isMemoFocusedRef.current = true;
@@ -189,9 +237,9 @@ export function useRecordFormMemoKeyboard({
       return;
     }
 
-    clearIosScrollTimeout();
-    iosScrollTimeoutRef.current = setTimeout(() => {
-      iosScrollTimeoutRef.current = null;
+    clearMemoScrollTimeout();
+    memoScrollTimeoutRef.current = setTimeout(() => {
+      memoScrollTimeoutRef.current = null;
       suppressKeyboardHideBlurRef.current = false;
       if (memoSectionYRef.current > 0) {
         const scrollOffset = windowHeight * 0.266;
@@ -200,17 +248,18 @@ export function useRecordFormMemoKeyboard({
           animated: true,
         });
       }
-    }, 350);
-  }, [clearIosScrollTimeout, memoSectionYRef, scrollViewRef, windowHeight]);
+    }, MEMO_FOCUS_SCROLL_DELAY_MS);
+  }, [clearMemoScrollTimeout, memoSectionYRef, scrollViewRef, windowHeight]);
 
   const handleMemoBlur = useCallback(() => {
     isMemoFocusedRef.current = false;
+    androidMemoKeyboardVisibleRef.current = false;
     suppressKeyboardHideBlurRef.current = false;
     pendingAndroidMemoScrollRef.current = false;
-    clearIosScrollTimeout();
+    clearMemoScrollTimeout();
     setIsMemoSystemKeyboardOpen(false);
     setHideAndroidRecordFormBottomChrome(false);
-  }, [clearIosScrollTimeout]);
+  }, [clearMemoScrollTimeout]);
 
   const focusMemoInput = useCallback(() => {
     memoInputRef.current?.focus();

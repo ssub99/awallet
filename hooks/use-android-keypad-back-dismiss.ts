@@ -41,7 +41,7 @@ export function useAndroidKeypadBackDismiss(
 
       if (isKeypadVisible) {
         onDismissKeypad();
-        if (memoActive && onDismissMemoInput) {
+        if (onDismissMemoInput) {
           onDismissMemoInput();
         }
         return true;
