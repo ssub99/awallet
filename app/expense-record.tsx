@@ -27,6 +27,8 @@ import { textStyleFromIosMetrics } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
 import { useToast } from '@/contexts/toast-context';
 import { calendarRefreshEvent } from '@/hooks/calendar-events';
+import { useAndroidKeypadBackDismiss } from '@/hooks/use-android-keypad-back-dismiss';
+import { useRecordFormMemoKeyboard } from '@/hooks/use-record-form-memo-keyboard';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { logEvent, logExpenseAdjustment, logExpenseCreateComplete, mapRefundOptionToAnalytics } from '@/utils/analytics';
@@ -1341,12 +1343,11 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   // 정기/할부 그룹의 실제 마지막 년/월 (기간 표기 안정화용)
   const [actualEndYearMonth, setActualEndYearMonth] = useState<{ year: number; month: number } | null>(null);
   
-  // Keyboard height tracking
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
-  
   // Section/Input position tracking
   // Remove amount auto-scroll states per request
   const [memoSectionY, setMemoSectionY] = useState(0);
+  const memoSectionYRef = useRef(0);
+  const memoSectionHeightRef = useRef(0);
   const [amountSectionY, setAmountSectionY] = useState(0);
   const [amountSectionHeight, setAmountSectionHeight] = useState(0);
   const handleMemoChange = useCallback((text: string) => {
@@ -1700,26 +1701,23 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       }
     }
   }, [defaultCreditSubtypeId, defaultDebitSubtypeId, mode, editData, formattedToday]);
-  
-  useEffect(() => {
-    const keyboardWillShow = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      (e) => {
-        setKeyboardHeight(e.endCoordinates.height);
-      }
-    );
-    const keyboardWillHide = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => {
-        setKeyboardHeight(0);
-      }
-    );
-    
-    return () => {
-      keyboardWillShow.remove();
-      keyboardWillHide.remove();
-    };
-  }, []);
+
+  const {
+    memoInputRef,
+    keyboardPaddingBottom,
+    isMemoSystemKeyboardOpen,
+    isMemoFocusedRef,
+    blurMemoInput,
+    handleMemoFocus: scrollMemoOnFocus,
+    handleMemoBlur: clearMemoFocusState,
+  } = useRecordFormMemoKeyboard({
+    scrollViewRef,
+    memoSectionYRef,
+    memoSectionHeightRef,
+    windowHeight,
+    safeAreaTop: insets.top,
+    safeAreaBottom: insets.bottom,
+  });
 
   // Update category when returning from category selection screen
   useFocusEffect(
@@ -2544,10 +2542,19 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     setAmountExpression([]);
   }, [isKeypadVisible]);
 
+  const dismissMemoInput = useCallback(() => {
+    setIsMemoFocused(false);
+    blurMemoInput();
+  }, [blurMemoInput]);
+
+  useAndroidKeypadBackDismiss(isKeypadVisible, handleKeypadDismiss, {
+    isMemoSystemKeyboardOpen,
+    onDismissMemoInput: dismissMemoInput,
+  });
+
   const isScrollingRef = useRef(false);
   const ignoreNextTouchEndRef = useRef(false);
   const dismissTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isMemoFocusedRef = useRef(false);
   const skipNextDismissRef = useRef(false);
 
   const clearDismissTimeout = useCallback(() => {
@@ -2565,21 +2572,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
     clearDismissTimeout();
     setIsMemoFocused(true);
-    isMemoFocusedRef.current = true;
     handleKeypadDismiss();
-    // 메모 섹션 위치로 스크롤 (하단 버튼 제외)
-    // 기기 화면 높이에 비례하여 스크롤 오프셋 계산
-    // 아이폰 13 미니(812pt)에서 216px이 최적 → 약 26.6%
-    setTimeout(() => {
-      if (memoSectionY > 0) {
-        const windowHeight = Dimensions.get('window').height;
-        const scrollOffset = windowHeight * 0.266; // 화면 높이의 26.6%
-        scrollViewRef.current?.scrollTo({ 
-          y: memoSectionY - scrollOffset, 
-          animated: true 
-        });
-      }
-    }, 350);
+    scrollMemoOnFocus();
   };
 
   const handleAmountFocus = () => {
@@ -5021,8 +5015,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           contentContainerStyle={[
             styles.scrollContent, 
             { 
-              paddingBottom: keyboardHeight > 0 
-                ? keyboardHeight + 16 - insets.bottom 
+              paddingBottom: isMemoSystemKeyboardOpen
+                ? keyboardPaddingBottom
                 : isKeypadVisible
                 ? getCustomKeypadScrollPaddingBottom(KEYPAD_HEIGHT, insets.bottom)
                 : 16 // 메모와 하단 영역 사이 여백
@@ -5418,12 +5412,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                     return;
                   }
                   skipNextDismissRef.current = false;
-                  if (isMemoFocused) {
-                    setIsMemoFocused(false);
-                  }
+                  blurMemoInput();
+                  setIsMemoFocused(false);
                   handleAmountFocus();
                   setIsKeypadVisible(true);
-                  Keyboard.dismiss();
                 }}
               />
             </View>
@@ -5434,12 +5426,15 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             onLayout={(event) => {
               const layout = event.nativeEvent.layout;
               setMemoSectionY(layout.y);
+              memoSectionYRef.current = layout.y;
+              memoSectionHeightRef.current = layout.height;
             }}
           >
             <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
               메모
             </Text>
             <Input
+              ref={memoInputRef}
               variant="area"
               value={memo}
               onChangeText={handleMemoChange}
@@ -5449,7 +5444,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               onFocus={handleMemoFocus}
               onBlur={() => {
                 setIsMemoFocused(false);
-                isMemoFocusedRef.current = false;
+                clearMemoFocusState();
               }}
               onKeyPress={handleMemoKeyPress}
               onSubmitEditing={handleMemoSubmitEditing}

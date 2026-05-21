@@ -17,6 +17,8 @@ import { AtomicColors } from '@/constants/atomic-colors';
 import { Colors, Typography } from '@/constants/theme';
 import { useLoading } from '@/contexts/loading-context';
 import { calendarRefreshEvent } from '@/hooks/calendar-events';
+import { useAndroidKeypadBackDismiss } from '@/hooks/use-android-keypad-back-dismiss';
+import { useRecordFormMemoKeyboard } from '@/hooks/use-record-form-memo-keyboard';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { logEvent } from '@/utils/analytics';
@@ -62,7 +64,7 @@ export default function IncomeRecordScreen() {
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
   const router = useRouter();
   const navigation = useNavigation();
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const KEYPAD_HEIGHT = getKeypadHeight(windowWidth);
   interface GoHomeOptions {
     year: number;
@@ -311,38 +313,33 @@ export default function IncomeRecordScreen() {
   // Scroll reference
   const scrollViewRef = useRef<ScrollView>(null);
   
-  // Keyboard height tracking
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
-  
   // Section position tracking
   const [amountSectionY, setAmountSectionY] = useState(0);
   const [memoSectionY, setMemoSectionY] = useState(0);
+  const memoSectionYRef = useRef(0);
+  const memoSectionHeightRef = useRef(0);
+
+  const {
+    memoInputRef,
+    keyboardPaddingBottom,
+    isMemoSystemKeyboardOpen,
+    isMemoFocusedRef,
+    blurMemoInput,
+    handleMemoFocus: scrollMemoOnFocus,
+    handleMemoBlur,
+  } = useRecordFormMemoKeyboard({
+    scrollViewRef,
+    memoSectionYRef,
+    memoSectionHeightRef,
+    windowHeight,
+    safeAreaTop: insets.top,
+    safeAreaBottom: insets.bottom,
+  });
 
   const isScrollingRef = useRef(false);
   const dismissTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ignoreNextTouchEndRef = useRef(false);
   const skipNextDismissRef = useRef(false);
-  const isMemoFocusedRef = useRef(false);
-  
-  useEffect(() => {
-    const keyboardWillShow = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      (e) => {
-        setKeyboardHeight(e.endCoordinates.height);
-      }
-    );
-    const keyboardWillHide = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => {
-        setKeyboardHeight(0);
-      }
-    );
-    
-    return () => {
-      keyboardWillShow.remove();
-      keyboardWillHide.remove();
-    };
-  }, []);
 
   const clearDismissTimeout = useCallback(() => {
     if (dismissTimeoutRef.current) {
@@ -356,14 +353,18 @@ export default function IncomeRecordScreen() {
     setAmountExpression([]);
   }, []);
 
+  useAndroidKeypadBackDismiss(isKeypadVisible, handleKeypadDismiss, {
+    isMemoSystemKeyboardOpen,
+    onDismissMemoInput: blurMemoInput,
+  });
+
   const handleAmountFocus = useCallback(() => {
     void logEvent('ui', {
       screen_name: '/income-record',
       target: 'amount',
     });
-    Keyboard.dismiss();
+    blurMemoInput();
     skipNextDismissRef.current = false;
-    isMemoFocusedRef.current = false;
     if (!isKeypadVisible) {
       setIsKeypadVisible(true);
     }
@@ -433,21 +434,8 @@ export default function IncomeRecordScreen() {
       screen_name: '/income-record',
       target: 'memo',
     });
-    isMemoFocusedRef.current = true;
     handleKeypadDismiss();
-    // 메모 섹션 위치로 스크롤 (하단 버튼 제외)
-    // 기기 화면 높이에 비례하여 스크롤 오프셋 계산
-    // 아이폰 13 미니(812pt)에서 216px이 최적 → 약 26.6%
-    setTimeout(() => {
-      if (memoSectionY > 0) {
-        const windowHeight = Dimensions.get('window').height;
-        const scrollOffset = windowHeight * 0.266; // 화면 높이의 26.6%
-        scrollViewRef.current?.scrollTo({ 
-          y: memoSectionY - scrollOffset, 
-          animated: true 
-        });
-      }
-    }, 350);
+    scrollMemoOnFocus();
   };
 
   const handleCategoryPress = () => {
@@ -650,8 +638,8 @@ export default function IncomeRecordScreen() {
           contentContainerStyle={[
             styles.scrollContent, 
             { 
-              paddingBottom: keyboardHeight > 0 
-                ? keyboardHeight + 16 - insets.bottom 
+              paddingBottom: isMemoSystemKeyboardOpen
+                ? keyboardPaddingBottom
                 : isKeypadVisible
                 ? getCustomKeypadScrollPaddingBottom(KEYPAD_HEIGHT, insets.bottom)
                 : 16
@@ -767,12 +755,15 @@ export default function IncomeRecordScreen() {
               onLayout={(event) => {
                 const layout = event.nativeEvent.layout;
                 setMemoSectionY(layout.y);
+                memoSectionYRef.current = layout.y;
+                memoSectionHeightRef.current = layout.height;
               }}
             >
               <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
                 메모
               </Text>
               <Input
+                ref={memoInputRef}
                 variant="area"
                 inputType="text"
                 value={memo}
@@ -780,6 +771,7 @@ export default function IncomeRecordScreen() {
                 placeholder="메모를 입력해 주세요.(최대 20자)"
                 maxLength={20}
                 onFocus={handleMemoFocus}
+                onBlur={handleMemoBlur}
                 onKeyPress={handleMemoKeyPress}
                 onSubmitEditing={handleMemoSubmitEditing}
                 blurOnSubmit={false}

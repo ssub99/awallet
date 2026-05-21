@@ -20,8 +20,10 @@ import {
     CHALLENGE_RECURRING_MONTH_MIN,
 } from '@/constants/challenge-recurring-months';
 import { Colors, Typography } from '@/constants/theme';
+import { lineFieldRowText, lineFieldRowTextWrap } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
 import { useToast } from '@/contexts/toast-context';
+import { useAndroidKeypadBackDismiss } from '@/hooks/use-android-keypad-back-dismiss';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { logEvent } from '@/utils/analytics';
@@ -308,6 +310,8 @@ export default function ChallengeCreateScreen() {
     setAmountExpression([]);
   }, []);
 
+  useAndroidKeypadBackDismiss(isKeypadVisible, handleKeypadDismiss);
+
   const handleAmountFocus = useCallback(() => {
     void logEvent('ui', {
       screen_name: '/challenge-create',
@@ -576,9 +580,11 @@ export default function ChallengeCreateScreen() {
                 <View style={styles.yearMonthRow}>
                   <View style={styles.yearMonthLeft}>
                     <Icon name="calendarMonth" variant="line" size={24} color={colors.text} />
-                    <Text style={[styles.yearMonthText, { color: colors.text }]}>
-                      {startYear}.{String(startMonth).padStart(2, '0')}
-                    </Text>
+                    <View style={lineFieldRowTextWrap}>
+                      <Text style={[lineFieldRowText, { color: colors.text }]}>
+                        {startYear}.{String(startMonth).padStart(2, '0')}
+                      </Text>
+                    </View>
                   </View>
                 </View>
               </View>
@@ -665,9 +671,11 @@ export default function ChallengeCreateScreen() {
                       시작 년월 부터 반복할 개월 수
                     </Text>
                     <View style={styles.monthPickerValue}>
-                      <Text style={[styles.monthPickerValueText, { color: colors.textAssistive }]}>
-                        {recurringMonths}개월
-                      </Text>
+                      <View style={lineFieldRowTextWrap}>
+                        <Text style={[lineFieldRowText, { color: colors.textAssistive }]}>
+                          {recurringMonths}개월
+                        </Text>
+                      </View>
                       <Icon name="arrowRight" variant="line" size={24} color={colors.text} />
                     </View>
                   </View>
@@ -847,9 +855,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  yearMonthText: {
-    ...Typography.body1.l.regular,
-  },
   recurringSection: {
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -881,9 +886,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-  },
-  monthPickerValueText: {
-    ...Typography.body1.l.regular,
   },
   bottomButtonContainer: {
     paddingHorizontal: 16,

@@ -1,5 +1,5 @@
 /**
- * Android spinner wheel column for year/month (no day column).
+ * Android spinner wheel column (년·월, 개월 수 등 단일 옵션 목록).
  */
 
 import { Colors } from '@/constants/theme';

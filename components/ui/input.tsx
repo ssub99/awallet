@@ -15,6 +15,7 @@ import { Colors, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { forwardRef, useImperativeHandle, useRef, useState, type ReactNode } from 'react';
 import {
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -272,9 +273,17 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
               color={iconColor}
               style={styles.icon}
             />
-            <Text style={[styles.calendarDate, { color: calendarDate ? textColor : placeholderColor }]}>
-              {calendarDate ?? '--'}
-            </Text>
+            <View style={styles.inputFieldWrap}>
+              <Text
+                style={[
+                  styles.calendarDate,
+                  variant === 'line' && !shortver && styles.inputLineButtonText,
+                  { color: calendarDate ? textColor : placeholderColor },
+                ]}
+              >
+                {calendarDate ?? '--'}
+              </Text>
+            </View>
           </View>
         ) : (
           <>
@@ -309,18 +318,33 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
 
               {/* Text Input or Button Mode Text */}
               {buttonMode ? (
-                <Text
-                  style={[
-                    styles.input,
-                    variant === 'line' && !shortver && styles.inputLineButtonText,
-                    shortver && styles.inputShort,
-                    shouldUseCompactEmojiGap && styles.inputEmojiGapCompact,
-                    { color: hasValue ? textColor : placeholderColor },
-                    (textInputProps as any).style,
-                  ]}
-                >
-                  {hasValue ? value : finalPlaceholder}
-                </Text>
+                variant === 'line' && !shortver ? (
+                  <View style={styles.inputFieldWrap}>
+                    <Text
+                      style={[
+                        styles.input,
+                        styles.inputLineButtonText,
+                        shouldUseCompactEmojiGap && styles.inputEmojiGapCompact,
+                        { color: hasValue ? textColor : placeholderColor },
+                        (textInputProps as any).style,
+                      ]}
+                    >
+                      {hasValue ? value : finalPlaceholder}
+                    </Text>
+                  </View>
+                ) : (
+                  <Text
+                    style={[
+                      styles.input,
+                      shortver && styles.inputShort,
+                      shouldUseCompactEmojiGap && styles.inputEmojiGapCompact,
+                      { color: hasValue ? textColor : placeholderColor },
+                      (textInputProps as any).style,
+                    ]}
+                  >
+                    {hasValue ? value : finalPlaceholder}
+                  </Text>
+                )
               ) : valueRenderer ? (
                 <View style={styles.valueRenderer}>
                   {valueRenderer}
@@ -493,9 +517,11 @@ const styles = StyleSheet.create({
     height: 24,
     textAlignVertical: 'center',
   },
-  /** buttonMode + line: iOS에서 Text 세로 중앙 (TextInput inputLine과 동일 박스) */
+  /** buttonMode / calendar + line: TextInput inputLine과 동일 24px 박스 내 세로 중앙 */
   inputLineButtonText: {
-    lineHeight: 24,
+    height: 24,
+    lineHeight: Platform.select({ ios: 24, android: 21, default: 24 }),
+    includeFontPadding: false,
   },
   inputPlaceholderText: {
     ...Typography.body1.l.regular,
@@ -544,6 +570,7 @@ const styles = StyleSheet.create({
   },
   calendarDate: {
     ...Typography.body1.l.regular,
+    includeFontPadding: false,
   },
   sortationIndicator: {
     width: 16,

@@ -28,6 +28,7 @@ import {
   Animated,
   Dimensions,
   GestureResponderEvent,
+  InteractionManager,
   Platform,
   PanResponder,
   PanResponderGestureState,
@@ -38,7 +39,10 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+/** dateStripContent paddingHorizontal과 동일 — 스크롤 오프셋·레이아웃 일치 */
+const DATE_STRIP_PADDING_HORIZONTAL = 8;
 
 // 카테고리별 이모지 매핑 (통합 카테고리 로드)
 const useCategoryEmojiMap = () => {
@@ -92,6 +96,7 @@ function mergePaymentFilterKeys(current: string[], idsToAdd: string[]): string[]
 
 export default function MonthlyExpenseTimelineScreen() {
   const { height: windowHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
   const categoryEmojiMap = useCategoryEmojiMap();
@@ -415,6 +420,9 @@ export default function MonthlyExpenseTimelineScreen() {
   const dateStripScrollRef = useRef<ScrollView>(null);
   const timelineScrollRef = useRef<ScrollView>(null);
   const DATE_CELL_WIDTH = 42;
+  /** 날짜 스트립 선택 원형 (calendar-day-select와 동일한 Android 클리핑 패턴) */
+  const WEEK_DAY_CIRCLE_SIZE = 36;
+  const WEEK_DAY_CIRCLE_RADIUS = WEEK_DAY_CIRCLE_SIZE / 2;
   /** 날짜 스트립 스크롤 애니메이션 duration (ms) - 타임라인 스크롤 완료 후 포커스 이동 시 사용 */
   const DATE_STRIP_SCROLL_DURATION_MS = 400;
   const dateStripScrollXRef = useRef(0);
@@ -438,9 +446,10 @@ export default function MonthlyExpenseTimelineScreen() {
       return false;
     }
     const viewportWidth = Dimensions.get('window').width;
-    const paddingHorizontal = 16;
-    const cellCenterInContent = paddingHorizontal + idx * DATE_CELL_WIDTH + DATE_CELL_WIDTH / 2;
-    const contentWidth = paddingHorizontal * 2 + monthDates.length * DATE_CELL_WIDTH;
+    const cellCenterInContent =
+      DATE_STRIP_PADDING_HORIZONTAL + idx * DATE_CELL_WIDTH + DATE_CELL_WIDTH / 2;
+    const contentWidth =
+      DATE_STRIP_PADDING_HORIZONTAL * 2 + monthDates.length * DATE_CELL_WIDTH;
     const maxScroll = Math.max(0, contentWidth - viewportWidth);
     const x = Math.max(0, Math.min(cellCenterInContent - viewportWidth / 2, maxScroll));
     const animated = scrollAnimatedRef.current;
@@ -474,14 +483,43 @@ export default function MonthlyExpenseTimelineScreen() {
     return true;
   }, [dateStripScrollAnimRef, monthDates, pickedDateForWeek]);
 
+  // 날짜 스트립 스크롤: Android는 전환·레이아웃 안정 후 1회 (onLayout 연쇄 스크롤로 상단 들썩임 방지)
   useEffect(() => {
-    if (!scrollDateStripToPicked()) {
-      const id = setTimeout(() => {
-        scrollDateStripToPicked();
-      }, Platform.OS === 'android' ? 120 : 50);
-      return () => clearTimeout(id);
+    let cancelled = false;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+    const runScroll = () => {
+      if (cancelled) {
+        return;
+      }
+      if (!scrollDateStripToPicked()) {
+        timeoutId = setTimeout(() => {
+          if (!cancelled) {
+            scrollDateStripToPicked();
+          }
+        }, Platform.OS === 'android' ? 80 : 50);
+      }
+    };
+
+    if (Platform.OS === 'android') {
+      const interaction = InteractionManager.runAfterInteractions(runScroll);
+      return () => {
+        cancelled = true;
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+        interaction.cancel();
+      };
     }
-  }, [scrollDateStripToPicked]);
+
+    runScroll();
+    return () => {
+      cancelled = true;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [monthDates.length, pickedDateForWeek, scrollDateStripToPicked]);
 
   // 홈 focus보다 먼저 blur/beforeRemove에서 pending 저장 (Android 제스처 뒤로가기 대응)
   const persistPendingForHome = useCallback(() => {
@@ -738,9 +776,18 @@ export default function MonthlyExpenseTimelineScreen() {
   }, [month, router, pickedDateForWeek, year]);
   
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
-      {/* Top Navigation: 데이터 로딩과 무관하게 항상 표시 */}
-      <View>
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: colors.background,
+          paddingTop: insets.top,
+          paddingBottom: insets.bottom,
+        },
+      ]}
+    >
+      {/* Top Navigation + 날짜 스트립: Android 진입 시 SafeAreaView 지연 보정으로 들썩이지 않도록 고정 영역 */}
+      <View style={styles.timelineHeader} collapsable={false}>
         <TopNavigation
           type="sub"
           title=""
@@ -764,10 +811,7 @@ export default function MonthlyExpenseTimelineScreen() {
             setCurrentMonth(newMonth);
           }}
         />
-      </View>
 
-      {/* 본문 */}
-      <View style={styles.timelineBodyWrap}>
       {/* 날짜 선택: 해당 월 시작일~마지막일만 스크롤 - 고정 (애니메이션 제외) */}
       <View style={styles.weekRowWrap}>
         <View style={[styles.weekRow, { backgroundColor: colors.fill }]}>
@@ -778,12 +822,6 @@ export default function MonthlyExpenseTimelineScreen() {
             contentContainerStyle={styles.dateStripContent}
             bounces={false}
             overScrollMode="never"
-            onLayout={() => {
-              scrollDateStripToPicked();
-            }}
-            onContentSizeChange={() => {
-              scrollDateStripToPicked();
-            }}
             onScroll={(e) => {
               dateStripScrollXRef.current = e.nativeEvent.contentOffset.x;
             }}
@@ -795,57 +833,84 @@ export default function MonthlyExpenseTimelineScreen() {
               const d = new Date(dateStr + 'T12:00:00');
               const dayNum = d.getDate();
               const dayLabel = weekDayLabels[d.getDay()];
+
+              const handleDateStripPress = () => {
+                void logEvent('ui', {
+                  screen_name: '/monthly-expense-timeline',
+                  target: 'timeline_day_strip',
+                  selected_date: dateStr,
+                });
+                scrollAnimatedRef.current = true;
+                shouldScrollTimelineToDateRef.current = true;
+                setPickedDateForWeek(dateStr);
+              };
+
               return (
-                <Pressable
-                  key={dateStr}
-                  style={[styles.weekDayCell, { width: DATE_CELL_WIDTH }]}
-                  onPress={() => {
-                    void logEvent('ui', {
-                      screen_name: '/monthly-expense-timeline',
-                      target: 'timeline_day_strip',
-                      selected_date: dateStr,
-                    });
-                    scrollAnimatedRef.current = true;
-                    shouldScrollTimelineToDateRef.current = true; // 날짜 탭 시 해당 날짜 섹션이 최상단에 오도록 타임라인 스크롤
-                    setPickedDateForWeek(dateStr);
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${dayNum}일 선택`}
-                  accessibilityState={{ selected: isSelected }}
-                >
+                <View key={dateStr} style={[styles.weekDayCell, { width: DATE_CELL_WIDTH }]}>
                   <Text style={[styles.weekDayLabel, { color: colors.textAssistive }]}>
                     {dayLabel}
                   </Text>
-                  <View
-                    style={[
-                      styles.weekDayCircle,
-                      {
-                        backgroundColor: isSelected ? colors.primary : 'transparent',
-                      },
-                    ]}
+                  <Pressable
+                    onPress={handleDateStripPress}
+                    style={styles.weekDayCirclePressable}
+                    hitSlop={{ top: 28, bottom: 12, left: 3, right: 3 }}
+                    android_ripple={
+                      Platform.OS === 'android'
+                        ? {
+                            color: isSelected
+                              ? 'rgba(255, 255, 255, 0.35)'
+                              : 'rgba(54, 100, 206, 0.2)',
+                            radius: WEEK_DAY_CIRCLE_RADIUS,
+                            borderless: false,
+                          }
+                        : undefined
+                    }
+                    accessibilityRole="button"
+                    accessibilityLabel={`${dayNum}일 선택`}
+                    accessibilityState={{ selected: isSelected }}
                   >
-                    <Text
+                    <View
                       style={[
-                        styles.weekDayNumber,
-                        { color: isSelected ? colors.staticWhite : colors.textAssistive },
+                        styles.weekDayCircle,
+                        {
+                          backgroundColor: isSelected ? colors.primary : 'transparent',
+                        },
                       ]}
                     >
-                      {dayNum}
-                    </Text>
-                  </View>
+                      <Text
+                        style={[
+                          styles.weekDayNumber,
+                          {
+                            color: isSelected ? colors.staticWhite : colors.textAssistive,
+                          },
+                        ]}
+                      >
+                        {dayNum}
+                      </Text>
+                    </View>
+                  </Pressable>
                   <View
                     style={[
                       styles.weekDayDot,
-                      { backgroundColor: hasRecord ? (isSelected ? colors.primary : colors.textAssistive) : 'transparent' },
+                      {
+                        backgroundColor: hasRecord
+                          ? isSelected
+                            ? colors.primary
+                            : colors.textAssistive
+                          : 'transparent',
+                      },
                     ]}
                   />
-                </Pressable>
+                </View>
               );
             })}
           </ScrollView>
         </View>
       </View>
-      
+      </View>
+
+      {/* 본문 */}
+      <View style={styles.timelineBodyWrap}>
       {/* 월 소비합계 + 타임라인: 좌우 스와이프로 월 변경 */}
       <View style={styles.timelineSwipeArea} {...timelinePanResponder.panHandlers}>
       {/* Month Summary - 고정 (애니메이션 제외) */}
@@ -1328,13 +1393,16 @@ export default function MonthlyExpenseTimelineScreen() {
           </View>
         </ModalBottomsheet>
       ) : null}
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  timelineHeader: {
+    flexShrink: 0,
   },
   timelineBodyWrap: {
     flex: 1,
@@ -1359,6 +1427,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-start',
   },
+  weekDayCirclePressable: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    overflow: 'hidden',
+    marginBottom: 8,
+  },
   weekDayLabel: {
     ...Typography.body2.r.medium,
     marginBottom: 8,
@@ -1367,9 +1442,9 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
+    overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
   },
   weekDayNumber: {
     ...Typography.headline4.r.bold,
@@ -1378,6 +1453,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
+    overflow: 'hidden',
   },
   summaryContainer: {
     paddingHorizontal: 16,

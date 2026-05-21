@@ -24,7 +24,7 @@
  * ```
  */
 
-import { Platform, TextStyle } from 'react-native';
+import { Platform, TextStyle, type ViewStyle } from 'react-native';
 
 import { pretendardTextStyle, type PretendardWeight } from './fonts';
 
@@ -327,3 +327,17 @@ export function getTypographyStyle(
   // Fallback to body1 regular
   return Typography.body1.l.regular;
 }
+
+/**
+ * 48px line 필드·선택 카드 행 내 텍스트 (Input buttonMode와 동일 세로 정렬).
+ */
+export const lineFieldRowText: TextStyle = {
+  ...Typography.body1.l.regular,
+  includeFontPadding: false,
+  lineHeight: Platform.select({ ios: 24, android: 21, default: 24 }),
+};
+
+export const lineFieldRowTextWrap: ViewStyle = {
+  height: 24,
+  justifyContent: 'center',
+};

@@ -37,8 +37,11 @@ export default function MyPageScreen() {
   // Load settings from AsyncStorage on screen focus
   useFocusEffect(
     useCallback(() => {
-      // 안드로이드 하드웨어 뒤로가기 비활성화
-      const onBackPress = () => true; // 기본 뒤로가기 동작 차단
+      // 탭 루트: 시스템 뒤로가기 → 홈 탭 (`/home`, index Redirect와 동일)
+      const onBackPress = () => {
+        router.navigate('/home');
+        return true;
+      };
       const backSub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
 
       const loadSettings = async () => {
@@ -74,7 +77,7 @@ export default function MyPageScreen() {
       return () => {
         backSub.remove();
       };
-    }, [setLoading])
+    }, [router, setLoading])
   );
 
   // Fade-in when ready

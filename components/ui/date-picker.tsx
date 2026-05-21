@@ -4,7 +4,7 @@
  * - iOS: bottom sheet + wheel picker (취소/완료)
  * - Android (년/월·년도): 스피너 휠 다이얼로그 — 년·월만 (시스템 DatePicker는 일 컬럼 제거 불가)
  * - Android (일 전용): 시스템 DatePickerDialog 스피너 (`DateTimePickerAndroid`)
- * - Android (비날짜 목록, 예: N개월): 네이티브 `Picker` dialog
+ * - Android (비날짜 목록, 예: N개월): 년/월과 동일한 스피너 휠 다이얼로그
  */
 
 import { AndroidSpinnerWheelColumn } from '@/components/ui/android-spinner-wheel-column';
@@ -417,20 +417,16 @@ export function DatePicker({
     [isIos, monthOptions],
   );
 
-  const handleDayValueChange = (itemValue: number) => {
-    const next = resolvePickerValue(itemValue, dayOptions);
-    setTempDay(next);
-    tempDayRef.current = next;
-  };
-
-  const handleAndroidListPickerChange = (itemValue: number) => {
-    const next = resolvePickerValue(itemValue, dayOptions);
-    if (next !== undefined) {
-      onDayChange?.(next);
-    }
-    onDonePress?.();
-    closePicker();
-  };
+  const handleDayValueChange = useCallback(
+    (itemValue: number) => {
+      const next = resolvePickerValue(itemValue, dayOptions);
+      tempDayRef.current = next;
+      if (isIos) {
+        setTempDay(next);
+      }
+    },
+    [dayOptions, isIos],
+  );
 
   const pickerCount = [yearOptions, monthOptions, dayOptions].filter(
     (options) => options && options.length > 0,
@@ -505,6 +501,20 @@ export function DatePicker({
                 />
               </View>
             ) : null}
+
+            {dayOptions && dayOptions.length > 0 ? (
+              <View
+                style={[styles.pickerColumn, pickerCount === 1 && styles.pickerColumnFull]}
+              >
+                <AndroidSpinnerWheelColumn
+                  key={`custom-${visible}-${tempDay ?? 'x'}`}
+                  options={dayOptions}
+                  value={tempDay}
+                  onValueChange={handleDayValueChange}
+                  active={visible}
+                />
+              </View>
+            ) : null}
           </View>
 
           <View
@@ -541,46 +551,6 @@ export function DatePicker({
             </Pressable>
           </View>
           </View>
-          </View>
-        </View>
-      </Modal>
-    );
-  }
-
-  if (isAndroid && isCustomListOnly && visible) {
-    return (
-      <Modal
-        visible
-        transparent
-        animationType="fade"
-        onRequestClose={handleCancel}
-        statusBarTranslucent
-        presentationStyle="overFullScreen"
-      >
-        <View style={styles.androidYearMonthRoot}>
-          <Pressable style={styles.androidYearMonthDim} onPress={handleCancel} />
-          <View style={styles.androidListOverlay} pointerEvents="box-none">
-          <Pressable
-            style={[styles.androidListCard, { backgroundColor: colors.background }]}
-            onPress={(e) => e.stopPropagation()}
-          >
-            <Text style={[styles.androidListTitle, { color: colors.text }]}>{title}</Text>
-            <Picker
-              selectedValue={tempDay ?? dayOptions?.[0]?.value}
-              onValueChange={handleAndroidListPickerChange}
-              mode="dialog"
-              prompt={title}
-              dropdownIconColor={colors.textNeutral}
-              style={styles.androidListPicker}
-            >
-              {dayOptions?.map((option) => (
-                <Picker.Item key={option.value} label={option.label} value={option.value} />
-              ))}
-            </Picker>
-            <Text style={[styles.androidListHint, { color: colors.textAssistive }]}>
-              항목을 탭하면 선택 창이 열립니다.
-            </Text>
-          </Pressable>
           </View>
         </View>
       </Modal>
@@ -715,28 +685,6 @@ const styles = StyleSheet.create({
   androidYearMonthDim: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  androidListOverlay: {
-    flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-  },
-  androidListCard: {
-    borderRadius: 12,
-    padding: 20,
-    gap: 12,
-  },
-  androidListTitle: {
-    ...Typography.headline4.r.bold,
-    textAlign: 'center',
-  },
-  androidListPicker: {
-    width: '100%',
-    height: 48,
-  },
-  androidListHint: {
-    ...Typography.body2.r.regular,
-    textAlign: 'center',
   },
   androidYearMonthContainer: {
     flex: 1,

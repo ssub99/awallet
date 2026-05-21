@@ -1,6 +1,9 @@
 import type { DatePickerOption } from '@/components/ui/date-picker';
 
-/** 년/월·년도 전용 (일 컬럼 없음). 시스템 DatePicker는 일 컬럼을 숨길 수 없음. */
+/**
+ * Android 스피너 휠 다이얼로그 (년·월, 년도만, N개월 등 커스텀 단일 목록).
+ * 시스템 DatePicker는 일 컬럼을 숨길 수 없어 일(day) 달력 전용은 제외.
+ */
 export function shouldUseAndroidYearMonthSpinner(
   dayOptions: DatePickerOption[] | undefined,
   yearOptions: DatePickerOption[] | undefined,
@@ -8,7 +11,7 @@ export function shouldUseAndroidYearMonthSpinner(
   isCustomListOnly: boolean,
 ): boolean {
   if (isCustomListOnly) {
-    return false;
+    return Boolean(dayOptions?.length);
   }
   const hasYearOrMonth = Boolean(yearOptions?.length || monthOptions?.length);
   if (!hasYearOrMonth) {

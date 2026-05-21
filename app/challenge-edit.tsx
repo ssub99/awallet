@@ -15,8 +15,10 @@ import { Switch } from '@/components/ui/switch';
 import { AtomicColors } from '@/constants/atomic-colors';
 import { type Category } from '@/constants/categories';
 import { Colors, Typography } from '@/constants/theme';
+import { lineFieldRowText, lineFieldRowTextWrap } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
 import { useToast } from '@/contexts/toast-context';
+import { useAndroidKeypadBackDismiss } from '@/hooks/use-android-keypad-back-dismiss';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { logEvent } from '@/utils/analytics';
@@ -329,6 +331,8 @@ export default function ChallengeEditScreen() {
     setIsKeypadVisible(false);
     setAmountExpression([]);
   }, []);
+
+  useAndroidKeypadBackDismiss(isKeypadVisible, handleKeypadDismiss);
 
   const handleAmountFocus = useCallback(() => {
     logChallengeEditEvent('ui', 'amount');
@@ -697,13 +701,15 @@ export default function ChallengeEditScreen() {
                 <View style={styles.yearMonthRow}>
                   <View style={styles.yearMonthLeft}>
                     <Icon name="calendarMonth" variant="line" size={24} color="#bdbdbd" />
-                    <Text style={[styles.disabledText, { color: '#bdbdbd' }]}>
-                      {(() => {
-                        if (!startDate) return '';
-                        const [year, month] = startDate.split('.');
-                        return `${year}.${month}`;
-                      })()}
-                    </Text>
+                    <View style={lineFieldRowTextWrap}>
+                      <Text style={[lineFieldRowText, { color: '#bdbdbd' }]}>
+                        {(() => {
+                          if (!startDate) return '';
+                          const [year, month] = startDate.split('.');
+                          return `${year}.${month}`;
+                        })()}
+                      </Text>
+                    </View>
                   </View>
                 </View>
               </View>
@@ -775,9 +781,11 @@ export default function ChallengeEditScreen() {
                       시작 년월 부터 반복할 개월 수
                     </Text>
                     <View style={styles.monthPickerValue}>
-                      <Text style={[styles.disabledText, { color: '#bdbdbd' }]}>
-                        {recurringCount}개월
-                      </Text>
+                      <View style={lineFieldRowTextWrap}>
+                        <Text style={[lineFieldRowText, { color: '#bdbdbd' }]}>
+                          {recurringCount}개월
+                        </Text>
+                      </View>
                       <Icon name="arrowRight" variant="line" size={24} color="#bdbdbd" />
                     </View>
                   </View>

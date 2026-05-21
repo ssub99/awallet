@@ -6,10 +6,10 @@
 
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { CalendarMain } from '@/components/ui/calendar-main';
+import { HomeMonthStatusCard } from '@/components/ui/home-month-status-card';
 import { Icon } from '@/components/ui/icon';
 import { QuickInputShort } from '@/components/ui/quick-input-short';
 import { MonthData, YearView, YearViewRef } from '@/components/ui/year-view';
-import { AtomicColors } from '@/constants/atomic-colors';
 import { Colors, Typography } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';
 import { useCreateSheetContext } from '@/contexts/create-sheet-context';
@@ -46,7 +46,10 @@ import {
   AppState,
   AppStateStatus,
   Easing,
+  GestureResponderEvent,
   InteractionManager,
+  PanResponder,
+  PanResponderGestureState,
   Platform,
   Pressable,
   StyleSheet,
@@ -114,8 +117,6 @@ export default function HomeScreen() {
   const [periodType, setPeriodType] = useState<'year' | 'month'>('month');
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
   
-  // 년도 화면에서 마지막으로 본 월 추적
-  const lastYearViewMonth = useRef<number | null>(null);
   // Shared year/month state for both TopNavigation and Calendar
   const [currentYear, setCurrentYear] = useState<number>(
     initialPendingTarget?.year ?? new Date().getFullYear(),
@@ -129,7 +130,6 @@ export default function HomeScreen() {
         return;
       }
 
-      lastYearViewMonth.current = month;
       isNavigating.current = true;
 
       router.push({
@@ -177,6 +177,65 @@ export default function HomeScreen() {
       setPeriodType('month');
     },
     [],
+  );
+
+  const handleCalendarMonthChange = useCallback((year: number, month: number) => {
+    setCurrentYear(year);
+    setCurrentMonth(month);
+  }, []);
+
+  const handleCalendarDayPress = useCallback(
+    (dateString: string) => {
+      const currentSelection = selectedDateRef.current;
+      if (currentSelection === dateString) {
+        if (isNavigating.current) {
+          return;
+        }
+
+        isNavigating.current = true;
+
+        void persistPendingCalendarTarget({
+          year: currentYearRef.current,
+          month: currentMonthRef.current,
+          targetDate: dateString,
+        });
+
+        void logEvent('ui', {
+          screen_name: '/monthly-expense-timeline',
+          target: 'timeline_entry',
+          entry_point: 'home_calendar_day_retap',
+          selected_date: dateString,
+          year: currentYearRef.current,
+          month: currentMonthRef.current,
+        });
+
+        router.push({
+          pathname: '/monthly-expense-timeline',
+          params: {
+            year: currentYearRef.current.toString(),
+            month: currentMonthRef.current.toString(),
+            selectedDate: dateString,
+          },
+        });
+
+        setTimeout(() => {
+          isNavigating.current = false;
+        }, 500);
+        return;
+      }
+
+      applyHomeCalendarSelection(
+        currentYearRef.current,
+        currentMonthRef.current,
+        dateString,
+      );
+      void persistPendingCalendarTarget({
+        year: currentYearRef.current,
+        month: currentMonthRef.current,
+        targetDate: dateString,
+      });
+    },
+    [applyHomeCalendarSelection, router],
   );
 
   const applyPendingCalendarTarget = useCallback(async () => {
@@ -401,21 +460,16 @@ export default function HomeScreen() {
     };
   }, [applyPendingCalendarTarget, navigation]);
 
-  // 년도 화면에 진입할 때와 스크롤 애니메이션 처리
+  // 월 → 년도 화면 전환 시에만 현재 월 위치로 스크롤 (년도 스와이프 시에는 유지)
   useEffect(() => {
-    if (periodType === 'year') {
-      // 화면 전환 후 150ms 딜레이를 두고 스크롤 애니메이션 실행
-      const timer = setTimeout(() => {
-        yearViewRef.current?.scrollToMonth(currentMonth, true);
-      }, 150);
-      
-      return () => {
-        // 년도 화면을 떠날 때 현재 월 저장
-        lastYearViewMonth.current = currentMonth;
-        clearTimeout(timer);
-      };
+    if (periodType !== 'year') {
+      return;
     }
-  }, [periodType, currentMonth]);
+    const timer = setTimeout(() => {
+      yearViewRef.current?.scrollToMonth(currentMonthRef.current, true);
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [periodType]);
   
   const dateText = useMemo(() => {
     if (periodType === 'year') {
@@ -435,6 +489,55 @@ export default function HomeScreen() {
       };
     });
   }, []);
+
+  const yearBounds = useMemo(
+    () => ({
+      min: yearOptions[0]?.value ?? new Date().getFullYear() - 10,
+      max: yearOptions[yearOptions.length - 1]?.value ?? new Date().getFullYear() + 10,
+    }),
+    [yearOptions],
+  );
+
+  const handlePrevYear = useCallback(() => {
+    setCurrentYear((year) => (year <= yearBounds.min ? year : year - 1));
+  }, [yearBounds.min]);
+
+  const handleNextYear = useCallback(() => {
+    setCurrentYear((year) => (year >= yearBounds.max ? year : year + 1));
+  }, [yearBounds.max]);
+
+  const yearPanResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (
+        _evt: GestureResponderEvent,
+        gestureState: PanResponderGestureState,
+      ) => {
+        const { dx, dy } = gestureState;
+        return Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy);
+      },
+      onMoveShouldSetPanResponderCapture: (
+        _evt: GestureResponderEvent,
+        gestureState: PanResponderGestureState,
+      ) => {
+        const { dx, dy } = gestureState;
+        return Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy);
+      },
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderRelease: (
+        _evt: GestureResponderEvent,
+        gestureState: PanResponderGestureState,
+      ) => {
+        const SWIPE_THRESHOLD = 50;
+        const { dx } = gestureState;
+
+        if (dx <= -SWIPE_THRESHOLD) {
+          handleNextYear();
+        } else if (dx >= SWIPE_THRESHOLD) {
+          handlePrevYear();
+        }
+      },
+    }),
+  ).current;
   
   // Month picker options
   const monthOptions = useMemo(
@@ -682,6 +785,54 @@ export default function HomeScreen() {
     return `${amount.toLocaleString()}원`;
   }, [financialData.balance]);
 
+  const handleMonthStatusIncomePress = useCallback(() => {
+    void logEvent('ui', {
+      screen_name: '/home',
+      target: 'income-present',
+    });
+    const targetDate = effectiveSelectedDate;
+    router.push({
+      pathname: '/expense-category',
+      params: {
+        type: 'income',
+        selectedDate: targetDate,
+        calendarYear: currentYear.toString(),
+        calendarMonth: currentMonth.toString(),
+      },
+    });
+  }, [currentMonth, currentYear, effectiveSelectedDate, router]);
+
+  const handleMonthStatusExpensePress = useCallback(() => {
+    void logEvent('ui', {
+      screen_name: '/home',
+      target: 'expense-present',
+    });
+    const targetDate = effectiveSelectedDate;
+    router.push({
+      pathname: '/expense-category',
+      params: {
+        selectedDate: targetDate,
+        calendarYear: currentYear.toString(),
+        calendarMonth: currentMonth.toString(),
+      },
+    });
+  }, [currentMonth, currentYear, effectiveSelectedDate, router]);
+
+  const handleMonthStatusBalancePress = useCallback(() => {
+    void logEvent('ui', {
+      screen_name: '/home',
+      target: 'report-present',
+    });
+    router.push({
+      pathname: '/(tabs)/challenge',
+      params: {
+        year: currentYear.toString(),
+        month: currentMonth.toString(),
+        tab: 'status',
+      },
+    });
+  }, [currentMonth, currentYear, router]);
+
   // iOS 위젯에 이번달 소비 요약 데이터 동기화
   useEffect(() => {
     if (Platform.OS !== 'ios') {
@@ -744,118 +895,15 @@ export default function HomeScreen() {
       {/* Conditional Content: Month View or Year View */}
       {periodType === 'month' ? (
         <Animated.View style={[styles.monthViewContent, { opacity: isContentReady ? contentOpacity : 0 }]}>
-            {/* 월 현황 (UI only 변경): 입금/소비/잔액 3개를 한 카드에 정렬 */}
-            <View style={[styles.monthStatusWrap, { backgroundColor: colors.fill }]}>
-              <View style={[styles.monthStatusCard, { backgroundColor: colors.staticWhite }]}>
-                {/* 입금 */}
-                <Pressable
-                  style={styles.monthStatusItem}
-                  onPress={() => {
-                    void logEvent('ui', {
-                      screen_name: '/home',
-                      target: 'income-present',
-                    });
-                    const targetDate = effectiveSelectedDate;
-                    router.push({
-                      pathname: '/expense-category',
-                      params: {
-                        type: 'income',
-                        selectedDate: targetDate,
-                        calendarYear: currentYear.toString(),
-                        calendarMonth: currentMonth.toString(),
-                      },
-                    });
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel="수입 기록하기"
-                >
-                  <Text style={[styles.monthStatusLabel, { color: colors.textNeutral }]}>
-                    수입
-                  </Text>
-                  <Text
-                    style={[styles.monthStatusValue, { color: colors.text }]}
-                    numberOfLines={1}
-                  >
-                    {monthlyIncomeText}
-                  </Text>
-                </Pressable>
-
-                <View style={[styles.monthStatusDivider, { backgroundColor: colors.border }]} />
-
-                {/* 소비 */}
-                <Pressable
-                  style={styles.monthStatusItem}
-                  onPress={() => {
-                    void logEvent('ui', {
-                      screen_name: '/home',
-                      target: 'expense-present',
-                    });
-                    const targetDate = effectiveSelectedDate;
-                    router.push({
-                      pathname: '/expense-category',
-                      params: {
-                        selectedDate: targetDate,
-                        calendarYear: currentYear.toString(),
-                        calendarMonth: currentMonth.toString(),
-                      },
-                    });
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel="소비 기록하기"
-                >
-                  <Text style={[styles.monthStatusLabel, { color: colors.textNeutral }]}>
-                    소비
-                  </Text>
-                  <Text
-                    style={[styles.monthStatusValue, { color: colors.text }]}
-                    numberOfLines={1}
-                  >
-                    {monthlyExpenseText}
-                  </Text>
-                </Pressable>
-
-                <View style={[styles.monthStatusDivider, { backgroundColor: colors.border }]} />
-
-                {/* 잔액 - 탭 시 챌린지·통계 탭 리포트 > 소비 리포트로 이동 */}
-                <Pressable
-                  style={styles.monthStatusItem}
-                  onPress={() => {
-                    void logEvent('ui', {
-                      screen_name: '/home',
-                      target: 'report-present',
-                    });
-                    router.push({
-                      pathname: '/(tabs)/challenge',
-                      params: {
-                        year: currentYear.toString(),
-                        month: currentMonth.toString(),
-                        tab: 'status',
-                      },
-                    });
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel="챌린지 통계 소비 리포트 보기"
-                >
-                  <Text style={[styles.monthStatusLabel, { color: colors.textNeutral }]}>
-                    잔액
-                  </Text>
-                  <Text
-                    style={[
-                      styles.monthStatusValue,
-                      {
-                        color:
-                          financialData.balance < 0
-                            ? AtomicColors.red[500]
-                            : AtomicColors.green[600],
-                      },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {monthlyBalanceText}
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
+            <HomeMonthStatusCard
+              incomeText={monthlyIncomeText}
+              expenseText={monthlyExpenseText}
+              balanceText={monthlyBalanceText}
+              balanceNegative={financialData.balance < 0}
+              onIncomePress={handleMonthStatusIncomePress}
+              onExpensePress={handleMonthStatusExpensePress}
+              onBalancePress={handleMonthStatusBalancePress}
+            />
 
             {/* Calendar: flex 1로 남은 영역만 쓰고, 측정한 높이를 넘겨 FAB/간편입력과 겹치지 않게 함 */}
             <View
@@ -870,82 +918,26 @@ export default function HomeScreen() {
               <CalendarMain
                 containerHeight={calendarContainerHeight}
                 selectedDate={selectedDate}
-              onDayPress={(dateString) => {
-                const currentSelection = selectedDateRef.current;
-                // 이미 선택된 날짜를 다시 탭하면 월 소비현황으로 이동
-                if (currentSelection === dateString) {
-                  if (isNavigating.current) {
-                    return;
-                  }
-
-                  isNavigating.current = true;
-
-                  void persistPendingCalendarTarget({
-                    year: currentYearRef.current,
-                    month: currentMonthRef.current,
-                    targetDate: dateString,
-                  });
-
-                  void logEvent('ui', {
-                    screen_name: '/monthly-expense-timeline',
-                    target: 'timeline_entry',
-                    entry_point: 'home_calendar_day_retap',
-                    selected_date: dateString,
-                    year: currentYearRef.current,
-                    month: currentMonthRef.current,
-                  });
-
-                  router.push({
-                    pathname: '/monthly-expense-timeline',
-                    params: {
-                      year: currentYearRef.current.toString(),
-                      month: currentMonthRef.current.toString(),
-                      selectedDate: dateString,
-                    },
-                  });
-
-                  setTimeout(() => {
-                    isNavigating.current = false;
-                  }, 500);
-                } else {
-                  applyHomeCalendarSelection(
-                    currentYearRef.current,
-                    currentMonthRef.current,
-                    dateString,
-                  );
-                  void persistPendingCalendarTarget({
-                    year: currentYearRef.current,
-                    month: currentMonthRef.current,
-                    targetDate: dateString,
-                  });
-                }
-              }}
-              dayData={calendarData}
-              showTitle={false}
-              initialYear={currentYear}
-              initialMonth={currentMonth}
-              monthStartDay={monthStartDay}
-              onMonthChange={(year, month) => {
-                // Update shared year/month state when calendar changes
-                setCurrentYear(year);
-                setCurrentMonth(month);
-              }}
+                onDayPress={handleCalendarDayPress}
+                dayData={calendarData}
+                showTitle={false}
+                initialYear={currentYear}
+                initialMonth={currentMonth}
+                monthStartDay={monthStartDay}
+                onMonthChange={handleCalendarMonthChange}
               />
             </View>
         </Animated.View>
       ) : (
-        <>
-          {/* Year View */}
+        <View style={styles.yearViewContent} {...yearPanResponder.panHandlers}>
           <YearView
-            key={`year-${currentYear}`}
             ref={yearViewRef}
             year={currentYear}
             monthsData={yearData}
-            initialMonth={lastYearViewMonth.current ?? undefined}
             onMonthPress={handleYearMonthPress}
             yearCardAnalyticsScreenName="/home"
           />
-        </>
+        </View>
       )}
 
       {/* 간편입력: SafeAreaView 안에 두어 홈 레이아웃과 겹침 처리 */}
@@ -1025,38 +1017,11 @@ const styles = StyleSheet.create({
   monthViewContent: {
     flex: 1,
   },
+  yearViewContent: {
+    flex: 1,
+  },
   calendarContainer: {
     flex: 1,
-  },
-  monthStatusWrap: {
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-  },
-  monthStatusCard: {
-    height: 78,
-    borderRadius: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-  },
-  monthStatusItem: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-  },
-  monthStatusDivider: {
-    width: 1,
-    height: 16,
-  },
-  monthStatusLabel: {
-    ...Typography.body2.r.medium,
-    textAlign: 'center',
-  },
-  monthStatusValue: {
-    ...Typography.body1.l.bold,
-    textAlign: 'center',
   },
   summaryContainer: {
     paddingHorizontal: 16,
