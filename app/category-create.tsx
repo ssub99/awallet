@@ -13,6 +13,7 @@ import { type CategoryType } from '@/constants/categories';
 import { Colors, Typography } from '@/constants/theme';
 import { TypographyLayout } from '@/constants/typography';
 import { useToast } from '@/contexts/toast-context';
+import { useAndroidKeyboardBottomCtaHide } from '@/hooks/use-android-keyboard-bottom-cta-hide';
 import { loadCategories, saveCategories } from '@/utils/categories';
 import type { FlashListRef } from '@shopify/flash-list';
 import { FlashList } from '@shopify/flash-list';
@@ -71,7 +72,14 @@ export default function CategoryCreateScreen() {
   const { showToast } = useToast();
   const params = useLocalSearchParams<{ type?: string }>();
   const insets = useSafeAreaInsets();
-  
+  const {
+    inputRef: categoryNameInputRef,
+    hideBottomCta,
+    onInputPressIn,
+    onInputFocus,
+    onInputBlur,
+  } = useAndroidKeyboardBottomCtaHide();
+
   const categoryType = (params.type as CategoryType) || 'expense';
   
   const [categoryName, setCategoryName] = useState('');
@@ -347,19 +355,24 @@ export default function CategoryCreateScreen() {
                 카테고리 이름
               </Text>
               <Input
+                ref={categoryNameInputRef}
                 value={categoryName}
                 onChangeText={setCategoryName}
                 placeholder="이름 입력"
                 style={styles.input}
                 autoFocus={false}
                 maxLength={10}
+                onPressIn={onInputPressIn}
+                onFocus={onInputFocus}
+                onBlur={onInputBlur}
               />
             </View>
           </ScrollView>
         </View>
       </TouchableWithoutFeedback>
       
-      {/* 하단 고정 버튼 */}
+      {/* 하단 고정 버튼 (Android 키보드 시 숨김) */}
+      {!hideBottomCta && (
       <View style={[
         styles.bottomButtonContainer, 
         { 
@@ -371,6 +384,7 @@ export default function CategoryCreateScreen() {
           생성
         </Button>
       </View>
+      )}
       
       {/* Emoji Picker Modal - 미리 마운트해두고 visible만 토글 */}
       {emojiPickerMounted && (

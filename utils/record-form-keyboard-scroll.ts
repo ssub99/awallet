@@ -58,7 +58,7 @@ export function getSystemKeyboardScrollPaddingBottom(
 
 /**
  * 메모 포커스 시 ScrollView paddingBottom.
- * Android(pan): 윈도우가 이미 밀리므로 키보드 높이 padding을 쓰면 메모~키보드 사이 빈 공간이 생김.
+ * Android(resize): 창 리사이즈 후 scrollTo로 위치 맞추므로 16px만. iOS는 키보드 높이 반영.
  */
 export function getMemoKeyboardScrollPaddingBottom(
   keyboardEnd: KeyboardEndCoordinates | null,

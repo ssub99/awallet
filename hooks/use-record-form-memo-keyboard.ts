@@ -1,6 +1,6 @@
 import {
   computeMemoScrollY,
-  getSystemKeyboardScrollPaddingBottom,
+  getMemoKeyboardScrollPaddingBottom,
   keyboardMetricsToEndCoordinates,
   MEMO_KEYBOARD_GAP,
 } from '@/utils/record-form-keyboard-scroll';
@@ -27,8 +27,9 @@ const MEMO_FOCUS_SCROLL_DELAY_MS = 350;
 
 /**
  * 수입/소비 기록: 메모 키보드 패딩·스크롤 (caa76df 기준).
- * Android keyboardDidHide: 키보드가 실제로 열린 뒤 닫힐 때만 blur(백버튼·시스템 dismiss).
- * 포커스 직후 spurious hide는 androidMemoKeyboardVisibleRef로 제외.
+ * Android(resize): padding 16px만, scroll은 키보드 표시 후 350ms.
+ * 하단 CTA는 포커스 직후 숨김(resize 전). keyboardOpen 연동 숨김은 프레임 flicker로 버튼이 튀는 원인.
+ * keyboardDidHide blur는 androidMemoKeyboardVisibleRef로 포커스 직후 spurious hide 제외.
  */
 export function useRecordFormMemoKeyboard({
   scrollViewRef,
@@ -115,7 +116,7 @@ export function useRecordFormMemoKeyboard({
       const metrics = Keyboard.metrics();
       const nativeHeight = metrics?.height ?? 0;
       setKeyboardPaddingBottom(
-        getSystemKeyboardScrollPaddingBottom(
+        getMemoKeyboardScrollPaddingBottom(
           endCoordinates,
           safeAreaBottom,
           nativeHeight,
@@ -189,9 +190,9 @@ export function useRecordFormMemoKeyboard({
         }
         androidMemoKeyboardVisibleRef.current = false;
         if (!isMemoFocusedRef.current) {
+          setHideAndroidRecordFormBottomChrome(false);
           setKeyboardPaddingBottom(MEMO_KEYBOARD_GAP);
           setIsMemoSystemKeyboardOpen(false);
-          setHideAndroidRecordFormBottomChrome(false);
         }
         return;
       }
@@ -262,6 +263,9 @@ export function useRecordFormMemoKeyboard({
   }, [clearMemoScrollTimeout]);
 
   const focusMemoInput = useCallback(() => {
+    if (Platform.OS === 'android') {
+      setHideAndroidRecordFormBottomChrome(true);
+    }
     memoInputRef.current?.focus();
   }, []);
 
