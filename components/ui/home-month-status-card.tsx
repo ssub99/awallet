@@ -2,13 +2,16 @@
  * Home month view — income / expense / balance summary (isolated from calendar re-renders).
  */
 
-import { AutoShrinkSingleLineText } from '@/components/ui/auto-shrink-single-line-text';
+import {
+  AutoShrinkSingleLineText,
+  computeUnifiedSingleLineFontSize,
+} from '@/components/ui/auto-shrink-single-line-text';
 import { AtomicColors } from '@/constants/atomic-colors';
 import { Colors, Typography } from '@/constants/theme';
 import { singleRowCenteredTextStyle } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { memo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { memo, useCallback, useMemo, useState } from 'react';
+import { LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-native';
 
 const MONTH_STATUS_AMOUNT_HORIZONTAL_INSET = 4;
 const MONTH_STATUS_AMOUNT_MIN_FONT_SCALE = 0.75;
@@ -48,6 +51,28 @@ function HomeMonthStatusCardInner({
     minFontScale: MONTH_STATUS_AMOUNT_MIN_FONT_SCALE,
   } as const;
 
+  const [amountColumnWidth, setAmountColumnWidth] = useState(0);
+
+  const unifiedAmountFontSize = useMemo(
+    () =>
+      computeUnifiedSingleLineFontSize({
+        texts: [incomeText, expenseText, balanceText],
+        availableWidth: amountColumnWidth,
+        textStyle: monthStatusAmountTextStyle,
+        minFontScale: MONTH_STATUS_AMOUNT_MIN_FONT_SCALE,
+        horizontalInset: MONTH_STATUS_AMOUNT_HORIZONTAL_INSET,
+      }),
+    [incomeText, expenseText, balanceText, amountColumnWidth],
+  );
+
+  const amountFontSizeOverride =
+    amountColumnWidth > 0 ? unifiedAmountFontSize : undefined;
+
+  const onAmountColumnLayout = useCallback((event: LayoutChangeEvent) => {
+    const nextWidth = Math.floor(event.nativeEvent.layout.width);
+    setAmountColumnWidth((prev) => (prev === nextWidth ? prev : nextWidth));
+  }, []);
+
   return (
     <View style={[styles.monthStatusWrap, { backgroundColor: colors.fill }]}>
       <View style={[styles.monthStatusCard, { backgroundColor: colors.staticWhite }]}>
@@ -57,9 +82,13 @@ function HomeMonthStatusCardInner({
           accessibilityRole="button"
           accessibilityLabel="수입 기록하기"
         >
-          <View style={styles.monthStatusItem}>
+          <View style={styles.monthStatusItem} onLayout={onAmountColumnLayout}>
             <Text style={[styles.monthStatusLabel, { color: colors.textNeutral }]}>수입</Text>
-            <AutoShrinkSingleLineText {...amountShrinkProps} color={colors.text}>
+            <AutoShrinkSingleLineText
+              {...amountShrinkProps}
+              fontSizeOverride={amountFontSizeOverride}
+              color={colors.text}
+            >
               {incomeText}
             </AutoShrinkSingleLineText>
           </View>
@@ -75,7 +104,11 @@ function HomeMonthStatusCardInner({
         >
           <View style={styles.monthStatusItem}>
             <Text style={[styles.monthStatusLabel, { color: colors.textNeutral }]}>소비</Text>
-            <AutoShrinkSingleLineText {...amountShrinkProps} color={colors.text}>
+            <AutoShrinkSingleLineText
+              {...amountShrinkProps}
+              fontSizeOverride={amountFontSizeOverride}
+              color={colors.text}
+            >
               {expenseText}
             </AutoShrinkSingleLineText>
           </View>
@@ -93,6 +126,7 @@ function HomeMonthStatusCardInner({
             <Text style={[styles.monthStatusLabel, { color: colors.textNeutral }]}>잔액</Text>
             <AutoShrinkSingleLineText
               {...amountShrinkProps}
+              fontSizeOverride={amountFontSizeOverride}
               color={balanceNegative ? AtomicColors.red[500] : AtomicColors.green[600]}
             >
               {balanceText}

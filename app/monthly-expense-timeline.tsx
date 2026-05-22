@@ -1783,7 +1783,7 @@ const styles = StyleSheet.create({
     width: 94,
   },
   dateText: {
-    ...Typography.body1.l.medium,
+    ...Typography.body2.r.medium,
   },
   itemContent: {
     flex: 1,
@@ -1802,14 +1802,14 @@ const styles = StyleSheet.create({
     flex: 6,
   },
   categoryText: {
-    ...Typography.body1.l.bold,
+    ...Typography.body2.r.bold,
   },
   amountContainer: {
     flex: 4,
     alignItems: 'flex-end',
   },
   amountText: {
-    ...Typography.body1.l.bold,
+    ...Typography.body2.r.bold,
     textAlign: 'right',
   },
   memoContainer: {
