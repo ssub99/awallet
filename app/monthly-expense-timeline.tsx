@@ -10,7 +10,10 @@ import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
 import { Tag } from '@/components/ui/tag';
 import { Colors, Typography } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';
-import { persistPendingCalendarTarget } from '@/hooks/calendar-events';
+import {
+  applyPendingCalendarTargetEvent,
+  persistPendingCalendarTarget,
+} from '@/hooks/calendar-events';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 import { buildTimelineItemsFromCalendarData, type TimelineListItem } from '@/utils/timeline-from-calendar';
@@ -23,8 +26,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GlassSurface } from '@/components/ui/glass-surface';
 import { BlurRuntime } from '@/constants/blur-runtime';
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Animated,
   Dimensions,
   GestureResponderEvent,
@@ -101,6 +105,8 @@ export default function MonthlyExpenseTimelineScreen() {
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
   const categoryEmojiMap = useCategoryEmojiMap();
   const { calendarData, monthStartDay, isReady, dataVersion } = useAppData();
+  /** 월 전환 전용(화면 내부). GlobalProgressBar Modal은 홈 복귀 시 들썩임 유발 */
+  const [isMonthTransitionLoading, setIsMonthTransitionLoading] = useState(false);
   const router = useRouter();
   const navigation = useNavigation();
   const [showPaymentFilterSheet, setShowPaymentFilterSheet] = useState(false);
@@ -340,6 +346,9 @@ export default function MonthlyExpenseTimelineScreen() {
   
   const year = currentYear;
   const month = currentMonth;
+  /** 월 전환 중 합계·날짜 스트립이 새 월로 먼저 바뀌며 깜빡이지 않도록 고정 */
+  const [chromeYear, setChromeYear] = useState(year);
+  const [chromeMonth, setChromeMonth] = useState(month);
   const initialYearParam = routeYear;
   const initialMonthParam = routeMonth;
 
@@ -367,14 +376,26 @@ export default function MonthlyExpenseTimelineScreen() {
   // 날짜 선택 UI에서 선택한 날짜 — 탭 시 갱신, 최초 진입 시 params와 동기화
   const [pickedDateForWeek, setPickedDateForWeek] = useState(targetDateFromSelection);
   const prevMonthRef = useRef<{ year: number; month: number } | null>(null);
-  /** 월 변경 직후 refreshData가 포커스를 설정할 때까지 1일 보정 effect가 개입하지 않도록 */
+  /** 월 변경 직후 포커스·페이드인 전까지 1일 보정 effect가 개입하지 않도록 */
   const pendingMonthFocusRef = useRef(false);
   /** 진입/월 전환 시 false(애니메이션 없음), 날짜 탭 시 true(애니메이션) */
   const scrollAnimatedRef = useRef(false);
+  const [isContentReady, setIsContentReady] = useState(false);
+  const contentOpacity = useRef(new Animated.Value(0)).current;
+  const hasAnimatedRef = useRef(false);
+  /** 월 전환 페이드 중에는 이전 월 데이터를 유지 (합계·리스트 즉시 갱신 방지) */
+  const [visibleTimelineItems, setVisibleTimelineItems] = useState<TimelineItem[]>([]);
+  const visibleTimelineItemsRef = useRef(visibleTimelineItems);
+  visibleTimelineItemsRef.current = visibleTimelineItems;
+  /** 월 전환 중 합계·날짜 스트립용 이전 월 스냅샷 (리스트는 비움) */
+  const frozenDisplayItemsRef = useRef<TimelineItem[]>([]);
+  /** 월 전환 페이드인은 finishMonthTransition만 담당 */
+  const monthTransitionFadeInRef = useRef(false);
+  /** 합계·날짜 스트립 chrome 고정 (ref만으로는 첫 페인트에 새 월이 잠깐 노출됨) */
+  const [monthTransitionActive, setMonthTransitionActive] = useState(false);
 
-  // 월 변경 감지: 반드시 targetDateFromSelection effect보다 먼저 실행되어야 함
-  // (targetDateFromSelection이 1일로 덮어쓰는 것을 막기 위해 pendingMonthFocusRef를 선설정)
-  useEffect(() => {
+  // 월 변경 감지: paint 전에 pending·chrome 잠금 (targetDateFromSelection보다 먼저)
+  useLayoutEffect(() => {
     const prev = prevMonthRef.current;
     if (prev === null) {
       prevMonthRef.current = { year, month };
@@ -383,14 +404,26 @@ export default function MonthlyExpenseTimelineScreen() {
     if (prev.year !== year || prev.month !== month) {
       prevMonthRef.current = { year, month };
       pendingMonthFocusRef.current = true;
-      // 스와이프/월 변경 시 페이드아웃
-      Animated.timing(contentOpacity, {
-        toValue: 0,
-        duration: 150,
-        useNativeDriver: true,
-      }).start();
+      setMonthTransitionActive(true);
+      setIsMonthTransitionLoading(true);
+      monthTransitionFadeInRef.current = true;
+      // 월 변경: 마지막 기록일 선택만, 리스트 y 스크롤은 하지 않음 (날짜 탭 시에만)
+      shouldScrollTimelineToDateRef.current = false;
+      frozenDisplayItemsRef.current = visibleTimelineItemsRef.current;
+      setVisibleTimelineItems([]);
+      setIsContentReady(false);
+      // 투명 스피너 아래 이전 월 리스트가 보이지 않도록 즉시 숨김
+      contentOpacity.setValue(0);
     }
-  }, [year, month]);
+  }, [contentOpacity, year, month]);
+
+  useEffect(() => {
+    if (monthTransitionActive || pendingMonthFocusRef.current || monthTransitionFadeInRef.current) {
+      return;
+    }
+    setChromeYear(year);
+    setChromeMonth(month);
+  }, [monthTransitionActive, year, month]);
 
   // 최초 진입 시 params와 동기화. 월 변경 직후는 refreshData가 마지막 기록일로 설정하므로 건너뜀
   useEffect(() => {
@@ -400,9 +433,12 @@ export default function MonthlyExpenseTimelineScreen() {
     setPickedDateForWeek(targetDateFromSelection);
   }, [targetDateFromSelection]);
 
+  const headerYear = monthTransitionActive ? chromeYear : year;
+  const headerMonth = monthTransitionActive ? chromeMonth : month;
+
   // 해당 월(커스텀 월 시작일 기준) 시작일~마지막일 전체 날짜 배열
   const monthDates = useMemo(() => {
-    const { startDate, endDate } = getCustomMonthRange(year, month, monthStartDay);
+    const { startDate, endDate } = getCustomMonthRange(headerYear, headerMonth, monthStartDay);
     const out: string[] = [];
     const cur = new Date(startDate);
     while (cur <= endDate) {
@@ -413,7 +449,7 @@ export default function MonthlyExpenseTimelineScreen() {
       cur.setDate(cur.getDate() + 1);
     }
     return out;
-  }, [year, month, monthStartDay]);
+  }, [headerMonth, headerYear, monthStartDay]);
 
   const weekDayLabels = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -521,77 +557,169 @@ export default function MonthlyExpenseTimelineScreen() {
     };
   }, [monthDates.length, pickedDateForWeek, scrollDateStripToPicked]);
 
+  const buildHomeCalendarTarget = useCallback(
+    () => ({ year, month, targetDate: pickedDateForWeek }),
+    [month, pickedDateForWeek, year],
+  );
+
   // 홈 focus보다 먼저 blur/beforeRemove에서 pending 저장 (Android 제스처 뒤로가기 대응)
-  const persistPendingForHome = useCallback(() => {
-    const targetDate = pickedDateForWeek;
-    void persistPendingCalendarTarget({ year, month, targetDate });
-  }, [month, pickedDateForWeek, year]);
+  const syncHomeCalendarFromTimeline = useCallback(() => {
+    const target = buildHomeCalendarTarget();
+    applyPendingCalendarTargetEvent.emit(target);
+    void persistPendingCalendarTarget(target);
+  }, [buildHomeCalendarTarget]);
 
   useEffect(() => {
-    const unsubBlur = navigation.addListener('blur', persistPendingForHome);
-    const unsubBeforeRemove = navigation.addListener('beforeRemove', persistPendingForHome);
+    const unsubBlur = navigation.addListener('blur', syncHomeCalendarFromTimeline);
+    const unsubBeforeRemove = navigation.addListener('beforeRemove', syncHomeCalendarFromTimeline);
     return () => {
       unsubBlur();
       unsubBeforeRemove();
     };
-  }, [navigation, persistPendingForHome]);
-  
+  }, [navigation, syncHomeCalendarFromTimeline]);
+
+  // 월 전환 포커스 확정 후 홈에 즉시 반영 (복귀 전에 이미 맞춰 두어 들썩임·지연 방지)
+  useEffect(() => {
+    if (pendingMonthFocusRef.current) {
+      return;
+    }
+    syncHomeCalendarFromTimeline();
+  }, [month, pickedDateForWeek, syncHomeCalendarFromTimeline, year]);
+
   const timelineItems = useMemo(
     () => buildTimelineItemsFromCalendarData(calendarData, year, month, monthStartDay),
     [calendarData, dataVersion, month, monthStartDay, year],
   );
+  const timelineItemsRef = useRef(timelineItems);
+  timelineItemsRef.current = timelineItems;
 
   const paymentFilterSheetHeight = useMemo(() => windowHeight * 0.8, [windowHeight]);
   const paymentFilterSheetContentHeight = useMemo(() => paymentFilterSheetHeight - 56, [paymentFilterSheetHeight]);
 
-  const [isContentReady, setIsContentReady] = useState(false);
-  const contentOpacity = useRef(new Animated.Value(0)).current;
-  const hasAnimatedRef = useRef(false);
+  // 월 전환 중이 아닐 때만 표시 데이터 동기화
+  useEffect(() => {
+    if (
+      monthTransitionActive ||
+      pendingMonthFocusRef.current ||
+      monthTransitionFadeInRef.current ||
+      !isReady
+    ) {
+      return;
+    }
+    setVisibleTimelineItems(timelineItems);
+  }, [isReady, monthTransitionActive, timelineItems]);
 
-  // 월 변경 직후: 마지막 기록일 포커스 + 페이드인 (AsyncStorage 재로드 없음)
+  // 월 변경 직후: 로딩 → 마지막 기록일 포커스 + 표시 데이터 갱신 + 페이드인 (Apr 18 refreshData 흐름)
   useEffect(() => {
     if (!pendingMonthFocusRef.current) {
       return;
     }
 
-    const { startDate, endDate } = getCustomMonthRange(year, month, monthStartDay);
-    const datesThisMonth: string[] = [];
-    const cur = new Date(startDate);
-    while (cur <= endDate) {
-      const y = cur.getFullYear();
-      const m = String(cur.getMonth() + 1).padStart(2, '0');
-      const d = String(cur.getDate()).padStart(2, '0');
-      datesThisMonth.push(`${y}-${m}-${d}`);
-      cur.setDate(cur.getDate() + 1);
-    }
-    const datesWithRecord = [...new Set(timelineItems.map((i) => i.date))].sort();
-    const lastWithRecord = datesWithRecord.length > 0 ? datesWithRecord[datesWithRecord.length - 1]! : null;
-    const focusDate = lastWithRecord ?? datesThisMonth[0]!;
-    scrollAnimatedRef.current = false;
-    setPickedDateForWeek(focusDate);
-    pendingMonthFocusRef.current = false;
+    let cancelled = false;
 
-    requestAnimationFrame(() => {
+    const finishMonthTransition = async () => {
+      // 동기 데이터여도 스피너가 한 프레임 이상 보이도록 yield
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => resolve());
+      });
+      if (cancelled) {
+        return;
+      }
+
+      const items = timelineItemsRef.current;
+      const { startDate, endDate } = getCustomMonthRange(year, month, monthStartDay);
+      const datesThisMonth: string[] = [];
+      const cur = new Date(startDate);
+      while (cur <= endDate) {
+        const y = cur.getFullYear();
+        const m = String(cur.getMonth() + 1).padStart(2, '0');
+        const d = String(cur.getDate()).padStart(2, '0');
+        datesThisMonth.push(`${y}-${m}-${d}`);
+        cur.setDate(cur.getDate() + 1);
+      }
+      const datesWithRecord = [...new Set(items.map((i) => i.date))].sort();
+      const lastWithRecord =
+        datesWithRecord.length > 0 ? datesWithRecord[datesWithRecord.length - 1]! : null;
+      const focusDate = lastWithRecord ?? datesThisMonth[0]!;
+
+      scrollAnimatedRef.current = false;
+
+      // 1) 스피너 유지 · 리스트 숨김 상태에서 새 월 데이터만 state에 반영
+      setChromeYear(year);
+      setChromeMonth(month);
+      setVisibleTimelineItems(items);
+      shouldScrollTimelineToDateRef.current = false;
+      setPickedDateForWeek(focusDate);
+
+      // 2) React 커밋·레이아웃 후에야 표시 (이전 월이 페이드인에 섞이지 않도록)
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => resolve());
+        });
+      });
+      if (cancelled) {
+        return;
+      }
+
+      pendingMonthFocusRef.current = false;
+      setMonthTransitionActive(false);
+
+      // 월 전환 중 sync effect는 pending 때문에 스킵됨 → 확정 직후 홈 캘린더에 1회 반영
+      const homeTarget = { year, month, targetDate: focusDate };
+      applyPendingCalendarTargetEvent.emit(homeTarget);
+      void persistPendingCalendarTarget(homeTarget);
+
+      setIsMonthTransitionLoading(false);
+
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => resolve());
+      });
+      if (cancelled) {
+        return;
+      }
+
+      // 3) 로컬 스피너 종료 후 새 월 데이터만 페이드인
       setIsContentReady(true);
       hasAnimatedRef.current = true;
+      contentOpacity.setValue(0);
       Animated.timing(contentOpacity, {
         toValue: 1,
         duration: 200,
         useNativeDriver: true,
-      }).start();
-    });
-  }, [contentOpacity, month, monthStartDay, timelineItems, year]);
+      }).start(({ finished }) => {
+        if (!finished || cancelled) {
+          return;
+        }
+        monthTransitionFadeInRef.current = false;
+      });
+    };
+
+    void finishMonthTransition();
+
+    return () => {
+      cancelled = true;
+      monthTransitionFadeInRef.current = false;
+      setMonthTransitionActive(false);
+      setIsMonthTransitionLoading(false);
+    };
+  }, [contentOpacity, month, monthStartDay, year]);
 
   // 최초 진입 페이드인 — 재방문 시 전역 로딩/페이드아웃 없음
   useEffect(() => {
-    if (!isReady || pendingMonthFocusRef.current) {
+    if (
+      !isReady ||
+      monthTransitionActive ||
+      pendingMonthFocusRef.current ||
+      monthTransitionFadeInRef.current
+    ) {
       return;
     }
     if (hasAnimatedRef.current) {
-      setIsContentReady(true);
-      contentOpacity.setValue(1);
+      // 월 전환 페이드인 직후 opacity·ready 재설정 시 한 번 더 깜빡임
+      setVisibleTimelineItems(timelineItems);
       return;
     }
+    setVisibleTimelineItems(timelineItems);
     setIsContentReady(true);
     hasAnimatedRef.current = true;
     Animated.timing(contentOpacity, {
@@ -599,7 +727,7 @@ export default function MonthlyExpenseTimelineScreen() {
       duration: 200,
       useNativeDriver: true,
     }).start();
-  }, [contentOpacity, isReady]);
+  }, [contentOpacity, isReady, timelineItems]);
 
   const defaultCreditSubtypeId = useMemo(
     () => creditSubtypes[0]?.id,
@@ -610,26 +738,48 @@ export default function MonthlyExpenseTimelineScreen() {
     [debitSubtypes]
   );
 
-  const filteredTimelineData = useMemo(() => {
-    if (paymentFilterKeys.length === 0) return [];
-    const selectedKeySet = new Set(paymentFilterKeys);
+  const summaryTimelineItems = useMemo(
+    () => (monthTransitionActive ? frozenDisplayItemsRef.current : visibleTimelineItems),
+    [monthTransitionActive, visibleTimelineItems],
+  );
+  const listTimelineItems = useMemo(
+    () => (monthTransitionActive ? [] : visibleTimelineItems),
+    [monthTransitionActive, visibleTimelineItems],
+  );
 
-    return timelineItems.filter((item) => {
-      if (item.type === 'income') return selectedKeySet.has('income');
-      if (item.paymentMethod === 'cash') return selectedKeySet.has('cash');
-      const resolvedSubtypeId =
-        item.paymentSubtypeId ??
-        (item.paymentMethod === 'debit' ? defaultDebitSubtypeId : defaultCreditSubtypeId);
-      return typeof resolvedSubtypeId === 'string' ? selectedKeySet.has(resolvedSubtypeId) : false;
-    });
-  }, [defaultCreditSubtypeId, defaultDebitSubtypeId, paymentFilterKeys, timelineItems]);
+  const filterTimelineByPayment = useCallback(
+    (items: TimelineItem[]) => {
+      if (paymentFilterKeys.length === 0) return [];
+      const selectedKeySet = new Set(paymentFilterKeys);
+
+      return items.filter((item) => {
+        if (item.type === 'income') return selectedKeySet.has('income');
+        if (item.paymentMethod === 'cash') return selectedKeySet.has('cash');
+        const resolvedSubtypeId =
+          item.paymentSubtypeId ??
+          (item.paymentMethod === 'debit' ? defaultDebitSubtypeId : defaultCreditSubtypeId);
+        return typeof resolvedSubtypeId === 'string' ? selectedKeySet.has(resolvedSubtypeId) : false;
+      });
+    },
+    [defaultCreditSubtypeId, defaultDebitSubtypeId, paymentFilterKeys],
+  );
+
+  const summaryFilteredTimelineData = useMemo(
+    () => filterTimelineByPayment(summaryTimelineItems),
+    [filterTimelineByPayment, summaryTimelineItems],
+  );
+
+  const filteredTimelineData = useMemo(
+    () => filterTimelineByPayment(listTimelineItems),
+    [filterTimelineByPayment, listTimelineItems],
+  );
 
   // Calculate monthly totals
   const monthlyTotals = useMemo(() => {
     let income = 0;
     let expense = 0;
     
-    filteredTimelineData.forEach((item) => {
+    summaryFilteredTimelineData.forEach((item) => {
       if (item.type === 'income') {
         income += item.amount;
       } else {
@@ -638,7 +788,7 @@ export default function MonthlyExpenseTimelineScreen() {
     });
     
     return { income, expense };
-  }, [filteredTimelineData]);
+  }, [summaryFilteredTimelineData]);
 
   
   // Group timeline items by date
@@ -757,7 +907,9 @@ export default function MonthlyExpenseTimelineScreen() {
   const handleBackPress = useCallback(() => {
     void (async () => {
       const targetDate = pickedDateForWeek;
-      await persistPendingCalendarTarget({ year, month, targetDate });
+      const target = { year, month, targetDate };
+      applyPendingCalendarTargetEvent.emit(target);
+      await persistPendingCalendarTarget(target);
 
       if (router.canGoBack()) {
         router.back();
@@ -773,7 +925,7 @@ export default function MonthlyExpenseTimelineScreen() {
         },
       });
     })();
-  }, [month, router, pickedDateForWeek, year]);
+  }, [month, pickedDateForWeek, router, year]);
   
   return (
     <View
@@ -792,7 +944,7 @@ export default function MonthlyExpenseTimelineScreen() {
           type="sub"
           title=""
           showDay
-          dateText={`${year}년 ${String(month).padStart(2, '0')}월`}
+          dateText={`${headerYear}년 ${String(headerMonth).padStart(2, '0')}월`}
           showLeftIcon
           onLeftIconPress={handleBackPress}
           showDropdownArrow
@@ -913,12 +1065,16 @@ export default function MonthlyExpenseTimelineScreen() {
       <View style={styles.timelineBodyWrap}>
       {/* 월 소비합계 + 타임라인: 좌우 스와이프로 월 변경 */}
       <View style={styles.timelineSwipeArea} {...timelinePanResponder.panHandlers}>
-      {/* Month Summary - 고정 (애니메이션 제외) */}
+      {/* Month Summary - 고정 (애니메이션 제외, Apr 18과 동일) */}
       <View>
         <View style={[styles.summaryContainer, { backgroundColor: colors.background }]}>
           <Text style={[styles.summaryMonth, { color: colors.staticBlack }]}>
             {(() => {
-              const { startDate, endDate } = getCustomMonthRange(year, month, monthStartDay);
+              const { startDate, endDate } = getCustomMonthRange(
+                headerYear,
+                headerMonth,
+                monthStartDay,
+              );
               const startMonth = String(startDate.getMonth() + 1).padStart(2, '0');
               const startDay = String(startDate.getDate()).padStart(2, '0');
               const endMonth = String(endDate.getMonth() + 1).padStart(2, '0');
@@ -1393,6 +1549,11 @@ export default function MonthlyExpenseTimelineScreen() {
           </View>
         </ModalBottomsheet>
       ) : null}
+      {isMonthTransitionLoading ? (
+        <View style={styles.monthTransitionSpinnerOverlay} pointerEvents="none">
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -1400,6 +1561,11 @@ export default function MonthlyExpenseTimelineScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  monthTransitionSpinnerOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   timelineHeader: {
     flexShrink: 0,

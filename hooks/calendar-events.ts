@@ -1,8 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type CalendarRefreshCallback = () => void;
-type PendingCalendarTarget = { year: number; month: number; targetDate: string };
-
 const listeners = new Set<CalendarRefreshCallback>();
 
 export const calendarRefreshEvent = {
@@ -23,8 +21,18 @@ export const calendarRefreshEvent = {
   },
 };
 
+export type PendingCalendarTarget = { year: number; month: number; targetDate: string };
+
+/** true면 CalendarMain 슬롯·가로 스크롤까지 갱신 (복귀 직전). false면 컨텍스트(년월·선택일)만 */
+export type ApplyPendingCalendarTargetOptions = {
+  syncCalendarDisplay?: boolean;
+};
+
 /** 홈에 있을 때 pendingCalendarTarget 적용 요청 (간편입력 등) */
-type ApplyTargetCallback = (target?: PendingCalendarTarget) => void;
+type ApplyTargetCallback = (
+  target?: PendingCalendarTarget,
+  options?: ApplyPendingCalendarTargetOptions,
+) => void;
 const applyTargetListeners = new Set<ApplyTargetCallback>();
 let latestPendingCalendarTarget: PendingCalendarTarget | null = null;
 
@@ -63,13 +71,13 @@ export const applyPendingCalendarTargetEvent = {
       applyTargetListeners.delete(callback);
     };
   },
-  emit(target?: PendingCalendarTarget): void {
+  emit(target?: PendingCalendarTarget, options?: ApplyPendingCalendarTargetOptions): void {
     if (target) {
       latestPendingCalendarTarget = target;
     }
     applyTargetListeners.forEach((cb) => {
       try {
-        cb(target);
+        cb(target, options);
       } catch {
         // ignore subscriber errors
       }

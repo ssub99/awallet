@@ -47,7 +47,6 @@ import {
   AppStateStatus,
   Easing,
   GestureResponderEvent,
-  InteractionManager,
   PanResponder,
   PanResponderGestureState,
   Platform,
@@ -180,6 +179,8 @@ export default function HomeScreen() {
   );
 
   const handleCalendarMonthChange = useCallback((year: number, month: number) => {
+    currentYearRef.current = year;
+    currentMonthRef.current = month;
     setCurrentYear(year);
     setCurrentMonth(month);
   }, []);
@@ -417,13 +418,9 @@ export default function HomeScreen() {
     return unsub;
   }, [refresh]);
 
-  // 간편입력 등: 홈에 있을 때 해당 날짜로 포커스 적용
+  // 타임라인 blur·월 확정 emit: 포커스 없어도 즉시 반영(지연 없음). pending만 있으면 포커스 시 보조.
   useEffect(() => {
     const unsub = applyPendingCalendarTargetEvent.subscribe(async (target) => {
-      // 타임라인 복귀 등: 포커스 전에는 상태를 바꾸지 않고 focus에서 일괄 적용
-      if (!navigation.isFocused()) {
-        return;
-      }
       if (target?.year != null && target?.month != null && target?.targetDate) {
         const { year, month, targetDate } = target;
         const matches =
@@ -436,29 +433,21 @@ export default function HomeScreen() {
         void persistPendingCalendarTarget({ year, month, targetDate });
         return;
       }
+      if (!navigation.isFocused()) {
+        return;
+      }
       await applyPendingCalendarTarget();
     });
     return unsub;
   }, [applyHomeCalendarSelection, applyPendingCalendarTarget, navigation]);
 
-  // 타임라인 복귀: Android는 blur 시점에 pending이 저장되므로 focus에서 즉시 적용
+  // blur·emit으로 이미 맞춘 경우 no-op. 스토리지 정리·간편입력용 보조.
   useEffect(() => {
-    let pendingTask: { cancel: () => void } | null = null;
     const unsubscribe = navigation.addListener('focus', () => {
-      pendingTask?.cancel();
-      if (Platform.OS === 'android') {
-        void applyPendingCalendarTarget();
-        return;
-      }
-      pendingTask = InteractionManager.runAfterInteractions(() => {
-        void applyPendingCalendarTarget();
-      });
+      void applyPendingCalendarTarget();
     });
-    return () => {
-      pendingTask?.cancel();
-      unsubscribe();
-    };
-  }, [applyPendingCalendarTarget, navigation]);
+    return unsubscribe;
+  }, [navigation, applyPendingCalendarTarget]);
 
   // 월 → 년도 화면 전환 시에만 현재 월 위치로 스크롤 (년도 스와이프 시에는 유지)
   useEffect(() => {
