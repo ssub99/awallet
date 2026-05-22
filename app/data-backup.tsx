@@ -19,7 +19,7 @@ import { useRouter } from 'expo-router';
 /** 확장자 검사용 (백업 모듈은 버튼 탭 시 동적 로드하여 OTA 진입 크래시 방지) */
 const BACKUP_FILE_EXTENSION = '.awbak';
 const XLSX_FILE_EXTENSION = '.xlsx';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ModalPopup } from '@/components/ui/modal-popup';
@@ -117,6 +117,7 @@ export default function DataBackupScreen() {
   const { refresh } = useAppData();
 
   const [showResetConfirmModal, setShowResetConfirmModal] = useState(false);
+  const isRestorePickingRef = useRef(false);
 
   const openBackupShare = useCallback(
     async (
@@ -190,6 +191,10 @@ export default function DataBackupScreen() {
   }, [setLoading, refresh, showToast]);
 
   const handleRestore = useCallback(async () => {
+    if (isRestorePickingRef.current) {
+      return;
+    }
+    isRestorePickingRef.current = true;
     try {
       const DocumentPicker = await import('expo-document-picker');
       const getDocumentAsync = DocumentPicker.getDocumentAsync ?? DocumentPicker.default?.getDocumentAsync;
@@ -237,6 +242,14 @@ export default function DataBackupScreen() {
         setLoading(false);
       }
     } catch (pickError) {
+      const pickMessage = pickError instanceof Error ? pickError.message : '';
+      const isConcurrentPick =
+        pickMessage.includes('Different document picking in progress') ||
+        pickMessage.includes('Await other document picking first');
+      if (isConcurrentPick) {
+        showToast('파일 선택이 진행 중입니다. 완료 후 다시 시도해 주세요.');
+        return;
+      }
       console.error('[data-backup] 파일 선택 오류:', pickError);
       logRestoreStatus('fail');
       const isNativeModuleMissing =
@@ -248,6 +261,8 @@ export default function DataBackupScreen() {
           ? '문서 선택 기능을 사용할 수 없습니다. 개발 빌드(실기기)에서 이용해 주세요.'
           : '파일을 선택할 수 없습니다. 다시 시도해 주세요.',
       );
+    } finally {
+      isRestorePickingRef.current = false;
     }
   }, [setLoading, refresh, showToast]);
 
