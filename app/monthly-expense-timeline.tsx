@@ -11,8 +11,9 @@ import { Tag } from '@/components/ui/tag';
 import { Colors, Typography } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';
 import {
-  applyPendingCalendarTargetEvent,
-  persistPendingCalendarTarget,
+  publishCalendarTarget,
+  publishCalendarTargetAsync,
+  type PendingCalendarTarget,
 } from '@/hooks/calendar-events';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
@@ -376,6 +377,8 @@ export default function MonthlyExpenseTimelineScreen() {
   // 날짜 선택 UI에서 선택한 날짜 — 탭 시 갱신, 최초 진입 시 params와 동기화
   const [pickedDateForWeek, setPickedDateForWeek] = useState(targetDateFromSelection);
   const prevMonthRef = useRef<{ year: number; month: number } | null>(null);
+  /** 월 변경마다 증가 — 이전 finishMonthTransition이 state를 덮어쓰지 않도록 */
+  const monthTransitionGenRef = useRef(0);
   /** 월 변경 직후 포커스·페이드인 전까지 1일 보정 effect가 개입하지 않도록 */
   const pendingMonthFocusRef = useRef(false);
   /** 진입/월 전환 시 false(애니메이션 없음), 날짜 탭 시 true(애니메이션) */
@@ -393,6 +396,10 @@ export default function MonthlyExpenseTimelineScreen() {
   const monthTransitionFadeInRef = useRef(false);
   /** 합계·날짜 스트립 chrome 고정 (ref만으로는 첫 페인트에 새 월이 잠깐 노출됨) */
   const [monthTransitionActive, setMonthTransitionActive] = useState(false);
+  const dateStripScrollRef = useRef<ScrollView>(null);
+  const dateStripScrollXRef = useRef(0);
+  /** 월 전환 직후 contentSize 확정 시 스트립 스냅 (말일 레이아웃 지연 대비) */
+  const shouldSnapDateStripRef = useRef(false);
 
   // 월 변경 감지: paint 전에 pending·chrome 잠금 (targetDateFromSelection보다 먼저)
   useLayoutEffect(() => {
@@ -403,12 +410,15 @@ export default function MonthlyExpenseTimelineScreen() {
     }
     if (prev.year !== year || prev.month !== month) {
       prevMonthRef.current = { year, month };
+      monthTransitionGenRef.current += 1;
       pendingMonthFocusRef.current = true;
       setMonthTransitionActive(true);
       setIsMonthTransitionLoading(true);
       monthTransitionFadeInRef.current = true;
       // 월 변경: 마지막 기록일 선택만, 리스트 y 스크롤은 하지 않음 (날짜 탭 시에만)
       shouldScrollTimelineToDateRef.current = false;
+      // 이전 월 말일 스크롤 위치가 남으면 새 월(특히 31일)에서 scroll 생략되는 경우 방지
+      dateStripScrollXRef.current = 0;
       frozenDisplayItemsRef.current = visibleTimelineItemsRef.current;
       setVisibleTimelineItems([]);
       setIsContentReady(false);
@@ -451,9 +461,16 @@ export default function MonthlyExpenseTimelineScreen() {
     return out;
   }, [headerMonth, headerYear, monthStartDay]);
 
+  /** 31일→31일 등 length만 같을 때도 스트립 스크롤 effect가 다시 돌도록 */
+  const monthDatesScrollKey = useMemo(() => {
+    if (monthDates.length === 0) {
+      return `${headerYear}-${headerMonth}-empty`;
+    }
+    return `${headerYear}-${headerMonth}-${monthDates.length}-${monthDates[0]}-${monthDates[monthDates.length - 1]}`;
+  }, [headerMonth, headerYear, monthDates]);
+
   const weekDayLabels = ['일', '월', '화', '수', '목', '금', '토'];
 
-  const dateStripScrollRef = useRef<ScrollView>(null);
   const timelineScrollRef = useRef<ScrollView>(null);
   const DATE_CELL_WIDTH = 42;
   /** 날짜 스트립 선택 원형 (calendar-day-select와 동일한 Android 클리핑 패턴) */
@@ -461,7 +478,6 @@ export default function MonthlyExpenseTimelineScreen() {
   const WEEK_DAY_CIRCLE_RADIUS = WEEK_DAY_CIRCLE_SIZE / 2;
   /** 날짜 스트립 스크롤 애니메이션 duration (ms) - 타임라인 스크롤 완료 후 포커스 이동 시 사용 */
   const DATE_STRIP_SCROLL_DURATION_MS = 400;
-  const dateStripScrollXRef = useRef(0);
   /** 타임라인 날짜 섹션별 레이아웃 (스크롤 기반 포커스용) */
   const dateSectionLayoutsRef = useRef<Map<string, { top: number; height: number }>>(new Map());
   /** 날짜 탭/초기 진입 시 타임라인 스크롤 필요 */
@@ -519,8 +535,35 @@ export default function MonthlyExpenseTimelineScreen() {
     return true;
   }, [dateStripScrollAnimRef, monthDates, pickedDateForWeek]);
 
-  // 날짜 스트립 스크롤: Android는 전환·레이아웃 안정 후 1회 (onLayout 연쇄 스크롤로 상단 들썩임 방지)
+  const scrollDateStripToPickedReliable = useCallback(
+    (options?: { animated?: boolean }) => {
+      if (options?.animated !== undefined) {
+        scrollAnimatedRef.current = options.animated;
+      }
+      let attempt = 0;
+      const maxAttempts = Platform.OS === 'android' ? 8 : 5;
+      const tryScroll = () => {
+        if (scrollDateStripToPicked()) {
+          shouldSnapDateStripRef.current = false;
+          return;
+        }
+        attempt += 1;
+        if (attempt < maxAttempts) {
+          setTimeout(tryScroll, 50);
+        }
+      };
+      requestAnimationFrame(() => {
+        tryScroll();
+      });
+    },
+    [scrollDateStripToPicked],
+  );
+
+  // 날짜 스트립 스크롤: 레이아웃·contentSize 준비 전엔 indexOf만으로는 실패할 수 있음(말일)
   useEffect(() => {
+    if (pendingMonthFocusRef.current) {
+      return;
+    }
     let cancelled = false;
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
@@ -555,36 +598,46 @@ export default function MonthlyExpenseTimelineScreen() {
         clearTimeout(timeoutId);
       }
     };
-  }, [monthDates.length, pickedDateForWeek, scrollDateStripToPicked]);
+  }, [monthDatesScrollKey, pickedDateForWeek, scrollDateStripToPicked]);
+
+  const handleDateStripContentSizeChange = useCallback(
+    (contentWidth: number) => {
+      if (contentWidth <= 0 || !shouldSnapDateStripRef.current || pendingMonthFocusRef.current) {
+        return;
+      }
+      scrollAnimatedRef.current = false;
+      if (scrollDateStripToPicked()) {
+        shouldSnapDateStripRef.current = false;
+      }
+    },
+    [scrollDateStripToPicked],
+  );
 
   const buildHomeCalendarTarget = useCallback(
-    () => ({ year, month, targetDate: pickedDateForWeek }),
+    (): PendingCalendarTarget => ({ year, month, targetDate: pickedDateForWeek }),
     [month, pickedDateForWeek, year],
   );
 
-  // 홈 focus보다 먼저 blur/beforeRemove에서 pending 저장 (Android 제스처 뒤로가기 대응)
-  const syncHomeCalendarFromTimeline = useCallback(() => {
-    const target = buildHomeCalendarTarget();
-    applyPendingCalendarTargetEvent.emit(target);
-    void persistPendingCalendarTarget(target);
+  const pushHomeCalendarTarget = useCallback((target?: PendingCalendarTarget) => {
+    publishCalendarTarget(target ?? buildHomeCalendarTarget());
   }, [buildHomeCalendarTarget]);
 
   useEffect(() => {
-    const unsubBlur = navigation.addListener('blur', syncHomeCalendarFromTimeline);
-    const unsubBeforeRemove = navigation.addListener('beforeRemove', syncHomeCalendarFromTimeline);
+    const unsubBlur = navigation.addListener('blur', () => pushHomeCalendarTarget());
+    const unsubBeforeRemove = navigation.addListener('beforeRemove', () => pushHomeCalendarTarget());
     return () => {
       unsubBlur();
       unsubBeforeRemove();
     };
-  }, [navigation, syncHomeCalendarFromTimeline]);
+  }, [navigation, pushHomeCalendarTarget]);
 
-  // 월 전환 포커스 확정 후 홈에 즉시 반영 (복귀 전에 이미 맞춰 두어 들썩임·지연 방지)
+  // 날짜 스트립 탭 등 선택일만 바뀔 때 홈 반영. 월 변경은 finishMonthTransition에서 1회만.
   useEffect(() => {
     if (pendingMonthFocusRef.current) {
       return;
     }
-    syncHomeCalendarFromTimeline();
-  }, [month, pickedDateForWeek, syncHomeCalendarFromTimeline, year]);
+    pushHomeCalendarTarget();
+  }, [pickedDateForWeek, pushHomeCalendarTarget]);
 
   const timelineItems = useMemo(
     () => buildTimelineItemsFromCalendarData(calendarData, year, month, monthStartDay),
@@ -616,13 +669,17 @@ export default function MonthlyExpenseTimelineScreen() {
     }
 
     let cancelled = false;
+    const transitionGen = monthTransitionGenRef.current;
+
+    const isStaleTransition = () =>
+      cancelled || monthTransitionGenRef.current !== transitionGen;
 
     const finishMonthTransition = async () => {
       // 동기 데이터여도 스피너가 한 프레임 이상 보이도록 yield
       await new Promise<void>((resolve) => {
         requestAnimationFrame(() => resolve());
       });
-      if (cancelled) {
+      if (isStaleTransition()) {
         return;
       }
 
@@ -657,24 +714,24 @@ export default function MonthlyExpenseTimelineScreen() {
           requestAnimationFrame(() => resolve());
         });
       });
-      if (cancelled) {
+      if (isStaleTransition()) {
         return;
       }
 
       pendingMonthFocusRef.current = false;
       setMonthTransitionActive(false);
 
-      // 월 전환 중 sync effect는 pending 때문에 스킵됨 → 확정 직후 홈 캘린더에 1회 반영
-      const homeTarget = { year, month, targetDate: focusDate };
-      applyPendingCalendarTargetEvent.emit(homeTarget);
-      void persistPendingCalendarTarget(homeTarget);
+      pushHomeCalendarTarget({ year, month, targetDate: focusDate });
+
+      shouldSnapDateStripRef.current = true;
+      scrollDateStripToPickedReliable({ animated: false });
 
       setIsMonthTransitionLoading(false);
 
       await new Promise<void>((resolve) => {
         requestAnimationFrame(() => resolve());
       });
-      if (cancelled) {
+      if (isStaleTransition()) {
         return;
       }
 
@@ -687,7 +744,7 @@ export default function MonthlyExpenseTimelineScreen() {
         duration: 200,
         useNativeDriver: true,
       }).start(({ finished }) => {
-        if (!finished || cancelled) {
+        if (!finished || isStaleTransition()) {
           return;
         }
         monthTransitionFadeInRef.current = false;
@@ -696,13 +753,33 @@ export default function MonthlyExpenseTimelineScreen() {
 
     void finishMonthTransition();
 
-    return () => {
+    // 전환 중 이탈 시 스피너·chrome 잠금 해제
+    const unsubTransitionBlur = navigation.addListener('blur', () => {
+      if (!pendingMonthFocusRef.current) {
+        return;
+      }
       cancelled = true;
+      pendingMonthFocusRef.current = false;
       monthTransitionFadeInRef.current = false;
       setMonthTransitionActive(false);
       setIsMonthTransitionLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+      unsubTransitionBlur();
+      // loading/active는 useLayoutEffect(월 변경 시작)·finishMonthTransition(종료)만 담당.
+      // 여기서 끄면 다음 월 변경 직후 스피너가 바로 꺼짐.
     };
-  }, [contentOpacity, month, monthStartDay, year]);
+  }, [
+    contentOpacity,
+    month,
+    monthStartDay,
+    navigation,
+    pushHomeCalendarTarget,
+    scrollDateStripToPickedReliable,
+    year,
+  ]);
 
   // 최초 진입 페이드인 — 재방문 시 전역 로딩/페이드아웃 없음
   useEffect(() => {
@@ -907,9 +984,7 @@ export default function MonthlyExpenseTimelineScreen() {
   const handleBackPress = useCallback(() => {
     void (async () => {
       const targetDate = pickedDateForWeek;
-      const target = { year, month, targetDate };
-      applyPendingCalendarTargetEvent.emit(target);
-      await persistPendingCalendarTarget(target);
+      await publishCalendarTargetAsync({ year, month, targetDate });
 
       if (router.canGoBack()) {
         router.back();
@@ -977,6 +1052,7 @@ export default function MonthlyExpenseTimelineScreen() {
             onScroll={(e) => {
               dateStripScrollXRef.current = e.nativeEvent.contentOffset.x;
             }}
+            onContentSizeChange={(w) => handleDateStripContentSizeChange(w)}
             scrollEventThrottle={16}
           >
             {monthDates.map((dateStr) => {
@@ -1551,7 +1627,7 @@ export default function MonthlyExpenseTimelineScreen() {
       ) : null}
       {isMonthTransitionLoading ? (
         <View style={styles.monthTransitionSpinnerOverlay} pointerEvents="none">
-          <ActivityIndicator size="large" color={colors.primary} />
+          <ActivityIndicator size="large" />
         </View>
       ) : null}
     </View>

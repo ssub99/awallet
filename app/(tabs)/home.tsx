@@ -418,7 +418,7 @@ export default function HomeScreen() {
     return unsub;
   }, [refresh]);
 
-  // 타임라인 blur·월 확정 emit: 포커스 없어도 즉시 반영(지연 없음). pending만 있으면 포커스 시 보조.
+  // publishCalendarTarget 수신: UI 즉시 반영(persist는 발행 쪽). target 없으면 포커스 시 storage 정리.
   useEffect(() => {
     const unsub = applyPendingCalendarTargetEvent.subscribe(async (target) => {
       if (target?.year != null && target?.month != null && target?.targetDate) {
@@ -430,7 +430,6 @@ export default function HomeScreen() {
         if (!matches) {
           applyHomeCalendarSelection(year, month, targetDate);
         }
-        void persistPendingCalendarTarget({ year, month, targetDate });
         return;
       }
       if (!navigation.isFocused()) {
@@ -441,7 +440,7 @@ export default function HomeScreen() {
     return unsub;
   }, [applyHomeCalendarSelection, applyPendingCalendarTarget, navigation]);
 
-  // blur·emit으로 이미 맞춘 경우 no-op. 스토리지 정리·간편입력용 보조.
+  // emit으로 이미 맞춘 경우 no-op. pending 스토리지 consume·간편입력용.
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
       void applyPendingCalendarTarget();

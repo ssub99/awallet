@@ -15,7 +15,7 @@ import { PARSE_EXPENSE_API_URL } from '@/constants/api';
 import { getRandomQuickInputPlaceholder } from '@/constants/quick-input-placeholders';
 import { useAppData } from '@/contexts/app-data-context';
 import { useToast } from '@/contexts/toast-context';
-import { applyPendingCalendarTargetEvent, calendarRefreshEvent } from '@/hooks/calendar-events';
+import { calendarRefreshEvent, publishCalendarTarget } from '@/hooks/calendar-events';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { logEvent } from '@/utils/analytics';
 import { getApiSecurityHeaders } from '@/utils/api-security-headers';
@@ -1523,15 +1523,11 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       );
       const monthStartDay = await loadMonthStartDay();
       const { year: targetYear, month: targetMonth } = getCustomMonthInfo(savedDate, monthStartDay);
-      try {
-        await AsyncStorage.setItem(
-          'pendingCalendarTarget',
-          JSON.stringify({ year: targetYear, month: targetMonth, targetDate: actualDateKey })
-        );
-        applyPendingCalendarTargetEvent.emit({ year: targetYear, month: targetMonth, targetDate: actualDateKey });
-      } catch {
-        // ignore
-      }
+      publishCalendarTarget({
+        year: targetYear,
+        month: targetMonth,
+        targetDate: actualDateKey,
+      });
 
       pendingRecordRef.current = null;
       setConfirmCardData(null);

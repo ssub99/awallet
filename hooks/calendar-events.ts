@@ -23,16 +23,8 @@ export const calendarRefreshEvent = {
 
 export type PendingCalendarTarget = { year: number; month: number; targetDate: string };
 
-/** true면 CalendarMain 슬롯·가로 스크롤까지 갱신 (복귀 직전). false면 컨텍스트(년월·선택일)만 */
-export type ApplyPendingCalendarTargetOptions = {
-  syncCalendarDisplay?: boolean;
-};
-
-/** 홈에 있을 때 pendingCalendarTarget 적용 요청 (간편입력 등) */
-type ApplyTargetCallback = (
-  target?: PendingCalendarTarget,
-  options?: ApplyPendingCalendarTargetOptions,
-) => void;
+/** 홈에 있을 때 pendingCalendarTarget 적용 요청 (간편입력·타임라인 등) */
+type ApplyTargetCallback = (target?: PendingCalendarTarget) => void;
 const applyTargetListeners = new Set<ApplyTargetCallback>();
 let latestPendingCalendarTarget: PendingCalendarTarget | null = null;
 
@@ -71,13 +63,13 @@ export const applyPendingCalendarTargetEvent = {
       applyTargetListeners.delete(callback);
     };
   },
-  emit(target?: PendingCalendarTarget, options?: ApplyPendingCalendarTargetOptions): void {
+  emit(target?: PendingCalendarTarget): void {
     if (target) {
       latestPendingCalendarTarget = target;
     }
     applyTargetListeners.forEach((cb) => {
       try {
-        cb(target, options);
+        cb(target);
       } catch {
         // ignore subscriber errors
       }
@@ -85,4 +77,14 @@ export const applyPendingCalendarTargetEvent = {
   },
 };
 
+/** 홈 캘린더 즉시 반영 + pending 메모리·스토리지 저장 (발행 쪽에서만 호출) */
+export function publishCalendarTarget(target: PendingCalendarTarget): void {
+  applyPendingCalendarTargetEvent.emit(target);
+  void persistPendingCalendarTarget(target);
+}
 
+/** publishCalendarTarget + 스토리지 완료 대기 (뒤로가기 직전 등) */
+export async function publishCalendarTargetAsync(target: PendingCalendarTarget): Promise<void> {
+  applyPendingCalendarTargetEvent.emit(target);
+  await persistPendingCalendarTarget(target);
+}
