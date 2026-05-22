@@ -1714,7 +1714,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     handleMemoFocus: scrollMemoOnFocus,
     handleMemoBlur: clearMemoFocusState,
     focusMemoInput,
-    hideAndroidRecordFormBottomChrome,
   } = useRecordFormMemoKeyboard({
     scrollViewRef,
     memoSectionYRef,
@@ -5467,8 +5466,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           </ScrollView>
         </View>
 
-        {/* 하단 sticky 영역 - 생성 모드: 결제 유형 (Android 메모 키보드 시 숨김) */}
-        {mode === 'create' && !hideAndroidRecordFormBottomChrome && (
+        {/* 하단 sticky 영역 - 생성 모드: 결제 유형 */}
+        {mode === 'create' && (
           <View style={[
             styles.paymentTypeStickyContainer,
             {
@@ -5499,8 +5498,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           </View>
         )}
 
-        {/* 하단 스티키 버튼 (Android 메모 키보드 시 숨김) */}
-        {!hideAndroidRecordFormBottomChrome && (
         <View style={[
           styles.bottomButtonContainer, 
           { 
@@ -5513,7 +5510,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             {mode === 'edit' ? '저장' : '확인'}
           </Button>
         </View>
-        )}
 
         {isKeypadMounted && (
           <CustomKeypadOverlay>

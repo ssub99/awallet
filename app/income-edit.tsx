@@ -220,7 +220,6 @@ export default function IncomeEditScreen() {
     handleMemoFocus: scrollMemoOnFocus,
     handleMemoBlur,
     focusMemoInput,
-    hideAndroidRecordFormBottomChrome,
   } = useRecordFormMemoKeyboard({
     scrollViewRef,
     memoSectionYRef,
@@ -956,8 +955,6 @@ export default function IncomeEditScreen() {
         </CustomKeypadOverlay>
       )}
 
-      {/* 하단 고정 버튼 (Android 메모 키보드 시 숨김) */}
-      {!hideAndroidRecordFormBottomChrome && (
       <View style={[
         styles.bottomButtonContainer, 
         { 
@@ -975,7 +972,6 @@ export default function IncomeEditScreen() {
           저장
         </Button>
       </View>
-      )}
       </View>
 
       {/* 날짜 선택 바텀시트 */}
