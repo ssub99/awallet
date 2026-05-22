@@ -14,7 +14,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.ssong.awallet",
       "appStoreUrl": "https://apps.apple.com/kr/app/id6755246069",
-      "buildNumber": "43",
+      "buildNumber": "44",
       "userInterfaceStyle": "light",
       "googleServicesFile": "./ios/awallet/GoogleService-Info.plist",
       "infoPlist": {
@@ -23,7 +23,7 @@
         "NSUserNotificationsUsageDescription": "소비 기록 알림과 챌린지 리마인더를 받기 위해 알림 권한이 필요합니다.",
         "ITSAppUsesNonExemptEncryption": false,
         "CFBundleShortVersionString": "1.1.2",
-        "CFBundleVersion": "43"
+        "CFBundleVersion": "44"
       },
       "runtimeVersion": "1.1.2"
     },
@@ -40,7 +40,7 @@
       "predictiveBackGestureEnabled": false,
       "package": "com.ssong.awallet",
       "playStoreUrl": "https://play.google.com/store/apps/details?id=com.ssong.awallet",
-      "versionCode": 43,
+      "versionCode": 44,
       "permissions": [
         "android.permission.POST_NOTIFICATIONS"
       ],
