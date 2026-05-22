@@ -1234,7 +1234,8 @@ export default function MonthlyExpenseTimelineScreen() {
                 {items.map((item, itemIndex) => {
                   const isFirstInGroup = itemIndex === 0;
                   const isLastInGroup = itemIndex === items.length - 1;
-                  
+                  const showItemDivider = !isLastInGroup || !isLastGroup;
+
                   return (
                     <View key={`${date}-${itemIndex}`}>
                       <Pressable 
@@ -1486,18 +1487,19 @@ export default function MonthlyExpenseTimelineScreen() {
                         </View>
                       </Pressable>
                       
-                      {/* Item Divider - 자식 리스트 하단 */}
-                      {!isLastInGroup && (
-                        <View style={[styles.itemDivider, { backgroundColor: colors.border }]} />
-                      )}
+                      {showItemDivider ? (
+                        <View
+                          style={[
+                            isFirstInGroup || isLastInGroup
+                              ? styles.itemDividerInset
+                              : styles.itemDividerContent,
+                            { backgroundColor: colors.border },
+                          ]}
+                        />
+                      ) : null}
                     </View>
                   );
                 })}
-                
-                {/* Date Group Divider */}
-                {!isLastGroup && (
-                  <View style={[styles.dateGroupDivider, { backgroundColor: colors.border }]} />
-                )}
               </View>
             );
           })
@@ -1821,18 +1823,16 @@ const styles = StyleSheet.create({
     ...Typography.body2.r.regular,
     flex: 1,
   },
-  itemDivider: {
+  /** 첫 번째 패턴 — Figma Frame 12: 전체 너비, 좌우 16 */
+  itemDividerInset: {
     height: 1,
-    marginLeft: 118, // 16 + 94 + 8 = padding + date column + gap
-    marginTop: 0,    // 상단 여백 0
-    marginBottom: 0, // 하단 여백 0
+    marginHorizontal: 16,
   },
-  dateGroupDivider: {
+  /** 중간 패턴 — Figma Frame 21: 소비내역(콘텐츠) 영역만 */
+  itemDividerContent: {
     height: 1,
-    width: '100%',        // 가로값 100%
-    marginTop: 0,         // 상단 여백 제거
-    marginBottom: 0,      // 하단 여백 제거
-    marginHorizontal: 16, // 양옆 여백 유지
+    marginLeft: 118, // padding 16 + date 94 + gap 8
+    marginRight: 16,
   },
   // Category expense styles
   filterContainer: {

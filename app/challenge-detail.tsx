@@ -321,14 +321,16 @@ export default function ChallengeDetailScreen() {
               return (
                 <View key={date} style={styles.dateGroup}>
                   {items.map((item, itemIndex) => {
+                    const isFirstInGroup = itemIndex === 0;
                     const isLastInGroup = itemIndex === items.length - 1;
+                    const showItemDivider = !isLastInGroup || !isLastGroup;
 
                     return (
                       <View key={`${item.date}-${item.timestamp}-${itemIndex}`}>
                         <View style={styles.timelineItem}>
                           {/* Date */}
                           <View style={styles.dateColumn}>
-                            {itemIndex === 0 && (
+                            {isFirstInGroup && (
                               <Text style={[styles.dateText, { color: colors.textAssistive }]}>{formatDate(date)}</Text>
                             )}
                           </View>
@@ -369,12 +371,19 @@ export default function ChallengeDetailScreen() {
                           </View>
                         </View>
 
-                        {!isLastInGroup && <View style={[styles.itemDivider, { backgroundColor: colors.border }]} />}
+                        {showItemDivider ? (
+                          <View
+                            style={[
+                              isFirstInGroup || isLastInGroup
+                                ? styles.itemDividerInset
+                                : styles.itemDividerContent,
+                              { backgroundColor: colors.border },
+                            ]}
+                          />
+                        ) : null}
                       </View>
                     );
                   })}
-
-                  {!isLastGroup && <View style={[styles.dateGroupDivider, { backgroundColor: colors.border }]} />}
                 </View>
               );
             })}
@@ -500,14 +509,14 @@ const styles = StyleSheet.create({
     ...Typography.body2.r.regular,
     flex: 1,
   },
-  itemDivider: {
+  itemDividerInset: {
     height: 1,
-    marginLeft: 118, // 16 + 94 + 8 = padding + date column + gap
-  },
-  dateGroupDivider: {
-    height: 1,
-    width: '100%',
     marginHorizontal: 16,
+  },
+  itemDividerContent: {
+    height: 1,
+    marginLeft: 118, // padding 16 + date 94 + gap 8
+    marginRight: 16,
   },
 });
 

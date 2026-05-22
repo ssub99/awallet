@@ -5098,7 +5098,12 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                   <View style={styles.expenseInfoContent}>
                     <View style={styles.expenseInfoLeft}>
                       <View style={styles.expenseInfoTop}>
-                        <Text style={[styles.expenseCategory, { color: colors.text }]}>
+                        <Text
+                          style={[styles.expenseCategory, { color: colors.text }]}
+                          adjustsFontSizeToFit
+                          numberOfLines={1}
+                          minimumFontScale={0.7}
+                        >
                           {categoryDisplay || '카테고리'}
                         </Text>
                       </View>
@@ -7293,9 +7298,11 @@ const styles = StyleSheet.create({
   },
   expenseInfoLeft: {
     flex: 0.55,
+    minWidth: 0,
   },
   expenseInfoRight: {
     flex: 0.45,
+    minWidth: 0,
     alignItems: 'flex-end',
   },
   expenseInfoTop: {
