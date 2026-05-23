@@ -80,3 +80,51 @@ export function resolveBottomFromKeyboardScreenY(
   }
   return resolveBottomFromScreenY(screenY, windowHeight, screenHeight);
 }
+
+/** 첫 IME 등에서 peak 대비 height가 급락하면 스파이크로 간주 (한 프레임 역방향) */
+const IOS_KEYBOARD_SPIKE_HEIGHT_RATIO = 0.55;
+const IOS_KEYBOARD_OPEN_EPSILON_PX = 0.5;
+
+/**
+ * iOS 간편입력 bottom (키보드 handler worklet).
+ *
+ * 1) `target = max(keyboardHeight + gap, 롱 앵커)` — 앵커 아래로 끊기지 않음.
+ * 2) peak 대비 급락(스파이크) → `max(current, target)` — 첫 IME 역방향 프레임 무시.
+ * 3) 그 외 열림 → `max(target, current)` 단조 상승.
+ * 4) 닫힘·인터랙티브 하강 → `target` (height가 줄어들면 bottom도 따라감).
+ * 키보드 완전 닫힘(height→0)은 handler에서 앵커 리셋 + hideQuickInput.
+ */
+export function resolveIosQuickInputBottomAboveAnchor(
+  keyboardHeight: number,
+  anchorBottom: number,
+  currentBottom: number,
+  previousKeyboardHeight: number,
+  peakKeyboardHeight: number,
+  gap: number = QUICK_INPUT_KEYBOARD_GAP,
+): { bottom: number; nextPeakKeyboardHeight: number; nextPreviousHeight: number } {
+  'worklet';
+  const anchor = Number.isFinite(anchorBottom) ? anchorBottom : gap;
+  const current = Number.isFinite(currentBottom) ? currentBottom : anchor;
+  const height = Number.isFinite(keyboardHeight) && keyboardHeight > 0 ? keyboardHeight : 0;
+
+  if (height <= 0) {
+    return { bottom: anchor, nextPeakKeyboardHeight: 0, nextPreviousHeight: 0 };
+  }
+
+  const target = Math.max(height + gap, anchor);
+  const nextPeak = Math.max(peakKeyboardHeight, height);
+  const isLikelyOpenSpike =
+    peakKeyboardHeight > 0 && height < peakKeyboardHeight * IOS_KEYBOARD_SPIKE_HEIGHT_RATIO;
+  const decreasing = height < previousKeyboardHeight - IOS_KEYBOARD_OPEN_EPSILON_PX;
+
+  let bottom: number;
+  if (isLikelyOpenSpike) {
+    bottom = Math.max(current, target);
+  } else if (decreasing) {
+    bottom = target;
+  } else {
+    bottom = Math.max(target, current);
+  }
+
+  return { bottom, nextPeakKeyboardHeight: nextPeak, nextPreviousHeight: height };
+}

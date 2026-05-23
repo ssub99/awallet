@@ -5096,8 +5096,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 
                 <View style={[styles.expenseInfoCard, { backgroundColor: colors.staticWhite }]}>
                   <View style={styles.expenseInfoContent}>
-                    <View style={styles.expenseInfoLeft}>
-                      <View style={styles.expenseInfoTop}>
+                    <View style={styles.expenseInfoRow}>
+                      <View style={styles.expenseInfoCell}>
                         <Text
                           style={[styles.expenseCategory, { color: colors.text }]}
                           adjustsFontSizeToFit
@@ -5107,28 +5107,33 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                           {categoryDisplay || '카테고리'}
                         </Text>
                       </View>
-                      <View style={styles.expenseInfoBottom}>
-                    <Text style={[styles.expenseDate, { color: colors.textAssistive }]}>
-                      {editData?.isPrepaid && editData?.originalDate 
-                        ? editData.originalDate 
-                        : (displayDate || '날짜')}
-                    </Text>
-                      </View>
-                    </View>
-
-                    <View style={styles.expenseInfoRight}>
-                      <View style={styles.expenseInfoTop}>
-                        <Text 
+                      <View style={[styles.expenseInfoCell, styles.expenseInfoCellEnd]}>
+                        <Text
                           style={[styles.expenseAmount, { color: colors.text }]}
-                          adjustsFontSizeToFit={true}
+                          adjustsFontSizeToFit
                           numberOfLines={1}
                           minimumFontScale={0.5}
                         >
-                          {amount && !isNaN(Number(amount.replace(/,/g, ''))) ? `${Number(amount.replace(/,/g, '')).toLocaleString()}원` : '0원'}
+                          {amount && !isNaN(Number(amount.replace(/,/g, '')))
+                            ? `${Number(amount.replace(/,/g, '')).toLocaleString()}원`
+                            : '0원'}
                         </Text>
                       </View>
-                      <View style={styles.expenseInfoBottom}>
-                        <Text style={[styles.expenseMemo, { color: colors.textAssistive }]}>
+                    </View>
+                    <View style={styles.expenseInfoRow}>
+                      <View style={styles.expenseInfoCellDate}>
+                        <Text style={[styles.expenseDate, { color: colors.textAssistive }]}>
+                          {editData?.isPrepaid && editData?.originalDate
+                            ? editData.originalDate
+                            : displayDate || '날짜'}
+                        </Text>
+                      </View>
+                      <View style={[styles.expenseInfoCellMemo, styles.expenseInfoCellEnd]}>
+                        <Text
+                          style={[styles.expenseMemo, { color: colors.textAssistive }]}
+                          numberOfLines={1}
+                          ellipsizeMode="tail"
+                        >
                           {memo || '메모 없음'}
                         </Text>
                       </View>
@@ -5149,21 +5154,23 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                                 : formatPrepaidDate(editData.date || '')
                               }
                             </Text>
-                            <Pressable 
-                              style={styles.prepaymentRefundButton}
-                              onPress={() => {
-                                void logEvent('btn', {
-                                  screen_name: analyticsScreenName,
-                                  target: 'prepayment-restoration',
-                                });
-                                // 선결제 처리 복구 모달 열기
-                                setShowPrepaymentRestore(true);
-                              }}
-                            >
-                              <Text style={[styles.prepaymentRefundText, { color: colors.textAssistive }]}>
-                                선결제 처리 복구
-                              </Text>
-                            </Pressable>
+                            <View style={styles.prepaymentRefundActions}>
+                              <Pressable
+                                style={styles.prepaymentRefundButton}
+                                onPress={() => {
+                                  void logEvent('btn', {
+                                    screen_name: analyticsScreenName,
+                                    target: 'prepayment-restoration',
+                                  });
+                                  // 선결제 처리 복구 모달 열기
+                                  setShowPrepaymentRestore(true);
+                                }}
+                              >
+                                <Text style={[styles.prepaymentRefundText, { color: colors.textAssistive }]}>
+                                  선결제 처리 복구
+                                </Text>
+                              </Pressable>
+                            </View>
                           </>
                         ) : editData?.isRefunded ? (
                           // 환불 처리된 경우: 환불 처리날짜와 복구 버튼 표시
@@ -5174,22 +5181,24 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                                 : formatRefundDate(new Date().toISOString())
                               }
                             </Text>
-                            <Pressable 
-                              style={styles.prepaymentRefundButton}
-                              onPress={() => {
-                                void logEvent('btn', {
-                                  screen_name: analyticsScreenName,
-                                  target: 'refund-restoration',
-                                });
-                                // 환불 처리 복구 모달 열기
-                                setRefundRestoreOption('all');
-                                setShowRefundRestore(true);
-                              }}
-                            >
-                              <Text style={[styles.prepaymentRefundText, { color: colors.textAssistive }]}>
-                                환불 처리 복구
-                              </Text>
-                            </Pressable>
+                            <View style={styles.prepaymentRefundActions}>
+                              <Pressable
+                                style={styles.prepaymentRefundButton}
+                                onPress={() => {
+                                  void logEvent('btn', {
+                                    screen_name: analyticsScreenName,
+                                    target: 'refund-restoration',
+                                  });
+                                  // 환불 처리 복구 모달 열기
+                                  setRefundRestoreOption('all');
+                                  setShowRefundRestore(true);
+                                }}
+                              >
+                                <Text style={[styles.prepaymentRefundText, { color: colors.textAssistive }]}>
+                                  환불 처리 복구
+                                </Text>
+                              </Pressable>
+                            </View>
                           </>
                         ) : editData?.isSettled ? (
                           // 결산 처리된 경우: 결산 처리날짜와 복구 버튼 표시
@@ -5200,20 +5209,22 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                                 : formatSettlementDate(new Date().toISOString())
                               }
                             </Text>
-                            <Pressable
-                              style={styles.prepaymentRefundButton}
-                              onPress={() => {
-                                void logEvent('btn', {
-                                  screen_name: analyticsScreenName,
-                                  target: 'settlement-restoration',
-                                });
-                                setShowSettlementRestore(true);
-                              }}
-                            >
-                              <Text style={[styles.prepaymentRefundText, { color: colors.textAssistive }]}>
-                                결산 처리 복구
-                              </Text>
-                            </Pressable>
+                            <View style={styles.prepaymentRefundActions}>
+                              <Pressable
+                                style={styles.prepaymentRefundButton}
+                                onPress={() => {
+                                  void logEvent('btn', {
+                                    screen_name: analyticsScreenName,
+                                    target: 'settlement-restoration',
+                                  });
+                                  setShowSettlementRestore(true);
+                                }}
+                              >
+                                <Text style={[styles.prepaymentRefundText, { color: colors.textAssistive }]}>
+                                  결산 처리 복구
+                                </Text>
+                              </Pressable>
+                            </View>
                           </>
                         ) : (
                           // 일반 할부 기록인 경우: 정산 처리 버튼 표시 (선결제/환불/결산 드롭다운)
@@ -7291,25 +7302,27 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   expenseInfoContent: {
+    /** Figma Frame 270: 카테고리·금액(32) ↔ 날짜·메모(21) 간격 4 */
+    gap: 4,
+  },
+  expenseInfoRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 16,
+    alignItems: 'flex-start',
+    width: '100%',
   },
-  expenseInfoLeft: {
-    flex: 0.55,
+  expenseInfoCell: {
+    flex: 1,
     minWidth: 0,
   },
-  expenseInfoRight: {
-    flex: 0.45,
+  expenseInfoCellDate: {
+    flexShrink: 0,
+  },
+  expenseInfoCellMemo: {
+    flex: 1,
     minWidth: 0,
+  },
+  expenseInfoCellEnd: {
     alignItems: 'flex-end',
-  },
-  expenseInfoTop: {
-    marginBottom: 8,
-  },
-  expenseInfoBottom: {
-    // No additional styles needed
   },
   expenseInfoDivider: {
     height: 1,
@@ -7320,16 +7333,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 12,
   },
   prepaymentRefundLabel: {
     ...Typography.body1.l.regular,
+    flexShrink: 1,
   },
   prepaymentRefundActions: {
     flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 0,
+    gap: 12,
   },
   prepaymentRefundButton: {
     paddingVertical: 0,
-    marginLeft: 12,
   },
   prepaymentRefundText: {
     ...Typography.body1.l.regular,

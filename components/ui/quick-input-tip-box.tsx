@@ -1,7 +1,7 @@
 /**
  * Quick Input Tip Box
  *
- * - TIP 태그 고정
+ * - TIP 태그 너비: 콘텐츠·폰트 스케일에 맞춰 onLayout 측정
  * - 한 번에 한 문장, 우→좌 자동 흐름(마키 1회) + 사용자 좌우 드래그
  * - 첫 문장: 랜덤 시작, 이후 교체는 배열 순서(예: 2번 → 3 → 4 → 1)
  * - 문장 교체: 다음(아래→위), 이전(위→아래) 전환
@@ -29,6 +29,7 @@ import {
   Animated,
   Easing,
   PanResponder,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -60,13 +61,8 @@ const BUTTON_AREA_LEFT_PADDING = HORIZONTAL_PADDING;
  */
 const BUTTON_RESERVE_WIDTH =
   BUTTON_AREA_LEFT_PADDING + COLLAPSE_BUTTON_SIZE + HORIZONTAL_PADDING;
-/** Figma 접힘 — TIP 31 + 버튼영역(12+24+12) + 좌우 패딩 12 */
-const BADGE_WIDTH_ESTIMATE = 31;
-const COLLAPSED_BOX_WIDTH =
-  HORIZONTAL_PADDING * 2 +
-  BADGE_WIDTH_ESTIMATE +
-  BUTTON_AREA_LEFT_PADDING +
-  COLLAPSE_BUTTON_SIZE;
+/** 접힘 박스 너비 계산 전 초기값 (측정 전 깜빡임 완화) */
+const BADGE_WIDTH_FALLBACK = 31;
 const EXPAND_COLLAPSE_MS = 280;
 /**
  * ease-in — 천천히 시작 → 끝에서 급가속 (펼침·접힘 공통)
@@ -428,6 +424,8 @@ export function QuickInputTipBox() {
   const autoResumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tipWidthCacheRef = useRef<Partial<Record<string, number>>>({});
   const [containerWidth, setContainerWidth] = useState(0);
+  const [badgeWidth, setBadgeWidth] = useState(BADGE_WIDTH_FALLBACK);
+  const badgeWidthRef = useRef(BADGE_WIDTH_FALLBACK);
 
   const currentTip = QUICK_INPUT_TIPS[tipIndex] ?? QUICK_INPUT_TIPS[0];
   const cachedTipWidth = tipWidthCacheRef.current[currentTip] ?? 0;
@@ -458,6 +456,20 @@ export function QuickInputTipBox() {
     tipWidthCacheRef.current[tip] = width;
     setContentWidth(width);
     setMeasuredForTip(tip);
+  }, []);
+
+  /** 배지 View onLayout 대신 글리프 너비 + 좌우 패딩으로 계산 (Android 말줄임·줄바꿈 방지) */
+  const handleBadgeTextMeasured = useCallback((textWidth: number) => {
+    if (textWidth <= 0) return;
+    const width = Math.max(
+      BADGE_WIDTH_FALLBACK,
+      Math.ceil(textWidth) +
+        BADGE_PADDING_H * 2 +
+        (Platform.OS === 'android' ? 2 : 0),
+    );
+    if (Math.abs(width - badgeWidthRef.current) < 0.5) return;
+    badgeWidthRef.current = width;
+    setBadgeWidth(width);
   }, []);
 
   const clearAutoResumeTimer = useCallback(() => {
@@ -646,16 +658,21 @@ export function QuickInputTipBox() {
     hasContainerLayout &&
     (isTransitioning || hasMeasuredCurrentTip || measuredForTip !== currentTip);
 
-  const expandedBoxWidth = Math.max(COLLAPSED_BOX_WIDTH, containerWidth);
+  const collapsedBoxWidth =
+    HORIZONTAL_PADDING * 2 +
+    badgeWidth +
+    BUTTON_AREA_LEFT_PADDING +
+    COLLAPSE_BUTTON_SIZE;
+  const expandedBoxWidth = Math.max(collapsedBoxWidth, containerWidth);
   const contentLayerWidth = Math.max(0, expandedBoxWidth - BUTTON_RESERVE_WIDTH);
   const expandedMessageMaxWidth = Math.max(
     0,
-    contentLayerWidth - HORIZONTAL_PADDING - BADGE_WIDTH_ESTIMATE - BADGE_GAP
+    contentLayerWidth - HORIZONTAL_PADDING - badgeWidth - BADGE_GAP
   );
 
   const boxWidth = expandAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [COLLAPSED_BOX_WIDTH, expandedBoxWidth],
+    outputRange: [collapsedBoxWidth, expandedBoxWidth],
   });
   const arrowLeftOpacity = expandAnim;
   const arrowRightOpacity = expandAnim.interpolate({
@@ -679,8 +696,20 @@ export function QuickInputTipBox() {
         }
       }}
     >
-      {/* overflow:hidden 밖에서 측정 — flex 제약으로 Text가 잘리는 구조 문제 방지 */}
+      {/* overflow:hidden 밖에서 측정 — flex 제약으로 Text/배지가 줄바꿈되는 문제 방지 */}
       <View style={styles.measureHost} pointerEvents="none">
+        <Text
+          style={[styles.badgeText, styles.measureBadgeText, { color: colors.staticWhite }]}
+          onTextLayout={(event) => {
+            const textWidth = event.nativeEvent.lines.reduce(
+              (max, line) => Math.max(max, line.width),
+              0,
+            );
+            handleBadgeTextMeasured(textWidth);
+          }}
+        >
+          TIP
+        </Text>
         <Text
           key={currentTip}
           style={[styles.message, { color: colors.text }]}
@@ -710,7 +739,12 @@ export function QuickInputTipBox() {
             pointerEvents="box-none"
           >
             <View style={styles.contentRow} pointerEvents="box-none">
-              <View style={[styles.badge, { backgroundColor: colors.primary }]}>
+              <View
+                style={[
+                  styles.badge,
+                  { backgroundColor: colors.primary, width: badgeWidth },
+                ]}
+              >
                 <Text style={[styles.badgeText, { color: colors.staticWhite }]}>TIP</Text>
               </View>
 
@@ -829,6 +863,11 @@ const styles = StyleSheet.create({
     height: BOX_HEIGHT,
     opacity: 0,
     zIndex: -1,
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+  },
+  measureBadgeText: {
+    alignSelf: 'flex-start',
   },
   box: {
     height: BOX_HEIGHT,
@@ -865,6 +904,8 @@ const styles = StyleSheet.create({
   },
   badge: {
     flexShrink: 0,
+    flexGrow: 0,
+    alignSelf: 'center',
     borderRadius: BADGE_RADIUS,
     paddingHorizontal: BADGE_PADDING_H,
     paddingVertical: BADGE_PADDING_V,
@@ -873,6 +914,9 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     ...Typography.detail.r.bold,
+    flexShrink: 0,
+    textAlign: 'center',
+    ...(Platform.OS === 'android' ? { includeFontPadding: false } : null),
   },
   messageGestureHost: {
     height: BOX_HEIGHT,

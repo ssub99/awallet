@@ -6,6 +6,7 @@
  */
 
 import { TopNavigation } from '@/components/navigation/top-navigation';
+import { Icon } from '@/components/ui/icon';
 import { Tag } from '@/components/ui/tag';
 import { Colors, Typography } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';
@@ -299,18 +300,25 @@ export default function ChallengeDetailScreen() {
       {/* Expense List */}
       <ScrollView
         style={[styles.listScrollContainer, { backgroundColor: colors.staticWhite }]}
-        contentContainerStyle={styles.listScrollContent}
+        contentContainerStyle={[
+          styles.listScrollContent,
+          (!challenge || timelineData.length === 0) && styles.listScrollContentEmpty,
+        ]}
         bounces={false}
         overScrollMode="never"
         showsVerticalScrollIndicator={false}
       >
         {!challenge ? (
           <View style={styles.emptyContainer}>
+            <Icon name="info" variant="line" size={24} color={colors.textAssistive} />
             <Text style={[styles.emptyText, { color: colors.textAssistive }]}>챌린지를 찾을 수 없습니다.</Text>
           </View>
         ) : timelineData.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Text style={[styles.emptyText, { color: colors.textAssistive }]}>해당 챌린지의 소비 내역이 없습니다.</Text>
+            <Icon name="info" variant="line" size={24} color={colors.textAssistive} />
+            <Text style={[styles.emptyText, { color: colors.textAssistive }]}>
+              해당 챌린지의 소비 내역이 없습니다.
+            </Text>
           </View>
         ) : (
           <>
@@ -450,6 +458,9 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingBottom: 32,
   },
+  listScrollContentEmpty: {
+    flexGrow: 1,
+  },
   emptyContainer: {
     flex: 1,
     alignItems: 'center',
@@ -457,6 +468,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     ...Typography.body1.l.regular,
+    marginTop: 12,
   },
   dateGroup: {
     gap: 0,
