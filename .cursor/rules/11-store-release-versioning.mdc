@@ -22,7 +22,7 @@ description: Version bumps, EAS build, store submission, EAS Update (OTA). Produ
 
 Keep in sync: `expo.version`, `expo.ios.buildNumber`, `expo.ios.infoPlist` (`CFBundleShortVersionString`, `CFBundleVersion`), `expo.android.versionCode`, and all three **`runtimeVersion`** fields (`ios`, `android`, `updates`). Optional: `package.json` `version` + lockfile.
 
-**Android:** If `android/` is not committed, `app.json` is the source for EAS prebuild; if `android/` is added later, check Gradle too.
+**Android:** `.gitignore`는 iOS와 같이 `/android/*` + 화이트리스트(Gradle, `app/src` Kotlin·Manifest, 위젯 `res/xml` 등). Firebase **원본**은 `android-firebase/google-services.json` (`app.json` `googleServicesFile`). `android/app/google-services.json`은 prebuild 복사본. `prebuild --clean` 후에도 Gradle·위젯 소스는 Git에서 복구; json 원본은 `android-firebase/`만 수정.
 
 ## iOS native (`project.pbxproj`)
 

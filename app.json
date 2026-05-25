@@ -39,6 +39,7 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.ssong.awallet",
+      "googleServicesFile": "./android-firebase/google-services.json",
       "playStoreUrl": "https://play.google.com/store/apps/details?id=com.ssong.awallet",
       "versionCode": 45,
       "permissions": [

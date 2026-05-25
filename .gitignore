@@ -75,12 +75,56 @@ app-example
 !/ios/awalletStageWidget/**
 /ios/awallet.xcodeproj/*
 !/ios/awallet.xcodeproj/project.pbxproj
-/android
+
+# Android native (Expo prebuild + custom native/widget). iOS `/ios/*` + `!` 화이트리스트와 대칭.
+# `prebuild --clean`은 android/를 삭제 후 재생성하므로, Firebase 원본은 android/ 밖 `android-firebase/`에 둠 (iOS `ios/awallet/GoogleService-Info.plist`와 동일 역할).
+/android/*
+!/android/.gitignore
+!/android/build.gradle
+!/android/settings.gradle
+!/android/gradle.properties
+!/android/gradlew
+!/android/gradlew.bat
+!/android/gradle/
+/android/gradle/*
+!/android/gradle/wrapper/
+/android/gradle/wrapper/*
+!/android/gradle/wrapper/gradle-wrapper.properties
+!/android/gradle/wrapper/gradle-wrapper.jar
+!/android/app/
+/android/app/*
+!/android/app/build.gradle
+!/android/app/proguard-rules.pro
+!/android/app/debug.keystore
+!/android/app/src/
+/android/app/src/*
+!/android/app/src/main/
+/android/app/src/main/*
+!/android/app/src/main/AndroidManifest.xml
+!/android/app/src/main/java/
+!/android/app/src/main/java/**
+!/android/app/src/debug/
+/android/app/src/debug/*
+!/android/app/src/debug/AndroidManifest.xml
+!/android/app/src/debugOptimized/
+/android/app/src/debugOptimized/*
+!/android/app/src/debugOptimized/AndroidManifest.xml
+# 위젯·네이티브 리소스 (추가 시 커밋). 아이콘·폰트 등 prebuild 산출 res는 제외.
+!/android/app/src/main/res/xml/
+!/android/app/src/main/res/xml/**
+# 앱 위젯 확장 모듈 추가 시 (iOS awalletWidget / awalletStageWidget 대칭)
+# !/android/awalletWidget/
+# !/android/awalletWidget/**
+# !/android/awalletStageWidget/
+# !/android/awalletStageWidget/**
+
 cursor-talk-to-figma-mcp/
 
 # Google Services (contains API keys)
-# Note: ios/awallet/GoogleService-Info.plist is tracked for EAS Build
+# iOS: ios/awallet/GoogleService-Info.plist (tracked). Android: android-firebase/ 원본 + prebuild가 android/app/으로 복사.
 GoogleService-Info.plist
 ios/GoogleService-Info.plist
 !ios/awallet/GoogleService-Info.plist
+google-services.json
 android/app/google-services.json
+!android-firebase/google-services.json
