@@ -4,30 +4,21 @@ import { Icon } from '@/components/ui/icon';
 import { Tag } from '@/components/ui/tag';
 import { ThemeColors } from '@/constants/theme-colors';
 import { Typography } from '@/constants/typography';
-import { logPaymentTypeSettingLayout } from '@/utils/payment-type-setting-layout-debug';
 import {
     arePaymentSubtypesSame,
     DEFAULT_PAYMENT_SUBTYPES,
     getPaymentSubtypesMemoryCache,
-    initializePaymentSubtypes,
+    loadPaymentSubtypes,
     savePaymentSubtypes,
     type PaymentSubtype,
 } from '@/utils/payment-types';
 import * as Haptics from 'expo-haptics';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-    LayoutChangeEvent,
-    Platform,
-    Pressable,
-    StatusBar,
-    StyleSheet,
-    Text,
-    View,
-} from 'react-native';
+import { Platform, Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
 import DraggableFlatList, { RenderItemParams, ScaleDecorator } from 'react-native-draggable-flatlist';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 type PaymentMethodType = 'credit' | 'debit';
 
@@ -53,13 +44,19 @@ function toSettingItem(item: PaymentSubtype, isDefault: boolean): PaymentTypeIte
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { flex: 1, padding: 16 },
-  card: { flex: 1, borderRadius: 16, overflow: 'hidden' },
+  content: { flex: 1, padding: 16, minHeight: 0 },
+  card: { flex: 1, borderRadius: 16, overflow: 'visible', minHeight: 0 },
   chipRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
-  scrollContent: { paddingBottom: 0 },
+  scrollContent: { paddingTop: 4, paddingBottom: 16 },
   handleArea: { padding: 8, margin: -8 },
   rowWrap: { height: 57, minHeight: 57, maxHeight: 57, overflow: 'visible' },
-  rowInnerWrap: { height: 56, minHeight: 56, maxHeight: 56, justifyContent: 'center' },
+  rowInnerWrap: {
+    height: 56,
+    minHeight: 56,
+    maxHeight: 56,
+    justifyContent: 'center',
+    overflow: 'visible',
+  },
   paymentTypeRowActive: { borderRadius: 16 },
   paymentTypeRow: {
     height: 56,
@@ -126,7 +123,13 @@ function PaymentTypeItem({
     <ScaleDecorator activeScale={1.0}>
       <View style={styles.rowWrap}>
         <View style={styles.rowInnerWrap}>
-          <Animated.View style={[{ backgroundColor: colors.background }, isActive && styles.paymentTypeRowActive, animatedShadowStyle]}>
+          <Animated.View
+            style={[
+              { backgroundColor: colors.background, overflow: 'visible' },
+              isActive && styles.paymentTypeRowActive,
+              animatedShadowStyle,
+            ]}
+          >
             <Pressable
               style={styles.paymentTypeRow}
               onPress={() => {
@@ -176,7 +179,6 @@ function PaymentTypeItem({
 export default function PaymentTypeSettingScreen() {
   const colors = ThemeColors.light;
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const initialSubtypes = getPaymentSubtypesMemoryCache() ?? DEFAULT_PAYMENT_SUBTYPES;
   const [selectedFilter, setSelectedFilter] = useState<PaymentMethodType>('credit');
   const [paymentSubtypes, setPaymentSubtypes] = useState<PaymentSubtype[]>(() => initialSubtypes);
@@ -187,58 +189,41 @@ export default function PaymentTypeSettingScreen() {
   const dragStartIndexRef = useRef<number | null>(null);
   const isDraggingRef = useRef<boolean>(false);
   const lastDragEndTimeRef = useRef<number>(0);
-  const layoutLogOnceRef = useRef({ root: false, content: false });
 
-  useEffect(() => {
-    logPaymentTypeSettingLayout('insets', {
-      top: insets.top,
-      bottom: insets.bottom,
-      left: insets.left,
-      right: insets.right,
-    });
-  }, [insets.bottom, insets.left, insets.right, insets.top]);
-
-  const loadPaymentTypesData = useCallback(async (source: string) => {
-    logPaymentTypeSettingLayout('load:start', { source });
-    try {
-      const loaded = await initializePaymentSubtypes();
-      setPaymentSubtypes((current) => {
-        if (arePaymentSubtypesSame(current, loaded)) {
-          logPaymentTypeSettingLayout('load:unchanged', { source, count: loaded.length });
-          return current;
-        }
-        logPaymentTypeSettingLayout('load:success', { source, countAfter: loaded.length });
-        return loaded;
-      });
-    } catch (error) {
-      console.error('결제 유형 초기화 실패:', error);
-      setPaymentSubtypes((current) => {
-        if (arePaymentSubtypesSame(current, DEFAULT_PAYMENT_SUBTYPES)) {
-          return current;
-        }
-        logPaymentTypeSettingLayout('load:fallback', { source });
-        return DEFAULT_PAYMENT_SUBTYPES;
-      });
-    } finally {
-      setIsListDataReady(true);
-      previousIndexRef.current = null;
-      hasTriggeredStartHapticRef.current = false;
-      dragStartIndexRef.current = null;
-    }
+  const applyLoadedSubtypes = useCallback((loaded: PaymentSubtype[]) => {
+    setPaymentSubtypes((current) => (arePaymentSubtypesSame(current, loaded) ? current : loaded));
+    setIsListDataReady(true);
+    previousIndexRef.current = null;
+    hasTriggeredStartHapticRef.current = false;
+    dragStartIndexRef.current = null;
   }, []);
+
+  const loadPaymentTypesData = useCallback(async () => {
+    const cached = getPaymentSubtypesMemoryCache();
+    if (cached) {
+      applyLoadedSubtypes(cached);
+      return;
+    }
+
+    try {
+      const loaded = await loadPaymentSubtypes();
+      applyLoadedSubtypes(loaded);
+    } catch (error) {
+      console.error('결제 유형 로드 실패:', error);
+      applyLoadedSubtypes(DEFAULT_PAYMENT_SUBTYPES);
+    }
+  }, [applyLoadedSubtypes]);
 
   useFocusEffect(
     useCallback(() => {
       const timeSinceLastDrag = Date.now() - lastDragEndTimeRef.current;
       if (timeSinceLastDrag < 3000) {
-        logPaymentTypeSettingLayout('load:skip-drag-cooldown', { timeSinceLastDrag });
         return;
       }
       if (isDraggingRef.current) {
-        logPaymentTypeSettingLayout('load:skip-dragging');
         return;
       }
-      void loadPaymentTypesData('focus');
+      void loadPaymentTypesData();
     }, [loadPaymentTypesData])
   );
 
@@ -246,34 +231,6 @@ export default function PaymentTypeSettingScreen() {
     const filtered = paymentSubtypes.filter((item) => item.type === selectedFilter);
     return filtered.map((item, index) => toSettingItem(item, index === 0));
   }, [paymentSubtypes, selectedFilter]);
-
-  useEffect(() => {
-    logPaymentTypeSettingLayout('render-state', {
-      selectedFilter,
-      isListDataReady,
-      subtypeCount: paymentSubtypes.length,
-      listCount: paymentTypes.length,
-      branch: !isListDataReady ? 'loading' : paymentTypes.length === 0 ? 'empty' : 'list',
-    });
-  }, [isListDataReady, paymentSubtypes.length, paymentTypes.length, selectedFilter]);
-
-  const handleRootLayout = useCallback((event: LayoutChangeEvent) => {
-    if (layoutLogOnceRef.current.root) {
-      return;
-    }
-    layoutLogOnceRef.current.root = true;
-    const { width, height, x, y } = event.nativeEvent.layout;
-    logPaymentTypeSettingLayout('layout:root', { width, height, x, y, insetTop: insets.top });
-  }, [insets.top]);
-
-  const handleContentLayout = useCallback((event: LayoutChangeEvent) => {
-    if (layoutLogOnceRef.current.content) {
-      return;
-    }
-    layoutLogOnceRef.current.content = true;
-    const { width, height, x, y } = event.nativeEvent.layout;
-    logPaymentTypeSettingLayout('layout:content', { width, height, x, y });
-  }, []);
 
   const handleDragStart = useCallback(({ index }: { index: number }) => {
     if (!hasTriggeredStartHapticRef.current) {
@@ -331,6 +288,7 @@ export default function PaymentTypeSettingScreen() {
         pathname: '/payment-type-edit' as any,
         params: {
           id: item.id,
+          type: item.type,
           label: item.label,
           description: item.description,
           color: item.color,
@@ -363,7 +321,7 @@ export default function PaymentTypeSettingScreen() {
 
   const renderPlaceholder = useCallback(
     () => (
-      <View style={{ height: 57, minHeight: 57, maxHeight: 57, overflow: 'hidden' }}>
+      <View style={{ height: 57, minHeight: 57, maxHeight: 57, overflow: 'visible' }}>
         <View style={{ height: 56, minHeight: 56, maxHeight: 56, backgroundColor: colors.background }} />
       </View>
     ),
@@ -371,11 +329,7 @@ export default function PaymentTypeSettingScreen() {
   );
 
   return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      edges={['top', 'bottom']}
-      onLayout={handleRootLayout}
-    >
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
       <Stack.Screen options={{ headerShown: false }} />
       <StatusBar barStyle="dark-content" />
 
@@ -389,23 +343,17 @@ export default function PaymentTypeSettingScreen() {
         onRightButtonPress={() => router.push('/payment-type-create' as any)}
       />
 
-      <View style={[styles.content, { backgroundColor: colors.fill }]} onLayout={handleContentLayout}>
+      <View style={[styles.content, { backgroundColor: colors.fill }]}>
         <View style={styles.chipRow}>
           <Chip
             label="신용카드"
             active={selectedFilter === 'credit'}
-            onPress={() => {
-              logPaymentTypeSettingLayout('filter', { next: 'credit' });
-              setSelectedFilter('credit');
-            }}
+            onPress={() => setSelectedFilter('credit')}
           />
           <Chip
             label="체크카드"
             active={selectedFilter === 'debit'}
-            onPress={() => {
-              logPaymentTypeSettingLayout('filter', { next: 'debit' });
-              setSelectedFilter('debit');
-            }}
+            onPress={() => setSelectedFilter('debit')}
           />
         </View>
 
@@ -430,6 +378,7 @@ export default function PaymentTypeSettingScreen() {
               renderItem={renderItem}
               renderPlaceholder={renderPlaceholder}
               contentContainerStyle={styles.scrollContent}
+              clipToPadding={false}
               getItemLayout={(data, index) => ({
                 length: 57,
                 offset: 57 * index,

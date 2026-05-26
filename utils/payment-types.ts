@@ -17,6 +17,11 @@ const LEGACY_PAYMENT_SUBTYPES_STORAGE_KEY = 'paymentSubtypes_v1';
 /** 앱 부트스트랩·설정 화면 — AsyncStorage 로드 전 첫 프레임용 */
 let paymentSubtypesMemoryCache: PaymentSubtype[] | null = null;
 
+export interface LoadPaymentSubtypesOptions {
+  /** true면 메모리 캐시를 무시하고 Storage에서 읽음 (앱 기동 초기화 등) */
+  forceStorage?: boolean;
+}
+
 export function getPaymentSubtypesMemoryCache(): PaymentSubtype[] | null {
   return paymentSubtypesMemoryCache;
 }
@@ -27,12 +32,34 @@ function commitPaymentSubtypesCache(subtypes: PaymentSubtype[]): PaymentSubtype[
   return normalized;
 }
 
+async function persistPaymentSubtypesIfChanged(
+  normalized: PaymentSubtype[],
+  storedJson: string | null,
+): Promise<void> {
+  const serialized = JSON.stringify(normalized);
+  if (storedJson === serialized) {
+    return;
+  }
+  await AsyncStorage.setItem(PAYMENT_SUBTYPES_STORAGE_KEY, serialized);
+}
+
 export function arePaymentSubtypesSame(a: PaymentSubtype[], b: PaymentSubtype[]): boolean {
   if (a.length !== b.length) {
     return false;
   }
   for (let index = 0; index < a.length; index += 1) {
-    if (a[index]?.id !== b[index]?.id) {
+    const left = a[index];
+    const right = b[index];
+    if (!left || !right) {
+      return false;
+    }
+    if (
+      left.id !== right.id ||
+      left.type !== right.type ||
+      left.label !== right.label ||
+      left.description !== right.description ||
+      left.color !== right.color
+    ) {
       return false;
     }
   }
@@ -84,7 +111,14 @@ function normalizePaymentSubtypes(input: PaymentSubtype[]): PaymentSubtype[] {
   return normalized;
 }
 
-export async function loadPaymentSubtypes(): Promise<PaymentSubtype[]> {
+export async function loadPaymentSubtypes(
+  options?: LoadPaymentSubtypesOptions,
+): Promise<PaymentSubtype[]> {
+  const forceStorage = options?.forceStorage === true;
+  if (!forceStorage && paymentSubtypesMemoryCache != null) {
+    return paymentSubtypesMemoryCache;
+  }
+
   try {
     let stored = await AsyncStorage.getItem(PAYMENT_SUBTYPES_STORAGE_KEY);
     if (!stored) {
@@ -107,7 +141,7 @@ export async function loadPaymentSubtypes(): Promise<PaymentSubtype[]> {
       return defaults;
     }
     const normalized = commitPaymentSubtypesCache(parsed as PaymentSubtype[]);
-    await AsyncStorage.setItem(PAYMENT_SUBTYPES_STORAGE_KEY, JSON.stringify(normalized));
+    await persistPaymentSubtypesIfChanged(normalized, stored);
     return normalized;
   } catch (error) {
     console.error('결제 유형 설정 로드 실패:', error);
@@ -115,11 +149,9 @@ export async function loadPaymentSubtypes(): Promise<PaymentSubtype[]> {
   }
 }
 
+/** 앱 기동 시 Storage 기준으로 메모리 캐시를 채움 */
 export async function initializePaymentSubtypes(): Promise<PaymentSubtype[]> {
-  const loaded = await loadPaymentSubtypes();
-  const normalized = commitPaymentSubtypesCache(loaded);
-  await AsyncStorage.setItem(PAYMENT_SUBTYPES_STORAGE_KEY, JSON.stringify(normalized));
-  return normalized;
+  return loadPaymentSubtypes({ forceStorage: true });
 }
 
 export async function savePaymentSubtypes(subtypes: PaymentSubtype[]): Promise<void> {

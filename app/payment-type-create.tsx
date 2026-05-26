@@ -5,7 +5,7 @@ import { Radio } from '@/components/ui/radio';
 import { AtomicColors } from '@/constants/atomic-colors';
 import { Colors, Typography } from '@/constants/theme';
 import { useToast } from '@/contexts/toast-context';
-import { initializePaymentSubtypes, savePaymentSubtypes, type PaymentSubtype } from '@/utils/payment-types';
+import { loadPaymentSubtypes, savePaymentSubtypes } from '@/utils/payment-types';
 import {
   getDescriptionKeyboardScrollPaddingBottom,
   scrollScrollViewSectionAboveKeyboard,
@@ -41,7 +41,6 @@ export default function PaymentTypeCreateScreen() {
   const { showToast } = useToast();
   const insets = useSafeAreaInsets();
 
-  const [paymentSubtypes, setPaymentSubtypes] = useState<PaymentSubtype[]>([]);
   const [label, setLabel] = useState('');
   const [description, setDescription] = useState('');
   const [selectedType, setSelectedType] = useState<PaymentSubtypeType>('credit');
@@ -76,19 +75,6 @@ export default function PaymentTypeCreateScreen() {
     },
     [],
   );
-
-  useEffect(() => {
-    let active = true;
-    const load = async () => {
-      const loaded = await initializePaymentSubtypes();
-      if (!active) return;
-      setPaymentSubtypes(loaded);
-    };
-    void load();
-    return () => {
-      active = false;
-    };
-  }, []);
 
   useEffect(() => {
     const keyboardWillShow = Keyboard.addListener(
@@ -238,10 +224,7 @@ export default function PaymentTypeCreateScreen() {
 
     try {
       // 저장 직전 최신 데이터를 다시 읽어 stale state 덮어쓰기 방지
-      const latestSubtypes = await initializePaymentSubtypes();
-      console.log(
-        `[payment-type-create] latest before save: total=${latestSubtypes.length}, credit=${latestSubtypes.filter((i) => i.type === 'credit').length}, debit=${latestSubtypes.filter((i) => i.type === 'debit').length}`
-      );
+      const latestSubtypes = await loadPaymentSubtypes({ forceStorage: true });
 
       const isDuplicate = latestSubtypes.some(
         (item) => item.type === selectedType && item.label === trimmedLabel
@@ -251,7 +234,7 @@ export default function PaymentTypeCreateScreen() {
         return;
       }
 
-      const nextSubtypes: PaymentSubtype[] = [
+      const nextSubtypes = [
         ...latestSubtypes,
         {
           id: ulid(),
@@ -261,9 +244,6 @@ export default function PaymentTypeCreateScreen() {
           color,
         },
       ];
-      console.log(
-        `[payment-type-create] next to save: total=${nextSubtypes.length}, credit=${nextSubtypes.filter((i) => i.type === 'credit').length}, debit=${nextSubtypes.filter((i) => i.type === 'debit').length}`
-      );
 
       await savePaymentSubtypes(nextSubtypes);
       router.back();
@@ -274,7 +254,7 @@ export default function PaymentTypeCreateScreen() {
   }, [color, description, label, router, selectedType, showToast]);
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
       <Stack.Screen options={{ headerShown: false }} />
       <StatusBar barStyle="dark-content" />
 
@@ -398,15 +378,7 @@ export default function PaymentTypeCreateScreen() {
         </View>
       </TouchableWithoutFeedback>
 
-      <View
-        style={[
-          styles.bottomButtonContainer,
-          {
-            backgroundColor: colors.staticWhite,
-            paddingBottom: insets.bottom || 34,
-          },
-        ]}
-      >
+      <View style={[styles.bottomButtonContainer, { backgroundColor: colors.staticWhite }]}>
         <Button onPress={handleCreate}>생성</Button>
       </View>
     </SafeAreaView>

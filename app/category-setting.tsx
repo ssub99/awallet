@@ -28,14 +28,17 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 16,
+    minHeight: 0,
   },
   card: {
     flex: 1,
     borderRadius: 16,
-    overflow: 'hidden',
+    overflow: 'visible',
+    minHeight: 0,
   },
   scrollContent: {
-    paddingBottom: 0,
+    paddingTop: 4,
+    paddingBottom: 16,
   },
   handleArea: {
     padding: 8,
@@ -149,10 +152,18 @@ function CategoryItem({
   return (
     <ScaleDecorator activeScale={1.0}>
       <View style={{ height: 57, minHeight: 57, maxHeight: 57, overflow: 'visible' }}>
-        <View style={{ height: 56, minHeight: 56, maxHeight: 56, justifyContent: 'center' }}>
+        <View
+          style={{
+            height: 56,
+            minHeight: 56,
+            maxHeight: 56,
+            justifyContent: 'center',
+            overflow: 'visible',
+          }}
+        >
           <Animated.View
             style={[
-              { backgroundColor: colors.background },
+              { backgroundColor: colors.background, overflow: 'visible' },
               isActive && styles.categoryRowActive,
               animatedShadowStyle,
             ]}
@@ -363,7 +374,7 @@ export default function CategorySettingScreen() {
   // Placeholder 렌더링 (드래그 중 원래 위치에 표시)
   const renderPlaceholder = useCallback(({ item }: { item: { emoji: string; label: string; type: CategoryType } }) => {
     return (
-      <View style={{ height: 57, minHeight: 57, maxHeight: 57, overflow: 'hidden' }}>
+      <View style={{ height: 57, minHeight: 57, maxHeight: 57, overflow: 'visible' }}>
         <View style={{ 
           height: 56, 
           minHeight: 56, 
@@ -417,6 +428,7 @@ export default function CategorySettingScreen() {
               renderItem={renderItem}
               renderPlaceholder={renderPlaceholder}
               contentContainerStyle={styles.scrollContent}
+              clipToPadding={false}
               getItemLayout={(data, index) => ({
                 length: 57, // 56 (row) + 1 (divider)
                 offset: 57 * index,

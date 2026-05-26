@@ -8,10 +8,13 @@ import { Colors, Typography } from '@/constants/theme';
 import { useToast } from '@/contexts/toast-context';
 import { getAllExpenses } from '@/utils/expenses';
 import {
+  arePaymentSubtypesSame,
   getDefaultSubtypeIdByMethod,
-  initializePaymentSubtypes,
+  getPaymentSubtypesMemoryCache,
+  loadPaymentSubtypes,
   savePaymentSubtypes,
   type PaymentSubtype,
+  type PaymentSubtypeType,
 } from '@/utils/payment-types';
 import {
   getDescriptionKeyboardScrollPaddingBottom,
@@ -46,14 +49,18 @@ export default function PaymentTypeEditScreen() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{
     id?: string;
+    type?: string;
     label?: string;
     description?: string;
     color?: string;
   }>();
 
   const subtypeId = params.id ?? '';
+  const subtypeType: PaymentSubtypeType = params.type === 'debit' ? 'debit' : 'credit';
 
-  const [paymentSubtypes, setPaymentSubtypes] = useState<PaymentSubtype[]>([]);
+  const [paymentSubtypes, setPaymentSubtypes] = useState<PaymentSubtype[]>(
+    () => getPaymentSubtypesMemoryCache() ?? [],
+  );
   const [label, setLabel] = useState(params.label ?? '');
   const [description, setDescription] = useState(params.description ?? '');
   const [color, setColor] = useState<string>(
@@ -76,10 +83,22 @@ export default function PaymentTypeEditScreen() {
   const isDescriptionFocusedRef = useRef(false);
   const latestKeyboardEndRef = useRef<KeyboardEvent['endCoordinates'] | null>(null);
 
-  const currentSubtype = useMemo(
-    () => paymentSubtypes.find((s) => s.id === subtypeId),
-    [paymentSubtypes, subtypeId]
-  );
+  const currentSubtype = useMemo(() => {
+    const found = paymentSubtypes.find((s) => s.id === subtypeId);
+    if (found) {
+      return found;
+    }
+    if (!subtypeId) {
+      return undefined;
+    }
+    return {
+      id: subtypeId,
+      type: subtypeType,
+      label: typeof params.label === 'string' ? params.label : '',
+      description: typeof params.description === 'string' ? params.description : '',
+      color: typeof params.color === 'string' && params.color.length > 0 ? params.color : '#3664CE',
+    } satisfies PaymentSubtype;
+  }, [params.color, params.description, params.label, paymentSubtypes, subtypeId, subtypeType]);
   const isCurrentDefaultSubtype = useMemo(() => {
     if (!currentSubtype) return false;
     const defaultId = getDefaultSubtypeIdByMethod(currentSubtype.type, paymentSubtypes);
@@ -88,20 +107,24 @@ export default function PaymentTypeEditScreen() {
 
   useEffect(() => {
     let active = true;
-    const load = async () => {
-      const loaded = await initializePaymentSubtypes();
-      if (!active) return;
-      setPaymentSubtypes(loaded);
 
-      const found = loaded.find((s) => s.id === subtypeId);
-      if (found) {
-        setLabel(found.label);
-        setDescription(found.description);
-        setColor(found.color);
+    const syncSubtypes = async () => {
+      const cached = getPaymentSubtypesMemoryCache();
+      if (cached) {
+        setPaymentSubtypes((current) => (arePaymentSubtypesSame(current, cached) ? current : cached));
+        return;
+      }
+
+      try {
+        const loaded = await loadPaymentSubtypes();
+        if (!active) return;
+        setPaymentSubtypes((current) => (arePaymentSubtypesSame(current, loaded) ? current : loaded));
+      } catch (error) {
+        console.error('결제 유형 로드 실패:', error);
       }
     };
 
-    void load();
+    void syncSubtypes();
     return () => {
       active = false;
     };
@@ -372,7 +395,7 @@ export default function PaymentTypeEditScreen() {
   }, [currentSubtype, isCurrentDefaultSubtype, paymentSubtypes, router, showToast]);
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
       <Stack.Screen options={{ headerShown: false }} />
       <StatusBar barStyle="dark-content" />
 
@@ -441,10 +464,10 @@ export default function PaymentTypeEditScreen() {
               </Text>
               <View style={styles.radioRow}>
                 <View style={styles.radioCol}>
-                  <Radio checked={currentSubtype?.type === 'credit'} label="신용카드" disabled />
+                  <Radio checked={subtypeType === 'credit'} label="신용카드" disabled />
                 </View>
                 <View style={styles.radioCol}>
-                  <Radio checked={currentSubtype?.type === 'debit'} label="체크카드" disabled />
+                  <Radio checked={subtypeType === 'debit'} label="체크카드" disabled />
                 </View>
               </View>
             </View>
@@ -498,15 +521,7 @@ export default function PaymentTypeEditScreen() {
         </View>
       </TouchableWithoutFeedback>
 
-      <View
-        style={[
-          styles.bottomButtonContainer,
-          {
-            backgroundColor: colors.staticWhite,
-            paddingBottom: insets.bottom || 34,
-          },
-        ]}
-      >
+      <View style={[styles.bottomButtonContainer, { backgroundColor: colors.staticWhite }]}>
         <Button onPress={handleSave}>저장</Button>
       </View>
 
