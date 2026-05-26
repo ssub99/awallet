@@ -40,7 +40,6 @@ export default function PaymentTypeCreateScreen() {
   const router = useRouter();
   const { showToast } = useToast();
   const insets = useSafeAreaInsets();
-
   const [label, setLabel] = useState('');
   const [description, setDescription] = useState('');
   const [selectedType, setSelectedType] = useState<PaymentSubtypeType>('credit');
