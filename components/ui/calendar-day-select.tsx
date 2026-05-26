@@ -47,10 +47,10 @@ const CENTER_MONTH_PAGE_INDEX = 1;
 const CALENDAR_CENTER_SCROLL_X = SCREEN_WIDTH * CENTER_MONTH_PAGE_INDEX;
 /** iOS drag-end: fling이면 momentum에서 처리 */
 const IOS_DRAG_END_VELOCITY_THRESHOLD = 0.25;
-/** scrollToCenter 직후 bounce·이중 momentum 무시 (ms) */
-const PROGRAMMATIC_SCROLL_SUPPRESS_MS = 500;
-/** 스와이프 커밋 직후 연속 momentum 차단 (ms) */
-const SWIPE_COMMIT_COOLDOWN_MS = 600;
+/** scrollToCenter 직후 bounce·이중 momentum 무시 (ms) — UI 잠금과 분리 */
+const PROGRAMMATIC_SCROLL_SUPPRESS_MS = 280;
+/** 스와이프 커밋 직후 연속 커밋 차단 (ms) */
+const SWIPE_COMMIT_COOLDOWN_MS = 200;
 /** 드래그 시작은 중앙 페이지 근처에서만 인정 */
 const DRAG_START_CENTER_TOLERANCE_RATIO = 0.15;
 /** 스와이프 잠금 해제: onScroll이 보고한 중앙 허용치 */
@@ -85,6 +85,87 @@ function logCalendarMonthDebug(
     ts: Date.now(),
     ...payload,
   });
+}
+
+type MonthTransitionTimingSession = {
+  id: number;
+  kind: 'swipe' | 'arrow';
+  toLabel: string;
+  startedAt: number;
+  lastMarkAt: number;
+};
+
+let monthTransitionTimingSeq = 0;
+
+function beginMonthTransitionTiming(
+  timingRef: { current: MonthTransitionTimingSession | null },
+  kind: MonthTransitionTimingSession['kind'],
+  toLabel: string,
+): void {
+  if (!__DEV__) {
+    return;
+  }
+  const now = Date.now();
+  monthTransitionTimingSeq += 1;
+  timingRef.current = {
+    id: monthTransitionTimingSeq,
+    kind,
+    toLabel,
+    startedAt: now,
+    lastMarkAt: now,
+  };
+}
+
+function markMonthTransitionTiming(
+  seqRef: { current: number },
+  timingRef: { current: MonthTransitionTimingSession | null },
+  phase: string,
+  extra?: Record<string, unknown>,
+): void {
+  if (!__DEV__) {
+    return;
+  }
+  const session = timingRef.current;
+  if (!session) {
+    return;
+  }
+  const now = Date.now();
+  const elapsedMs = now - session.startedAt;
+  const deltaMs = now - session.lastMarkAt;
+  session.lastMarkAt = now;
+  logCalendarMonthDebug(seqRef, `transition timing · ${phase}`, {
+    transitionId: session.id,
+    kind: session.kind,
+    to: session.toLabel,
+    elapsedMs,
+    deltaMs,
+    ...extra,
+  });
+}
+
+function completeMonthTransitionTiming(
+  seqRef: { current: number },
+  timingRef: { current: MonthTransitionTimingSession | null },
+  phase: string,
+  extra?: Record<string, unknown>,
+): void {
+  if (!__DEV__) {
+    return;
+  }
+  const session = timingRef.current;
+  if (!session) {
+    return;
+  }
+  const totalMs = Date.now() - session.startedAt;
+  logCalendarMonthDebug(seqRef, `transition timing · ${phase}`, {
+    transitionId: session.id,
+    kind: session.kind,
+    to: session.toLabel,
+    totalMs,
+    elapsedMs: totalMs,
+    ...extra,
+  });
+  timingRef.current = null;
 }
 
 function getTodayLocalDateString(): string {
@@ -237,6 +318,7 @@ function CalendarDaySelectInner({
   const scrollViewRef = useRef<ScrollView>(null);
   const scrollOffsetRef = useRef(CALENDAR_CENTER_SCROLL_X);
   const calendarDebugSeqRef = useRef(0);
+  const monthTransitionTimingRef = useRef<MonthTransitionTimingSession | null>(null);
   const suppressMomentumUntilRef = useRef(0);
   const swipeCooldownUntilRef = useRef(0);
   /** onScrollBeginDrag 이후에만 momentum 커밋 (programmatic bounce 차단) */
@@ -273,7 +355,44 @@ function CalendarDaySelectInner({
     }
   }, []);
 
-  /** placeholder 해제 = programmatic suppress 끝 + onScroll 중앙 확인 후 */
+  /** 오버레이·스크롤 잠금 해제 (momentum suppress 대기와 무관 — 체감 속도) */
+  const releaseSwipeTransition = useCallback((reason: string) => {
+    if (!isSwipeSettlingRef.current) {
+      return;
+    }
+
+    if (swipeReleaseTimerRef.current) {
+      clearTimeout(swipeReleaseTimerRef.current);
+      swipeReleaseTimerRef.current = null;
+    }
+
+    const generation = swipeReleaseGenRef.current + 1;
+    swipeReleaseGenRef.current = generation;
+
+    requestAnimationFrame(() => {
+      if (swipeReleaseGenRef.current !== generation) {
+        return;
+      }
+
+      if (!isOffsetAtCenterPage(scrollOffsetRef.current)) {
+        scrollToCenter(false);
+      }
+
+      setIsSwipeSettling(false);
+      setIsAnimating(false);
+      logCalendarMonthDebug(calendarDebugSeqRef, 'isAnimating -> false (swipe lock release)', {
+        reason,
+        offsetX: scrollOffsetRef.current,
+        atCenter: isOffsetAtCenterPage(scrollOffsetRef.current),
+      });
+      completeMonthTransitionTiming(calendarDebugSeqRef, monthTransitionTimingRef, 'complete (ui unlocked)', {
+        reason,
+        atCenter: isOffsetAtCenterPage(scrollOffsetRef.current),
+      });
+    });
+  }, [scrollToCenter]);
+
+  /** 중앙 미도달 시에만 rAF 재시도 (suppress 500ms 대기 제거) */
   const scheduleReleaseSwipeLock = useCallback(() => {
     if (swipeReleaseTimerRef.current) {
       clearTimeout(swipeReleaseTimerRef.current);
@@ -283,55 +402,19 @@ function CalendarDaySelectInner({
     const generation = swipeReleaseGenRef.current + 1;
     swipeReleaseGenRef.current = generation;
 
-    const finishRelease = (reason: 'ready' | 'timeout') => {
-      if (swipeReleaseGenRef.current !== generation) {
-        return;
-      }
-
-      if (!isOffsetAtCenterPage(scrollOffsetRef.current)) {
-        scrollToCenter(false);
-      }
-
-      requestAnimationFrame(() => {
-        if (swipeReleaseGenRef.current !== generation) {
-          return;
-        }
-        setIsSwipeSettling(false);
-        setIsAnimating(false);
-        logCalendarMonthDebug(calendarDebugSeqRef, 'isAnimating -> false (swipe lock release)', {
-          reason,
-          offsetX: scrollOffsetRef.current,
-          atCenter: isOffsetAtCenterPage(scrollOffsetRef.current),
-          suppressDone: Date.now() >= suppressMomentumUntilRef.current,
-        });
-      });
-    };
-
     const tryRelease = (pass: number) => {
       if (swipeReleaseGenRef.current !== generation) {
         return;
       }
 
-      const suppressDone = Date.now() >= suppressMomentumUntilRef.current;
-      const atCenter = isOffsetAtCenterPage(scrollOffsetRef.current);
-
-      if (!suppressDone) {
-        const remaining = Math.max(16, suppressMomentumUntilRef.current - Date.now() + 16);
-        swipeReleaseTimerRef.current = setTimeout(() => {
-          swipeReleaseTimerRef.current = null;
-          tryRelease(0);
-        }, remaining);
-        return;
-      }
-
-      if (atCenter) {
-        finishRelease('ready');
+      if (isOffsetAtCenterPage(scrollOffsetRef.current)) {
+        releaseSwipeTransition('ready');
         return;
       }
 
       if (pass >= SWIPE_RELEASE_MAX_PASSES) {
         scrollToCenter(false);
-        finishRelease('timeout');
+        releaseSwipeTransition('timeout');
         return;
       }
 
@@ -340,7 +423,7 @@ function CalendarDaySelectInner({
     };
 
     tryRelease(0);
-  }, [scrollToCenter]);
+  }, [releaseSwipeTransition, scrollToCenter]);
 
   const applyCenterMonth = useCallback(
     (year: number, month: number, source: CalendarMonthChangeSource) => {
@@ -350,6 +433,14 @@ function CalendarDaySelectInner({
         source,
         label: formatMonthLabel(year, month),
       });
+
+      if (
+        source === 'swipe' ||
+        source === 'arrow-prev' ||
+        source === 'arrow-next'
+      ) {
+        markMonthTransitionTiming(calendarDebugSeqRef, monthTransitionTimingRef, 'applyCenterMonth');
+      }
 
       if (propYear === undefined) {
         setInternalYear(year);
@@ -385,11 +476,20 @@ function CalendarDaySelectInner({
       label: formatMonthLabel(currentYear, currentMonth),
       isAnimating,
     });
+    if (monthTransitionTimingRef.current) {
+      markMonthTransitionTiming(calendarDebugSeqRef, monthTransitionTimingRef, 'displayMonth render', {
+        isAnimating,
+        label: formatMonthLabel(currentYear, currentMonth),
+      });
+    }
   }, [currentYear, currentMonth, isAnimating]);
 
   useEffect(() => {
     if (!__DEV__) {
       return;
+    }
+    if (monthTransitionTimingRef.current) {
+      markMonthTransitionTiming(calendarDebugSeqRef, monthTransitionTimingRef, 'monthSlots render');
     }
     const slots = monthSlots.map((slot, index) => ({
       index,
@@ -438,6 +538,9 @@ function CalendarDaySelectInner({
         centerYearMonthRef.current.year,
         centerYearMonthRef.current.month,
       ),
+      offsetBefore: scrollOffsetRef.current,
+    });
+    markMonthTransitionTiming(calendarDebugSeqRef, monthTransitionTimingRef, 'useLayoutEffect recenter', {
       offsetBefore: scrollOffsetRef.current,
     });
 
@@ -543,13 +646,20 @@ function CalendarDaySelectInner({
         monthsToMove,
       );
 
+      const toLabel = formatMonthLabel(nextYear, nextMonth);
+      beginMonthTransitionTiming(monthTransitionTimingRef, 'swipe', toLabel);
+
       logCalendarMonthDebug(calendarDebugSeqRef, 'swipe commit', {
         source,
         offsetX,
         page: Math.round(offsetX / SCREEN_WIDTH),
         monthsToMove,
         from: formatMonthLabel(fromYear, fromMonth),
-        to: formatMonthLabel(nextYear, nextMonth),
+        to: toLabel,
+      });
+      markMonthTransitionTiming(calendarDebugSeqRef, monthTransitionTimingRef, 'swipe commit', {
+        source,
+        offsetX,
       });
 
       skipSelectedDateSyncRef.current = true;
@@ -566,7 +676,7 @@ function CalendarDaySelectInner({
 
       // calendar-main과 동일: 슬롯 커밋 직후 동기 리센터 (useLayoutEffect 전 1프레임 전월 노출 방지)
       scrollToCenter();
-      scrollOffsetRef.current = CALENDAR_CENTER_SCROLL_X;
+      markMonthTransitionTiming(calendarDebugSeqRef, monthTransitionTimingRef, 'scrollToCenter sync');
 
       activeUserDragRef.current = false;
       swipeCooldownUntilRef.current = Date.now() + SWIPE_COMMIT_COOLDOWN_MS;
@@ -612,6 +722,14 @@ function CalendarDaySelectInner({
           page,
           suppressRemaining: suppressMomentumUntilRef.current - Date.now(),
         });
+        if (monthTransitionTimingRef.current) {
+          markMonthTransitionTiming(
+            calendarDebugSeqRef,
+            monthTransitionTimingRef,
+            'momentum ignored (programmatic)',
+            { offsetX, page, suppressRemaining: suppressMomentumUntilRef.current - Date.now() },
+          );
+        }
         return;
       }
 
@@ -715,17 +833,34 @@ function CalendarDaySelectInner({
       return;
     }
 
-    logCalendarMonthDebug(calendarDebugSeqRef, 'arrow-prev press', {
-      from: formatMonthLabel(centerYearMonthRef.current.year, centerYearMonthRef.current.month),
+    const fromLabel = formatMonthLabel(
+      centerYearMonthRef.current.year,
+      centerYearMonthRef.current.month,
+    );
+    const { year: toYear, month: toMonth } = addCalendarMonths(
+      centerYearMonthRef.current.year,
+      centerYearMonthRef.current.month,
+      -1,
+    );
+    const toLabel = formatMonthLabel(toYear, toMonth);
+    beginMonthTransitionTiming(monthTransitionTimingRef, 'arrow', toLabel);
+
+    logCalendarMonthDebug(calendarDebugSeqRef, 'arrow-prev press', { from: fromLabel });
+    markMonthTransitionTiming(calendarDebugSeqRef, monthTransitionTimingRef, 'arrow-prev press', {
+      from: fromLabel,
     });
 
     skipSelectedDateSyncRef.current = true;
     setIsAnimating(true);
     moveCenterMonth(-1, 'arrow-prev');
     scrollToCenter();
+    markMonthTransitionTiming(calendarDebugSeqRef, monthTransitionTimingRef, 'scrollToCenter sync');
     setTimeout(() => {
       setIsAnimating(false);
       logCalendarMonthDebug(calendarDebugSeqRef, 'isAnimating -> false (arrow-prev lock release)', {});
+      completeMonthTransitionTiming(calendarDebugSeqRef, monthTransitionTimingRef, 'complete (arrow lock)', {
+        direction: 'prev',
+      });
     }, ARROW_MONTH_LOCK_MS);
   }, [isAnimating, moveCenterMonth, scrollToCenter]);
 
@@ -735,17 +870,34 @@ function CalendarDaySelectInner({
       return;
     }
 
-    logCalendarMonthDebug(calendarDebugSeqRef, 'arrow-next press', {
-      from: formatMonthLabel(centerYearMonthRef.current.year, centerYearMonthRef.current.month),
+    const fromLabel = formatMonthLabel(
+      centerYearMonthRef.current.year,
+      centerYearMonthRef.current.month,
+    );
+    const { year: toYear, month: toMonth } = addCalendarMonths(
+      centerYearMonthRef.current.year,
+      centerYearMonthRef.current.month,
+      1,
+    );
+    const toLabel = formatMonthLabel(toYear, toMonth);
+    beginMonthTransitionTiming(monthTransitionTimingRef, 'arrow', toLabel);
+
+    logCalendarMonthDebug(calendarDebugSeqRef, 'arrow-next press', { from: fromLabel });
+    markMonthTransitionTiming(calendarDebugSeqRef, monthTransitionTimingRef, 'arrow-next press', {
+      from: fromLabel,
     });
 
     skipSelectedDateSyncRef.current = true;
     setIsAnimating(true);
     moveCenterMonth(1, 'arrow-next');
     scrollToCenter();
+    markMonthTransitionTiming(calendarDebugSeqRef, monthTransitionTimingRef, 'scrollToCenter sync');
     setTimeout(() => {
       setIsAnimating(false);
       logCalendarMonthDebug(calendarDebugSeqRef, 'isAnimating -> false (arrow-next lock release)', {});
+      completeMonthTransitionTiming(calendarDebugSeqRef, monthTransitionTimingRef, 'complete (arrow lock)', {
+        direction: 'next',
+      });
     }, ARROW_MONTH_LOCK_MS);
   }, [isAnimating, moveCenterMonth, scrollToCenter]);
 
@@ -827,7 +979,18 @@ function CalendarDaySelectInner({
           onScroll={(event) => {
             const offsetX = event.nativeEvent.contentOffset.x;
             scrollOffsetRef.current = offsetX;
-            if (isSwipeSettlingRef.current && !isOffsetAtCenterPage(offsetX)) {
+            if (!isSwipeSettlingRef.current) {
+              return;
+            }
+            if (isOffsetAtCenterPage(offsetX)) {
+              markMonthTransitionTiming(
+                calendarDebugSeqRef,
+                monthTransitionTimingRef,
+                'onScroll centered',
+                { offsetX },
+              );
+              releaseSwipeTransition('scroll-centered');
+            } else {
               scrollToCenter(false);
             }
           }}
