@@ -64,7 +64,49 @@ function RecordDatePickerSheetComponent({
   );
 }
 
-export const RecordDatePickerSheet = memo(RecordDatePickerSheetComponent);
+function recordDatePickerSheetPropsAreEqual(
+  prev: RecordDatePickerSheetProps,
+  next: RecordDatePickerSheetProps,
+): boolean {
+  return (
+    prev.visible === next.visible &&
+    prev.title === next.title &&
+    prev.selectedDate === next.selectedDate &&
+    prev.monthStartDay === next.monthStartDay &&
+    prev.embedded === next.embedded &&
+    prev.onSelectedDateChange === next.onSelectedDateChange &&
+    prev.onClose === next.onClose &&
+    prev.onConfirm === next.onConfirm
+  );
+}
+
+export const RecordDatePickerSheet = memo(
+  RecordDatePickerSheetComponent,
+  recordDatePickerSheetPropsAreEqual,
+);
+
+/** 조건부 마운트 시 부모 리렌더로 시트·캘린더가 불필요하게 갱신되는 것을 줄입니다. */
+export type RecordDatePickerHostProps = Omit<RecordDatePickerSheetProps, 'visible'> & {
+  open: boolean;
+};
+
+function RecordDatePickerHostComponent({
+  open,
+  ...sheetProps
+}: RecordDatePickerHostProps) {
+  if (!open) {
+    return null;
+  }
+  return <RecordDatePickerSheet visible {...sheetProps} />;
+}
+
+export const RecordDatePickerHost = memo(
+  RecordDatePickerHostComponent,
+  (prev, next) => prev.open === next.open && recordDatePickerSheetPropsAreEqual(
+    { ...prev, visible: true },
+    { ...next, visible: true },
+  ),
+);
 
 const styles = StyleSheet.create({
   sheetContent: {

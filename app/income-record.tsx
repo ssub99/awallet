@@ -10,7 +10,7 @@ import { CustomKeypad, getKeypadHeight, type CustomKeypadOperator, type Expressi
 import { CustomKeypadOverlay, getCustomKeypadScrollPaddingBottom } from '@/components/ui/custom-keypad-overlay';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
-import { RecordDatePickerSheet } from '@/components/ui/record-date-picker-sheet';
+import { RecordDatePickerHost } from '@/components/ui/record-date-picker-sheet';
 import { ModalPopup } from '@/components/ui/modal-popup';
 import { AtomicColors } from '@/constants/atomic-colors';
 import { Colors, Typography } from '@/constants/theme';
@@ -404,16 +404,18 @@ export default function IncomeRecordScreen() {
     setShowDatePicker(true);
   };
 
-  const handleDatePickerClose = () => {
-    if (!showDatePicker) {
-      return;
-    }
-    void logEvent('btn', {
-      screen_name: '/income-record',
-      target: 'calendar-close',
+  const handleDatePickerClose = useCallback(() => {
+    setShowDatePicker((open) => {
+      if (!open) {
+        return open;
+      }
+      void logEvent('btn', {
+        screen_name: '/income-record',
+        target: 'calendar-close',
+      });
+      return false;
     });
-    setShowDatePicker(false);
-  };
+  }, []);
   
   const handleDatePickerDaySelect = useCallback((isoDate: string) => {
     setTempSelectedDate(isoDate);
@@ -838,17 +840,15 @@ export default function IncomeRecordScreen() {
         </View>
       </View>
 
-      {showDatePicker ? (
-        <RecordDatePickerSheet
-          visible
-          title="수입 기록일 선택"
-          selectedDate={tempSelectedDate}
-          onSelectedDateChange={handleDatePickerDaySelect}
-          onClose={handleDatePickerClose}
-          onConfirm={handleDateConfirm}
-          monthStartDay={monthStartDay}
-        />
-      ) : null}
+      <RecordDatePickerHost
+        open={showDatePicker}
+        title="수입 기록일 선택"
+        selectedDate={tempSelectedDate}
+        onSelectedDateChange={handleDatePickerDaySelect}
+        onClose={handleDatePickerClose}
+        onConfirm={handleDateConfirm}
+        monthStartDay={monthStartDay}
+      />
 
       {/* 금액 미입력 얼럿 */}
       <ModalPopup

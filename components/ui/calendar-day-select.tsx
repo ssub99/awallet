@@ -1,52 +1,72 @@
 /**
  * Calendar Day Select Component
- * 
+ *
  * Date selection calendar with left/right navigation arrows.
  * Shows only dates without income/expense data.
  */
 
+import {
+  CalendarDaySelectCell,
+  type CalendarDaySelectGridType,
+} from '@/components/ui/calendar-day-select-cell';
 import { Icon } from '@/components/ui/icon';
 import { Colors, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useWeekStart } from '@/hooks/use-week-start';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  addCalendarMonths,
+  buildThreeMonthWindow,
+  type CalendarGridCell,
+  type CalendarMonthSlot,
+  resolveSlotsForTargetMonth,
+  shiftSlotsBackward,
+  shiftSlotsForward,
+} from '@/utils/calendar-month-grid-cache';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Dimensions,
-  LayoutAnimation,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  UIManager,
   View,
   ViewStyle,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from 'react-native';
 
-// Enable LayoutAnimation on Android
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
-
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const DAY_CELL_WIDTH = Math.floor(SCREEN_WIDTH / 7);
-/** Figma: 선택/포커스 원형 32×32 */
-const DAY_CIRCLE_SIZE = 32;
-const DAY_CIRCLE_RADIUS = DAY_CIRCLE_SIZE / 2;
 const DAY_CELL_HEIGHT = 48;
 const NAV_BAR_HEIGHT = 50;
 const DAY_HEADER_HEIGHT = 40;
 const DAY_CELLS_AREA_HEIGHT = 288; // 6주 기준 고정 (48px × 6)
-const CENTER_MONTH_PAGE_INDEX = 3;
-
+/** prev(0) · current(1) · next(2) */
+const CENTER_MONTH_PAGE_INDEX = 1;
+const CALENDAR_CENTER_SCROLL_X = SCREEN_WIDTH * CENTER_MONTH_PAGE_INDEX;
+/** iOS drag-end: fling이면 momentum에서 처리 */
+const IOS_DRAG_END_VELOCITY_THRESHOLD = 0.25;
+/** scrollToCenter 직후 bounce·이중 momentum 무시 (ms) */
+const PROGRAMMATIC_SCROLL_SUPPRESS_MS = 500;
+/** 스와이프 커밋 직후 연속 momentum 차단 (ms) */
+const SWIPE_COMMIT_COOLDOWN_MS = 600;
+/** 드래그 시작은 중앙 페이지 근처에서만 인정 */
+const DRAG_START_CENTER_TOLERANCE_RATIO = 0.15;
+/** 스와이프 잠금 해제: onScroll이 보고한 중앙 허용치 */
+const SCROLL_CENTER_TOLERANCE = Math.max(2, SCREEN_WIDTH * 0.02);
+/** suppress 이후 중앙 미도달 시 재시도 상한 */
+const SWIPE_RELEASE_MAX_PASSES = 16;
 const CALENDAR_DEBUG_TAG = '[CalendarDaySelect]';
 
 type CalendarMonthChangeSource = 'swipe' | 'arrow-prev' | 'arrow-next';
 
 function formatMonthLabel(year: number, month: number): string {
   return `${year}-${String(month).padStart(2, '0')}`;
+}
+
+function isOffsetAtCenterPage(offsetX: number): boolean {
+  return Math.abs(offsetX - CALENDAR_CENTER_SCROLL_X) <= SCROLL_CENTER_TOLERANCE;
 }
 
 function logCalendarMonthDebug(
@@ -65,6 +85,25 @@ function logCalendarMonthDebug(
   });
 }
 
+function getTodayLocalDateString(): string {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getCustomMonthFromDate(date: Date, startDay: number): { year: number; month: number } {
+  const y = date.getFullYear();
+  const m = date.getMonth() + 1;
+  const d = date.getDate();
+  if (d >= startDay) {
+    return { year: y, month: m };
+  }
+  const prev = new Date(y, m - 2, 1);
+  return { year: prev.getFullYear(), month: prev.getMonth() + 1 };
+}
+
 export interface CalendarDaySelectProps {
   currentYear?: number;
   currentMonth?: number;
@@ -73,43 +112,30 @@ export interface CalendarDaySelectProps {
   onMonthChange?: (year: number, month: number) => void;
   style?: ViewStyle;
   hideNavBar?: boolean;
-  monthStartDay?: number; // 월 시작일 (1-31)
+  monthStartDay?: number;
   /**
-   * When true (default), scrolling auto-centers to the selectedDate's month.
+   * When true (default), selectedDate changes rebuild the 3-month window to center that month.
    * Set false to prevent month jump when selecting a day.
    */
   autoCenterOnSelectedDate?: boolean;
-  /**
-   * Disable all days before today (local time)
-   */
   disablePastDates?: boolean;
-  /**
-   * Callback when a disabled past date is tapped
-   */
   onInvalidPastDate?: () => void;
 }
 
-/**
- * Generate calendar grid for a custom month (based on monthStartDay)
- */
 function generateMonthGrid(
   year: number,
   month: number,
   adjustFirstDayOfWeek: (jsDay: number) => number,
-  monthStartDay: number = 1
-): { date: string; day: number; isCurrentMonth: boolean }[] {
-  const grid: { date: string; day: number; isCurrentMonth: boolean }[] = [];
-  
-  // monthStartDay 기준으로 시작일과 종료일 계산
-  // 예: monthStartDay=21이면, 10월 21일 ~ 11월 20일이 "10월"
+  monthStartDay: number = 1,
+): CalendarGridCell[] {
+  const grid: CalendarGridCell[] = [];
+
   const startDate = new Date(year, month - 1, monthStartDay);
   const endDate = new Date(year, month, monthStartDay - 1);
-  
-  // 첫 날의 요일 확인
+
   const jsFirstDay = startDate.getDay();
   const firstDayOfWeek = adjustFirstDayOfWeek(jsFirstDay);
-  
-  // 이전 월 날짜들로 첫 주 채우기
+
   if (firstDayOfWeek > 0) {
     for (let i = firstDayOfWeek - 1; i >= 0; i--) {
       const prevDate = new Date(startDate);
@@ -121,8 +147,7 @@ function generateMonthGrid(
       });
     }
   }
-  
-  // 현재 커스텀 월의 날짜들
+
   const currentDate = new Date(startDate);
   while (currentDate <= endDate) {
     grid.push({
@@ -132,8 +157,7 @@ function generateMonthGrid(
     });
     currentDate.setDate(currentDate.getDate() + 1);
   }
-  
-  // 다음 월 날짜들로 마지막 주 채우기
+
   const remainingCells = grid.length % 7 === 0 ? 0 : 7 - (grid.length % 7);
   if (remainingCells > 0) {
     const nextDate = new Date(endDate);
@@ -147,14 +171,11 @@ function generateMonthGrid(
       nextDate.setDate(nextDate.getDate() + 1);
     }
   }
-  
+
   return grid;
 }
 
-/**
- * Calendar Day Select Component
- */
-export function CalendarDaySelect({
+function CalendarDaySelectInner({
   currentYear: propYear,
   currentMonth: propMonth,
   selectedDate,
@@ -171,112 +192,183 @@ export function CalendarDaySelect({
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
   const { weekdays, adjustFirstDayOfWeek } = useWeekStart();
 
-  // Current month state (use props if provided, otherwise use internal state)
-  const getTodayLocalDate = () => {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-  
-  const initialDate = selectedDate ? new Date(selectedDate) : new Date();
-  // Compute custom month (based on monthStartDay)
-  const getCustomMonthFromDate = (date: Date, startDay: number) => {
-    const y = date.getFullYear();
-    const m = date.getMonth() + 1; // 1-indexed
-    const d = date.getDate();
-    if (d >= startDay) {
-      return { year: y, month: m };
-    }
-    // Move to previous month
-    const prev = new Date(y, m - 2, 1); // m-2 because Date month is 0-indexed
-    return { year: prev.getFullYear(), month: prev.getMonth() + 1 };
-  };
+  const gridCacheRef = useRef(new Map<string, CalendarGridCell[]>());
+  const weekLayoutSignature = weekdays.join(',');
+  const monthLayoutKeyRef = useRef(`${monthStartDay}|${weekLayoutSignature}`);
 
+  const initialDate = selectedDate ? new Date(selectedDate) : new Date();
   const initialCustom = getCustomMonthFromDate(initialDate, monthStartDay);
+
   const [internalYear, setInternalYear] = useState(initialCustom.year);
   const [internalMonth, setInternalMonth] = useState(initialCustom.month);
-  
-  // 변수 선언을 useEffect 앞으로 이동
+
   const currentYear = propYear !== undefined ? propYear : internalYear;
   const currentMonth = propMonth !== undefined ? propMonth : internalMonth;
+
+  const buildGrid = useCallback(
+    (year: number, month: number) =>
+      generateMonthGrid(year, month, adjustFirstDayOfWeek, monthStartDay),
+    [adjustFirstDayOfWeek, monthStartDay],
+  );
+
+  const [monthSlots, setMonthSlots] = useState<CalendarMonthSlot[]>(() =>
+    buildThreeMonthWindow(
+      gridCacheRef.current,
+      initialCustom.year,
+      initialCustom.month,
+      monthStartDay,
+      buildGrid,
+    ),
+  );
+
+  const centerYearMonthRef = useRef({ year: initialCustom.year, month: initialCustom.month });
+  const skipSelectedDateSyncRef = useRef(false);
+
   const [scrollInitialized, setScrollInitialized] = useState(false);
   const [layoutReady, setLayoutReady] = useState(false);
-  
-  // selectedDate가 변경될 때 내부 상태/스크롤 업데이트 (옵션)
-  useEffect(() => {
-    if (!selectedDate) return;
-    // 사용처에서 선택: 날짜 선택이 있어도 현재 보이는 월을 유지하려면 완전히 무시
-    if (!autoCenterOnSelectedDate) return;
+  const [isAnimating, setIsAnimating] = useState(false);
+  const [transitionVisiblePage, setTransitionVisiblePage] = useState(CENTER_MONTH_PAGE_INDEX);
+  const isAnimatingRef = useRef(false);
 
-      const newDate = new Date(selectedDate);
-    const custom = getCustomMonthFromDate(newDate, monthStartDay);
-      
-    // prop으로 제어되지 않는 경우에만 내부 상태 업데이트 (항상 반영)
+  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollOffsetRef = useRef(CALENDAR_CENTER_SCROLL_X);
+  const calendarDebugSeqRef = useRef(0);
+  const suppressMomentumUntilRef = useRef(0);
+  const swipeCooldownUntilRef = useRef(0);
+  /** onScrollBeginDrag 이후에만 momentum 커밋 (programmatic bounce 차단) */
+  const activeUserDragRef = useRef(false);
+  /** 한 번의 손가락 제스처당 월 변경 1회 */
+  const dragGestureCommittedRef = useRef(false);
+  const swipeReleaseGenRef = useRef(0);
+  const swipeReleaseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** shift 직후 layout 단계에서 scrollToCenter (offset 0에 전월 그리드 노출 방지) */
+  const pendingSwipeLayoutRecenterRef = useRef(false);
+
+  const todayLocal = useMemo(() => getTodayLocalDateString(), []);
+
+  const cellColorProps = useMemo(
+    () => ({
+      textAssistive: colors.textAssistive,
+      textNeutral: colors.textNeutral,
+      staticWhite: colors.staticWhite,
+      primary: colors.primary,
+    }),
+    [colors.primary, colors.staticWhite, colors.textAssistive, colors.textNeutral],
+  );
+
+  const scrollToCenter = useCallback((extendSuppress = true) => {
+    if (extendSuppress) {
+      suppressMomentumUntilRef.current = Date.now() + PROGRAMMATIC_SCROLL_SUPPRESS_MS;
+    }
+    scrollViewRef.current?.scrollTo({
+      x: CALENDAR_CENTER_SCROLL_X,
+      animated: false,
+    });
+    if (Platform.OS === 'android' && scrollViewRef.current) {
+      scrollViewRef.current.scrollTo({ x: CALENDAR_CENTER_SCROLL_X, animated: false });
+    }
+  }, []);
+
+  /** placeholder 해제 = programmatic suppress 끝 + onScroll 중앙 확인 후 */
+  const scheduleReleaseSwipeLock = useCallback(() => {
+    if (swipeReleaseTimerRef.current) {
+      clearTimeout(swipeReleaseTimerRef.current);
+      swipeReleaseTimerRef.current = null;
+    }
+
+    const generation = swipeReleaseGenRef.current + 1;
+    swipeReleaseGenRef.current = generation;
+
+    const finishRelease = (reason: 'ready' | 'timeout') => {
+      if (swipeReleaseGenRef.current !== generation) {
+        return;
+      }
+
+      if (!isOffsetAtCenterPage(scrollOffsetRef.current)) {
+        scrollToCenter(false);
+      }
+
+      // placeholder 해제·3페이지 동시 페인트 전에 compositor가 중앙 프레임을 그릴 시간 확보
+      requestAnimationFrame(() => {
+        if (swipeReleaseGenRef.current !== generation) {
+          return;
+        }
+        requestAnimationFrame(() => {
+          if (swipeReleaseGenRef.current !== generation) {
+            return;
+          }
+          setIsAnimating(false);
+          logCalendarMonthDebug(calendarDebugSeqRef, 'isAnimating -> false (swipe lock release)', {
+            reason,
+            offsetX: scrollOffsetRef.current,
+            atCenter: isOffsetAtCenterPage(scrollOffsetRef.current),
+            suppressDone: Date.now() >= suppressMomentumUntilRef.current,
+          });
+        });
+      });
+    };
+
+    const tryRelease = (pass: number) => {
+      if (swipeReleaseGenRef.current !== generation) {
+        return;
+      }
+
+      const suppressDone = Date.now() >= suppressMomentumUntilRef.current;
+      const atCenter = isOffsetAtCenterPage(scrollOffsetRef.current);
+
+      if (!suppressDone) {
+        const remaining = Math.max(16, suppressMomentumUntilRef.current - Date.now() + 16);
+        swipeReleaseTimerRef.current = setTimeout(() => {
+          swipeReleaseTimerRef.current = null;
+          tryRelease(0);
+        }, remaining);
+        return;
+      }
+
+      if (atCenter) {
+        finishRelease('ready');
+        return;
+      }
+
+      if (pass >= SWIPE_RELEASE_MAX_PASSES) {
+        scrollToCenter(false);
+        finishRelease('timeout');
+        return;
+      }
+
+      scrollToCenter(false);
+      requestAnimationFrame(() => tryRelease(pass + 1));
+    };
+
+    tryRelease(0);
+  }, [scrollToCenter]);
+
+  const applyCenterMonth = useCallback(
+    (year: number, month: number, source: CalendarMonthChangeSource) => {
+      centerYearMonthRef.current = { year, month };
+
+      logCalendarMonthDebug(calendarDebugSeqRef, 'applyCenterMonth', {
+        source,
+        label: formatMonthLabel(year, month),
+      });
+
       if (propYear === undefined) {
-      setInternalYear(custom.year);
+        setInternalYear(year);
       }
       if (propMonth === undefined) {
-      setInternalMonth(custom.month);
+        setInternalMonth(month);
       }
-      
-    // 자동 중앙 정렬 옵션일 때만 스크롤 이동
-    if (autoCenterOnSelectedDate && scrollViewRef.current && scrollInitialized) {
-        const currentDate = new Date(currentYear, currentMonth - 1);
-      const selectedDateObj = new Date(custom.year, custom.month - 1);
-        const monthsDiff = (selectedDateObj.getFullYear() - currentDate.getFullYear()) * 12 + 
-                          (selectedDateObj.getMonth() - currentDate.getMonth());
-        const targetIndex = CENTER_MONTH_PAGE_INDEX + monthsDiff;
-        const targetX = SCREEN_WIDTH * targetIndex;
-        
-        setTimeout(() => {
-        scrollViewRef.current?.scrollTo({ x: targetX, animated: true });
-        }, 100);
-    }
-  }, [selectedDate, propYear, propMonth, currentYear, currentMonth, scrollInitialized, autoCenterOnSelectedDate, monthStartDay]);
-  
-  // Animation lock to prevent rapid swipes
-  const [isAnimating, setIsAnimating] = useState(false);
-  /** 스와이프 후 리센터 동안만 그리드 숨김 (화살표 월 변경에는 미적용) */
-  const [isSwipeRecentering, setIsSwipeRecentering] = useState(false);
+      onMonthChange?.(year, month);
+    },
+    [onMonthChange, propMonth, propYear],
+  );
 
-  // Generate grids for 7 months (prev3, prev2, prev1, current, next1, next2, next3)
-  const monthGrids = useMemo(() => {
-    const grids = [];
-    
-    for (let offset = -3; offset <= 3; offset++) {
-      let targetMonth = currentMonth + offset;
-      let targetYear = currentYear;
-      
-      // Handle month overflow/underflow
-      while (targetMonth < 1) {
-        targetMonth += 12;
-        targetYear -= 1;
-      }
-      while (targetMonth > 12) {
-        targetMonth -= 12;
-        targetYear += 1;
-      }
-      
-      grids.push({
-        grid: generateMonthGrid(targetYear, targetMonth, adjustFirstDayOfWeek, monthStartDay),
-        year: targetYear,
-        month: targetMonth,
-      });
+  useEffect(() => {
+    isAnimatingRef.current = isAnimating;
+    if (!isAnimating) {
+      setTransitionVisiblePage(CENTER_MONTH_PAGE_INDEX);
     }
-    
-    return grids;
-  }, [currentYear, currentMonth, adjustFirstDayOfWeek, monthStartDay]);
-  
-  // ScrollView ref and initialization
-  const scrollViewRef = useRef<ScrollView>(null);
-  const calendarDebugSeqRef = useRef(0);
-  /** 스와이프: 월 state·monthGrids 반영 후 중앙 scroll */
-  const pendingScrollResetRef = useRef(false);
-  /** scrollTo(중앙) 직후 momentum end — 월 변경 재적용 방지 */
-  const isRecenteringFromSwipeRef = useRef(false);
-  const recenterFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  }, [isAnimating]);
 
   useEffect(() => {
     logCalendarMonthDebug(calendarDebugSeqRef, 'mount', {
@@ -299,322 +391,367 @@ export function CalendarDaySelect({
     if (!__DEV__) {
       return;
     }
-    const slots = monthGrids.map((slot, index) => ({
+    const slots = monthSlots.map((slot, index) => ({
       index,
       label: formatMonthLabel(slot.year, slot.month),
       cellCount: slot.grid.length,
     }));
-    logCalendarMonthDebug(calendarDebugSeqRef, 'monthGrids rebuilt', {
+    logCalendarMonthDebug(calendarDebugSeqRef, 'monthSlots updated', {
       center: slots[CENTER_MONTH_PAGE_INDEX],
       slots,
     });
-  }, [monthGrids]);
+  }, [monthSlots]);
 
-  // Initialize scroll to center after layout is ready
   useEffect(() => {
-    if (!layoutReady || scrollInitialized || !scrollViewRef.current) return;
+    const layoutKey = `${monthStartDay}|${weekLayoutSignature}`;
+    if (monthLayoutKeyRef.current === layoutKey) {
+      return;
+    }
+    monthLayoutKeyRef.current = layoutKey;
+    gridCacheRef.current.clear();
+
+    const { year, month } = centerYearMonthRef.current;
+    setMonthSlots(buildThreeMonthWindow(gridCacheRef.current, year, month, monthStartDay, buildGrid));
+    scrollToCenter();
+  }, [buildGrid, monthStartDay, scrollToCenter, weekLayoutSignature]);
+
+  useEffect(() => {
+    if (!layoutReady || scrollInitialized || !scrollViewRef.current) {
+      return;
+    }
     requestAnimationFrame(() => {
-      scrollViewRef.current?.scrollTo({
-        x: SCREEN_WIDTH * CENTER_MONTH_PAGE_INDEX,
-        animated: false,
-      });
+      scrollToCenter();
       setScrollInitialized(true);
     });
-  }, [layoutReady, scrollInitialized]);
+  }, [layoutReady, scrollInitialized, scrollToCenter]);
 
   useLayoutEffect(() => {
-    if (!pendingScrollResetRef.current || !scrollViewRef.current) {
+    if (!pendingSwipeLayoutRecenterRef.current) {
       return;
     }
 
-    const centerX = SCREEN_WIDTH * CENTER_MONTH_PAGE_INDEX;
-    const centerSlot = monthGrids[CENTER_MONTH_PAGE_INDEX];
+    pendingSwipeLayoutRecenterRef.current = false;
+    scrollToCenter();
 
-    pendingScrollResetRef.current = false;
-    isRecenteringFromSwipeRef.current = true;
-
-    if (recenterFallbackTimerRef.current) {
-      clearTimeout(recenterFallbackTimerRef.current);
-    }
-
-    logCalendarMonthDebug(calendarDebugSeqRef, 'useLayoutEffect scrollTo center (after monthGrids)', {
-      centerX,
-      targetPage: CENTER_MONTH_PAGE_INDEX,
-      centerSlotLabel: centerSlot
-        ? formatMonthLabel(centerSlot.year, centerSlot.month)
-        : 'unknown',
-      androidDoubleScroll: Platform.OS === 'android',
+    logCalendarMonthDebug(calendarDebugSeqRef, 'useLayoutEffect swipe recenter', {
+      centerLabel: formatMonthLabel(
+        centerYearMonthRef.current.year,
+        centerYearMonthRef.current.month,
+      ),
+      offsetBefore: scrollOffsetRef.current,
     });
 
-    scrollViewRef.current.scrollTo({ x: centerX, animated: false });
-    if (Platform.OS === 'android') {
-      scrollViewRef.current.scrollTo({ x: centerX, animated: false });
-    }
+    scheduleReleaseSwipeLock();
+  }, [monthSlots, scheduleReleaseSwipeLock, scrollToCenter]);
 
-    recenterFallbackTimerRef.current = setTimeout(() => {
-      if (!isRecenteringFromSwipeRef.current) {
-        return;
-      }
-      isRecenteringFromSwipeRef.current = false;
-      setIsAnimating(false);
-      setIsSwipeRecentering(false);
-      logCalendarMonthDebug(calendarDebugSeqRef, 'swipe recenter fallback (no momentum end)', {
-        displayMonth: formatMonthLabel(currentYear, currentMonth),
-      });
-    }, 200);
-
-    return () => {
-      if (recenterFallbackTimerRef.current) {
-        clearTimeout(recenterFallbackTimerRef.current);
-        recenterFallbackTimerRef.current = null;
-      }
-    };
-  }, [currentYear, currentMonth, monthGrids]);
-
-  // Handle scroll end
-  const handleScrollEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const offsetX = event.nativeEvent.contentOffset.x;
-    const page = Math.round(offsetX / SCREEN_WIDTH);
-    const monthsToMove = page - CENTER_MONTH_PAGE_INDEX;
-
-    if (isRecenteringFromSwipeRef.current) {
-      if (recenterFallbackTimerRef.current) {
-        clearTimeout(recenterFallbackTimerRef.current);
-        recenterFallbackTimerRef.current = null;
-      }
-      isRecenteringFromSwipeRef.current = false;
-      setIsAnimating(false);
-      setIsSwipeRecentering(false);
-      logCalendarMonthDebug(calendarDebugSeqRef, 'programmatic recenter scroll end (ignored)', {
-        offsetX,
-        page,
-        monthsToMove,
-        displayMonth: formatMonthLabel(currentYear, currentMonth),
-      });
+  useEffect(() => {
+    if (!selectedDate || !autoCenterOnSelectedDate || !scrollInitialized) {
       return;
     }
 
-    if (pendingScrollResetRef.current) {
-      logCalendarMonthDebug(calendarDebugSeqRef, 'swipe ignored (pending scroll reset)', {
-        offsetX,
-        page,
-        monthsToMove,
-      });
+    if (skipSelectedDateSyncRef.current) {
+      skipSelectedDateSyncRef.current = false;
       return;
     }
 
-    if (isAnimating) {
-      logCalendarMonthDebug(calendarDebugSeqRef, 'swipe ignored (isAnimating)', {
-        offsetX,
-        page,
-        monthsToMove,
-      });
-      return;
+    const custom = getCustomMonthFromDate(new Date(selectedDate), monthStartDay);
+    const { year: targetYear, month: targetMonth } = custom;
+
+    setMonthSlots((prev) =>
+      resolveSlotsForTargetMonth(
+        gridCacheRef.current,
+        prev,
+        CENTER_MONTH_PAGE_INDEX,
+        targetYear,
+        targetMonth,
+        monthStartDay,
+        buildGrid,
+      ),
+    );
+
+    centerYearMonthRef.current = { year: targetYear, month: targetMonth };
+    if (propYear === undefined) {
+      setInternalYear(targetYear);
+    }
+    if (propMonth === undefined) {
+      setInternalMonth(targetMonth);
     }
 
-    if (monthsToMove === 0) {
-      logCalendarMonthDebug(calendarDebugSeqRef, 'swipe end (no month change)', {
-        offsetX,
-        page,
-      });
-      return;
-    }
-
-    logCalendarMonthDebug(calendarDebugSeqRef, 'swipe end -> change month', {
-      offsetX,
-      page,
-      monthsToMove,
-      from: formatMonthLabel(currentYear, currentMonth),
-      swipedToSlotLabel: monthGrids[page]
-        ? formatMonthLabel(monthGrids[page].year, monthGrids[page].month)
-        : 'unknown',
+    requestAnimationFrame(() => {
+      scrollToCenter();
     });
+  }, [
+    autoCenterOnSelectedDate,
+    buildGrid,
+    monthStartDay,
+    propMonth,
+    propYear,
+    scrollInitialized,
+    selectedDate,
+    scrollToCenter,
+  ]);
 
-    setIsAnimating(true);
-    setIsSwipeRecentering(true);
-    pendingScrollResetRef.current = true;
-    changeMonthBy(monthsToMove, 'swipe');
-  };
+  const handleDayPress = useCallback(
+    (dateString: string) => {
+      onDayPress?.(dateString);
+    },
+    [onDayPress],
+  );
 
-  // Change month by a specific amount (positive = forward, negative = backward)
-  const changeMonthBy = useCallback(
-    (amount: number, source: CalendarMonthChangeSource = 'swipe') => {
-      const fromLabel = formatMonthLabel(currentYear, currentMonth);
-      const currentDate = new Date(currentYear, currentMonth - 1);
-      currentDate.setMonth(currentDate.getMonth() + amount);
-
-      const newYear = currentDate.getFullYear();
-      const newMonth = currentDate.getMonth() + 1;
-      const toLabel = formatMonthLabel(newYear, newMonth);
+  const moveCenterMonth = useCallback(
+    (monthsToMove: number, source: CalendarMonthChangeSource) => {
+      const { year: fromYear, month: fromMonth } = centerYearMonthRef.current;
+      const { year: nextYear, month: nextMonth } = addCalendarMonths(fromYear, fromMonth, monthsToMove);
 
       logCalendarMonthDebug(calendarDebugSeqRef, 'changeMonthBy', {
         source,
-        amount,
-        from: fromLabel,
-        to: toLabel,
+        amount: monthsToMove,
+        from: formatMonthLabel(fromYear, fromMonth),
+        to: formatMonthLabel(nextYear, nextMonth),
       });
 
-      if (propYear === undefined) {
-        setInternalYear(newYear);
-      }
-      if (propMonth === undefined) {
-        setInternalMonth(newMonth);
-      }
+      scrollToCenter();
 
-      if (onMonthChange) {
-        onMonthChange(newYear, newMonth);
-      }
-    },
-    [currentYear, currentMonth, propYear, propMonth, onMonthChange],
-  );
-
-  // Change month with functional updates (for arrow buttons)
-  const changeMonth = useCallback(
-    (direction: 'prev' | 'next') => {
-      changeMonthBy(
-        direction === 'next' ? 1 : -1,
-        direction === 'next' ? 'arrow-next' : 'arrow-prev',
+      setMonthSlots((prev) =>
+        monthsToMove > 0
+          ? shiftSlotsForward(gridCacheRef.current, prev, monthStartDay, buildGrid)
+          : shiftSlotsBackward(gridCacheRef.current, prev, monthStartDay, buildGrid),
       );
+
+      applyCenterMonth(nextYear, nextMonth, source);
     },
-    [changeMonthBy],
+    [applyCenterMonth, buildGrid, monthStartDay, scrollToCenter],
   );
 
-  // Handle day press
-  const handleDayPress = (dateString: string) => {
-    if (onDayPress) {
-      onDayPress(dateString);
-    }
-  };
+  /** 스크롤이 멈춘 뒤 page index로 방향 판정 (calendar-main과 동일) */
+  const resolveMonthsToMoveFromOffset = useCallback((offsetX: number): number => {
+    const page = Math.round(offsetX / SCREEN_WIDTH);
+    return page - CENTER_MONTH_PAGE_INDEX;
+  }, []);
 
-  // Handle navigation arrows
-  const handlePrevMonth = () => {
+  /** calendar-main과 동일: shift → applyCenterMonth → scrollToCenter → 짧은 잠금 */
+  const commitSwipeMonthsToMove = useCallback(
+    (monthsToMove: number, source: 'momentum' | 'drag-end', offsetX: number) => {
+      if (isAnimating || monthsToMove === 0) {
+        return;
+      }
+
+      const { year: fromYear, month: fromMonth } = centerYearMonthRef.current;
+      const { year: nextYear, month: nextMonth } = addCalendarMonths(
+        fromYear,
+        fromMonth,
+        monthsToMove,
+      );
+
+      logCalendarMonthDebug(calendarDebugSeqRef, 'swipe commit', {
+        source,
+        offsetX,
+        page: Math.round(offsetX / SCREEN_WIDTH),
+        monthsToMove,
+        from: formatMonthLabel(fromYear, fromMonth),
+        to: formatMonthLabel(nextYear, nextMonth),
+      });
+
+      skipSelectedDateSyncRef.current = true;
+      pendingSwipeLayoutRecenterRef.current = true;
+      setTransitionVisiblePage(Math.round(offsetX / SCREEN_WIDTH));
+      setIsAnimating(true);
+
+      setMonthSlots((prev) =>
+        monthsToMove > 0
+          ? shiftSlotsForward(gridCacheRef.current, prev, monthStartDay, buildGrid)
+          : shiftSlotsBackward(gridCacheRef.current, prev, monthStartDay, buildGrid),
+      );
+      applyCenterMonth(nextYear, nextMonth, 'swipe');
+
+      // calendar-main과 동일: 슬롯 커밋 직후 동기 리센터 (useLayoutEffect 전 1프레임 전월 노출 방지)
+      scrollToCenter();
+      scrollOffsetRef.current = CALENDAR_CENTER_SCROLL_X;
+      setTransitionVisiblePage(CENTER_MONTH_PAGE_INDEX);
+
+      activeUserDragRef.current = false;
+      swipeCooldownUntilRef.current = Date.now() + SWIPE_COMMIT_COOLDOWN_MS;
+    },
+    [applyCenterMonth, buildGrid, isAnimating, monthStartDay, scrollToCenter],
+  );
+
+  const handleScrollBeginDrag = useCallback(() => {
+    if (Date.now() < suppressMomentumUntilRef.current) {
+      return;
+    }
+    if (Date.now() < swipeCooldownUntilRef.current) {
+      return;
+    }
+    if (isAnimating) {
+      return;
+    }
+
+    const offsetX = scrollOffsetRef.current;
+    const centerTolerance = SCREEN_WIDTH * DRAG_START_CENTER_TOLERANCE_RATIO;
+    if (Math.abs(offsetX - CALENDAR_CENTER_SCROLL_X) > centerTolerance) {
+      logCalendarMonthDebug(calendarDebugSeqRef, 'scrollBeginDrag ignored (not from center)', {
+        offsetX,
+        centerX: CALENDAR_CENTER_SCROLL_X,
+      });
+      return;
+    }
+
+    activeUserDragRef.current = true;
+    dragGestureCommittedRef.current = false;
+  }, [isAnimating]);
+
+  const handleMomentumScrollEnd = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const offsetX = event.nativeEvent.contentOffset.x;
+      scrollOffsetRef.current = offsetX;
+      const page = Math.round(offsetX / SCREEN_WIDTH);
+      const monthsToMove = resolveMonthsToMoveFromOffset(offsetX);
+
+      if (Date.now() < suppressMomentumUntilRef.current) {
+        logCalendarMonthDebug(calendarDebugSeqRef, 'momentum ignored (programmatic scroll)', {
+          offsetX,
+          page,
+          suppressRemaining: suppressMomentumUntilRef.current - Date.now(),
+        });
+        return;
+      }
+
+      if (Date.now() < swipeCooldownUntilRef.current) {
+        logCalendarMonthDebug(calendarDebugSeqRef, 'momentum ignored (swipe cooldown)', {
+          offsetX,
+          page,
+          cooldownRemaining: swipeCooldownUntilRef.current - Date.now(),
+        });
+        if (page !== CENTER_MONTH_PAGE_INDEX) {
+          scrollToCenter();
+        }
+        activeUserDragRef.current = false;
+        return;
+      }
+
+      if (isAnimating) {
+        return;
+      }
+
+      if (!activeUserDragRef.current) {
+        logCalendarMonthDebug(calendarDebugSeqRef, 'momentum ignored (no user drag)', {
+          offsetX,
+          page,
+          monthsToMove,
+        });
+        if (page !== CENTER_MONTH_PAGE_INDEX) {
+          scrollToCenter();
+        }
+        return;
+      }
+
+      if (monthsToMove === 0) {
+        activeUserDragRef.current = false;
+        if (page !== CENTER_MONTH_PAGE_INDEX) {
+          scrollToCenter();
+        }
+        return;
+      }
+
+      if (dragGestureCommittedRef.current) {
+        logCalendarMonthDebug(calendarDebugSeqRef, 'momentum ignored (gesture already committed)', {
+          offsetX,
+          page,
+          monthsToMove,
+        });
+        activeUserDragRef.current = false;
+        scrollToCenter();
+        return;
+      }
+
+      dragGestureCommittedRef.current = true;
+      activeUserDragRef.current = false;
+      commitSwipeMonthsToMove(monthsToMove, 'momentum', offsetX);
+    },
+    [commitSwipeMonthsToMove, isAnimating, resolveMonthsToMoveFromOffset, scrollToCenter],
+  );
+
+  const handleScrollEndDrag = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const velocityX = event.nativeEvent.velocity?.x ?? 0;
+
+      if (Platform.OS === 'android') {
+        if (Math.abs(velocityX) < IOS_DRAG_END_VELOCITY_THRESHOLD) {
+          const offsetX = event.nativeEvent.contentOffset.x;
+          const monthsToMove = resolveMonthsToMoveFromOffset(offsetX);
+          if (
+            monthsToMove !== 0 &&
+            activeUserDragRef.current &&
+            !dragGestureCommittedRef.current &&
+            Date.now() >= swipeCooldownUntilRef.current &&
+            Date.now() >= suppressMomentumUntilRef.current &&
+            !isAnimating
+          ) {
+            dragGestureCommittedRef.current = true;
+            activeUserDragRef.current = false;
+            commitSwipeMonthsToMove(monthsToMove, 'drag-end', offsetX);
+          }
+        }
+        return;
+      }
+
+      if (Math.abs(velocityX) > IOS_DRAG_END_VELOCITY_THRESHOLD) {
+        return;
+      }
+
+      const offsetX = event.nativeEvent.contentOffset.x;
+      const monthsToMove = resolveMonthsToMoveFromOffset(offsetX);
+      if (monthsToMove === 0 || dragGestureCommittedRef.current) {
+        return;
+      }
+      dragGestureCommittedRef.current = true;
+      commitSwipeMonthsToMove(monthsToMove, 'drag-end', offsetX);
+    },
+    [commitSwipeMonthsToMove, isAnimating, resolveMonthsToMoveFromOffset],
+  );
+
+  const handlePrevMonth = useCallback(() => {
     if (isAnimating) {
       logCalendarMonthDebug(calendarDebugSeqRef, 'arrow-prev ignored (isAnimating)', {});
       return;
     }
 
     logCalendarMonthDebug(calendarDebugSeqRef, 'arrow-prev press', {
-      from: formatMonthLabel(currentYear, currentMonth),
+      from: formatMonthLabel(centerYearMonthRef.current.year, centerYearMonthRef.current.month),
     });
+
+    skipSelectedDateSyncRef.current = true;
     setIsAnimating(true);
-
-    LayoutAnimation.configureNext({
-      duration: 50,
-      update: {
-        type: LayoutAnimation.Types.easeInEaseOut,
-      },
-    });
-    changeMonth('prev');
-
+    moveCenterMonth(-1, 'arrow-prev');
+    scrollToCenter();
     setTimeout(() => {
       setIsAnimating(false);
       logCalendarMonthDebug(calendarDebugSeqRef, 'isAnimating -> false (arrow-prev lock release)', {});
     }, 100);
-  };
+  }, [isAnimating, moveCenterMonth, scrollToCenter]);
 
-  const handleNextMonth = () => {
+  const handleNextMonth = useCallback(() => {
     if (isAnimating) {
       logCalendarMonthDebug(calendarDebugSeqRef, 'arrow-next ignored (isAnimating)', {});
       return;
     }
 
     logCalendarMonthDebug(calendarDebugSeqRef, 'arrow-next press', {
-      from: formatMonthLabel(currentYear, currentMonth),
+      from: formatMonthLabel(centerYearMonthRef.current.year, centerYearMonthRef.current.month),
     });
+
+    skipSelectedDateSyncRef.current = true;
     setIsAnimating(true);
-
-    LayoutAnimation.configureNext({
-      duration: 50,
-      update: {
-        type: LayoutAnimation.Types.easeInEaseOut,
-      },
-    });
-    changeMonth('next');
-
+    moveCenterMonth(1, 'arrow-next');
+    scrollToCenter();
     setTimeout(() => {
       setIsAnimating(false);
       logCalendarMonthDebug(calendarDebugSeqRef, 'isAnimating -> false (arrow-next lock release)', {});
     }, 100);
-  };
-
-  // Render day cell
-  const renderDay = (item: { date: string; day: number; isCurrentMonth: boolean }, index: number, gridType: 'prev' | 'current' | 'next') => {
-    const isSelected = item.date === selectedDate;
-    // Disable past dates if requested
-    const todayLocal = getTodayLocalDate();
-    const isPast = disablePastDates && item.date < todayLocal;
-    
-    // For prev/next grids, consider their days as "current month" for styling
-    const isCurrentMonthForStyling = gridType === 'current' ? item.isCurrentMonth : true;
-
-    const dayTextColor = isPast
-      ? colors.textAssistive
-      : !isCurrentMonthForStyling
-      ? colors.textAssistive
-      : isSelected
-      ? colors.staticWhite
-      : colors.textNeutral;
-
-    const dayTextStyle = isPast
-      ? styles.dayTextOtherMonth
-      : !isCurrentMonthForStyling
-      ? styles.dayTextOtherMonth
-      : isSelected
-      ? styles.dayTextSelected
-      : styles.dayTextDefault;
-
-    return (
-      <View
-        key={`${gridType}-${item.date}-${index}`}
-        style={[styles.dayContainer, { width: DAY_CELL_WIDTH }]}
-      >
-        <Pressable
-          onPress={() => {
-            if (isPast) {
-              onInvalidPastDate?.();
-              return;
-            }
-            handleDayPress(item.date);
-          }}
-          style={({ pressed }) => [
-            styles.dayPressable,
-            Platform.OS === 'ios' && pressed && !isSelected && !isPast && styles.dayCirclePressed,
-          ]}
-          android_ripple={
-            Platform.OS === 'android'
-              ? {
-                  color: isSelected ? 'rgba(255, 255, 255, 0.35)' : 'rgba(54, 100, 206, 0.2)',
-                  radius: DAY_CIRCLE_RADIUS,
-                  borderless: false,
-                }
-              : undefined
-          }
-          accessibilityRole="button"
-          accessibilityState={{ selected: isSelected }}
-          accessibilityLabel={item.date}
-          disabled={isPast}
-        >
-          <View
-            style={[
-              styles.dayCircle,
-              {
-                backgroundColor:
-                  isSelected && !isPast ? colors.primary : 'transparent',
-              },
-            ]}
-          >
-            <Text style={[dayTextStyle, { color: dayTextColor }]}>
-              {item.day}
-            </Text>
-          </View>
-        </Pressable>
-      </View>
-    );
-  };
+  }, [isAnimating, moveCenterMonth, scrollToCenter]);
 
   return (
     <View style={[styles.container, { width: SCREEN_WIDTH }, style]}>
-      {/* Navigation Bar (조건부 표시) */}
       {!hideNavBar && (
         <View style={styles.navBar}>
           <Pressable
@@ -641,49 +778,86 @@ export function CalendarDaySelect({
         </View>
       )}
 
-      {/* Day Headers (Fixed) */}
       <View style={[styles.weekdayHeader, { backgroundColor: colors.fillStrong }]}>
         {weekdays.map((day) => (
           <View key={day} style={[styles.weekdayCell, { width: DAY_CELL_WIDTH }]}>
-            <Text style={[styles.weekdayText, { color: colors.textNeutral }]}>
-              {day}
-            </Text>
+            <Text style={[styles.weekdayText, { color: colors.textNeutral }]}>{day}</Text>
           </View>
         ))}
       </View>
 
-      {/* Day Cells (Swipeable with 5-month ScrollView) */}
-      <ScrollView
-        ref={scrollViewRef}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        scrollEventThrottle={16}
-        onMomentumScrollEnd={handleScrollEnd}
-        onScrollBeginDrag={() => {}}
-        scrollEnabled={!isAnimating}
-        style={[
-          styles.scrollView,
-          { height: DAY_CELLS_AREA_HEIGHT, opacity: isSwipeRecentering ? 0 : 1 },
-        ]}
-        onLayout={() => setLayoutReady(true)}
-      >
-        {/* Render 7 months: [prev3, prev2, prev1, current, next1, next2, next3] */}
-        {monthGrids.map((monthData, index) => {
-          const gridType =
-            index === CENTER_MONTH_PAGE_INDEX ? 'current' : index < CENTER_MONTH_PAGE_INDEX ? 'prev' : 'next';
+      <View style={[styles.pagerViewport, { backgroundColor: colors.staticWhite }]}>
+        <ScrollView
+          ref={scrollViewRef}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onScroll={(event) => {
+            const offsetX = event.nativeEvent.contentOffset.x;
+            scrollOffsetRef.current = offsetX;
+            if (isAnimatingRef.current) {
+              setTransitionVisiblePage(Math.round(offsetX / SCREEN_WIDTH));
+              if (!isOffsetAtCenterPage(offsetX)) {
+                scrollToCenter(false);
+              }
+            }
+          }}
+          onScrollBeginDrag={handleScrollBeginDrag}
+          onScrollEndDrag={handleScrollEndDrag}
+          onMomentumScrollEnd={handleMomentumScrollEnd}
+          scrollEnabled={!isAnimating}
+          style={[styles.scrollView, { height: DAY_CELLS_AREA_HEIGHT }]}
+          onLayout={() => setLayoutReady(true)}
+        >
+        {monthSlots.map((monthData, index) => {
+          const gridType: CalendarDaySelectGridType =
+            index === CENTER_MONTH_PAGE_INDEX
+              ? 'current'
+              : index < CENTER_MONTH_PAGE_INDEX
+                ? 'prev'
+                : 'next';
+          const hideSidePageDuringTransition =
+            isAnimating &&
+            index === transitionVisiblePage &&
+            index !== CENTER_MONTH_PAGE_INDEX;
+
           return (
-            <View key={`month-page-${index}`} style={[styles.monthPage, { width: SCREEN_WIDTH }]}>
-              <View style={styles.weeksContainer}>
-                {monthData.grid.map((item, dayIndex) => renderDay(item, dayIndex, gridType))}
-              </View>
+            <View
+              key={`${monthData.year}-${monthData.month}-${gridType}`}
+              style={[styles.monthPage, { width: SCREEN_WIDTH }]}
+            >
+              {hideSidePageDuringTransition ? (
+                <View style={styles.monthPageTransitionPlaceholder} />
+              ) : (
+                <View style={styles.weeksContainer}>
+                  {monthData.grid.map((item, dayIndex) => (
+                    <CalendarDaySelectCell
+                      key={`${gridType}-${item.date}-${dayIndex}`}
+                      date={item.date}
+                      day={item.day}
+                      isCurrentMonth={item.isCurrentMonth}
+                      gridType={gridType}
+                      selectedDate={selectedDate}
+                      disablePastDates={disablePastDates}
+                      todayLocal={todayLocal}
+                      onDayPress={handleDayPress}
+                      onInvalidPastDate={onInvalidPastDate}
+                      {...cellColorProps}
+                    />
+                  ))}
+                </View>
+              )}
             </View>
           );
         })}
-      </ScrollView>
+        </ScrollView>
+      </View>
     </View>
   );
 }
+
+export const CalendarDaySelect = memo(CalendarDaySelectInner);
 
 const styles = StyleSheet.create({
   container: {
@@ -720,45 +894,24 @@ const styles = StyleSheet.create({
   weekdayText: {
     ...Typography.detail.r.medium,
   },
+  pagerViewport: {
+    height: DAY_CELLS_AREA_HEIGHT,
+    width: '100%',
+    overflow: 'hidden',
+  },
   scrollView: {
     width: '100%',
   },
   monthPage: {
-    // width: dynamic (SCREEN_WIDTH)
+    // width: SCREEN_WIDTH
+  },
+  /** 전환 중 잘못 보이는 page — 셀 미렌더(전월·옆달 전체 볼드 플래시 방지), 페이저 구조 유지 */
+  monthPageTransitionPlaceholder: {
+    height: DAY_CELLS_AREA_HEIGHT,
+    width: '100%',
   },
   weeksContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
   },
-  dayContainer: {
-    height: DAY_CELL_HEIGHT,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dayPressable: {
-    width: DAY_CIRCLE_SIZE,
-    height: DAY_CIRCLE_SIZE,
-    borderRadius: DAY_CIRCLE_RADIUS,
-    overflow: 'hidden',
-  },
-  dayCircle: {
-    width: DAY_CIRCLE_SIZE,
-    height: DAY_CIRCLE_SIZE,
-    borderRadius: DAY_CIRCLE_RADIUS,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  dayCirclePressed: {
-    opacity: 0.7,
-  },
-  dayTextSelected: {
-    ...Typography.body1.l.bold,
-  },
-  dayTextDefault: {
-    ...Typography.body1.l.bold,
-  },
-  dayTextOtherMonth: {
-    ...Typography.body1.l.medium,
-  },
 });
-

@@ -16,7 +16,7 @@ import { Input } from '@/components/ui/input';
 import { ModalBottomsheet, ModalBottomsheetBottomInset } from '@/components/ui/modal-bottomsheet';
 import { ModalPopup } from '@/components/ui/modal-popup';
 import { PrepaymentModal } from '@/components/ui/prepayment-modal';
-import { RecordDatePickerSheet } from '@/components/ui/record-date-picker-sheet';
+import { RecordDatePickerHost } from '@/components/ui/record-date-picker-sheet';
 import { Radio } from '@/components/ui/radio';
 import { Switch } from '@/components/ui/switch';
 import { Tag } from '@/components/ui/tag';
@@ -5708,32 +5708,28 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         }}
         backdropInteractive={true}
         extraOverlay={
-          showDatePicker && showPrepaymentModal ? (
-            <RecordDatePickerSheet
-              visible
-              embedded
-              title="소비 기록일 선택"
-              selectedDate={tempSelectedDate}
-              onSelectedDateChange={handleDatePickerDaySelect}
-              onClose={handleDatePickerClose}
-              onConfirm={handlePrepaymentDatePickerConfirm}
-              monthStartDay={monthStartDay}
-            />
-          ) : null
+          <RecordDatePickerHost
+            open={showDatePicker && showPrepaymentModal}
+            embedded
+            title="소비 기록일 선택"
+            selectedDate={tempSelectedDate}
+            onSelectedDateChange={handleDatePickerDaySelect}
+            onClose={handleDatePickerClose}
+            onConfirm={handlePrepaymentDatePickerConfirm}
+            monthStartDay={monthStartDay}
+          />
         }
       />
 
-      {showDatePicker && !showPrepaymentModal ? (
-        <RecordDatePickerSheet
-          visible
-          title="소비 기록일 선택"
-          selectedDate={tempSelectedDate}
-          onSelectedDateChange={handleDatePickerDaySelect}
-          onClose={handleDatePickerClose}
-          onConfirm={handleExpenseDatePickerConfirm}
-          monthStartDay={monthStartDay}
-        />
-      ) : null}
+      <RecordDatePickerHost
+        open={showDatePicker && !showPrepaymentModal}
+        title="소비 기록일 선택"
+        selectedDate={tempSelectedDate}
+        onSelectedDateChange={handleDatePickerDaySelect}
+        onClose={handleDatePickerClose}
+        onConfirm={handleExpenseDatePickerConfirm}
+        monthStartDay={monthStartDay}
+      />
 
       {/* 결제 유형 선택 바텀시트 */}
       {showPaymentTypeSheet ? (
