@@ -6,6 +6,7 @@
 
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Icon } from '@/components/ui/icon';
+import { ModalBottomsheetBottomInset } from '@/components/ui/modal-bottomsheet-bottom-inset';
 import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
 import { Tag } from '@/components/ui/tag';
 import { Colors, Typography } from '@/constants/theme';
@@ -1623,7 +1624,7 @@ export default function MonthlyExpenseTimelineScreen() {
                 ))}
               </ScrollView>
             </View>
-            <View style={[styles.paymentFilterBottomSpacer, { backgroundColor: colors.staticWhite }]} />
+            <ModalBottomsheetBottomInset backgroundColor={colors.staticWhite} />
           </View>
         </ModalBottomsheet>
       ) : null}
@@ -2016,10 +2017,6 @@ const styles = StyleSheet.create({
   paymentFilterDivider: {
     height: 1,
     marginHorizontal: 16,
-  },
-  paymentFilterBottomSpacer: {
-    height: 34,
-    marginHorizontal: -16,
   },
   floatingFilterButton: {
     position: 'absolute',

@@ -269,7 +269,7 @@ export default function DataBackupScreen() {
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: colors.background }]}
-      edges={['top']}
+      edges={['top', 'bottom']}
     >
       <TopNavigation
         type="sub"
@@ -403,7 +403,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingTop: 24,
-    paddingBottom: 24,
+    paddingBottom: 32,
     gap: 32,
   },
   sectionBlock: {

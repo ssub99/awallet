@@ -1,95 +1,70 @@
 /**
  * Modal Bottomsheet Component
- * 
+ *
  * A bottom sheet modal with top navigation and flexible content.
  * Features smooth slide-up animation and dim backdrop like native picker.
+ *
+ * Bottom inset (same philosophy as CustomKeypadOverlay + CustomKeypad):
+ * - Android: padding from native navigation bar inset (OS option / minimized state).
+ * - iOS (default): native home-indicator inset on the sheet shell.
+ * - iOS (noPaddingBottom): children reserve the zone (e.g. Figma 34px spacer), like CustomKeypad body.
+ *
+ * RN Modal is outside the app SafeAreaProvider — Provider below is required so insets subscribe to the modal window.
  */
 
 import { Colors, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import {
+  getAndroidNavigationBarInset,
+  getIosSystemBottomInset,
+} from '@/components/ui/custom-keypad-overlay';
 import { ReactNode, useEffect, useRef, useState } from 'react';
 import {
-    Animated,
-    BackHandler,
-    Dimensions,
-    Modal,
-    Platform,
-    Pressable,
-    StyleSheet,
-    Text,
-    View,
-    ViewStyle
+  Animated,
+  BackHandler,
+  Dimensions,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  ViewStyle,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { EdgeInsets, SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ToastHost } from '@/contexts/toast-context';
 import { Icon } from './icon';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
 export interface ModalBottomsheetProps {
-  /**
-   * Modal visibility
-   */
   visible: boolean;
-  
-  /**
-   * Sheet title
-   */
   title: string;
-  
-  /**
-   * Sheet content (flexible via children)
-   */
   children: ReactNode;
-  
-  /**
-   * Confirm button text
-   */
   confirmText?: string;
-  
-  /**
-   * Confirm button handler
-   */
   onConfirm?: () => void;
-  
-  /**
-   * Close/Cancel handler
-   */
   onClose: () => void;
-  
-  /**
-   * Close on backdrop press
-   */
   closeOnBackdrop?: boolean;
-  
-  /**
-   * Container style
-   */
   style?: ViewStyle;
-  
-  /**
-   * Content style (for overriding content padding)
-   */
   contentStyle?: ViewStyle;
-  
   /**
-   * Disable bottom safe-area padding on the sheet container.
-   * Default: iOS only — reserves home indicator area (insets.bottom). Android: none.
-   * Use when children handle the iOS home indicator area themselves.
+   * Skip shell bottom inset. Use when children handle iOS home indicator / Android nav (see category emoji picker).
    */
   noPaddingBottom?: boolean;
-
-  /**
-   * Render as overlay inside a parent RN Modal (no second Modal).
-   * Use only with ModalPopup `extraOverlay` (e.g. prepayment date picker). Default: false.
-   */
+  /** Render inside parent Modal (ModalPopup extraOverlay). */
   embedded?: boolean;
 }
 
-/**
- * Modal Bottomsheet Component with flexible content
- */
-export function ModalBottomsheet({
+function getSheetContainerBottomPadding(
+  noPaddingBottom: boolean,
+  insets: Pick<EdgeInsets, 'bottom'>,
+): number {
+  if (noPaddingBottom) {
+    return 0;
+  }
+  return getAndroidNavigationBarInset(insets) + getIosSystemBottomInset(insets);
+}
+
+function ModalBottomsheetContent({
   visible,
   title,
   children,
@@ -105,21 +80,15 @@ export function ModalBottomsheet({
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
   const insets = useSafeAreaInsets();
-  const sheetBottomInset =
-    noPaddingBottom || Platform.OS !== 'ios' ? 0 : insets.bottom;
+  const sheetBottomPadding = getSheetContainerBottomPadding(noPaddingBottom, insets);
 
-  // Internal state to control actual Modal visibility (Modal mode only)
   const [isModalVisible, setIsModalVisible] = useState(false);
-  
-  // Store content to prevent flickering when switching between sheets
   const [currentContent, setCurrentContent] = useState<ReactNode>(null);
   const [currentTitle, setCurrentTitle] = useState(title);
-  
-  // Animation values
+
   const dimOpacity = useRef(new Animated.Value(0)).current;
   const sheetTranslateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
 
-  // Animate sheet open/close (like native picker)
   useEffect(() => {
     if (visible) {
       if (!embedded) {
@@ -137,7 +106,7 @@ export function ModalBottomsheet({
             useNativeDriver: true,
           }),
           Animated.timing(sheetTranslateY, {
-            toValue: 0, // 0으로 설정하여 화면 하단에 정확히 붙도록
+            toValue: 0,
             duration: 150,
             useNativeDriver: true,
           }),
@@ -176,31 +145,19 @@ export function ModalBottomsheet({
     }
     setCurrentTitle(title);
   }, [title, visible]);
-  
-  // Update content when children change (without triggering animation)
+
   useEffect(() => {
     if (visible) {
       setCurrentContent(children);
     }
   }, [children, visible]);
 
-  const handleClose = () => {
-    onClose();
-  };
-
-  const handleConfirm = () => {
-    if (onConfirm) {
-      onConfirm();
-    }
-  };
-
   const handleBackdropPress = () => {
     if (closeOnBackdrop) {
-      handleClose();
+      onClose();
     }
   };
 
-  // embedded: 상위 RN Modal 안에서만 사용 — 하드웨어 뒤로가기는 onRequestClose 대신 여기서 처리
   useEffect(() => {
     if (!embedded || !visible) {
       return undefined;
@@ -214,83 +171,80 @@ export function ModalBottomsheet({
     return () => subscription.remove();
   }, [embedded, visible, onClose]);
 
-  if (embedded) {
-    // Embedded render (no RN Modal)
-    return (
-      <>
-        {/* Dim Backdrop */}
-        <Animated.View
-          style={[
-            styles.backdrop,
-            { opacity: dimOpacity, zIndex: 100001 },
-          ]}
-          pointerEvents={visible ? 'auto' : 'none'}
-        >
-          <Pressable style={StyleSheet.absoluteFill} onPress={handleBackdropPress} />
-        </Animated.View>
-
-        {/* Bottomsheet */}
-        <Animated.View
-          style={[
-            styles.sheetContainer,
-            {
-              transform: [{ translateY: sheetTranslateY }],
-              backgroundColor: colors.staticWhite,
-              paddingBottom: sheetBottomInset,
-              // Ensure overlay is above popup content when embedded
-              zIndex: 100002,
-            },
-          ]}
-          pointerEvents={visible ? 'auto' : 'none'}
-        >
-          <View style={[styles.sheet, style]}>
-            <View style={styles.navigation}>
-              <View style={styles.navContent}>
-                <View style={styles.navLeft}>
-                  <Pressable
-                    onPress={handleClose}
-                    style={styles.closeButton}
-                    accessibilityRole="button"
-                    accessibilityLabel="닫기"
-                  >
-                    <Icon name="close" size={24} color={colors.text} />
-                  </Pressable>
-                </View>
-                <View style={styles.titleContainer}>
-                  <Text style={[styles.title, { color: colors.text }]}>
-                    {currentTitle}
-                  </Text>
-                </View>
-                <View style={styles.navRight}>
-                  {onConfirm ? (
-                    <Pressable
-                      onPress={handleConfirm}
-                      style={[styles.confirmButton, { backgroundColor: colors.primary }]}
-                      accessibilityRole="button"
-                      accessibilityLabel={confirmText}
-                    >
-                      <Text style={[styles.confirmText, { color: colors.staticWhite }]}>
-                        {confirmText}
-                      </Text>
-                    </Pressable>
-                  ) : (
-                    <View style={styles.emptySpace} />
-                  )}
-                </View>
-              </View>
-              <View style={[styles.divider, { backgroundColor: colors.border }]} />
-            </View>
-            <View style={[styles.content, contentStyle]}>
-              {currentContent}
-            </View>
+  const sheetBody = (
+    <View style={[styles.sheet, style]}>
+      <View style={styles.navigation}>
+        <View style={styles.navContent}>
+          <View style={styles.navLeft}>
+            <Pressable
+              onPress={onClose}
+              style={styles.closeButton}
+              accessibilityRole="button"
+              accessibilityLabel="닫기"
+            >
+              <Icon name="close" size={24} color={colors.text} />
+            </Pressable>
           </View>
-        </Animated.View>
-        <ToastHost />
-      </>
-    );
+          <View style={styles.titleContainer}>
+            <Text style={[styles.title, { color: colors.text }]}>{currentTitle}</Text>
+          </View>
+          <View style={styles.navRight}>
+            {onConfirm ? (
+              <Pressable
+                onPress={onConfirm}
+                style={[styles.confirmButton, { backgroundColor: colors.primary }]}
+                accessibilityRole="button"
+                accessibilityLabel={confirmText}
+              >
+                <Text style={[styles.confirmText, { color: colors.staticWhite }]}>
+                  {confirmText}
+                </Text>
+              </Pressable>
+            ) : (
+              <View style={styles.emptySpace} />
+            )}
+          </View>
+        </View>
+        <View style={[styles.divider, { backgroundColor: colors.border }]} />
+      </View>
+      <View style={[styles.content, contentStyle]}>{currentContent}</View>
+    </View>
+  );
+
+  const sheetChrome = (
+    <>
+      <Animated.View
+        style={[
+          styles.backdrop,
+          embedded ? { opacity: dimOpacity, zIndex: 100001 } : { opacity: dimOpacity },
+        ]}
+        pointerEvents={embedded ? (visible ? 'auto' : 'none') : undefined}
+      >
+        <Pressable style={StyleSheet.absoluteFill} onPress={handleBackdropPress} />
+      </Animated.View>
+
+      <Animated.View
+        style={[
+          styles.sheetContainer,
+          {
+            transform: [{ translateY: sheetTranslateY }],
+            backgroundColor: colors.staticWhite,
+            paddingBottom: sheetBottomPadding,
+            ...(embedded ? { zIndex: 100002 } : null),
+          },
+        ]}
+        pointerEvents={embedded ? (visible ? 'auto' : 'none') : undefined}
+      >
+        {sheetBody}
+      </Animated.View>
+      <ToastHost />
+    </>
+  );
+
+  if (embedded) {
+    return sheetChrome;
   }
 
-  // Modal render (default)
   return (
     <Modal
       visible={isModalVisible}
@@ -298,69 +252,35 @@ export function ModalBottomsheet({
       animationType="none"
       onRequestClose={onClose}
       presentationStyle="overFullScreen"
-      statusBarTranslucent={true}
+      statusBarTranslucent
     >
-      <Animated.View style={[styles.backdrop, { opacity: dimOpacity }]}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={handleBackdropPress} />
-      </Animated.View>
-      <Animated.View
-        style={[
-          styles.sheetContainer,
-          {
-            transform: [{ translateY: sheetTranslateY }],
-            backgroundColor: colors.staticWhite,
-            paddingBottom: sheetBottomInset,
-          },
-        ]}
-      >
-        <View style={[styles.sheet, style]}>
-          <View style={styles.navigation}>
-            <View style={styles.navContent}>
-              <View style={styles.navLeft}>
-                <Pressable
-                  onPress={handleClose}
-                  style={styles.closeButton}
-                  accessibilityRole="button"
-                  accessibilityLabel="닫기"
-                >
-                  <Icon name="close" size={24} color={colors.text} />
-                </Pressable>
-              </View>
-              <View style={styles.titleContainer}>
-                <Text style={[styles.title, { color: colors.text }]}>
-                  {currentTitle}
-                </Text>
-              </View>
-              <View style={styles.navRight}>
-                {onConfirm ? (
-                  <Pressable
-                    onPress={handleConfirm}
-                    style={[styles.confirmButton, { backgroundColor: colors.primary }]}
-                    accessibilityRole="button"
-                    accessibilityLabel={confirmText}
-                  >
-                    <Text style={[styles.confirmText, { color: colors.staticWhite }]}>
-                      {confirmText}
-                    </Text>
-                  </Pressable>
-                ) : (
-                  <View style={styles.emptySpace} />
-                )}
-              </View>
-            </View>
-            <View style={[styles.divider, { backgroundColor: colors.border }]} />
-          </View>
-          <View style={[styles.content, contentStyle]}>
-            {currentContent}
-          </View>
-        </View>
-      </Animated.View>
-      <ToastHost />
+      <SafeAreaProvider style={styles.insetProviderModal}>{sheetChrome}</SafeAreaProvider>
     </Modal>
   );
 }
 
+/**
+ * Modal Bottomsheet — embedded overlays get SafeAreaProvider at the root (parent Modal window).
+ */
+export function ModalBottomsheet(props: ModalBottomsheetProps) {
+  if (props.embedded) {
+    return (
+      <SafeAreaProvider style={styles.insetProviderOverlay}>
+        <ModalBottomsheetContent {...props} embedded />
+      </SafeAreaProvider>
+    );
+  }
+
+  return <ModalBottomsheetContent {...props} />;
+}
+
 const styles = StyleSheet.create({
+  insetProviderModal: {
+    flex: 1,
+  },
+  insetProviderOverlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0, 0, 0, 0.4)',
@@ -379,11 +299,9 @@ const styles = StyleSheet.create({
   sheet: {
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
-    maxHeight: SCREEN_HEIGHT * 0.8, // Max 80% of screen height
+    maxHeight: SCREEN_HEIGHT * 0.8,
   },
-  navigation: {
-    // Top navigation section
-  },
+  navigation: {},
   navContent: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -435,4 +353,3 @@ const styles = StyleSheet.create({
     padding: 16,
   },
 });
-

@@ -31,14 +31,35 @@ import { Picker } from '@react-native-picker/picker';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
+  Dimensions,
   Modal,
   Platform,
   Pressable,
+  StatusBar,
   StyleSheet,
   Text,
   View,
+  type LayoutChangeEvent,
   type ViewStyle,
 } from 'react-native';
+import { initialWindowMetrics } from 'react-native-safe-area-context';
+
+/** Modal safe frame — 앱 기동 시 1회 고정(구독 없음 → 들썩임 없음). flex 중앙은 실제 콘텐츠 높이 기준. */
+function getAndroidYearMonthFrameInsets(): { paddingTop: number; paddingBottom: number } {
+  const metricsTop = initialWindowMetrics?.insets.top ?? 0;
+  const paddingTop = metricsTop > 0 ? metricsTop : StatusBar.currentHeight ?? 0;
+  const paddingBottom = initialWindowMetrics?.insets.bottom ?? 0;
+  return { paddingTop, paddingBottom };
+}
+
+const ANDROID_YEAR_MONTH_FRAME_INSETS = getAndroidYearMonthFrameInsets();
+
+function computeAndroidYearMonthDialogTop(dialogHeight: number): number {
+  const { paddingTop, paddingBottom } = ANDROID_YEAR_MONTH_FRAME_INSETS;
+  const windowHeight = Dimensions.get('window').height;
+  const usable = windowHeight - paddingTop - paddingBottom - dialogHeight;
+  return paddingTop + Math.max(0, usable / 2);
+}
 
 export interface DatePickerOption {
   label: string;
@@ -133,6 +154,29 @@ export function DatePicker({
   const applyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const androidNativeOpenedRef = useRef(false);
   const prevVisibleRef = useRef(false);
+  /** Android 년/월: onLayout으로 높이 측정 후 top 확정 — 확정 전에는 비표시(들썩임 방지) */
+  const [androidDialogTop, setAndroidDialogTop] = useState<number | null>(null);
+  const isAndroidDialogPositioned = androidDialogTop !== null;
+
+  useEffect(() => {
+    if (!visible) {
+      setAndroidDialogTop(null);
+    }
+  }, [visible]);
+
+  const handleAndroidDialogLayout = useCallback(
+    (event: LayoutChangeEvent) => {
+      if (androidDialogTop !== null) {
+        return;
+      }
+      const { height } = event.nativeEvent.layout;
+      if (height <= 0) {
+        return;
+      }
+      setAndroidDialogTop(computeAndroidYearMonthDialogTop(height));
+    },
+    [androidDialogTop],
+  );
 
   const dimOpacity = useRef(new Animated.Value(0)).current;
   const pickerTranslateY = useRef(new Animated.Value(300)).current;
@@ -464,11 +508,24 @@ export function DatePicker({
         presentationStyle="overFullScreen"
       >
         <View style={styles.androidYearMonthRoot}>
-          <Pressable style={styles.androidYearMonthDim} onPress={handleCancel} />
-          <View style={styles.androidYearMonthContainer} pointerEvents="box-none">
+          <Pressable
+            style={[
+              styles.androidYearMonthDim,
+              { opacity: isAndroidDialogPositioned ? 1 : 0 },
+            ]}
+            onPress={isAndroidDialogPositioned ? handleCancel : undefined}
+          />
           <View
-            style={[styles.androidYearMonthDialog, { backgroundColor: colors.background }]}
-            pointerEvents="auto"
+            style={[
+              styles.androidYearMonthDialog,
+              {
+                backgroundColor: colors.background,
+                top: androidDialogTop ?? 0,
+                opacity: isAndroidDialogPositioned ? 1 : 0,
+              },
+            ]}
+            onLayout={handleAndroidDialogLayout}
+            pointerEvents={isAndroidDialogPositioned ? 'auto' : 'none'}
           >
           <Text style={[styles.androidYearMonthTitle, { color: colors.text }]}>{title}</Text>
 
@@ -553,7 +610,6 @@ export function DatePicker({
                 확인
               </Text>
             </Pressable>
-          </View>
           </View>
           </View>
         </View>
@@ -688,12 +744,10 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
-  androidYearMonthContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-  },
   androidYearMonthDialog: {
+    position: 'absolute',
+    left: 24,
+    right: 24,
     borderRadius: 16,
     overflow: 'hidden',
     elevation: 8,
@@ -708,7 +762,7 @@ const styles = StyleSheet.create({
   },
   androidYearMonthSpinnerRow: {
     flexDirection: 'row',
-    minHeight: 240,
+    height: 240,
     paddingHorizontal: 8,
     paddingVertical: 4,
   },

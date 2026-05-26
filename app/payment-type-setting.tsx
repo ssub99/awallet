@@ -4,8 +4,11 @@ import { Icon } from '@/components/ui/icon';
 import { Tag } from '@/components/ui/tag';
 import { ThemeColors } from '@/constants/theme-colors';
 import { Typography } from '@/constants/typography';
+import { logPaymentTypeSettingLayout } from '@/utils/payment-type-setting-layout-debug';
 import {
+    arePaymentSubtypesSame,
     DEFAULT_PAYMENT_SUBTYPES,
+    getPaymentSubtypesMemoryCache,
     initializePaymentSubtypes,
     savePaymentSubtypes,
     type PaymentSubtype,
@@ -13,10 +16,18 @@ import {
 import * as Haptics from 'expo-haptics';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
+import {
+    LayoutChangeEvent,
+    Platform,
+    Pressable,
+    StatusBar,
+    StyleSheet,
+    Text,
+    View,
+} from 'react-native';
 import DraggableFlatList, { RenderItemParams, ScaleDecorator } from 'react-native-draggable-flatlist';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type PaymentMethodType = 'credit' | 'debit';
 
@@ -165,36 +176,69 @@ function PaymentTypeItem({
 export default function PaymentTypeSettingScreen() {
   const colors = ThemeColors.light;
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const initialSubtypes = getPaymentSubtypesMemoryCache() ?? DEFAULT_PAYMENT_SUBTYPES;
   const [selectedFilter, setSelectedFilter] = useState<PaymentMethodType>('credit');
-  const [paymentSubtypes, setPaymentSubtypes] = useState<PaymentSubtype[]>([]);
+  const [paymentSubtypes, setPaymentSubtypes] = useState<PaymentSubtype[]>(() => initialSubtypes);
+  const [isListDataReady, setIsListDataReady] = useState(() => getPaymentSubtypesMemoryCache() != null);
 
   const previousIndexRef = useRef<number | null>(null);
   const hasTriggeredStartHapticRef = useRef<boolean>(false);
   const dragStartIndexRef = useRef<number | null>(null);
   const isDraggingRef = useRef<boolean>(false);
   const lastDragEndTimeRef = useRef<number>(0);
+  const layoutLogOnceRef = useRef({ root: false, content: false });
 
-  const loadPaymentTypesData = useCallback(async () => {
+  useEffect(() => {
+    logPaymentTypeSettingLayout('insets', {
+      top: insets.top,
+      bottom: insets.bottom,
+      left: insets.left,
+      right: insets.right,
+    });
+  }, [insets.bottom, insets.left, insets.right, insets.top]);
+
+  const loadPaymentTypesData = useCallback(async (source: string) => {
+    logPaymentTypeSettingLayout('load:start', { source });
     try {
       const loaded = await initializePaymentSubtypes();
-      setPaymentSubtypes(loaded);
+      setPaymentSubtypes((current) => {
+        if (arePaymentSubtypesSame(current, loaded)) {
+          logPaymentTypeSettingLayout('load:unchanged', { source, count: loaded.length });
+          return current;
+        }
+        logPaymentTypeSettingLayout('load:success', { source, countAfter: loaded.length });
+        return loaded;
+      });
     } catch (error) {
       console.error('결제 유형 초기화 실패:', error);
-      setPaymentSubtypes(DEFAULT_PAYMENT_SUBTYPES);
+      setPaymentSubtypes((current) => {
+        if (arePaymentSubtypesSame(current, DEFAULT_PAYMENT_SUBTYPES)) {
+          return current;
+        }
+        logPaymentTypeSettingLayout('load:fallback', { source });
+        return DEFAULT_PAYMENT_SUBTYPES;
+      });
     } finally {
+      setIsListDataReady(true);
       previousIndexRef.current = null;
       hasTriggeredStartHapticRef.current = false;
       dragStartIndexRef.current = null;
     }
   }, []);
 
-  useEffect(() => {
-    void loadPaymentTypesData();
-  }, [loadPaymentTypesData]);
-
   useFocusEffect(
     useCallback(() => {
-      void loadPaymentTypesData();
+      const timeSinceLastDrag = Date.now() - lastDragEndTimeRef.current;
+      if (timeSinceLastDrag < 3000) {
+        logPaymentTypeSettingLayout('load:skip-drag-cooldown', { timeSinceLastDrag });
+        return;
+      }
+      if (isDraggingRef.current) {
+        logPaymentTypeSettingLayout('load:skip-dragging');
+        return;
+      }
+      void loadPaymentTypesData('focus');
     }, [loadPaymentTypesData])
   );
 
@@ -202,6 +246,34 @@ export default function PaymentTypeSettingScreen() {
     const filtered = paymentSubtypes.filter((item) => item.type === selectedFilter);
     return filtered.map((item, index) => toSettingItem(item, index === 0));
   }, [paymentSubtypes, selectedFilter]);
+
+  useEffect(() => {
+    logPaymentTypeSettingLayout('render-state', {
+      selectedFilter,
+      isListDataReady,
+      subtypeCount: paymentSubtypes.length,
+      listCount: paymentTypes.length,
+      branch: !isListDataReady ? 'loading' : paymentTypes.length === 0 ? 'empty' : 'list',
+    });
+  }, [isListDataReady, paymentSubtypes.length, paymentTypes.length, selectedFilter]);
+
+  const handleRootLayout = useCallback((event: LayoutChangeEvent) => {
+    if (layoutLogOnceRef.current.root) {
+      return;
+    }
+    layoutLogOnceRef.current.root = true;
+    const { width, height, x, y } = event.nativeEvent.layout;
+    logPaymentTypeSettingLayout('layout:root', { width, height, x, y, insetTop: insets.top });
+  }, [insets.top]);
+
+  const handleContentLayout = useCallback((event: LayoutChangeEvent) => {
+    if (layoutLogOnceRef.current.content) {
+      return;
+    }
+    layoutLogOnceRef.current.content = true;
+    const { width, height, x, y } = event.nativeEvent.layout;
+    logPaymentTypeSettingLayout('layout:content', { width, height, x, y });
+  }, []);
 
   const handleDragStart = useCallback(({ index }: { index: number }) => {
     if (!hasTriggeredStartHapticRef.current) {
@@ -299,7 +371,11 @@ export default function PaymentTypeSettingScreen() {
   );
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      edges={['top', 'bottom']}
+      onLayout={handleRootLayout}
+    >
       <Stack.Screen options={{ headerShown: false }} />
       <StatusBar barStyle="dark-content" />
 
@@ -313,14 +389,30 @@ export default function PaymentTypeSettingScreen() {
         onRightButtonPress={() => router.push('/payment-type-create' as any)}
       />
 
-      <View style={[styles.content, { backgroundColor: colors.fill }]}>
+      <View style={[styles.content, { backgroundColor: colors.fill }]} onLayout={handleContentLayout}>
         <View style={styles.chipRow}>
-          <Chip label="신용카드" active={selectedFilter === 'credit'} onPress={() => setSelectedFilter('credit')} />
-          <Chip label="체크카드" active={selectedFilter === 'debit'} onPress={() => setSelectedFilter('debit')} />
+          <Chip
+            label="신용카드"
+            active={selectedFilter === 'credit'}
+            onPress={() => {
+              logPaymentTypeSettingLayout('filter', { next: 'credit' });
+              setSelectedFilter('credit');
+            }}
+          />
+          <Chip
+            label="체크카드"
+            active={selectedFilter === 'debit'}
+            onPress={() => {
+              logPaymentTypeSettingLayout('filter', { next: 'debit' });
+              setSelectedFilter('debit');
+            }}
+          />
         </View>
 
         <View style={[styles.card, { backgroundColor: colors.background }]}>
-          {paymentTypes.length === 0 ? (
+          {!isListDataReady ? (
+            <View style={{ flex: 1 }} />
+          ) : paymentTypes.length === 0 ? (
             <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
               <Text style={[Typography.body1.l.regular, { color: colors.textAssistive }]}>
                 등록된 결제 유형이 없습니다.

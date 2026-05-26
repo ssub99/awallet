@@ -14,6 +14,31 @@ export interface PaymentSubtype {
 const PAYMENT_SUBTYPES_STORAGE_KEY = 'paymentSubtypes';
 const LEGACY_PAYMENT_SUBTYPES_STORAGE_KEY = 'paymentSubtypes_v1';
 
+/** 앱 부트스트랩·설정 화면 — AsyncStorage 로드 전 첫 프레임용 */
+let paymentSubtypesMemoryCache: PaymentSubtype[] | null = null;
+
+export function getPaymentSubtypesMemoryCache(): PaymentSubtype[] | null {
+  return paymentSubtypesMemoryCache;
+}
+
+function commitPaymentSubtypesCache(subtypes: PaymentSubtype[]): PaymentSubtype[] {
+  const normalized = normalizePaymentSubtypes(subtypes);
+  paymentSubtypesMemoryCache = normalized;
+  return normalized;
+}
+
+export function arePaymentSubtypesSame(a: PaymentSubtype[], b: PaymentSubtype[]): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+  for (let index = 0; index < a.length; index += 1) {
+    if (a[index]?.id !== b[index]?.id) {
+      return false;
+    }
+  }
+  return true;
+}
+
 export const DEFAULT_PAYMENT_SUBTYPES: PaymentSubtype[] = [
   {
     id: 'credit-default',
@@ -71,34 +96,34 @@ export async function loadPaymentSubtypes(): Promise<PaymentSubtype[]> {
       }
     }
     if (!stored) {
-      const defaults = normalizePaymentSubtypes(DEFAULT_PAYMENT_SUBTYPES);
+      const defaults = commitPaymentSubtypesCache(DEFAULT_PAYMENT_SUBTYPES);
       await AsyncStorage.setItem(PAYMENT_SUBTYPES_STORAGE_KEY, JSON.stringify(defaults));
       return defaults;
     }
     const parsed = JSON.parse(stored) as unknown;
     if (!Array.isArray(parsed)) {
-      const defaults = normalizePaymentSubtypes(DEFAULT_PAYMENT_SUBTYPES);
+      const defaults = commitPaymentSubtypesCache(DEFAULT_PAYMENT_SUBTYPES);
       await AsyncStorage.setItem(PAYMENT_SUBTYPES_STORAGE_KEY, JSON.stringify(defaults));
       return defaults;
     }
-    const normalized = normalizePaymentSubtypes(parsed as PaymentSubtype[]);
+    const normalized = commitPaymentSubtypesCache(parsed as PaymentSubtype[]);
     await AsyncStorage.setItem(PAYMENT_SUBTYPES_STORAGE_KEY, JSON.stringify(normalized));
     return normalized;
   } catch (error) {
     console.error('결제 유형 설정 로드 실패:', error);
-    return normalizePaymentSubtypes(DEFAULT_PAYMENT_SUBTYPES);
+    return commitPaymentSubtypesCache(DEFAULT_PAYMENT_SUBTYPES);
   }
 }
 
 export async function initializePaymentSubtypes(): Promise<PaymentSubtype[]> {
   const loaded = await loadPaymentSubtypes();
-  const normalized = normalizePaymentSubtypes(loaded);
+  const normalized = commitPaymentSubtypesCache(loaded);
   await AsyncStorage.setItem(PAYMENT_SUBTYPES_STORAGE_KEY, JSON.stringify(normalized));
   return normalized;
 }
 
 export async function savePaymentSubtypes(subtypes: PaymentSubtype[]): Promise<void> {
-  const normalized = normalizePaymentSubtypes(subtypes);
+  const normalized = commitPaymentSubtypesCache(subtypes);
   await AsyncStorage.setItem(PAYMENT_SUBTYPES_STORAGE_KEY, JSON.stringify(normalized));
 }
 

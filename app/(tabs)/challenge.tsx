@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Icon } from '@/components/ui/icon';
+import { ModalBottomsheetBottomInset } from '@/components/ui/modal-bottomsheet-bottom-inset';
 import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
 import { CONSUMPTION_REPORT_API_URL } from '@/constants/api';
 import { Colors, Typography } from '@/constants/theme';
@@ -2963,12 +2964,7 @@ export default function ChallengeTabScreen() {
                   })}
                 </ScrollView>
               </View>
-              <View
-                style={[
-                  styles.trendPaymentFilterBottomSpacer,
-                  { backgroundColor: colors.staticWhite, height: Math.max(16, insets.bottom) },
-                ]}
-              />
+              <ModalBottomsheetBottomInset backgroundColor={colors.staticWhite} />
             </View>
           </ModalBottomsheet>
         ) : null}
@@ -3481,9 +3477,5 @@ const styles = StyleSheet.create({
   trendPaymentFilterDivider: {
     height: 1,
     marginHorizontal: 16,
-  },
-  trendPaymentFilterBottomSpacer: {
-    height: 16,
-    marginHorizontal: -16,
   },
 });

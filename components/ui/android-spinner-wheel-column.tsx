@@ -129,14 +129,6 @@ export function AndroidSpinnerWheelColumn({
     commitOffset(event.nativeEvent.contentOffset.y);
   };
 
-  const handleContentSizeChange = () => {
-    if (!active || isUserScrollingRef.current || displayValue === undefined) {
-      return;
-    }
-    syncScrollPosition(displayValue, false);
-    isInitializedRef.current = true;
-  };
-
   if (options.length === 0 || displayValue === undefined) {
     return <View style={styles.wheel} />;
   }
@@ -158,7 +150,6 @@ export function AndroidSpinnerWheelColumn({
         snapToAlignment="start"
         decelerationRate={WHEEL_DECELERATION_RATE}
         disableIntervalMomentum
-        onContentSizeChange={handleContentSizeChange}
         onScrollBeginDrag={() => {
           isUserScrollingRef.current = true;
         }}

@@ -13,6 +13,7 @@ import { CalendarDaySelect } from '@/components/ui/calendar-day-select';
 import { Chip } from '@/components/ui/chip';
 import { CustomKeypad, getKeypadHeight, type CustomKeypadOperator, type ExpressionToken } from '@/components/ui/custom-keypad';
 import { CustomKeypadOverlay, getCustomKeypadScrollPaddingBottom } from '@/components/ui/custom-keypad-overlay';
+import { ModalBottomsheetBottomInset } from '@/components/ui/modal-bottomsheet-bottom-inset';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Input } from '@/components/ui/input';
 import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
@@ -841,8 +842,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   const PAYMENT_TYPE_SHEET_FILTER_LIST_GAP = 16;
   const PAYMENT_TYPE_SHEET_LIST_BOTTOM_GAP = 16;
   const paymentTypeSheetHeight = useMemo(() => windowHeight * 0.5, [windowHeight]);
-  const paymentTypeSheetHomeIndicatorHeight =
-    Platform.OS === 'ios' ? Math.max(insets.bottom, 34) : 0;
   const paymentTypeSheetContentHeight = useMemo(
     () => Math.max(0, paymentTypeSheetHeight - PAYMENT_TYPE_SHEET_NAV_HEIGHT),
     [paymentTypeSheetHeight]
@@ -5862,17 +5861,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             </View>
 
             <View style={{ height: PAYMENT_TYPE_SHEET_LIST_BOTTOM_GAP }} />
-            {paymentTypeSheetHomeIndicatorHeight > 0 ? (
-              <View
-                style={[
-                  styles.paymentTypeSheetHomeIndicatorArea,
-                  {
-                    backgroundColor: colors.staticWhite,
-                    height: paymentTypeSheetHomeIndicatorHeight,
-                  },
-                ]}
-              />
-            ) : null}
+            <ModalBottomsheetBottomInset backgroundColor={colors.staticWhite} />
           </View>
         </ModalBottomsheet>
       ) : null}
