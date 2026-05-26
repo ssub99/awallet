@@ -57,6 +57,8 @@ const DRAG_START_CENTER_TOLERANCE_RATIO = 0.15;
 const SCROLL_CENTER_TOLERANCE = Math.max(2, SCREEN_WIDTH * 0.02);
 /** suppress 이후 중앙 미도달 시 재시도 상한 */
 const SWIPE_RELEASE_MAX_PASSES = 16;
+/** 화살표 월 변경 잠금 (calendar-main과 동일) */
+const ARROW_MONTH_LOCK_MS = 100;
 const CALENDAR_DEBUG_TAG = '[CalendarDaySelect]';
 
 type CalendarMonthChangeSource = 'swipe' | 'arrow-prev' | 'arrow-next';
@@ -227,8 +229,10 @@ function CalendarDaySelectInner({
   const [scrollInitialized, setScrollInitialized] = useState(false);
   const [layoutReady, setLayoutReady] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
-  const [transitionVisiblePage, setTransitionVisiblePage] = useState(CENTER_MONTH_PAGE_INDEX);
+  /** 스와이프 커밋~리센터: ScrollView 대신 중앙 월만 고정 표시 (bounce 시 전월 그리드 노출 방지) */
+  const [isSwipeSettling, setIsSwipeSettling] = useState(false);
   const isAnimatingRef = useRef(false);
+  const isSwipeSettlingRef = useRef(false);
 
   const scrollViewRef = useRef<ScrollView>(null);
   const scrollOffsetRef = useRef(CALENDAR_CENTER_SCROLL_X);
@@ -288,22 +292,17 @@ function CalendarDaySelectInner({
         scrollToCenter(false);
       }
 
-      // placeholder 해제·3페이지 동시 페인트 전에 compositor가 중앙 프레임을 그릴 시간 확보
       requestAnimationFrame(() => {
         if (swipeReleaseGenRef.current !== generation) {
           return;
         }
-        requestAnimationFrame(() => {
-          if (swipeReleaseGenRef.current !== generation) {
-            return;
-          }
-          setIsAnimating(false);
-          logCalendarMonthDebug(calendarDebugSeqRef, 'isAnimating -> false (swipe lock release)', {
-            reason,
-            offsetX: scrollOffsetRef.current,
-            atCenter: isOffsetAtCenterPage(scrollOffsetRef.current),
-            suppressDone: Date.now() >= suppressMomentumUntilRef.current,
-          });
+        setIsSwipeSettling(false);
+        setIsAnimating(false);
+        logCalendarMonthDebug(calendarDebugSeqRef, 'isAnimating -> false (swipe lock release)', {
+          reason,
+          offsetX: scrollOffsetRef.current,
+          atCenter: isOffsetAtCenterPage(scrollOffsetRef.current),
+          suppressDone: Date.now() >= suppressMomentumUntilRef.current,
         });
       });
     };
@@ -365,10 +364,11 @@ function CalendarDaySelectInner({
 
   useEffect(() => {
     isAnimatingRef.current = isAnimating;
-    if (!isAnimating) {
-      setTransitionVisiblePage(CENTER_MONTH_PAGE_INDEX);
-    }
   }, [isAnimating]);
+
+  useEffect(() => {
+    isSwipeSettlingRef.current = isSwipeSettling;
+  }, [isSwipeSettling]);
 
   useEffect(() => {
     logCalendarMonthDebug(calendarDebugSeqRef, 'mount', {
@@ -554,7 +554,7 @@ function CalendarDaySelectInner({
 
       skipSelectedDateSyncRef.current = true;
       pendingSwipeLayoutRecenterRef.current = true;
-      setTransitionVisiblePage(Math.round(offsetX / SCREEN_WIDTH));
+      setIsSwipeSettling(true);
       setIsAnimating(true);
 
       setMonthSlots((prev) =>
@@ -567,7 +567,6 @@ function CalendarDaySelectInner({
       // calendar-main과 동일: 슬롯 커밋 직후 동기 리센터 (useLayoutEffect 전 1프레임 전월 노출 방지)
       scrollToCenter();
       scrollOffsetRef.current = CALENDAR_CENTER_SCROLL_X;
-      setTransitionVisiblePage(CENTER_MONTH_PAGE_INDEX);
 
       activeUserDragRef.current = false;
       swipeCooldownUntilRef.current = Date.now() + SWIPE_COMMIT_COOLDOWN_MS;
@@ -727,7 +726,7 @@ function CalendarDaySelectInner({
     setTimeout(() => {
       setIsAnimating(false);
       logCalendarMonthDebug(calendarDebugSeqRef, 'isAnimating -> false (arrow-prev lock release)', {});
-    }, 100);
+    }, ARROW_MONTH_LOCK_MS);
   }, [isAnimating, moveCenterMonth, scrollToCenter]);
 
   const handleNextMonth = useCallback(() => {
@@ -747,8 +746,40 @@ function CalendarDaySelectInner({
     setTimeout(() => {
       setIsAnimating(false);
       logCalendarMonthDebug(calendarDebugSeqRef, 'isAnimating -> false (arrow-next lock release)', {});
-    }, 100);
+    }, ARROW_MONTH_LOCK_MS);
   }, [isAnimating, moveCenterMonth, scrollToCenter]);
+
+  const renderMonthGrid = useCallback(
+    (monthData: CalendarMonthSlot, gridType: CalendarDaySelectGridType) => (
+      <View style={styles.weeksContainer}>
+        {monthData.grid.map((item, dayIndex) => (
+          <CalendarDaySelectCell
+            key={`${gridType}-${item.date}-${dayIndex}`}
+            date={item.date}
+            day={item.day}
+            isCurrentMonth={item.isCurrentMonth}
+            gridType={gridType}
+            selectedDate={selectedDate}
+            disablePastDates={disablePastDates}
+            todayLocal={todayLocal}
+            onDayPress={handleDayPress}
+            onInvalidPastDate={onInvalidPastDate}
+            {...cellColorProps}
+          />
+        ))}
+      </View>
+    ),
+    [
+      cellColorProps,
+      disablePastDates,
+      handleDayPress,
+      onInvalidPastDate,
+      selectedDate,
+      todayLocal,
+    ],
+  );
+
+  const centerMonthSlot = monthSlots[CENTER_MONTH_PAGE_INDEX];
 
   return (
     <View style={[styles.container, { width: SCREEN_WIDTH }, style]}>
@@ -796,62 +827,49 @@ function CalendarDaySelectInner({
           onScroll={(event) => {
             const offsetX = event.nativeEvent.contentOffset.x;
             scrollOffsetRef.current = offsetX;
-            if (isAnimatingRef.current) {
-              setTransitionVisiblePage(Math.round(offsetX / SCREEN_WIDTH));
-              if (!isOffsetAtCenterPage(offsetX)) {
-                scrollToCenter(false);
-              }
+            if (isSwipeSettlingRef.current && !isOffsetAtCenterPage(offsetX)) {
+              scrollToCenter(false);
             }
           }}
           onScrollBeginDrag={handleScrollBeginDrag}
           onScrollEndDrag={handleScrollEndDrag}
           onMomentumScrollEnd={handleMomentumScrollEnd}
           scrollEnabled={!isAnimating}
-          style={[styles.scrollView, { height: DAY_CELLS_AREA_HEIGHT }]}
+          overScrollMode="never"
+          style={[
+            styles.scrollView,
+            { height: DAY_CELLS_AREA_HEIGHT },
+            isSwipeSettling && styles.pagerScrollHiddenDuringSettle,
+          ]}
           onLayout={() => setLayoutReady(true)}
         >
-        {monthSlots.map((monthData, index) => {
-          const gridType: CalendarDaySelectGridType =
-            index === CENTER_MONTH_PAGE_INDEX
-              ? 'current'
-              : index < CENTER_MONTH_PAGE_INDEX
-                ? 'prev'
-                : 'next';
-          const hideSidePageDuringTransition =
-            isAnimating &&
-            index === transitionVisiblePage &&
-            index !== CENTER_MONTH_PAGE_INDEX;
+          {monthSlots.map((monthData, index) => {
+            const gridType: CalendarDaySelectGridType =
+              index === CENTER_MONTH_PAGE_INDEX
+                ? 'current'
+                : index < CENTER_MONTH_PAGE_INDEX
+                  ? 'prev'
+                  : 'next';
 
-          return (
-            <View
-              key={`${monthData.year}-${monthData.month}-${gridType}`}
-              style={[styles.monthPage, { width: SCREEN_WIDTH }]}
-            >
-              {hideSidePageDuringTransition ? (
-                <View style={styles.monthPageTransitionPlaceholder} />
-              ) : (
-                <View style={styles.weeksContainer}>
-                  {monthData.grid.map((item, dayIndex) => (
-                    <CalendarDaySelectCell
-                      key={`${gridType}-${item.date}-${dayIndex}`}
-                      date={item.date}
-                      day={item.day}
-                      isCurrentMonth={item.isCurrentMonth}
-                      gridType={gridType}
-                      selectedDate={selectedDate}
-                      disablePastDates={disablePastDates}
-                      todayLocal={todayLocal}
-                      onDayPress={handleDayPress}
-                      onInvalidPastDate={onInvalidPastDate}
-                      {...cellColorProps}
-                    />
-                  ))}
-                </View>
-              )}
-            </View>
-          );
-        })}
+            return (
+              <View
+                key={`${monthData.year}-${monthData.month}-${gridType}`}
+                style={[styles.monthPage, { width: SCREEN_WIDTH }]}
+              >
+                {renderMonthGrid(monthData, gridType)}
+              </View>
+            );
+          })}
         </ScrollView>
+
+        {isSwipeSettling && centerMonthSlot ? (
+          <View
+            style={[styles.swipeSettleOverlay, { backgroundColor: colors.staticWhite }]}
+            pointerEvents="none"
+          >
+            {renderMonthGrid(centerMonthSlot, 'current')}
+          </View>
+        ) : null}
       </View>
     </View>
   );
@@ -905,10 +923,13 @@ const styles = StyleSheet.create({
   monthPage: {
     // width: SCREEN_WIDTH
   },
-  /** 전환 중 잘못 보이는 page — 셀 미렌더(전월·옆달 전체 볼드 플래시 방지), 페이저 구조 유지 */
-  monthPageTransitionPlaceholder: {
+  pagerScrollHiddenDuringSettle: {
+    opacity: 0,
+  },
+  swipeSettleOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    width: SCREEN_WIDTH,
     height: DAY_CELLS_AREA_HEIGHT,
-    width: '100%',
   },
   weeksContainer: {
     flexDirection: 'row',
