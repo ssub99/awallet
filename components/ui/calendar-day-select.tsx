@@ -5,10 +5,8 @@
  * Shows only dates without income/expense data.
  */
 
-import {
-  CalendarDaySelectCell,
-  type CalendarDaySelectGridType,
-} from '@/components/ui/calendar-day-select-cell';
+import type { CalendarDaySelectGridType } from '@/components/ui/calendar-day-select-cell';
+import { CalendarDaySelectMonthPage } from '@/components/ui/calendar-day-select-month-page';
 import { Icon } from '@/components/ui/icon';
 import { Colors, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -50,8 +48,8 @@ const CALENDAR_CENTER_SCROLL_X = SCREEN_WIDTH * CENTER_MONTH_PAGE_INDEX;
 const IOS_DRAG_END_VELOCITY_THRESHOLD = 0.25;
 /** scrollToCenter 직후 bounce·이중 momentum 무시 (ms) — UI 잠금과 분리 */
 const PROGRAMMATIC_SCROLL_SUPPRESS_MS = 280;
-/** 스와이프 커밋 직후 연속 커밋 차단 (ms) */
-const SWIPE_COMMIT_COOLDOWN_MS = 120;
+/** 스와이프 커밋 직후 연속 커밋 차단 (ms) — 1단계 안정화 후 80ms로 축소 */
+const SWIPE_COMMIT_COOLDOWN_MS = 80;
 /** 드래그 시작은 중앙 페이지 근처에서만 인정 */
 const DRAG_START_CENTER_TOLERANCE_RATIO = 0.15;
 /** 스와이프 잠금 해제: onScroll이 보고한 중앙 허용치 */
@@ -313,8 +311,13 @@ function CalendarDaySelectInner({
   const [isAnimating, setIsAnimating] = useState(false);
   /** 스와이프 커밋~리센터: ScrollView 대신 중앙 월만 고정 표시 (bounce 시 전월 그리드 노출 방지) */
   const [isSwipeSettling, setIsSwipeSettling] = useState(false);
+  /** 정착 중 오버레이용 중앙 월만 (3달 슬롯은 해제 시 반영) */
+  const [settleOverlaySlot, setSettleOverlaySlot] = useState<CalendarMonthSlot | null>(null);
   const isAnimatingRef = useRef(false);
   const isSwipeSettlingRef = useRef(false);
+  /** shift 결과 — releaseSwipeTransition에서 monthSlots에 반영 */
+  const pendingSwipeSlotsRef = useRef<CalendarMonthSlot[] | null>(null);
+  const pendingSwipeMonthChangeRef = useRef<{ year: number; month: number } | null>(null);
 
   const scrollViewRef = useRef<ScrollView>(null);
   const scrollOffsetRef = useRef(CALENDAR_CENTER_SCROLL_X);
@@ -357,36 +360,61 @@ function CalendarDaySelectInner({
   }, []);
 
   /** 오버레이·스크롤 잠금 해제 (momentum suppress 대기와 무관) */
-  const releaseSwipeTransition = useCallback((reason: string) => {
-    if (!isSwipeSettlingRef.current) {
-      return;
-    }
+  const releaseSwipeTransition = useCallback(
+    (reason: string) => {
+      if (!isSwipeSettlingRef.current) {
+        return;
+      }
 
-    if (swipeReleaseTimerRef.current) {
-      clearTimeout(swipeReleaseTimerRef.current);
-      swipeReleaseTimerRef.current = null;
-    }
+      if (swipeReleaseTimerRef.current) {
+        clearTimeout(swipeReleaseTimerRef.current);
+        swipeReleaseTimerRef.current = null;
+      }
 
-    swipeReleaseGenRef.current += 1;
+      swipeReleaseGenRef.current += 1;
 
-    if (!isOffsetAtCenterPage(scrollOffsetRef.current)) {
-      scrollToCenter(false);
-    }
+      if (!isOffsetAtCenterPage(scrollOffsetRef.current)) {
+        scrollToCenter(false);
+      }
 
-    isSwipeSettlingRef.current = false;
-    isAnimatingRef.current = false;
-    setIsSwipeSettling(false);
-    setIsAnimating(false);
-    logCalendarMonthDebug(calendarDebugSeqRef, 'isAnimating -> false (swipe lock release)', {
-      reason,
-      offsetX: scrollOffsetRef.current,
-      atCenter: isOffsetAtCenterPage(scrollOffsetRef.current),
-    });
-    completeMonthTransitionTiming(calendarDebugSeqRef, monthTransitionTimingRef, 'complete (ui unlocked)', {
-      reason,
-      atCenter: isOffsetAtCenterPage(scrollOffsetRef.current),
-    });
-  }, [scrollToCenter]);
+      const pendingSlots = pendingSwipeSlotsRef.current;
+      const pendingMonthChange = pendingSwipeMonthChangeRef.current;
+      pendingSwipeSlotsRef.current = null;
+      pendingSwipeMonthChangeRef.current = null;
+
+      markMonthTransitionTiming(calendarDebugSeqRef, monthTransitionTimingRef, 'release apply slots', {
+        hasPendingSlots: Boolean(pendingSlots),
+        reason,
+      });
+
+      flushSync(() => {
+        if (pendingSlots) {
+          setMonthSlots(pendingSlots);
+        }
+        setSettleOverlaySlot(null);
+        isSwipeSettlingRef.current = false;
+        isAnimatingRef.current = false;
+        setIsSwipeSettling(false);
+        setIsAnimating(false);
+      });
+
+      if (pendingMonthChange) {
+        onMonthChange?.(pendingMonthChange.year, pendingMonthChange.month);
+      }
+
+      logCalendarMonthDebug(calendarDebugSeqRef, 'isAnimating -> false (swipe lock release)', {
+        reason,
+        offsetX: scrollOffsetRef.current,
+        atCenter: isOffsetAtCenterPage(scrollOffsetRef.current),
+        appliedPendingSlots: Boolean(pendingSlots),
+      });
+      completeMonthTransitionTiming(calendarDebugSeqRef, monthTransitionTimingRef, 'complete (ui unlocked)', {
+        reason,
+        atCenter: isOffsetAtCenterPage(scrollOffsetRef.current),
+      });
+    },
+    [onMonthChange, scrollToCenter],
+  );
 
   /** 중앙 미도달 시에만 rAF 재시도 (suppress 500ms 대기 제거) */
   const scheduleReleaseSwipeLock = useCallback(() => {
@@ -541,7 +569,7 @@ function CalendarDaySelectInner({
     });
 
     scheduleReleaseSwipeLock();
-  }, [monthSlots, scheduleReleaseSwipeLock, scrollToCenter]);
+  }, [settleOverlaySlot, scheduleReleaseSwipeLock, scrollToCenter]);
 
   useEffect(() => {
     if (!selectedDate || !autoCenterOnSelectedDate || !scrollInitialized) {
@@ -661,17 +689,20 @@ function CalendarDaySelectInner({
       skipSelectedDateSyncRef.current = true;
       pendingSwipeLayoutRecenterRef.current = true;
 
-      // React 18 배치 지연(~400ms) 축소: 슬롯·잠금·제목을 동기 커밋 후 layoutEffect에서 리센터
+      const nextSlots =
+        monthsToMove > 0
+          ? shiftSlotsForward(gridCacheRef.current, monthSlots, monthStartDay, buildGrid)
+          : shiftSlotsBackward(gridCacheRef.current, monthSlots, monthStartDay, buildGrid);
+      pendingSwipeSlotsRef.current = nextSlots;
+      pendingSwipeMonthChangeRef.current = { year: nextYear, month: nextMonth };
+
+      // 1단계 경량화: 커밋 시 3달 슬롯 대신 오버레이 중앙 1달만 동기 갱신 (해제 시 슬롯 반영)
       flushSync(() => {
         isSwipeSettlingRef.current = true;
         isAnimatingRef.current = true;
         setIsSwipeSettling(true);
         setIsAnimating(true);
-        setMonthSlots((prev) =>
-          monthsToMove > 0
-            ? shiftSlotsForward(gridCacheRef.current, prev, monthStartDay, buildGrid)
-            : shiftSlotsBackward(gridCacheRef.current, prev, monthStartDay, buildGrid),
-        );
+        setSettleOverlaySlot(nextSlots[CENTER_MONTH_PAGE_INDEX]);
         centerYearMonthRef.current = { year: nextYear, month: nextMonth };
         if (propYear === undefined) {
           setInternalYear(nextYear);
@@ -684,9 +715,9 @@ function CalendarDaySelectInner({
       logCalendarMonthDebug(calendarDebugSeqRef, 'applyCenterMonth', {
         source: 'swipe',
         label: toLabel,
+        deferredSlots: true,
       });
-      markMonthTransitionTiming(calendarDebugSeqRef, monthTransitionTimingRef, 'applyCenterMonth');
-      onMonthChange?.(nextYear, nextMonth);
+      markMonthTransitionTiming(calendarDebugSeqRef, monthTransitionTimingRef, 'applyCenterMonth (overlay only)');
 
       scrollToCenter();
       markMonthTransitionTiming(calendarDebugSeqRef, monthTransitionTimingRef, 'scrollToCenter sync');
@@ -694,7 +725,7 @@ function CalendarDaySelectInner({
       activeUserDragRef.current = false;
       swipeCooldownUntilRef.current = Date.now() + SWIPE_COMMIT_COOLDOWN_MS;
     },
-    [buildGrid, isAnimating, monthStartDay, onMonthChange, propMonth, propYear, scrollToCenter],
+    [buildGrid, isAnimating, monthSlots, monthStartDay, propMonth, propYear, scrollToCenter],
   );
 
   const handleScrollBeginDrag = useCallback(() => {
@@ -914,38 +945,6 @@ function CalendarDaySelectInner({
     }, ARROW_MONTH_LOCK_MS);
   }, [isAnimating, moveCenterMonth, scrollToCenter]);
 
-  const renderMonthGrid = useCallback(
-    (monthData: CalendarMonthSlot, gridType: CalendarDaySelectGridType) => (
-      <View style={styles.weeksContainer}>
-        {monthData.grid.map((item, dayIndex) => (
-          <CalendarDaySelectCell
-            key={`${gridType}-${item.date}-${dayIndex}`}
-            date={item.date}
-            day={item.day}
-            isCurrentMonth={item.isCurrentMonth}
-            gridType={gridType}
-            selectedDate={selectedDate}
-            disablePastDates={disablePastDates}
-            todayLocal={todayLocal}
-            onDayPress={handleDayPress}
-            onInvalidPastDate={onInvalidPastDate}
-            {...cellColorProps}
-          />
-        ))}
-      </View>
-    ),
-    [
-      cellColorProps,
-      disablePastDates,
-      handleDayPress,
-      onInvalidPastDate,
-      selectedDate,
-      todayLocal,
-    ],
-  );
-
-  const centerMonthSlot = monthSlots[CENTER_MONTH_PAGE_INDEX];
-
   return (
     <View style={[styles.container, { width: SCREEN_WIDTH }, style]}>
       {!hideNavBar && (
@@ -1026,30 +1025,44 @@ function CalendarDaySelectInner({
                 : index < CENTER_MONTH_PAGE_INDEX
                   ? 'prev'
                   : 'next';
-            const skipSideCellsWhileSettling =
-              isSwipeSettling && index !== CENTER_MONTH_PAGE_INDEX;
 
             return (
               <View
                 key={`${monthData.year}-${monthData.month}-${gridType}`}
                 style={[styles.monthPage, { width: SCREEN_WIDTH }]}
               >
-                {skipSideCellsWhileSettling ? (
-                  <View style={styles.monthPageSettlePlaceholder} />
-                ) : (
-                  renderMonthGrid(monthData, gridType)
-                )}
+                <CalendarDaySelectMonthPage
+                  monthData={monthData}
+                  gridType={gridType}
+                  showSettlePlaceholder={isSwipeSettling}
+                  selectedDate={selectedDate}
+                  disablePastDates={disablePastDates}
+                  todayLocal={todayLocal}
+                  onDayPress={handleDayPress}
+                  onInvalidPastDate={onInvalidPastDate}
+                  cellColorProps={cellColorProps}
+                />
               </View>
             );
           })}
         </ScrollView>
 
-        {isSwipeSettling && centerMonthSlot ? (
+        {isSwipeSettling && settleOverlaySlot ? (
           <View
             style={[styles.swipeSettleOverlay, { backgroundColor: colors.staticWhite }]}
             pointerEvents="none"
           >
-            {renderMonthGrid(centerMonthSlot, 'current')}
+            <CalendarDaySelectMonthPage
+              monthData={settleOverlaySlot}
+              gridType="current"
+              showSettlePlaceholder={false}
+              selectedDate={selectedDate}
+              disablePastDates={disablePastDates}
+              todayLocal={todayLocal}
+              onDayPress={handleDayPress}
+              onInvalidPastDate={onInvalidPastDate}
+              cellColorProps={cellColorProps}
+            />
           </View>
         ) : null}
       </View>
@@ -1112,14 +1125,5 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     width: SCREEN_WIDTH,
     height: DAY_CELLS_AREA_HEIGHT,
-  },
-  /** 정착 중 숨겨진 ScrollView 좌·우 페이지 — 셀 84개+ 렌더 생략 */
-  monthPageSettlePlaceholder: {
-    height: DAY_CELLS_AREA_HEIGHT,
-    width: '100%',
-  },
-  weeksContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
   },
 });
