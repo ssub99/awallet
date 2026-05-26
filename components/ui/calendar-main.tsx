@@ -4,11 +4,26 @@
  * Monthly calendar with swipeable day cells (prev / current / next).
  */
 
-import { CalendarDayCell, type CalendarDayGridType } from '@/components/ui/calendar-day-cell';
+import type { CalendarDayGridType } from '@/components/ui/calendar-day-cell';
+import {
+  buildMonthDayDataSignature,
+  CalendarMainMonthPage,
+  type DayData,
+} from '@/components/ui/calendar-main-month-page';
 import { Colors, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useWeekStart } from '@/hooks/use-week-start';
 import { formatCustomMonth } from '@/utils/custom-month';
+import {
+  addCalendarMonths,
+  buildThreeMonthWindow,
+  type CalendarGridCell,
+  type CalendarMonthSlot,
+  monthDistance,
+  resolveSlotsForTargetMonth,
+  shiftSlotsBackward,
+  shiftSlotsForward,
+} from '@/utils/calendar-month-grid-cache';
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Dimensions,
@@ -39,22 +54,10 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 /** prev(0) · current(1) · next(2) */
 const CALENDAR_CENTER_PAGE_INDEX = 1;
 const CALENDAR_CENTER_SCROLL_X = SCREEN_WIDTH * CALENDAR_CENTER_PAGE_INDEX;
-/** 2달 이상 점프 시 3슬롯 전체 재구성 (피커 먼 이동 등) */
-const HEAVY_JUMP_MONTH_DISTANCE = 2;
 
 const DAY_CELL_WIDTH = Math.floor(SCREEN_WIDTH / 7);
 
-export interface DayData {
-  totalIncome?: number;
-  totalExpense?: number;
-  records?: {
-    type: 'income' | 'expense';
-    amount: number;
-    category: string;
-    memo?: string;
-    timestamp: number;
-  }[];
-}
+export type { DayData } from '@/components/ui/calendar-main-month-page';
 
 export interface CalendarMainProps {
   selectedDate?: string;
@@ -67,14 +70,6 @@ export interface CalendarMainProps {
   initialMonth?: number;
   monthStartDay?: number;
   containerHeight?: number;
-}
-
-type GridCell = { date: string; day: number; isCurrentMonth: boolean };
-
-interface MonthSlot {
-  year: number;
-  month: number;
-  grid: GridCell[];
 }
 
 function getDaysInMonth(year: number, month: number): number {
@@ -90,8 +85,8 @@ function generateMonthGrid(
   month: number,
   adjustFirstDayOfWeek: (jsDay: number) => number,
   monthStartDay: number = 1,
-): GridCell[] {
-  const grid: GridCell[] = [];
+): CalendarGridCell[] {
+  const grid: CalendarGridCell[] = [];
 
   if (monthStartDay === 1) {
     const daysInMonth = getDaysInMonth(year, month);
@@ -189,98 +184,8 @@ function generateMonthGrid(
   return grid;
 }
 
-function countWeeksInGrid(grid: GridCell[]): number {
+function countWeeksInGrid(grid: CalendarGridCell[]): number {
   return Math.max(1, Math.ceil(grid.length / 7));
-}
-
-function addMonths(year: number, month: number, offset: number): { year: number; month: number } {
-  const date = new Date(year, month - 1, 1);
-  date.setMonth(date.getMonth() + offset);
-  return { year: date.getFullYear(), month: date.getMonth() + 1 };
-}
-
-function monthDistance(y1: number, m1: number, y2: number, m2: number): number {
-  return (y2 - y1) * 12 + (m2 - m1);
-}
-
-function createMonthSlot(
-  year: number,
-  month: number,
-  adjustFirstDayOfWeek: (jsDay: number) => number,
-  monthStartDay: number,
-): MonthSlot {
-  return {
-    year,
-    month,
-    grid: generateMonthGrid(year, month, adjustFirstDayOfWeek, monthStartDay),
-  };
-}
-
-function buildThreeMonthWindow(
-  centerYear: number,
-  centerMonth: number,
-  adjustFirstDayOfWeek: (jsDay: number) => number,
-  monthStartDay: number,
-): MonthSlot[] {
-  return [-1, 0, 1].map((offset) => {
-    const { year, month } = addMonths(centerYear, centerMonth, offset);
-    return createMonthSlot(year, month, adjustFirstDayOfWeek, monthStartDay);
-  });
-}
-
-function shiftSlotsForward(
-  slots: MonthSlot[],
-  adjustFirstDayOfWeek: (jsDay: number) => number,
-  monthStartDay: number,
-): MonthSlot[] {
-  const next = addMonths(slots[2].year, slots[2].month, 1);
-  return [
-    slots[1],
-    slots[2],
-    createMonthSlot(next.year, next.month, adjustFirstDayOfWeek, monthStartDay),
-  ];
-}
-
-function shiftSlotsBackward(
-  slots: MonthSlot[],
-  adjustFirstDayOfWeek: (jsDay: number) => number,
-  monthStartDay: number,
-): MonthSlot[] {
-  const prev = addMonths(slots[0].year, slots[0].month, -1);
-  return [
-    createMonthSlot(prev.year, prev.month, adjustFirstDayOfWeek, monthStartDay),
-    slots[0],
-    slots[1],
-  ];
-}
-
-function resolveSlotsForExternalTarget(
-  slots: MonthSlot[],
-  targetYear: number,
-  targetMonth: number,
-  adjustFirstDayOfWeek: (jsDay: number) => number,
-  monthStartDay: number,
-): MonthSlot[] {
-  const center = slots[CALENDAR_CENTER_PAGE_INDEX];
-  const dist = monthDistance(center.year, center.month, targetYear, targetMonth);
-
-  if (dist === 0) {
-    return slots;
-  }
-
-  if (Math.abs(dist) >= HEAVY_JUMP_MONTH_DISTANCE) {
-    return buildThreeMonthWindow(targetYear, targetMonth, adjustFirstDayOfWeek, monthStartDay);
-  }
-
-  if (dist === 1 && slots[2].year === targetYear && slots[2].month === targetMonth) {
-    return shiftSlotsForward(slots, adjustFirstDayOfWeek, monthStartDay);
-  }
-
-  if (dist === -1 && slots[0].year === targetYear && slots[0].month === targetMonth) {
-    return shiftSlotsBackward(slots, adjustFirstDayOfWeek, monthStartDay);
-  }
-
-  return buildThreeMonthWindow(targetYear, targetMonth, adjustFirstDayOfWeek, monthStartDay);
 }
 
 function CalendarMainInner({
@@ -300,6 +205,16 @@ function CalendarMainInner({
   const insets = useSafeAreaInsets();
   const { weekdays, adjustFirstDayOfWeek } = useWeekStart();
 
+  const gridCacheRef = useRef(new Map<string, CalendarGridCell[]>());
+  const weekLayoutSignature = weekdays.join(',');
+  const monthLayoutKeyRef = useRef(`${monthStartDay}|${weekLayoutSignature}`);
+
+  const buildGrid = useCallback(
+    (year: number, month: number) =>
+      generateMonthGrid(year, month, adjustFirstDayOfWeek, monthStartDay),
+    [adjustFirstDayOfWeek, monthStartDay],
+  );
+
   const initialDate = selectedDate ? new Date(selectedDate) : new Date();
   const bootYear = initialYear ?? initialDate.getFullYear();
   const bootMonth = initialMonth ?? initialDate.getMonth() + 1;
@@ -310,14 +225,18 @@ function CalendarMainInner({
   const displayYear = initialYear ?? currentYear;
   const displayMonth = initialMonth ?? currentMonth;
 
-  const [monthSlots, setMonthSlots] = useState<MonthSlot[]>(() =>
-    buildThreeMonthWindow(bootYear, bootMonth, adjustFirstDayOfWeek, monthStartDay),
+  const [monthSlots, setMonthSlots] = useState<CalendarMonthSlot[]>(() =>
+    buildThreeMonthWindow(
+      gridCacheRef.current,
+      bootYear,
+      bootMonth,
+      monthStartDay,
+      buildGrid,
+    ),
   );
 
   const centerYearMonthRef = useRef({ year: bootYear, month: bootMonth });
   const skipPropsSyncRef = useRef(false);
-  const weekLayoutSignature = weekdays.join(',');
-  const monthLayoutKeyRef = useRef(`${monthStartDay}|${weekLayoutSignature}`);
 
   const [isAnimating, setIsAnimating] = useState(false);
 
@@ -381,17 +300,14 @@ function CalendarMainInner({
       return;
     }
     monthLayoutKeyRef.current = layoutKey;
+    gridCacheRef.current.clear();
 
     const { year, month } = centerYearMonthRef.current;
-    const nextSlots = buildThreeMonthWindow(year, month, adjustFirstDayOfWeek, monthStartDay);
-    setMonthSlots(nextSlots);
+    setMonthSlots(
+      buildThreeMonthWindow(gridCacheRef.current, year, month, monthStartDay, buildGrid),
+    );
     scrollToCenter();
-  }, [
-    adjustFirstDayOfWeek,
-    monthStartDay,
-    scrollToCenter,
-    weekLayoutSignature,
-  ]);
+  }, [buildGrid, monthStartDay, scrollToCenter, weekLayoutSignature]);
 
   /** 외부 년/월(피커·타임라인) — light shift vs heavy rebuild */
   useLayoutEffect(() => {
@@ -425,12 +341,14 @@ function CalendarMainInner({
     }
 
     setMonthSlots((prev) =>
-      resolveSlotsForExternalTarget(
+      resolveSlotsForTargetMonth(
+        gridCacheRef.current,
         prev,
+        CALENDAR_CENTER_PAGE_INDEX,
         targetYear,
         targetMonth,
-        adjustFirstDayOfWeek,
         monthStartDay,
+        buildGrid,
       ),
     );
 
@@ -439,7 +357,7 @@ function CalendarMainInner({
     setCurrentMonth(targetMonth);
     scrollToCenter();
   }, [
-    adjustFirstDayOfWeek,
+    buildGrid,
     currentMonth,
     currentYear,
     initialMonth,
@@ -500,17 +418,12 @@ function CalendarMainInner({
         return;
       }
 
-      const { year: nextYear, month: nextMonth } = addMonths(
+      const { year: nextYear, month: nextMonth } = addCalendarMonths(
         centerYearMonthRef.current.year,
         centerYearMonthRef.current.month,
         monthsToMove,
       );
-      const nextGrid = generateMonthGrid(
-        nextYear,
-        nextMonth,
-        adjustFirstDayOfWeek,
-        monthStartDay,
-      );
+      const nextGrid = buildGrid(nextYear, nextMonth);
       const nextWeekCount = countWeeksInGrid(nextGrid);
 
       setIsAnimating(true);
@@ -531,8 +444,8 @@ function CalendarMainInner({
 
       setMonthSlots((prev) =>
         monthsToMove > 0
-          ? shiftSlotsForward(prev, adjustFirstDayOfWeek, monthStartDay)
-          : shiftSlotsBackward(prev, adjustFirstDayOfWeek, monthStartDay),
+          ? shiftSlotsForward(gridCacheRef.current, prev, monthStartDay, buildGrid)
+          : shiftSlotsBackward(gridCacheRef.current, prev, monthStartDay, buildGrid),
       );
 
       applyCenterMonth(nextYear, nextMonth);
@@ -540,7 +453,13 @@ function CalendarMainInner({
 
       setTimeout(() => setIsAnimating(false), 100);
     },
-    [adjustFirstDayOfWeek, applyCenterMonth, isAnimating, monthStartDay, scrollToCenter],
+    [applyCenterMonth, buildGrid, isAnimating, scrollToCenter],
+  );
+
+  const monthDayDataSignatures = useMemo(
+    () =>
+      monthSlots.map((slot) => buildMonthDayDataSignature(slot.grid, dayData)),
+    [dayData, monthSlots],
   );
 
   const handleDayPress = useCallback(
@@ -604,22 +523,16 @@ function CalendarMainInner({
               key={`${monthData.year}-${monthData.month}-${gridType}`}
               style={[styles.monthPage, { width: SCREEN_WIDTH }]}
             >
-              <View style={styles.weeksContainer}>
-                {monthData.grid.map((item, dayIndex) => (
-                  <CalendarDayCell
-                    key={`${gridType}-${item.date}-${dayIndex}`}
-                    date={item.date}
-                    day={item.day}
-                    isCurrentMonth={item.isCurrentMonth}
-                    gridType={gridType}
-                    dayCellHeight={dayCellHeight}
-                    isSelected={item.date === selectedDate}
-                    dayRecord={dayData[item.date]}
-                    onDayPress={handleDayPress}
-                    {...cellColorProps}
-                  />
-                ))}
-              </View>
+              <CalendarMainMonthPage
+                monthData={monthData}
+                gridType={gridType}
+                dayCellHeight={dayCellHeight}
+                selectedDate={selectedDate}
+                dayData={dayData}
+                monthDayDataSignature={monthDayDataSignatures[index] ?? ''}
+                onDayPress={handleDayPress}
+                cellColorProps={cellColorProps}
+              />
             </View>
           );
         })}
@@ -677,8 +590,4 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   monthPage: {},
-  weeksContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
 });
