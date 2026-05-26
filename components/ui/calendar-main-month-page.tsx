@@ -64,6 +64,9 @@ export type CalendarMainMonthPageProps = {
   monthData: CalendarMonthSlot;
   gridType: CalendarDayGridType;
   dayCellHeight: number;
+  /** 스와이프 정착 중 pager 셀 — 3달 전체 렌더 대신 빈 영역 */
+  showSettlePlaceholder?: boolean;
+  settlePlaceholderHeight?: number;
   selectedDate?: string;
   dayData: Record<string, DayData>;
   monthDayDataSignature: string;
@@ -160,6 +163,8 @@ function CalendarMainMonthPageComponent({
   monthData,
   gridType,
   dayCellHeight,
+  showSettlePlaceholder = false,
+  settlePlaceholderHeight,
   selectedDate,
   dayData,
   monthDayDataSignature,
@@ -170,6 +175,10 @@ function CalendarMainMonthPageComponent({
   const pageDebugSeqRef = useRef(0);
 
   const { amountFontSizes, cellDescriptors } = useMemo(() => {
+    if (showSettlePlaceholder) {
+      return { amountFontSizes: undefined, cellDescriptors: [] as CalendarDayCellDescriptor[] };
+    }
+
     const { grid } = monthData;
     const descriptors: CalendarDayCellDescriptor[] = new Array(grid.length);
 
@@ -243,14 +252,14 @@ function CalendarMainMonthPageComponent({
       },
       cellDescriptors: descriptors,
     };
-  }, [showAmounts, monthDayDataSignature, monthData, dayData, selectedDate]);
+  }, [showAmounts, showSettlePlaceholder, monthDayDataSignature, monthData, dayData, selectedDate]);
 
-  if (__DEV__) {
+  if (__DEV__ && !showSettlePlaceholder) {
     recordCalendarMonthPageRender(showAmounts ? 'full' : 'lite');
   }
 
   useLayoutEffect(() => {
-    if (!__DEV__) {
+    if (!__DEV__ || showSettlePlaceholder) {
       return;
     }
     logCalendarMonthDebug(MONTH_PAGE_DEBUG_TAG, pageDebugSeqRef, 'layout commit', {
@@ -259,7 +268,25 @@ function CalendarMainMonthPageComponent({
       showAmounts,
       cellCount: monthData.grid.length,
     });
-  }, [gridType, monthData.year, monthData.month, monthData.grid.length, showAmounts]);
+  }, [
+    gridType,
+    monthData.year,
+    monthData.month,
+    monthData.grid.length,
+    showAmounts,
+    showSettlePlaceholder,
+  ]);
+
+  if (showSettlePlaceholder) {
+    return (
+      <View
+        style={{
+          height: settlePlaceholderHeight ?? dayCellHeight * 5,
+          width: '100%',
+        }}
+      />
+    );
+  }
 
   return (
     <View style={styles.weeksContainer}>
@@ -288,6 +315,8 @@ function monthPagePropsAreEqual(
   next: CalendarMainMonthPageProps,
 ): boolean {
   return (
+    prev.showSettlePlaceholder === next.showSettlePlaceholder &&
+    prev.settlePlaceholderHeight === next.settlePlaceholderHeight &&
     prev.gridType === next.gridType &&
     prev.dayCellHeight === next.dayCellHeight &&
     prev.monthData.year === next.monthData.year &&
