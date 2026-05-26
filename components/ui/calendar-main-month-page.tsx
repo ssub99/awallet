@@ -3,9 +3,13 @@
  */
 
 import {
+  CALENDAR_DAY_CELL_WIDTH,
   CalendarDayCell,
+  type CalendarDayCellAmountFontSizes,
   type CalendarDayGridType,
 } from '@/components/ui/calendar-day-cell';
+import { computeUnifiedSingleLineFontSize } from '@/components/ui/auto-shrink-single-line-text';
+import { Typography } from '@/constants/theme';
 import type { CalendarGridCell, CalendarMonthSlot } from '@/utils/calendar-month-grid-cache';
 
 export interface DayData {
@@ -19,8 +23,35 @@ export interface DayData {
     timestamp: number;
   }[];
 }
-import { memo } from 'react';
+import {
+  logCalendarMonthDebug,
+  recordCalendarMonthPageRender,
+} from '@/utils/calendar-month-debug';
+import { memo, useLayoutEffect, useMemo, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
+
+export type CalendarDayCellDescriptor = {
+  date: string;
+  day: number;
+  isCurrentMonth: boolean;
+  isSelected: boolean;
+  expenseLabel: string | null;
+  incomeLabel: string | null;
+};
+
+const EMPTY_DAY_DATA: Record<string, DayData> = {};
+export { EMPTY_DAY_DATA };
+
+const MONTH_PAGE_DEBUG_TAG = '[CalendarMainMonthPage]';
+
+const MONTH_PAGE_AMOUNT_EXPENSE_STYLE = Typography.tiny.r.regular;
+const MONTH_PAGE_AMOUNT_INCOME_STYLE = Typography.tiny.r.regular;
+const MONTH_PAGE_AMOUNT_HORIZONTAL_INSET = 2;
+const MONTH_PAGE_AMOUNT_MIN_FONT_SCALE = 0.55;
+
+function formatMonthPageCurrency(num: number): string {
+  return num.toLocaleString('ko-KR');
+}
 
 export type CalendarMainMonthPageColorProps = {
   textAssistive: string;
@@ -54,27 +85,196 @@ export function buildMonthDayDataSignature(
   return sig;
 }
 
+type MonthDaySignatureCacheEntry = {
+  grid: CalendarGridCell[];
+  dayDataEpoch: string;
+  signature: string;
+};
+
+const monthDaySignatureCache = new Map<string, MonthDaySignatureCacheEntry>();
+
+/** 슬롯별 signature — 동일 월·grid·dayDataEpoch이면 재계산 생략 */
+export function clearMonthDayDataSignatureCache(): void {
+  monthDaySignatureCache.clear();
+}
+
+function resolveSlotMonthDayDataSignature(
+  slot: CalendarMonthSlot,
+  dayData: Record<string, DayData>,
+  dayDataEpoch: string,
+): { signature: string; cacheHit: boolean } {
+  const slotKey = `${slot.year}-${slot.month}`;
+  const cached = monthDaySignatureCache.get(slotKey);
+  if (cached && cached.grid === slot.grid && cached.dayDataEpoch === dayDataEpoch) {
+    return { signature: cached.signature, cacheHit: true };
+  }
+  const signature = buildMonthDayDataSignature(slot.grid, dayData);
+  monthDaySignatureCache.set(slotKey, { grid: slot.grid, dayDataEpoch, signature });
+  return { signature, cacheHit: false };
+}
+
+export function resolveMonthDayDataSignatures(
+  slots: CalendarMonthSlot[],
+  dayData: Record<string, DayData>,
+  dayDataEpoch: string,
+): { signatures: string[]; cacheHits: number; cacheMisses: number } {
+  let cacheHits = 0;
+  let cacheMisses = 0;
+  const signatures = slots.map((slot) => {
+    const { signature, cacheHit } = resolveSlotMonthDayDataSignature(slot, dayData, dayDataEpoch);
+    if (cacheHit) {
+      cacheHits += 1;
+    } else {
+      cacheMisses += 1;
+    }
+    return signature;
+  });
+  return { signatures, cacheHits, cacheMisses };
+}
+
+/** 중앙 슬롯 signature만 계산 — prev/next는 lite·memo에서 미사용 */
+export function resolveCalendarPagerDayDataSignatures(
+  slots: CalendarMonthSlot[],
+  centerSlotIndex: number,
+  dayData: Record<string, DayData>,
+  dayDataEpoch: string,
+): { signatures: string[]; cacheHits: number; cacheMisses: number } {
+  let cacheHits = 0;
+  let cacheMisses = 0;
+  const signatures = slots.map((slot, index) => {
+    if (index !== centerSlotIndex) {
+      return '';
+    }
+    const { signature, cacheHit } = resolveSlotMonthDayDataSignature(slot, dayData, dayDataEpoch);
+    if (cacheHit) {
+      cacheHits += 1;
+    } else {
+      cacheMisses += 1;
+    }
+    return signature;
+  });
+  return { signatures, cacheHits, cacheMisses };
+}
+
 function CalendarMainMonthPageComponent({
   monthData,
   gridType,
   dayCellHeight,
   selectedDate,
   dayData,
+  monthDayDataSignature,
   onDayPress,
   cellColorProps,
 }: CalendarMainMonthPageProps) {
+  const showAmounts = gridType === 'current';
+  const pageDebugSeqRef = useRef(0);
+
+  const { amountFontSizes, cellDescriptors } = useMemo(() => {
+    const { grid } = monthData;
+    const descriptors: CalendarDayCellDescriptor[] = new Array(grid.length);
+
+    if (!showAmounts) {
+      for (let i = 0; i < grid.length; i += 1) {
+        const item = grid[i];
+        descriptors[i] = {
+          date: item.date,
+          day: item.day,
+          isCurrentMonth: item.isCurrentMonth,
+          isSelected: item.date === selectedDate,
+          expenseLabel: null,
+          incomeLabel: null,
+        };
+      }
+      return { amountFontSizes: undefined, cellDescriptors: descriptors };
+    }
+
+    const expenseTexts: string[] = [];
+    const incomeTexts: string[] = [];
+
+    for (let i = 0; i < grid.length; i += 1) {
+      const item = grid[i];
+      let expenseLabel: string | null = null;
+      let incomeLabel: string | null = null;
+
+      if (item.isCurrentMonth) {
+        const record = dayData[item.date];
+        if (record?.totalExpense != null && record.totalExpense > 0) {
+          expenseLabel = formatMonthPageCurrency(record.totalExpense);
+          expenseTexts.push(expenseLabel);
+        }
+        if (record?.totalIncome != null && record.totalIncome > 0) {
+          incomeLabel = formatMonthPageCurrency(record.totalIncome);
+          incomeTexts.push(incomeLabel);
+        }
+      }
+
+      descriptors[i] = {
+        date: item.date,
+        day: item.day,
+        isCurrentMonth: item.isCurrentMonth,
+        isSelected: item.date === selectedDate,
+        expenseLabel,
+        incomeLabel,
+      };
+    }
+
+    return {
+      amountFontSizes: {
+        expense:
+          expenseTexts.length > 0
+            ? computeUnifiedSingleLineFontSize({
+                texts: expenseTexts,
+                availableWidth: CALENDAR_DAY_CELL_WIDTH,
+                textStyle: MONTH_PAGE_AMOUNT_EXPENSE_STYLE,
+                minFontScale: MONTH_PAGE_AMOUNT_MIN_FONT_SCALE,
+                horizontalInset: MONTH_PAGE_AMOUNT_HORIZONTAL_INSET,
+              })
+            : undefined,
+        income:
+          incomeTexts.length > 0
+            ? computeUnifiedSingleLineFontSize({
+                texts: incomeTexts,
+                availableWidth: CALENDAR_DAY_CELL_WIDTH,
+                textStyle: MONTH_PAGE_AMOUNT_INCOME_STYLE,
+                minFontScale: MONTH_PAGE_AMOUNT_MIN_FONT_SCALE,
+                horizontalInset: MONTH_PAGE_AMOUNT_HORIZONTAL_INSET,
+              })
+            : undefined,
+      },
+      cellDescriptors: descriptors,
+    };
+  }, [showAmounts, monthDayDataSignature, monthData, dayData, selectedDate]);
+
+  if (__DEV__) {
+    recordCalendarMonthPageRender(showAmounts ? 'full' : 'lite');
+  }
+
+  useLayoutEffect(() => {
+    if (!__DEV__) {
+      return;
+    }
+    logCalendarMonthDebug(MONTH_PAGE_DEBUG_TAG, pageDebugSeqRef, 'layout commit', {
+      gridType,
+      month: `${monthData.year}-${String(monthData.month).padStart(2, '0')}`,
+      showAmounts,
+      cellCount: monthData.grid.length,
+    });
+  }, [gridType, monthData.year, monthData.month, monthData.grid.length, showAmounts]);
+
   return (
     <View style={styles.weeksContainer}>
-      {monthData.grid.map((item, dayIndex) => (
+      {cellDescriptors.map((cell) => (
         <CalendarDayCell
-          key={`${gridType}-${item.date}-${dayIndex}`}
-          date={item.date}
-          day={item.day}
-          isCurrentMonth={item.isCurrentMonth}
+          key={cell.date}
+          date={cell.date}
+          day={cell.day}
+          isCurrentMonth={cell.isCurrentMonth}
           gridType={gridType}
           dayCellHeight={dayCellHeight}
-          isSelected={item.date === selectedDate}
-          dayRecord={dayData[item.date]}
+          isSelected={cell.isSelected}
+          expenseLabel={cell.expenseLabel}
+          incomeLabel={cell.incomeLabel}
+          amountFontSizes={amountFontSizes}
           onDayPress={onDayPress}
           {...cellColorProps}
         />
@@ -94,7 +294,9 @@ function monthPagePropsAreEqual(
     prev.monthData.month === next.monthData.month &&
     prev.monthData.grid === next.monthData.grid &&
     prev.selectedDate === next.selectedDate &&
-    prev.monthDayDataSignature === next.monthDayDataSignature &&
+    (prev.gridType !== 'current' && next.gridType !== 'current'
+      ? true
+      : prev.monthDayDataSignature === next.monthDayDataSignature) &&
     prev.onDayPress === next.onDayPress &&
     prev.cellColorProps.textAssistive === next.cellColorProps.textAssistive &&
     prev.cellColorProps.textNeutral === next.cellColorProps.textNeutral &&

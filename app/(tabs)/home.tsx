@@ -5,7 +5,7 @@
  */
 
 import { TopNavigation } from '@/components/navigation/top-navigation';
-import { CalendarMain } from '@/components/ui/calendar-main';
+import { CalendarMain, type CalendarExternalView } from '@/components/ui/calendar-main';
 import { HomeMonthStatusCard } from '@/components/ui/home-month-status-card';
 import { Icon } from '@/components/ui/icon';
 import { QuickInputShort } from '@/components/ui/quick-input-short';
@@ -30,6 +30,19 @@ import { useThemeColor } from '@/hooks/use-theme-color';
 import { logEvent } from '@/utils/analytics';
 import { isAtLeastVersion, QUICK_INPUT_MIN_VERSION } from '@/utils/app-version';
 import { createSheetEvent } from '@/utils/create-sheet-event';
+import {
+  beginMonthTransitionTiming,
+  completeMonthTransitionTiming,
+  formatCalendarMonthLabel,
+  logCalendarMonthDebug,
+  markMonthTransitionTiming,
+  measureCalendarMonthDebug,
+  type MonthTransitionTimingSession,
+} from '@/utils/calendar-month-debug';
+import {
+  buildCalendarMonthTotalsIndex,
+  getCalendarMonthTotalsFromIndex,
+} from '@/utils/calendar-month-totals';
 import {
   getCustomMonthInfo,
   getCustomMonthRange,
@@ -58,6 +71,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const FAB_SIZE = 48;
+const HOME_DEBUG_TAG = '[HomeScreen]';
 
 export default function HomeScreen() {
   const initialPendingTarget = getLatestPendingCalendarTarget();
@@ -123,6 +137,23 @@ export default function HomeScreen() {
   const [currentMonth, setCurrentMonth] = useState<number>(
     initialPendingTarget?.month ?? (new Date().getMonth() + 1),
   ); // 1-12
+  /** CalendarMain 마운트 초기 월 — 스와이프마다 prop으로 넘기지 않음 */
+  const calendarBootRef = useRef({
+    year: initialPendingTarget?.year ?? new Date().getFullYear(),
+    month: initialPendingTarget?.month ?? new Date().getMonth() + 1,
+  });
+  const [calendarExternalView, setCalendarExternalView] = useState<CalendarExternalView | null>(
+    null,
+  );
+  const syncCalendarExternalView = useCallback((year: number, month: number) => {
+    if (
+      year === currentYearRef.current &&
+      month === currentMonthRef.current
+    ) {
+      return;
+    }
+    setCalendarExternalView({ year, month });
+  }, []);
   const handleYearMonthPress = useCallback(
     (month: number) => {
       if (isNavigating.current) {
@@ -152,6 +183,46 @@ export default function HomeScreen() {
   const selectedDateRef = useRef(selectedDate);
   const currentYearRef = useRef(currentYear);
   const currentMonthRef = useRef(currentMonth);
+  const homeDebugSeqRef = useRef(0);
+  const homeMonthTimingRef = useRef<MonthTransitionTimingSession | null>(null);
+  const homeRenderCountRef = useRef(0);
+  const calendarDataRefForDebug = useRef(calendarData);
+
+  useEffect(() => {
+    if (!__DEV__) {
+      return;
+    }
+    homeRenderCountRef.current += 1;
+    logCalendarMonthDebug(HOME_DEBUG_TAG, homeDebugSeqRef, 'render commit', {
+      renderCount: homeRenderCountRef.current,
+      periodType,
+      month: formatCalendarMonthLabel(currentYear, currentMonth),
+      calendarDataRefChanged: calendarData !== calendarDataRefForDebug.current,
+      calendarDataKeyCount: Object.keys(calendarData).length,
+    });
+    calendarDataRefForDebug.current = calendarData;
+  });
+
+  useEffect(() => {
+    if (!__DEV__) {
+      return;
+    }
+    logCalendarMonthDebug(HOME_DEBUG_TAG, homeDebugSeqRef, 'month state committed', {
+      month: formatCalendarMonthLabel(currentYear, currentMonth),
+    });
+    markMonthTransitionTiming(
+      HOME_DEBUG_TAG,
+      homeDebugSeqRef,
+      homeMonthTimingRef,
+      'month state committed (useEffect)',
+    );
+    completeMonthTransitionTiming(
+      HOME_DEBUG_TAG,
+      homeDebugSeqRef,
+      homeMonthTimingRef,
+      'complete (home path)',
+    );
+  }, [currentMonth, currentYear]);
 
   useEffect(() => {
     selectedDateRef.current = selectedDate;
@@ -174,15 +245,36 @@ export default function HomeScreen() {
       setCurrentMonth(month);
       setSelectedDate(targetDate);
       setPeriodType('month');
+      syncCalendarExternalView(year, month);
     },
-    [],
+    [syncCalendarExternalView],
   );
 
   const handleCalendarMonthChange = useCallback((year: number, month: number) => {
+    const toLabel = formatCalendarMonthLabel(year, month);
+    beginMonthTransitionTiming(homeMonthTimingRef, 'swipe', toLabel);
+    logCalendarMonthDebug(HOME_DEBUG_TAG, homeDebugSeqRef, 'handleCalendarMonthChange', {
+      to: toLabel,
+      from: formatCalendarMonthLabel(currentYearRef.current, currentMonthRef.current),
+    });
     currentYearRef.current = year;
     currentMonthRef.current = month;
+    markMonthTransitionTiming(
+      HOME_DEBUG_TAG,
+      homeDebugSeqRef,
+      homeMonthTimingRef,
+      'setCurrentYear/Month (sync)',
+    );
     setCurrentYear(year);
     setCurrentMonth(month);
+    if (__DEV__) {
+      markMonthTransitionTiming(
+        HOME_DEBUG_TAG,
+        homeDebugSeqRef,
+        homeMonthTimingRef,
+        'setCurrentYear/Month committed (sync)',
+      );
+    }
   }, []);
 
   const handleCalendarDayPress = useCallback(
@@ -239,6 +331,38 @@ export default function HomeScreen() {
     [applyHomeCalendarSelection, router],
   );
 
+  const handleCalendarExternalViewApplied = useCallback(() => {
+    setCalendarExternalView(null);
+  }, []);
+
+  const homeCalendarElement = useMemo(
+    () => (
+      <CalendarMain
+        containerHeight={calendarContainerHeight}
+        selectedDate={selectedDate}
+        onDayPress={handleCalendarDayPress}
+        dayData={calendarData}
+        showTitle={false}
+        initialYear={calendarBootRef.current.year}
+        initialMonth={calendarBootRef.current.month}
+        externalView={calendarExternalView}
+        onExternalViewApplied={handleCalendarExternalViewApplied}
+        monthStartDay={monthStartDay}
+        onMonthChange={handleCalendarMonthChange}
+      />
+    ),
+    [
+      calendarContainerHeight,
+      selectedDate,
+      handleCalendarDayPress,
+      calendarData,
+      calendarExternalView,
+      handleCalendarExternalViewApplied,
+      monthStartDay,
+      handleCalendarMonthChange,
+    ],
+  );
+
   const applyPendingCalendarTarget = useCallback(async () => {
     try {
       let target = peekLatestPendingCalendarTarget();
@@ -288,6 +412,7 @@ export default function HomeScreen() {
           setCurrentMonth(initialPendingTarget.month);
           setSelectedDate(initialPendingTarget.targetDate);
           setPeriodType('month');
+          syncCalendarExternalView(initialPendingTarget.year, initialPendingTarget.month);
           return;
         }
 
@@ -301,6 +426,7 @@ export default function HomeScreen() {
               setCurrentMonth(parsed.month);
               setSelectedDate(parsed.targetDate);
               setPeriodType('month');
+              syncCalendarExternalView(parsed.year, parsed.month);
               await AsyncStorage.removeItem('pendingCalendarTarget');
               return; // 오늘 초기화/기타 분기 타지 않게 조기 종료
             }
@@ -318,6 +444,7 @@ export default function HomeScreen() {
           setCurrentMonth(targetMonth);
           setSelectedDate(params.targetDate); // 입력한 날짜 강조
           setPeriodType('month'); // 월 캘린더로 표시
+          syncCalendarExternalView(targetYear, targetMonth);
         } else {
           // 기존 로직: 최초 설치 여부 확인
           const isFirstLaunch = await AsyncStorage.getItem('isFirstLaunch');
@@ -343,7 +470,15 @@ export default function HomeScreen() {
     };
     
     loadSettings();
-  }, [params.targetYear, params.targetMonth, params.targetDate, beginLoad, endLoad, refresh]); // params가 변경될 때마다 실행
+  }, [
+    params.targetYear,
+    params.targetMonth,
+    params.targetDate,
+    beginLoad,
+    endLoad,
+    refresh,
+    syncCalendarExternalView,
+  ]); // params가 변경될 때마다 실행
   
   // periodType 변경 시 저장
   useEffect(() => {
@@ -366,7 +501,8 @@ export default function HomeScreen() {
     
     setCurrentYear(customMonthInfo.year);
     setCurrentMonth(customMonthInfo.month);
-    
+    syncCalendarExternalView(customMonthInfo.year, customMonthInfo.month);
+
     // 로컬 시간 기준으로 날짜 문자열 생성 (UTC 대신)
     const year = today.getFullYear();
     const month = String(today.getMonth() + 1).padStart(2, '0');
@@ -378,7 +514,7 @@ export default function HomeScreen() {
     if (periodType === 'year') {
       setPeriodType('month');
     }
-  }, [periodType, setCurrentYear, setCurrentMonth, setSelectedDate, setPeriodType]);
+  }, [periodType, setCurrentYear, setCurrentMonth, setSelectedDate, setPeriodType, syncCalendarExternalView]);
   
   // Listen for double tap on home tab
   useEffect(() => {
@@ -710,53 +846,64 @@ export default function HomeScreen() {
     });
   }, [currentYear, calendarData, monthStartDay, periodType]);
 
+  const calendarMonthTotalsIndex = useMemo(
+    () => (monthStartDay === 1 ? buildCalendarMonthTotalsIndex(calendarData) : null),
+    [calendarData, monthStartDay],
+  );
+
   // 현재 커스텀 월 합산 (reload 없음 — 이미 로드된 calendarData 필터만)
-  const financialData = useMemo(() => {
-    let totalIncome = 0;
-    let totalExpense = 0;
+  const financialData = useMemo(
+    () =>
+      measureCalendarMonthDebug(
+        HOME_DEBUG_TAG,
+        homeDebugSeqRef,
+        'financialData useMemo',
+        () => {
+          if (monthStartDay === 1 && calendarMonthTotalsIndex) {
+            return getCalendarMonthTotalsFromIndex(
+              calendarMonthTotalsIndex,
+              currentYear,
+              currentMonth,
+            );
+          }
 
-    if (monthStartDay === 1) {
-      for (const [dateString, data] of Object.entries(calendarData)) {
-        if (dateString.length < 7) {
-          continue;
-        }
-        const recordYear = Number(dateString.slice(0, 4));
-        const recordMonth = Number(dateString.slice(5, 7));
-        if (recordYear !== currentYear || recordMonth !== currentMonth) {
-          continue;
-        }
-        totalIncome += data.totalIncome || 0;
-        totalExpense += data.totalExpense || 0;
-      }
-    } else {
-      const { startDate, endDate } = getCustomMonthRange(
-        currentYear,
-        currentMonth,
-        monthStartDay,
-      );
-      const startTime = startDate.getTime();
-      const endTime = endDate.getTime();
+          let totalIncome = 0;
+          let totalExpense = 0;
 
-      for (const [dateString, data] of Object.entries(calendarData)) {
-        const date = parseCalendarDateKeyLocal(dateString);
-        if (!date) {
-          continue;
-        }
-        const time = date.getTime();
-        if (time < startTime || time > endTime) {
-          continue;
-        }
-        totalIncome += data.totalIncome || 0;
-        totalExpense += data.totalExpense || 0;
-      }
-    }
+          const { startDate, endDate } = getCustomMonthRange(
+            currentYear,
+            currentMonth,
+            monthStartDay,
+          );
+          const startTime = startDate.getTime();
+          const endTime = endDate.getTime();
 
-    return {
-      income: totalIncome,
-      expense: totalExpense,
-      balance: totalIncome - totalExpense,
-    };
-  }, [currentYear, currentMonth, calendarData, monthStartDay]);
+          for (const [dateString, data] of Object.entries(calendarData)) {
+            const date = parseCalendarDateKeyLocal(dateString);
+            if (!date) {
+              continue;
+            }
+            const time = date.getTime();
+            if (time < startTime || time > endTime) {
+              continue;
+            }
+            totalIncome += data.totalIncome || 0;
+            totalExpense += data.totalExpense || 0;
+          }
+
+          return {
+            income: totalIncome,
+            expense: totalExpense,
+            balance: totalIncome - totalExpense,
+          };
+        },
+        {
+          month: formatCalendarMonthLabel(currentYear, currentMonth),
+          calendarDataKeyCount: Object.keys(calendarData).length,
+        },
+      ),
+    [currentYear, currentMonth, calendarData, calendarMonthTotalsIndex, monthStartDay],
+  );
 
   const monthlyIncomeText = useMemo(() => {
     const amount = Number(financialData.income) || 0;
@@ -823,6 +970,29 @@ export default function HomeScreen() {
     });
   }, [currentMonth, currentYear, router]);
 
+  const homeMonthStatusElement = useMemo(
+    () => (
+      <HomeMonthStatusCard
+        incomeText={monthlyIncomeText}
+        expenseText={monthlyExpenseText}
+        balanceText={monthlyBalanceText}
+        balanceNegative={financialData.balance < 0}
+        onIncomePress={handleMonthStatusIncomePress}
+        onExpensePress={handleMonthStatusExpensePress}
+        onBalancePress={handleMonthStatusBalancePress}
+      />
+    ),
+    [
+      monthlyIncomeText,
+      monthlyExpenseText,
+      monthlyBalanceText,
+      financialData.balance,
+      handleMonthStatusIncomePress,
+      handleMonthStatusExpensePress,
+      handleMonthStatusBalancePress,
+    ],
+  );
+
   // iOS 위젯에 이번달 소비 요약 데이터 동기화
   useEffect(() => {
     if (Platform.OS !== 'ios') {
@@ -876,6 +1046,10 @@ export default function HomeScreen() {
             ) {
               setCurrentMonth(month);
             }
+            if (periodType === 'month') {
+              const nextMonth = month ?? currentMonthRef.current;
+              syncCalendarExternalView(clampedYear, nextMonth);
+            }
           }}
           monthOptions={periodType === 'month' ? monthOptions : undefined}
           selectedMonth={periodType === 'month' ? currentMonth : undefined}
@@ -885,15 +1059,7 @@ export default function HomeScreen() {
       {/* Conditional Content: Month View or Year View */}
       {periodType === 'month' ? (
         <Animated.View style={[styles.monthViewContent, { opacity: isContentReady ? contentOpacity : 0 }]}>
-            <HomeMonthStatusCard
-              incomeText={monthlyIncomeText}
-              expenseText={monthlyExpenseText}
-              balanceText={monthlyBalanceText}
-              balanceNegative={financialData.balance < 0}
-              onIncomePress={handleMonthStatusIncomePress}
-              onExpensePress={handleMonthStatusExpensePress}
-              onBalancePress={handleMonthStatusBalancePress}
-            />
+            {homeMonthStatusElement}
 
             {/* Calendar: flex 1로 남은 영역만 쓰고, 측정한 높이를 넘겨 FAB/간편입력과 겹치지 않게 함 */}
             <View
@@ -905,17 +1071,7 @@ export default function HomeScreen() {
                 );
               }}
             >
-              <CalendarMain
-                containerHeight={calendarContainerHeight}
-                selectedDate={selectedDate}
-                onDayPress={handleCalendarDayPress}
-                dayData={calendarData}
-                showTitle={false}
-                initialYear={currentYear}
-                initialMonth={currentMonth}
-                monthStartDay={monthStartDay}
-                onMonthChange={handleCalendarMonthChange}
-              />
+              {homeCalendarElement}
             </View>
         </Animated.View>
       ) : (

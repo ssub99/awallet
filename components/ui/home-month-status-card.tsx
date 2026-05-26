@@ -2,17 +2,16 @@
  * Home month view — income / expense / balance summary (isolated from calendar re-renders).
  */
 
-import {
-  AutoShrinkSingleLineText,
-  computeUnifiedSingleLineFontSize,
-} from '@/components/ui/auto-shrink-single-line-text';
+import { computeUnifiedSingleLineFontSize } from '@/components/ui/auto-shrink-single-line-text';
 import { AtomicColors } from '@/constants/atomic-colors';
 import { Colors, Typography } from '@/constants/theme';
 import { singleRowCenteredTextStyle } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { memo, useCallback, useMemo, useState } from 'react';
+import { logCalendarMonthDebug } from '@/utils/calendar-month-debug';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-native';
 
+const HOME_STATUS_CARD_DEBUG_TAG = '[HomeMonthStatusCard]';
 const MONTH_STATUS_AMOUNT_HORIZONTAL_INSET = 4;
 const MONTH_STATUS_AMOUNT_MIN_FONT_SCALE = 0.75;
 
@@ -42,14 +41,20 @@ function HomeMonthStatusCardInner({
   onExpensePress,
   onBalancePress,
 }: HomeMonthStatusCardProps) {
+  const statusCardDebugSeqRef = useRef(0);
+
+  useEffect(() => {
+    if (!__DEV__) {
+      return;
+    }
+    logCalendarMonthDebug(HOME_STATUS_CARD_DEBUG_TAG, statusCardDebugSeqRef, 'render commit', {
+      incomeText,
+      expenseText,
+      balanceText,
+    });
+  });
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
-
-  const amountShrinkProps = {
-    textStyle: monthStatusAmountTextStyle,
-    horizontalInset: MONTH_STATUS_AMOUNT_HORIZONTAL_INSET,
-    minFontScale: MONTH_STATUS_AMOUNT_MIN_FONT_SCALE,
-  } as const;
 
   const [amountColumnWidth, setAmountColumnWidth] = useState(0);
 
@@ -65,8 +70,13 @@ function HomeMonthStatusCardInner({
     [incomeText, expenseText, balanceText, amountColumnWidth],
   );
 
-  const amountFontSizeOverride =
-    amountColumnWidth > 0 ? unifiedAmountFontSize : undefined;
+  const amountTextStyle = useMemo(
+    () =>
+      amountColumnWidth > 0
+        ? [monthStatusAmountTextStyle, { fontSize: unifiedAmountFontSize }]
+        : monthStatusAmountTextStyle,
+    [amountColumnWidth, unifiedAmountFontSize],
+  );
 
   const onAmountColumnLayout = useCallback((event: LayoutChangeEvent) => {
     const nextWidth = Math.floor(event.nativeEvent.layout.width);
@@ -84,13 +94,12 @@ function HomeMonthStatusCardInner({
         >
           <View style={styles.monthStatusItem} onLayout={onAmountColumnLayout}>
             <Text style={[styles.monthStatusLabel, { color: colors.textNeutral }]}>수입</Text>
-            <AutoShrinkSingleLineText
-              {...amountShrinkProps}
-              fontSizeOverride={amountFontSizeOverride}
-              color={colors.text}
+            <Text
+              style={[amountTextStyle, monthStatusCenteredText, { color: colors.text }]}
+              numberOfLines={1}
             >
               {incomeText}
-            </AutoShrinkSingleLineText>
+            </Text>
           </View>
         </Pressable>
 
@@ -104,13 +113,12 @@ function HomeMonthStatusCardInner({
         >
           <View style={styles.monthStatusItem}>
             <Text style={[styles.monthStatusLabel, { color: colors.textNeutral }]}>소비</Text>
-            <AutoShrinkSingleLineText
-              {...amountShrinkProps}
-              fontSizeOverride={amountFontSizeOverride}
-              color={colors.text}
+            <Text
+              style={[amountTextStyle, monthStatusCenteredText, { color: colors.text }]}
+              numberOfLines={1}
             >
               {expenseText}
-            </AutoShrinkSingleLineText>
+            </Text>
           </View>
         </Pressable>
 
@@ -124,13 +132,18 @@ function HomeMonthStatusCardInner({
         >
           <View style={styles.monthStatusItem}>
             <Text style={[styles.monthStatusLabel, { color: colors.textNeutral }]}>잔액</Text>
-            <AutoShrinkSingleLineText
-              {...amountShrinkProps}
-              fontSizeOverride={amountFontSizeOverride}
-              color={balanceNegative ? AtomicColors.red[500] : AtomicColors.green[600]}
+            <Text
+              style={[
+                amountTextStyle,
+                monthStatusCenteredText,
+                {
+                  color: balanceNegative ? AtomicColors.red[500] : AtomicColors.green[600],
+                },
+              ]}
+              numberOfLines={1}
             >
               {balanceText}
-            </AutoShrinkSingleLineText>
+            </Text>
           </View>
         </Pressable>
       </View>
