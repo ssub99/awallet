@@ -133,10 +133,10 @@ async function loadOrderedCategoriesForBackup(): Promise<{
   categoriesIncome: Category[];
 }> {
   const [categoriesExpenseRaw, categoriesIncomeRaw, orderExpense, orderIncome] = await Promise.all([
-    loadCategories('expense'),
-    loadCategories('income'),
-    loadCategoryOrder('expense'),
-    loadCategoryOrder('income'),
+    loadCategories('expense', { forceStorage: true }),
+    loadCategories('income', { forceStorage: true }),
+    loadCategoryOrder('expense', { forceStorage: true }),
+    loadCategoryOrder('income', { forceStorage: true }),
   ]);
   return {
     categoriesExpense:

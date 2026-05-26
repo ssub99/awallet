@@ -289,7 +289,7 @@ export default function CategoryCreateScreen() {
     
     // 중복 체크 및 카테고리 생성
     try {
-      const allCategories = await loadCategories(categoryType);
+      const allCategories = await loadCategories(categoryType, { forceStorage: true });
       
       const isDuplicate = allCategories.some(
         cat => cat.label === trimmedName

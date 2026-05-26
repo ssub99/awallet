@@ -295,7 +295,7 @@ export default function CategoryEditScreen() {
     
     // 중복 체크 (현재 카테고리 이름은 제외)
     try {
-      const allCategories = await loadCategories(categoryType);
+      const allCategories = await loadCategories(categoryType, { forceStorage: true });
       
       const isDuplicate = allCategories.some(
         cat => cat.label === trimmedName && cat.label !== originalLabel
@@ -371,7 +371,7 @@ export default function CategoryEditScreen() {
       await Promise.all(deleteTasks);
 
       // 2) 카테고리 목록에서 제거
-      const allCategories = await loadCategories(categoryType);
+      const allCategories = await loadCategories(categoryType, { forceStorage: true });
       const filtered = allCategories.filter((cat) => cat.label !== originalLabel);
       await saveCategories(categoryType, filtered);
 
@@ -493,7 +493,7 @@ export default function CategoryEditScreen() {
       return;
     }
     const nextOrderLabels = savedOrder.map((label) => (label === oldLabel ? newLabel : label));
-    const categories = await loadCategories(type);
+    const categories = await loadCategories(type, { forceStorage: true });
     const orderedCategories = nextOrderLabels
       .map((label) => categories.find((cat) => cat.label === label))
       .filter((cat): cat is { emoji: string; label: string; type: CategoryType } => Boolean(cat));
@@ -508,7 +508,7 @@ export default function CategoryEditScreen() {
     if (!savedOrder) {
       return;
     }
-    const categories = await loadCategories(type);
+    const categories = await loadCategories(type, { forceStorage: true });
     const remainingLabels = savedOrder.filter((item) => item !== label);
     const orderedCategories = remainingLabels
       .map((l) => categories.find((cat) => cat.label === l))

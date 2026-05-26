@@ -7,10 +7,10 @@
  */
 
 import {
-    type Category,
-    type CategoryType,
-    EXPENSE_CATEGORIES,
-    INCOME_CATEGORIES,
+  type Category,
+  type CategoryType,
+  EXPENSE_CATEGORIES,
+  INCOME_CATEGORIES,
 } from '@/constants/categories';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { loadUserCategories } from './user-categories';
@@ -18,7 +18,46 @@ import { loadUserCategories } from './user-categories';
 const CATEGORY_STORAGE_PREFIX = 'categories_';
 const MIGRATION_FLAG_KEY = 'categories_migration_done';
 
+const categoriesMemoryCache: Record<CategoryType, Category[] | undefined> = {
+  expense: undefined,
+  income: undefined,
+};
+
+let categoriesMigrationSessionDone = false;
+
 const getStorageKey = (type: CategoryType): string => `${CATEGORY_STORAGE_PREFIX}${type}`;
+
+export interface LoadCategoriesOptions {
+  /** true면 메모리 캐시를 무시하고 Storage에서 읽음 */
+  forceStorage?: boolean;
+}
+
+export function getCategoriesMemoryCache(type: CategoryType): Category[] | null {
+  const cached = categoriesMemoryCache[type];
+  return cached ?? null;
+}
+
+function commitCategoriesCache(type: CategoryType, categories: Category[]): Category[] {
+  categoriesMemoryCache[type] = categories;
+  return categories;
+}
+
+export function areCategoriesSame(a: Category[], b: Category[]): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+  for (let index = 0; index < a.length; index += 1) {
+    const left = a[index];
+    const right = b[index];
+    if (!left || !right) {
+      return false;
+    }
+    if (left.label !== right.label || left.emoji !== right.emoji || left.type !== right.type) {
+      return false;
+    }
+  }
+  return true;
+}
 
 /**
  * 타입별 기본 카테고리 (코드 정의)
@@ -26,6 +65,14 @@ const getStorageKey = (type: CategoryType): string => `${CATEGORY_STORAGE_PREFIX
 const getBuiltInCategories = (type: CategoryType): Category[] => {
   return type === 'expense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
 };
+
+async function ensureCategoriesMigration(): Promise<void> {
+  if (categoriesMigrationSessionDone) {
+    return;
+  }
+  await migrateCategoriesIfNeeded();
+  categoriesMigrationSessionDone = true;
+}
 
 /**
  * 마이그레이션: 통합 스토리지에 카테고리 저장
@@ -54,7 +101,7 @@ export async function migrateCategoriesIfNeeded(): Promise<void> {
         const merged = [...builtIn, ...legacyUserCategories];
 
         await AsyncStorage.setItem(storageKey, JSON.stringify(merged));
-      })
+      }),
     );
 
     await AsyncStorage.setItem(MIGRATION_FLAG_KEY, 'true');
@@ -67,57 +114,60 @@ export async function migrateCategoriesIfNeeded(): Promise<void> {
 /**
  * 통합 카테고리 불러오기 (마이그레이션 포함)
  */
-export async function loadCategories(type: CategoryType): Promise<Category[]> {
+export async function loadCategories(
+  type: CategoryType,
+  options?: LoadCategoriesOptions,
+): Promise<Category[]> {
+  const forceStorage = options?.forceStorage === true;
+  if (!forceStorage && categoriesMemoryCache[type] !== undefined) {
+    return categoriesMemoryCache[type]!;
+  }
+
   try {
-    await migrateCategoriesIfNeeded();
+    await ensureCategoriesMigration();
 
     const storageKey = getStorageKey(type);
     const stored = await AsyncStorage.getItem(storageKey);
     const builtIn = getBuiltInCategories(type);
-    const builtInLabels = new Set(builtIn.map(cat => cat.label));
-    
+    const builtInLabels = new Set(builtIn.map((cat) => cat.label));
+
     if (stored) {
       const parsed = JSON.parse(stored) as Category[];
       if (Array.isArray(parsed)) {
-        // 저장된 배열이 비어있거나 기본 카테고리가 포함되어 있지 않으면 기본 카테고리 추가
-        const hasBuiltInCategories = builtIn.length > 0 && parsed.some(cat => builtInLabels.has(cat.label));
-        
+        const hasBuiltInCategories =
+          builtIn.length > 0 && parsed.some((cat) => builtInLabels.has(cat.label));
+
         if (parsed.length === 0 || !hasBuiltInCategories) {
-          // 기본 카테고리가 없으면 추가 (기존 사용자 카테고리는 유지)
           const legacyUserCategories = await loadUserCategories(type);
-          const userCreatedCategories = parsed.filter(cat => !builtInLabels.has(cat.label));
+          const userCreatedCategories = parsed.filter((cat) => !builtInLabels.has(cat.label));
           const merged = [...builtIn, ...userCreatedCategories, ...legacyUserCategories];
           await AsyncStorage.setItem(storageKey, JSON.stringify(merged));
-          return merged;
+          return commitCategoriesCache(type, merged);
         }
-        
-        return parsed;
+
+        return commitCategoriesCache(type, parsed);
       }
     }
 
-    // 저장된 값이 없거나 파싱 실패 시 기본 + 사용자(레거시) 조합 반환
     const legacyUserCategories = await loadUserCategories(type);
     const merged = [...builtIn, ...legacyUserCategories];
     await AsyncStorage.setItem(storageKey, JSON.stringify(merged));
-    return merged;
+    return commitCategoriesCache(type, merged);
   } catch (error) {
     console.error('[categories] Failed to load categories:', error);
-    // 에러 시에도 최소한 기본 카테고리는 반환
     const builtInFallback = getBuiltInCategories(type);
-    return builtInFallback;
+    return commitCategoriesCache(type, builtInFallback);
   }
 }
 
 /**
  * 통합 카테고리 저장
  */
-export async function saveCategories(
-  type: CategoryType,
-  categories: Category[]
-): Promise<void> {
+export async function saveCategories(type: CategoryType, categories: Category[]): Promise<void> {
   try {
     const storageKey = getStorageKey(type);
     await AsyncStorage.setItem(storageKey, JSON.stringify(categories));
+    commitCategoriesCache(type, categories);
   } catch (error) {
     console.error('[categories] Failed to save categories:', error);
     throw error;
@@ -134,4 +184,3 @@ export async function loadAllCategories(): Promise<Category[]> {
   ]);
   return [...expense, ...income];
 }
-

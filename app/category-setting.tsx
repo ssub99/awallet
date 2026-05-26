@@ -8,10 +8,15 @@
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Icon } from '@/components/ui/icon';
 import { getCategoriesByType, type CategoryType } from '@/constants/categories';
-import { loadCategories } from '@/utils/categories';
+import { areCategoriesSame, loadCategories } from '@/utils/categories';
 import { ThemeColors } from '@/constants/theme-colors';
 import { Typography } from '@/constants/typography';
-import { applySavedOrder, loadCategoryOrder, saveCategoryOrder } from '@/utils/category-order';
+import {
+  applySavedOrder,
+  getOrderedCategoriesFromCache,
+  loadCategoryOrder,
+  saveCategoryOrder,
+} from '@/utils/category-order';
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -215,14 +220,8 @@ export default function CategorySettingScreen() {
   
   const categoryType = (params.type as CategoryType) || 'expense';
   
-  // 간단한 메모리 캐시로 첫 진입 깜빡임 최소화
-  const categoriesCacheRef = useRef<Record<CategoryType, Array<{ emoji: string; label: string; type: CategoryType }> | null>>({
-    expense: null,
-    income: null,
-  });
-  // 캐시가 있으면 즉시 표시, 없으면 기본 카테고리로 즉시 표시(빈 상태 없음)
   const [categories, setCategories] = useState<Array<{ emoji: string; label: string; type: CategoryType }>>(() => {
-    return categoriesCacheRef.current[categoryType] ?? getCategoriesByType(categoryType);
+    return getOrderedCategoriesFromCache(categoryType) ?? getCategoriesByType(categoryType);
   });
   
   // 이전 인덱스를 추적하여 순서 변경 감지
@@ -232,11 +231,21 @@ export default function CategorySettingScreen() {
   const isDraggingRef = useRef<boolean>(false);
   const lastDragEndTimeRef = useRef<number>(0);
 
-  // 카테고리 로드 (화면 포커스 시)
+  const applyLoadedCategories = useCallback(
+    (finalCategories: Array<{ emoji: string; label: string; type: CategoryType }>) => {
+      setCategories((current) =>
+        areCategoriesSame(current, finalCategories) ? current : finalCategories,
+      );
+      previousIndexRef.current = null;
+      hasTriggeredStartHapticRef.current = false;
+      dragStartIndexRef.current = null;
+    },
+    [],
+  );
+
   useFocusEffect(
     useCallback(() => {
       const loadCategoriesData = async () => {
-        // 드래그 종료 직후(3000ms 이내)에는 카테고리 로드하지 않음 (더 긴 시간으로 설정)
         const timeSinceLastDrag = Date.now() - lastDragEndTimeRef.current;
         if (timeSinceLastDrag < 3000) {
           previousIndexRef.current = null;
@@ -244,9 +253,18 @@ export default function CategorySettingScreen() {
           dragStartIndexRef.current = null;
           return;
         }
-        
-        // 드래그 중이 아닐 때만 카테고리 로드
-        if (!isDraggingRef.current) {
+
+        if (isDraggingRef.current) {
+          return;
+        }
+
+        const cached = getOrderedCategoriesFromCache(categoryType);
+        if (cached) {
+          applyLoadedCategories(cached);
+          return;
+        }
+
+        try {
           const [loadedCategories, savedOrder] = await Promise.all([
             loadCategories(categoryType),
             loadCategoryOrder(categoryType),
@@ -257,17 +275,15 @@ export default function CategorySettingScreen() {
               ? applySavedOrder(loadedCategories, savedOrder)
               : loadedCategories;
 
-          categoriesCacheRef.current[categoryType] = finalCategories;
-          setCategories(finalCategories);
+          applyLoadedCategories(finalCategories);
+        } catch (error) {
+          console.error('카테고리 설정 로드 실패:', error);
+          applyLoadedCategories(getCategoriesByType(categoryType));
         }
-        
-        previousIndexRef.current = null;
-        hasTriggeredStartHapticRef.current = false;
-        dragStartIndexRef.current = null;
       };
-      
-      loadCategoriesData();
-    }, [categoryType, params.type, loadCategoryOrder, applySavedOrder])
+
+      void loadCategoriesData();
+    }, [applyLoadedCategories, categoryType]),
   );
 
   // 카테고리 타입에 따라 타이틀 설정
