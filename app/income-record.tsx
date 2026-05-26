@@ -6,12 +6,11 @@
 
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Button } from '@/components/ui/button';
-import { CalendarDaySelect } from '@/components/ui/calendar-day-select';
 import { CustomKeypad, getKeypadHeight, type CustomKeypadOperator, type ExpressionToken } from '@/components/ui/custom-keypad';
 import { CustomKeypadOverlay, getCustomKeypadScrollPaddingBottom } from '@/components/ui/custom-keypad-overlay';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
-import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
+import { RecordDatePickerSheet } from '@/components/ui/record-date-picker-sheet';
 import { ModalPopup } from '@/components/ui/modal-popup';
 import { AtomicColors } from '@/constants/atomic-colors';
 import { Colors, Typography } from '@/constants/theme';
@@ -416,20 +415,21 @@ export default function IncomeRecordScreen() {
     setShowDatePicker(false);
   };
   
-  const handleDateConfirm = () => {
+  const handleDatePickerDaySelect = useCallback((isoDate: string) => {
+    setTempSelectedDate(isoDate);
+  }, []);
+
+  const handleDateConfirm = useCallback((isoDate: string) => {
     void logEvent('btn', {
       screen_name: '/income-record',
       target: 'calendar-confirm',
     });
-    // 바텀시트를 먼저 닫고 나서 date를 업데이트하여 재오픈 방지
     setShowDatePicker(false);
-    if (tempSelectedDate) {
-      const formattedDate = tempSelectedDate.replace(/-/g, '.');
-      setTimeout(() => {
-        setDate(formattedDate);
-      }, 50);
-    }
-  };
+    const formattedDate = isoDate.replace(/-/g, '.');
+    setTimeout(() => {
+      setDate(formattedDate);
+    }, 50);
+  }, []);
 
   // amount auto-scroll removed per request
 
@@ -838,35 +838,17 @@ export default function IncomeRecordScreen() {
         </View>
       </View>
 
-      {/* 날짜 선택 바텀시트 */}
-      {showDatePicker && (
-        <ModalBottomsheet
-          visible={showDatePicker}
+      {showDatePicker ? (
+        <RecordDatePickerSheet
+          visible
           title="수입 기록일 선택"
+          selectedDate={tempSelectedDate}
+          onSelectedDateChange={handleDatePickerDaySelect}
           onClose={handleDatePickerClose}
-          closeOnBackdrop={true}
-          contentStyle={styles.dateBottomsheetContent}
-        >
-          <CalendarDaySelect
-            selectedDate={tempSelectedDate}
-            onDayPress={(dateString) => {
-              setTempSelectedDate(dateString);
-            }}
-            monthStartDay={monthStartDay}
-          />
-          
-          <View style={styles.dateButtonArea}>
-            <Pressable
-              style={[styles.dateButton, { backgroundColor: colors.primary }]}
-              onPress={handleDateConfirm}
-            >
-              <Text style={[styles.dateButtonText, { color: colors.staticWhite }]}>
-                확인
-              </Text>
-            </Pressable>
-          </View>
-        </ModalBottomsheet>
-      )}
+          onConfirm={handleDateConfirm}
+          monthStartDay={monthStartDay}
+        />
+      ) : null}
 
       {/* 금액 미입력 얼럿 */}
       <ModalPopup
@@ -938,23 +920,6 @@ const styles = StyleSheet.create({
   },
   dateText: {
     ...Typography.body1.l.regular,
-  },
-  dateBottomsheetContent: {
-    padding: 0,
-  },
-  dateButtonArea: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 16,
-  },
-  dateButton: {
-    height: 48,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  dateButtonText: {
-    ...Typography.body1.l.medium,
   },
   bottomButtonContainer: {
     paddingHorizontal: 16,

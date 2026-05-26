@@ -6,8 +6,7 @@
 
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Icon } from '@/components/ui/icon';
-import { ModalBottomsheetBottomInset } from '@/components/ui/modal-bottomsheet-bottom-inset';
-import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
+import { ModalBottomsheet, ModalBottomsheetBottomInset } from '@/components/ui/modal-bottomsheet';
 import { Tag } from '@/components/ui/tag';
 import { Colors, Typography } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';

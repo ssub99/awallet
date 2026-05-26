@@ -8,17 +8,15 @@
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Accordion } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
-import { BasicCalendarDaySelect } from '@/components/ui/calendar-day-basic';
-import { CalendarDaySelect } from '@/components/ui/calendar-day-select';
 import { Chip } from '@/components/ui/chip';
 import { CustomKeypad, getKeypadHeight, type CustomKeypadOperator, type ExpressionToken } from '@/components/ui/custom-keypad';
 import { CustomKeypadOverlay, getCustomKeypadScrollPaddingBottom } from '@/components/ui/custom-keypad-overlay';
-import { ModalBottomsheetBottomInset } from '@/components/ui/modal-bottomsheet-bottom-inset';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Input } from '@/components/ui/input';
-import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
+import { ModalBottomsheet, ModalBottomsheetBottomInset } from '@/components/ui/modal-bottomsheet';
 import { ModalPopup } from '@/components/ui/modal-popup';
 import { PrepaymentModal } from '@/components/ui/prepayment-modal';
+import { RecordDatePickerSheet } from '@/components/ui/record-date-picker-sheet';
 import { Radio } from '@/components/ui/radio';
 import { Switch } from '@/components/ui/switch';
 import { Tag } from '@/components/ui/tag';
@@ -2373,8 +2371,43 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       target: 'calendar-close',
     });
     setShowDatePicker(false);
-  }, [showDatePicker]);
-  
+  }, [analyticsScreenName, showDatePicker]);
+
+  const handleDatePickerDaySelect = useCallback((isoDate: string) => {
+    setTempSelectedDate(isoDate);
+  }, []);
+
+  const handleExpenseDatePickerConfirm = useCallback(
+    (isoDate: string) => {
+      void logEvent('btn', {
+        screen_name: analyticsScreenName,
+        target: 'calendar-confirm',
+      });
+      setShowDatePicker(false);
+      const formattedDate = isoDate.replace(/-/g, '.');
+      setTimeout(() => {
+        setDate(formattedDate);
+        setDisplayDate(formattedDate);
+      }, 50);
+    },
+    [analyticsScreenName],
+  );
+
+  const handlePrepaymentDatePickerConfirm = useCallback(
+    (isoDate: string) => {
+      void logEvent('btn', {
+        screen_name: analyticsScreenName,
+        target: 'calendar-confirm',
+      });
+      setShowDatePicker(false);
+      const formattedDate = isoDate.replace(/-/g, '.');
+      setTimeout(() => {
+        setPrepaymentDate(formattedDate);
+      }, 50);
+    },
+    [analyticsScreenName],
+  );
+
   // 선결제 처리 함수
   const handlePrepaymentConfirm = async () => {
     if (!editData) {
@@ -5674,96 +5707,33 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           setShowPrepaymentModal(false);
         }}
         backdropInteractive={true}
-        extraOverlay={showDatePicker ? (
-          <>
-        <ModalBottomsheet
-          visible={true}
-          title="소비 기록일 선택"
-          onClose={handleDatePickerClose}
-          closeOnBackdrop={true}
-          contentStyle={styles.dateBottomsheetContent}
+        extraOverlay={
+          showDatePicker && showPrepaymentModal ? (
+            <RecordDatePickerSheet
+              visible
               embedded
-        >
-        <CalendarDaySelect
-          selectedDate={tempSelectedDate}
-                autoCenterOnSelectedDate={false}
-                disablePastDates={false}
-          onDayPress={(dateString) => {
-            setTempSelectedDate(dateString);
-          }}
-          monthStartDay={monthStartDay}
-        />
-          <View style={styles.dateButtonArea}>
-            <Pressable
-              style={[styles.dateButton, { backgroundColor: colors.primary }]}
-              onPress={() => {
-                void logEvent('btn', {
-                  screen_name: analyticsScreenName,
-                  target: 'calendar-confirm',
-                });
-                // 선결제 날짜 선택 시 date state 업데이트
-                // 바텀시트를 먼저 닫고 나서 date를 업데이트하여 재오픈 방지
-                setShowDatePicker(false);
-                if (tempSelectedDate) {
-                  const formattedDate = tempSelectedDate.replace(/-/g, '.');
-                  setTimeout(() => {
-                    setPrepaymentDate(formattedDate);
-                  }, 50);
-                }
-              }}
-            >
-              <Text style={[styles.dateButtonText, { color: colors.staticWhite }]}>
-                확인
-              </Text>
-            </Pressable>
-          </View>
-        </ModalBottomsheet>
-          </>
-        ) : null}
+              title="소비 기록일 선택"
+              selectedDate={tempSelectedDate}
+              onSelectedDateChange={handleDatePickerDaySelect}
+              onClose={handleDatePickerClose}
+              onConfirm={handlePrepaymentDatePickerConfirm}
+              monthStartDay={monthStartDay}
+            />
+          ) : null
+        }
       />
 
-      {/* 일반 생성 흐름에서의 날짜 선택 바텀시트 (선결제 모달이 열려있지 않을 때만 표시) */}
-      {!showPrepaymentModal && showDatePicker ? (
-        <ModalBottomsheet
-          visible={true}
+      {showDatePicker && !showPrepaymentModal ? (
+        <RecordDatePickerSheet
+          visible
           title="소비 기록일 선택"
+          selectedDate={tempSelectedDate}
+          onSelectedDateChange={handleDatePickerDaySelect}
           onClose={handleDatePickerClose}
-          closeOnBackdrop={true}
-          contentStyle={styles.dateBottomsheetContent}
-        >
-          <BasicCalendarDaySelect
-            selectedDate={tempSelectedDate ?? undefined}
-            onDayPress={(dateString) => {
-              setTempSelectedDate(dateString);
-            }}
-            monthStartDay={monthStartDay}
-          />
-          <View style={styles.dateButtonArea}>
-            <Pressable
-              style={[styles.dateButton, { backgroundColor: colors.primary }]}
-              onPress={() => {
-                void logEvent('btn', {
-                  screen_name: analyticsScreenName,
-                  target: 'calendar-confirm',
-                });
-                // 바텀시트를 먼저 닫고 나서 date를 업데이트하여 재오픈 방지
-                setShowDatePicker(false);
-                if (tempSelectedDate) {
-                  const formattedDate = tempSelectedDate.replace(/-/g, '.');
-                  setTimeout(() => {
-                    setDate(formattedDate);
-                    setDisplayDate(formattedDate);
-                  }, 50);
-                }
-              }}
-            >
-              <Text style={[styles.dateButtonText, { color: colors.staticWhite }]}>확인</Text>
-            </Pressable>
-          </View>
-        </ModalBottomsheet>
+          onConfirm={handleExpenseDatePickerConfirm}
+          monthStartDay={monthStartDay}
+        />
       ) : null}
-
-      {/* 날짜 선택 바텀시트: PrepaymentModal 내부 extraOverlay로 이동 */}
 
       {/* 결제 유형 선택 바텀시트 */}
       {showPaymentTypeSheet ? (
@@ -7049,22 +7019,6 @@ const styles = StyleSheet.create({
   picker: {
     width: '100%',
     height: 216,
-  },
-  dateBottomsheetContent: {
-    padding: 0,
-  },
-  dateButtonArea: {
-    padding: 16,
-  },
-  dateButton: {
-    width: '100%',
-    height: 48,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  dateButtonText: {
-    ...Typography.body1.l.medium,
   },
   bottomButtonContainer: {
     paddingHorizontal: 16,
