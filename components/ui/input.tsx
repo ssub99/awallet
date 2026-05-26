@@ -27,6 +27,7 @@ import {
   Text,
   TextInput,
   TextInputProps,
+  TouchableWithoutFeedback,
   View,
   ViewStyle,
 } from 'react-native';
@@ -260,6 +261,13 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
   };
 
   const isMultilineArea = variant === 'area' && !buttonMode && !calendar;
+  /**
+   * 커스텀 키패드 패턴(editable=false + onPress):
+   * Pressable은 Android에서 인접 필드 포커스 시 pressed 상태가 남을 수 있음.
+   * onPressIn은 터치 다운에 반응해 레이아웃 이동 시 오동작 → TouchableWithoutFeedback + onPress.
+   */
+  const useKeypadTouchable =
+    variant === 'line' && editableProp === false && onPress != null;
 
   const renderLineTextInput = () => {
     const textInput = (
@@ -298,7 +306,7 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
           textInputStyle,
         ]}
         onPressIn={(event) => {
-          if (disabled && onPress) {
+          if (!useKeypadTouchable && disabled && onPress) {
             onPress();
           }
           onPressInProp?.(event);
@@ -309,33 +317,26 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
     return useLineFieldWrap ? <View style={styles.inputLineTextWrap}>{textInput}</View> : textInput;
   };
 
-  const Container = isMultilineArea ? View : Pressable;
-  const containerPressProps = isMultilineArea
-    ? {}
-    : {
-        onPress: () => {
-          // onPress prop이 있으면 disabled 상태여도 호출 (토스트 메시지 등)
-          if (onPress) {
-            onPress();
-          } else if (disabled && !buttonMode) {
-            // onPress가 없고 disabled 상태면 차단
-            return;
-          } else if (!calendar && !buttonMode) {
-            // 일반 입력 모드: 포커스
-            inputRef.current?.focus();
-          }
-        },
-      };
+  const containerStyles = [
+    styles.container,
+    variant === 'line' ? (shortver ? styles.containerLineShort : styles.containerLine) : styles.containerArea,
+    { backgroundColor, borderColor },
+    style,
+  ];
 
-  return (
-    <Container
-      {...containerPressProps}
-      style={[
-        styles.container,
-        variant === 'line' ? (shortver ? styles.containerLineShort : styles.containerLine) : styles.containerArea,
-        { backgroundColor, borderColor },
-        style,
-      ]}
+  const handlePressablePress = () => {
+    if (onPress) {
+      onPress();
+    } else if (disabled && !buttonMode) {
+      return;
+    } else if (!calendar && !buttonMode) {
+      inputRef.current?.focus();
+    }
+  };
+
+  const fieldFrame = (
+    <View
+      style={containerStyles}
     >
       {/* Content Frame - matches Figma Frame 2 structure */}
       <View style={[styles.content, shortver && styles.contentShort, variant === 'area' && styles.contentArea]}>
@@ -511,7 +512,35 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
           </>
         )}
       </View>
-    </Container>
+    </View>
+  );
+
+  if (isMultilineArea) {
+    return fieldFrame;
+  }
+
+  if (useKeypadTouchable) {
+    return (
+      <TouchableWithoutFeedback
+        onPress={() => onPress?.()}
+        accessibilityRole="button"
+        accessibilityLabel={finalPlaceholder}
+        accessibilityState={{ disabled }}
+      >
+        {fieldFrame}
+      </TouchableWithoutFeedback>
+    );
+  }
+
+  return (
+    <Pressable
+      onPress={handlePressablePress}
+      accessibilityRole="button"
+      accessibilityLabel={finalPlaceholder}
+      accessibilityState={{ disabled }}
+    >
+      {fieldFrame}
+    </Pressable>
   );
 });
 

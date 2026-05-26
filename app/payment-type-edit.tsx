@@ -13,9 +13,28 @@ import {
   savePaymentSubtypes,
   type PaymentSubtype,
 } from '@/utils/payment-types';
+import {
+  getDescriptionKeyboardScrollPaddingBottom,
+  scrollScrollViewSectionAboveKeyboard,
+} from '@/utils/record-form-keyboard-scroll';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Dimensions, Easing, Keyboard, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, TouchableWithoutFeedback, View } from 'react-native';
+import {
+  Animated,
+  Dimensions,
+  Easing,
+  Keyboard,
+  type KeyboardEvent,
+  Platform,
+  Pressable,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableWithoutFeedback,
+  View,
+} from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import ColorPicker, { HueSlider, Panel1 } from 'reanimated-color-picker';
 
@@ -43,14 +62,19 @@ export default function PaymentTypeEditScreen() {
   const [isColorPickerMounted, setIsColorPickerMounted] = useState(false);
   const [isColorPickerVisible, setIsColorPickerVisible] = useState(false);
   const [isColorPickerReady, setIsColorPickerReady] = useState(false);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [keyboardPaddingBottom, setKeyboardPaddingBottom] = useState(0);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showDeleteBlockedAlert, setShowDeleteBlockedAlert] = useState(false);
   const colorPickerOpacity = useRef(new Animated.Value(0)).current;
   const colorPickerScale = useRef(new Animated.Value(0.94)).current;
   const openDelayTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollViewRef = useRef<ScrollView | null>(null);
+  const descriptionInputRef = useRef<TextInput>(null);
   const descriptionSectionYRef = useRef(0);
+  const descriptionSectionHeightRef = useRef(0);
+  const scrollYRef = useRef(0);
+  const isDescriptionFocusedRef = useRef(false);
+  const latestKeyboardEndRef = useRef<KeyboardEvent['endCoordinates'] | null>(null);
 
   const currentSubtype = useMemo(
     () => paymentSubtypes.find((s) => s.id === subtypeId),
@@ -83,17 +107,40 @@ export default function PaymentTypeEditScreen() {
     };
   }, [subtypeId]);
 
+  const scrollDescriptionAboveKeyboard = useCallback(
+    (endCoordinates: KeyboardEvent['endCoordinates']) => {
+      scrollScrollViewSectionAboveKeyboard({
+        scrollViewRef,
+        sectionYRef: descriptionSectionYRef,
+        sectionHeightRef: descriptionSectionHeightRef,
+        scrollYRef,
+        keyboardEnd: endCoordinates,
+        inputRef: descriptionInputRef,
+      });
+    },
+    [],
+  );
+
   useEffect(() => {
     const keyboardWillShow = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
       (e) => {
-        setKeyboardHeight(e.endCoordinates.height);
+        const paddingBottom = getDescriptionKeyboardScrollPaddingBottom(
+          e.endCoordinates,
+          insets.bottom,
+        );
+        latestKeyboardEndRef.current = e.endCoordinates;
+        setKeyboardPaddingBottom(paddingBottom);
+        if (Platform.OS === 'android' && isDescriptionFocusedRef.current) {
+          scrollDescriptionAboveKeyboard(e.endCoordinates);
+        }
       }
     );
     const keyboardWillHide = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => {
-        setKeyboardHeight(0);
+      (e) => {
+        setKeyboardPaddingBottom(0);
+        latestKeyboardEndRef.current = null;
       }
     );
 
@@ -101,7 +148,7 @@ export default function PaymentTypeEditScreen() {
       keyboardWillShow.remove();
       keyboardWillHide.remove();
     };
-  }, []);
+  }, [insets.bottom, scrollDescriptionAboveKeyboard]);
 
   const handleBack = useCallback(() => {
     router.back();
@@ -168,7 +215,7 @@ export default function PaymentTypeEditScreen() {
     setIsColorPickerVisible(false);
     colorPickerOpacity.setValue(0);
     colorPickerScale.setValue(0.94);
-    const keyboardCloseDelay = keyboardHeight > 0 ? 220 : 0;
+    const keyboardCloseDelay = keyboardPaddingBottom > 0 ? 220 : 0;
     openDelayTimeoutRef.current = setTimeout(() => {
       setIsColorPickerVisible(true);
       Animated.parallel([
@@ -186,7 +233,7 @@ export default function PaymentTypeEditScreen() {
         }),
       ]).start();
     }, COLOR_PICKER_PREWARM_MS + keyboardCloseDelay);
-  }, [COLOR_PICKER_PREWARM_MS, colorPickerOpacity, colorPickerScale, keyboardHeight]);
+  }, [COLOR_PICKER_PREWARM_MS, colorPickerOpacity, colorPickerScale, keyboardPaddingBottom]);
 
   const closeColorPicker = useCallback(() => {
     openDelayTimeoutRef.current && clearTimeout(openDelayTimeoutRef.current);
@@ -228,18 +275,33 @@ export default function PaymentTypeEditScreen() {
 
   const handleDescriptionFocus = useCallback(() => {
     closeColorPicker();
+    isDescriptionFocusedRef.current = true;
+
+    if (Platform.OS === 'android') {
+      if (latestKeyboardEndRef.current?.height) {
+        scrollDescriptionAboveKeyboard(latestKeyboardEndRef.current);
+      }
+      return;
+    }
+
     setTimeout(() => {
       const targetY = descriptionSectionYRef.current;
       if (targetY > 0) {
         const windowHeight = Dimensions.get('window').height;
         const keyboardAwareOffset = windowHeight * 0.3;
+        const scrollY = Math.max(0, targetY - keyboardAwareOffset);
         scrollViewRef.current?.scrollTo({
-          y: Math.max(0, targetY - keyboardAwareOffset),
+          y: scrollY,
           animated: true,
         });
+        scrollYRef.current = scrollY;
       }
     }, 220);
-  }, [closeColorPicker]);
+  }, [closeColorPicker, scrollDescriptionAboveKeyboard]);
+
+  const handleDescriptionBlur = useCallback(() => {
+    isDescriptionFocusedRef.current = false;
+  }, []);
 
   const handleDeletePress = useCallback(async () => {
     if (isCurrentDefaultSubtype) {
@@ -323,11 +385,15 @@ export default function PaymentTypeEditScreen() {
             style={styles.scrollView}
             contentContainerStyle={[
               styles.scrollContent,
-              keyboardHeight > 0
-                ? { paddingBottom: keyboardHeight + 16 }
+              keyboardPaddingBottom > 0
+                ? { paddingBottom: keyboardPaddingBottom }
                 : undefined,
             ]}
             keyboardShouldPersistTaps="handled"
+            onScroll={(event) => {
+              scrollYRef.current = event.nativeEvent.contentOffset.y;
+            }}
+            scrollEventThrottle={16}
             showsVerticalScrollIndicator={false}
             bounces={false}
             overScrollMode="never"
@@ -386,15 +452,19 @@ export default function PaymentTypeEditScreen() {
             <View
               style={styles.section}
               onLayout={(event) => {
-                descriptionSectionYRef.current = event.nativeEvent.layout.y;
+                const layout = event.nativeEvent.layout;
+                descriptionSectionYRef.current = layout.y;
+                descriptionSectionHeightRef.current = layout.height;
               }}
             >
               <Text style={[styles.label, { color: colors.text }]}>설명</Text>
               <Input
+                ref={descriptionInputRef}
                 variant="area"
                 value={description}
                 onChangeText={setDescription}
                 onFocus={handleDescriptionFocus}
+                onBlur={handleDescriptionBlur}
                 placeholder="설명을 입력해 주세요.(최대 20자)"
                 maxLength={20}
               />

@@ -21,7 +21,17 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Keyboard, Pressable, ScrollView, StatusBar, StyleSheet, Text, TouchableWithoutFeedback, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Keyboard,
+  Pressable,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableWithoutFeedback,
+  View,
+} from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // 이모지 카테고리 타입
@@ -81,7 +91,7 @@ export default function CategoryCreateScreen() {
   } = useAndroidKeyboardBottomCtaHide();
 
   const categoryType = (params.type as CategoryType) || 'expense';
-  
+
   const [categoryName, setCategoryName] = useState('');
   const [selectedEmoji, setSelectedEmoji] = useState('✅');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -102,9 +112,8 @@ export default function CategoryCreateScreen() {
   const emojiScrollViewRef = useRef<FlashListRef<{ category: EmojiCategory; columns: string[][] }> | null>(null);
   const [emojiPickerMounted, setEmojiPickerMounted] = useState(false);
   
-  // 카테고리 타입에 따라 타이틀 설정
   const title = categoryType === 'expense' ? '지출 카테고리 생성' : '수입 카테고리 생성';
-  
+
   // AsyncStorage에서 최근 이모지 로드
   useEffect(() => {
     const loadRecentEmojis = async () => {
@@ -315,18 +324,17 @@ export default function CategoryCreateScreen() {
   };
   
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+    <SafeAreaView
+      style={[
+        styles.container,
+        { backgroundColor: colors.background, paddingTop: insets.top },
+      ]}
+      edges={['bottom']}
+    >
       <StatusBar barStyle="dark-content" />
-      
-      {/* Top Navigation */}
-      <TopNavigation
-        type="sub"
-        title={title}
-        showLeftIcon
-        onLeftIconPress={handleBack}
-      />
-      
-      {/* Content */}
+
+      <TopNavigation type="sub" title={title} showLeftIcon onLeftIconPress={handleBack} />
+
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <View style={[styles.content, { backgroundColor: colors.fill }]}>
           <ScrollView
@@ -373,13 +381,12 @@ export default function CategoryCreateScreen() {
       
       {/* 하단 고정 버튼 (Android 키보드 시 숨김) */}
       {!hideBottomCta && (
-      <View style={[
-        styles.bottomButtonContainer, 
-        { 
-          backgroundColor: colors.staticWhite,
-          paddingBottom: 16 + insets.bottom 
-        }
-      ]}>
+      <View
+        style={[
+          styles.bottomButtonContainer,
+          { backgroundColor: colors.staticWhite },
+        ]}
+      >
         <Button onPress={handleCreate}>
           생성
         </Button>

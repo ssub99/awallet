@@ -329,12 +329,13 @@ export default function IncomeRecordScreen() {
     handleMemoFocus: scrollMemoOnFocus,
     handleMemoBlur,
     focusMemoInput,
+    onMemoScroll,
+    memoPointerHandlers,
   } = useRecordFormMemoKeyboard({
     scrollViewRef,
     memoSectionYRef,
     memoSectionHeightRef,
     windowHeight,
-    safeAreaTop: insets.top,
     safeAreaBottom: insets.bottom,
   });
 
@@ -432,15 +433,6 @@ export default function IncomeRecordScreen() {
 
   // amount auto-scroll removed per request
 
-  const handleMemoPressIn = () => {
-    clearDismissTimeout();
-    skipNextDismissRef.current = true;
-    if (isKeypadVisible) {
-      handleKeypadDismiss();
-    }
-    focusMemoInput();
-  };
-
   const handleMemoFocus = () => {
     void logEvent('ui', {
       screen_name: '/income-record',
@@ -448,6 +440,9 @@ export default function IncomeRecordScreen() {
     });
     clearDismissTimeout();
     skipNextDismissRef.current = true;
+    if (isKeypadVisible) {
+      handleKeypadDismiss();
+    }
     scrollMemoOnFocus();
   };
 
@@ -783,7 +778,8 @@ export default function IncomeRecordScreen() {
                 onChangeText={handleMemoChange}
                 placeholder="메모를 입력해 주세요.(최대 20자)"
                 maxLength={20}
-                onPressIn={handleMemoPressIn}
+                onPressIn={memoPointerHandlers.onPressIn}
+                onPressOut={memoPointerHandlers.onPressOut}
                 onFocus={handleMemoFocus}
                 onBlur={handleMemoBlur}
                 onKeyPress={handleMemoKeyPress}

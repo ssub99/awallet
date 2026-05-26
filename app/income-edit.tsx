@@ -220,12 +220,13 @@ export default function IncomeEditScreen() {
     handleMemoFocus: scrollMemoOnFocus,
     handleMemoBlur,
     focusMemoInput,
+    onMemoScroll,
+    memoPointerHandlers,
   } = useRecordFormMemoKeyboard({
     scrollViewRef,
     memoSectionYRef,
     memoSectionHeightRef,
     windowHeight,
-    safeAreaTop: insets.top,
     safeAreaBottom: insets.bottom,
   });
 
@@ -511,15 +512,6 @@ export default function IncomeEditScreen() {
   const getCategoryEmojiSafe = (label: string): string => categoryEmojiMap[label] ?? '';
   const categoryDisplay = category ? `${getCategoryEmojiSafe(category)} ${category}` : '';
 
-  const handleMemoPressIn = () => {
-    clearDismissTimeout();
-    skipNextDismissRef.current = true;
-    if (isKeypadVisible) {
-      handleKeypadDismiss();
-    }
-    focusMemoInput();
-  };
-
   const handleMemoFocus = () => {
     void logEvent('ui', {
       screen_name: '/income-edit',
@@ -527,6 +519,9 @@ export default function IncomeEditScreen() {
     });
     clearDismissTimeout();
     skipNextDismissRef.current = true;
+    if (isKeypadVisible) {
+      handleKeypadDismiss();
+    }
     scrollMemoOnFocus();
   };
 
@@ -790,6 +785,8 @@ export default function IncomeEditScreen() {
           bounces={false}
           overScrollMode="never"
           keyboardShouldPersistTaps="handled"
+          onScroll={onMemoScroll}
+          scrollEventThrottle={16}
           onScrollBeginDrag={() => {
             isScrollingRef.current = true;
             clearDismissTimeout();
@@ -916,7 +913,8 @@ export default function IncomeEditScreen() {
               onChangeText={handleMemoChange}
               placeholder="메모를 입력해 주세요.(최대 20자)"
               maxLength={20}
-              onPressIn={handleMemoPressIn}
+              onPressIn={memoPointerHandlers.onPressIn}
+              onPressOut={memoPointerHandlers.onPressOut}
               onFocus={handleMemoFocus}
               onBlur={handleMemoBlur}
               onKeyPress={handleMemoKeyPress}

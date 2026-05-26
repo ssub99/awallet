@@ -1714,12 +1714,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     handleMemoFocus: scrollMemoOnFocus,
     handleMemoBlur: clearMemoFocusState,
     focusMemoInput,
+    onMemoScroll,
+    memoPointerHandlers,
   } = useRecordFormMemoKeyboard({
     scrollViewRef,
     memoSectionYRef,
     memoSectionHeightRef,
     windowHeight,
-    safeAreaTop: insets.top,
     safeAreaBottom: insets.bottom,
   });
 
@@ -2569,15 +2570,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     }
   }, []);
 
-  const handleMemoPressIn = () => {
-    clearDismissTimeout();
-    skipNextDismissRef.current = true;
-    if (isKeypadVisible) {
-      handleKeypadDismiss();
-    }
-    focusMemoInput();
-  };
-
   const handleMemoFocus = () => {
     void logEvent('ui', {
       screen_name: analyticsScreenName,
@@ -2586,6 +2578,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
     clearDismissTimeout();
     skipNextDismissRef.current = true;
+    if (isKeypadVisible) {
+      handleKeypadDismiss();
+    }
     setIsMemoFocused(true);
     scrollMemoOnFocus();
   };
@@ -5040,6 +5035,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           bounces={false}
           overScrollMode="never"
           keyboardShouldPersistTaps="handled"
+          onScroll={onMemoScroll}
+          scrollEventThrottle={16}
           onScrollBeginDrag={() => {
             isScrollingRef.current = true;
             clearDismissTimeout();
@@ -5468,7 +5465,15 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               placeholder="메모를 입력해 주세요.(최대 20자)"
               maxLength={20}
               multiline
-              onPressIn={handleMemoPressIn}
+              onPressIn={() => {
+                memoPointerHandlers.onPressIn();
+                clearDismissTimeout();
+                skipNextDismissRef.current = true;
+                if (isKeypadVisible) {
+                  handleKeypadDismiss();
+                }
+              }}
+              onPressOut={memoPointerHandlers.onPressOut}
               onFocus={handleMemoFocus}
               onBlur={() => {
                 setIsMemoFocused(false);

@@ -26,7 +26,17 @@ import { FlashList } from '@shopify/flash-list';
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Keyboard, Pressable, ScrollView, StatusBar, StyleSheet, Text, TouchableWithoutFeedback, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Keyboard,
+  Pressable,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableWithoutFeedback,
+  View,
+} from 'react-native';
  
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -89,7 +99,7 @@ export default function CategoryEditScreen() {
   const categoryType = (params.type as CategoryType) || 'expense';
   const originalEmoji = params.emoji || '✅';
   const originalLabel = params.label || '';
-  
+
   const [categoryName, setCategoryName] = useState(originalLabel);
   const [selectedEmoji, setSelectedEmoji] = useState(originalEmoji);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -111,9 +121,8 @@ export default function CategoryEditScreen() {
   const emojiScrollViewRef = useRef<FlashListRef<{ category: EmojiCategory; columns: string[][] }> | null>(null);
   const [emojiPickerMounted, setEmojiPickerMounted] = useState(false);
   
-  // 카테고리 타입에 따라 타이틀 설정
   const title = categoryType === 'expense' ? '지출 카테고리 편집' : '수입 카테고리 편집';
-  
+
   // AsyncStorage에서 최근 이모지 로드
   useEffect(() => {
     const loadRecentEmojis = async () => {
@@ -508,18 +517,17 @@ export default function CategoryEditScreen() {
   };
   
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+    <SafeAreaView
+      style={[
+        styles.container,
+        { backgroundColor: colors.background, paddingTop: insets.top },
+      ]}
+      edges={['bottom']}
+    >
       <StatusBar barStyle="dark-content" />
-      
-      {/* Top Navigation */}
-      <TopNavigation
-        type="sub"
-        title={title}
-        showLeftIcon
-        onLeftIconPress={handleBack}
-      />
-      
-      {/* Content */}
+
+      <TopNavigation type="sub" title={title} showLeftIcon onLeftIconPress={handleBack} />
+
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <View style={[styles.content, { backgroundColor: colors.fill }]}>
           <ScrollView
@@ -575,13 +583,12 @@ export default function CategoryEditScreen() {
       
       {/* 하단 고정 버튼 (Android 키보드 시 숨김) */}
       {!hideBottomCta && (
-      <View style={[
-        styles.bottomButtonContainer, 
-        { 
-          backgroundColor: colors.staticWhite,
-          paddingBottom: insets.bottom || 34,
-        }
-      ]}>
+      <View
+        style={[
+          styles.bottomButtonContainer,
+          { backgroundColor: colors.staticWhite },
+        ]}
+      >
         <Button onPress={handleUpdate}>
           저장
         </Button>
