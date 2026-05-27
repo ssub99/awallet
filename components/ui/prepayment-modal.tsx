@@ -114,7 +114,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   desc: {
-    ...typography.body1.l.regular,
+    ...typography.body01.regular,
     textAlign: 'center',
   },
   card: {
@@ -130,13 +130,13 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   cardTitle: {
-    ...typography.body1.l.bold,
+    ...typography.body01.bold,
   },
   cardAmount: {
-    ...typography.body1.l.bold,
+    ...typography.body01.bold,
   },
   cardSub: {
-    ...typography.body2.r.regular,
+    ...typography.body02.regular,
   },
   cardTitleSpacer: {
     width: 48,
@@ -145,7 +145,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   fieldLabel: {
-    ...typography.body1.l.bold,
+    ...typography.body01.bold,
   },
   selectBox: {
     height: 48,
@@ -160,7 +160,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   selectText: {
-    ...typography.body1.l.regular,
+    ...typography.body01.regular,
   },
 });
 

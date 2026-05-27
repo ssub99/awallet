@@ -245,11 +245,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   monthText: {
-    ...typography.headline2.l.bold,
+    ...typography.headline02.bold,
     color: '#ffffff',
   },
   statusText: {
-    ...typography.headline2.l.bold,
+    ...typography.headline02.bold,
     color: '#ffffff',
   },
   cardInfo: {
@@ -264,10 +264,10 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   infoLabel: {
-    ...typography.body2.r.regular,
+    ...typography.body02.regular,
   },
   infoValue: {
-    ...typography.headline4.r.bold,
+    ...typography.headline04.bold,
     color: '#ffffff',
   },
   infoValueRight: {

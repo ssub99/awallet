@@ -1679,7 +1679,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   weekDayLabel: {
-    ...typography.body2.r.medium,
+    ...typography.body02.medium,
     marginBottom: 8,
   },
   weekDayCircle: {
@@ -1691,7 +1691,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   weekDayNumber: {
-    ...typography.headline4.r.bold,
+    ...typography.headline04.bold,
   },
   weekDayDot: {
     width: 8,
@@ -1763,7 +1763,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   emptyText: {
-    ...typography.body1.l.regular,
+    ...typography.body01.regular,
     marginTop: 12,
   },
   dateGroup: {
@@ -1785,7 +1785,7 @@ const styles = StyleSheet.create({
     width: 94,
   },
   dateText: {
-    ...typography.body2.r.medium,
+    ...typography.body02.medium,
   },
   itemContent: {
     flex: 1,
@@ -1804,14 +1804,14 @@ const styles = StyleSheet.create({
     flex: 6,
   },
   categoryText: {
-    ...typography.body2.r.bold,
+    ...typography.body02.bold,
   },
   amountContainer: {
     flex: 4,
     alignItems: 'flex-end',
   },
   amountText: {
-    ...typography.body2.r.bold,
+    ...typography.body02.bold,
     textAlign: 'right',
   },
   memoContainer: {
@@ -1820,7 +1820,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   memoText: {
-    ...typography.body2.r.regular,
+    ...typography.body02.regular,
     flex: 1,
   },
   /** 첫 번째 패턴 — Figma Frame 12: 전체 너비, 좌우 16 */
@@ -1921,7 +1921,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   statusText: {
-    ...typography.detail.r.bold,
+    ...typography.detail.bold,
   },
   statusLabel: {
     ...typographyLayout.sectionTitle,
@@ -1948,7 +1948,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   amountLabel: {
-    ...typography.detail.r.regular,
+    ...typography.detail.regular,
     marginBottom: 2,
   },
   amountValue: {
@@ -2011,7 +2011,7 @@ const styles = StyleSheet.create({
     ...typographyLayout.fieldLine,
   },
   paymentFilterSubtitle: {
-    ...typography.body2.r.regular,
+    ...typography.body02.regular,
   },
   paymentFilterDivider: {
     height: 1,
@@ -2039,7 +2039,7 @@ const styles = StyleSheet.create({
     paddingRight: 16,
   },
   floatingFilterText: {
-    ...typography.body2.r.medium,
+    ...typography.body02.medium,
   },
 });
 

@@ -920,10 +920,10 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   categoryText: {
-    ...typography.headline4.r.bold,
+    ...typography.headline04.bold,
   },
   ddayText: {
-    ...typography.headline4.r.bold,
+    ...typography.headline04.bold,
   },
   statusContainer: {
     flexDirection: 'row',
@@ -935,10 +935,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   statusText: {
-    ...typography.detail.r.bold,
+    ...typography.detail.bold,
   },
   modalText: {
-    ...typography.body1.l.regular,
+    ...typography.body01.regular,
     textAlign: 'center',
   },
   divider: {
@@ -954,7 +954,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   amountLabel: {
-    ...typography.body2.r.medium,
+    ...typography.body02.medium,
   },
   amountValue: {
     ...typographyLayout.sectionTitle,
@@ -992,7 +992,7 @@ const styles = StyleSheet.create({
     ...typographyLayout.fieldLine,
   },
   recurringCaption: {
-    ...typography.body2.r.regular,
+    ...typography.body02.regular,
     marginTop: 0,
   },
   monthPickerRow: {

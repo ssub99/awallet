@@ -72,7 +72,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   categoryEmoji: {
-    ...typography.headline4.r.bold,
+    ...typography.headline04.bold,
     width: 21,
     textAlign: 'center',
   },
@@ -91,7 +91,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   emptyText: {
-    ...typography.body1.l.regular,
+    ...typography.body01.regular,
   },
 });
 

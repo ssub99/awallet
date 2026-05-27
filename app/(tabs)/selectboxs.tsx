@@ -72,10 +72,10 @@ export default function SelectboxDemoScreen() {
       contentContainerStyle={styles.contentContainer}
     >
       {/* Header */}
-      <Text style={[typography.headline1.xl.bold, { color: palette.text, marginBottom: 8 }]}>
+      <Text style={[typography.headline01.bold, { color: palette.text, marginBottom: 8 }]}>
         Selectbox Components
       </Text>
-      <Text style={[typography.body1.l.regular, { color: palette.textNeutral, marginBottom: 32 }]}>
+      <Text style={[typography.body01.regular, { color: palette.textNeutral, marginBottom: 32 }]}>
         Native picker with platform-specific UI
       </Text>
 
@@ -147,7 +147,7 @@ export default function SelectboxDemoScreen() {
 
       <View style={styles.column}>
         <View>
-          <Text style={[typography.body2.r.medium, { color: palette.text, marginBottom: 8 }]}>
+          <Text style={[typography.body02.medium, { color: palette.text, marginBottom: 8 }]}>
             카테고리
           </Text>
           <Selectbox
@@ -160,7 +160,7 @@ export default function SelectboxDemoScreen() {
         </View>
 
         <View>
-          <Text style={[typography.body2.r.medium, { color: palette.text, marginBottom: 8 }]}>
+          <Text style={[typography.body02.medium, { color: palette.text, marginBottom: 8 }]}>
             출금 계좌
           </Text>
           <Selectbox
@@ -173,7 +173,7 @@ export default function SelectboxDemoScreen() {
         </View>
 
         <View>
-          <Text style={[typography.body2.r.medium, { color: palette.text, marginBottom: 8 }]}>
+          <Text style={[typography.body02.medium, { color: palette.text, marginBottom: 8 }]}>
             조회 월
           </Text>
           <Selectbox
@@ -199,13 +199,13 @@ export default function SelectboxDemoScreen() {
       {/* Platform Info */}
       <SectionHeader title="Platform Behavior" colors={palette} />
       <View style={[styles.infoContainer, { backgroundColor: palette.fill }]}>
-        <Text style={[typography.body2.r.regular, { color: palette.textNeutral, marginBottom: 8 }]}>
+        <Text style={[typography.body02.regular, { color: palette.textNeutral, marginBottom: 8 }]}>
           📱 <Text style={{ fontWeight: '600' }}>iOS</Text>: 화면 하단 휠(Wheel) 형태
         </Text>
-        <Text style={[typography.body2.r.regular, { color: palette.textNeutral, marginBottom: 8 }]}>
+        <Text style={[typography.body02.regular, { color: palette.textNeutral, marginBottom: 8 }]}>
           🤖 <Text style={{ fontWeight: '600' }}>Android</Text>: 네이티브 드롭다운 다이얼로그
         </Text>
-        <Text style={[typography.body2.r.regular, { color: palette.textNeutral }]}>
+        <Text style={[typography.body02.regular, { color: palette.textNeutral }]}>
           🌐 <Text style={{ fontWeight: '600' }}>Web</Text>: 브라우저 기본 select
         </Text>
       </View>
@@ -227,7 +227,7 @@ function SectionHeader({
 }) {
   return (
     <Text
-      style={[typography.headline3.m.bold, { color: colors.text, marginTop: 32, marginBottom: 16 }]}
+      style={[typography.headline03.bold, { color: colors.text, marginTop: 32, marginBottom: 16 }]}
     >
       {title}
     </Text>
@@ -247,7 +247,7 @@ function SubSectionHeader({
   return (
     <Text
       style={[
-        typography.body1.l.medium,
+        typography.body01.medium,
         { color: colors.textNeutral, marginTop: 16, marginBottom: 8 },
       ]}
     >
@@ -270,8 +270,8 @@ function SpecItem({
 }) {
   return (
     <View style={styles.specItem}>
-      <Text style={[typography.body2.r.regular, { color: colors.textNeutral }]}>{label}</Text>
-      <Text style={[typography.body2.r.bold, { color: colors.text }]}>{value}</Text>
+      <Text style={[typography.body02.regular, { color: colors.textNeutral }]}>{label}</Text>
+      <Text style={[typography.body02.bold, { color: colors.text }]}>{value}</Text>
     </View>
   );
 }

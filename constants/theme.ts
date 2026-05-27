@@ -18,7 +18,7 @@ export {
   typographyLayoutFieldLineShortMinHeight,
 } from './typography';
 
-export type { FontWeight, SizeCategory } from './typography';
+export type { FontWeight, TypographyStyleToken } from './typography';
 export type { ThemeColorKey, ThemeColorScheme } from './theme-colors';
 
 /** Resolved light/dark semantic palette (e.g. colors[colorScheme]). */

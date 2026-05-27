@@ -867,7 +867,7 @@ const styles = StyleSheet.create({
     ...typographyLayout.fieldLine,
   },
   recurringCaption: {
-    ...typography.body2.r.regular,
+    ...typography.body02.regular,
     marginTop: 0,
   },
   monthPickerRow: {
@@ -890,7 +890,7 @@ const styles = StyleSheet.create({
     paddingTop: 16,
   },
   modalText: {
-    ...typography.body1.l.regular,
+    ...typography.body01.regular,
     textAlign: 'center',
   },
   amountExpression: {

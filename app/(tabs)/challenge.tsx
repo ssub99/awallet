@@ -3092,7 +3092,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   emptyText: {
-    ...typography.body1.l.regular,
+    ...typography.body01.regular,
     marginTop: 12,
   },
   placeholderContainer: {
@@ -3103,10 +3103,10 @@ const styles = StyleSheet.create({
     minHeight: 320,
   },
   placeholderText: {
-    ...typography.body1.l.regular,
+    ...typography.body01.regular,
   },
   placeholderInfoText: {
-    ...typography.body1.l.regular,
+    ...typography.body01.regular,
     marginTop: 12,
   },
   reportContent: {
@@ -3207,7 +3207,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   reportScoreLabel: {
-    ...typography.body2.r.medium,
+    ...typography.body02.medium,
     marginBottom: 16,
   },
   reportScoreValueRow: {
@@ -3216,18 +3216,18 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   reportScoreEmoji: {
-    ...typography.headline2.l.bold,
+    ...typography.headline02.bold,
     marginRight: 4,
   },
   reportScoreValue: {
-    ...typography.headline1.xl.bold,
+    ...typography.headline01.bold,
   },
   reportScoreUnit: {
     ...typographyLayout.sectionTitle,
     marginLeft: 4,
   },
   reportScoreMessage: {
-    ...typography.body1.l.regular,
+    ...typography.body01.regular,
     textAlign: 'center',
   },
   reportSummaryCard: {
@@ -3238,11 +3238,11 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   reportSummaryTitle: {
-    ...typography.body2.r.bold,
+    ...typography.body02.bold,
     marginBottom: 8,
   },
   reportSummaryHeadline: {
-    ...typography.body2.r.bold,
+    ...typography.body02.bold,
     marginBottom: 8,
   },
   reportSummaryRows: {
@@ -3255,26 +3255,26 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   reportSummaryLabel: {
-    ...typography.body2.r.regular,
+    ...typography.body02.regular,
     width: 72,
   },
   reportSummaryValue: {
-    ...typography.body2.r.bold,
+    ...typography.body02.bold,
     flexShrink: 1,
   },
   reportSummaryBody: {
-    ...typography.body2.r.regular,
+    ...typography.body02.regular,
     marginTop: 0,
   },
   reportNextGoal: {
     marginTop: 12,
   },
   reportNextGoalTitle: {
-    ...typography.body2.r.bold,
+    ...typography.body02.bold,
     marginBottom: 4,
   },
   reportNextGoalBody: {
-    ...typography.body2.r.regular,
+    ...typography.body02.regular,
   },
   reportChallengeCard: {
     width: '100%',
@@ -3284,11 +3284,11 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   reportChallengeTitle: {
-    ...typography.body2.r.bold,
+    ...typography.body02.bold,
     marginBottom: 8,
   },
   reportChallengeBody: {
-    ...typography.body2.r.regular,
+    ...typography.body02.regular,
   },
   trendFilterContainer: {
     flexDirection: 'row',
@@ -3379,7 +3379,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   statusText: {
-    ...typography.detail.r.bold,
+    ...typography.detail.bold,
   },
   statusLabel: {
     ...typographyLayout.sectionTitle,
@@ -3406,7 +3406,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   amountLabel: {
-    ...typography.detail.r.regular,
+    ...typography.detail.regular,
     marginBottom: 2,
   },
   amountValue: {
@@ -3471,7 +3471,7 @@ const styles = StyleSheet.create({
     ...typographyLayout.fieldLine,
   },
   trendPaymentFilterSubtitle: {
-    ...typography.body2.r.regular,
+    ...typography.body02.regular,
   },
   trendPaymentFilterDivider: {
     height: 1,

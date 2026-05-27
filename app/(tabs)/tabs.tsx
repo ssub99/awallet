@@ -60,10 +60,10 @@ export default function TabDemoScreen() {
       contentContainerStyle={styles.contentContainer}
     >
       {/* Header */}
-      <Text style={[typography.headline1.xl.bold, { color: palette.text, marginBottom: 8 }]}>
+      <Text style={[typography.headline01.bold, { color: palette.text, marginBottom: 8 }]}>
         Tab Components
       </Text>
-      <Text style={[typography.body1.l.regular, { color: palette.textNeutral, marginBottom: 32 }]}>
+      <Text style={[typography.body01.regular, { color: palette.textNeutral, marginBottom: 32 }]}>
         Horizontal tab navigation
       </Text>
 
@@ -77,7 +77,7 @@ export default function TabDemoScreen() {
       />
 
       <View style={[styles.tabContent, { backgroundColor: palette.fill }]}>
-        <Text style={[typography.body1.l.regular, { color: palette.text }]}>
+        <Text style={[typography.body01.regular, { color: palette.text }]}>
           조회 기간: <Text style={{ fontWeight: '700' }}>{threeTabs.find(t => t.value === threeTab)?.label}</Text>
         </Text>
       </View>
@@ -92,7 +92,7 @@ export default function TabDemoScreen() {
       />
 
       <View style={[styles.tabContent, { backgroundColor: palette.fill }]}>
-        <Text style={[typography.body1.l.regular, { color: palette.text }]}>
+        <Text style={[typography.body01.regular, { color: palette.text }]}>
           현재 선택: <Text style={{ fontWeight: '700' }}>{fourTabs.find(t => t.value === fourTab)?.label}</Text>
         </Text>
       </View>
@@ -107,7 +107,7 @@ export default function TabDemoScreen() {
       />
 
       <View style={[styles.tabContent, { backgroundColor: palette.fill }]}>
-        <Text style={[typography.body1.l.regular, { color: palette.text }]}>
+        <Text style={[typography.body01.regular, { color: palette.text }]}>
           카테고리: <Text style={{ fontWeight: '700' }}>{fiveTabs.find(t => t.value === fiveTab)?.label}</Text>
         </Text>
       </View>
@@ -123,7 +123,7 @@ export default function TabDemoScreen() {
       />
 
       <View style={[styles.tabContent, { backgroundColor: palette.fill }]}>
-        <Text style={[typography.body1.l.regular, { color: palette.text }]}>
+        <Text style={[typography.body01.regular, { color: palette.text }]}>
           카테고리: <Text style={{ fontWeight: '700' }}>{eightTabs.find(t => t.value === eightTab)?.label}</Text>
         </Text>
       </View>
@@ -132,7 +132,7 @@ export default function TabDemoScreen() {
       <SectionHeader title="Real-world Example" colors={palette} />
 
       <View style={styles.realWorldContainer}>
-        <Text style={[typography.headline3.m.bold, { color: palette.text, marginBottom: 16 }]}>
+        <Text style={[typography.headline03.bold, { color: palette.text, marginBottom: 16 }]}>
           거래 내역
         </Text>
         
@@ -145,42 +145,42 @@ export default function TabDemoScreen() {
         <View style={[styles.transactionList, { backgroundColor: palette.staticWhite }]}>
           <View style={styles.transactionItem}>
             <View>
-              <Text style={[typography.body1.l.medium, { color: palette.text }]}>
+              <Text style={[typography.body01.medium, { color: palette.text }]}>
                 스타벅스 강남점
               </Text>
-              <Text style={[typography.body2.r.regular, { color: palette.textNeutral }]}>
+              <Text style={[typography.body02.regular, { color: palette.textNeutral }]}>
                 2025.01.15 14:30
               </Text>
             </View>
-            <Text style={[typography.body1.l.bold, { color: palette.statusNegative }]}>
+            <Text style={[typography.body01.bold, { color: palette.statusNegative }]}>
               -5,500원
             </Text>
           </View>
 
           <View style={styles.transactionItem}>
             <View>
-              <Text style={[typography.body1.l.medium, { color: palette.text }]}>
+              <Text style={[typography.body01.medium, { color: palette.text }]}>
                 월급
               </Text>
-              <Text style={[typography.body2.r.regular, { color: palette.textNeutral }]}>
+              <Text style={[typography.body02.regular, { color: palette.textNeutral }]}>
                 2025.01.25 09:00
               </Text>
             </View>
-            <Text style={[typography.body1.l.bold, { color: palette.primary }]}>
+            <Text style={[typography.body01.bold, { color: palette.primary }]}>
               +3,000,000원
             </Text>
           </View>
 
           <View style={styles.transactionItem}>
             <View>
-              <Text style={[typography.body1.l.medium, { color: palette.text }]}>
+              <Text style={[typography.body01.medium, { color: palette.text }]}>
                 GS25 편의점
               </Text>
-              <Text style={[typography.body2.r.regular, { color: palette.textNeutral }]}>
+              <Text style={[typography.body02.regular, { color: palette.textNeutral }]}>
                 2025.01.14 22:10
               </Text>
             </View>
-            <Text style={[typography.body1.l.bold, { color: palette.statusNegative }]}>
+            <Text style={[typography.body01.bold, { color: palette.statusNegative }]}>
               -8,900원
             </Text>
           </View>
@@ -215,7 +215,7 @@ function SectionHeader({
 }) {
   return (
     <Text
-      style={[typography.headline3.m.bold, { color: colors.text, marginTop: 32, marginBottom: 16 }]}
+      style={[typography.headline03.bold, { color: colors.text, marginTop: 32, marginBottom: 16 }]}
     >
       {title}
     </Text>
@@ -236,8 +236,8 @@ function SpecItem({
 }) {
   return (
     <View style={styles.specItem}>
-      <Text style={[typography.body2.r.regular, { color: colors.textNeutral }]}>{label}</Text>
-      <Text style={[typography.body2.r.bold, { color: colors.text }]}>{value}</Text>
+      <Text style={[typography.body02.regular, { color: colors.textNeutral }]}>{label}</Text>
+      <Text style={[typography.body02.bold, { color: colors.text }]}>{value}</Text>
     </View>
   );
 }

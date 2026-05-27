@@ -1102,7 +1102,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   cardLabel: {
-    ...typography.body2.r.medium,
+    ...typography.body02.medium,
     flexShrink: 0, // Prevent label from shrinking
   },
   cardAmount: {

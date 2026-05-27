@@ -48,7 +48,7 @@ export default function IconDemoScreen() {
       <View style={styles.controls}>
         {/* Variant Selector */}
         <View style={styles.controlGroup}>
-          <Text style={[typography.body2.r.medium, { color: palette.text, marginBottom: 8 }]}>
+          <Text style={[typography.body02.medium, { color: palette.text, marginBottom: 8 }]}>
             Variant
           </Text>
           <View style={styles.buttonGroup}>
@@ -62,7 +62,7 @@ export default function IconDemoScreen() {
             >
               <Text
                 style={[
-                  typography.body2.r.medium,
+                  typography.body02.medium,
                   { color: selectedVariant === 'line' ? palette.staticWhite : palette.text },
                 ]}
               >
@@ -79,7 +79,7 @@ export default function IconDemoScreen() {
             >
               <Text
                 style={[
-                  typography.body2.r.medium,
+                  typography.body02.medium,
                   { color: selectedVariant === 'solid' ? palette.staticWhite : palette.text },
                 ]}
               >
@@ -91,7 +91,7 @@ export default function IconDemoScreen() {
 
         {/* Size Selector */}
         <View style={styles.controlGroup}>
-          <Text style={[typography.body2.r.medium, { color: palette.text, marginBottom: 8 }]}>
+          <Text style={[typography.body02.medium, { color: palette.text, marginBottom: 8 }]}>
             Size: {selectedSize}px
           </Text>
           <View style={styles.buttonGroup}>
@@ -107,7 +107,7 @@ export default function IconDemoScreen() {
               >
                 <Text
                   style={[
-                    typography.tiny.r.medium,
+                    typography.tiny.medium,
                     { color: selectedSize === size ? palette.staticWhite : palette.text },
                   ]}
                 >
@@ -120,7 +120,7 @@ export default function IconDemoScreen() {
 
         {/* Color Selector */}
         <View style={styles.controlGroup}>
-          <Text style={[typography.body2.r.medium, { color: palette.text, marginBottom: 8 }]}>
+          <Text style={[typography.body02.medium, { color: palette.text, marginBottom: 8 }]}>
             Color
           </Text>
           <View style={styles.buttonGroup}>
@@ -132,7 +132,7 @@ export default function IconDemoScreen() {
               ]}
               onPress={() => setSelectedColor(undefined)}
             >
-              <Text style={[typography.body2.r.medium, { color: palette.text }]}>Default</Text>
+              <Text style={[typography.body02.medium, { color: palette.text }]}>Default</Text>
             </Pressable>
             <ColorButton
               color={palette.primary}
@@ -162,7 +162,7 @@ export default function IconDemoScreen() {
       {/* Icons by Category */}
       {Object.entries(IconCategories).map(([categoryName, icons]) => (
         <View key={categoryName} style={styles.categorySection}>
-          <Text style={[typography.headline3.m.bold, { color: palette.text, marginBottom: 12 }]}>
+          <Text style={[typography.headline03.bold, { color: palette.text, marginBottom: 12 }]}>
             {categoryName.charAt(0).toUpperCase() + categoryName.slice(1)}
           </Text>
           <View style={styles.iconGrid}>
@@ -182,21 +182,21 @@ export default function IconDemoScreen() {
                       />
                     ) : (
                       <View style={styles.unavailableIcon}>
-                        <Text style={[typography.tiny.r.regular, { color: palette.textDisabled }]}>
+                        <Text style={[typography.tiny.regular, { color: palette.textDisabled }]}>
                           N/A
                         </Text>
                       </View>
                     )}
                   </View>
                   <Text
-                    style={[typography.detail.r.regular, { color: palette.text, textAlign: 'center' }]}
+                    style={[typography.detail.regular, { color: palette.text, textAlign: 'center' }]}
                     numberOfLines={2}
                   >
                     {iconName}
                   </Text>
                   {metadata.hasSolid && (
                     <View style={[styles.badge, { backgroundColor: palette.primary }]}>
-                      <Text style={[typography.tiny.r.bold, { color: palette.staticWhite }]}>S</Text>
+                      <Text style={[typography.tiny.bold, { color: palette.staticWhite }]}>S</Text>
                     </View>
                   )}
                 </View>
@@ -208,10 +208,10 @@ export default function IconDemoScreen() {
 
       {/* All Icons Count */}
       <View style={[styles.summary, { backgroundColor: palette.fill }]}>
-        <Text style={[typography.body1.l.medium, { color: palette.text }]}>
+        <Text style={[typography.body01.medium, { color: palette.text }]}>
           Total Icons: {AllIcons.all.length}
         </Text>
-        <Text style={[typography.body2.r.regular, { color: palette.textNeutral }]}>
+        <Text style={[typography.body02.regular, { color: palette.textNeutral }]}>
           Line: {AllIcons.all.length} | Solid: 5
         </Text>
       </View>
@@ -249,7 +249,7 @@ function ColorButton({
       onPress={onPress}
     >
       <View style={[styles.colorSwatch, { backgroundColor: color }]} />
-      <Text style={[typography.body2.r.medium, { color: colors.text }]}>{label}</Text>
+      <Text style={[typography.body02.medium, { color: colors.text }]}>{label}</Text>
     </Pressable>
   );
 }

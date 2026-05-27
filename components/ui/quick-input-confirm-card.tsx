@@ -219,7 +219,7 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
   },
   title: {
-    ...typography.headline4.r.bold,
+    ...typography.headline04.bold,
   },
   divider: {
     height: 1,

@@ -35,12 +35,12 @@ export function ThemedText({
 }
 
 const styles = StyleSheet.create({
-  default: typography.body1.l.regular,
-  defaultSemiBold: typography.body1.l.medium,
-  title: typography.headline1.xl.bold,
-  subtitle: typography.headline4.r.bold,
+  default: typography.body01.regular,
+  defaultSemiBold: typography.body01.medium,
+  title: typography.headline01.bold,
+  subtitle: typography.headline04.bold,
   link: {
-    ...typography.body1.l.regular,
+    ...typography.body01.regular,
     color: '#0a7ea4',
   },
 });

@@ -195,7 +195,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   optionText: {
-    ...typography.body1.l.regular,
+    ...typography.body01.regular,
   },
 });
 

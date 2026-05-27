@@ -1,23 +1,25 @@
 /**
- * base + ios + android → typographyScale, 플랫폼 조회 API, paragraph·singleRow 스타일 팩토리.
+ * Typography runtime — 유일한 Platform.OS 분기 지점.
+ *
+ * 1. typography.base     → fontSize, font_weights
+ * 2. typography.platform → ios/android lineHeight (paragraph · singleRow · fieldInput)
+ * 3. createTypographyStyle / singleRowCenteredTextStyle / createFieldInputTypographyStyle
  */
 
 import { Platform, type TextStyle } from 'react-native';
 
 import { pretendardTextStyle, type PretendardWeight } from '@/constants/fonts';
 
-import { typographyAndroid } from './typography.android';
 import { font_weights, typographyBase, type TypographyScaleKey } from './typography.base';
-import { typographyIos } from './typography.ios';
+import { typographyPlatform, type SingleRowScaleKey } from './typography.platform';
 
+export type { SingleRowScaleKey };
 export type TypoSize = { fontSize: number; lineHeight: number };
 
 export type TypographyScaleEntry = {
   ios: TypoSize;
   android: TypoSize;
 };
-
-export type SingleRowScaleKey = keyof typeof typographyIos.singleRow;
 
 function findScaleKeyByFontSize(fontSize: number): TypographyScaleKey | undefined {
   const keys = Object.keys(typographyBase.paragraph) as TypographyScaleKey[];
@@ -33,11 +35,11 @@ function buildTypographyScale(): Record<TypographyScaleKey, TypographyScaleEntry
     scale[key] = {
       ios: {
         fontSize,
-        lineHeight: typographyIos.paragraph[key].lineHeight,
+        lineHeight: typographyPlatform.ios.paragraph[key].lineHeight,
       },
       android: {
         fontSize,
-        lineHeight: typographyAndroid.paragraph[key].lineHeight,
+        lineHeight: typographyPlatform.android.paragraph[key].lineHeight,
       },
     };
   }
@@ -63,7 +65,8 @@ export const typographyLayoutFieldLineShortMinHeight = typographyBase.layout.fie
 export const typographyLayoutFieldAreaInputHeight = typographyBase.layout.fieldAreaInputHeight;
 
 /** iOS area·line TextInput — Pretendard 글리프 메트릭 보정 */
-export const typographyLayoutFieldAreaLineHeightIos = typographyIos.fieldInput.area.body01;
+export const typographyLayoutFieldAreaLineHeightIos =
+  typographyPlatform.ios.fieldInput.area.body01;
 
 /** Android 전역 — scale·필드 프리셋에서만 사용 (화면 StyleSheet 금지) */
 export function androidTextMetrics(): Pick<TextStyle, 'includeFontPadding'> {
@@ -79,8 +82,8 @@ export function getSingleRowLineHeight(fontSize: number, designLineHeight: numbe
     return designLineHeight;
   }
 
-  const iosSingleRow = typographyIos.singleRow;
-  const androidSingleRow = typographyAndroid.singleRow;
+  const iosSingleRow = typographyPlatform.ios.singleRow;
+  const androidSingleRow = typographyPlatform.android.singleRow;
 
   if (!(scaleKey in iosSingleRow)) {
     return designLineHeight;
@@ -98,9 +101,9 @@ export function getFieldInputLineHeight(
   scaleKey: 'body01' = 'body01',
 ): number {
   if (Platform.OS === 'android') {
-    return typographyAndroid.fieldInput[variant][scaleKey];
+    return typographyPlatform.android.fieldInput[variant][scaleKey];
   }
-  return typographyIos.fieldInput[variant][scaleKey];
+  return typographyPlatform.ios.fieldInput[variant][scaleKey];
 }
 
 /** paragraph TextStyle (OS별 fontSize/lineHeight + Pretendard) */

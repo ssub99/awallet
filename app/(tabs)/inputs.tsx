@@ -30,10 +30,10 @@ export default function InputDemoScreen() {
       contentContainerStyle={styles.contentContainer}
     >
       {/* Header */}
-      <Text style={[typography.headline1.xl.bold, { color: palette.text, marginBottom: 8 }]}>
+      <Text style={[typography.headline01.bold, { color: palette.text, marginBottom: 8 }]}>
         Input Components
       </Text>
-      <Text style={[typography.body1.l.regular, { color: palette.textNeutral, marginBottom: 32 }]}>
+      <Text style={[typography.body01.regular, { color: palette.textNeutral, marginBottom: 32 }]}>
         All input variants, types, and states
       </Text>
 
@@ -168,7 +168,7 @@ export default function InputDemoScreen() {
 
       <View style={styles.column}>
         <View>
-          <Text style={[typography.body2.r.medium, { color: palette.text, marginBottom: 8 }]}>
+          <Text style={[typography.body02.medium, { color: palette.text, marginBottom: 8 }]}>
             이름
           </Text>
           <Input
@@ -180,7 +180,7 @@ export default function InputDemoScreen() {
         </View>
 
         <View>
-          <Text style={[typography.body2.r.medium, { color: palette.text, marginBottom: 8 }]}>
+          <Text style={[typography.body02.medium, { color: palette.text, marginBottom: 8 }]}>
             금액
           </Text>
           <Input
@@ -192,7 +192,7 @@ export default function InputDemoScreen() {
         </View>
 
         <View>
-          <Text style={[typography.body2.r.medium, { color: palette.text, marginBottom: 8 }]}>
+          <Text style={[typography.body02.medium, { color: palette.text, marginBottom: 8 }]}>
             메모
           </Text>
           <Input
@@ -205,7 +205,7 @@ export default function InputDemoScreen() {
         </View>
 
         <View>
-          <Text style={[typography.body2.r.medium, { color: palette.text, marginBottom: 8 }]}>
+          <Text style={[typography.body02.medium, { color: palette.text, marginBottom: 8 }]}>
             날짜
           </Text>
           <Input
@@ -243,7 +243,7 @@ function SectionHeader({
 }) {
   return (
     <Text
-      style={[typography.headline3.m.bold, { color: colors.text, marginTop: 32, marginBottom: 16 }]}
+      style={[typography.headline03.bold, { color: colors.text, marginTop: 32, marginBottom: 16 }]}
     >
       {title}
     </Text>
@@ -263,7 +263,7 @@ function SubSectionHeader({
   return (
     <Text
       style={[
-        typography.body1.l.medium,
+        typography.body01.medium,
         { color: colors.textNeutral, marginTop: 16, marginBottom: 8 },
       ]}
     >
@@ -286,8 +286,8 @@ function SpecItem({
 }) {
   return (
     <View style={styles.specItem}>
-      <Text style={[typography.body2.r.regular, { color: colors.textNeutral }]}>{label}</Text>
-      <Text style={[typography.body2.r.bold, { color: colors.text }]}>{value}</Text>
+      <Text style={[typography.body02.regular, { color: colors.textNeutral }]}>{label}</Text>
+      <Text style={[typography.body02.bold, { color: colors.text }]}>{value}</Text>
     </View>
   );
 }

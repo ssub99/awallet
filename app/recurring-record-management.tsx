@@ -506,7 +506,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   memoText: {
-    ...typography.body2.r.regular,
+    ...typography.body02.regular,
   },
   infoDivider: {
     height: 1,
@@ -531,11 +531,11 @@ const styles = StyleSheet.create({
     minHeight: 21,
   },
   detailLabel: {
-    ...typography.body2.r.regular,
+    ...typography.body02.regular,
     width: 49,
   },
   detailValue: {
-    ...typography.body2.r.regular,
+    ...typography.body02.regular,
     flex: 1,
     flexShrink: 1,
     minWidth: 0,
@@ -553,11 +553,11 @@ const styles = StyleSheet.create({
     transform: [{ translateY: EMPTY_STATE_VERTICAL_OFFSET }],
   },
   globalEmptyText: {
-    ...typography.body1.l.regular,
+    ...typography.body01.regular,
     textAlign: 'center',
   },
   deleteConfirmText: {
-    ...typography.body1.l.regular,
+    ...typography.body01.regular,
     textAlign: 'center',
   },
 });

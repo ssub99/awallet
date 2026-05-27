@@ -441,7 +441,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   noticeTitle: {
-    ...typography.body2.r.bold,
+    ...typography.body02.bold,
   },
   noticeList: {
     gap: 4,
@@ -452,10 +452,10 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   noticeBullet: {
-    ...typography.body2.r.regular,
+    ...typography.body02.regular,
   },
   noticeBody: {
-    ...typography.body2.r.regular,
+    ...typography.body02.regular,
     flex: 1,
   },
 });

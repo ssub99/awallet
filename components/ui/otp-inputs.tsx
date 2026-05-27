@@ -182,7 +182,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     marginTop: 24,
-    ...typography.body2.r.regular,
+    ...typography.body02.regular,
     textAlign: 'center',
   },
 });

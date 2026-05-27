@@ -543,10 +543,10 @@ const styles = StyleSheet.create({
     backgroundColor: atomicColors.coolNeutral[100],
   },
   numberText: {
-    ...typography.headline3.m.regular,
+    ...typography.headline03.regular,
   },
   clearText: {
-    ...typography.headline4.r.regular,
+    ...typography.headline04.regular,
   },
   confirmText: {
     ...typographyLayout.buttonTextLarge,

@@ -925,7 +925,7 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(144, 146, 158, 0.16)',
   },
   titleText: {
-    ...typography.headline4.r.bold,
+    ...typography.headline04.bold,
   },
   weekdayHeader: {
     flexDirection: 'row',
@@ -938,7 +938,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   weekdayText: {
-    ...typography.detail.r.medium,
+    ...typography.detail.medium,
   },
   pagerViewport: {
     width: '100%',

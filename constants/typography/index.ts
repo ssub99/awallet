@@ -1,16 +1,18 @@
 /**
- * Typography system — design tokens (typography) + context layout (typographyLayout).
+ * Typography — Figma 토큰명과 동일한 `typography.body01.regular` API.
  *
- * Platform tokens: typography.base · typography.ios · typography.android → merge.ts (internal)
+ * 내부 (화면에서 import 금지):
+ * - typography.base · typography.platform → merge.ts
  *
  * @example
  * ```tsx
  * import { typography } from '@/constants/typography';
- * <Text style={typography.body1.l.bold}>Title</Text>
+ * <Text style={typography.body01.bold}>Title</Text>
  * ```
  */
 
 export type { TypographyScaleKey } from './typography.base';
+export type { TypographyStyleToken } from './typography-tree';
 
 export {
   getPlatformTypographySizes,
@@ -18,17 +20,11 @@ export {
   typographyLayoutFieldAreaInputHeight,
   typographyLayoutFieldLineRowHeight,
   typographyLayoutFieldLineShortMinHeight,
-  typographyScale
 } from './merge';
 export type { SingleRowScaleKey, TypographyScaleEntry, TypoSize } from './merge';
 
 export { typographyLayout } from './layout';
 export { typography } from './typography-tree';
 
+/** @deprecated Figma weight 이름 — typography.body01.{bold|medium|regular} 사용 */
 export type FontWeight = 'bold' | 'medium' | 'regular';
-export type SizeCategory = 'xl' | 'l' | 'm' | 'r';
-
-export type HeadlineCategory = 'headline1' | 'headline2' | 'headline3' | 'headline4';
-export type BodyCategory = 'body1' | 'body2';
-export type ButtonCategory = 'button1' | 'button2';
-export type UtilityCategory = 'detail' | 'tiny';

@@ -70,7 +70,7 @@ const styles = StyleSheet.create({
   paymentTypeTextBlock: { flex: 1, marginLeft: 12 },
   paymentTypeTextBlockSingleLine: { justifyContent: 'center' },
   paymentTypeTitle: { ...typographyLayout.fieldLine },
-  paymentTypeSubtitle: { ...typography.body2.r.regular },
+  paymentTypeSubtitle: { ...typography.body02.regular },
   paymentTypeRight: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   divider: { height: 1, marginLeft: 16, marginRight: 16 },
 });
@@ -362,7 +362,7 @@ export default function PaymentTypeSettingScreen() {
             <View style={{ flex: 1 }} />
           ) : paymentTypes.length === 0 ? (
             <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={[typography.body1.l.regular, { color: colors.textAssistive }]}>
+              <Text style={[typography.body01.regular, { color: colors.textAssistive }]}>
                 등록된 결제 유형이 없습니다.
               </Text>
             </View>

@@ -48,10 +48,10 @@ export default function RadioDemoScreen() {
       contentContainerStyle={styles.contentContainer}
     >
       {/* Header */}
-      <Text style={[typography.headline1.xl.bold, { color: palette.text, marginBottom: 8 }]}>
+      <Text style={[typography.headline01.bold, { color: palette.text, marginBottom: 8 }]}>
         Radio Components
       </Text>
-      <Text style={[typography.body1.l.regular, { color: palette.textNeutral, marginBottom: 32 }]}>
+      <Text style={[typography.body01.regular, { color: palette.textNeutral, marginBottom: 32 }]}>
         Radio buttons for single selection
       </Text>
 
@@ -152,7 +152,7 @@ export default function RadioDemoScreen() {
 
       <View style={styles.column}>
         <View>
-          <Text style={[typography.body2.r.medium, { color: palette.text, marginBottom: 12 }]}>
+          <Text style={[typography.body02.medium, { color: palette.text, marginBottom: 12 }]}>
             결제 수단
           </Text>
           <RadioGroup
@@ -163,7 +163,7 @@ export default function RadioDemoScreen() {
         </View>
 
         <View>
-          <Text style={[typography.body2.r.medium, { color: palette.text, marginBottom: 12 }]}>
+          <Text style={[typography.body02.medium, { color: palette.text, marginBottom: 12 }]}>
             조회 기간
           </Text>
           <RadioGroup
@@ -203,7 +203,7 @@ function SectionHeader({
 }) {
   return (
     <Text
-      style={[typography.headline3.m.bold, { color: colors.text, marginTop: 32, marginBottom: 16 }]}
+      style={[typography.headline03.bold, { color: colors.text, marginTop: 32, marginBottom: 16 }]}
     >
       {title}
     </Text>
@@ -223,7 +223,7 @@ function SubSectionHeader({
   return (
     <Text
       style={[
-        typography.body1.l.medium,
+        typography.body01.medium,
         { color: colors.textNeutral, marginTop: 16, marginBottom: 8 },
       ]}
     >
@@ -246,8 +246,8 @@ function SpecItem({
 }) {
   return (
     <View style={styles.specItem}>
-      <Text style={[typography.body2.r.regular, { color: colors.textNeutral }]}>{label}</Text>
-      <Text style={[typography.body2.r.bold, { color: colors.text }]}>{value}</Text>
+      <Text style={[typography.body02.regular, { color: colors.textNeutral }]}>{label}</Text>
+      <Text style={[typography.body02.bold, { color: colors.text }]}>{value}</Text>
     </View>
   );
 }

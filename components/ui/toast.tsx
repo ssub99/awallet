@@ -126,7 +126,7 @@ const styles = StyleSheet.create({
   },
   text: {
     color: '#ffffff', // Figma design
-    ...typography.body1.l.regular,
+    ...typography.body01.regular,
   },
 });
 

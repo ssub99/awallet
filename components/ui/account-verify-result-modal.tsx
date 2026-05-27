@@ -241,12 +241,12 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   title: {
-    ...typography.headline4.r.bold,
+    ...typography.headline04.bold,
     textAlign: 'center',
     marginBottom: 16,
   },
   subtitle: {
-    ...typography.body1.l.regular,
+    ...typography.body01.regular,
     textAlign: 'center',
   },
   infoSection: {

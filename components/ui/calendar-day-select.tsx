@@ -786,7 +786,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   navTitle: {
-    ...typography.body2.r.bold,
+    ...typography.body02.bold,
   },
   weekdayHeader: {
     flexDirection: 'row',
@@ -799,7 +799,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   weekdayText: {
-    ...typography.detail.r.medium,
+    ...typography.detail.medium,
   },
   pagerViewport: {
     height: DAY_CELLS_AREA_HEIGHT,

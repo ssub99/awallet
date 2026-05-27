@@ -170,7 +170,7 @@ const styles = StyleSheet.create({
     ...typographyLayout.fieldLine,
   },
   recurringCaption: {
-    ...typography.body2.r.regular,
+    ...typography.body02.regular,
     marginTop: 0,
   },
   divider: {

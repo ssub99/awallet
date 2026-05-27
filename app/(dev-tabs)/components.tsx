@@ -1952,7 +1952,7 @@ function SwitchesContent({ colors }: { colors: ColorPalette }) {
       <SectionHeader title="Interactive Switches" colors={colors} />
       <View style={styles.column}>
         <View style={styles.switchRow}>
-          <Text style={[typography.body1.l.medium, { color: colors.text }]}>
+          <Text style={[typography.body01.medium, { color: colors.text }]}>
             Switch 1
           </Text>
           <Switch
@@ -1961,7 +1961,7 @@ function SwitchesContent({ colors }: { colors: ColorPalette }) {
           />
         </View>
         <View style={styles.switchRow}>
-          <Text style={[typography.body1.l.medium, { color: colors.text }]}>
+          <Text style={[typography.body01.medium, { color: colors.text }]}>
             Switch 2
           </Text>
           <Switch
@@ -1976,10 +1976,10 @@ function SwitchesContent({ colors }: { colors: ColorPalette }) {
       <View style={styles.column}>
         <View style={styles.switchRow}>
           <View>
-            <Text style={[typography.body1.l.medium, { color: colors.text }]}>
+            <Text style={[typography.body01.medium, { color: colors.text }]}>
               알림 받기
             </Text>
-            <Text style={[typography.body2.r.regular, { color: colors.textNeutral }]}>
+            <Text style={[typography.body02.regular, { color: colors.textNeutral }]}>
               새로운 거래 알림을 받습니다
             </Text>
           </View>
@@ -1990,10 +1990,10 @@ function SwitchesContent({ colors }: { colors: ColorPalette }) {
         </View>
         <View style={styles.switchRow}>
           <View>
-            <Text style={[typography.body1.l.medium, { color: colors.text }]}>
+            <Text style={[typography.body01.medium, { color: colors.text }]}>
               다크 모드
             </Text>
-            <Text style={[typography.body2.r.regular, { color: colors.textNeutral }]}>
+            <Text style={[typography.body02.regular, { color: colors.textNeutral }]}>
               어두운 테마 사용
             </Text>
           </View>
@@ -2044,7 +2044,7 @@ function ModalsContent({ colors }: { colors: ColorPalette }) {
         confirmText="확인"
         onConfirm={() => setShowAlertWithTitle(false)}
       >
-        <Text style={[typography.body1.l.regular, { color: colors.textNeutral, textAlign: 'center' }]}>
+        <Text style={[typography.body01.regular, { color: colors.textNeutral, textAlign: 'center' }]}>
           내용을 입력해 주세요.
         </Text>
       </ModalPopup>
@@ -2063,7 +2063,7 @@ function ModalsContent({ colors }: { colors: ColorPalette }) {
         confirmText="확인"
         onConfirm={() => setShowAlertNoTitle(false)}
       >
-        <Text style={[typography.body1.l.regular, { color: colors.textNeutral, textAlign: 'center' }]}>
+        <Text style={[typography.body01.regular, { color: colors.textNeutral, textAlign: 'center' }]}>
           내용을 입력해 주세요.
         </Text>
       </ModalPopup>
@@ -2085,7 +2085,7 @@ function ModalsContent({ colors }: { colors: ColorPalette }) {
         onConfirm={() => setShowConfirmWithTitle(false)}
         onCancel={() => setShowConfirmWithTitle(false)}
       >
-        <Text style={[typography.body1.l.regular, { color: colors.textNeutral, textAlign: 'center' }]}>
+        <Text style={[typography.body01.regular, { color: colors.textNeutral, textAlign: 'center' }]}>
           내용을 입력해 주세요.
         </Text>
       </ModalPopup>
@@ -2106,7 +2106,7 @@ function ModalsContent({ colors }: { colors: ColorPalette }) {
         onConfirm={() => setShowConfirmNoTitle(false)}
         onCancel={() => setShowConfirmNoTitle(false)}
       >
-        <Text style={[typography.body1.l.regular, { color: colors.textNeutral, textAlign: 'center' }]}>
+        <Text style={[typography.body01.regular, { color: colors.textNeutral, textAlign: 'center' }]}>
           내용을 입력해 주세요.
         </Text>
       </ModalPopup>
@@ -2264,7 +2264,7 @@ function BottomsheetsContent({ colors }: { colors: ColorPalette }) {
         title="타이틀"
         onClose={() => setShowBasicSheet(false)}
       >
-        <Text style={[typography.body1.l.regular, { color: colors.text }]}>
+        <Text style={[typography.body01.regular, { color: colors.text }]}>
           이것은 기본 Bottomsheet입니다.{'\n'}
           닫기 버튼으로 닫을 수 있습니다.
         </Text>
@@ -2289,10 +2289,10 @@ function BottomsheetsContent({ colors }: { colors: ColorPalette }) {
         }}
         onClose={() => setShowWithConfirm(false)}
       >
-        <Text style={[typography.body1.l.regular, { color: colors.text, marginBottom: 16 }]}>
+        <Text style={[typography.body01.regular, { color: colors.text, marginBottom: 16 }]}>
           확인 버튼이 있는 Bottomsheet입니다.
         </Text>
-        <Text style={[typography.body2.r.regular, { color: colors.textNeutral }]}>
+        <Text style={[typography.body02.regular, { color: colors.textNeutral }]}>
           우측 상단의 확인 버튼을 눌러보세요.
         </Text>
       </ModalBottomsheet>
@@ -2327,10 +2327,10 @@ function BottomsheetsContent({ colors }: { colors: ColorPalette }) {
                 minHeight: 56,
               }}
             >
-              <Text style={[typography.body1.l.regular, { color: colors.text }]}>
+              <Text style={[typography.body01.regular, { color: colors.text }]}>
                 {item}
               </Text>
-              <Text style={[typography.body1.l.regular, { color: colors.textNeutral }]}>
+              <Text style={[typography.body01.regular, { color: colors.textNeutral }]}>
                 1일
               </Text>
             </View>
@@ -2453,28 +2453,28 @@ function CalendarsContent({ colors }: { colors: ColorPalette }) {
       {/* Selected Date Info */}
       <View style={[styles.specsContainer, { backgroundColor: colors.fill, marginTop: 16 }]}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-          <Text style={[typography.body2.r.medium, { color: colors.textNeutral }]}>
+          <Text style={[typography.body02.medium, { color: colors.textNeutral }]}>
             선택된 날짜
           </Text>
-          <Text style={[typography.body2.r.bold, { color: colors.text }]}>
+          <Text style={[typography.body02.bold, { color: colors.text }]}>
             {selectedDate}
           </Text>
         </View>
         {sampleData[selectedDate] && (
           <>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              <Text style={[typography.body2.r.medium, { color: colors.textNeutral }]}>
+              <Text style={[typography.body02.medium, { color: colors.textNeutral }]}>
                 입금
               </Text>
-              <Text style={[typography.body2.r.bold, { color: '#058943' }]}>
+              <Text style={[typography.body02.bold, { color: '#058943' }]}>
                 {sampleData[selectedDate].totalIncome?.toLocaleString() || 0}원
               </Text>
             </View>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              <Text style={[typography.body2.r.medium, { color: colors.textNeutral }]}>
+              <Text style={[typography.body02.medium, { color: colors.textNeutral }]}>
                 소비
               </Text>
-              <Text style={[typography.body2.r.bold, { color: '#ef2a2a' }]}>
+              <Text style={[typography.body02.bold, { color: '#ef2a2a' }]}>
                 {sampleData[selectedDate].totalExpense?.toLocaleString() || 0}원
               </Text>
             </View>
@@ -2589,7 +2589,7 @@ function TabsContent({ colors }: { colors: ColorPalette }) {
         onValueChange={setTwoTab}
       />
       <View style={[styles.tabPreview, { backgroundColor: colors.fill }]}>
-        <Text style={[typography.body2.r.regular, { color: colors.text }]}>
+        <Text style={[typography.body02.regular, { color: colors.text }]}>
           선택: <Text style={{ fontWeight: '700' }}>{twoTabs.find(t => t.value === twoTab)?.label}</Text>
         </Text>
       </View>
@@ -2601,7 +2601,7 @@ function TabsContent({ colors }: { colors: ColorPalette }) {
         onValueChange={setThreeTab}
       />
       <View style={[styles.tabPreview, { backgroundColor: colors.fill }]}>
-        <Text style={[typography.body2.r.regular, { color: colors.text }]}>
+        <Text style={[typography.body02.regular, { color: colors.text }]}>
           선택: <Text style={{ fontWeight: '700' }}>{threeTabs.find(t => t.value === threeTab)?.label}</Text>
         </Text>
       </View>
@@ -2613,7 +2613,7 @@ function TabsContent({ colors }: { colors: ColorPalette }) {
         onValueChange={setFourTab}
       />
       <View style={[styles.tabPreview, { backgroundColor: colors.fill }]}>
-        <Text style={[typography.body2.r.regular, { color: colors.text }]}>
+        <Text style={[typography.body02.regular, { color: colors.text }]}>
           선택: <Text style={{ fontWeight: '700' }}>{fourTabs.find(t => t.value === fourTab)?.label}</Text>
         </Text>
       </View>
@@ -2625,7 +2625,7 @@ function TabsContent({ colors }: { colors: ColorPalette }) {
         onValueChange={setFiveTab}
       />
       <View style={[styles.tabPreview, { backgroundColor: colors.fill }]}>
-        <Text style={[typography.body2.r.regular, { color: colors.text }]}>
+        <Text style={[typography.body02.regular, { color: colors.text }]}>
           선택: <Text style={{ fontWeight: '700' }}>{fiveTabs.find(t => t.value === fiveTab)?.label}</Text>
         </Text>
       </View>
@@ -2638,7 +2638,7 @@ function TabsContent({ colors }: { colors: ColorPalette }) {
         scrollable
       />
       <View style={[styles.tabPreview, { backgroundColor: colors.fill }]}>
-        <Text style={[typography.body2.r.regular, { color: colors.text }]}>
+        <Text style={[typography.body02.regular, { color: colors.text }]}>
           선택: <Text style={{ fontWeight: '700' }}>{sixTabs.find(t => t.value === sixTab)?.label}</Text>
         </Text>
       </View>
@@ -2651,7 +2651,7 @@ function TabsContent({ colors }: { colors: ColorPalette }) {
         scrollable
       />
       <View style={[styles.tabPreview, { backgroundColor: colors.fill }]}>
-        <Text style={[typography.body2.r.regular, { color: colors.text }]}>
+        <Text style={[typography.body02.regular, { color: colors.text }]}>
           선택: <Text style={{ fontWeight: '700' }}>{sevenTabs.find(t => t.value === sevenTab)?.label}</Text>
         </Text>
       </View>
@@ -2664,7 +2664,7 @@ function TabsContent({ colors }: { colors: ColorPalette }) {
         scrollable
       />
       <View style={[styles.tabPreview, { backgroundColor: colors.fill }]}>
-        <Text style={[typography.body2.r.regular, { color: colors.text }]}>
+        <Text style={[typography.body02.regular, { color: colors.text }]}>
           선택: <Text style={{ fontWeight: '700' }}>{eightTabs.find(t => t.value === eightTab)?.label}</Text>
         </Text>
       </View>
@@ -2684,7 +2684,7 @@ function SectionHeader({
 }) {
   return (
     <Text
-      style={[typography.headline3.m.bold, { color: colors.text, marginTop: 24, marginBottom: 12 }]}
+      style={[typography.headline03.bold, { color: colors.text, marginTop: 24, marginBottom: 12 }]}
     >
       {title}
     </Text>
@@ -2705,8 +2705,8 @@ function SpecItem({
 }) {
   return (
     <View style={styles.specItem}>
-      <Text style={[typography.body2.r.regular, { color: colors.textNeutral }]}>{label}</Text>
-      <Text style={[typography.body2.r.bold, { color: colors.text }]}>{value}</Text>
+      <Text style={[typography.body02.regular, { color: colors.textNeutral }]}>{label}</Text>
+      <Text style={[typography.body02.bold, { color: colors.text }]}>{value}</Text>
     </View>
   );
 }
@@ -2774,7 +2774,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   testButtonText: {
-    ...typography.body2.r.medium,
+    ...typography.body02.medium,
   },
   testButtonRow: {
     flexDirection: 'row',
@@ -2787,7 +2787,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   testButtonSmallText: {
-    ...typography.detail.r.bold,
+    ...typography.detail.bold,
   },
   infoBox: {
     padding: 16,
@@ -2795,7 +2795,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   infoText: {
-    ...typography.body2.r.regular,
+    ...typography.body02.regular,
   },
   switchLabel: {
     ...typographyLayout.fieldLine,
@@ -2826,11 +2826,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   dateButtonText: {
-    ...typography.detail.r.bold,
+    ...typography.detail.bold,
     marginBottom: 2,
   },
   dateButtonSubText: {
-    ...typography.detail.r.regular,
+    ...typography.detail.regular,
   },
   restoreButton: {
     paddingVertical: 12,
@@ -2840,7 +2840,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   restoreButtonText: {
-    ...typography.detail.r.bold,
+    ...typography.detail.bold,
   },
   deleteButton: {
     paddingVertical: 14,
@@ -2850,7 +2850,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   deleteButtonText: {
-    ...typography.body2.r.bold,
+    ...typography.body02.bold,
   },
   specItem: {
     flexDirection: 'row',

@@ -620,7 +620,7 @@ const styles = StyleSheet.create({
   radioCol: { flex: 1, alignItems: 'flex-start' },
 
   modalText: {
-    ...typography.body1.l.regular,
+    ...typography.body01.regular,
     textAlign: 'center',
   },
 });

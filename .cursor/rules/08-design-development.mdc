@@ -22,10 +22,10 @@ description: Design system implementation and development best practices
   - Check Static colors (e.g., `Semantic/Static/Black` → `colors.staticBlack`)
   - Check Atomic colors if needed
 
-- **typography**: Use [constants/typography/](mdc:constants/typography/) — 3 layers
-  1. Tokens (`typography.base` / `.ios` / `.android`) — numbers only, no screen import
-  2. Runtime (`merge.ts`: `typographyScale`, `getPlatformTypographySizes`, helpers)
-  3. Presets — `typography.*` (multi-line paragraph), `typographyLayout.*` (single-row UI, Input)
+- **typography**: Use [constants/typography/](mdc:constants/typography/) — see [README](mdc:constants/typography/README.md)
+  1. Tokens (`typography.base` + `typography.platform`) — numbers only, no screen import
+  2. Runtime (`merge.ts` — **only** `Platform.OS` branch)
+  3. Presets — `typography.body01.regular` (Figma names), `typographyLayout.*` (Input · singleRow UI)
   - Single-row labels/rows → `typographyLayout.fieldLine` / `sectionTitle` / component presets (`buttonTextLarge`, …)
   - Dynamic horizontal shrink → base `typographyLayout.calendarAmount` / `monthStatusAmount` + `scaleTextStyleFontSize` (fontSize만 덮지 않음)
   - iOS picker wheel → `typographyLayout.pickerWheelItemIos` (+ color만 palette로)
@@ -89,7 +89,7 @@ Which approach would you prefer?"
 <Text style={{ fontSize: 16, fontWeight: '700', lineHeight: 24 }}>
 
 // ✅ CORRECT - Use typography
-<Text style={typography.body1.l.bold}>
+<Text style={typography.body01.bold}>
 
 // ❌ WRONG - Magic numbers
 <View style={{ padding: 16, gap: 8, borderRadius: 12 }}>

@@ -172,11 +172,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   labelActive: {
-    ...typography.detail.r.bold,
+    ...typography.detail.bold,
     textAlign: 'center',
   },
   labelDefault: {
-    ...typography.detail.r.regular,
+    ...typography.detail.regular,
     textAlign: 'center',
   },
 });

@@ -926,7 +926,7 @@ const styles = StyleSheet.create({
     paddingTop: 16,
   },
   alertText: {
-    ...typography.body1.l.regular,
+    ...typography.body01.regular,
     textAlign: 'center',
   },
   amountExpression: {

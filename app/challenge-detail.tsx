@@ -422,10 +422,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   categoryName: {
-    ...typography.headline4.r.bold,
+    ...typography.headline04.bold,
   },
   progressLabel: {
-    ...typography.headline4.r.bold,
+    ...typography.headline04.bold,
   },
   progressBarBackground: {
     height: 10,
@@ -446,7 +446,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   amountLabel: {
-    ...typography.body2.r.medium,
+    ...typography.body02.medium,
   },
   amountValue: {
     ...typographyLayout.sectionTitle,
@@ -467,7 +467,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   emptyText: {
-    ...typography.body1.l.regular,
+    ...typography.body01.regular,
     marginTop: 12,
   },
   dateGroup: {
@@ -483,7 +483,7 @@ const styles = StyleSheet.create({
     width: 94,
   },
   dateText: {
-    ...typography.body2.r.medium,
+    ...typography.body02.medium,
   },
   itemContent: {
     flex: 1,
@@ -502,14 +502,14 @@ const styles = StyleSheet.create({
     flex: 6,
   },
   categoryText: {
-    ...typography.body2.r.bold,
+    ...typography.body02.bold,
   },
   amountContainer: {
     flex: 4,
     alignItems: 'flex-end',
   },
   amountText: {
-    ...typography.body2.r.bold,
+    ...typography.body02.bold,
     textAlign: 'right',
   },
   memoContainer: {
@@ -518,7 +518,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   memoText: {
-    ...typography.body2.r.regular,
+    ...typography.body02.regular,
     flex: 1,
   },
   itemDividerInset: {

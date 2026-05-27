@@ -6907,7 +6907,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: typographyLayout.sectionTitle,
   currentYearMonth: {
-    ...typography.body2.r.regular,
+    ...typography.body02.regular,
   },
   categoryInput: {
     // Input 컴포넌트가 자체 스타일을 가지고 있으므로 추가 스타일 불필요
@@ -6952,7 +6952,7 @@ const styles = StyleSheet.create({
     ...typographyLayout.fieldLine,
   },
   recurringCaption: {
-    ...typography.body2.r.regular,
+    ...typography.body02.regular,
     marginTop: 0,
   },
   divider: {
@@ -7118,25 +7118,25 @@ const styles = StyleSheet.create({
     ...typographyLayout.fieldLine,
   },
   paymentTypeSheetSubtitle: {
-    ...typography.body2.r.regular,
+    ...typography.body02.regular,
   },
   paymentTypeSheetDivider: {
     height: 1,
     marginHorizontal: 16,
   },
   paymentTypeSheetCashEmoji: {
-    ...typography.headline4.r.medium,
+    ...typography.headline04.medium,
   },
   paymentTypeSheetCashText: {
     ...typographyLayout.fieldLine,
     textDecorationLine: 'underline',
   },
   alertText: {
-    ...typography.body1.l.regular,
+    ...typography.body01.regular,
     textAlign: 'center',
   },
   weekendConfirmText: {
-    ...typography.body1.l.regular,
+    ...typography.body01.regular,
     textAlign: 'center',
   },
   // 새로운 스타일들
@@ -7145,7 +7145,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   installmentText: {
-    ...typography.body2.r.medium,
+    ...typography.body02.medium,
   },
   recurringAmountRow: {
     flexDirection: 'row',
@@ -7202,7 +7202,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   installmentAmountLabel: {
-    ...typography.body2.r.medium,
+    ...typography.body02.medium,
   },
   installmentAmountValue: {
     ...typographyLayout.sectionTitle,
@@ -7353,7 +7353,7 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
   deleteConfirmText: {
-    ...typography.body1.l.regular,
+    ...typography.body01.regular,
     textAlign: 'center',
   },
   // 정기 기록 삭제 옵션 모달 스타일
@@ -7361,7 +7361,7 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   deleteOptionsDescription: {
-    ...typography.body1.l.regular,
+    ...typography.body01.regular,
     textAlign: 'center',
   },
   recurringInfoCard: {
@@ -7385,7 +7385,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   recurringPeriod: {
-    ...typography.body2.r.regular,
+    ...typography.body02.regular,
   },
   settlementInfoCard: {
     borderRadius: 16,
