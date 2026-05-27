@@ -762,13 +762,13 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   label: {
-    ...typography.body1.l.bold,
+    ...typographyLayout.sectionTitle,
   },
   input: {
     marginTop: 0,
   },
   deleteText: {
-    ...typography.body1.l.regular,
+    ...typographyLayout.fieldLine,
     color: '#ef2a2a',
   },
   emojiPickerContent: {
@@ -805,7 +805,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#ededed',
   },
   categoryListItemText: {
-    ...typography.body1.l.regular,
+    ...typographyLayout.fieldLine,
     color: colors.light.text,
   },
   categoryListItemTextActive: {

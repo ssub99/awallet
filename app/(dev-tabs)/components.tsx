@@ -20,7 +20,7 @@ import { Selectbox } from '@/components/ui/selectbox';
 import { Switch } from '@/components/ui/switch';
 import { Tab } from '@/components/ui/tab';
 import { Tag } from '@/components/ui/tag';
-import { colors, typography, type ColorPalette } from '@/constants/theme';
+import { colors, typography, type ColorPalette, typographyLayout } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
@@ -2798,7 +2798,7 @@ const styles = StyleSheet.create({
     ...typography.body2.r.regular,
   },
   switchLabel: {
-    ...typography.body1.l.regular,
+    ...typographyLayout.fieldLine,
   },
   // Developer Mode Container
   devModeContainer: {

@@ -12,7 +12,7 @@ import { DatePicker } from '@/components/ui/date-picker';
 import { Icon } from '@/components/ui/icon';
 import { ModalBottomsheet, ModalBottomsheetBottomInset } from '@/components/ui/modal-bottomsheet';
 import { CONSUMPTION_REPORT_API_URL } from '@/constants/api';
-import { colors, typography, type ColorPalette } from '@/constants/theme';
+import { colors, typography, type ColorPalette, typographyLayout } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';
 import { useCreateSheetContext } from '@/contexts/create-sheet-context';
 import { useLoading } from '@/contexts/loading-context';
@@ -3068,7 +3068,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   periodText: {
-    ...typography.body1.l.bold,
+    ...typographyLayout.sectionTitle,
     textAlign: 'center',
   },
   monthArrowButton: {
@@ -3124,10 +3124,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   reportSubTabTextActive: {
-    ...typography.body1.l.bold,
+    ...typographyLayout.sectionTitle,
   },
   reportSubTabTextInactive: {
-    ...typography.body1.l.medium,
+    ...typographyLayout.fieldLineMedium,
   },
   reportSubTabIndicator: {
     position: 'absolute',
@@ -3196,7 +3196,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   reportMonthText: {
-    ...typography.body1.l.bold,
+    ...typographyLayout.sectionTitle,
   },
   reportScoreCard: {
     width: '100%',
@@ -3223,7 +3223,7 @@ const styles = StyleSheet.create({
     ...typography.headline1.xl.bold,
   },
   reportScoreUnit: {
-    ...typography.body1.l.bold,
+    ...typographyLayout.sectionTitle,
     marginLeft: 4,
   },
   reportScoreMessage: {
@@ -3343,11 +3343,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   trendCategoryName: {
-    ...typography.body1.l.bold,
+    ...typographyLayout.sectionTitle,
     flex: 1,
   },
   trendCategoryStats: {
-    ...typography.body1.l.bold,
+    ...typographyLayout.sectionTitle,
   },
   challengeList: {
     paddingHorizontal: 16,
@@ -3371,7 +3371,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   challengeCategoryName: {
-    ...typography.body1.l.bold,
+    ...typographyLayout.sectionTitle,
   },
   statusBadge: {
     borderRadius: 4,
@@ -3382,7 +3382,7 @@ const styles = StyleSheet.create({
     ...typography.detail.r.bold,
   },
   statusLabel: {
-    ...typography.body1.l.bold,
+    ...typographyLayout.sectionTitle,
   },
   progressContainer: {
     height: 10,
@@ -3410,7 +3410,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   amountValue: {
-    ...typography.body1.l.bold,
+    ...typographyLayout.sectionTitle,
   },
   trendPaymentFilterSheetContent: {
     padding: 0,
@@ -3448,7 +3448,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   trendPaymentFilterCashEmoji: {
-    ...typography.body1.l.regular,
+    ...typographyLayout.fieldLine,
   },
   trendPaymentFilterEmojiWrap: {
     width: 16,
@@ -3468,7 +3468,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   trendPaymentFilterTitle: {
-    ...typography.body1.l.regular,
+    ...typographyLayout.fieldLine,
   },
   trendPaymentFilterSubtitle: {
     ...typography.body2.r.regular,

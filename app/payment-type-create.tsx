@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Radio } from '@/components/ui/radio';
 import { atomicColors } from '@/constants/atomic-colors';
-import { colors, typography } from '@/constants/theme';
+import { colors, typography, typographyLayout } from '@/constants/theme';
 import { useToast } from '@/contexts/toast-context';
 import { loadPaymentSubtypes, savePaymentSubtypes } from '@/utils/payment-types';
 import {
@@ -427,7 +427,7 @@ const styles = StyleSheet.create({
     marginBottom: 32,
     gap: 8,
   },
-  label: { ...typography.body1.l.bold },
+  label: { ...typographyLayout.sectionTitle },
   radioRow: { flexDirection: 'row', alignItems: 'center' },
   radioCol: { flex: 1, alignItems: 'flex-start' },
 });

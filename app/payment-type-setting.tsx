@@ -3,7 +3,7 @@ import { Chip } from '@/components/ui/chip';
 import { Icon } from '@/components/ui/icon';
 import { Tag } from '@/components/ui/tag';
 import { themeColors } from '@/constants/theme-colors';
-import { typography } from '@/constants/typography';
+import { typography, typographyLayout } from '@/constants/typography';
 import {
     arePaymentSubtypesSame,
     DEFAULT_PAYMENT_SUBTYPES,
@@ -69,7 +69,7 @@ const styles = StyleSheet.create({
   paymentTypeIndicator: { width: 16, height: 16, borderRadius: 99, borderWidth: 1 },
   paymentTypeTextBlock: { flex: 1, marginLeft: 12 },
   paymentTypeTextBlockSingleLine: { justifyContent: 'center' },
-  paymentTypeTitle: { ...typography.body1.l.regular },
+  paymentTypeTitle: { ...typographyLayout.fieldLine },
   paymentTypeSubtitle: { ...typography.body2.r.regular },
   paymentTypeRight: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   divider: { height: 1, marginLeft: 16, marginRight: 16 },

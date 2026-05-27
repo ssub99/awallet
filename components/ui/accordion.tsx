@@ -5,8 +5,8 @@
  */
 
 import { Icon } from '@/components/ui/icon';
-import { colors, typography, type ColorPalette } from '@/constants/theme';
-import { singleRowCenteredTextStyle } from '@/constants/typography';
+import { colors, type ColorPalette } from '@/constants/theme';
+import { typographyLayout } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ReactNode, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
@@ -83,11 +83,9 @@ export function Accordion({
 
   const textStyle = useMemo(() => {
     if (disabled) {
-      return singleRowCenteredTextStyle(typography.button2.r.medium);
+      return typographyLayout.accordionTextDisabled;
     }
-    return singleRowCenteredTextStyle(
-      expanded ? typography.button2.r.regular : typography.button2.r.medium,
-    );
+    return expanded ? typographyLayout.accordionTextExpanded : typographyLayout.accordionTextCollapsed;
   }, [disabled, expanded]);
 
   const handlePress = () => {

@@ -9,8 +9,8 @@
  * - option: Used for option selection (borderRadius: 12)
  */
 
-import { colors, typography, type ColorPalette } from '@/constants/theme';
-import { singleRowCenteredTextStyle } from '@/constants/typography';
+import { colors, type ColorPalette } from '@/constants/theme';
+import { typographyLayout } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Pressable, StyleSheet, Text, ViewStyle } from 'react-native';
 
@@ -153,15 +153,15 @@ const styles = StyleSheet.create({
     // height can be overridden via style prop
   },
   textActive: {
-    ...singleRowCenteredTextStyle(typography.body2.r.bold),
+    ...typographyLayout.chipTextActive,
     textAlign: 'center',
   },
   textDefault: {
-    ...singleRowCenteredTextStyle(typography.body2.r.medium),
+    ...typographyLayout.chipTextDefault,
     textAlign: 'center',
   },
   textDisabled: {
-    ...singleRowCenteredTextStyle(typography.body2.r.medium),
+    ...typographyLayout.chipTextDefault,
     textAlign: 'center',
   },
 });

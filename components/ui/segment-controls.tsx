@@ -11,8 +11,8 @@
  */
 
 import { atomicColors } from '@/constants/atomic-colors';
-import { colors, typography, type ColorPalette } from '@/constants/theme';
-import { singleRowCenteredTextStyle } from '@/constants/typography';
+import { colors, type ColorPalette } from '@/constants/theme';
+import { typographyLayout } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import type { TextStyle, ViewStyle } from 'react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -94,17 +94,13 @@ export function SegmentControls({
 
   // Size-based typography
   const baseTextStyle: TextStyle = {
-    ...singleRowCenteredTextStyle(
-      size === 'small' ? typography.body2.r.regular : typography.body1.l.regular,
-    ),
+    ...(size === 'small' ? typographyLayout.segmentSmallRegular : typographyLayout.segmentLargeRegular),
     textAlign: 'center',
     color: palette.textAssistive,
   };
 
   const activeTextStyle: TextStyle = {
-    ...singleRowCenteredTextStyle(
-      size === 'small' ? typography.body2.r.bold : typography.body1.l.bold,
-    ),
+    ...(size === 'small' ? typographyLayout.segmentSmallBold : typographyLayout.segmentLargeBold),
     color: palette.primaryHeavy,
   };
 

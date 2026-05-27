@@ -10,7 +10,7 @@ import { Icon } from '@/components/ui/icon';
 import { Switch } from '@/components/ui/switch';
 import { getAppStoreWriteReviewUrl } from '@/constants/app-store';
 import { themeColors } from '@/constants/theme-colors';
-import { typography } from '@/constants/typography';
+import { typography, typographyLayout } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { monthStartEvent } from '@/hooks/use-month-start';
@@ -506,7 +506,7 @@ const styles = StyleSheet.create({
     height: 56,
   },
   settingLabel: {
-    ...typography.body1.l.regular,
+    ...typographyLayout.fieldLine,
   },
   settingValue: {
     flexDirection: 'row',
@@ -514,7 +514,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   settingValueText: {
-    ...typography.body1.l.regular,
+    ...typographyLayout.fieldLine,
   },
 
   // Menu Row
@@ -535,6 +535,6 @@ const styles = StyleSheet.create({
     minHeight: 58,
   },
   menuLabel: {
-    ...typography.body1.l.regular,
+    ...typographyLayout.fieldLine,
   },
 });

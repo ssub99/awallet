@@ -1,6 +1,6 @@
 /**
  * Input field typography & layout presets (48px line, 96px area).
- * Composes tokens from merge · variants · typography-tree.
+ * Composes tokens from merge · typography-tree.
  */
 
 import { Platform, type TextStyle, type ViewStyle } from 'react-native';
@@ -10,13 +10,19 @@ import { pretendardTextStyle } from '@/constants/fonts';
 import {
   androidTextMetrics,
   getFieldInputLineHeight,
+  getPlatformTypographySizes,
+  singleRowCenteredTextStyle,
   typographyLayoutFieldAreaInputHeight,
   typographyLayoutFieldLineRowHeight,
   typographyLayoutFieldLineShortMinHeight,
-  typographyScale,
 } from './merge';
 import { typography } from './typography-tree';
-import { singleRowCenteredTextStyle } from './variants';
+
+const body01FontSize = getPlatformTypographySizes('body01').fontSize;
+
+const fieldLineTextMetrics: Pick<TextStyle, 'includeFontPadding'> = {
+  includeFontPadding: false,
+};
 
 const fieldLineSingleLineBase = singleRowCenteredTextStyle(typography.body1.l.regular);
 const fieldLineSingleLineBoldBase = singleRowCenteredTextStyle(typography.body1.l.bold);
@@ -28,7 +34,7 @@ const fieldLineSingleLineBoldBase = singleRowCenteredTextStyle(typography.body1.
  */
 const iosFieldLineInputStyle: TextStyle = {
   ...pretendardTextStyle('400'),
-  fontSize: typographyScale.body01.ios.fontSize,
+  fontSize: body01FontSize,
   lineHeight: getFieldInputLineHeight('line'),
   padding: 0,
   margin: 0,
@@ -38,19 +44,14 @@ const iosFieldLineInputStyle: TextStyle = {
   textAlignVertical: 'center',
 };
 
-const iosFieldLineTextMetrics = Platform.select<TextStyle>({
-  ios: { includeFontPadding: false },
-  default: { includeFontPadding: false },
-});
-
 const fieldLineSingleLine: TextStyle = {
   ...fieldLineSingleLineBase,
-  ...iosFieldLineTextMetrics,
+  ...fieldLineTextMetrics,
 };
 
 const fieldLineSingleLineBold: TextStyle = {
   ...fieldLineSingleLineBoldBase,
-  ...iosFieldLineTextMetrics,
+  ...fieldLineTextMetrics,
 };
 
 export const lineFieldRowText: TextStyle = fieldLineSingleLine;
@@ -71,7 +72,7 @@ export const inputTypographyLayout = {
   fieldLineShortWrap: lineFieldRowTextShortWrap,
   fieldLineShort: {
     ...singleRowCenteredTextStyle(typography.body2.r.regular),
-    ...iosFieldLineTextMetrics,
+    ...fieldLineTextMetrics,
   } satisfies TextStyle,
   fieldArea: {
     ...typography.body1.l.regular,
@@ -96,20 +97,12 @@ export const inputTypographyLayout = {
     padding: 0,
     margin: 0,
     textAlignVertical: 'center' as const,
-    ...Platform.select({
-      ios: {
-        height: typographyLayoutFieldLineShortMinHeight,
-        includeFontPadding: false,
-      },
-      default: {
-        height: typographyLayoutFieldLineShortMinHeight,
-        includeFontPadding: false,
-      },
-    }),
+    height: typographyLayoutFieldLineShortMinHeight,
+    includeFontPadding: false,
   } satisfies TextStyle,
   fieldAreaInput: {
     ...pretendardTextStyle('400'),
-    fontSize: typographyScale.body01.ios.fontSize,
+    fontSize: body01FontSize,
     lineHeight: getFieldInputLineHeight('area'),
     ...androidTextMetrics(),
     flex: 1,
@@ -117,10 +110,7 @@ export const inputTypographyLayout = {
     margin: 0,
     height: typographyLayoutFieldAreaInputHeight,
     textAlignVertical: 'top' as const,
-    ...Platform.select({
-      ios: { paddingTop: 0 },
-      default: { paddingTop: 0 },
-    }),
+    paddingTop: 0,
   } satisfies TextStyle,
   fieldNumber: {
     ...fieldLineSingleLineBold,

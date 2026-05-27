@@ -8,7 +8,7 @@
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Icon } from '@/components/ui/icon';
 import { themeColors } from '@/constants/theme-colors';
-import { typography } from '@/constants/typography';
+import { typography, typographyLayout } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { monthStartEvent } from '@/hooks/use-month-start';
 import {
@@ -416,7 +416,7 @@ const styles = StyleSheet.create({
     minHeight: 56,
   },
   dayText: {
-    ...typography.body1.l.regular,
+    ...typographyLayout.fieldLine,
   },
   divider: {
     height: 1,

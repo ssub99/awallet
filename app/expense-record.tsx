@@ -6949,7 +6949,7 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   switchLabel: {
-    ...typography.body1.l.regular,
+    ...typographyLayout.fieldLine,
   },
   recurringCaption: {
     ...typography.body2.r.regular,
@@ -7038,7 +7038,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   paymentTypeStickyLabel: {
-    ...typography.body1.l.bold,
+    ...typographyLayout.sectionTitle,
   },
   paymentTypeStickyControls: {
     width: 200,
@@ -7115,7 +7115,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   paymentTypeSheetTitle: {
-    ...typography.body1.l.regular,
+    ...typographyLayout.fieldLine,
   },
   paymentTypeSheetSubtitle: {
     ...typography.body2.r.regular,
@@ -7128,7 +7128,7 @@ const styles = StyleSheet.create({
     ...typography.headline4.r.medium,
   },
   paymentTypeSheetCashText: {
-    ...typography.body1.l.regular,
+    ...typographyLayout.fieldLine,
     textDecorationLine: 'underline',
   },
   alertText: {
@@ -7169,7 +7169,7 @@ const styles = StyleSheet.create({
     width: 100,
   },
   periodSelectText: {
-    ...typography.body1.l.medium,
+    ...typographyLayout.fieldLineMedium,
   },
   periodSelectInput: {
     width: 100,
@@ -7205,7 +7205,7 @@ const styles = StyleSheet.create({
     ...typography.body2.r.medium,
   },
   installmentAmountValue: {
-    ...typography.body1.l.bold,
+    ...typographyLayout.sectionTitle,
   },
   // 정기 지출 날짜 선택 스타일
   recurringDateContainer: {
@@ -7221,7 +7221,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   recurringDateLabel: {
-    ...typography.body1.l.regular,
+    ...typographyLayout.fieldLine,
   },
   recurringDateRight: {
     flexDirection: 'row',
@@ -7233,11 +7233,11 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   dayPickerText: {
-    ...typography.body1.l.regular,
+    ...typographyLayout.fieldLine,
   },
   // 소비 정보 카드 스타일
   deleteText: {
-    ...typography.body1.l.regular,
+    ...typographyLayout.fieldLine,
     textDecorationLine: 'underline',
   },
   expenseInfoCard: {
@@ -7280,7 +7280,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   prepaymentRefundLabel: {
-    ...typography.body1.l.regular,
+    ...typographyLayout.fieldLine,
     flexShrink: 1,
   },
   prepaymentRefundActions: {
@@ -7293,7 +7293,7 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
   },
   prepaymentRefundText: {
-    ...typography.body1.l.regular,
+    ...typographyLayout.fieldLine,
     textDecorationLine: 'underline',
   },
   settlementDropdownMenuContainer: {
@@ -7375,10 +7375,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   recurringCategory: {
-    ...typography.body1.l.bold,
+    ...typographyLayout.sectionTitle,
   },
   recurringAmount: {
-    ...typography.body1.l.bold,
+    ...typographyLayout.sectionTitle,
   },
   recurringPeriodRow: {
     flexDirection: 'row',
@@ -7427,10 +7427,10 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   deleteOptionTitle: {
-    ...typography.body1.l.medium,
+    ...typographyLayout.fieldLineMedium,
   },
   deleteOptionDescription: {
-    ...typography.body1.l.regular,
+    ...typographyLayout.fieldLine,
   },
   deleteOptionDivider: {
     height: 1,

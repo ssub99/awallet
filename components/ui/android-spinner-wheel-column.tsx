@@ -3,7 +3,7 @@
  */
 
 import { colors, type ColorPalette } from '@/constants/theme';
-import { typography } from '@/constants/typography';
+import { typographyLayout } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { resolvePickerValue } from '@/utils/android-date-picker';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -209,11 +209,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   itemText: {
-    ...typography.body1.l.regular,
+    ...typographyLayout.spinnerWheelItemRegular,
     textAlign: 'center',
   },
   itemTextSelected: {
-    ...typography.body1.l.bold,
+    ...typographyLayout.spinnerWheelItemBold,
     textAlign: 'center',
   },
 });

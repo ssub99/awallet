@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { ModalPopup } from '@/components/ui/modal-popup';
 import { Radio } from '@/components/ui/radio';
 import { atomicColors } from '@/constants/atomic-colors';
-import { colors, typography } from '@/constants/theme';
+import { colors, typography, typographyLayout } from '@/constants/theme';
 import { useToast } from '@/contexts/toast-context';
 import { getAllExpenses } from '@/utils/expenses';
 import {
@@ -609,9 +609,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  label: { ...typography.body1.l.bold },
+  label: { ...typographyLayout.sectionTitle },
   deleteText: {
-    ...typography.body1.l.regular,
+    ...typographyLayout.fieldLine,
     color: colors.light.statusNegative,
   },
   // 피그마: 신용(좌) / 체크(우)로 고정 배치

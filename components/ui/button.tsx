@@ -13,7 +13,7 @@
  */
 
 import { colors, type ColorPalette } from '@/constants/theme';
-import { singleRowCenteredTextStyle, typography } from '@/constants/typography';
+import { typographyLayout } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ActivityIndicator, Platform, Pressable, PressableProps, StyleSheet, Text, TextStyle, View, ViewStyle } from 'react-native';
 
@@ -299,11 +299,11 @@ const styles = StyleSheet.create({
     minWidth: 48,
   },
   textLarge: {
-    ...singleRowCenteredTextStyle(typography.button1.l.medium),
+    ...typographyLayout.buttonTextLarge,
     textAlign: 'center',
   },
   textSmall: {
-    ...singleRowCenteredTextStyle(typography.button2.r.medium),
+    ...typographyLayout.buttonTextSmall,
     textAlign: 'center',
   },
   spinnerOverlay: {

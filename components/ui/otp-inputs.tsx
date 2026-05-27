@@ -1,5 +1,5 @@
 import { colors, type ColorPalette } from '@/constants/theme';
-import { typography, singleRowCenteredTextStyle } from '@/constants/typography';
+import { typography, typographyLayout } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, TextInputProps, View } from 'react-native';
@@ -177,7 +177,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
     paddingTop: 0,
     paddingBottom: 0,
-    ...singleRowCenteredTextStyle(typography.headline3.m.bold),
+    ...typographyLayout.otpDigit,
     textAlignVertical: 'center',
   },
   errorText: {

@@ -15,7 +15,7 @@ import { Switch } from '@/components/ui/switch';
 import { atomicColors } from '@/constants/atomic-colors';
 import { type Category } from '@/constants/categories';
 import { colors, typography, type ColorPalette } from '@/constants/theme';
-import { typographyLayout, lineFieldRowText, lineFieldRowTextWrap } from '@/constants/typography';
+import { typographyLayout } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
 import { useToast } from '@/contexts/toast-context';
 import { useAndroidKeypadBackDismiss } from '@/hooks/use-android-keypad-back-dismiss';
@@ -701,8 +701,8 @@ export default function ChallengeEditScreen() {
                 <View style={styles.yearMonthRow}>
                   <View style={styles.yearMonthLeft}>
                     <Icon name="calendarMonth" variant="line" size={24} color="#bdbdbd" />
-                    <View style={lineFieldRowTextWrap}>
-                      <Text style={[lineFieldRowText, { color: '#bdbdbd' }]}>
+                    <View style={typographyLayout.fieldLineWrap}>
+                      <Text style={[typographyLayout.fieldLine, { color: '#bdbdbd' }]}>
                         {(() => {
                           if (!startDate) return '';
                           const [year, month] = startDate.split('.');
@@ -781,8 +781,8 @@ export default function ChallengeEditScreen() {
                       시작 년월 부터 반복할 개월 수
                     </Text>
                     <View style={styles.monthPickerValue}>
-                      <View style={lineFieldRowTextWrap}>
-                        <Text style={[lineFieldRowText, { color: '#bdbdbd' }]}>
+                      <View style={typographyLayout.fieldLineWrap}>
+                        <Text style={[typographyLayout.fieldLine, { color: '#bdbdbd' }]}>
                           {recurringCount}개월
                         </Text>
                       </View>
@@ -906,7 +906,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: typographyLayout.sectionTitle,
   deleteText: {
-    ...typography.body1.l.regular,
+    ...typographyLayout.fieldLine,
     textDecorationLine: 'underline',
   },
   challengeInfoCard: {
@@ -957,7 +957,7 @@ const styles = StyleSheet.create({
     ...typography.body2.r.medium,
   },
   amountValue: {
-    ...typography.body1.l.bold,
+    ...typographyLayout.sectionTitle,
   },
   disabledCard: {
     borderRadius: 12,
@@ -965,7 +965,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(144, 146, 158, 0.16)',
   },
   disabledText: {
-    ...typography.body1.l.regular,
+    ...typographyLayout.fieldLine,
   },
   yearMonthRow: {
     flexDirection: 'row',
@@ -989,7 +989,7 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   switchLabel: {
-    ...typography.body1.l.regular,
+    ...typographyLayout.fieldLine,
   },
   recurringCaption: {
     ...typography.body2.r.regular,

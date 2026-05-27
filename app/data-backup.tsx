@@ -426,7 +426,7 @@ const styles = StyleSheet.create({
     minHeight: 56,
   },
   menuLabel: {
-    ...typography.body1.l.regular,
+    ...typographyLayout.fieldLine,
   },
   divider: {
     height: 1,

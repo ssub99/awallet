@@ -6,8 +6,8 @@
  */
 
 import { Icon } from '@/components/ui/icon';
-import { colors, typography, type ColorPalette } from '@/constants/theme';
-import { singleRowCenteredTextStyle } from '@/constants/typography';
+import { colors, type ColorPalette } from '@/constants/theme';
+import { typographyLayout } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
 
@@ -136,11 +136,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   label: {
-    ...singleRowCenteredTextStyle(typography.body2.r.medium),
+    ...typographyLayout.checkboxLabel,
     marginLeft: 8,
   },
   requiredMark: {
-    ...singleRowCenteredTextStyle(typography.body2.r.medium),
+    ...typographyLayout.checkboxLabel,
   },
 });
 

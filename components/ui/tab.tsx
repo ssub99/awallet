@@ -5,8 +5,8 @@
  * Supports multiple tabs with active indicator.
  */
 
-import { colors, typography, type ColorPalette } from '@/constants/theme';
-import { singleRowCenteredTextStyle } from '@/constants/typography';
+import { colors, type ColorPalette } from '@/constants/theme';
+import { typographyLayout } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Pressable, ScrollView, StyleSheet, Text, View, ViewStyle } from 'react-native';
 
@@ -173,11 +173,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   tabTextActive: {
-    ...singleRowCenteredTextStyle(typography.body1.l.bold),
+    ...typographyLayout.tabTextActive,
     textAlign: 'center',
   },
   tabTextDefault: {
-    ...singleRowCenteredTextStyle(typography.body1.l.medium),
+    ...typographyLayout.tabTextInactive,
     textAlign: 'center',
   },
   indicator: {

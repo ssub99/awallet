@@ -1,4 +1,4 @@
-import { createTypographyStyle } from './create-style';
+import { createTypographyStyle } from './merge';
 
 const FONT_WEIGHTS = {
   bold: '700' as const,

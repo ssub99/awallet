@@ -6,7 +6,7 @@
 
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Tag } from '@/components/ui/tag';
-import { colors, typography, type ColorPalette } from '@/constants/theme';
+import { colors, typography, type ColorPalette, typographyLayout } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';
 import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -434,7 +434,7 @@ const styles = StyleSheet.create({
     ...typography.body2.r.medium,
   },
   statValue: {
-    ...typography.body1.l.bold,
+    ...typographyLayout.sectionTitle,
   },
   emptyContainer: {
     flex: 1,

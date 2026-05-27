@@ -22,9 +22,13 @@ description: Design system implementation and development best practices
   - Check Static colors (e.g., `Semantic/Static/Black` → `colors.staticBlack`)
   - Check Atomic colors if needed
 
-- **typography**: Use [constants/typography/](mdc:constants/typography/)
-  - Check typography system (e.g., `body01/l_16/bold` → `typography.body1.l.bold`)
-  - Never hardcode font sizes, weights, or line heights
+- **typography**: Use [constants/typography/](mdc:constants/typography/) — 3 layers
+  1. Tokens (`typography.base` / `.ios` / `.android`) — numbers only, no screen import
+  2. Runtime (`merge.ts`: `typographyScale`, `getPlatformTypographySizes`, helpers)
+  3. Presets — `typography.*` (multi-line paragraph), `typographyLayout.*` (single-row UI, Input)
+  - Single-row labels/rows → `typographyLayout.fieldLine` / `sectionTitle` / component presets (`buttonTextLarge`, …)
+  - Do not call `singleRowCenteredTextStyle` outside `constants/typography/`
+  - Never hardcode font sizes, weights, or line heights in `app/` or `components/`
 
 - **Spacing**: Use design system spacing values
   - Check if spacing tokens are defined

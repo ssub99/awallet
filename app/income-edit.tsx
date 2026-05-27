@@ -1073,7 +1073,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   deleteButton: {
-    ...typography.body1.l.regular,
+    ...typographyLayout.fieldLine,
     textDecorationLine: 'underline',
   },
   card: {
@@ -1089,7 +1089,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   dateText: {
-    ...typography.body1.l.regular,
+    ...typographyLayout.fieldLine,
   },
   bottomButtonContainer: {
     paddingHorizontal: 16,

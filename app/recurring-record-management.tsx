@@ -9,7 +9,7 @@ import { Icon } from '@/components/ui/icon';
 import { ModalPopup } from '@/components/ui/modal-popup';
 import { atomicColors } from '@/constants/atomic-colors';
 import { themeColors } from '@/constants/theme-colors';
-import { typography } from '@/constants/typography';
+import { typography, typographyLayout } from '@/constants/typography';
 import { useAppData } from '@/contexts/app-data-context';
 import { useLoading } from '@/contexts/loading-context';
 import { useToast } from '@/contexts/toast-context';
@@ -432,7 +432,7 @@ export default function RecurringRecordManagementScreen() {
         <Text style={[styles.deleteConfirmText, { color: colors.textNeutral }]}>
           {pendingDelete ? (
             <>
-              <Text style={typography.body1.l.bold}>{pendingDelete.categoryDisplay}</Text>
+              <Text style={typographyLayout.sectionTitle}>{pendingDelete.categoryDisplay}</Text>
               {'에\n포함된 반복 기록은 전부 삭제됩니다.\n삭제를 진행하시겠어요?'}
             </>
           ) : null}
@@ -468,7 +468,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   yearText: {
-    ...typography.body1.l.bold,
+    ...typographyLayout.sectionTitle,
   },
   bodyArea: {
     flex: 1,
@@ -514,11 +514,11 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   categoryText: {
-    ...typography.body1.l.bold,
+    ...typographyLayout.sectionTitle,
     flex: 1,
   },
   amountText: {
-    ...typography.body1.l.bold,
+    ...typographyLayout.sectionTitle,
   },
   infoBody: {
     gap: 2,

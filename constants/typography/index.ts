@@ -1,7 +1,7 @@
 /**
  * Typography system — design tokens (typography) + context layout (typographyLayout).
  *
- * Platform tokens: typography.base · typography.ios · typography.android → merge.ts
+ * Platform tokens: typography.base · typography.ios · typography.android → merge.ts (internal)
  *
  * @example
  * ```tsx
@@ -11,32 +11,18 @@
  */
 
 export type { TypographyScaleKey } from './typography.base';
-export { typographyBase } from './typography.base';
-export { typographyIos } from './typography.ios';
-export { typographyAndroid } from './typography.android';
 
 export type { SingleRowScaleKey, TypoSize, TypographyScaleEntry } from './merge';
 export {
-  androidTextMetrics,
-  getFieldInputLineHeight,
-  getSingleRowLineHeight,
+  getPlatformTypographySizes,
   typographyLayoutFieldAreaInputHeight,
-  typographyLayoutFieldAreaLineHeightIos,
   typographyLayoutFieldLineRowHeight,
   typographyLayoutFieldLineShortMinHeight,
   typographyScale,
 } from './merge';
 
-export { createTypographyStyle } from './create-style';
-export { singleRowCenteredTextStyle } from './variants';
 export { typography } from './typography-tree';
 export { typographyLayout } from './layout';
-
-export {
-  lineFieldRowText,
-  lineFieldRowTextShortWrap,
-  lineFieldRowTextWrap,
-} from './layout-input';
 
 export type FontWeight = 'bold' | 'medium' | 'regular';
 export type SizeCategory = 'xl' | 'l' | 'm' | 'r';

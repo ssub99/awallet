@@ -167,7 +167,7 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   switchLabel: {
-    ...typography.body1.l.regular,
+    ...typographyLayout.fieldLine,
   },
   recurringCaption: {
     ...typography.body2.r.regular,

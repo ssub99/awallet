@@ -7,7 +7,7 @@
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Icon } from '@/components/ui/icon';
 import { getCategoriesByType, type Category } from '@/constants/categories';
-import { colors, typography, type ColorPalette } from '@/constants/theme';
+import { colors, typography, type ColorPalette, typographyLayout } from '@/constants/theme';
 import { useToast } from '@/contexts/toast-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { logEvent } from '@/utils/analytics';
@@ -351,7 +351,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   categoryLabel: {
-    ...typography.body1.l.regular,
+    ...typographyLayout.fieldLine,
   },
   checkIcon: {
     width: 24,

@@ -5,8 +5,8 @@
  * Supports checked/unchecked states with optional label.
  */
 
-import { colors, typography, type ColorPalette } from '@/constants/theme';
-import { singleRowCenteredTextStyle } from '@/constants/typography';
+import { colors, type ColorPalette } from '@/constants/theme';
+import { typographyLayout } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
 
@@ -138,7 +138,7 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   label: {
-    ...singleRowCenteredTextStyle(typography.body2.r.medium),
+    ...typographyLayout.radioLabel,
     marginLeft: 8,
   },
 });

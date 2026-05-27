@@ -20,7 +20,7 @@ import {
     CHALLENGE_RECURRING_MONTH_MIN,
 } from '@/constants/challenge-recurring-months';
 import { colors, typography, type ColorPalette } from '@/constants/theme';
-import { typographyLayout, lineFieldRowText, lineFieldRowTextWrap } from '@/constants/typography';
+import { typographyLayout } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
 import { useToast } from '@/contexts/toast-context';
 import { useAndroidKeypadBackDismiss } from '@/hooks/use-android-keypad-back-dismiss';
@@ -580,8 +580,8 @@ export default function ChallengeCreateScreen() {
                 <View style={styles.yearMonthRow}>
                   <View style={styles.yearMonthLeft}>
                     <Icon name="calendarMonth" variant="line" size={24} color={palette.text} />
-                    <View style={lineFieldRowTextWrap}>
-                      <Text style={[lineFieldRowText, { color: palette.text }]}>
+                    <View style={typographyLayout.fieldLineWrap}>
+                      <Text style={[typographyLayout.fieldLine, { color: palette.text }]}>
                         {startYear}.{String(startMonth).padStart(2, '0')}
                       </Text>
                     </View>
@@ -671,8 +671,8 @@ export default function ChallengeCreateScreen() {
                       시작 년월 부터 반복할 개월 수
                     </Text>
                     <View style={styles.monthPickerValue}>
-                      <View style={lineFieldRowTextWrap}>
-                        <Text style={[lineFieldRowText, { color: palette.textAssistive }]}>
+                      <View style={typographyLayout.fieldLineWrap}>
+                        <Text style={[typographyLayout.fieldLine, { color: palette.textAssistive }]}>
                           {recurringMonths}개월
                         </Text>
                       </View>
@@ -840,7 +840,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   categoryText: {
-    ...typography.body1.l.regular,
+    ...typographyLayout.fieldLine,
   },
   yearMonthRow: {
     flexDirection: 'row',
@@ -864,7 +864,7 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   switchLabel: {
-    ...typography.body1.l.regular,
+    ...typographyLayout.fieldLine,
   },
   recurringCaption: {
     ...typography.body2.r.regular,
@@ -878,7 +878,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   monthPickerPlaceholder: {
-    ...typography.body1.l.regular,
+    ...typographyLayout.fieldLine,
   },
   monthPickerValue: {
     flexDirection: 'row',

@@ -8,7 +8,7 @@ import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Icon } from '@/components/ui/icon';
 import { ModalBottomsheet, ModalBottomsheetBottomInset } from '@/components/ui/modal-bottomsheet';
 import { Tag } from '@/components/ui/tag';
-import { colors, typography, type ColorPalette } from '@/constants/theme';
+import { colors, typography, type ColorPalette, typographyLayout } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';
 import {
   publishCalendarTarget,
@@ -1707,7 +1707,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   summaryMonth: {
-    ...typography.body1.l.bold,
+    ...typographyLayout.sectionTitle,
   },
   summaryAmounts: {
     flexDirection: 'row',
@@ -1721,7 +1721,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   summaryIncome: {
-    ...typography.body1.l.bold,
+    ...typographyLayout.sectionTitle,
   },
   summaryDivider: {
     width: 1,
@@ -1732,7 +1732,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   summaryExpense: {
-    ...typography.body1.l.bold,
+    ...typographyLayout.sectionTitle,
   },
   summaryBottomDivider: {
     height: 1,
@@ -1861,11 +1861,11 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   categoryName: {
-    ...typography.body1.l.bold,
+    ...typographyLayout.sectionTitle,
     flex: 1,
   },
   categoryStatsText: {
-    ...typography.body1.l.bold,
+    ...typographyLayout.sectionTitle,
   },
   categorySeparator: {
     height: 1,
@@ -1908,7 +1908,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   challengeCategoryName: {
-    ...typography.body1.l.bold,
+    ...typographyLayout.sectionTitle,
   },
   challengeStatus: {
     flexDirection: 'row',
@@ -1924,7 +1924,7 @@ const styles = StyleSheet.create({
     ...typography.detail.r.bold,
   },
   statusLabel: {
-    ...typography.body1.l.bold,
+    ...typographyLayout.sectionTitle,
   },
   progressContainer: {
     height: 10,
@@ -1952,7 +1952,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   amountValue: {
-    ...typography.body1.l.bold,
+    ...typographyLayout.sectionTitle,
   },
   paymentFilterSheetContent: {
     padding: 0,
@@ -1989,7 +1989,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   paymentFilterCashEmoji: {
-    ...typography.body1.l.regular,
+    ...typographyLayout.fieldLine,
   },
   paymentFilterEmojiWrap: {
     width: 16,
@@ -2008,7 +2008,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   paymentFilterTitle: {
-    ...typography.body1.l.regular,
+    ...typographyLayout.fieldLine,
   },
   paymentFilterSubtitle: {
     ...typography.body2.r.regular,

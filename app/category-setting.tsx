@@ -10,7 +10,7 @@ import { Icon } from '@/components/ui/icon';
 import { getCategoriesByType, type CategoryType } from '@/constants/categories';
 import { areCategoriesSame, loadCategories } from '@/utils/categories';
 import { themeColors } from '@/constants/theme-colors';
-import { typography } from '@/constants/typography';
+import { typography, typographyLayout } from '@/constants/typography';
 import {
   applySavedOrder,
   getOrderedCategoriesFromCache,
@@ -77,7 +77,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   categoryLabel: {
-    ...typography.body1.l.regular,
+    ...typographyLayout.fieldLine,
   },
   divider: {
     height: 1,

@@ -12,14 +12,10 @@ export const colors = themeColors;
 
 export {
   typography,
-  typographyScale,
   typographyLayout,
   typographyLayoutFieldAreaInputHeight,
   typographyLayoutFieldLineRowHeight,
   typographyLayoutFieldLineShortMinHeight,
-  singleRowCenteredTextStyle,
-  lineFieldRowText,
-  lineFieldRowTextWrap,
 } from './typography';
 
 export type { FontWeight, SizeCategory } from './typography';

@@ -1,8 +1,10 @@
 /**
- * base + ios + android → typographyScale 및 플랫폼 조회 API.
+ * base + ios + android → typographyScale, 플랫폼 조회 API, paragraph·singleRow 스타일 팩토리.
  */
 
 import { Platform, type TextStyle } from 'react-native';
+
+import { pretendardTextStyle, type PretendardWeight } from '@/constants/fonts';
 
 import { typographyAndroid } from './typography.android';
 import { typographyBase, type TypographyScaleKey } from './typography.base';
@@ -44,6 +46,12 @@ function buildTypographyScale(): Record<TypographyScaleKey, TypographyScaleEntry
 }
 
 export const typographyScale = buildTypographyScale();
+
+/** scaleKey → 현재 플랫폼 fontSize/lineHeight (paragraph 메트릭) */
+export function getPlatformTypographySizes(scaleKey: TypographyScaleKey): TypoSize {
+  const entry = typographyScale[scaleKey];
+  return Platform.OS === 'android' ? entry.android : entry.ios;
+}
 
 /** 48px line 필드 내부 텍스트 행 높이 (content 24) */
 export const typographyLayoutFieldLineRowHeight = typographyBase.layout.fieldLineRowHeight;
@@ -93,4 +101,30 @@ export function getFieldInputLineHeight(
     return typographyAndroid.fieldInput[variant][scaleKey];
   }
   return typographyIos.fieldInput[variant][scaleKey];
+}
+
+/** paragraph TextStyle (OS별 fontSize/lineHeight + Pretendard) */
+export function createTypographyStyle(scale: TypographyScaleKey, weight: PretendardWeight): TextStyle {
+  const sizes =
+    Platform.OS === 'android' ? typographyScale[scale].android : typographyScale[scale].ios;
+  return {
+    ...pretendardTextStyle(weight),
+    fontSize: sizes.fontSize,
+    lineHeight: sizes.lineHeight,
+    ...androidTextMetrics(),
+  };
+}
+
+/** 고정 높이 행 — transform 제거 + OS별 singleRow lineHeight */
+export function singleRowCenteredTextStyle(style: TextStyle): TextStyle {
+  const fontSize = typeof style.fontSize === 'number' ? style.fontSize : 16;
+  const designLineHeight =
+    typeof style.lineHeight === 'number' ? style.lineHeight : fontSize;
+  const { transform: _transform, ...rest } = style;
+  const lineHeight = getSingleRowLineHeight(fontSize, designLineHeight);
+  return {
+    ...rest,
+    lineHeight,
+    ...(Platform.OS === 'android' ? { includeFontPadding: false } : null),
+  };
 }

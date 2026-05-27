@@ -5,7 +5,7 @@
 import { computeUnifiedSingleLineFontSize } from '@/components/ui/auto-shrink-single-line-text';
 import { atomicColors } from '@/constants/atomic-colors';
 import { colors, typography, type ColorPalette } from '@/constants/theme';
-import { singleRowCenteredTextStyle } from '@/constants/typography';
+import { typographyLayout } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { memo, useCallback, useMemo, useState } from 'react';
 import { LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -168,7 +168,7 @@ const styles = StyleSheet.create({
     overflow: 'visible',
   },
   monthStatusLabel: {
-    ...singleRowCenteredTextStyle(typography.detail.r.medium),
+    ...typographyLayout.monthStatusLabel,
     ...monthStatusCenteredText,
   },
   monthStatusDivider: {
