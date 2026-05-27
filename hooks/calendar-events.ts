@@ -88,3 +88,16 @@ export async function publishCalendarTargetAsync(target: PendingCalendarTarget):
   applyPendingCalendarTargetEvent.emit(target);
   await persistPendingCalendarTarget(target);
 }
+
+/** 타임라인 수정 저장 후 복귀 시 포커스 (router.back 전에 설정, focus에서 consume) */
+let pendingTimelineReturnFocus: PendingCalendarTarget | null = null;
+
+export function setPendingTimelineReturnFocus(target: PendingCalendarTarget): void {
+  pendingTimelineReturnFocus = target;
+}
+
+export function consumePendingTimelineReturnFocus(): PendingCalendarTarget | null {
+  const target = pendingTimelineReturnFocus;
+  pendingTimelineReturnFocus = null;
+  return target;
+}

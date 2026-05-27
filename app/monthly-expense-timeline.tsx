@@ -12,6 +12,7 @@ import { UiLineText } from '@/components/ui/ui-line-text';
 import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';
 import {
+  consumePendingTimelineReturnFocus,
   publishCalendarTarget,
   publishCalendarTargetAsync,
   type PendingCalendarTarget,
@@ -483,6 +484,28 @@ export default function MonthlyExpenseTimelineScreen() {
   const dateSectionLayoutsRef = useRef<Map<string, { top: number; height: number }>>(new Map());
   /** 날짜 탭/초기 진입 시 타임라인 스크롤 필요 */
   const shouldScrollTimelineToDateRef = useRef(false);
+
+  // 소비 수정 저장 후 복귀: 날짜·월 포커스 (navigation.reset 대신 router.back)
+  useFocusEffect(
+    useCallback(() => {
+      const target = consumePendingTimelineReturnFocus();
+      if (!target) {
+        return;
+      }
+      const { year: targetYear, month: targetMonth, targetDate } = target;
+      if (targetYear !== year || targetMonth !== month) {
+        prevMonthRef.current = { year: targetYear, month: targetMonth };
+        setCurrentYear(targetYear);
+        setCurrentMonth(targetMonth);
+        setChromeYear(targetYear);
+        setChromeMonth(targetMonth);
+      }
+      scrollAnimatedRef.current = false;
+      shouldScrollTimelineToDateRef.current = true;
+      shouldSnapDateStripRef.current = true;
+      setPickedDateForWeek(targetDate);
+    }, [month, year])
+  );
 
   // 선택일이 해당 월 범위에 없으면 첫날로 보정 (월 변경 직후는 refreshData에서 한 번만 설정하므로 제외)
   useEffect(() => {

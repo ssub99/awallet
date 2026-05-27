@@ -30,7 +30,11 @@ import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { typographyLayoutFieldLineRowHeight } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
 import { useToast } from '@/contexts/toast-context';
-import { calendarRefreshEvent } from '@/hooks/calendar-events';
+import {
+  calendarRefreshEvent,
+  publishCalendarTargetAsync,
+  setPendingTimelineReturnFocus,
+} from '@/hooks/calendar-events';
 import { useAndroidKeypadBackDismiss } from '@/hooks/use-android-keypad-back-dismiss';
 import { useRecordFormMemoKeyboard } from '@/hooks/use-record-form-memo-keyboard';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -599,49 +603,31 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     [navigation]
   );
 
-  /** 수정 저장 후: 스택을 (tabs)+타임라인 2단만 두고 타임라인을 최상단으로 (push 누적 없음) */
+  /** 수정 저장 후: 기존 타임라인으로 pop (스택 누적·reset 깜빡임 방지) */
   const goTimelineWithFocusAfterSave = useCallback(
     async ({ year, month, targetDate, refresh = true }: GoHomeOptions) => {
-      try {
-        await AsyncStorage.setItem(
-          'pendingCalendarTarget',
-          JSON.stringify({ year, month, targetDate })
-        );
-      } catch (error) {
-        console.warn('[NAV] goTimelineWithFocusAfterSave:pendingCalendarTarget:error', error);
-      }
-
-      (navigation as any).reset({
-        index: 1,
-        routes: [
-          {
-            name: '(tabs)',
-            params: {
-              screen: 'home',
-              params: {
-                targetYear: year.toString(),
-                targetMonth: month.toString(),
-                targetDate,
-                periodType: 'month',
-              },
-            },
-          },
-          {
-            name: 'monthly-expense-timeline',
-            params: {
-              year: year.toString(),
-              month: month.toString(),
-              selectedDate: targetDate,
-            },
-          },
-        ],
-      });
+      setPendingTimelineReturnFocus({ year, month, targetDate });
+      await publishCalendarTargetAsync({ year, month, targetDate });
 
       if (refresh) {
         calendarRefreshEvent.emit();
       }
+
+      if (router.canGoBack()) {
+        router.back();
+        return;
+      }
+
+      router.replace({
+        pathname: '/monthly-expense-timeline',
+        params: {
+          year: year.toString(),
+          month: month.toString(),
+          selectedDate: targetDate,
+        },
+      });
     },
-    [navigation]
+    [router]
   );
 
   const goTimelineWithFocus = useCallback(async (_dateKey: string) => {
