@@ -537,6 +537,30 @@ function inferSubtypeFromMessage(
   return scored[0]?.item;
 }
 
+function hasExplicitSubtypeRequest(
+  subtypes: PaymentSubtype[],
+  message: string,
+): boolean {
+  const normalizedMessage = normalizePaymentSubtypeText(message);
+  if (!normalizedMessage) {
+    return false;
+  }
+
+  for (const { label } of subtypes) {
+    if (!label?.trim()) {
+      continue;
+    }
+    const normalizedLabel = normalizePaymentSubtypeText(label);
+    // 명시적으로 카드 서브유형명을 언급한 경우만 true.
+    // stem/부분 일치까지 허용하면 일반 문장에서 오인식이 발생할 수 있다.
+    if (normalizedLabel.length >= 3 && normalizedMessage.includes(normalizedLabel)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function toBool(v: unknown): boolean {
   return v === true || v === 'true' || v === 1;
 }
@@ -1178,8 +1202,11 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       const first = applyMessageFallback(records[0], message);
       const paymentSubtypes = await paymentSubtypesPromise;
       const isIncomeRecord = first.recordType === 'income' || hasIncomeHintInMessage(message);
+      const shouldApplyExplicitSubtype =
+        !isIncomeRecord &&
+        hasExplicitSubtypeRequest(paymentSubtypes, message);
       const matchedSubtypeForFirst =
-        !isIncomeRecord
+        shouldApplyExplicitSubtype
           ? (
         findBestPaymentSubtypeMatch(
           paymentSubtypes,
@@ -1206,7 +1233,9 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         paymentSubtypeLabel:
           isIncomeRecord || resolvedPaymentMethod === 'cash'
             ? undefined
-            : matchedSubtypeForFirst?.label ?? first.paymentSubtypeLabel ?? defaultCreditSubtype?.label,
+            : matchedSubtypeForFirst?.label ??
+              (shouldApplyExplicitSubtype ? first.paymentSubtypeLabel : undefined) ??
+              defaultCreditSubtype?.label,
         isRecurring: isIncomeRecord ? undefined : first.isRecurring,
         isInstallment: isIncomeRecord ? undefined : first.isInstallment,
         recurringType: isIncomeRecord ? undefined : first.recurringType,

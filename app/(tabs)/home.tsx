@@ -609,6 +609,14 @@ export default function HomeScreen() {
       return;
     }
 
+    // 기록 저장 후 홈으로 복귀(targetDate 전달) 시에는 초기 페이드 시퀀스를 생략해
+    // Android에서 TopNavigation/Calendar가 잠깐 사라졌다 나타나는 깜빡임을 줄인다.
+    if (params.targetDate) {
+      hasAnimatedRef.current = true;
+      setIsContentReady(true);
+      return;
+    }
+
     if (hasAnimatedRef.current) {
       setIsContentReady(true);
       return;
