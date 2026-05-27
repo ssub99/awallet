@@ -39,12 +39,11 @@ import {
   StyleSheet,
   Text,
   View,
-  type LayoutChangeEvent,
   type ViewStyle,
 } from 'react-native';
 import { initialWindowMetrics } from 'react-native-safe-area-context';
 
-/** Modal safe frame — 앱 기동 시 1회 고정(구독 없음 → 들썩임 없음). flex 중앙은 실제 콘텐츠 높이 기준. */
+/** Modal safe frame — statusBarTranslucent Modal 전체 높이 기준 flex 중앙 정렬 */
 function getAndroidYearMonthFrameInsets(): { paddingTop: number; paddingBottom: number } {
   const metricsTop = initialWindowMetrics?.insets.top ?? 0;
   const paddingTop = metricsTop > 0 ? metricsTop : StatusBar.currentHeight ?? 0;
@@ -53,13 +52,6 @@ function getAndroidYearMonthFrameInsets(): { paddingTop: number; paddingBottom: 
 }
 
 const ANDROID_YEAR_MONTH_FRAME_INSETS = getAndroidYearMonthFrameInsets();
-
-function computeAndroidYearMonthDialogTop(dialogHeight: number): number {
-  const { paddingTop, paddingBottom } = ANDROID_YEAR_MONTH_FRAME_INSETS;
-  const windowHeight = Dimensions.get('window').height;
-  const usable = windowHeight - paddingTop - paddingBottom - dialogHeight;
-  return paddingTop + Math.max(0, usable / 2);
-}
 
 export interface DatePickerOption {
   label: string;
@@ -154,28 +146,16 @@ export function DatePicker({
   const applyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const androidNativeOpenedRef = useRef(false);
   const prevVisibleRef = useRef(false);
-  /** Android 년/월: onLayout으로 높이 측정 후 top 확정 — 확정 전에는 비표시(들썩임 방지) */
-  const [androidDialogTop, setAndroidDialogTop] = useState<number | null>(null);
-  const isAndroidDialogPositioned = androidDialogTop !== null;
+  const androidScreenMinHeight = useMemo(() => Dimensions.get('screen').height, [visible]);
 
-  useEffect(() => {
-    if (!visible) {
-      setAndroidDialogTop(null);
-    }
-  }, [visible]);
-
-  const handleAndroidDialogLayout = useCallback(
-    (event: LayoutChangeEvent) => {
-      if (androidDialogTop !== null) {
-        return;
-      }
-      const { height } = event.nativeEvent.layout;
-      if (height <= 0) {
-        return;
-      }
-      setAndroidDialogTop(computeAndroidYearMonthDialogTop(height));
-    },
-    [androidDialogTop],
+  const androidYearMonthFrameStyle = useMemo(
+    () => ({
+      flex: 1,
+      minHeight: androidScreenMinHeight,
+      paddingTop: ANDROID_YEAR_MONTH_FRAME_INSETS.paddingTop,
+      paddingBottom: ANDROID_YEAR_MONTH_FRAME_INSETS.paddingBottom,
+    }),
+    [androidScreenMinHeight],
   );
 
   const dimOpacity = useRef(new Animated.Value(0)).current;
@@ -507,25 +487,15 @@ export function DatePicker({
         statusBarTranslucent
         presentationStyle="overFullScreen"
       >
-        <View style={styles.androidYearMonthRoot}>
+        <View style={[styles.androidYearMonthRoot, androidYearMonthFrameStyle]}>
           <Pressable
-            style={[
-              styles.androidYearMonthDim,
-              { opacity: isAndroidDialogPositioned ? 1 : 0 },
-            ]}
-            onPress={isAndroidDialogPositioned ? handleCancel : undefined}
+            style={styles.androidYearMonthDim}
+            onPress={handleCancel}
+            accessibilityRole="button"
+            accessibilityLabel="닫기"
           />
           <View
-            style={[
-              styles.androidYearMonthDialog,
-              {
-                backgroundColor: colors.background,
-                top: androidDialogTop ?? 0,
-                opacity: isAndroidDialogPositioned ? 1 : 0,
-              },
-            ]}
-            onLayout={handleAndroidDialogLayout}
-            pointerEvents={isAndroidDialogPositioned ? 'auto' : 'none'}
+            style={[styles.androidYearMonthDialog, { backgroundColor: colors.background }]}
           >
           <Text style={[styles.androidYearMonthTitle, { color: colors.text }]}>{title}</Text>
 
@@ -738,16 +708,14 @@ const styles = StyleSheet.create({
     height: 216,
   },
   androidYearMonthRoot: {
-    flex: 1,
+    justifyContent: 'center',
   },
   androidYearMonthDim: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   androidYearMonthDialog: {
-    position: 'absolute',
-    left: 24,
-    right: 24,
+    marginHorizontal: 24,
     borderRadius: 16,
     overflow: 'hidden',
     elevation: 8,

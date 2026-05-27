@@ -419,32 +419,29 @@ export default function HomeScreen() {
     }
   }, [periodType, isLoadingSettings]);
   
-  // Reset to today's date (and switch to month view if in year view)
-  const resetToToday = useCallback(async () => {
+  /** 오늘 날짜·커스텀 월로 이동 (년/월 뷰 모드는 유지) */
+  const syncCalendarDatesToToday = useCallback(async () => {
     const today = new Date();
-    
-    // Load month start day to calculate correct custom month
     const monthStart = await loadMonthStartDay();
-    
-    // Get custom month info for today's date
     const customMonthInfo = getCustomMonthInfo(today, monthStart);
-    
+
     setCurrentYear(customMonthInfo.year);
     setCurrentMonth(customMonthInfo.month);
     syncCalendarExternalView(customMonthInfo.year, customMonthInfo.month);
 
-    // 로컬 시간 기준으로 날짜 문자열 생성 (UTC 대신)
     const year = today.getFullYear();
     const month = String(today.getMonth() + 1).padStart(2, '0');
     const day = String(today.getDate()).padStart(2, '0');
-    const localDateString = `${year}-${month}-${day}`;
-    setSelectedDate(localDateString);
-    
-    // 년도 캘린더에서도 월 캘린더로 전환
+    setSelectedDate(`${year}-${month}-${day}`);
+  }, [syncCalendarExternalView]);
+
+  // 홈 탭 더블탭·날짜 변경 시: 오늘로 이동 + 년도 뷰면 월 뷰로 전환
+  const resetToToday = useCallback(async () => {
+    await syncCalendarDatesToToday();
     if (periodType === 'year') {
       setPeriodType('month');
     }
-  }, [periodType, setCurrentYear, setCurrentMonth, setSelectedDate, setPeriodType, syncCalendarExternalView]);
+  }, [periodType, syncCalendarDatesToToday, setPeriodType]);
   
   // Listen for double tap on home tab
   useEffect(() => {
@@ -625,11 +622,11 @@ export default function HomeScreen() {
     const init = async () => {
       setIsContentReady(false);
       try {
-        // selectedDate가 비어있고 pending/params도 없는 경우에만 오늘로 초기화
-        if (!params.targetDate) {
+        // selectedDate가 비어 있고 pending/params도 없을 때만 날짜를 오늘로 (뷰 모드는 lastViewType 유지)
+        if (!params.targetDate && !selectedDateRef.current) {
           const raw = await AsyncStorage.getItem('pendingCalendarTarget');
           if (!raw) {
-            await resetToToday();
+            await syncCalendarDatesToToday();
           }
         }
       } finally {
@@ -643,7 +640,7 @@ export default function HomeScreen() {
 
     init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isReady]);
+  }, [isReady, syncCalendarDatesToToday]);
 
   // 앱이 백그라운드에서 포그라운드로 돌아올 때 날짜 변경 여부를 감지하여 오늘로 리셋
   const handleAppStateChange = useCallback(
