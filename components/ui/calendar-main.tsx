@@ -76,21 +76,22 @@ const DAY_CELL_WIDTH = Math.floor(SCREEN_WIDTH / 7);
 const CALENDAR_MAIN_DEBUG_TAG = '[CalendarMain]';
 /** scrollToCenter·리센터 후 지연 momentum 무시 (Android 이중 커밋 방지) */
 const PROGRAMMATIC_SCROLL_SUPPRESS_MS = 280;
-/** 리센터·렌더 완료까지 새 스와이프 차단 (monthSlots render 대기) */
-const SWIPE_RECENTER_MAX_MS = 720;
 /** 중앙에서 시작한 드래그만 스와이프로 인정 */
 const DRAG_START_CENTER_TOLERANCE_RATIO = 0.15;
 /** onScroll이 보고한 중앙 허용치 */
 const SCROLL_CENTER_TOLERANCE = Math.max(2, SCREEN_WIDTH * 0.02);
-/** 중앙 미도달 시 rAF 재시도 상한 */
-const SWIPE_RELEASE_MAX_PASSES = 16;
 /** monthSlots 반영 직후 spurious momentum만 차단 (activeUserDrag 없을 때) */
 const SWIPE_POST_RELEASE_GUARD_MS = Platform.select({
-  android: 520,
+  android: 120,
   default: 400,
 }) as number;
-/** 연속 스와이프 허용 — calendar-day-select와 동일 */
+/** beginDrag 재진입 최소 간격 */
 const SWIPE_COMMIT_COOLDOWN_MS = 80;
+/** swipe commit 간 최소 간격 — 잔여 momentum·이중 scrollEnd 연속 커밋 방지 */
+const SWIPE_MIN_COMMIT_INTERVAL_MS = Platform.select({
+  android: 220,
+  default: 80,
+}) as number;
 const IOS_DRAG_END_VELOCITY_THRESHOLD = 0.25;
 
 function isOffsetAtCenterPage(offsetX: number): boolean {
@@ -303,17 +304,14 @@ function CalendarMainInner({
   const [settleOverlaySlot, setSettleOverlaySlot] = useState<CalendarMonthSlot | null>(null);
   const pendingSwipeSlotsRef = useRef<CalendarMonthSlot[] | null>(null);
   const pendingSwipeToLabelRef = useRef('');
-  const pendingSwipeLayoutRecenterRef = useRef(false);
-  const swipeReleaseGenRef = useRef(0);
-  const swipeReleaseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** scrollToCenter 중 onScrollBeginDrag 오인 방지 */
   const programmaticScrollRef = useRef(false);
   /** release 후 pager layout까지 spurious momentum 차단 */
   const postReleaseGuardUntilRef = useRef(0);
-  const pendingPagerUnlockRef = useRef(false);
   /** unlock 이후에 시작한 사용자 드래그만 커밋 */
   const lastPagerUnlockAtRef = useRef(0);
   const userDragBeginAtRef = useRef(0);
+  const lastSwipeCommitAtRef = useRef(0);
 
   const TITLE_HEIGHT = 48;
 
@@ -375,12 +373,30 @@ function CalendarMainInner({
         animated: false,
       });
     }
+    scrollOffsetRef.current = CALENDAR_CENTER_SCROLL_X;
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         programmaticScrollRef.current = false;
       });
     });
   }, []);
+
+  const applyPagerUnlockAfterSwipe = useCallback(() => {
+    activeUserDragRef.current = false;
+    /** unlock 직후 잔여 momentum·dragEnd 재커밋 차단 — beginDrag에서만 false */
+    dragGestureCommittedRef.current = true;
+    postReleaseGuardUntilRef.current = Date.now() + SWIPE_POST_RELEASE_GUARD_MS;
+    scrollToCenter(false);
+    scrollLockedRef.current = false;
+    setIsPagerScrollLocked(false);
+    lastPagerUnlockAtRef.current = Date.now();
+    logCalendarMonthDebug(
+      CALENDAR_MAIN_DEBUG_TAG,
+      calendarDebugSeqRef,
+      'scrollLockedRef -> false (pager unlock)',
+      { guardMs: SWIPE_POST_RELEASE_GUARD_MS },
+    );
+  }, [scrollToCenter]);
 
   useEffect(() => {
     if (!scrollInitialized && scrollViewRef.current) {
@@ -417,15 +433,6 @@ function CalendarMainInner({
   }, [bootMonth, bootYear, monthStartDay]);
 
   useEffect(() => {
-    return () => {
-      if (swipeReleaseTimerRef.current) {
-        clearTimeout(swipeReleaseTimerRef.current);
-        swipeReleaseTimerRef.current = null;
-      }
-    };
-  }, []);
-
-  useEffect(() => {
     logCalendarMonthDebug(CALENDAR_MAIN_DEBUG_TAG, calendarDebugSeqRef, 'displayMonth updated', {
       display: formatCalendarMonthLabel(displayYear, displayMonth),
     });
@@ -458,40 +465,6 @@ function CalendarMainInner({
       );
     }
   }, [monthSlots]);
-
-  /** release flushSync 직후 unlock 시 Android spurious momentum → 이중 swipe commit */
-  useLayoutEffect(() => {
-    if (!pendingPagerUnlockRef.current) {
-      return;
-    }
-
-    pendingPagerUnlockRef.current = false;
-    activeUserDragRef.current = false;
-    dragGestureCommittedRef.current = true;
-
-    const guardUntil = Date.now() + SWIPE_POST_RELEASE_GUARD_MS;
-    postReleaseGuardUntilRef.current = guardUntil;
-
-    scrollToCenter(false);
-
-    requestAnimationFrame(() => {
-      scrollToCenter(false);
-      if (Platform.OS === 'android') {
-        requestAnimationFrame(() => {
-          scrollToCenter(false);
-        });
-      }
-      scrollLockedRef.current = false;
-      setIsPagerScrollLocked(false);
-      lastPagerUnlockAtRef.current = Date.now();
-      logCalendarMonthDebug(
-        CALENDAR_MAIN_DEBUG_TAG,
-        calendarDebugSeqRef,
-        'scrollLockedRef -> false (pager layout unlock)',
-        { guardMs: SWIPE_POST_RELEASE_GUARD_MS },
-      );
-    });
-  }, [monthSlots, scrollToCenter]);
 
   /** unlock 직후 Android pager가 page 1·2에 남는 경우 즉시 중앙 복귀 */
   useLayoutEffect(() => {
@@ -662,13 +635,6 @@ function CalendarMainInner({
       return;
     }
 
-    if (swipeReleaseTimerRef.current) {
-      clearTimeout(swipeReleaseTimerRef.current);
-      swipeReleaseTimerRef.current = null;
-    }
-
-    swipeReleaseGenRef.current += 1;
-
     if (!isOffsetAtCenterPage(scrollOffsetRef.current)) {
       scrollToCenter(false);
     }
@@ -681,7 +647,6 @@ function CalendarMainInner({
     flushSync(() => {
       if (pendingSlots) {
         setMonthSlots(pendingSlots);
-        pendingPagerUnlockRef.current = true;
         markMonthTransitionTiming(
           CALENDAR_MAIN_DEBUG_TAG,
           calendarDebugSeqRef,
@@ -694,14 +659,8 @@ function CalendarMainInner({
       setIsSwipeSettling(false);
     });
 
+    applyPagerUnlockAfterSwipe();
     if (!pendingSlots) {
-      const guardUntil = Date.now() + SWIPE_POST_RELEASE_GUARD_MS;
-      postReleaseGuardUntilRef.current = guardUntil;
-      activeUserDragRef.current = false;
-      dragGestureCommittedRef.current = true;
-      scrollLockedRef.current = false;
-      setIsPagerScrollLocked(false);
-      lastPagerUnlockAtRef.current = Date.now();
       logCalendarMonthDebug(
         CALENDAR_MAIN_DEBUG_TAG,
         calendarDebugSeqRef,
@@ -716,7 +675,7 @@ function CalendarMainInner({
     logCalendarMonthDebug(
       CALENDAR_MAIN_DEBUG_TAG,
       calendarDebugSeqRef,
-      'swipe release (await pager layout unlock)',
+      'swipe release (commit sync)',
       { to: toLabel },
     );
     completeMonthTransitionTiming(
@@ -725,57 +684,7 @@ function CalendarMainInner({
       monthTransitionTimingRef,
       'complete (ui unlocked)',
     );
-  }, [scrollToCenter, showTitle, syncDisplayMonthFromCenterRef]);
-
-  const scheduleReleaseSwipeLock = useCallback(() => {
-    if (swipeReleaseTimerRef.current) {
-      clearTimeout(swipeReleaseTimerRef.current);
-      swipeReleaseTimerRef.current = null;
-    }
-
-    const generation = swipeReleaseGenRef.current + 1;
-    swipeReleaseGenRef.current = generation;
-
-    const tryRelease = (pass: number) => {
-      if (swipeReleaseGenRef.current !== generation) {
-        return;
-      }
-
-      if (isOffsetAtCenterPage(scrollOffsetRef.current)) {
-        releaseSwipeTransition();
-        return;
-      }
-
-      if (pass >= SWIPE_RELEASE_MAX_PASSES) {
-        scrollToCenter(false);
-        releaseSwipeTransition();
-        return;
-      }
-
-      scrollToCenter(false);
-      requestAnimationFrame(() => tryRelease(pass + 1));
-    };
-
-    swipeReleaseTimerRef.current = setTimeout(() => {
-      if (swipeReleaseGenRef.current !== generation) {
-        return;
-      }
-      scrollToCenter(false);
-      releaseSwipeTransition();
-    }, SWIPE_RECENTER_MAX_MS);
-
-    tryRelease(0);
-  }, [releaseSwipeTransition, scrollToCenter]);
-
-  useLayoutEffect(() => {
-    if (!pendingSwipeLayoutRecenterRef.current) {
-      return;
-    }
-
-    pendingSwipeLayoutRecenterRef.current = false;
-    scrollToCenter();
-    scheduleReleaseSwipeLock();
-  }, [settleOverlaySlot, scheduleReleaseSwipeLock, scrollToCenter]);
+  }, [applyPagerUnlockAfterSwipe, scrollToCenter, showTitle, syncDisplayMonthFromCenterRef]);
 
   const commitSwipeMonthsToMove = useCallback(
     (monthsToMove: number, offsetX: number, page: number) => {
@@ -818,8 +727,6 @@ function CalendarMainInner({
       setIsPagerScrollLocked(true);
       centerWeekCountRef.current = nextWeekCount;
 
-      pendingSwipeLayoutRecenterRef.current = true;
-
       const nextSlots =
         monthsToMove > 0
           ? shiftSlotsForward(gridCacheRef.current, monthSlots, monthStartDay, buildGrid)
@@ -843,17 +750,28 @@ function CalendarMainInner({
       );
 
       suppressMomentumUntilRef.current = Date.now() + PROGRAMMATIC_SCROLL_SUPPRESS_MS;
-      swipeCooldownUntilRef.current = Date.now() + SWIPE_COMMIT_COOLDOWN_MS;
+      swipeCooldownUntilRef.current =
+        Date.now() +
+        Math.max(SWIPE_COMMIT_COOLDOWN_MS, SWIPE_MIN_COMMIT_INTERVAL_MS);
+      lastSwipeCommitAtRef.current = Date.now();
       activeUserDragRef.current = false;
-      scrollToCenter();
+      scrollToCenter(false);
       markMonthTransitionTiming(
         CALENDAR_MAIN_DEBUG_TAG,
         calendarDebugSeqRef,
         monthTransitionTimingRef,
         'scrollToCenter sync',
       );
+      releaseSwipeTransition();
     },
-    [applyCenterMonth, buildGrid, monthSlots, monthStartDay, scrollToCenter],
+    [
+      applyCenterMonth,
+      buildGrid,
+      monthSlots,
+      monthStartDay,
+      releaseSwipeTransition,
+      scrollToCenter,
+    ],
   );
 
   const logSwipeIgnored = useCallback(
@@ -945,8 +863,28 @@ function CalendarMainInner({
       }
 
       if (dragGestureCommittedRef.current) {
+        logSwipeIgnored('dragGestureCommitted', { source, offsetX, page });
         activeUserDragRef.current = false;
-        scrollToCenter();
+        scrollToCenter(false);
+        return;
+      }
+
+      const sinceLastCommitMs = Date.now() - lastSwipeCommitAtRef.current;
+      if (
+        lastSwipeCommitAtRef.current > 0 &&
+        sinceLastCommitMs < SWIPE_MIN_COMMIT_INTERVAL_MS
+      ) {
+        logSwipeIgnored('commitThrottle', {
+          source,
+          offsetX,
+          page,
+          sinceLastCommitMs,
+          minIntervalMs: SWIPE_MIN_COMMIT_INTERVAL_MS,
+        });
+        activeUserDragRef.current = false;
+        if (!isOffsetAtCenterPage(offsetX)) {
+          scrollToCenter(false);
+        }
         return;
       }
 
@@ -974,7 +912,15 @@ function CalendarMainInner({
     const offsetX = scrollOffsetRef.current;
     const centerTolerance = SCREEN_WIDTH * DRAG_START_CENTER_TOLERANCE_RATIO;
     if (Math.abs(offsetX - CALENDAR_CENTER_SCROLL_X) > centerTolerance) {
-      logSwipeIgnored('beginDrag offCenter', { offsetX });
+      const page = Math.round(offsetX / SCREEN_WIDTH);
+      const onAdjacentPage = page !== CALENDAR_CENTER_PAGE_INDEX;
+      if (Platform.OS === 'android' && onAdjacentPage) {
+        activeUserDragRef.current = true;
+        dragGestureCommittedRef.current = false;
+        userDragBeginAtRef.current = Date.now();
+        return;
+      }
+      logSwipeIgnored('beginDrag offCenter', { offsetX, page });
       scrollToCenter(false);
       return;
     }
@@ -1103,13 +1049,8 @@ function CalendarMainInner({
               !activeUserDragRef.current &&
               !isOffsetAtCenterPage(offsetX)
             ) {
-              const inPostReleaseGuard =
-                Date.now() < postReleaseGuardUntilRef.current;
-              if (inPostReleaseGuard || Platform.OS === 'android') {
+              if (Date.now() < postReleaseGuardUntilRef.current) {
                 scrollToCenter(false);
-                if (inPostReleaseGuard && Platform.OS === 'android') {
-                  postReleaseGuardUntilRef.current = Date.now() + 80;
-                }
               }
             }
           }}
