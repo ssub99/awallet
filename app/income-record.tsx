@@ -18,7 +18,8 @@ import { ModalPopup } from '@/components/ui/modal-popup';
 import { atomicColors } from '@/constants/atomic-colors';
 import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useLoading } from '@/contexts/loading-context';
-import { calendarRefreshEvent } from '@/hooks/calendar-events';
+import { calendarRefreshEvent, publishCalendarTargetAsync } from '@/hooks/calendar-events';
+import { popToTabsRoute } from '@/utils/pop-to-tabs-route';
 import { useAndroidKeypadBackDismiss } from '@/hooks/use-android-keypad-back-dismiss';
 import { useRecordFormMemoKeyboard } from '@/hooks/use-record-form-memo-keyboard';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -77,37 +78,27 @@ export default function IncomeRecordScreen() {
 
   const goHomeWithFocus = useCallback(
     async ({ year, month, targetDate, refresh = true }: GoHomeOptions) => {
-      try {
-        await AsyncStorage.setItem('pendingCalendarTarget', JSON.stringify({ year, month, targetDate }));
-      } catch (error) {
-        console.warn('[income-record] Failed to store pending target:', error);
-      }
-
-      (navigation as any).reset({
-        index: 0,
-        routes: [
-          {
-            name: '(tabs)',
-            params: {
-              screen: 'home',
-              params: {
-                targetYear: year.toString(),
-                targetMonth: month.toString(),
-                targetDate,
-                periodType: 'month',
-              },
-            },
-          },
-        ],
-      });
+      await publishCalendarTargetAsync({ year, month, targetDate });
 
       if (refresh) {
-        InteractionManager.runAfterInteractions(() => {
-          calendarRefreshEvent.emit();
-        });
+        calendarRefreshEvent.emit();
       }
+
+      if (popToTabsRoute(navigation)) {
+        return;
+      }
+
+      router.replace({
+        pathname: '/(tabs)/home',
+        params: {
+          targetYear: year.toString(),
+          targetMonth: month.toString(),
+          targetDate,
+          periodType: 'month',
+        },
+      });
     },
-    [navigation]
+    [navigation, router]
   );
   const insets = useSafeAreaInsets();
   const { setLoading } = useLoading();

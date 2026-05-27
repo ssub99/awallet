@@ -43,7 +43,7 @@ import {
 import { saveMonthlyExpenseToWidget } from '@/utils/widget-data-sync';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
-import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
@@ -92,6 +92,7 @@ export default function HomeScreen() {
   const [isContentReady, setIsContentReady] = useState(false);
   const contentOpacity = useRef(new Animated.Value(0)).current;
   const hasAnimatedRef = useRef(false);
+  const hasContentFadedInRef = useRef(false);
 
   // Star 아이콘 애니메이션: isContentReady 후 2초 대기 → (스케일 다운·업 → 2초 대기 → 회전 2바퀴 → 5초 대기 → 리셋) 루프
   const starScale = useRef(new Animated.Value(1)).current;
@@ -511,6 +512,19 @@ export default function HomeScreen() {
     return unsubscribe;
   }, [navigation, applyPendingCalendarTarget]);
 
+  // 기록 저장 후 pop 복귀: 초기 페이드·opacity 0 재진입 방지 (Android 깜빡임)
+  useFocusEffect(
+    useCallback(() => {
+      if (!peekLatestPendingCalendarTarget()) {
+        return;
+      }
+      hasAnimatedRef.current = true;
+      hasContentFadedInRef.current = true;
+      contentOpacity.setValue(1);
+      setIsContentReady(true);
+    }, [contentOpacity]),
+  );
+
   // 월 → 년도 화면 전환 시에만 현재 월 위치로 스크롤 (년도 스와이프 시에는 유지)
   useEffect(() => {
     if (periodType !== 'year') {
@@ -609,9 +623,8 @@ export default function HomeScreen() {
       return;
     }
 
-    // 기록 저장 후 홈으로 복귀(targetDate 전달) 시에는 초기 페이드 시퀀스를 생략해
-    // Android에서 TopNavigation/Calendar가 잠깐 사라졌다 나타나는 깜빡임을 줄인다.
-    if (params.targetDate) {
+    // 기록 저장 후 복귀(targetDate params 또는 pending) 시 초기 페이드 생략
+    if (params.targetDate || peekLatestPendingCalendarTarget()) {
       hasAnimatedRef.current = true;
       setIsContentReady(true);
       return;
@@ -700,7 +713,6 @@ export default function HomeScreen() {
     [showQuickInput, starScale, starRotate]
   );
 
-  const hasContentFadedInRef = useRef(false);
   useEffect(() => {
     if (!isContentReady) {
       contentOpacity.setValue(0);

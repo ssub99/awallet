@@ -42,6 +42,7 @@ import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { logEvent, logExpenseAdjustment, logExpenseCreateComplete, mapRefundOptionToAnalytics } from '@/utils/analytics';
 import { loadCategories } from '@/utils/categories';
 import { triggerChallengeNotifications } from '@/utils/challenge-utils';
+import { popToTabsRoute } from '@/utils/pop-to-tabs-route';
 import { rebuildCalendarDataFromStores } from '@/utils/rebuild-calendar-data';
 import { getCustomMonthInfo } from '@/utils/custom-month';
 import {
@@ -561,46 +562,30 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     refresh?: boolean;
   }
 
-  // 공통: 홈으로 이동 + 지정 날짜 포커스 (네비 혼용/레이스 방지)
+  /** 생성 저장 후: 스택 pop으로 기존 홈 복귀 (reset·초기 페이드 재실행 방지) */
   const goHomeWithFocus = useCallback(
     async ({ year, month, targetDate, refresh = true }: GoHomeOptions) => {
-      console.log('[NAV] goHomeWithFocus:start', { year, month, targetDate, refresh });
-      try {
-        await AsyncStorage.setItem(
-          'pendingCalendarTarget',
-          JSON.stringify({ year, month, targetDate })
-        );
-        console.log('[NAV] goHomeWithFocus:pendingCalendarTarget:stored');
-      } catch (error) {
-        console.warn('[NAV] goHomeWithFocus:pendingCalendarTarget:error', error);
-      }
-
-      (navigation as any).reset({
-        index: 0,
-        routes: [
-          {
-            name: '(tabs)',
-            params: {
-              screen: 'home',
-              params: {
-                targetYear: year.toString(),
-                targetMonth: month.toString(),
-                targetDate,
-                periodType: 'month',
-              },
-            },
-          },
-        ],
-      });
-      console.log('[NAV] goHomeWithFocus:navigation.reset:called');
+      await publishCalendarTargetAsync({ year, month, targetDate });
 
       if (refresh) {
-        // InteractionManager 제거 - 즉시 새로고침하여 지연 방지
-        console.log('[NAV] goHomeWithFocus:emit refresh');
         calendarRefreshEvent.emit();
       }
+
+      if (popToTabsRoute(navigation)) {
+        return;
+      }
+
+      router.replace({
+        pathname: '/(tabs)/home',
+        params: {
+          targetYear: year.toString(),
+          targetMonth: month.toString(),
+          targetDate,
+          periodType: 'month',
+        },
+      });
     },
-    [navigation]
+    [navigation, router]
   );
 
   /** 수정 저장 후: 기존 타임라인으로 pop (스택 누적·reset 깜빡임 방지) */
