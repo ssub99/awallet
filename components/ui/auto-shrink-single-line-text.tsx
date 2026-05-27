@@ -3,6 +3,7 @@
  */
 
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { resolveTextStyleMetrics } from '@/constants/typography/merge';
 import {
   LayoutChangeEvent,
   NativeSyntheticEvent,
@@ -41,18 +42,8 @@ export interface UnifiedSingleLineFontSizeParams {
 }
 
 function resolveBaseMetrics(textStyle: TextStyle) {
-  const fontSize =
-    typeof textStyle.fontSize === 'number' ? textStyle.fontSize : 16;
-  const lineHeight =
-    typeof textStyle.lineHeight === 'number'
-      ? textStyle.lineHeight
-      : Math.round(fontSize * 1.5);
-  const fontWeight = textStyle.fontWeight;
-  return {
-    fontSize,
-    lineHeightRatio: lineHeight / fontSize,
-    fontWeight,
-  };
+  const { fontSize, lineHeightRatio, fontWeight } = resolveTextStyleMetrics(textStyle);
+  return { fontSize, lineHeightRatio, fontWeight };
 }
 
 function isBoldWeight(fontWeight: TextStyle['fontWeight']): boolean {
@@ -202,7 +193,7 @@ export const AutoShrinkSingleLineText = memo(function AutoShrinkSingleLineText({
         return;
       }
 
-      setFontSize((current) => {
+      setFontSize((current: number) => {
         const ratioNext = Math.max(
           minFontSize,
           Math.floor(((availableWidth / lineWidth) * current * FIT_SAFETY) * 100) / 100,

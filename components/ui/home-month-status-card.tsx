@@ -4,8 +4,8 @@
 
 import { computeUnifiedSingleLineFontSize } from '@/components/ui/auto-shrink-single-line-text';
 import { atomicColors } from '@/constants/atomic-colors';
-import { colors, typography, type ColorPalette } from '@/constants/theme';
-import { typographyLayout } from '@/constants/typography';
+import { colors, type ColorPalette } from '@/constants/theme';
+import { scaleTextStyleFontSize, typographyLayout } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { memo, useCallback, useMemo, useState } from 'react';
 import { LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -18,7 +18,7 @@ const monthStatusCenteredText = {
   textAlign: 'center' as const,
 };
 
-const monthStatusAmountTextStyle = typography.body1.l.bold;
+const monthStatusAmountTextStyle = typographyLayout.monthStatusAmount;
 
 export interface HomeMonthStatusCardProps {
   incomeText: string;
@@ -59,7 +59,7 @@ function HomeMonthStatusCardInner({
   const amountTextStyle = useMemo(
     () =>
       amountColumnWidth > 0
-        ? [monthStatusAmountTextStyle, { fontSize: unifiedAmountFontSize }]
+        ? scaleTextStyleFontSize(monthStatusAmountTextStyle, unifiedAmountFontSize)
         : monthStatusAmountTextStyle,
     [amountColumnWidth, unifiedAmountFontSize],
   );

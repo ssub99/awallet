@@ -2,7 +2,7 @@
  * Home calendar day cell (memoized for month transitions).
  */
 
-import { typography } from '@/constants/theme';
+import { scaleTextStyleFontSize, typography, typographyLayout } from '@/constants/typography';
 import { memo, useCallback } from 'react';
 import { Dimensions, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -114,7 +114,8 @@ function CalendarDayCellComponent({
             <Text
               style={[
                 styles.expenseText,
-                amountFontSizes?.expense != null && { fontSize: amountFontSizes.expense },
+                amountFontSizes?.expense != null &&
+                  scaleTextStyleFontSize(styles.expenseText, amountFontSizes.expense),
               ]}
               numberOfLines={1}
             >
@@ -125,7 +126,8 @@ function CalendarDayCellComponent({
             <Text
               style={[
                 styles.incomeText,
-                amountFontSizes?.income != null && { fontSize: amountFontSizes.income },
+                amountFontSizes?.income != null &&
+                  scaleTextStyleFontSize(styles.incomeText, amountFontSizes.income),
               ]}
               numberOfLines={1}
             >
@@ -202,11 +204,11 @@ const styles = StyleSheet.create({
     overflow: 'visible',
   },
   expenseText: {
-    ...typography.tiny.r.regular,
+    ...typographyLayout.calendarAmount,
     color: '#ef2a2a',
   },
   incomeText: {
-    ...typography.tiny.r.regular,
+    ...typographyLayout.calendarAmount,
     color: '#058943',
   },
 });

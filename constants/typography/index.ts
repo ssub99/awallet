@@ -12,17 +12,18 @@
 
 export type { TypographyScaleKey } from './typography.base';
 
-export type { SingleRowScaleKey, TypoSize, TypographyScaleEntry } from './merge';
 export {
   getPlatformTypographySizes,
+  scaleTextStyleFontSize,
   typographyLayoutFieldAreaInputHeight,
   typographyLayoutFieldLineRowHeight,
   typographyLayoutFieldLineShortMinHeight,
-  typographyScale,
+  typographyScale
 } from './merge';
+export type { SingleRowScaleKey, TypographyScaleEntry, TypoSize } from './merge';
 
-export { typography } from './typography-tree';
 export { typographyLayout } from './layout';
+export { typography } from './typography-tree';
 
 export type FontWeight = 'bold' | 'medium' | 'regular';
 export type SizeCategory = 'xl' | 'l' | 'm' | 'r';

@@ -115,6 +115,33 @@ export function createTypographyStyle(scale: TypographyScaleKey, weight: Pretend
   };
 }
 
+/** TextStyle에서 fontSize/lineHeight 추출 — 미지정 시 body01 paragraph(플랫폼) */
+export function resolveTextStyleMetrics(textStyle: TextStyle) {
+  const fallback = getPlatformTypographySizes('body01');
+  const fontSize =
+    typeof textStyle.fontSize === 'number' ? textStyle.fontSize : fallback.fontSize;
+  const lineHeight =
+    typeof textStyle.lineHeight === 'number' ? textStyle.lineHeight : fallback.lineHeight;
+  return {
+    fontSize,
+    lineHeight,
+    lineHeightRatio: lineHeight / fontSize,
+    fontWeight: textStyle.fontWeight,
+  };
+}
+
+/**
+ * typographyLayout 프리셋 등 — 가로 맞춤 시 fontSize·lineHeight를 비율 유지하며 축소.
+ */
+export function scaleTextStyleFontSize(textStyle: TextStyle, targetFontSize: number): TextStyle {
+  const { fontSize: baseFontSize, lineHeightRatio } = resolveTextStyleMetrics(textStyle);
+  if (Math.abs(targetFontSize - baseFontSize) < 0.01) {
+    return textStyle;
+  }
+  const lineHeight = Math.max(targetFontSize, Math.round(targetFontSize * lineHeightRatio));
+  return { ...textStyle, fontSize: targetFontSize, lineHeight };
+}
+
 /** 고정 높이 행 — transform 제거 + OS별 singleRow lineHeight */
 export function singleRowCenteredTextStyle(style: TextStyle): TextStyle {
   const fontSize = typeof style.fontSize === 'number' ? style.fontSize : 16;

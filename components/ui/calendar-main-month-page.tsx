@@ -9,7 +9,7 @@ import {
   type CalendarDayGridType,
 } from '@/components/ui/calendar-day-cell';
 import { computeUnifiedSingleLineFontSize } from '@/components/ui/auto-shrink-single-line-text';
-import { typography } from '@/constants/theme';
+import { typographyLayout } from '@/constants/typography';
 import type { CalendarGridCell, CalendarMonthSlot } from '@/utils/calendar-month-grid-cache';
 
 export interface DayData {
@@ -38,8 +38,7 @@ export type CalendarDayCellDescriptor = {
 const EMPTY_DAY_DATA: Record<string, DayData> = {};
 export { EMPTY_DAY_DATA };
 
-const MONTH_PAGE_AMOUNT_EXPENSE_STYLE = typography.tiny.r.regular;
-const MONTH_PAGE_AMOUNT_INCOME_STYLE = typography.tiny.r.regular;
+const MONTH_PAGE_AMOUNT_STYLE = typographyLayout.calendarAmount;
 const MONTH_PAGE_AMOUNT_HORIZONTAL_INSET = 2;
 const MONTH_PAGE_AMOUNT_MIN_FONT_SCALE = 0.55;
 
@@ -227,7 +226,7 @@ function CalendarMainMonthPageComponent({
             ? computeUnifiedSingleLineFontSize({
                 texts: expenseTexts,
                 availableWidth: CALENDAR_DAY_CELL_WIDTH,
-                textStyle: MONTH_PAGE_AMOUNT_EXPENSE_STYLE,
+                textStyle: MONTH_PAGE_AMOUNT_STYLE,
                 minFontScale: MONTH_PAGE_AMOUNT_MIN_FONT_SCALE,
                 horizontalInset: MONTH_PAGE_AMOUNT_HORIZONTAL_INSET,
               })
@@ -237,7 +236,7 @@ function CalendarMainMonthPageComponent({
             ? computeUnifiedSingleLineFontSize({
                 texts: incomeTexts,
                 availableWidth: CALENDAR_DAY_CELL_WIDTH,
-                textStyle: MONTH_PAGE_AMOUNT_INCOME_STYLE,
+                textStyle: MONTH_PAGE_AMOUNT_STYLE,
                 minFontScale: MONTH_PAGE_AMOUNT_MIN_FONT_SCALE,
                 horizontalInset: MONTH_PAGE_AMOUNT_HORIZONTAL_INSET,
               })

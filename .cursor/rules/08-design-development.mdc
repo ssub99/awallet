@@ -27,6 +27,8 @@ description: Design system implementation and development best practices
   2. Runtime (`merge.ts`: `typographyScale`, `getPlatformTypographySizes`, helpers)
   3. Presets — `typography.*` (multi-line paragraph), `typographyLayout.*` (single-row UI, Input)
   - Single-row labels/rows → `typographyLayout.fieldLine` / `sectionTitle` / component presets (`buttonTextLarge`, …)
+  - Dynamic horizontal shrink → base `typographyLayout.calendarAmount` / `monthStatusAmount` + `scaleTextStyleFontSize` (fontSize만 덮지 않음)
+  - iOS picker wheel → `typographyLayout.pickerWheelItemIos` (+ color만 palette로)
   - Do not call `singleRowCenteredTextStyle` outside `constants/typography/`
   - Never hardcode font sizes, weights, or line heights in `app/` or `components/`
 

@@ -1,7 +1,7 @@
 import type { TextStyle } from 'react-native';
 
-import { singleRowCenteredTextStyle } from './merge';
 import { inputSectionTitleText, inputTypographyLayout } from './layout-input';
+import { createTypographyStyle, singleRowCenteredTextStyle } from './merge';
 import { typography } from './typography-tree';
 
 /** 동일 singleRow 메트릭 — 컴포넌트별 키는 의미 유지, 값은 alias */
@@ -39,16 +39,29 @@ const componentSingleRowLayout = {
 } as const satisfies Record<string, TextStyle>;
 
 /**
+ * 가로 맞춤 축소 — base는 typographyLayout, 소비처에서 scaleTextStyleFontSize만 적용.
+ */
+const dynamicShrinkLayout = {
+  /** 홈 월 현황 금액 (sectionTitle과 동일 singleRow body01 bold) */
+  monthStatusAmount: singleRowCenteredTextStyle(typography.body1.l.bold),
+  /** 캘린더 셀 지출·수입 금액 (paragraph tiny) */
+  calendarAmount: typography.tiny.r.regular,
+} as const satisfies Record<string, TextStyle>;
+
+/**
  * Android 스피너 휠(48px) — paragraph body01 유지.
  * singleRowCenteredTextStyle 적용 시 Android lineHeight가 바뀌므로 분리.
  */
 const paragraphWheelLayout = {
   spinnerWheelItemRegular: typography.body1.l.regular,
   spinnerWheelItemBold: typography.body1.l.bold,
+  /** iOS UIPicker wheel — paragraph pickerWheel (색은 컴포넌트에서 palette로 덮음) */
+  pickerWheelItemIos: createTypographyStyle('pickerWheel', '400'),
 } as const satisfies Record<string, TextStyle>;
 
 const sharedTypographyLayout = {
   ...componentSingleRowLayout,
+  ...dynamicShrinkLayout,
   ...paragraphWheelLayout,
   pickerNavRegular: singleRowCenteredTextStyle(typography.pickerNav.nav.regular),
   pickerNavMedium: singleRowCenteredTextStyle(typography.pickerNav.nav.medium),

@@ -9,7 +9,7 @@
 
 import { AndroidSpinnerWheelColumn } from '@/components/ui/android-spinner-wheel-column';
 import { colors, type ColorPalette } from '@/constants/theme';
-import { getPlatformTypographySizes, typography, typographyLayout } from '@/constants/typography';
+import { typography, typographyLayout } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
   buildNativePickerDate,
@@ -120,9 +120,8 @@ export function DatePicker({
     [dayOptions, isAndroid, isCustomListOnly, monthOptions, yearOptions],
   );
 
-  const wheelTypo = getPlatformTypographySizes('pickerWheel');
   const iosWheelItemStyle = isIos
-    ? { color: palette.staticBlack, fontSize: wheelTypo.fontSize, lineHeight: wheelTypo.lineHeight }
+    ? { ...typographyLayout.pickerWheelItemIos, color: palette.staticBlack }
     : undefined;
 
   const [tempYear, setTempYear] = useState<number | undefined>(() =>
