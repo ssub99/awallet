@@ -1,4 +1,4 @@
-import { Colors, Typography } from '@/constants/theme';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ModalPopup } from '@/components/ui/modal-popup';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
@@ -36,18 +36,18 @@ export function PrepaymentModal({
   extraOverlay,
 }: PrepaymentModalProps) {
   const scheme = useColorScheme();
-  const colors = Colors[scheme ?? 'light'] as typeof Colors.light;
+  const palette = colors[scheme ?? 'light'] as ColorPalette;
 
   const descriptionNode = useMemo(() => {
     if (typeof description === 'string') {
       return (
-        <Text style={[styles.desc, { color: colors.text }]} accessibilityRole="text">
+        <Text style={[styles.desc, { color: palette.text }]} accessibilityRole="text">
           {description}
         </Text>
       );
     }
     return description;
-  }, [description, colors.text]);
+  }, [description, palette.text]);
 
   return (
     <ModalPopup
@@ -66,36 +66,36 @@ export function PrepaymentModal({
           {descriptionNode}
         </View>
 
-        <View style={[styles.card, { backgroundColor: colors.fill }]}>
+        <View style={[styles.card, { backgroundColor: palette.fill }]}>
           <View style={styles.cardRow}>
-            <Text style={[styles.cardTitle, { color: colors.text }]} accessibilityRole="text">
+            <Text style={[styles.cardTitle, { color: palette.text }]} accessibilityRole="text">
               {categoryLabel}
             </Text>
-            <Text style={[styles.cardAmount, { color: colors.text }]} accessibilityRole="text">
+            <Text style={[styles.cardAmount, { color: palette.text }]} accessibilityRole="text">
               {amountText}
             </Text>
           </View>
           <View style={styles.cardRow}>
             <View style={styles.cardTitleSpacer} />
-            <Text style={[styles.cardSub, { color: colors.textAssistive }]} accessibilityRole="text">
+            <Text style={[styles.cardSub, { color: palette.textAssistive }]} accessibilityRole="text">
               {periodText}
             </Text>
           </View>
         </View>
 
         <View style={styles.field}>
-          <Text style={[styles.fieldLabel, { color: colors.text }]} accessibilityRole="text">
+          <Text style={[styles.fieldLabel, { color: palette.text }]} accessibilityRole="text">
             선결제 처리 날짜
           </Text>
           <Pressable
             onPress={onOpenDatePicker}
-            style={[styles.selectBox, { borderColor: colors.border, backgroundColor: colors.staticWhite }]}
+            style={[styles.selectBox, { borderColor: palette.border, backgroundColor: palette.staticWhite }]}
             accessibilityRole="button"
             accessibilityLabel="선결제 처리 날짜 선택"
           >
             <View style={styles.selectContent}>
-              <Icon name="calendarMonth" size={24} color={colors.text} />
-              <Text style={[styles.selectText, { color: colors.text }]} accessibilityRole="text">
+              <Icon name="calendarMonth" size={24} color={palette.text} />
+              <Text style={[styles.selectText, { color: palette.text }]} accessibilityRole="text">
                 {selectedDateLabel}
               </Text>
             </View>
@@ -114,7 +114,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   desc: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
     textAlign: 'center',
   },
   card: {
@@ -130,13 +130,13 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   cardTitle: {
-    ...Typography.body1.l.bold,
+    ...typography.body1.l.bold,
   },
   cardAmount: {
-    ...Typography.body1.l.bold,
+    ...typography.body1.l.bold,
   },
   cardSub: {
-    ...Typography.body2.r.regular,
+    ...typography.body2.r.regular,
   },
   cardTitleSpacer: {
     width: 48,
@@ -145,7 +145,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   fieldLabel: {
-    ...Typography.body1.l.bold,
+    ...typography.body1.l.bold,
   },
   selectBox: {
     height: 48,
@@ -160,7 +160,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   selectText: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
   },
 });
 

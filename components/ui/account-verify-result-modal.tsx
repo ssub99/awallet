@@ -5,8 +5,8 @@
  * Matches Figma design: [Awallet]Mypage_idfind_certified_result
  */
 
-import { Colors } from '@/constants/theme';
-import { Typography } from '@/constants/typography';
+import { colors, type ColorPalette } from '@/constants/theme';
+import { typography } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useEffect, useRef } from 'react';
 import {
@@ -62,7 +62,7 @@ export function AccountVerifyResultModal({
   onChangePassword,
 }: AccountVerifyResultModalProps) {
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   
   // Animation values
   const dimOpacity = useRef(new Animated.Value(0)).current;
@@ -147,7 +147,7 @@ export function AccountVerifyResultModal({
           style={[
             styles.modal,
             {
-              backgroundColor: colors.staticWhite,
+              backgroundColor: palette.staticWhite,
               opacity: modalOpacity,
               transform: [{ scale: modalScale }],
             },
@@ -155,25 +155,25 @@ export function AccountVerifyResultModal({
         >
           {/* Title Section */}
           <View style={styles.titleSection}>
-            <Text style={[styles.title, { color: colors.text }]}>
+            <Text style={[styles.title, { color: palette.text }]}>
               계정 확인
             </Text>
-            <Text style={[styles.subtitle, { color: colors.textNeutral }]}>
+            <Text style={[styles.subtitle, { color: palette.textNeutral }]}>
               입력하신 정보의 가입 내역은 아래와 같습니다.
             </Text>
           </View>
 
           {/* Info Section */}
-          <View style={[styles.infoSection, { backgroundColor: colors.fill }]}>
+          <View style={[styles.infoSection, { backgroundColor: palette.fill }]}>
             {/* ID Row */}
             <View style={styles.infoRow}>
               <View style={styles.labelContainer}>
-                <Text style={[styles.label, { color: colors.textNeutral }]}>
+                <Text style={[styles.label, { color: palette.textNeutral }]}>
                   아이디
                 </Text>
               </View>
               <View style={styles.valueContainer}>
-                <Text style={[styles.value, { color: colors.text }]}>
+                <Text style={[styles.value, { color: palette.text }]}>
                   {userId}
                 </Text>
               </View>
@@ -182,12 +182,12 @@ export function AccountVerifyResultModal({
             {/* Registration Date Row */}
             <View style={styles.infoRow}>
               <View style={styles.labelContainer}>
-                <Text style={[styles.label, { color: colors.textNeutral }]}>
+                <Text style={[styles.label, { color: palette.textNeutral }]}>
                   가입일
                 </Text>
               </View>
               <View style={styles.valueContainer}>
-                <Text style={[styles.value, { color: colors.text }]}>
+                <Text style={[styles.value, { color: palette.text }]}>
                   {registrationDate}
                 </Text>
               </View>
@@ -198,19 +198,19 @@ export function AccountVerifyResultModal({
           <View style={styles.buttonsRow}>
             <Pressable
               onPress={onChangePassword}
-              style={[styles.subButton, { backgroundColor: colors.fill }]}
+              style={[styles.subButton, { backgroundColor: palette.fill }]}
               accessibilityRole="button"
               accessibilityLabel="비밀번호 변경"
             >
-              <Text style={[styles.subButtonText, { color: colors.textNeutral }]}>비밀번호 변경</Text>
+              <Text style={[styles.subButtonText, { color: palette.textNeutral }]}>비밀번호 변경</Text>
             </Pressable>
             <Pressable
               onPress={onLogin}
-              style={[styles.mainButton, { backgroundColor: colors.primary }]}
+              style={[styles.mainButton, { backgroundColor: palette.primary }]}
               accessibilityRole="button"
               accessibilityLabel="로그인 하기"
             >
-              <Text style={[styles.mainButtonText, { color: colors.staticWhite }]}>로그인 하기</Text>
+              <Text style={[styles.mainButtonText, { color: palette.staticWhite }]}>로그인 하기</Text>
             </Pressable>
           </View>
         </Animated.View>
@@ -241,12 +241,12 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   title: {
-    ...Typography.headline4.r.bold,
+    ...typography.headline4.r.bold,
     textAlign: 'center',
     marginBottom: 16,
   },
   subtitle: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
     textAlign: 'center',
   },
   infoSection: {
@@ -265,14 +265,14 @@ const styles = StyleSheet.create({
     marginRight: 0,
   },
   label: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
     textAlign: 'left',
   },
   valueContainer: {
     flex: 1,
   },
   value: {
-    ...Typography.body1.l.medium,
+    ...typography.body1.l.medium,
     textAlign: 'left',
   },
   buttonSection: {
@@ -290,7 +290,7 @@ const styles = StyleSheet.create({
     width: 144,
   },
   subButtonText: {
-    ...Typography.body1.l.medium,
+    ...typography.body1.l.medium,
   },
   mainButton: {
     height: 48,
@@ -300,6 +300,6 @@ const styles = StyleSheet.create({
     width: 143,
   },
   mainButtonText: {
-    ...Typography.body1.l.medium,
+    ...typography.body1.l.medium,
   },
 });

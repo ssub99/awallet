@@ -8,7 +8,7 @@
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Icon, IconName, IconVariant } from '@/components/ui/icon';
 import { AllIcons, IconCategories, IconSizes, getIconMetadata } from '@/constants/icons';
-import { Colors, Typography } from '@/constants/theme';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -17,7 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function IconDemoScreen() {
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   const router = useRouter();
   
   const [selectedVariant, setSelectedVariant] = useState<IconVariant>('line');
@@ -28,7 +28,7 @@ export default function IconDemoScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: '#fff' }]}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       
-      <View style={[styles.innerContainer, { backgroundColor: colors.background }]}>
+      <View style={[styles.innerContainer, { backgroundColor: palette.background }]}>
         {/* Top Navigation */}
         <TopNavigation
           type="sub"
@@ -48,22 +48,22 @@ export default function IconDemoScreen() {
       <View style={styles.controls}>
         {/* Variant Selector */}
         <View style={styles.controlGroup}>
-          <Text style={[Typography.body2.r.medium, { color: colors.text, marginBottom: 8 }]}>
+          <Text style={[typography.body2.r.medium, { color: palette.text, marginBottom: 8 }]}>
             Variant
           </Text>
           <View style={styles.buttonGroup}>
             <Pressable
               style={[
                 styles.controlButton,
-                { borderColor: colors.border },
-                selectedVariant === 'line' && { backgroundColor: colors.primary },
+                { borderColor: palette.border },
+                selectedVariant === 'line' && { backgroundColor: palette.primary },
               ]}
               onPress={() => setSelectedVariant('line')}
             >
               <Text
                 style={[
-                  Typography.body2.r.medium,
-                  { color: selectedVariant === 'line' ? colors.staticWhite : colors.text },
+                  typography.body2.r.medium,
+                  { color: selectedVariant === 'line' ? palette.staticWhite : palette.text },
                 ]}
               >
                 Line
@@ -72,15 +72,15 @@ export default function IconDemoScreen() {
             <Pressable
               style={[
                 styles.controlButton,
-                { borderColor: colors.border },
-                selectedVariant === 'solid' && { backgroundColor: colors.primary },
+                { borderColor: palette.border },
+                selectedVariant === 'solid' && { backgroundColor: palette.primary },
               ]}
               onPress={() => setSelectedVariant('solid')}
             >
               <Text
                 style={[
-                  Typography.body2.r.medium,
-                  { color: selectedVariant === 'solid' ? colors.staticWhite : colors.text },
+                  typography.body2.r.medium,
+                  { color: selectedVariant === 'solid' ? palette.staticWhite : palette.text },
                 ]}
               >
                 Solid
@@ -91,7 +91,7 @@ export default function IconDemoScreen() {
 
         {/* Size Selector */}
         <View style={styles.controlGroup}>
-          <Text style={[Typography.body2.r.medium, { color: colors.text, marginBottom: 8 }]}>
+          <Text style={[typography.body2.r.medium, { color: palette.text, marginBottom: 8 }]}>
             Size: {selectedSize}px
           </Text>
           <View style={styles.buttonGroup}>
@@ -100,15 +100,15 @@ export default function IconDemoScreen() {
                 key={key}
                 style={[
                   styles.sizeButton,
-                  { borderColor: colors.border },
-                  selectedSize === size && { backgroundColor: colors.primary },
+                  { borderColor: palette.border },
+                  selectedSize === size && { backgroundColor: palette.primary },
                 ]}
                 onPress={() => setSelectedSize(size)}
               >
                 <Text
                   style={[
-                    Typography.tiny.r.medium,
-                    { color: selectedSize === size ? colors.staticWhite : colors.text },
+                    typography.tiny.r.medium,
+                    { color: selectedSize === size ? palette.staticWhite : palette.text },
                   ]}
                 >
                   {key}
@@ -120,40 +120,40 @@ export default function IconDemoScreen() {
 
         {/* Color Selector */}
         <View style={styles.controlGroup}>
-          <Text style={[Typography.body2.r.medium, { color: colors.text, marginBottom: 8 }]}>
+          <Text style={[typography.body2.r.medium, { color: palette.text, marginBottom: 8 }]}>
             Color
           </Text>
           <View style={styles.buttonGroup}>
             <Pressable
               style={[
                 styles.colorButton,
-                { borderColor: colors.border },
-                !selectedColor && { backgroundColor: colors.fill },
+                { borderColor: palette.border },
+                !selectedColor && { backgroundColor: palette.fill },
               ]}
               onPress={() => setSelectedColor(undefined)}
             >
-              <Text style={[Typography.body2.r.medium, { color: colors.text }]}>Default</Text>
+              <Text style={[typography.body2.r.medium, { color: palette.text }]}>Default</Text>
             </Pressable>
             <ColorButton
-              color={colors.primary}
+              color={palette.primary}
               label="Primary"
-              selected={selectedColor === colors.primary}
-              onPress={() => setSelectedColor(colors.primary)}
-              colors={colors}
+              selected={selectedColor === palette.primary}
+              onPress={() => setSelectedColor(palette.primary)}
+              colors={palette}
             />
             <ColorButton
-              color={colors.statusNegative}
+              color={palette.statusNegative}
               label="Negative"
-              selected={selectedColor === colors.statusNegative}
-              onPress={() => setSelectedColor(colors.statusNegative)}
-              colors={colors}
+              selected={selectedColor === palette.statusNegative}
+              onPress={() => setSelectedColor(palette.statusNegative)}
+              colors={palette}
             />
             <ColorButton
-              color={colors.textAssistive}
+              color={palette.textAssistive}
               label="Gray"
-              selected={selectedColor === colors.textAssistive}
-              onPress={() => setSelectedColor(colors.textAssistive)}
-              colors={colors}
+              selected={selectedColor === palette.textAssistive}
+              onPress={() => setSelectedColor(palette.textAssistive)}
+              colors={palette}
             />
           </View>
         </View>
@@ -162,7 +162,7 @@ export default function IconDemoScreen() {
       {/* Icons by Category */}
       {Object.entries(IconCategories).map(([categoryName, icons]) => (
         <View key={categoryName} style={styles.categorySection}>
-          <Text style={[Typography.headline3.m.bold, { color: colors.text, marginBottom: 12 }]}>
+          <Text style={[typography.headline3.m.bold, { color: palette.text, marginBottom: 12 }]}>
             {categoryName.charAt(0).toUpperCase() + categoryName.slice(1)}
           </Text>
           <View style={styles.iconGrid}>
@@ -171,8 +171,8 @@ export default function IconDemoScreen() {
               const canShowSolid = metadata.hasSolid || selectedVariant === 'line';
               
               return (
-                <View key={iconName} style={[styles.iconCard, { backgroundColor: colors.backgroundAlt }]}>
-                  <View style={[styles.iconContainer, { borderColor: colors.border }]}>
+                <View key={iconName} style={[styles.iconCard, { backgroundColor: palette.backgroundAlt }]}>
+                  <View style={[styles.iconContainer, { borderColor: palette.border }]}>
                     {canShowSolid ? (
                       <Icon
                         name={iconName as IconName}
@@ -182,21 +182,21 @@ export default function IconDemoScreen() {
                       />
                     ) : (
                       <View style={styles.unavailableIcon}>
-                        <Text style={[Typography.tiny.r.regular, { color: colors.textDisabled }]}>
+                        <Text style={[typography.tiny.r.regular, { color: palette.textDisabled }]}>
                           N/A
                         </Text>
                       </View>
                     )}
                   </View>
                   <Text
-                    style={[Typography.detail.r.regular, { color: colors.text, textAlign: 'center' }]}
+                    style={[typography.detail.r.regular, { color: palette.text, textAlign: 'center' }]}
                     numberOfLines={2}
                   >
                     {iconName}
                   </Text>
                   {metadata.hasSolid && (
-                    <View style={[styles.badge, { backgroundColor: colors.primary }]}>
-                      <Text style={[Typography.tiny.r.bold, { color: colors.staticWhite }]}>S</Text>
+                    <View style={[styles.badge, { backgroundColor: palette.primary }]}>
+                      <Text style={[typography.tiny.r.bold, { color: palette.staticWhite }]}>S</Text>
                     </View>
                   )}
                 </View>
@@ -207,11 +207,11 @@ export default function IconDemoScreen() {
       ))}
 
       {/* All Icons Count */}
-      <View style={[styles.summary, { backgroundColor: colors.fill }]}>
-        <Text style={[Typography.body1.l.medium, { color: colors.text }]}>
+      <View style={[styles.summary, { backgroundColor: palette.fill }]}>
+        <Text style={[typography.body1.l.medium, { color: palette.text }]}>
           Total Icons: {AllIcons.all.length}
         </Text>
-        <Text style={[Typography.body2.r.regular, { color: colors.textNeutral }]}>
+        <Text style={[typography.body2.r.regular, { color: palette.textNeutral }]}>
           Line: {AllIcons.all.length} | Solid: 5
         </Text>
       </View>
@@ -237,7 +237,7 @@ function ColorButton({
   label: string;
   selected: boolean;
   onPress: () => void;
-  colors: typeof Colors.light;
+  colors: ColorPalette;
 }) {
   return (
     <Pressable
@@ -249,7 +249,7 @@ function ColorButton({
       onPress={onPress}
     >
       <View style={[styles.colorSwatch, { backgroundColor: color }]} />
-      <Text style={[Typography.body2.r.medium, { color: colors.text }]}>{label}</Text>
+      <Text style={[typography.body2.r.medium, { color: colors.text }]}>{label}</Text>
     </Pressable>
   );
 }

@@ -8,7 +8,7 @@ import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Icon } from '@/components/ui/icon';
 import { ModalBottomsheet, ModalBottomsheetBottomInset } from '@/components/ui/modal-bottomsheet';
 import { Tag } from '@/components/ui/tag';
-import { Colors, Typography } from '@/constants/theme';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';
 import {
   publishCalendarTarget,
@@ -103,7 +103,7 @@ export default function MonthlyExpenseTimelineScreen() {
   const { height: windowHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   const categoryEmojiMap = useCategoryEmojiMap();
   const { calendarData, monthStartDay, isReady, dataVersion } = useAppData();
   /** 월 전환 전용(화면 내부). GlobalProgressBar Modal은 홈 복귀 시 들썩임 유발 */
@@ -1007,7 +1007,7 @@ export default function MonthlyExpenseTimelineScreen() {
       style={[
         styles.container,
         {
-          backgroundColor: colors.background,
+          backgroundColor: palette.background,
           paddingTop: insets.top,
           paddingBottom: insets.bottom,
         },
@@ -1041,7 +1041,7 @@ export default function MonthlyExpenseTimelineScreen() {
 
       {/* 날짜 선택: 해당 월 시작일~마지막일만 스크롤 - 고정 (애니메이션 제외) */}
       <View style={styles.weekRowWrap}>
-        <View style={[styles.weekRow, { backgroundColor: colors.fill }]}>
+        <View style={[styles.weekRow, { backgroundColor: palette.fill }]}>
           <ScrollView
             ref={dateStripScrollRef}
             horizontal
@@ -1075,7 +1075,7 @@ export default function MonthlyExpenseTimelineScreen() {
 
               return (
                 <View key={dateStr} style={[styles.weekDayCell, { width: DATE_CELL_WIDTH }]}>
-                  <Text style={[styles.weekDayLabel, { color: colors.textAssistive }]}>
+                  <Text style={[styles.weekDayLabel, { color: palette.textAssistive }]}>
                     {dayLabel}
                   </Text>
                   <Pressable
@@ -1101,7 +1101,7 @@ export default function MonthlyExpenseTimelineScreen() {
                       style={[
                         styles.weekDayCircle,
                         {
-                          backgroundColor: isSelected ? colors.primary : 'transparent',
+                          backgroundColor: isSelected ? palette.primary : 'transparent',
                         },
                       ]}
                     >
@@ -1109,7 +1109,7 @@ export default function MonthlyExpenseTimelineScreen() {
                         style={[
                           styles.weekDayNumber,
                           {
-                            color: isSelected ? colors.staticWhite : colors.textAssistive,
+                            color: isSelected ? palette.staticWhite : palette.textAssistive,
                           },
                         ]}
                       >
@@ -1123,8 +1123,8 @@ export default function MonthlyExpenseTimelineScreen() {
                       {
                         backgroundColor: hasRecord
                           ? isSelected
-                            ? colors.primary
-                            : colors.textAssistive
+                            ? palette.primary
+                            : palette.textAssistive
                           : 'transparent',
                       },
                     ]}
@@ -1143,8 +1143,8 @@ export default function MonthlyExpenseTimelineScreen() {
       <View style={styles.timelineSwipeArea} {...timelinePanResponder.panHandlers}>
       {/* Month Summary - 고정 (애니메이션 제외, Apr 18과 동일) */}
       <View>
-        <View style={[styles.summaryContainer, { backgroundColor: colors.background }]}>
-          <Text style={[styles.summaryMonth, { color: colors.staticBlack }]}>
+        <View style={[styles.summaryContainer, { backgroundColor: palette.background }]}>
+          <Text style={[styles.summaryMonth, { color: palette.staticBlack }]}>
             {(() => {
               const { startDate, endDate } = getCustomMonthRange(
                 headerYear,
@@ -1162,7 +1162,7 @@ export default function MonthlyExpenseTimelineScreen() {
           <View style={styles.summaryAmounts}>
             <View style={styles.summaryIncomeContainer}>
               <Text 
-                style={[styles.summaryIncome, { color: colors.text }]}
+                style={[styles.summaryIncome, { color: palette.text }]}
                 adjustsFontSizeToFit
                 numberOfLines={1}
                 minimumFontScale={0.7}
@@ -1171,11 +1171,11 @@ export default function MonthlyExpenseTimelineScreen() {
               </Text>
             </View>
             
-            <View style={[styles.summaryDivider, { backgroundColor: colors.border }]} />
+            <View style={[styles.summaryDivider, { backgroundColor: palette.border }]} />
             
             <View style={styles.summaryExpenseContainer}>
               <Text 
-                style={[styles.summaryExpense, { color: colors.text }]}
+                style={[styles.summaryExpense, { color: palette.text }]}
                 adjustsFontSizeToFit
                 numberOfLines={1}
                 minimumFontScale={0.7}
@@ -1186,7 +1186,7 @@ export default function MonthlyExpenseTimelineScreen() {
           </View>
         </View>
         {/* Figma: 월 소비 합계 영역 하단 라인 디바이더 (Line/Normal, rgba(144,146,158,0.16)) */}
-        <View style={[styles.summaryBottomDivider, { backgroundColor: colors.border }]} />
+        <View style={[styles.summaryBottomDivider, { backgroundColor: palette.border }]} />
         <View style={styles.headerDivider} />
       </View>
       
@@ -1205,8 +1205,8 @@ export default function MonthlyExpenseTimelineScreen() {
         >
         {Object.keys(groupedTimeline).length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Icon name="info" variant="line" size={24} color={colors.textAssistive} />
-            <Text style={[styles.emptyText, { color: colors.textAssistive }]}>
+            <Icon name="info" variant="line" size={24} color={palette.textAssistive} />
+            <Text style={[styles.emptyText, { color: palette.textAssistive }]}>
               이 달의 기록이 없습니다.
             </Text>
           </View>
@@ -1387,7 +1387,7 @@ export default function MonthlyExpenseTimelineScreen() {
                         {/* Date Column */}
                         <View style={styles.dateColumn}>
                           {isFirstInGroup && (
-                            <Text style={[styles.dateText, { color: colors.textAssistive }]}>
+                            <Text style={[styles.dateText, { color: palette.textAssistive }]}>
                               {formatDate(date)}
                             </Text>
                           )}
@@ -1399,7 +1399,7 @@ export default function MonthlyExpenseTimelineScreen() {
                           <View style={styles.itemRow1}>
                             <View style={styles.categoryContainer}>
                               <Text 
-                                style={[styles.categoryText, { color: colors.text }]}
+                                style={[styles.categoryText, { color: palette.text }]}
                               >
                                 {(() => {
                                   const label = item.category || '수입';
@@ -1419,7 +1419,7 @@ export default function MonthlyExpenseTimelineScreen() {
                             </View>
                             <View style={styles.amountContainer}>
                               <Text 
-                                style={[styles.amountText, { color: colors.text }]}
+                                style={[styles.amountText, { color: palette.text }]}
                                 adjustsFontSizeToFit
                                 numberOfLines={1}
                                 minimumFontScale={0.7}
@@ -1441,7 +1441,7 @@ export default function MonthlyExpenseTimelineScreen() {
                           <View style={styles.itemRow2}>
                             <View style={styles.memoContainer}>
                               <Text
-                                style={[styles.memoText, { color: colors.textAssistive }]}
+                                style={[styles.memoText, { color: palette.textAssistive }]}
                               >
                                 {item.memo ? item.memo.replace(/\n/g, ' ') : ' '}
                               </Text>
@@ -1493,7 +1493,7 @@ export default function MonthlyExpenseTimelineScreen() {
                             isFirstInGroup || isLastInGroup
                               ? styles.itemDividerInset
                               : styles.itemDividerContent,
-                            { backgroundColor: colors.border },
+                            { backgroundColor: palette.border },
                           ]}
                         />
                       ) : null}
@@ -1521,8 +1521,8 @@ export default function MonthlyExpenseTimelineScreen() {
             style={styles.floatingFilterBlur}
           >
             <View style={styles.floatingFilterContent}>
-              <Text style={[styles.floatingFilterText, { color: colors.textNeutral }]}>필터</Text>
-              <Icon name="arrowDown" variant="line" size={16} color={colors.textNeutral} />
+              <Text style={[styles.floatingFilterText, { color: palette.textNeutral }]}>필터</Text>
+              <Icon name="arrowDown" variant="line" size={16} color={palette.textNeutral} />
             </View>
           </GlassSurface>
         </Pressable>
@@ -1559,10 +1559,10 @@ export default function MonthlyExpenseTimelineScreen() {
           <View
             style={[
               styles.paymentFilterSheetBody,
-              { backgroundColor: colors.fill, height: paymentFilterSheetContentHeight },
+              { backgroundColor: palette.fill, height: paymentFilterSheetContentHeight },
             ]}
           >
-            <View style={[styles.paymentFilterListCard, { backgroundColor: colors.staticWhite }]}>
+            <View style={[styles.paymentFilterListCard, { backgroundColor: palette.staticWhite }]}>
               <ScrollView
                 style={styles.paymentFilterListScroll}
                 contentContainerStyle={styles.paymentFilterListScrollContent}
@@ -1596,34 +1596,34 @@ export default function MonthlyExpenseTimelineScreen() {
                           <Text style={styles.paymentFilterCashEmoji}>💵</Text>
                         </View>
                       ) : (
-                        <View style={[styles.paymentFilterIndicator, { backgroundColor: item.color, borderColor: colors.border }]} />
+                        <View style={[styles.paymentFilterIndicator, { backgroundColor: item.color, borderColor: palette.border }]} />
                       )}
                       <View style={[styles.paymentFilterTextBlock, !item.description.trim() && styles.paymentFilterTextBlockSingleLine]}>
-                        <Text style={[styles.paymentFilterTitle, { color: colors.text }]} numberOfLines={1}>
+                        <Text style={[styles.paymentFilterTitle, { color: palette.text }]} numberOfLines={1}>
                           {item.label}
                         </Text>
                         {item.description.trim() ? (
-                          <Text style={[styles.paymentFilterSubtitle, { color: colors.textAssistive }]} numberOfLines={1}>
+                          <Text style={[styles.paymentFilterSubtitle, { color: palette.textAssistive }]} numberOfLines={1}>
                             {item.description}
                           </Text>
                         ) : null}
                       </View>
                       {isSelected ? (
                         <View style={styles.paymentFilterCheckWrap}>
-                          <Icon name="check" variant="line" size={24} color={colors.primary} />
+                          <Icon name="check" variant="line" size={24} color={palette.primary} />
                         </View>
                       ) : null}
                     </Pressable>
                       );
                     })()}
                     {index < arr.length - 1 ? (
-                      <View style={[styles.paymentFilterDivider, { backgroundColor: colors.border }]} />
+                      <View style={[styles.paymentFilterDivider, { backgroundColor: palette.border }]} />
                     ) : null}
                   </View>
                 ))}
               </ScrollView>
             </View>
-            <ModalBottomsheetBottomInset backgroundColor={colors.staticWhite} />
+            <ModalBottomsheetBottomInset backgroundColor={palette.staticWhite} />
           </View>
         </ModalBottomsheet>
       ) : null}
@@ -1679,7 +1679,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   weekDayLabel: {
-    ...Typography.body2.r.medium,
+    ...typography.body2.r.medium,
     marginBottom: 8,
   },
   weekDayCircle: {
@@ -1691,7 +1691,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   weekDayNumber: {
-    ...Typography.headline4.r.bold,
+    ...typography.headline4.r.bold,
   },
   weekDayDot: {
     width: 8,
@@ -1707,7 +1707,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   summaryMonth: {
-    ...Typography.body1.l.bold,
+    ...typography.body1.l.bold,
   },
   summaryAmounts: {
     flexDirection: 'row',
@@ -1721,7 +1721,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   summaryIncome: {
-    ...Typography.body1.l.bold,
+    ...typography.body1.l.bold,
   },
   summaryDivider: {
     width: 1,
@@ -1732,7 +1732,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   summaryExpense: {
-    ...Typography.body1.l.bold,
+    ...typography.body1.l.bold,
   },
   summaryBottomDivider: {
     height: 1,
@@ -1763,7 +1763,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   emptyText: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
     marginTop: 12,
   },
   dateGroup: {
@@ -1785,7 +1785,7 @@ const styles = StyleSheet.create({
     width: 94,
   },
   dateText: {
-    ...Typography.body2.r.medium,
+    ...typography.body2.r.medium,
   },
   itemContent: {
     flex: 1,
@@ -1804,14 +1804,14 @@ const styles = StyleSheet.create({
     flex: 6,
   },
   categoryText: {
-    ...Typography.body2.r.bold,
+    ...typography.body2.r.bold,
   },
   amountContainer: {
     flex: 4,
     alignItems: 'flex-end',
   },
   amountText: {
-    ...Typography.body2.r.bold,
+    ...typography.body2.r.bold,
     textAlign: 'right',
   },
   memoContainer: {
@@ -1820,7 +1820,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   memoText: {
-    ...Typography.body2.r.regular,
+    ...typography.body2.r.regular,
     flex: 1,
   },
   /** 첫 번째 패턴 — Figma Frame 12: 전체 너비, 좌우 16 */
@@ -1861,11 +1861,11 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   categoryName: {
-    ...Typography.body1.l.bold,
+    ...typography.body1.l.bold,
     flex: 1,
   },
   categoryStatsText: {
-    ...Typography.body1.l.bold,
+    ...typography.body1.l.bold,
   },
   categorySeparator: {
     height: 1,
@@ -1908,7 +1908,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   challengeCategoryName: {
-    ...Typography.body1.l.bold,
+    ...typography.body1.l.bold,
   },
   challengeStatus: {
     flexDirection: 'row',
@@ -1921,10 +1921,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   statusText: {
-    ...Typography.detail.r.bold,
+    ...typography.detail.r.bold,
   },
   statusLabel: {
-    ...Typography.body1.l.bold,
+    ...typography.body1.l.bold,
   },
   progressContainer: {
     height: 10,
@@ -1948,11 +1948,11 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   amountLabel: {
-    ...Typography.detail.r.regular,
+    ...typography.detail.r.regular,
     marginBottom: 2,
   },
   amountValue: {
-    ...Typography.body1.l.bold,
+    ...typography.body1.l.bold,
   },
   paymentFilterSheetContent: {
     padding: 0,
@@ -1989,7 +1989,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   paymentFilterCashEmoji: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
   },
   paymentFilterEmojiWrap: {
     width: 16,
@@ -2008,10 +2008,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   paymentFilterTitle: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
   },
   paymentFilterSubtitle: {
-    ...Typography.body2.r.regular,
+    ...typography.body2.r.regular,
   },
   paymentFilterDivider: {
     height: 1,
@@ -2039,7 +2039,7 @@ const styles = StyleSheet.create({
     paddingRight: 16,
   },
   floatingFilterText: {
-    ...Typography.body2.r.medium,
+    ...typography.body2.r.medium,
   },
 });
 

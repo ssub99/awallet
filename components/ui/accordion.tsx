@@ -5,8 +5,8 @@
  */
 
 import { Icon } from '@/components/ui/icon';
-import { Colors, Typography } from '@/constants/theme';
-import { compactSingleLineTextStyle } from '@/constants/typography';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
+import { singleRowCenteredTextStyle } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ReactNode, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
@@ -76,17 +76,17 @@ export function Accordion({
   accessibilityLabel,
 }: AccordionProps) {
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
 
   const label = expanded ? expandedLabel : collapsedLabel;
   const iconName = expanded ? 'arrowUp' : 'arrowDown';
 
   const textStyle = useMemo(() => {
     if (disabled) {
-      return compactSingleLineTextStyle(Typography.button2.r.medium);
+      return singleRowCenteredTextStyle(typography.button2.r.medium);
     }
-    return compactSingleLineTextStyle(
-      expanded ? Typography.button2.r.regular : Typography.button2.r.medium,
+    return singleRowCenteredTextStyle(
+      expanded ? typography.button2.r.regular : typography.button2.r.medium,
     );
   }, [disabled, expanded]);
 
@@ -106,8 +106,8 @@ export function Accordion({
         style={[
           styles.header,
           {
-            backgroundColor: disabled ? colors.fillDisabled : colors.staticWhite,
-            borderColor: colors.border,
+            backgroundColor: disabled ? palette.fillDisabled : palette.staticWhite,
+            borderColor: palette.border,
           },
           headerStyle,
         ]}
@@ -116,7 +116,7 @@ export function Accordion({
           <Text
             style={[
               textStyle,
-              { color: disabled ? colors.textAssistive : colors.text },
+              { color: disabled ? palette.textAssistive : palette.text },
             ]}
           >
             {label}
@@ -125,7 +125,7 @@ export function Accordion({
             name={iconName}
             variant="line"
             size={16}
-            color={disabled ? colors.textAssistive : colors.text}
+            color={disabled ? palette.textAssistive : palette.text}
           />
         </View>
       </Pressable>

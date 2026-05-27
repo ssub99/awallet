@@ -7,14 +7,14 @@
 
 import { Radio } from '@/components/ui/radio';
 import { RadioGroup } from '@/components/ui/radio-group';
-import { Colors, Typography } from '@/constants/theme';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 export default function RadioDemoScreen() {
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
 
   // Sample options
   const paymentOptions = [
@@ -44,35 +44,35 @@ export default function RadioDemoScreen() {
 
   return (
     <ScrollView
-      style={[styles.container, { backgroundColor: colors.background }]}
+      style={[styles.container, { backgroundColor: palette.background }]}
       contentContainerStyle={styles.contentContainer}
     >
       {/* Header */}
-      <Text style={[Typography.headline1.xl.bold, { color: colors.text, marginBottom: 8 }]}>
+      <Text style={[typography.headline1.xl.bold, { color: palette.text, marginBottom: 8 }]}>
         Radio Components
       </Text>
-      <Text style={[Typography.body1.l.regular, { color: colors.textNeutral, marginBottom: 32 }]}>
+      <Text style={[typography.body1.l.regular, { color: palette.textNeutral, marginBottom: 32 }]}>
         Radio buttons for single selection
       </Text>
 
       {/* Single Radio - States */}
-      <SectionHeader title="Single Radio - States" colors={colors} />
+      <SectionHeader title="Single Radio - States" colors={palette} />
 
-      <SubSectionHeader title="Default (Unchecked)" colors={colors} />
+      <SubSectionHeader title="Default (Unchecked)" colors={palette} />
       <Radio
         checked={false}
         onPress={() => {}}
         label="선택 가능"
       />
 
-      <SubSectionHeader title="Active (Checked)" colors={colors} />
+      <SubSectionHeader title="Active (Checked)" colors={palette} />
       <Radio
         checked={true}
         onPress={() => {}}
         label="선택됨"
       />
 
-      <SubSectionHeader title="Disabled (Unchecked)" colors={colors} />
+      <SubSectionHeader title="Disabled (Unchecked)" colors={palette} />
       <Radio
         checked={false}
         onPress={() => {}}
@@ -80,7 +80,7 @@ export default function RadioDemoScreen() {
         disabled
       />
 
-      <SubSectionHeader title="Disabled (Checked)" colors={colors} />
+      <SubSectionHeader title="Disabled (Checked)" colors={palette} />
       <Radio
         checked={true}
         onPress={() => {}}
@@ -89,7 +89,7 @@ export default function RadioDemoScreen() {
       />
 
       {/* Single Radio - Interactive */}
-      <SectionHeader title="Single Radio - Interactive" colors={colors} />
+      <SectionHeader title="Single Radio - Interactive" colors={palette} />
       
       <Radio
         checked={singleChecked}
@@ -98,7 +98,7 @@ export default function RadioDemoScreen() {
       />
 
       {/* Radio Without Label */}
-      <SectionHeader title="Radio Without Label" colors={colors} />
+      <SectionHeader title="Radio Without Label" colors={palette} />
       
       <View style={styles.row}>
         <Radio checked={false} onPress={() => {}} />
@@ -111,16 +111,16 @@ export default function RadioDemoScreen() {
       </View>
 
       {/* RadioGroup - Vertical */}
-      <SectionHeader title="RadioGroup - Vertical" colors={colors} />
+      <SectionHeader title="RadioGroup - Vertical" colors={palette} />
       
-      <SubSectionHeader title="Payment Method (with default)" colors={colors} />
+      <SubSectionHeader title="Payment Method (with default)" colors={palette} />
       <RadioGroup
         options={paymentOptions}
         value={payment}
         onValueChange={setPayment}
       />
 
-      <SubSectionHeader title="Period (no default)" colors={colors} />
+      <SubSectionHeader title="Period (no default)" colors={palette} />
       <RadioGroup
         options={periodOptions}
         value={period}
@@ -128,7 +128,7 @@ export default function RadioDemoScreen() {
       />
 
       {/* RadioGroup - Horizontal */}
-      <SectionHeader title="RadioGroup - Horizontal" colors={colors} />
+      <SectionHeader title="RadioGroup - Horizontal" colors={palette} />
       
       <RadioGroup
         options={typeOptions}
@@ -138,7 +138,7 @@ export default function RadioDemoScreen() {
       />
 
       {/* RadioGroup - Disabled */}
-      <SectionHeader title="RadioGroup - Disabled" colors={colors} />
+      <SectionHeader title="RadioGroup - Disabled" colors={palette} />
       
       <RadioGroup
         options={paymentOptions}
@@ -148,11 +148,11 @@ export default function RadioDemoScreen() {
       />
 
       {/* Real-world Examples */}
-      <SectionHeader title="Real-world Examples" colors={colors} />
+      <SectionHeader title="Real-world Examples" colors={palette} />
 
       <View style={styles.column}>
         <View>
-          <Text style={[Typography.body2.r.medium, { color: colors.text, marginBottom: 12 }]}>
+          <Text style={[typography.body2.r.medium, { color: palette.text, marginBottom: 12 }]}>
             결제 수단
           </Text>
           <RadioGroup
@@ -163,7 +163,7 @@ export default function RadioDemoScreen() {
         </View>
 
         <View>
-          <Text style={[Typography.body2.r.medium, { color: colors.text, marginBottom: 12 }]}>
+          <Text style={[typography.body2.r.medium, { color: palette.text, marginBottom: 12 }]}>
             조회 기간
           </Text>
           <RadioGroup
@@ -176,14 +176,14 @@ export default function RadioDemoScreen() {
       </View>
 
       {/* Radio Specs */}
-      <SectionHeader title="Radio Specifications" colors={colors} />
-      <View style={[styles.specsContainer, { backgroundColor: colors.fill }]}>
-        <SpecItem label="Outer Size" value="20×20px" colors={colors} />
-        <SpecItem label="Inner Size" value="10×10px" colors={colors} />
-        <SpecItem label="Border Radius" value="10px (circle)" colors={colors} />
-        <SpecItem label="Label Font" value="Pretendard Medium 14" colors={colors} />
-        <SpecItem label="Label Gap" value="8px" colors={colors} />
-        <SpecItem label="Line Height" value="21px" colors={colors} />
+      <SectionHeader title="Radio Specifications" colors={palette} />
+      <View style={[styles.specsContainer, { backgroundColor: palette.fill }]}>
+        <SpecItem label="Outer Size" value="20×20px" colors={palette} />
+        <SpecItem label="Inner Size" value="10×10px" colors={palette} />
+        <SpecItem label="Border Radius" value="10px (circle)" colors={palette} />
+        <SpecItem label="Label Font" value="Pretendard Medium 14" colors={palette} />
+        <SpecItem label="Label Gap" value="8px" colors={palette} />
+        <SpecItem label="Line Height" value="21px" colors={palette} />
       </View>
 
       <View style={{ height: 40 }} />
@@ -199,11 +199,11 @@ function SectionHeader({
   colors,
 }: {
   title: string;
-  colors: typeof Colors.light | typeof Colors.dark;
+  colors: ColorPalette;
 }) {
   return (
     <Text
-      style={[Typography.headline3.m.bold, { color: colors.text, marginTop: 32, marginBottom: 16 }]}
+      style={[typography.headline3.m.bold, { color: colors.text, marginTop: 32, marginBottom: 16 }]}
     >
       {title}
     </Text>
@@ -218,12 +218,12 @@ function SubSectionHeader({
   colors,
 }: {
   title: string;
-  colors: typeof Colors.light | typeof Colors.dark;
+  colors: ColorPalette;
 }) {
   return (
     <Text
       style={[
-        Typography.body1.l.medium,
+        typography.body1.l.medium,
         { color: colors.textNeutral, marginTop: 16, marginBottom: 8 },
       ]}
     >
@@ -242,12 +242,12 @@ function SpecItem({
 }: {
   label: string;
   value: string;
-  colors: typeof Colors.light | typeof Colors.dark;
+  colors: ColorPalette;
 }) {
   return (
     <View style={styles.specItem}>
-      <Text style={[Typography.body2.r.regular, { color: colors.textNeutral }]}>{label}</Text>
-      <Text style={[Typography.body2.r.bold, { color: colors.text }]}>{value}</Text>
+      <Text style={[typography.body2.r.regular, { color: colors.textNeutral }]}>{label}</Text>
+      <Text style={[typography.body2.r.bold, { color: colors.text }]}>{value}</Text>
     </View>
   );
 }

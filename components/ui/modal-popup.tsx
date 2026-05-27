@@ -5,7 +5,7 @@
  * Supports custom content via children prop for maximum flexibility.
  */
 
-import { Colors, Typography } from '@/constants/theme';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ReactNode, useEffect, useRef } from 'react';
 import {
@@ -104,7 +104,7 @@ export function ModalPopup({
   confirmDisabled = false,
 }: ModalPopupProps) {
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   
   // Animation values
   const dimOpacity = useRef(new Animated.Value(0)).current;
@@ -209,7 +209,7 @@ export function ModalPopup({
           style={[
             styles.modal,
             {
-              backgroundColor: colors.staticWhite,
+              backgroundColor: palette.staticWhite,
               opacity: modalOpacity,
               transform: [{ scale: modalScale }],
             },
@@ -219,7 +219,7 @@ export function ModalPopup({
         >
           {/* Title (Optional) */}
           {title && (
-            <Text style={[styles.title, { color: colors.text }]}>
+            <Text style={[styles.title, { color: palette.text }]}>
               {title}
             </Text>
           )}
@@ -227,7 +227,7 @@ export function ModalPopup({
           {/* Content (Flexible via children or message) */}
           <View style={[styles.content, !title && styles.contentNoTitle]}>
             {message ? (
-              <Text style={[styles.message, { color: colors.text }]}>
+              <Text style={[styles.message, { color: palette.text }]}>
                 {message}
               </Text>
             ) : (
@@ -242,9 +242,9 @@ export function ModalPopup({
                 {/* 2-Button Layout (Confirm) */}
                 <Pressable
                   onPress={handleCancel}
-                  style={[styles.button, styles.buttonHalf, { backgroundColor: colors.fill }]}
+                  style={[styles.button, styles.buttonHalf, { backgroundColor: palette.fill }]}
                 >
-                  <Text style={[styles.buttonText, { color: colors.textNeutral }]}>
+                  <Text style={[styles.buttonText, { color: palette.textNeutral }]}>
                     {cancelText}
                   </Text>
                 </Pressable>
@@ -255,8 +255,8 @@ export function ModalPopup({
                     styles.button,
                     styles.buttonHalf,
                     confirmDisabled
-                      ? { backgroundColor: colors.fill }
-                      : { backgroundColor: colors.primary },
+                      ? { backgroundColor: palette.fill }
+                      : { backgroundColor: palette.primary },
                   ]}
                   accessibilityState={{ disabled: confirmDisabled }}
                 >
@@ -264,7 +264,7 @@ export function ModalPopup({
                     style={[
                       styles.buttonText,
                       {
-                        color: confirmDisabled ? colors.textAssistive : colors.staticWhite,
+                        color: confirmDisabled ? palette.textAssistive : palette.staticWhite,
                       },
                     ]}
                   >
@@ -282,8 +282,8 @@ export function ModalPopup({
                     styles.button,
                     styles.buttonFull,
                     confirmDisabled
-                      ? { backgroundColor: colors.fill }
-                      : { backgroundColor: colors.primary },
+                      ? { backgroundColor: palette.fill }
+                      : { backgroundColor: palette.primary },
                   ]}
                   accessibilityState={{ disabled: confirmDisabled }}
                 >
@@ -291,7 +291,7 @@ export function ModalPopup({
                     style={[
                       styles.buttonText,
                       {
-                        color: confirmDisabled ? colors.textAssistive : colors.staticWhite,
+                        color: confirmDisabled ? palette.textAssistive : palette.staticWhite,
                       },
                     ]}
                   >
@@ -329,7 +329,7 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   title: {
-    ...Typography.headline4.r.bold,
+    ...typography.headline4.r.bold,
     textAlign: 'center',
     marginBottom: 16,
   },
@@ -340,7 +340,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   message: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
     textAlign: 'center',
   },
   buttons: {
@@ -360,7 +360,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   buttonText: {
-    ...Typography.body1.l.medium,
+    ...typography.body1.l.medium,
   },
 });
 

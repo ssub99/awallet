@@ -9,8 +9,8 @@ import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Icon } from '@/components/ui/icon';
 import { getCategoriesByType, type CategoryType } from '@/constants/categories';
 import { areCategoriesSame, loadCategories } from '@/utils/categories';
-import { ThemeColors } from '@/constants/theme-colors';
-import { Typography } from '@/constants/typography';
+import { themeColors } from '@/constants/theme-colors';
+import { typography } from '@/constants/typography';
 import {
   applySavedOrder,
   getOrderedCategoriesFromCache,
@@ -72,12 +72,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   categoryEmoji: {
-    ...Typography.headline4.r.bold,
+    ...typography.headline4.r.bold,
     width: 21,
     textAlign: 'center',
   },
   categoryLabel: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
   },
   divider: {
     height: 1,
@@ -91,7 +91,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   emptyText: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
   },
 });
 
@@ -110,7 +110,7 @@ function CategoryItem({
   drag: () => void;
   isActive: boolean;
   index: number | undefined;
-  colors: typeof ThemeColors.light;
+  colors: typeof themeColors.light;
   onCategoryPress: (category: { emoji: string; label: string }) => void;
   onDragStart: (params: { index: number }) => void;
   showDivider: boolean;
@@ -214,7 +214,7 @@ function CategoryItem({
 }
 
 export default function CategorySettingScreen() {
-  const colors = ThemeColors.light;
+  const colors = themeColors.light;
   const router = useRouter();
   const params = useLocalSearchParams<{ type?: string }>();
   

@@ -1,4 +1,3 @@
-import { pretendardTextInputOpticalAdjust } from '@/constants/typography';
 import React from 'react';
 import { Platform } from 'react-native';
 import type { TextInputProps, TextStyle } from 'react-native';
@@ -21,7 +20,7 @@ const PatchedTextInput = React.forwardRef<unknown, TextInputProps>((props, ref) 
     ...DISABLE_SYSTEM_FONT_SCALING,
     ...ANDROID_TEXT_INPUT_ADJUST,
     ...(props as TextInputProps),
-    style: [pretendardTextInputOpticalAdjust(), props.style as TextStyle | undefined],
+    style: props.style as TextStyle | undefined,
     ref,
   } as TextInputProps & { ref?: React.Ref<unknown> }),
 );

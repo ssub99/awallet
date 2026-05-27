@@ -12,9 +12,9 @@ import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { RecordDatePickerHost } from '@/components/ui/record-date-picker-sheet';
 import { ModalPopup } from '@/components/ui/modal-popup';
-import { AtomicColors } from '@/constants/atomic-colors';
-import { Colors, Typography } from '@/constants/theme';
-import { TypographyLayout } from '@/constants/typography';
+import { atomicColors } from '@/constants/atomic-colors';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
+import { typographyLayout } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
 import { calendarRefreshEvent } from '@/hooks/calendar-events';
 import { useAndroidKeypadBackDismiss } from '@/hooks/use-android-keypad-back-dismiss';
@@ -61,7 +61,7 @@ function getDayOfWeekLabel(year: number, month: number, day: number): string {
 
 export default function IncomeRecordScreen() {
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   const router = useRouter();
   const navigation = useNavigation();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
@@ -207,7 +207,7 @@ export default function IncomeRecordScreen() {
         {tokensToRender.map((token, index) => {
           if (token.type === 'number') {
             return (
-              <Text key={`num-${index}`} style={[styles.amountExpressionText, { color: colors.text }]}>
+              <Text key={`num-${index}`} style={[styles.amountExpressionText, { color: palette.text }]}>
                 {formatAmountDisplay(token.value)}
               </Text>
             );
@@ -219,7 +219,7 @@ export default function IncomeRecordScreen() {
           return (
             <Text
               key={`op-${index}`}
-              style={[styles.amountExpressionOperator, { color: colors.textNeutral }]}
+              style={[styles.amountExpressionOperator, { color: palette.textNeutral }]}
               accessibilityLabel="연산자"
             >
               {symbol}
@@ -228,7 +228,7 @@ export default function IncomeRecordScreen() {
         })}
       </ScrollView>
     );
-  }, [amount, amountExpression, colors.text, colors.textNeutral, formatAmountDisplay, getOperatorSymbol]);
+  }, [amount, amountExpression, palette.text, palette.textNeutral, formatAmountDisplay, getOperatorSymbol]);
 
   useEffect(() => {
     if (isKeypadVisible) {
@@ -631,7 +631,7 @@ export default function IncomeRecordScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.staticWhite }]} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: palette.staticWhite }]} edges={['top']}>
       <StatusBar barStyle="dark-content" />
       
       <TopNavigation
@@ -641,7 +641,7 @@ export default function IncomeRecordScreen() {
         onLeftIconPress={handleBack}
       />
 
-      <View style={[styles.content, { backgroundColor: colors.fill }]}>
+      <View style={[styles.content, { backgroundColor: palette.fill }]}>
         <ScrollView
           ref={scrollViewRef}
           style={styles.scrollView}
@@ -699,8 +699,8 @@ export default function IncomeRecordScreen() {
         >
             {/* 카테고리 */}
             <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
-                카테고리 <Text style={{ color: colors.statusNegative }}>*</Text>
+              <Text style={[styles.sectionTitle, { color: palette.staticBlack }]}>
+                카테고리 <Text style={{ color: palette.statusNegative }}>*</Text>
               </Text>
               <Input
                 value={categoryDisplay}
@@ -713,14 +713,14 @@ export default function IncomeRecordScreen() {
 
             {/* 날짜 */}
             <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
-                날짜 <Text style={{ color: colors.statusNegative }}>*</Text>
+              <Text style={[styles.sectionTitle, { color: palette.staticBlack }]}>
+                날짜 <Text style={{ color: palette.statusNegative }}>*</Text>
               </Text>
               <Pressable onPress={handleDatePress}>
-                <View style={[styles.card, { backgroundColor: colors.staticWhite }]}>
+                <View style={[styles.card, { backgroundColor: palette.staticWhite }]}>
                   <View style={styles.dateRow}>
-                    <Icon name="calendarMonth" variant="line" size={24} color={colors.text} />
-                    <Text style={[styles.dateText, { color: colors.text }]}>
+                    <Icon name="calendarMonth" variant="line" size={24} color={palette.text} />
+                    <Text style={[styles.dateText, { color: palette.text }]}>
                       {(() => {
                         if (!date) return '';
                         const [year, month, day] = date.split('.').map(d => parseInt(d, 10));
@@ -741,8 +741,8 @@ export default function IncomeRecordScreen() {
                 setAmountSectionY(layout.y);
               }}
             >
-              <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
-                금액 <Text style={{ color: colors.statusNegative }}>*</Text>
+              <Text style={[styles.sectionTitle, { color: palette.staticBlack }]}>
+                금액 <Text style={{ color: palette.statusNegative }}>*</Text>
               </Text>
               <Input
                 variant="line"
@@ -769,7 +769,7 @@ export default function IncomeRecordScreen() {
                 memoSectionHeightRef.current = layout.height;
               }}
             >
-              <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
+              <Text style={[styles.sectionTitle, { color: palette.staticBlack }]}>
                 메모
               </Text>
               <Input
@@ -824,7 +824,7 @@ export default function IncomeRecordScreen() {
           style={[
             styles.bottomButtonContainer,
             {
-              backgroundColor: colors.staticWhite,
+              backgroundColor: palette.staticWhite,
               paddingBottom: 16 + insets.bottom,
             },
           ]}
@@ -856,7 +856,7 @@ export default function IncomeRecordScreen() {
         onConfirm={() => setShowAmountAlert(false)}
         confirmText="확인"
       >
-        <Text style={[styles.alertText, { color: colors.text }]}>
+        <Text style={[styles.alertText, { color: palette.text }]}>
           금액을 입력해 주세요.
         </Text>
       </ModalPopup>
@@ -867,7 +867,7 @@ export default function IncomeRecordScreen() {
         onConfirm={() => setShowCategoryAlert(false)}
         confirmText="확인"
       >
-        <Text style={[styles.alertText, { color: colors.text }]}>
+        <Text style={[styles.alertText, { color: palette.text }]}>
           카테고리를 선택해 주세요.
         </Text>
       </ModalPopup>
@@ -905,7 +905,7 @@ const styles = StyleSheet.create({
     paddingTop: 24,
     gap: 8,
   },
-  sectionTitle: TypographyLayout.sectionTitle,
+  sectionTitle: typographyLayout.sectionTitle,
   card: {
     borderRadius: 12,
     borderWidth: 1,
@@ -919,14 +919,14 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   dateText: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
   },
   bottomButtonContainer: {
     paddingHorizontal: 16,
     paddingTop: 16,
   },
   alertText: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
     textAlign: 'center',
   },
   amountExpression: {
@@ -936,7 +936,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     gap: 6,
   },
-  amountExpressionText: TypographyLayout.fieldNumber,
-  amountExpressionOperator: TypographyLayout.fieldNumber,
+  amountExpressionText: typographyLayout.fieldNumber,
+  amountExpressionOperator: typographyLayout.fieldNumber,
 });
 

@@ -2,8 +2,8 @@
  * Android spinner wheel column (년·월, 개월 수 등 단일 옵션 목록).
  */
 
-import { Colors } from '@/constants/theme';
-import { Typography } from '@/constants/typography';
+import { colors, type ColorPalette } from '@/constants/theme';
+import { typography } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { resolvePickerValue } from '@/utils/android-date-picker';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -40,7 +40,7 @@ export function AndroidSpinnerWheelColumn({
   active = true,
 }: AndroidSpinnerWheelColumnProps) {
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   const scrollRef = useRef<ScrollView>(null);
   const isUserScrollingRef = useRef(false);
   const isInitializedRef = useRef(false);
@@ -136,7 +136,7 @@ export function AndroidSpinnerWheelColumn({
   return (
     <View style={styles.wheel}>
       <View
-        style={[styles.selectionBand, { backgroundColor: colors.fill }]}
+        style={[styles.selectionBand, { backgroundColor: palette.fill }]}
         pointerEvents="none"
       />
       <ScrollView
@@ -166,7 +166,7 @@ export function AndroidSpinnerWheelColumn({
               <Text
                 style={[
                   isSelected ? styles.itemTextSelected : styles.itemText,
-                  { color: isSelected ? colors.text : colors.textNeutral },
+                  { color: isSelected ? palette.text : palette.textNeutral },
                 ]}
                 numberOfLines={1}
               >
@@ -209,11 +209,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   itemText: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
     textAlign: 'center',
   },
   itemTextSelected: {
-    ...Typography.body1.l.bold,
+    ...typography.body1.l.bold,
     textAlign: 'center',
   },
 });

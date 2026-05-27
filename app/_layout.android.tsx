@@ -17,11 +17,11 @@ configureForegroundNotificationHandler();
 export const unstable_settings = rootLayoutUnstableSettings;
 
 export default function RootLayout() {
-  const { colors, onLayoutRootView, showApp } = useRootLayoutBootstrap();
+  const { palette, onLayoutRootView, showApp } = useRootLayoutBootstrap();
 
   return (
     <RootLayoutShell
-      backgroundColor={colors.background}
+      backgroundColor={palette.background}
       onLayoutRootView={onLayoutRootView}
       showApp={showApp}
       navigation={

@@ -11,8 +11,8 @@ import { Input } from '@/components/ui/input';
 import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
 import { ModalPopup } from '@/components/ui/modal-popup';
 import { type CategoryType } from '@/constants/categories';
-import { Colors, Typography } from '@/constants/theme';
-import { TypographyLayout } from '@/constants/typography';
+import { colors, typography } from '@/constants/theme';
+import { typographyLayout } from '@/constants/typography';
 import { useToast } from '@/contexts/toast-context';
 import { useAndroidKeyboardBottomCtaHide } from '@/hooks/use-android-keyboard-bottom-cta-hide';
 import { loadCategories, saveCategories } from '@/utils/categories';
@@ -83,7 +83,7 @@ const CATEGORY_LABELS: Record<EmojiCategory, string> = {
 };
 
 export default function CategoryEditScreen() {
-  const colors = Colors.light;
+  const palette = colors.light;
   const router = useRouter();
   const { showToast } = useToast();
   const params = useLocalSearchParams<{ type?: string; emoji?: string; label?: string }>();
@@ -520,7 +520,7 @@ export default function CategoryEditScreen() {
     <SafeAreaView
       style={[
         styles.container,
-        { backgroundColor: colors.background, paddingTop: insets.top },
+        { backgroundColor: colors.light.background, paddingTop: insets.top },
       ]}
       edges={['bottom']}
     >
@@ -529,7 +529,7 @@ export default function CategoryEditScreen() {
       <TopNavigation type="sub" title={title} showLeftIcon onLeftIconPress={handleBack} />
 
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <View style={[styles.content, { backgroundColor: colors.fill }]}>
+        <View style={[styles.content, { backgroundColor: colors.light.fill }]}>
           <ScrollView
             style={styles.scrollView}
             contentContainerStyle={styles.scrollContent}
@@ -541,7 +541,7 @@ export default function CategoryEditScreen() {
             {/* Emoji Selection */}
             <View style={styles.emojiSection}>
               <Pressable
-                style={[styles.emojiButton, { borderColor: colors.border }]}
+                style={[styles.emojiButton, { borderColor: colors.light.border }]}
                 onPress={handleEmojiPress}
                 accessibilityRole="button"
                 accessibilityLabel="이모지 선택"
@@ -553,7 +553,7 @@ export default function CategoryEditScreen() {
             {/* Category Name Input */}
             <View style={styles.inputSection}>
               <View style={styles.inputHeader}>
-                <Text style={[styles.label, { color: colors.text }]}>
+                <Text style={[styles.label, { color: colors.light.text }]}>
                   카테고리 이름
                 </Text>
                 <Pressable
@@ -586,7 +586,7 @@ export default function CategoryEditScreen() {
       <View
         style={[
           styles.bottomButtonContainer,
-          { backgroundColor: colors.staticWhite },
+          { backgroundColor: colors.light.staticWhite },
         ]}
       >
         <Button onPress={handleUpdate}>
@@ -706,7 +706,7 @@ export default function CategoryEditScreen() {
         closeOnBackdrop={true}
         backdropInteractive={true}
       >
-        <Text style={[styles.modalText, { color: colors.text }]}>
+        <Text style={[styles.modalText, { color: colors.light.text }]}>
           해당 카테고리에{'\n'}
           설정된 기록들은 자동으로 삭제됩니다.{'\n'}
           삭제하시겠어요 ?
@@ -747,10 +747,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.light.staticWhite,
+    backgroundColor: colors.light.staticWhite,
   },
   emojiText: {
-    ...TypographyLayout.categoryEmojiLarge,
+    ...typographyLayout.categoryEmojiLarge,
   },
   inputSection: {
     marginBottom: 24,
@@ -762,20 +762,20 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   label: {
-    ...Typography.body1.l.bold,
+    ...typography.body1.l.bold,
   },
   input: {
     marginTop: 0,
   },
   deleteText: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
     color: '#ef2a2a',
   },
   emojiPickerContent: {
     padding: 8,
   },
   emojiPickerContainer: {
-    backgroundColor: Colors.light.staticWhite,
+    backgroundColor: colors.light.staticWhite,
   },
   emojiPickerContentWrapper: {
     height: 264,
@@ -798,18 +798,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'flex-start',
     paddingLeft: 12,
-    backgroundColor: Colors.light.staticWhite,
+    backgroundColor: colors.light.staticWhite,
     marginVertical: 2,
   },
   categoryListItemActive: {
     backgroundColor: '#ededed',
   },
   categoryListItemText: {
-    ...Typography.body1.l.regular,
-    color: Colors.light.text,
+    ...typography.body1.l.regular,
+    color: colors.light.text,
   },
   categoryListItemTextActive: {
-    color: Colors.light.text,
+    color: colors.light.text,
   },
   emojiGrid: {
     height: 264,
@@ -838,13 +838,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   emojiItemText: {
-    ...TypographyLayout.categoryEmojiLarge,
+    ...typographyLayout.categoryEmojiLarge,
   },
   homeIndicatorContainer: {
     width: '100%',
   },
   modalText: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
     textAlign: 'center',
   },
 });

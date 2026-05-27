@@ -2,8 +2,8 @@ import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Chip } from '@/components/ui/chip';
 import { Icon } from '@/components/ui/icon';
 import { Tag } from '@/components/ui/tag';
-import { ThemeColors } from '@/constants/theme-colors';
-import { Typography } from '@/constants/typography';
+import { themeColors } from '@/constants/theme-colors';
+import { typography } from '@/constants/typography';
 import {
     arePaymentSubtypesSame,
     DEFAULT_PAYMENT_SUBTYPES,
@@ -69,8 +69,8 @@ const styles = StyleSheet.create({
   paymentTypeIndicator: { width: 16, height: 16, borderRadius: 99, borderWidth: 1 },
   paymentTypeTextBlock: { flex: 1, marginLeft: 12 },
   paymentTypeTextBlockSingleLine: { justifyContent: 'center' },
-  paymentTypeTitle: { ...Typography.body1.l.regular },
-  paymentTypeSubtitle: { ...Typography.body2.r.regular },
+  paymentTypeTitle: { ...typography.body1.l.regular },
+  paymentTypeSubtitle: { ...typography.body2.r.regular },
   paymentTypeRight: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   divider: { height: 1, marginLeft: 16, marginRight: 16 },
 });
@@ -89,7 +89,7 @@ function PaymentTypeItem({
   drag: () => void;
   isActive: boolean;
   index: number | undefined;
-  colors: typeof ThemeColors.light;
+  colors: typeof themeColors.light;
   onDragStart: (params: { index: number }) => void;
   showDivider: boolean;
   onPress: (item: PaymentTypeItemData) => void;
@@ -177,7 +177,7 @@ function PaymentTypeItem({
 }
 
 export default function PaymentTypeSettingScreen() {
-  const colors = ThemeColors.light;
+  const colors = themeColors.light;
   const router = useRouter();
   const initialSubtypes = getPaymentSubtypesMemoryCache() ?? DEFAULT_PAYMENT_SUBTYPES;
   const [selectedFilter, setSelectedFilter] = useState<PaymentMethodType>('credit');
@@ -362,7 +362,7 @@ export default function PaymentTypeSettingScreen() {
             <View style={{ flex: 1 }} />
           ) : paymentTypes.length === 0 ? (
             <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={[Typography.body1.l.regular, { color: colors.textAssistive }]}>
+              <Text style={[typography.body1.l.regular, { color: colors.textAssistive }]}>
                 등록된 결제 유형이 없습니다.
               </Text>
             </View>

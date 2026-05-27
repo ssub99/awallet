@@ -13,14 +13,14 @@ import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { ModalPopup } from '@/components/ui/modal-popup';
 import { Switch } from '@/components/ui/switch';
-import { AtomicColors } from '@/constants/atomic-colors';
+import { atomicColors } from '@/constants/atomic-colors';
 import { type Category } from '@/constants/categories';
 import {
     buildChallengeRecurringMonthPickerOptions,
     CHALLENGE_RECURRING_MONTH_MIN,
 } from '@/constants/challenge-recurring-months';
-import { Colors, Typography } from '@/constants/theme';
-import { TypographyLayout, lineFieldRowText, lineFieldRowTextWrap } from '@/constants/typography';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
+import { typographyLayout, lineFieldRowText, lineFieldRowTextWrap } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
 import { useToast } from '@/contexts/toast-context';
 import { useAndroidKeypadBackDismiss } from '@/hooks/use-android-keypad-back-dismiss';
@@ -38,7 +38,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 export default function ChallengeCreateScreen() {
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   const router = useRouter();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
@@ -231,7 +231,7 @@ export default function ChallengeCreateScreen() {
         {tokensToRender.map((token, index) => {
           if (token.type === 'number') {
             return (
-              <Text key={`num-${index}`} style={[styles.amountExpressionText, { color: colors.text }]}>
+              <Text key={`num-${index}`} style={[styles.amountExpressionText, { color: palette.text }]}>
                 {formatAmountDisplay(token.value)}
               </Text>
             );
@@ -243,7 +243,7 @@ export default function ChallengeCreateScreen() {
           return (
             <Text
               key={`op-${index}`}
-              style={[styles.amountExpressionOperator, { color: colors.textNeutral }]}
+              style={[styles.amountExpressionOperator, { color: palette.textNeutral }]}
               accessibilityLabel="연산자"
             >
               {symbol}
@@ -252,7 +252,7 @@ export default function ChallengeCreateScreen() {
         })}
       </ScrollView>
     );
-  }, [amountExpression, colors.text, colors.textNeutral, formatAmountDisplay, getOperatorSymbol, targetAmount]);
+  }, [amountExpression, palette.text, palette.textNeutral, formatAmountDisplay, getOperatorSymbol, targetAmount]);
 
   useEffect(() => {
     if (isKeypadVisible) {
@@ -479,7 +479,7 @@ export default function ChallengeCreateScreen() {
         Keyboard.dismiss();
       }}
     >
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.staticWhite }]} edges={['top']}>
+      <SafeAreaView style={[styles.container, { backgroundColor: palette.staticWhite }]} edges={['top']}>
         <StatusBar barStyle="dark-content" />
       
         <TopNavigation
@@ -491,7 +491,7 @@ export default function ChallengeCreateScreen() {
 
         <ScrollView 
           ref={scrollViewRef}
-          style={[styles.content, { backgroundColor: colors.fill }]}
+          style={[styles.content, { backgroundColor: palette.fill }]}
           contentContainerStyle={[
             styles.contentContainer,
             { paddingBottom: isKeypadVisible ? getCustomKeypadScrollPaddingBottom(KEYPAD_HEIGHT, insets.bottom) : 24 }
@@ -525,8 +525,8 @@ export default function ChallengeCreateScreen() {
         >
           {/* 카테고리 */}
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
-              카테고리 <Text style={{ color: colors.statusNegative }}>*</Text>
+            <Text style={[styles.sectionTitle, { color: palette.staticBlack }]}>
+              카테고리 <Text style={{ color: palette.statusNegative }}>*</Text>
             </Text>
             <Pressable onPress={() => {
               void logEvent('ui', {
@@ -548,12 +548,12 @@ export default function ChallengeCreateScreen() {
                 }
               });
             }}>
-              <View style={[styles.card, { backgroundColor: colors.staticWhite }]}>
+              <View style={[styles.card, { backgroundColor: palette.staticWhite }]}>
                 <View style={styles.categoryRow}>
-                  <Text style={[styles.categoryText, { color: colors.text }]}>
+                  <Text style={[styles.categoryText, { color: palette.text }]}>
                     {category ? getCategoryWithEmoji(category) : '카테고리를 선택해주세요'}
                   </Text>
-                  <Icon name="arrowRight" variant="line" size={24} color={colors.text} />
+                  <Icon name="arrowRight" variant="line" size={24} color={palette.text} />
                 </View>
               </View>
             </Pressable>
@@ -561,8 +561,8 @@ export default function ChallengeCreateScreen() {
 
           {/* 시작 년월 */}
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
-              시작 년월 <Text style={{ color: colors.statusNegative }}>*</Text>
+            <Text style={[styles.sectionTitle, { color: palette.staticBlack }]}>
+              시작 년월 <Text style={{ color: palette.statusNegative }}>*</Text>
             </Text>
             <Pressable onPress={() => {
               void logEvent('ui', {
@@ -576,12 +576,12 @@ export default function ChallengeCreateScreen() {
 
               setShowYearMonthPicker(true);
             }}>
-              <View style={[styles.card, { backgroundColor: colors.staticWhite }]}>
+              <View style={[styles.card, { backgroundColor: palette.staticWhite }]}>
                 <View style={styles.yearMonthRow}>
                   <View style={styles.yearMonthLeft}>
-                    <Icon name="calendarMonth" variant="line" size={24} color={colors.text} />
+                    <Icon name="calendarMonth" variant="line" size={24} color={palette.text} />
                     <View style={lineFieldRowTextWrap}>
-                      <Text style={[lineFieldRowText, { color: colors.text }]}>
+                      <Text style={[lineFieldRowText, { color: palette.text }]}>
                         {startYear}.{String(startMonth).padStart(2, '0')}
                       </Text>
                     </View>
@@ -599,8 +599,8 @@ export default function ChallengeCreateScreen() {
               setAmountSectionY(layout.y);
             }}
           >
-            <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
-              목표 소비 금액 <Text style={{ color: colors.statusNegative }}>*</Text>
+            <Text style={[styles.sectionTitle, { color: palette.staticBlack }]}>
+              목표 소비 금액 <Text style={{ color: palette.statusNegative }}>*</Text>
             </Text>
             <Input
               variant="line"
@@ -619,13 +619,13 @@ export default function ChallengeCreateScreen() {
 
           {/* 반복 설정 */}
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
+            <Text style={[styles.sectionTitle, { color: palette.staticBlack }]}>
               반복 설정
             </Text>
-            <View style={[styles.card, { backgroundColor: colors.staticWhite }]}>
+            <View style={[styles.card, { backgroundColor: palette.staticWhite }]}>
               <View style={styles.recurringSection}>
                 <View style={styles.recurringTitleRow}>
-                  <Text style={[styles.switchLabel, { color: colors.text }]}>
+                  <Text style={[styles.switchLabel, { color: palette.text }]}>
                     챌린지 반복 여부
                   </Text>
                   <Switch
@@ -640,7 +640,7 @@ export default function ChallengeCreateScreen() {
                     }}
                   />
                 </View>
-                <Text style={[styles.recurringCaption, { color: colors.textAssistive }]}>
+                <Text style={[styles.recurringCaption, { color: palette.textAssistive }]}>
                   동일한 챌린지를 설정한 기간 동안 지속합니다.
                 </Text>
               </View>
@@ -650,7 +650,7 @@ export default function ChallengeCreateScreen() {
           {/* 개월 수 */}
           {isRecurring && (
             <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
+              <Text style={[styles.sectionTitle, { color: palette.staticBlack }]}>
                 개월 수
               </Text>
               <Pressable onPress={() => {
@@ -665,18 +665,18 @@ export default function ChallengeCreateScreen() {
 
                 setShowRecurringMonthsPicker(true);
               }}>
-                <View style={[styles.card, { backgroundColor: colors.staticWhite }]}>
+                <View style={[styles.card, { backgroundColor: palette.staticWhite }]}>
                   <View style={styles.monthPickerRow}>
-                    <Text style={[styles.monthPickerPlaceholder, { color: colors.text }]}>
+                    <Text style={[styles.monthPickerPlaceholder, { color: palette.text }]}>
                       시작 년월 부터 반복할 개월 수
                     </Text>
                     <View style={styles.monthPickerValue}>
                       <View style={lineFieldRowTextWrap}>
-                        <Text style={[lineFieldRowText, { color: colors.textAssistive }]}>
+                        <Text style={[lineFieldRowText, { color: palette.textAssistive }]}>
                           {recurringMonths}개월
                         </Text>
                       </View>
-                      <Icon name="arrowRight" variant="line" size={24} color={colors.text} />
+                      <Icon name="arrowRight" variant="line" size={24} color={palette.text} />
                     </View>
                   </View>
                 </View>
@@ -718,7 +718,7 @@ export default function ChallengeCreateScreen() {
         <View style={[
           styles.bottomButtonContainer, 
           { 
-            backgroundColor: colors.staticWhite,
+            backgroundColor: palette.staticWhite,
             paddingBottom: 16 + insets.bottom 
           }
         ]}>
@@ -732,7 +732,7 @@ export default function ChallengeCreateScreen() {
           onConfirm={() => setShowTargetAmountAlert(false)}
           confirmText="확인"
         >
-          <Text style={[styles.modalText, { color: colors.text }]}>
+          <Text style={[styles.modalText, { color: palette.text }]}>
             목표 소비 금액을 입력해 주세요.
           </Text>
         </ModalPopup>
@@ -826,7 +826,7 @@ const styles = StyleSheet.create({
   section: {
     gap: 8,
   },
-  sectionTitle: TypographyLayout.sectionTitle,
+  sectionTitle: typographyLayout.sectionTitle,
   card: {
     borderRadius: 12,
     borderWidth: 1,
@@ -840,7 +840,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   categoryText: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
   },
   yearMonthRow: {
     flexDirection: 'row',
@@ -864,10 +864,10 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   switchLabel: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
   },
   recurringCaption: {
-    ...Typography.body2.r.regular,
+    ...typography.body2.r.regular,
     marginTop: 0,
   },
   monthPickerRow: {
@@ -878,7 +878,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   monthPickerPlaceholder: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
   },
   monthPickerValue: {
     flexDirection: 'row',
@@ -890,7 +890,7 @@ const styles = StyleSheet.create({
     paddingTop: 16,
   },
   modalText: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
     textAlign: 'center',
   },
   amountExpression: {
@@ -900,6 +900,6 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     gap: 6,
   },
-  amountExpressionText: TypographyLayout.fieldNumber,
-  amountExpressionOperator: TypographyLayout.fieldNumber,
+  amountExpressionText: typographyLayout.fieldNumber,
+  amountExpressionOperator: typographyLayout.fieldNumber,
 });

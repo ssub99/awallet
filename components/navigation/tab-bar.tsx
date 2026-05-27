@@ -5,7 +5,7 @@
  * Used as the main navigation for the app.
  */
 
-import { Colors, Typography } from '@/constants/theme';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { createSheetEvent } from '@/utils/create-sheet-event';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
  */
 export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   const insets = useSafeAreaInsets();
   
   // Track last tap time for double tap detection
@@ -41,13 +41,13 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
       style={[
         styles.container, 
         { 
-          backgroundColor: colors.staticWhite,
+          backgroundColor: palette.staticWhite,
           paddingBottom: insets.bottom, // Auto adjusts for home indicator (34pt on iPhone X+, 0pt otherwise)
         }
       ]}
     >
       {/* Top Divider */}
-      <View style={[styles.divider, { backgroundColor: colors.border }]} />
+      <View style={[styles.divider, { backgroundColor: palette.border }]} />
 
       {/* Tab Items */}
       <View style={styles.tabsContainer}>
@@ -102,7 +102,7 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
           // Get icon (28px as defined in _layout.tsx)
           const iconElement = options.tabBarIcon?.({
             focused: isFocused,
-            color: isFocused ? colors.text : colors.textAssistive,
+            color: isFocused ? palette.text : palette.textAssistive,
             size: 28,
           });
 
@@ -133,7 +133,7 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
                 style={[
                   isFocused ? styles.labelActive : styles.labelDefault,
                   {
-                    color: isFocused ? colors.text : colors.textAssistive,
+                    color: isFocused ? palette.text : palette.textAssistive,
                   },
                 ]}
               >
@@ -172,11 +172,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   labelActive: {
-    ...Typography.detail.r.bold,
+    ...typography.detail.r.bold,
     textAlign: 'center',
   },
   labelDefault: {
-    ...Typography.detail.r.regular,
+    ...typography.detail.r.regular,
     textAlign: 'center',
   },
 });

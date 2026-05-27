@@ -1,6 +1,6 @@
 import { BasicCalendarDaySelect } from '@/components/ui/calendar-day-basic';
 import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
-import { Colors, Typography } from '@/constants/theme';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { memo, useCallback } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -28,7 +28,7 @@ function RecordDatePickerSheetComponent({
   embedded = false,
 }: RecordDatePickerSheetProps) {
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
 
   const handleConfirmPress = useCallback(() => {
     if (selectedDate) {
@@ -52,12 +52,12 @@ function RecordDatePickerSheetComponent({
       />
       <View style={styles.buttonArea}>
         <Pressable
-          style={[styles.confirmButton, { backgroundColor: colors.primary }]}
+          style={[styles.confirmButton, { backgroundColor: palette.primary }]}
           onPress={handleConfirmPress}
           accessibilityRole="button"
           accessibilityLabel="확인"
         >
-          <Text style={[styles.confirmButtonText, { color: colors.staticWhite }]}>확인</Text>
+          <Text style={[styles.confirmButtonText, { color: palette.staticWhite }]}>확인</Text>
         </Pressable>
       </View>
     </ModalBottomsheet>
@@ -123,6 +123,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   confirmButtonText: {
-    ...Typography.body1.l.medium,
+    ...typography.body1.l.medium,
   },
 });

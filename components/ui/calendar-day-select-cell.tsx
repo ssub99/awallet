@@ -2,7 +2,7 @@
  * Memoized day cell for CalendarDaySelect (date picker).
  */
 
-import { Typography } from '@/constants/theme';
+import { typography } from '@/constants/theme';
 import { memo, useCallback } from 'react';
 import { Dimensions, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -134,12 +134,12 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   dayTextSelected: {
-    ...Typography.body1.l.bold,
+    ...typography.body1.l.bold,
   },
   dayTextDefault: {
-    ...Typography.body1.l.bold,
+    ...typography.body1.l.bold,
   },
   dayTextOtherMonth: {
-    ...Typography.body1.l.medium,
+    ...typography.body1.l.medium,
   },
 });

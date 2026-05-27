@@ -1,5 +1,5 @@
-import { Colors } from '@/constants/theme';
-import { Typography, compactSingleLineTextStyle } from '@/constants/typography';
+import { colors, type ColorPalette } from '@/constants/theme';
+import { typography, singleRowCenteredTextStyle } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, TextInputProps, View } from 'react-native';
@@ -31,7 +31,7 @@ export function OtpInputs({
   inputProps,
 }: OtpInputsProps) {
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
 
   const refs = useRef<(TextInput | null)[]>(Array.from({ length }, () => null));
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
@@ -81,9 +81,9 @@ export function OtpInputs({
                 onPress={() => refs.current[i]?.focus()}
                 style={[
                   styles.cellBox,
-                  { borderColor: colors.border, backgroundColor: colors.staticWhite },
-                  focusedIndex === i && { borderColor: colors.primary },
-                  errorBorder && { borderColor: colors.statusNegative },
+                  { borderColor: palette.border, backgroundColor: palette.staticWhite },
+                  focusedIndex === i && { borderColor: palette.primary },
+                  errorBorder && { borderColor: palette.statusNegative },
                 ]}
                 hitSlop={8}
                 accessibilityRole="button"
@@ -121,9 +121,9 @@ export function OtpInputs({
               onPress={() => refs.current[i]?.focus()}
               style={[
                 styles.cellBox,
-                { borderColor: colors.border, backgroundColor: colors.staticWhite },
-                focusedIndex === i && { borderColor: colors.primary },
-                errorBorder && { borderColor: colors.statusNegative },
+                { borderColor: palette.border, backgroundColor: palette.staticWhite },
+                focusedIndex === i && { borderColor: palette.primary },
+                errorBorder && { borderColor: palette.statusNegative },
               ]}
               hitSlop={8}
               accessibilityRole="button"
@@ -156,7 +156,7 @@ export function OtpInputs({
         })}
       </View>
       {error ? (
-        <Text style={[styles.errorText, { color: colors.statusNegative }]}>{errorMessage}</Text>
+        <Text style={[styles.errorText, { color: palette.statusNegative }]}>{errorMessage}</Text>
       ) : null}
     </View>
   );
@@ -177,12 +177,12 @@ const styles = StyleSheet.create({
     minWidth: 0,
     paddingTop: 0,
     paddingBottom: 0,
-    ...compactSingleLineTextStyle(Typography.headline3.m.bold),
+    ...singleRowCenteredTextStyle(typography.headline3.m.bold),
     textAlignVertical: 'center',
   },
   errorText: {
     marginTop: 24,
-    ...Typography.body2.r.regular,
+    ...typography.body2.r.regular,
     textAlign: 'center',
   },
 });

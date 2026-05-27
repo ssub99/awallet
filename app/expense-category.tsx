@@ -7,7 +7,7 @@
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Icon } from '@/components/ui/icon';
 import { getCategoriesByType, type Category } from '@/constants/categories';
-import { Colors, Typography } from '@/constants/theme';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useToast } from '@/contexts/toast-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { logEvent } from '@/utils/analytics';
@@ -22,7 +22,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ExpenseCategoryScreen() {
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   const router = useRouter();
   const { showToast } = useToast();
   const params = useLocalSearchParams<{ 
@@ -154,7 +154,7 @@ export default function ExpenseCategoryScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.staticWhite }]} edges={['top', 'bottom']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: palette.staticWhite }]} edges={['top', 'bottom']}>
       <StatusBar barStyle="dark-content" />
       
       {/* Top Navigation */}
@@ -169,8 +169,8 @@ export default function ExpenseCategoryScreen() {
       />
 
       {/* Category List */}
-      <View style={[styles.content, { backgroundColor: colors.fill }]}>
-        <View style={[styles.card, { backgroundColor: colors.staticWhite }]}>
+      <View style={[styles.content, { backgroundColor: palette.fill }]}>
+        <View style={[styles.card, { backgroundColor: palette.staticWhite }]}>
           <ScrollView 
             style={styles.scrollView}
             contentContainerStyle={styles.scrollContent}
@@ -289,21 +289,21 @@ export default function ExpenseCategoryScreen() {
                 >
                   <View style={styles.categoryContent}>
                     <Text style={styles.categoryEmoji}>{category.emoji}</Text>
-                    <Text style={[styles.categoryLabel, { color: colors.text }]}>
+                    <Text style={[styles.categoryLabel, { color: palette.text }]}>
                       {category.label}
                     </Text>
                   </View>
                   
                   {selectedCategory === category.label && (
                     <View style={styles.checkIcon}>
-                      <Icon name="check" variant="line" size={24} color={colors.primary} />
+                      <Icon name="check" variant="line" size={24} color={palette.primary} />
                     </View>
                   )}
                 </Pressable>
                 
                 {/* Divider (마지막 항목 제외) */}
                 {index < categories.length - 1 && (
-                  <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                  <View style={[styles.divider, { backgroundColor: palette.border }]} />
                 )}
               </View>
             ))}
@@ -346,12 +346,12 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   categoryEmoji: {
-    ...Typography.headline4.r.bold,
+    ...typography.headline4.r.bold,
     width: 21,
     textAlign: 'center',
   },
   categoryLabel: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
   },
   checkIcon: {
     width: 24,

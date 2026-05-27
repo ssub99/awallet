@@ -12,10 +12,10 @@ import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { ModalPopup } from '@/components/ui/modal-popup';
 import { Switch } from '@/components/ui/switch';
-import { AtomicColors } from '@/constants/atomic-colors';
+import { atomicColors } from '@/constants/atomic-colors';
 import { type Category } from '@/constants/categories';
-import { Colors, Typography } from '@/constants/theme';
-import { TypographyLayout, lineFieldRowText, lineFieldRowTextWrap } from '@/constants/typography';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
+import { typographyLayout, lineFieldRowText, lineFieldRowTextWrap } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
 import { useToast } from '@/contexts/toast-context';
 import { useAndroidKeypadBackDismiss } from '@/hooks/use-android-keypad-back-dismiss';
@@ -33,7 +33,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 export default function ChallengeEditScreen() {
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   const router = useRouter();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
@@ -253,7 +253,7 @@ export default function ChallengeEditScreen() {
         {tokensToRender.map((token, index) => {
           if (token.type === 'number') {
             return (
-              <Text key={`num-${index}`} style={[styles.amountExpressionText, { color: colors.text }]}>
+              <Text key={`num-${index}`} style={[styles.amountExpressionText, { color: palette.text }]}>
                 {formatAmountDisplay(token.value)}
               </Text>
             );
@@ -265,7 +265,7 @@ export default function ChallengeEditScreen() {
           return (
             <Text
               key={`op-${index}`}
-              style={[styles.amountExpressionOperator, { color: colors.textNeutral }]}
+              style={[styles.amountExpressionOperator, { color: palette.textNeutral }]}
               accessibilityLabel="연산자"
             >
               {symbol}
@@ -274,7 +274,7 @@ export default function ChallengeEditScreen() {
         })}
       </ScrollView>
     );
-  }, [amountExpression, colors.text, colors.textNeutral, formatAmountDisplay, getOperatorSymbol, targetAmount]);
+  }, [amountExpression, palette.text, palette.textNeutral, formatAmountDisplay, getOperatorSymbol, targetAmount]);
 
   useEffect(() => {
     if (isKeypadVisible) {
@@ -591,7 +591,7 @@ export default function ChallengeEditScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.staticWhite }]} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: palette.staticWhite }]} edges={['top']}>
         <StatusBar barStyle="dark-content" />
       
         <TopNavigation
@@ -604,7 +604,7 @@ export default function ChallengeEditScreen() {
         <Animated.View style={{ flex: 1, opacity: isContentReady ? contentOpacity : 0 }}>
           <ScrollView 
             ref={scrollViewRef}
-            style={[styles.content, { backgroundColor: colors.fill }]}
+            style={[styles.content, { backgroundColor: palette.fill }]}
             contentContainerStyle={[
               styles.contentContainer,
               { paddingBottom: isKeypadVisible ? getCustomKeypadScrollPaddingBottom(KEYPAD_HEIGHT, insets.bottom) : 24 }
@@ -623,20 +623,20 @@ export default function ChallengeEditScreen() {
           {/* 챌린지 정보 */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
+              <Text style={[styles.sectionTitle, { color: palette.staticBlack }]}>
                 챌린지 정보
               </Text>
               <Pressable onPress={handleDelete}>
-                <Text style={[styles.deleteText, { color: colors.statusNegative }]}> 
+                <Text style={[styles.deleteText, { color: palette.statusNegative }]}> 
                   삭제
                 </Text>
               </Pressable>
             </View>
             
-            <View style={[styles.challengeInfoCard, { backgroundColor: colors.staticWhite }]}>
+            <View style={[styles.challengeInfoCard, { backgroundColor: palette.staticWhite }]}>
               {/* 카테고리와 D-day */}
               <View style={styles.challengeHeader}>
-                <Text style={[styles.categoryText, { color: colors.staticBlack }]}>
+                <Text style={[styles.categoryText, { color: palette.staticBlack }]}>
                   {getCategoryWithEmoji(category)}
                 </Text>
                 <View style={styles.statusContainer}>
@@ -647,38 +647,38 @@ export default function ChallengeEditScreen() {
                       </Text>
                     </View>
                   )}
-                  <Text style={[styles.ddayText, { color: colors.staticBlack }]}>
+                  <Text style={[styles.ddayText, { color: palette.staticBlack }]}>
                     {getDDay()}
                   </Text>
                 </View>
               </View>
               
               {/* 구분선 */}
-              <View style={[styles.divider, { backgroundColor: colors.border }]} />
+              <View style={[styles.divider, { backgroundColor: palette.border }]} />
               
               {/* 금액 정보 */}
               <View style={styles.amountInfo}>
                 <View style={styles.amountRow}>
-                  <Text style={[styles.amountLabel, { color: colors.textAssistive }]}>
+                  <Text style={[styles.amountLabel, { color: palette.textAssistive }]}>
                     현재 소비금액
                   </Text>
-                  <Text style={[styles.amountValue, { color: colors.text }]}>
+                  <Text style={[styles.amountValue, { color: palette.text }]}>
                     {isBeforeStart() ? '0원' : `${currentAmount.toLocaleString()}원`}
                   </Text>
                 </View>
                 <View style={styles.amountRow}>
-                  <Text style={[styles.amountLabel, { color: colors.textAssistive }]}>
+                  <Text style={[styles.amountLabel, { color: palette.textAssistive }]}>
                     목표 소비금액
                   </Text>
-                  <Text style={[styles.amountValue, { color: colors.text }]}>
+                  <Text style={[styles.amountValue, { color: palette.text }]}>
                     {targetAmount ? `${Number(targetAmount.replace(/,/g, '')).toLocaleString()}원` : '0원'}
                   </Text>
                 </View>
                 <View style={styles.amountRow}>
-                  <Text style={[styles.amountLabel, { color: colors.textAssistive }]}>
+                  <Text style={[styles.amountLabel, { color: palette.textAssistive }]}>
                     챌린지 기간
                   </Text>
-                  <Text style={[styles.amountValue, { color: colors.text }]}>
+                  <Text style={[styles.amountValue, { color: palette.text }]}>
                     {(() => {
                       if (!startDate || !endDate) return '-';
                       const [startY, startM] = startDate.split('.');
@@ -693,8 +693,8 @@ export default function ChallengeEditScreen() {
 
           {/* 시작 년월 */}
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
-              시작 년월 <Text style={{ color: colors.statusNegative }}>*</Text>
+            <Text style={[styles.sectionTitle, { color: palette.staticBlack }]}>
+              시작 년월 <Text style={{ color: palette.statusNegative }}>*</Text>
             </Text>
             <Pressable onPress={handleCalendarPress}>
               <View style={[styles.disabledCard, { backgroundColor: 'rgba(144, 146, 158, 0.12)' }]}>
@@ -724,7 +724,7 @@ export default function ChallengeEditScreen() {
               setAmountSectionY(layout.y);
             }}
           >
-            <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
+            <Text style={[styles.sectionTitle, { color: palette.staticBlack }]}>
               목표 금액
             </Text>
             <Input
@@ -744,14 +744,14 @@ export default function ChallengeEditScreen() {
 
           {/* 반복 설정 */}
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
+            <Text style={[styles.sectionTitle, { color: palette.staticBlack }]}>
               반복 설정
             </Text>
             <Pressable onPress={handleRecurringTogglePress}>
-              <View style={[styles.disabledCard, { backgroundColor: colors.staticWhite }]}>
+              <View style={[styles.disabledCard, { backgroundColor: palette.staticWhite }]}>
                 <View style={styles.recurringSection}>
                   <View style={styles.recurringTitleRow}>
-                    <Text style={[styles.switchLabel, { color: colors.text }]}>
+                    <Text style={[styles.switchLabel, { color: palette.text }]}>
                       챌린지 반복 여부
                     </Text>
                     <Switch
@@ -760,7 +760,7 @@ export default function ChallengeEditScreen() {
                       disabled={true}
                     />
                   </View>
-                  <Text style={[styles.recurringCaption, { color: colors.textAssistive }]}>
+                  <Text style={[styles.recurringCaption, { color: palette.textAssistive }]}>
                     동일한 챌린지를 설정한 기간 동안 지속합니다.
                   </Text>
                 </View>
@@ -771,7 +771,7 @@ export default function ChallengeEditScreen() {
           {/* 개월 수 */}
           {isRecurringChallenge && (
             <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>
+              <Text style={[styles.sectionTitle, { color: palette.staticBlack }]}>
                 개월 수
               </Text>
               <Pressable onPress={showDisabledToast}>
@@ -828,7 +828,7 @@ export default function ChallengeEditScreen() {
           <View style={[
             styles.bottomButtonContainer, 
             { 
-              backgroundColor: colors.staticWhite,
+              backgroundColor: palette.staticWhite,
               paddingBottom: 16 + insets.bottom 
             }
           ]}>
@@ -842,7 +842,7 @@ export default function ChallengeEditScreen() {
           onConfirm={() => setShowTargetAmountAlert(false)}
           confirmText="확인"
         >
-          <Text style={[styles.modalText, { color: colors.text }]}>
+          <Text style={[styles.modalText, { color: palette.text }]}>
             목표 소비 금액을 입력해 주세요.
           </Text>
         </ModalPopup>
@@ -858,7 +858,7 @@ export default function ChallengeEditScreen() {
             setShowDeleteModal(false);
           }}
         >
-          <Text style={[styles.modalText, { color: colors.text }]}>
+          <Text style={[styles.modalText, { color: palette.text }]}>
             {isRecurringChallenge 
               ? '반복 챌린지입니다.\n모든 연관 챌린지가 함께 삭제됩니다.\n정말로 삭제하시겠습니까?'
               : '정말로 이 챌린지를 삭제하시겠습니까?'}
@@ -904,9 +904,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  sectionTitle: TypographyLayout.sectionTitle,
+  sectionTitle: typographyLayout.sectionTitle,
   deleteText: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
     textDecorationLine: 'underline',
   },
   challengeInfoCard: {
@@ -920,10 +920,10 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   categoryText: {
-    ...Typography.headline4.r.bold,
+    ...typography.headline4.r.bold,
   },
   ddayText: {
-    ...Typography.headline4.r.bold,
+    ...typography.headline4.r.bold,
   },
   statusContainer: {
     flexDirection: 'row',
@@ -935,10 +935,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   statusText: {
-    ...Typography.detail.r.bold,
+    ...typography.detail.r.bold,
   },
   modalText: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
     textAlign: 'center',
   },
   divider: {
@@ -954,10 +954,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   amountLabel: {
-    ...Typography.body2.r.medium,
+    ...typography.body2.r.medium,
   },
   amountValue: {
-    ...Typography.body1.l.bold,
+    ...typography.body1.l.bold,
   },
   disabledCard: {
     borderRadius: 12,
@@ -965,7 +965,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(144, 146, 158, 0.16)',
   },
   disabledText: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
   },
   yearMonthRow: {
     flexDirection: 'row',
@@ -989,10 +989,10 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   switchLabel: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
   },
   recurringCaption: {
-    ...Typography.body2.r.regular,
+    ...typography.body2.r.regular,
     marginTop: 0,
   },
   monthPickerRow: {
@@ -1018,6 +1018,6 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     gap: 6,
   },
-  amountExpressionText: TypographyLayout.fieldNumber,
-  amountExpressionOperator: TypographyLayout.fieldNumber,
+  amountExpressionText: typographyLayout.fieldNumber,
+  amountExpressionOperator: typographyLayout.fieldNumber,
 });

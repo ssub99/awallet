@@ -9,8 +9,8 @@
  * - option: Used for option selection (borderRadius: 12)
  */
 
-import { Colors, Typography } from '@/constants/theme';
-import { compactSingleLineTextStyle } from '@/constants/typography';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
+import { singleRowCenteredTextStyle } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Pressable, StyleSheet, Text, ViewStyle } from 'react-native';
 
@@ -62,7 +62,7 @@ export function Chip({
   style,
 }: ChipProps) {
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
 
   const handlePress = () => {
     if (disabled || !onPress) {
@@ -74,21 +74,21 @@ export function Chip({
   // Border radius based on type
   const borderRadius = type === 'option' ? 12 : 24;
 
-  // Colors based on type and state (matching Figma design)
+  // colors based on type and state (matching Figma design)
   const backgroundColor = disabled
     ? 'rgba(144, 146, 158, 0.12)' // Fill/Disabled (same for both types)
     : type === 'option' && active
-    ? colors.staticWhite // Option active: white background
+    ? palette.staticWhite // Option active: white background
     : type === 'topic' && active
     ? '#3664ce' // Topic active: primary background
-    : colors.staticWhite; // Default: white background
+    : palette.staticWhite; // Default: white background
   
   const textColor = disabled
     ? '#9e9e9e' // Label/Assistive (same for both types)
     : type === 'option' && active
     ? '#3664ce' // Option active: primary text
     : type === 'topic' && active
-    ? colors.staticWhite // Topic active: white text
+    ? palette.staticWhite // Topic active: white text
     : '#616161'; // Label/Alternative (default)
   
   const borderColor = disabled
@@ -153,15 +153,15 @@ const styles = StyleSheet.create({
     // height can be overridden via style prop
   },
   textActive: {
-    ...compactSingleLineTextStyle(Typography.body2.r.bold),
+    ...singleRowCenteredTextStyle(typography.body2.r.bold),
     textAlign: 'center',
   },
   textDefault: {
-    ...compactSingleLineTextStyle(Typography.body2.r.medium),
+    ...singleRowCenteredTextStyle(typography.body2.r.medium),
     textAlign: 'center',
   },
   textDisabled: {
-    ...compactSingleLineTextStyle(Typography.body2.r.medium),
+    ...singleRowCenteredTextStyle(typography.body2.r.medium),
     textAlign: 'center',
   },
 });

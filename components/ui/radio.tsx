@@ -5,8 +5,8 @@
  * Supports checked/unchecked states with optional label.
  */
 
-import { Colors, Typography } from '@/constants/theme';
-import { compactSingleLineTextStyle } from '@/constants/typography';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
+import { singleRowCenteredTextStyle } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
 
@@ -48,7 +48,7 @@ export function Radio({
   style,
 }: RadioProps) {
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
 
   const handlePress = () => {
     // disabled 상태에서도 onPress를 호출하도록 변경 (토스트 표시 등을 위해)
@@ -57,26 +57,26 @@ export function Radio({
     }
   };
 
-  // Colors based on state
+  // colors based on state
   const outerBorderColor = disabled
     ? 'rgba(144, 146, 158, 0.32)' // Figma disabled border
     : checked
-    ? colors.primary
+    ? palette.primary
     : 'rgba(144, 146, 158, 0.32)'; // Figma default border
 
   const outerBackgroundColor = disabled
     ? 'rgba(144, 146, 158, 0.12)' // Figma disabled background
     : checked
-    ? colors.staticWhite // 흰색 배경
-    : colors.staticWhite;
+    ? palette.staticWhite // 흰색 배경
+    : palette.staticWhite;
 
   const innerColor = disabled
     ? '#bdbdbd' // Figma disabled inner
     : checked
-    ? colors.primary
+    ? palette.primary
     : '#d9d9d9'; // Figma default inner
 
-  const labelColor = disabled ? colors.textDisabled : colors.text;
+  const labelColor = disabled ? palette.textDisabled : palette.text;
 
   return (
     <Pressable
@@ -138,7 +138,7 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   label: {
-    ...compactSingleLineTextStyle(Typography.body2.r.medium),
+    ...singleRowCenteredTextStyle(typography.body2.r.medium),
     marginLeft: 8,
   },
 });

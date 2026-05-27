@@ -7,8 +7,8 @@
 
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Icon } from '@/components/ui/icon';
-import { ThemeColors } from '@/constants/theme-colors';
-import { Typography } from '@/constants/typography';
+import { themeColors } from '@/constants/theme-colors';
+import { typography } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { monthStartEvent } from '@/hooks/use-month-start';
 import {
@@ -35,7 +35,7 @@ const MONTH_START_DAY_UPDATED_AT_KEY = 'monthStartDayUpdatedAt';
 
 export default function MonthStartDayScreen() {
   const colorScheme = useColorScheme();
-  const colors = ThemeColors[colorScheme ?? 'light'];
+  const colors = themeColors[colorScheme ?? 'light'];
   const router = useRouter();
   const navigation = useNavigation();
   
@@ -416,7 +416,7 @@ const styles = StyleSheet.create({
     minHeight: 56,
   },
   dayText: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
   },
   divider: {
     height: 1,

@@ -6,14 +6,15 @@
  */
 
 import { Icon } from '@/components/ui/icon';
-import { Colors, Typography } from '@/constants/theme';
-import { TypographyLayout } from '@/constants/typography';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
+import { typographyLayout } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { logEvent } from '@/utils/analytics';
 import { forwardRef, useImperativeHandle, useRef } from 'react';
 import {
   ActivityIndicator,
   Animated,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -92,7 +93,7 @@ export const QuickInputField = forwardRef<TextInput, QuickInputFieldProps>(
   ) {
     const { style: textInputStyle, ...restTextInputProps } = textInputProps;
     const colorScheme = useColorScheme();
-    const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+    const palette = colors[colorScheme ?? 'light'] as ColorPalette;
 
     const inputRef = useRef<TextInput>(null);
     
@@ -104,7 +105,7 @@ export const QuickInputField = forwardRef<TextInput, QuickInputFieldProps>(
     return (
       <View style={styles.container}>
         {/* Input Field */}
-        <View style={[styles.inputField, { backgroundColor: colors.staticWhite }]}>
+        <View style={[styles.inputField, { backgroundColor: palette.staticWhite }]}>
           {/* 왼쪽: 아이콘 + 텍스트 */}
           <View style={styles.leftContent}>
             {/* Star 아이콘 배경 (그라데이션 원) - 롱버전 기준 20x20 */}
@@ -114,13 +115,13 @@ export const QuickInputField = forwardRef<TextInput, QuickInputFieldProps>(
             <View style={styles.inputWrap}>
               <TextInput
                 ref={inputRef}
-                style={[styles.input, { color: colors.text }, textInputStyle]}
+                style={[styles.input, { color: palette.text }, textInputStyle]}
                 value={value}
                 onChangeText={onChangeText}
                 placeholder=""
-                placeholderTextColor={colors.textAssistive}
-                selectionColor={colors.primary}
-                cursorColor={colors.primary}
+                placeholderTextColor={palette.textAssistive}
+                selectionColor={palette.primary}
+                cursorColor={palette.primary}
                 keyboardType="default"
                 returnKeyType="send"
                 // 쿼티 키패드 전송 버튼도 컴포넌트 내 보내기 버튼과 동일하게 처리
@@ -134,7 +135,7 @@ export const QuickInputField = forwardRef<TextInput, QuickInputFieldProps>(
               {!hasValue && (
                 <View style={styles.placeholderWrap} pointerEvents="none">
                   <Text
-                    style={[styles.placeholder, { color: colors.textAssistive }]}
+                    style={[styles.placeholder, { color: palette.textAssistive }]}
                     numberOfLines={1}
                     ellipsizeMode="clip"
                   >
@@ -153,7 +154,7 @@ export const QuickInputField = forwardRef<TextInput, QuickInputFieldProps>(
               accessibilityRole="button"
               accessibilityLabel="취소"
             >
-              <View style={[styles.cancelIconBg, { backgroundColor: colors.fillStrong }]}>
+              <View style={[styles.cancelIconBg, { backgroundColor: palette.fillStrong }]}>
                 <Icon name="cancel" variant="solid" size={24} />
               </View>
             </Pressable>
@@ -161,12 +162,12 @@ export const QuickInputField = forwardRef<TextInput, QuickInputFieldProps>(
         </View>
         
         {/* Send Button - 입력 여부/로딩/확인 카드 표시 시 disabled */}
-        <View style={[styles.sendButtonWrapper, { backgroundColor: colors.staticWhite }]}>
+        <View style={[styles.sendButtonWrapper, { backgroundColor: palette.staticWhite }]}>
           <View
             style={[
               styles.sendButton,
               {
-                backgroundColor: hasValue && !sendDisabled ? colors.primary : colors.fillDisabled,
+                backgroundColor: hasValue && !sendDisabled ? palette.primary : palette.fillDisabled,
               },
             ]}
           >
@@ -188,14 +189,14 @@ export const QuickInputField = forwardRef<TextInput, QuickInputFieldProps>(
               {sendLoading ? (
                 <ActivityIndicator
                   size={Platform.OS === 'android' ? 20 : 'small'}
-                  color={colors.staticWhite}
+                  color={palette.staticWhite}
                 />
               ) : (
                 <Icon
                   name="send"
                   variant="line"
                   size={24}
-                  color={hasValue && !sendDisabled ? colors.staticWhite : colors.textDisabled}
+                  color={hasValue && !sendDisabled ? palette.staticWhite : palette.textDisabled}
                 />
               )}
             </Pressable>
@@ -237,8 +238,8 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
   },
-  placeholder: TypographyLayout.fieldLinePlaceholder,
-  input: TypographyLayout.fieldLineInput,
+  placeholder: typographyLayout.fieldLinePlaceholder,
+  input: typographyLayout.fieldLineInput,
   cancelButton: {
     width: 24,
     height: 24,

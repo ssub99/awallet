@@ -6,7 +6,7 @@
  */
 
 import { StyleSheet, Text, View, ViewStyle } from 'react-native';
-import { compactSingleLineTextStyle, Typography } from '@/constants/typography';
+import { singleRowCenteredTextStyle, typography } from '@/constants/typography';
 
 export type TagStatus = 'normal' | 'positive' | 'negative';
 
@@ -36,7 +36,7 @@ export function Tag({
   style,
 }: TagProps) {
 
-  // Colors based on status (matching Figma design)
+  // colors based on status (matching Figma design)
   const getStatusColors = (status: TagStatus) => {
     switch (status) {
       case 'positive':
@@ -91,7 +91,7 @@ const styles = StyleSheet.create({
     minHeight: 26, // Figma design height
   },
   text: {
-    ...compactSingleLineTextStyle(Typography.detail.r.bold),
+    ...singleRowCenteredTextStyle(typography.detail.r.bold),
     textAlign: 'center',
   },
 });

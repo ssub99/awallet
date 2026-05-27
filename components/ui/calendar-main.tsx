@@ -13,7 +13,7 @@ import {
   resolveCalendarPagerDayDataSignatures,
   type DayData,
 } from '@/components/ui/calendar-main-month-page';
-import { Colors, Typography } from '@/constants/theme';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useWeekStart } from '@/hooks/use-week-start';
 import { formatCustomMonth } from '@/utils/custom-month';
@@ -241,7 +241,7 @@ function CalendarMainInner({
   containerHeight,
 }: CalendarMainProps) {
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   const insets = useSafeAreaInsets();
   const { weekdays, adjustFirstDayOfWeek } = useWeekStart();
 
@@ -770,28 +770,28 @@ function CalendarMainInner({
 
   const cellColorProps = useMemo(
     () => ({
-      textAssistive: colors.textAssistive,
-      textNeutral: colors.textNeutral,
-      staticWhite: colors.staticWhite,
-      primary: colors.primary,
+      textAssistive: palette.textAssistive,
+      textNeutral: palette.textNeutral,
+      staticWhite: palette.staticWhite,
+      primary: palette.primary,
     }),
-    [colors.primary, colors.staticWhite, colors.textAssistive, colors.textNeutral],
+    [palette.primary, palette.staticWhite, palette.textAssistive, palette.textNeutral],
   );
 
   return (
     <View style={[styles.container, { width: SCREEN_WIDTH }, style]}>
       {showTitle && (
         <View style={styles.titleContainer}>
-          <Text style={[styles.titleText, { color: colors.text }]}>
+          <Text style={[styles.titleText, { color: palette.text }]}>
             {formatCustomMonth(displayYear, displayMonth, monthStartDay)}
           </Text>
         </View>
       )}
 
-      <View style={[styles.weekdayHeader, { backgroundColor: colors.fillStrong }]}>
+      <View style={[styles.weekdayHeader, { backgroundColor: palette.fillStrong }]}>
         {weekdays.map((day) => (
           <View key={day} style={[styles.weekdayCell, { width: DAY_CELL_WIDTH }]}>
-            <Text style={[styles.weekdayText, { color: colors.textNeutral }]}>{day}</Text>
+            <Text style={[styles.weekdayText, { color: palette.textNeutral }]}>{day}</Text>
           </View>
         ))}
       </View>
@@ -925,7 +925,7 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(144, 146, 158, 0.16)',
   },
   titleText: {
-    ...Typography.headline4.r.bold,
+    ...typography.headline4.r.bold,
   },
   weekdayHeader: {
     flexDirection: 'row',
@@ -938,7 +938,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   weekdayText: {
-    ...Typography.detail.r.medium,
+    ...typography.detail.r.medium,
   },
   pagerViewport: {
     width: '100%',

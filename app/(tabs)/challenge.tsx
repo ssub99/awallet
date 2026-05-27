@@ -12,7 +12,7 @@ import { DatePicker } from '@/components/ui/date-picker';
 import { Icon } from '@/components/ui/icon';
 import { ModalBottomsheet, ModalBottomsheetBottomInset } from '@/components/ui/modal-bottomsheet';
 import { CONSUMPTION_REPORT_API_URL } from '@/constants/api';
-import { Colors, Typography } from '@/constants/theme';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';
 import { useCreateSheetContext } from '@/contexts/create-sheet-context';
 import { useLoading } from '@/contexts/loading-context';
@@ -531,7 +531,7 @@ export default function ChallengeTabScreen() {
   const trendPaymentFilterSheetHeight = windowHeight * 0.8;
   const trendPaymentFilterSheetContentHeight = trendPaymentFilterSheetHeight - 56;
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   const iconWhite = useThemeColor({}, 'staticWhite');
   const [activeTopTab, setActiveTopTab] = useState<TopTabId>('challenge');
   const [reportSubTab, setReportSubTab] = useState<ReportSubTabId>('score');
@@ -2307,7 +2307,7 @@ export default function ChallengeTabScreen() {
 
   return (
     <View style={styles.screenWrapper}>
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+      <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]} edges={['top']}>
         {/* 탭 진입 시: 데이터 로드 완료 후 탑 네비 + 날짜 박스 페이드인 (월 변경 시에는 애니메이션 없음) */}
         <Animated.View style={{ opacity: screenOpacity }}>
           <TopNavigation
@@ -2325,14 +2325,14 @@ export default function ChallengeTabScreen() {
         <Animated.View
           style={[
             styles.content,
-            { backgroundColor: colors.fill, opacity: screenOpacity },
+            { backgroundColor: palette.fill, opacity: screenOpacity },
           ]}
           {...panResponder.panHandlers}
         >
           {activeTopTab === 'report' ? (
-            <View style={[styles.reportContent, { backgroundColor: colors.backgroundAlt }]}>
+            <View style={[styles.reportContent, { backgroundColor: palette.backgroundAlt }]}>
               {/* 서브 탭: 소비 리포트 | 소비 현황 (Figma tab) */}
-              <View style={[styles.reportSubTabBar, { backgroundColor: colors.staticWhite }]}>
+              <View style={[styles.reportSubTabBar, { backgroundColor: palette.staticWhite }]}>
                 <Pressable
                   style={styles.reportSubTab}
                   onPress={() => setReportSubTab('score')}
@@ -2343,13 +2343,13 @@ export default function ChallengeTabScreen() {
                   <Text
                     style={[
                       reportSubTab === 'score' ? styles.reportSubTabTextActive : styles.reportSubTabTextInactive,
-                      { color: reportSubTab === 'score' ? colors.text : colors.textAssistive },
+                      { color: reportSubTab === 'score' ? palette.text : palette.textAssistive },
                     ]}
                   >
                     소비 리포트
                   </Text>
                   {reportSubTab === 'score' && (
-                    <View style={[styles.reportSubTabIndicator, { backgroundColor: colors.primary }]} />
+                    <View style={[styles.reportSubTabIndicator, { backgroundColor: palette.primary }]} />
                   )}
                 </Pressable>
                 <Pressable
@@ -2362,35 +2362,35 @@ export default function ChallengeTabScreen() {
                   <Text
                     style={[
                       reportSubTab === 'trend' ? styles.reportSubTabTextActive : styles.reportSubTabTextInactive,
-                      { color: reportSubTab === 'trend' ? colors.text : colors.textAssistive },
+                      { color: reportSubTab === 'trend' ? palette.text : palette.textAssistive },
                     ]}
                   >
                     소비 현황
                   </Text>
                   {reportSubTab === 'trend' && (
-                    <View style={[styles.reportSubTabIndicator, { backgroundColor: colors.primary }]} />
+                    <View style={[styles.reportSubTabIndicator, { backgroundColor: palette.primary }]} />
                   )}
                 </Pressable>
               </View>
-              <View style={[styles.reportSubTabDivider, { backgroundColor: colors.border }]} />
+              <View style={[styles.reportSubTabDivider, { backgroundColor: palette.border }]} />
 
               {reportSubTab === 'score' ? (
                 <ScrollView
-                  style={[styles.reportScroll, { backgroundColor: colors.fill }]}
+                  style={[styles.reportScroll, { backgroundColor: palette.fill }]}
                   contentContainerStyle={styles.reportScrollContent}
                   showsVerticalScrollIndicator={false}
                   bounces={false}
                   overScrollMode="never"
                 >
                   {/* 월 스위처 카드 (Frame 208) - 고정, 년/월 탭 시 타임라인과 동일한 피커 */}
-                  <View style={[styles.reportMonthCard, { backgroundColor: colors.staticWhite }]}>
+                  <View style={[styles.reportMonthCard, { backgroundColor: palette.staticWhite }]}>
                     <Pressable
                       onPress={handlePrevMonth}
                       style={styles.reportMonthArrow}
                       accessibilityRole="button"
                       accessibilityLabel="이전 달"
                     >
-                      <Icon name="arrowLeft" variant="solid" size={24} color={colors.textAssistive} />
+                      <Icon name="arrowLeft" variant="solid" size={24} color={palette.textAssistive} />
                     </Pressable>
                     <Pressable
                       onPress={() => setShowYearMonthPicker(true)}
@@ -2398,7 +2398,7 @@ export default function ChallengeTabScreen() {
                       accessibilityRole="button"
                       accessibilityLabel="년월 선택"
                     >
-                      <Text style={[styles.reportMonthText, { color: colors.text }]}>
+                      <Text style={[styles.reportMonthText, { color: palette.text }]}>
                         {reportScoreYear}년 {String(reportScoreMonth).padStart(2, '0')}월
                       </Text>
                     </Pressable>
@@ -2408,7 +2408,7 @@ export default function ChallengeTabScreen() {
                       accessibilityRole="button"
                       accessibilityLabel="다음 달"
                     >
-                      <Icon name="arrowRight" variant="solid" size={24} color={colors.textAssistive} />
+                      <Icon name="arrowRight" variant="solid" size={24} color={palette.textAssistive} />
                     </Pressable>
                   </View>
 
@@ -2418,24 +2418,24 @@ export default function ChallengeTabScreen() {
                       style={[
                         styles.reportScoreCard,
                         {
-                          backgroundColor: colors.staticWhite,
+                          backgroundColor: palette.staticWhite,
                           // 버튼을 눌러 점수를 확인하기 전까지는 피그마 시안처럼 큰 높이 유지
                           // 한 번 점수를 확인하면 콘텐츠 높이에 맞게 축소
                           minHeight: hasCheckedScore && displayedFqScore != null ? undefined : reportScoreCardHeight,
                         },
                       ]}
                     >
-                      <Text style={[styles.reportScoreLabel, { color: colors.textAssistive }]}>
+                      <Text style={[styles.reportScoreLabel, { color: palette.textAssistive }]}>
                         이번달 소비 점수는?
                       </Text>
                       <View style={styles.reportScoreValueRow}>
-                        <Text style={[styles.reportScoreEmoji, { color: colors.text }]}>
+                        <Text style={[styles.reportScoreEmoji, { color: palette.text }]}>
                           {hasCheckedScore && displayedFqScore != null ? scoreEmoji : ''}
                         </Text>
-                        <Text style={[styles.reportScoreValue, { color: colors.text }]}>
+                        <Text style={[styles.reportScoreValue, { color: palette.text }]}>
                           {hasCheckedScore && displayedFqScore != null ? displayedFqScore : '?'}
                         </Text>
-                        <Text style={[styles.reportScoreUnit, { color: colors.text }]}>점</Text>
+                        <Text style={[styles.reportScoreUnit, { color: palette.text }]}>점</Text>
                       </View>
                       {scoreMessageLines.map((line, idx) => (
                         <Text
@@ -2443,7 +2443,7 @@ export default function ChallengeTabScreen() {
                           style={[
                             styles.reportScoreMessage,
                             {
-                              color: colors.textNeutral,
+                              color: palette.textNeutral,
                               marginBottom:
                                 idx === scoreMessageLines.length - 1 ? 24 : 0,
                             },
@@ -2467,34 +2467,34 @@ export default function ChallengeTabScreen() {
                       <View
                         style={[
                           styles.reportSummaryCard,
-                          { backgroundColor: colors.staticWhite },
+                          { backgroundColor: palette.staticWhite },
                         ]}
                       >
-                        <Text style={[styles.reportSummaryTitle, { color: colors.text }]}>
+                        <Text style={[styles.reportSummaryTitle, { color: palette.text }]}>
                           📊 이번 달 리포트
                         </Text>
                         <View style={styles.reportSummaryRows}>
                           <View style={styles.reportSummaryRow}>
-                            <Text style={[styles.reportSummaryLabel, { color: colors.textAssistive }]}>
+                            <Text style={[styles.reportSummaryLabel, { color: palette.textAssistive }]}>
                               월간 지출
                             </Text>
-                            <Text style={[styles.reportSummaryValue, { color: colors.text }]}>
+                            <Text style={[styles.reportSummaryValue, { color: palette.text }]}>
                               {`${displayedTotalExpense.toLocaleString()}원`}
                             </Text>
                           </View>
                           {!shouldHideNoSpendInEarlyMonth && (
                             <View style={styles.reportSummaryRow}>
-                              <Text style={[styles.reportSummaryLabel, { color: colors.textAssistive }]}>
+                              <Text style={[styles.reportSummaryLabel, { color: palette.textAssistive }]}>
                                 무지출일
                               </Text>
-                              <Text style={[styles.reportSummaryValue, { color: colors.text }]}>
+                              <Text style={[styles.reportSummaryValue, { color: palette.text }]}>
                                 {`${displayedNoSpendDays}일 / ${displayedTotalDays}일`}
                               </Text>
                             </View>
                           )}
                         </View>
                         {aiSummaryTitleText && (
-                          <Text style={[styles.reportSummaryHeadline, { color: colors.text }]}>
+                          <Text style={[styles.reportSummaryHeadline, { color: palette.text }]}>
                             {aiSummaryTitleText}
                           </Text>
                         )}
@@ -2504,7 +2504,7 @@ export default function ChallengeTabScreen() {
                             style={[
                               styles.reportSummaryBody,
                               {
-                                color: colors.textNeutral,
+                                color: palette.textNeutral,
                                 marginBottom: idx === reportSummaryLines.length - 1 ? 0 : 8,
                               },
                             ]}
@@ -2513,7 +2513,7 @@ export default function ChallengeTabScreen() {
                           </Text>
                         ))}
                         <View style={styles.reportNextGoal}>
-                          <Text style={[styles.reportNextGoalTitle, { color: colors.text }]}>
+                          <Text style={[styles.reportNextGoalTitle, { color: palette.text }]}>
                             📌 다음 주 목표
                           </Text>
                           {reportNextGoalLines.map((line, idx) => (
@@ -2522,7 +2522,7 @@ export default function ChallengeTabScreen() {
                               style={[
                                 styles.reportNextGoalBody,
                                 {
-                                  color: colors.textNeutral,
+                                  color: palette.textNeutral,
                                   marginBottom: idx === reportNextGoalLines.length - 1 ? 0 : 8,
                                 },
                               ]}
@@ -2538,27 +2538,27 @@ export default function ChallengeTabScreen() {
                       <View
                         style={[
                           styles.reportChallengeCard,
-                          { backgroundColor: colors.staticWhite },
+                          { backgroundColor: palette.staticWhite },
                         ]}
                       >
-                        <Text style={[styles.reportChallengeTitle, { color: colors.text }]}>
+                        <Text style={[styles.reportChallengeTitle, { color: palette.text }]}>
                           🎯 챌린지 제안
                         </Text>
                         {displayedTopCategoryInfo && consumptionIndex && (
                           <View style={styles.reportSummaryRows}>
                             <View style={styles.reportSummaryRow}>
-                              <Text style={[styles.reportSummaryLabel, { color: colors.textAssistive }]}>
+                              <Text style={[styles.reportSummaryLabel, { color: palette.textAssistive }]}>
                                 카테고리
                               </Text>
-                              <Text style={[styles.reportSummaryValue, { color: colors.text }]}>
+                              <Text style={[styles.reportSummaryValue, { color: palette.text }]}>
                                 {displayedTopCategoryInfo.category}
                               </Text>
                             </View>
                             <View style={styles.reportSummaryRow}>
-                              <Text style={[styles.reportSummaryLabel, { color: colors.textAssistive }]}>
+                              <Text style={[styles.reportSummaryLabel, { color: palette.textAssistive }]}>
                                 총 소비금액
                               </Text>
-                              <Text style={[styles.reportSummaryValue, { color: colors.text }]}>
+                              <Text style={[styles.reportSummaryValue, { color: palette.text }]}>
                                 {`${displayedTopCategoryInfo.amount.toLocaleString()}원`}
                               </Text>
                             </View>
@@ -2570,7 +2570,7 @@ export default function ChallengeTabScreen() {
                             style={[
                               styles.reportChallengeBody,
                               {
-                                color: colors.textNeutral,
+                                color: palette.textNeutral,
                                 marginBottom: idx === aiChallengeText.length - 1 ? 0 : 8,
                               },
                             ]}
@@ -2584,21 +2584,21 @@ export default function ChallengeTabScreen() {
                 </ScrollView>
               ) : (
                 <ScrollView
-                  style={[styles.reportScroll, { backgroundColor: colors.fill }]}
+                  style={[styles.reportScroll, { backgroundColor: palette.fill }]}
                   contentContainerStyle={styles.reportScrollContent}
                   showsVerticalScrollIndicator={false}
                   bounces={false}
                   overScrollMode="never"
                 >
                   {/* 년월 박스 - 소비 현황 탭, 년/월 탭 시 타임라인과 동일한 피커 */}
-                  <View style={[styles.reportMonthCard, { backgroundColor: colors.staticWhite }]}>
+                  <View style={[styles.reportMonthCard, { backgroundColor: palette.staticWhite }]}>
                     <Pressable
                       onPress={handlePrevMonth}
                       style={styles.reportMonthArrow}
                       accessibilityRole="button"
                       accessibilityLabel="이전 달"
                     >
-                      <Icon name="arrowLeft" variant="solid" size={24} color={colors.textAssistive} />
+                      <Icon name="arrowLeft" variant="solid" size={24} color={palette.textAssistive} />
                     </Pressable>
                     <Pressable
                       onPress={() => setShowYearMonthPicker(true)}
@@ -2606,7 +2606,7 @@ export default function ChallengeTabScreen() {
                       accessibilityRole="button"
                       accessibilityLabel="년월 선택"
                     >
-                      <Text style={[styles.reportMonthText, { color: colors.text }]}>
+                      <Text style={[styles.reportMonthText, { color: palette.text }]}>
                         {reportTrendYear}년 {String(reportTrendMonth).padStart(2, '0')}월
                       </Text>
                     </Pressable>
@@ -2616,7 +2616,7 @@ export default function ChallengeTabScreen() {
                       accessibilityRole="button"
                       accessibilityLabel="다음 달"
                     >
-                      <Icon name="arrowRight" variant="solid" size={24} color={colors.textAssistive} />
+                      <Icon name="arrowRight" variant="solid" size={24} color={palette.textAssistive} />
                     </Pressable>
                   </View>
                   {/* 이번달 지출 순위 / 정기 지출 칩 - 고정 */}
@@ -2643,8 +2643,8 @@ export default function ChallengeTabScreen() {
                         style={[
                           styles.trendFilterIconBox,
                           {
-                            borderColor: isTrendPaymentFilterApplied ? '#424242' : colors.border,
-                            backgroundColor: colors.staticWhite,
+                            borderColor: isTrendPaymentFilterApplied ? '#424242' : palette.border,
+                            backgroundColor: palette.staticWhite,
                           },
                         ]}
                       >
@@ -2652,10 +2652,10 @@ export default function ChallengeTabScreen() {
                           name="filter"
                           variant="line"
                           size={24}
-                          color={isTrendPaymentFilterApplied ? colors.primary : colors.textAssistive}
+                          color={isTrendPaymentFilterApplied ? palette.primary : palette.textAssistive}
                         />
                         {isTrendPaymentFilterApplied ? (
-                          <View style={[styles.trendFilterBadge, { backgroundColor: colors.primary }]} />
+                          <View style={[styles.trendFilterBadge, { backgroundColor: palette.primary }]} />
                         ) : null}
                       </View>
                     </Pressable>
@@ -2664,8 +2664,8 @@ export default function ChallengeTabScreen() {
                   <Animated.View style={{ opacity: reportContentOpacity }}>
                   {trendCategoryExpenses.length === 0 ? (
                     <View style={styles.placeholderContainer}>
-                      <Icon name="info" variant="line" size={24} color={colors.textAssistive} />
-                      <Text style={[styles.placeholderInfoText, { color: colors.textAssistive }]}>
+                      <Icon name="info" variant="line" size={24} color={palette.textAssistive} />
+                      <Text style={[styles.placeholderInfoText, { color: palette.textAssistive }]}>
                         {isTrendFilterEmptySelection
                           ? '소비내역이 존재하지 않습니다.'
                           : trendCategoryFilter === 'all'
@@ -2678,7 +2678,7 @@ export default function ChallengeTabScreen() {
                       {trendCategoryExpenses.map((item) => (
                         <Pressable
                           key={item.category}
-                          style={[styles.trendCategoryItem, { backgroundColor: colors.staticWhite }]}
+                          style={[styles.trendCategoryItem, { backgroundColor: palette.staticWhite }]}
                           onPress={() => {
                             void logEvent('list', {
                               screen_name: '/challenge',
@@ -2702,10 +2702,10 @@ export default function ChallengeTabScreen() {
                           accessibilityLabel={`${item.category} 상세`}
                         >
                           <View style={styles.trendCategorySection}>
-                            <Text style={[styles.trendCategoryName, { color: colors.text }]}>
+                            <Text style={[styles.trendCategoryName, { color: palette.text }]}>
                               {categoryEmojiMap[item.category] || '📝'} {item.category}
                             </Text>
-                            <Text style={[styles.trendCategoryStats, { color: colors.text }]}>
+                            <Text style={[styles.trendCategoryStats, { color: palette.text }]}>
                               {`${item.count}건 · ${item.amount.toLocaleString()}원`}
                             </Text>
                           </View>
@@ -2725,9 +2725,9 @@ export default function ChallengeTabScreen() {
             month={challengeMonth}
             onPrev={handlePrevMonth}
             onNext={handleNextMonth}
-            textColor={colors.text}
-            fillColor={colors.fill}
-            assistiveColor={colors.textAssistive}
+            textColor={palette.text}
+            fillColor={palette.fill}
+            assistiveColor={palette.textAssistive}
             onDatePress={() => setShowYearMonthPicker(true)}
           />
 
@@ -2741,8 +2741,8 @@ export default function ChallengeTabScreen() {
           >
             {challenges.length === 0 ? (
               <View style={styles.emptyContainer}>
-                <Icon name="info" variant="line" size={24} color={colors.textAssistive} />
-                <Text style={[styles.emptyText, { color: colors.textAssistive }]}>
+                <Icon name="info" variant="line" size={24} color={palette.textAssistive} />
+                <Text style={[styles.emptyText, { color: palette.textAssistive }]}>
                   생성된 챌린지가 없습니다.
                 </Text>
               </View>
@@ -2820,7 +2820,7 @@ export default function ChallengeTabScreen() {
               return (
                 <Pressable
                   key={challenge.id}
-                  style={[styles.challengeCard, { backgroundColor: colors.staticWhite }]}
+                  style={[styles.challengeCard, { backgroundColor: palette.staticWhite }]}
                   onPress={() => {
                     if (isNavigating.current) return;
                     void logEvent('list', {
@@ -2836,7 +2836,7 @@ export default function ChallengeTabScreen() {
                 >
                   <View style={styles.challengeHeader}>
                     <View style={styles.challengeCategory}>
-                      <Text style={[styles.challengeCategoryName, { color: colors.text }]}>
+                      <Text style={[styles.challengeCategoryName, { color: palette.text }]}>
                         {categoryEmoji || '📝'} {challenge.category}
                       </Text>
                       {status.showProgressComplete && status.bgColor !== 'transparent' && (
@@ -2845,7 +2845,7 @@ export default function ChallengeTabScreen() {
                         </View>
                       )}
                     </View>
-                    <Text style={[styles.statusLabel, { color: colors.text }]}>{status.rightLabel}</Text>
+                    <Text style={[styles.statusLabel, { color: palette.text }]}>{status.rightLabel}</Text>
                   </View>
 
                   <View style={[styles.progressContainer, { backgroundColor: '#E3E3E3' }]}>
@@ -2862,14 +2862,14 @@ export default function ChallengeTabScreen() {
 
                   <View style={styles.challengeAmounts}>
                     <View style={styles.amountLeft}>
-                      <Text style={[styles.amountLabel, { color: colors.textAssistive }]}>현재 소비금액</Text>
-                      <Text style={[styles.amountValue, { color: colors.textNeutral }]}>
+                      <Text style={[styles.amountLabel, { color: palette.textAssistive }]}>현재 소비금액</Text>
+                      <Text style={[styles.amountValue, { color: palette.textNeutral }]}>
                         {status.isBeforeStart ? '0원' : `${currentAmount.toLocaleString()}원`}
                       </Text>
                     </View>
                     <View style={styles.amountRight}>
-                      <Text style={[styles.amountLabel, { color: colors.textAssistive }]}>목표 소비금액</Text>
-                      <Text style={[styles.amountValue, { color: colors.textNeutral }]}>
+                      <Text style={[styles.amountLabel, { color: palette.textAssistive }]}>목표 소비금액</Text>
+                      <Text style={[styles.amountValue, { color: palette.textNeutral }]}>
                         {targetAmount.toLocaleString()}원
                       </Text>
                     </View>
@@ -2900,10 +2900,10 @@ export default function ChallengeTabScreen() {
             <View
               style={[
                 styles.trendPaymentFilterSheetBody,
-                { backgroundColor: colors.fill, minHeight: trendPaymentFilterSheetContentHeight },
+                { backgroundColor: palette.fill, minHeight: trendPaymentFilterSheetContentHeight },
               ]}
             >
-              <View style={[styles.trendPaymentFilterListCard, { backgroundColor: colors.staticWhite }]}>
+              <View style={[styles.trendPaymentFilterListCard, { backgroundColor: palette.staticWhite }]}>
                 <ScrollView
                   style={styles.trendPaymentFilterListScroll}
                   contentContainerStyle={styles.trendPaymentFilterListScrollContent}
@@ -2927,7 +2927,7 @@ export default function ChallengeTabScreen() {
                             <View
                               style={[
                                 styles.trendPaymentFilterIndicator,
-                                { backgroundColor: item.color, borderColor: colors.border },
+                                { backgroundColor: item.color, borderColor: palette.border },
                               ]}
                             />
                           )}
@@ -2937,12 +2937,12 @@ export default function ChallengeTabScreen() {
                               !item.description.trim() && styles.trendPaymentFilterTextBlockSingleLine,
                             ]}
                           >
-                            <Text style={[styles.trendPaymentFilterTitle, { color: colors.text }]} numberOfLines={1}>
+                            <Text style={[styles.trendPaymentFilterTitle, { color: palette.text }]} numberOfLines={1}>
                               {item.label}
                             </Text>
                             {item.description.trim() ? (
                               <Text
-                                style={[styles.trendPaymentFilterSubtitle, { color: colors.textAssistive }]}
+                                style={[styles.trendPaymentFilterSubtitle, { color: palette.textAssistive }]}
                                 numberOfLines={1}
                               >
                                 {item.description}
@@ -2951,19 +2951,19 @@ export default function ChallengeTabScreen() {
                           </View>
                           {isSelected ? (
                             <View style={styles.trendPaymentFilterCheckWrap}>
-                              <Icon name="check" variant="line" size={24} color={colors.primary} />
+                              <Icon name="check" variant="line" size={24} color={palette.primary} />
                             </View>
                           ) : null}
                         </Pressable>
                         {index < arr.length - 1 ? (
-                          <View style={[styles.trendPaymentFilterDivider, { backgroundColor: colors.border }]} />
+                          <View style={[styles.trendPaymentFilterDivider, { backgroundColor: palette.border }]} />
                         ) : null}
                       </View>
                     );
                   })}
                 </ScrollView>
               </View>
-              <ModalBottomsheetBottomInset backgroundColor={colors.staticWhite} />
+              <ModalBottomsheetBottomInset backgroundColor={palette.staticWhite} />
             </View>
           </ModalBottomsheet>
         ) : null}
@@ -3010,7 +3010,7 @@ export default function ChallengeTabScreen() {
           styles.fab,
           styles.fabShadow,
           {
-            backgroundColor: colors.primary,
+            backgroundColor: palette.primary,
             bottom: FAB_OFFSET_ABOVE_TABS,
           },
         ]}
@@ -3060,7 +3060,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 16,
-    backgroundColor: Colors.light.staticWhite,
+    backgroundColor: colors.light.staticWhite,
   },
   periodTextWithArrow: {
     flexDirection: 'row',
@@ -3068,7 +3068,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   periodText: {
-    ...Typography.body1.l.bold,
+    ...typography.body1.l.bold,
     textAlign: 'center',
   },
   monthArrowButton: {
@@ -3092,7 +3092,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   emptyText: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
     marginTop: 12,
   },
   placeholderContainer: {
@@ -3103,15 +3103,15 @@ const styles = StyleSheet.create({
     minHeight: 320,
   },
   placeholderText: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
   },
   placeholderInfoText: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
     marginTop: 12,
   },
   reportContent: {
     flex: 1,
-    backgroundColor: Colors.light.backgroundAlt,
+    backgroundColor: colors.light.backgroundAlt,
   },
   reportSubTabBar: {
     flexDirection: 'row',
@@ -3124,10 +3124,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   reportSubTabTextActive: {
-    ...Typography.body1.l.bold,
+    ...typography.body1.l.bold,
   },
   reportSubTabTextInactive: {
-    ...Typography.body1.l.medium,
+    ...typography.body1.l.medium,
   },
   reportSubTabIndicator: {
     position: 'absolute',
@@ -3196,7 +3196,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   reportMonthText: {
-    ...Typography.body1.l.bold,
+    ...typography.body1.l.bold,
   },
   reportScoreCard: {
     width: '100%',
@@ -3207,7 +3207,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   reportScoreLabel: {
-    ...Typography.body2.r.medium,
+    ...typography.body2.r.medium,
     marginBottom: 16,
   },
   reportScoreValueRow: {
@@ -3216,18 +3216,18 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   reportScoreEmoji: {
-    ...Typography.headline2.l.bold,
+    ...typography.headline2.l.bold,
     marginRight: 4,
   },
   reportScoreValue: {
-    ...Typography.headline1.xl.bold,
+    ...typography.headline1.xl.bold,
   },
   reportScoreUnit: {
-    ...Typography.body1.l.bold,
+    ...typography.body1.l.bold,
     marginLeft: 4,
   },
   reportScoreMessage: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
     textAlign: 'center',
   },
   reportSummaryCard: {
@@ -3238,11 +3238,11 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   reportSummaryTitle: {
-    ...Typography.body2.r.bold,
+    ...typography.body2.r.bold,
     marginBottom: 8,
   },
   reportSummaryHeadline: {
-    ...Typography.body2.r.bold,
+    ...typography.body2.r.bold,
     marginBottom: 8,
   },
   reportSummaryRows: {
@@ -3255,26 +3255,26 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   reportSummaryLabel: {
-    ...Typography.body2.r.regular,
+    ...typography.body2.r.regular,
     width: 72,
   },
   reportSummaryValue: {
-    ...Typography.body2.r.bold,
+    ...typography.body2.r.bold,
     flexShrink: 1,
   },
   reportSummaryBody: {
-    ...Typography.body2.r.regular,
+    ...typography.body2.r.regular,
     marginTop: 0,
   },
   reportNextGoal: {
     marginTop: 12,
   },
   reportNextGoalTitle: {
-    ...Typography.body2.r.bold,
+    ...typography.body2.r.bold,
     marginBottom: 4,
   },
   reportNextGoalBody: {
-    ...Typography.body2.r.regular,
+    ...typography.body2.r.regular,
   },
   reportChallengeCard: {
     width: '100%',
@@ -3284,11 +3284,11 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   reportChallengeTitle: {
-    ...Typography.body2.r.bold,
+    ...typography.body2.r.bold,
     marginBottom: 8,
   },
   reportChallengeBody: {
-    ...Typography.body2.r.regular,
+    ...typography.body2.r.regular,
   },
   trendFilterContainer: {
     flexDirection: 'row',
@@ -3343,11 +3343,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   trendCategoryName: {
-    ...Typography.body1.l.bold,
+    ...typography.body1.l.bold,
     flex: 1,
   },
   trendCategoryStats: {
-    ...Typography.body1.l.bold,
+    ...typography.body1.l.bold,
   },
   challengeList: {
     paddingHorizontal: 16,
@@ -3371,7 +3371,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   challengeCategoryName: {
-    ...Typography.body1.l.bold,
+    ...typography.body1.l.bold,
   },
   statusBadge: {
     borderRadius: 4,
@@ -3379,10 +3379,10 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   statusText: {
-    ...Typography.detail.r.bold,
+    ...typography.detail.r.bold,
   },
   statusLabel: {
-    ...Typography.body1.l.bold,
+    ...typography.body1.l.bold,
   },
   progressContainer: {
     height: 10,
@@ -3406,11 +3406,11 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   amountLabel: {
-    ...Typography.detail.r.regular,
+    ...typography.detail.r.regular,
     marginBottom: 2,
   },
   amountValue: {
-    ...Typography.body1.l.bold,
+    ...typography.body1.l.bold,
   },
   trendPaymentFilterSheetContent: {
     padding: 0,
@@ -3448,7 +3448,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   trendPaymentFilterCashEmoji: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
   },
   trendPaymentFilterEmojiWrap: {
     width: 16,
@@ -3468,10 +3468,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   trendPaymentFilterTitle: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
   },
   trendPaymentFilterSubtitle: {
-    ...Typography.body2.r.regular,
+    ...typography.body2.r.regular,
   },
   trendPaymentFilterDivider: {
     height: 1,

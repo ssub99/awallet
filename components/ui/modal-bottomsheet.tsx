@@ -12,7 +12,7 @@
  * RN Modal is outside the app SafeAreaProvider — Provider below is required so insets subscribe to the modal window.
  */
 
-import { Colors, Typography } from '@/constants/theme';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
   getAndroidNavigationBarInset,
@@ -79,7 +79,7 @@ function ModalBottomsheetContent({
   embedded = false,
 }: ModalBottomsheetProps) {
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   const insets = useSafeAreaInsets();
   const sheetBottomPadding = getSheetContainerBottomPadding(noPaddingBottom, insets);
 
@@ -183,21 +183,21 @@ function ModalBottomsheetContent({
               accessibilityRole="button"
               accessibilityLabel="닫기"
             >
-              <Icon name="close" size={24} color={colors.text} />
+              <Icon name="close" size={24} color={palette.text} />
             </Pressable>
           </View>
           <View style={styles.titleContainer}>
-            <Text style={[styles.title, { color: colors.text }]}>{currentTitle}</Text>
+            <Text style={[styles.title, { color: palette.text }]}>{currentTitle}</Text>
           </View>
           <View style={styles.navRight}>
             {onConfirm ? (
               <Pressable
                 onPress={onConfirm}
-                style={[styles.confirmButton, { backgroundColor: colors.primary }]}
+                style={[styles.confirmButton, { backgroundColor: palette.primary }]}
                 accessibilityRole="button"
                 accessibilityLabel={confirmText}
               >
-                <Text style={[styles.confirmText, { color: colors.staticWhite }]}>
+                <Text style={[styles.confirmText, { color: palette.staticWhite }]}>
                   {confirmText}
                 </Text>
               </Pressable>
@@ -206,7 +206,7 @@ function ModalBottomsheetContent({
             )}
           </View>
         </View>
-        <View style={[styles.divider, { backgroundColor: colors.border }]} />
+        <View style={[styles.divider, { backgroundColor: palette.border }]} />
       </View>
       <View style={[styles.content, contentStyle]}>{currentContent}</View>
     </View>
@@ -229,7 +229,7 @@ function ModalBottomsheetContent({
           styles.sheetContainer,
           {
             transform: [{ translateY: sheetTranslateY }],
-            backgroundColor: colors.staticWhite,
+            backgroundColor: palette.staticWhite,
             paddingBottom: sheetBottomPadding,
             ...(embedded ? { zIndex: 100002 } : null),
           },
@@ -360,7 +360,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   title: {
-    ...Typography.body1.l.bold,
+    ...typography.body1.l.bold,
   },
   confirmButton: {
     paddingHorizontal: 16,
@@ -375,7 +375,7 @@ const styles = StyleSheet.create({
     height: 32,
   },
   confirmText: {
-    ...Typography.button2.r.medium,
+    ...typography.button2.r.medium,
   },
   divider: {
     height: 1,

@@ -6,14 +6,14 @@
  */
 
 import { Input } from '@/components/ui/input';
-import { Colors, Typography } from '@/constants/theme';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 export default function InputDemoScreen() {
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
 
   // State for different inputs
   const [textInput, setTextInput] = useState('');
@@ -26,28 +26,28 @@ export default function InputDemoScreen() {
 
   return (
     <ScrollView
-      style={[styles.container, { backgroundColor: colors.background }]}
+      style={[styles.container, { backgroundColor: palette.background }]}
       contentContainerStyle={styles.contentContainer}
     >
       {/* Header */}
-      <Text style={[Typography.headline1.xl.bold, { color: colors.text, marginBottom: 8 }]}>
+      <Text style={[typography.headline1.xl.bold, { color: palette.text, marginBottom: 8 }]}>
         Input Components
       </Text>
-      <Text style={[Typography.body1.l.regular, { color: colors.textNeutral, marginBottom: 32 }]}>
+      <Text style={[typography.body1.l.regular, { color: palette.textNeutral, marginBottom: 32 }]}>
         All input variants, types, and states
       </Text>
 
       {/* Line Inputs - Default State */}
-      <SectionHeader title="Line Inputs - Default" colors={colors} />
+      <SectionHeader title="Line Inputs - Default" colors={palette} />
 
-      <SubSectionHeader title="Without Icon" colors={colors} />
+      <SubSectionHeader title="Without Icon" colors={palette} />
       <Input
         placeholder="내용 입력"
         value={textInput}
         onChangeText={setTextInput}
       />
 
-      <SubSectionHeader title="With Icon" colors={colors} />
+      <SubSectionHeader title="With Icon" colors={palette} />
       <Input
         icon="person"
         placeholder="내용 입력"
@@ -55,7 +55,7 @@ export default function InputDemoScreen() {
         onChangeText={setTextInputWithIcon}
       />
 
-      <SubSectionHeader title="With Time Display" colors={colors} />
+      <SubSectionHeader title="With Time Display" colors={palette} />
       <Input
         placeholder="내용 입력"
         value={timeInput}
@@ -64,9 +64,9 @@ export default function InputDemoScreen() {
       />
 
       {/* Line Inputs - Active State */}
-      <SectionHeader title="Line Inputs - Active (Focused)" colors={colors} />
+      <SectionHeader title="Line Inputs - Active (Focused)" colors={palette} />
 
-      <SubSectionHeader title="With Icon" colors={colors} />
+      <SubSectionHeader title="With Icon" colors={palette} />
       <Input
         icon="person"
         placeholder="내용 입력"
@@ -74,7 +74,7 @@ export default function InputDemoScreen() {
         onChangeText={setTextInputActive}
       />
 
-      <SubSectionHeader title="With Time Display" colors={colors} />
+      <SubSectionHeader title="With Time Display" colors={palette} />
       <Input
         placeholder="내용 입력"
         value="내용"
@@ -83,7 +83,7 @@ export default function InputDemoScreen() {
       />
 
       {/* Line Inputs - Disabled State */}
-      <SectionHeader title="Line Inputs - Disabled" colors={colors} />
+      <SectionHeader title="Line Inputs - Disabled" colors={palette} />
 
       <Input
         icon="person"
@@ -94,9 +94,9 @@ export default function InputDemoScreen() {
       />
 
       {/* Number Inputs */}
-      <SectionHeader title="Number Inputs" colors={colors} />
+      <SectionHeader title="Number Inputs" colors={palette} />
 
-      <SubSectionHeader title="Default" colors={colors} />
+      <SubSectionHeader title="Default" colors={palette} />
       <Input
         inputType="number"
         value={numberInput}
@@ -104,7 +104,7 @@ export default function InputDemoScreen() {
         unit="원"
       />
 
-      <SubSectionHeader title="Active (with value)" colors={colors} />
+      <SubSectionHeader title="Active (with value)" colors={palette} />
       <Input
         inputType="number"
         value={numberInputActive}
@@ -112,7 +112,7 @@ export default function InputDemoScreen() {
         unit="원"
       />
 
-      <SubSectionHeader title="Disabled" colors={colors} />
+      <SubSectionHeader title="Disabled" colors={palette} />
       <Input
         inputType="number"
         value="20,000"
@@ -122,9 +122,9 @@ export default function InputDemoScreen() {
       />
 
       {/* Textarea Inputs */}
-      <SectionHeader title="Textarea (Area Variant)" colors={colors} />
+      <SectionHeader title="Textarea (Area Variant)" colors={palette} />
 
-      <SubSectionHeader title="Default" colors={colors} />
+      <SubSectionHeader title="Default" colors={palette} />
       <Input
         variant="area"
         placeholder="메모를 입력해 주세요.(최대 20자)"
@@ -133,7 +133,7 @@ export default function InputDemoScreen() {
         maxLength={20}
       />
 
-      <SubSectionHeader title="Disabled" colors={colors} />
+      <SubSectionHeader title="Disabled" colors={palette} />
       <Input
         variant="area"
         placeholder="메모를 입력해 주세요.(최대 20자)"
@@ -143,20 +143,20 @@ export default function InputDemoScreen() {
       />
 
       {/* Calendar Inputs */}
-      <SectionHeader title="Calendar Inputs" colors={colors} />
+      <SectionHeader title="Calendar Inputs" colors={palette} />
 
-      <SubSectionHeader title="Default (no date)" colors={colors} />
+      <SubSectionHeader title="Default (no date)" colors={palette} />
       <Input
         calendar
       />
 
-      <SubSectionHeader title="Active (with date)" colors={colors} />
+      <SubSectionHeader title="Active (with date)" colors={palette} />
       <Input
         calendar
         calendarDate="2025.09.28"
       />
 
-      <SubSectionHeader title="Disabled (with date)" colors={colors} />
+      <SubSectionHeader title="Disabled (with date)" colors={palette} />
       <Input
         calendar
         calendarDate="2025.09.28"
@@ -164,11 +164,11 @@ export default function InputDemoScreen() {
       />
 
       {/* Real-world Examples */}
-      <SectionHeader title="Real-world Examples" colors={colors} />
+      <SectionHeader title="Real-world Examples" colors={palette} />
 
       <View style={styles.column}>
         <View>
-          <Text style={[Typography.body2.r.medium, { color: colors.text, marginBottom: 8 }]}>
+          <Text style={[typography.body2.r.medium, { color: palette.text, marginBottom: 8 }]}>
             이름
           </Text>
           <Input
@@ -180,7 +180,7 @@ export default function InputDemoScreen() {
         </View>
 
         <View>
-          <Text style={[Typography.body2.r.medium, { color: colors.text, marginBottom: 8 }]}>
+          <Text style={[typography.body2.r.medium, { color: palette.text, marginBottom: 8 }]}>
             금액
           </Text>
           <Input
@@ -192,7 +192,7 @@ export default function InputDemoScreen() {
         </View>
 
         <View>
-          <Text style={[Typography.body2.r.medium, { color: colors.text, marginBottom: 8 }]}>
+          <Text style={[typography.body2.r.medium, { color: palette.text, marginBottom: 8 }]}>
             메모
           </Text>
           <Input
@@ -205,7 +205,7 @@ export default function InputDemoScreen() {
         </View>
 
         <View>
-          <Text style={[Typography.body2.r.medium, { color: colors.text, marginBottom: 8 }]}>
+          <Text style={[typography.body2.r.medium, { color: palette.text, marginBottom: 8 }]}>
             날짜
           </Text>
           <Input
@@ -216,14 +216,14 @@ export default function InputDemoScreen() {
       </View>
 
       {/* Input Specs */}
-      <SectionHeader title="Input Specifications" colors={colors} />
-      <View style={[styles.specsContainer, { backgroundColor: colors.fill }]}>
-        <SpecItem label="Line Height" value="48px" colors={colors} />
-        <SpecItem label="Area Height" value="96px" colors={colors} />
-        <SpecItem label="Border Radius" value="12px" colors={colors} />
-        <SpecItem label="Padding" value="12px" colors={colors} />
-        <SpecItem label="Font Size" value="16px" colors={colors} />
-        <SpecItem label="Line Height (Text)" value="24px" colors={colors} />
+      <SectionHeader title="Input Specifications" colors={palette} />
+      <View style={[styles.specsContainer, { backgroundColor: palette.fill }]}>
+        <SpecItem label="Line Height" value="48px" colors={palette} />
+        <SpecItem label="Area Height" value="96px" colors={palette} />
+        <SpecItem label="Border Radius" value="12px" colors={palette} />
+        <SpecItem label="Padding" value="12px" colors={palette} />
+        <SpecItem label="Font Size" value="16px" colors={palette} />
+        <SpecItem label="Line Height (Text)" value="24px" colors={palette} />
       </View>
 
       <View style={{ height: 40 }} />
@@ -239,11 +239,11 @@ function SectionHeader({
   colors,
 }: {
   title: string;
-  colors: typeof Colors.light | typeof Colors.dark;
+  colors: ColorPalette;
 }) {
   return (
     <Text
-      style={[Typography.headline3.m.bold, { color: colors.text, marginTop: 32, marginBottom: 16 }]}
+      style={[typography.headline3.m.bold, { color: colors.text, marginTop: 32, marginBottom: 16 }]}
     >
       {title}
     </Text>
@@ -258,12 +258,12 @@ function SubSectionHeader({
   colors,
 }: {
   title: string;
-  colors: typeof Colors.light | typeof Colors.dark;
+  colors: ColorPalette;
 }) {
   return (
     <Text
       style={[
-        Typography.body1.l.medium,
+        typography.body1.l.medium,
         { color: colors.textNeutral, marginTop: 16, marginBottom: 8 },
       ]}
     >
@@ -282,12 +282,12 @@ function SpecItem({
 }: {
   label: string;
   value: string;
-  colors: typeof Colors.light | typeof Colors.dark;
+  colors: ColorPalette;
 }) {
   return (
     <View style={styles.specItem}>
-      <Text style={[Typography.body2.r.regular, { color: colors.textNeutral }]}>{label}</Text>
-      <Text style={[Typography.body2.r.bold, { color: colors.text }]}>{value}</Text>
+      <Text style={[typography.body2.r.regular, { color: colors.textNeutral }]}>{label}</Text>
+      <Text style={[typography.body2.r.bold, { color: colors.text }]}>{value}</Text>
     </View>
   );
 }

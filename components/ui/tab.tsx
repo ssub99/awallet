@@ -5,8 +5,8 @@
  * Supports multiple tabs with active indicator.
  */
 
-import { Colors, Typography } from '@/constants/theme';
-import { compactSingleLineTextStyle } from '@/constants/typography';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
+import { singleRowCenteredTextStyle } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Pressable, ScrollView, StyleSheet, Text, View, ViewStyle } from 'react-native';
 
@@ -53,7 +53,7 @@ export function Tab({
   scrollable = false,
 }: TabProps) {
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
 
   const handleTabPress = (tabValue: string) => {
     if (tabValue !== value) {
@@ -82,7 +82,7 @@ export function Tab({
                 style={[
                   isActive ? styles.tabTextActive : styles.tabTextDefault,
                   {
-                    color: isActive ? colors.staticBlack : colors.textAssistive,
+                    color: isActive ? palette.staticBlack : palette.textAssistive,
                   },
                 ]}
               >
@@ -94,7 +94,7 @@ export function Tab({
                 <View
                   style={[
                     styles.indicator,
-                    { backgroundColor: colors.primary },
+                    { backgroundColor: palette.primary },
                   ]}
                 />
               )}
@@ -126,7 +126,7 @@ export function Tab({
       </View>
       
       {/* Bottom Divider - Full Width */}
-      <View style={[styles.divider, { backgroundColor: colors.border }]} />
+      <View style={[styles.divider, { backgroundColor: palette.border }]} />
     </View>
   );
 }
@@ -173,11 +173,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   tabTextActive: {
-    ...compactSingleLineTextStyle(Typography.body1.l.bold),
+    ...singleRowCenteredTextStyle(typography.body1.l.bold),
     textAlign: 'center',
   },
   tabTextDefault: {
-    ...compactSingleLineTextStyle(Typography.body1.l.medium),
+    ...singleRowCenteredTextStyle(typography.body1.l.medium),
     textAlign: 'center',
   },
   indicator: {

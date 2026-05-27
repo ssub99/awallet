@@ -1,39 +1,32 @@
 /**
  * Theme Configuration
- * 
- * This file exports the complete theme system including:
- * - Colors (from ThemeColors - Figma/Notion synchronized)
- * - Typography (Text styles with Pretendard font)
- * - Fonts (Platform-specific font stacks)
- * 
- * Architecture:
- * 1. Atomic Colors (atomic-colors.ts) - Base color palette
- * 2. Theme Colors (theme-colors.ts) - Semantic color layer
- * 3. Typography (typography.ts) - Text styles
- * 4. This file - Main export for the app
+ *
+ * Exports semantic colors, typography, and platform font stacks.
  */
 
 import { Platform } from 'react-native';
-import { ThemeColors } from './theme-colors';
 
-// Re-export ThemeColors as Colors for app-wide usage
-export const Colors = ThemeColors;
+import { themeColors } from './theme-colors';
 
-// Re-export Typography system
+export const colors = themeColors;
+
 export {
-  Typography,
-  TypographyScale,
-  TypographyPresets,
-  TypographyLayout,
-  TypographyLayoutFieldAreaInputHeight,
-  TypographyLayoutFieldLineRowHeight,
-  TypographyLayoutFieldLineShortMinHeight,
-  compactSingleLineTextStyle,
+  typography,
+  typographyScale,
+  typographyLayout,
+  typographyLayoutFieldAreaInputHeight,
+  typographyLayoutFieldLineRowHeight,
+  typographyLayoutFieldLineShortMinHeight,
   singleRowCenteredTextStyle,
   lineFieldRowText,
   lineFieldRowTextWrap,
 } from './typography';
+
 export type { FontWeight, SizeCategory } from './typography';
+export type { ThemeColorKey, ThemeColorScheme } from './theme-colors';
+
+/** Resolved light/dark semantic palette (e.g. colors[colorScheme]). */
+export type ColorPalette = (typeof colors)['light'];
 
 export {
   PRETENDARD_FAMILY,
@@ -43,15 +36,11 @@ export {
 } from './fonts';
 export type { PretendardWeight } from './fonts';
 
-export const Fonts = Platform.select({
+export const fonts = Platform.select({
   ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
     sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
     serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
     rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
     mono: 'ui-monospace',
   },
   default: {

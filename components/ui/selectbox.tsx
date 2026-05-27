@@ -10,9 +10,9 @@
  */
 
 import { Icon } from '@/components/ui/icon';
-import { Colors, Typography } from '@/constants/theme';
-import { compactSingleLineTextStyle } from '@/constants/typography';
-import { TypographyLayout } from '@/constants/typography';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
+import { singleRowCenteredTextStyle } from '@/constants/typography';
+import { typographyLayout } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Picker } from '@react-native-picker/picker';
 import { useEffect, useRef, useState } from 'react';
@@ -79,7 +79,7 @@ export function Selectbox({
   style,
 }: SelectboxProps) {
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   const [showPicker, setShowPicker] = useState(false);
   const [tempValue, setTempValue] = useState<string | undefined>(value);
 
@@ -91,9 +91,9 @@ export function Selectbox({
   const selectedOption = options.find(opt => opt.value === value);
   const displayText = selectedOption?.label ?? placeholder;
   
-  // Colors based on state - 피그마 디자인에 맞게 조정
+  // colors based on state - 피그마 디자인에 맞게 조정
   const textColor = disabled ? '#bdbdbd' : '#424242';
-  const iconColor = disabled ? '#bdbdbd' : colors.staticBlack;
+  const iconColor = disabled ? '#bdbdbd' : palette.staticBlack;
   const backgroundColor = disabled ? 'rgba(144, 146, 158, 0.12)' : '#ffffff';
   const borderColor = 'rgba(144, 146, 158, 0.16)';
 
@@ -258,21 +258,21 @@ export function Selectbox({
           ]}
         >
           <Pressable onPress={(e) => e.stopPropagation()}>
-            <View style={[styles.pickerHeader, { backgroundColor: colors.background }]}>
+            <View style={[styles.pickerHeader, { backgroundColor: palette.background }]}>
               <Pressable onPress={handleCancel} style={styles.headerButton}>
-                <Text style={[styles.cancelButton, { color: colors.textNeutral }]}>
+                <Text style={[styles.cancelButton, { color: palette.textNeutral }]}>
                   취소
                 </Text>
               </Pressable>
               
               {title && (
-                <Text style={[styles.pickerTitle, { color: colors.text }]}>
+                <Text style={[styles.pickerTitle, { color: palette.text }]}>
                   {title}
                 </Text>
               )}
               
               <Pressable onPress={handleDone} style={styles.headerButton}>
-                <Text style={[styles.doneButton, { color: colors.primary }]}>
+                <Text style={[styles.doneButton, { color: palette.primary }]}>
                   완료
                 </Text>
               </Pressable>
@@ -280,7 +280,7 @@ export function Selectbox({
             <Picker
               selectedValue={tempValue}
               onValueChange={handleValueChange}
-              style={[styles.iosPicker, { backgroundColor: colors.staticWhite }]}
+              style={[styles.iosPicker, { backgroundColor: palette.staticWhite }]}
             >
               {options.map((option) => (
                 <Picker.Item
@@ -312,7 +312,7 @@ const styles = StyleSheet.create({
     height: 24,
   },
   text: {
-    ...compactSingleLineTextStyle(Typography.body1.l.regular),
+    ...singleRowCenteredTextStyle(typography.body1.l.regular),
   },
   // Android Picker
   androidPicker: {
@@ -354,14 +354,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     minWidth: 60,
   },
-  cancelButton: TypographyLayout.pickerNavRegular,
+  cancelButton: typographyLayout.pickerNavRegular,
   pickerTitle: {
-    ...TypographyLayout.pickerNavMedium,
+    ...typographyLayout.pickerNavMedium,
     flex: 1,
     textAlign: 'center',
   },
   doneButton: {
-    ...TypographyLayout.pickerNavMedium,
+    ...typographyLayout.pickerNavMedium,
     textAlign: 'right',
   },
   iosPicker: {

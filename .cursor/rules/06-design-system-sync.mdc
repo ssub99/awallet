@@ -41,8 +41,8 @@ NAVIGATION_HEADER      → Should be: NavigationHeader
 ### Design Token Naming:
 ```typescript
 // ✅ PROJECT STANDARD - Semantic naming with camelCase/PascalCase
-// Colors
-const Colors = {
+// colors
+const colors = {
   light: {
     background: '#FFFFFF',
     text: '#000000',
@@ -60,11 +60,11 @@ const Colors = {
 };
 
 // ❌ FIGMA - Common incorrect patterns
-'color/background/light'     → Should be: Colors.light.background
-'Background-Light'           → Should be: Colors.light.background
-'bg_light'                   → Should be: Colors.light.background
-'PRIMARY_COLOR'              → Should be: Colors.light.primary
-'color-primary-500'          → Should be: Colors.light.primary
+'color/background/light'     → Should be: colors.light.background
+'Background-Light'           → Should be: colors.light.background
+'bg_light'                   → Should be: colors.light.background
+'PRIMARY_COLOR'              → Should be: colors.light.primary
+'color-primary-500'          → Should be: colors.light.primary
 ```
 
 ### File and Directory Naming:
@@ -135,13 +135,13 @@ Identify patterns that don't match project conventions:
 
 The following items from [Figma/Notion] don't match our project standards:
 
-### Colors
+### colors
 ❌ **Figma**: `color-primary-500`
-✅ **Suggested**: `Colors.light.primary`
+✅ **Suggested**: `colors.light.primary`
 📝 **Reason**: Use semantic naming in our theme system
 
 ❌ **Figma**: `Background-Light`
-✅ **Suggested**: `Colors.light.background`
+✅ **Suggested**: `colors.light.background`
 📝 **Reason**: Consistent with theme.ts structure
 
 ### Components
@@ -199,7 +199,7 @@ if (validatedTokens.warnings.length > 0) {
 ```markdown
 ## How to Update Figma
 
-1. **Colors/Styles**
+1. **colors/Styles**
    - Open Figma → Assets Panel → Styles
    - Right-click the style → Rename
    - Use suggested naming from the report
@@ -299,23 +299,23 @@ When presenting naming corrections to the user:
 \`\`\`
 
 #### 2. Color Token: color-primary-500
-**Location**: Figma → Styles → Colors
+**Location**: Figma → Styles → colors
 **Current Name**: `color-primary-500`
-**Suggested Name**: Use in code as `Colors.light.primary`
+**Suggested Name**: Use in code as `colors.light.primary`
 **Rationale**: Semantic naming in theme system
 **Impact**: High - Core brand color
 **Action Required**:
 \`\`\`
 Option A (Recommended): Update Figma style name to "Primary Color"
-Option B: Keep Figma name but map to Colors.light.primary in code
+Option B: Keep Figma name but map to colors.light.primary in code
 
 If Option A:
 1. Figma → Right-click style → Rename to "Primary Color"
-2. Update code to reference Colors.light.primary
+2. Update code to reference colors.light.primary
 
 If Option B:
 1. Add mapping in constants/figma-tokens.ts:
-   'color-primary-500': Colors.light.primary
+   'color-primary-500': colors.light.primary
 \`\`\`
 
 ### Quick Fix Commands
@@ -366,9 +366,9 @@ Would you like me to proceed?
 | Category | Figma/Notion Pattern | ❌ Wrong | ✅ AWallet Standard |
 |----------|---------------------|----------|-------------------|
 | Components | button-primary, Button_Primary | Yes | PrimaryButton |
-| Colors | color-primary-500, Primary-Color | Yes | Colors.light.primary |
+| colors | color-primary-500, Primary-Color | Yes | colors.light.primary |
 | Spacing | spacing-base, Spacing-Base | Yes | SPACING_BASE or theme.spacing.base |
-| Typography | text-heading-1, Text/Heading/1 | Yes | theme.typography.h1 or FONT_SIZE_H1 |
+| typography | text-heading-1, Text/Heading/1 | Yes | theme.typography.h1 or FONT_SIZE_H1 |
 | Files | Button.tsx, ButtonComponent.tsx | Yes | button.tsx, primary-button.tsx |
 | Hooks | ThemeColor, theme_color | Yes | useThemeColor |
 | Constants | apiUrl, api-url | Yes | API_URL |

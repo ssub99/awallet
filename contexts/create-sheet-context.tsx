@@ -1,6 +1,6 @@
 import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
-import { Colors } from '@/constants/theme';
-import { Typography } from '@/constants/typography';
+import { colors, type ColorPalette } from '@/constants/theme';
+import { typography } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { logEvent } from '@/utils/analytics';
 import { createSheetEvent } from '@/utils/create-sheet-event';
@@ -37,7 +37,7 @@ export const CreateSheetProvider = ({ children }: PropsWithChildren) => {
   const [calendarContext, setCalendarContext] = useState(getTodayContext);
   const router = useRouter();
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
 
   useEffect(() => {
     return createSheetEvent.subscribe(() => {
@@ -145,30 +145,30 @@ export const CreateSheetProvider = ({ children }: PropsWithChildren) => {
       >
         <View style={styles.optionsContainer}>
           <Pressable
-            style={[styles.option, { backgroundColor: colors.fill }]}
+            style={[styles.option, { backgroundColor: palette.fill }]}
             onPress={handleIncomePress}
             accessibilityRole="button"
             accessibilityLabel="수입 기록 화면으로 이동"
           >
-            <Text style={[styles.optionText, { color: colors.text }]}>💰 수입 기록</Text>
+            <Text style={[styles.optionText, { color: palette.text }]}>💰 수입 기록</Text>
           </Pressable>
 
           <Pressable
-            style={[styles.option, { backgroundColor: colors.fill }]}
+            style={[styles.option, { backgroundColor: palette.fill }]}
             onPress={handleExpensePress}
             accessibilityRole="button"
             accessibilityLabel="소비 기록 화면으로 이동"
           >
-            <Text style={[styles.optionText, { color: colors.text }]}>💸 소비 기록</Text>
+            <Text style={[styles.optionText, { color: palette.text }]}>💸 소비 기록</Text>
           </Pressable>
 
           <Pressable
-            style={[styles.option, { backgroundColor: colors.fill }]}
+            style={[styles.option, { backgroundColor: palette.fill }]}
             onPress={handleChallengePress}
             accessibilityRole="button"
             accessibilityLabel="챌린지 도전 화면으로 이동"
           >
-            <Text style={[styles.optionText, { color: colors.text }]}>🎯 챌린지 도전</Text>
+            <Text style={[styles.optionText, { color: palette.text }]}>🎯 챌린지 도전</Text>
           </Pressable>
         </View>
       </ModalBottomsheet>
@@ -195,7 +195,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   optionText: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
   },
 });
 

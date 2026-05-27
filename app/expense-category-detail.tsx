@@ -6,7 +6,7 @@
 
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Tag } from '@/components/ui/tag';
-import { Colors, Typography } from '@/constants/theme';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';
 import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -58,7 +58,7 @@ const useCategoryEmojiMap = () => {
 
 export default function ExpenseCategoryDetailScreen() {
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   const router = useRouter();
   const params = useLocalSearchParams<{
     category: string;
@@ -225,7 +225,7 @@ export default function ExpenseCategoryDetailScreen() {
   const monthLabel = `${year}년 ${String(month).padStart(2, '0')}월`;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.staticWhite }]} edges={['top', 'bottom']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: palette.staticWhite }]} edges={['top', 'bottom']}>
       <StatusBar barStyle="dark-content" />
 
       {/* Top Navigation */}
@@ -237,41 +237,41 @@ export default function ExpenseCategoryDetailScreen() {
       />
 
       {/* Category Detail Card Background Area - 전체 너비 (고정) */}
-      <View style={[styles.detailCardBackground, { backgroundColor: colors.fill }]}>
+      <View style={[styles.detailCardBackground, { backgroundColor: palette.fill }]}>
         {/* Category Detail Card - 좌우 16px 여백 */}
-        <View style={[styles.detailCard, { backgroundColor: colors.staticWhite }]}>
+        <View style={[styles.detailCard, { backgroundColor: palette.staticWhite }]}>
           {/* Category Name */}
           <View style={styles.headerRow}>
-            <Text style={[styles.categoryName, { color: colors.text }]}>
+            <Text style={[styles.categoryName, { color: palette.text }]}>
               {categoryEmoji} {category}
             </Text>
           </View>
 
-          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+          <View style={[styles.divider, { backgroundColor: palette.border }]} />
 
           {/* Stats */}
           <View style={styles.statsContainer}>
             <View style={styles.statRow}>
-              <Text style={[styles.statLabel, { color: colors.textAssistive }]}>
+              <Text style={[styles.statLabel, { color: palette.textAssistive }]}>
                 {monthLabel} 소비건수
               </Text>
-              <Text style={[styles.statValue, { color: colors.text }]}>
+              <Text style={[styles.statValue, { color: palette.text }]}>
                 {categoryStats.count}건
               </Text>
             </View>
             <View style={styles.statRow}>
-              <Text style={[styles.statLabel, { color: colors.textAssistive }]}>
+              <Text style={[styles.statLabel, { color: palette.textAssistive }]}>
                 {monthLabel} 소비합계
               </Text>
-              <Text style={[styles.statValue, { color: colors.text }]}>
+              <Text style={[styles.statValue, { color: palette.text }]}>
                 {categoryStats.totalAmount.toLocaleString()}원
               </Text>
             </View>
             <View style={styles.statRow}>
-              <Text style={[styles.statLabel, { color: colors.textAssistive }]}>
+              <Text style={[styles.statLabel, { color: palette.textAssistive }]}>
                 소비 기간
               </Text>
-              <Text style={[styles.statValue, { color: colors.text }]}>
+              <Text style={[styles.statValue, { color: palette.text }]}>
                 {categoryStats.period}
               </Text>
             </View>
@@ -281,13 +281,13 @@ export default function ExpenseCategoryDetailScreen() {
 
       {/* Expense List - 스크롤 영역 */}
       <ScrollView
-        style={[styles.listScrollContainer, { backgroundColor: colors.staticWhite }]}
+        style={[styles.listScrollContainer, { backgroundColor: palette.staticWhite }]}
         contentContainerStyle={styles.listScrollContent}
         showsVerticalScrollIndicator={false}
       >
         {timelineData.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Text style={[styles.emptyText, { color: colors.textAssistive }]}>
+            <Text style={[styles.emptyText, { color: palette.textAssistive }]}>
               해당 카테고리의 소비 내역이 없습니다.
             </Text>
           </View>
@@ -312,7 +312,7 @@ export default function ExpenseCategoryDetailScreen() {
                           {/* Date Column */}
                           <View style={styles.dateColumn}>
                             {isFirstInGroup && (
-                              <Text style={[styles.dateText, { color: colors.textAssistive }]}>
+                              <Text style={[styles.dateText, { color: palette.textAssistive }]}>
                                 {formatDate(date)}
                               </Text>
                             )}
@@ -323,13 +323,13 @@ export default function ExpenseCategoryDetailScreen() {
                             {/* Category and Amount */}
                             <View style={styles.itemRow1}>
                               <View style={styles.categoryContainer}>
-                                <Text style={[styles.categoryText, { color: colors.text }]}>
+                                <Text style={[styles.categoryText, { color: palette.text }]}>
                                   {categoryEmoji} {item.category}
                                 </Text>
                               </View>
                               <View style={styles.amountContainer}>
                                 <Text
-                                  style={[styles.amountText, { color: colors.text }]}
+                                  style={[styles.amountText, { color: palette.text }]}
                                   adjustsFontSizeToFit
                                   numberOfLines={1}
                                   minimumFontScale={0.7}
@@ -344,7 +344,7 @@ export default function ExpenseCategoryDetailScreen() {
                             {/* Memo */}
                             <View style={styles.itemRow2}>
                               <View style={styles.memoContainer}>
-                                <Text style={[styles.memoText, { color: colors.textAssistive }]}>
+                                <Text style={[styles.memoText, { color: palette.textAssistive }]}>
                                   {item.memo ? item.memo.replace(/\n/g, ' ') : ' '}
                                 </Text>
                                 {/* 태그 표시 */}
@@ -374,7 +374,7 @@ export default function ExpenseCategoryDetailScreen() {
                               isFirstInGroup || isLastInGroup
                                 ? styles.itemDividerInset
                                 : styles.itemDividerContent,
-                              { backgroundColor: colors.border },
+                              { backgroundColor: palette.border },
                             ]}
                           />
                         ) : null}
@@ -416,7 +416,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   categoryName: {
-    ...Typography.headline4.r.bold,
+    ...typography.headline4.r.bold,
   },
   divider: {
     height: 1,
@@ -431,10 +431,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statLabel: {
-    ...Typography.body2.r.medium,
+    ...typography.body2.r.medium,
   },
   statValue: {
-    ...Typography.body1.l.bold,
+    ...typography.body1.l.bold,
   },
   emptyContainer: {
     flex: 1,
@@ -443,7 +443,7 @@ const styles = StyleSheet.create({
     paddingVertical: 80,
   },
   emptyText: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
   },
   dateGroup: {
     gap: 0,
@@ -458,7 +458,7 @@ const styles = StyleSheet.create({
     width: 94,
   },
   dateText: {
-    ...Typography.body2.r.medium,
+    ...typography.body2.r.medium,
   },
   itemContent: {
     flex: 1,
@@ -477,14 +477,14 @@ const styles = StyleSheet.create({
     flex: 6,
   },
   categoryText: {
-    ...Typography.body2.r.bold,
+    ...typography.body2.r.bold,
   },
   amountContainer: {
     flex: 4,
     alignItems: 'flex-end',
   },
   amountText: {
-    ...Typography.body2.r.bold,
+    ...typography.body2.r.bold,
     textAlign: 'right',
   },
   memoContainer: {
@@ -493,7 +493,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   memoText: {
-    ...Typography.body2.r.regular,
+    ...typography.body2.r.regular,
     flex: 1,
   },
   itemDividerInset: {

@@ -7,7 +7,7 @@
 
 import { DatePicker } from '@/components/ui/date-picker';
 import { Icon, type IconName } from '@/components/ui/icon';
-import { Colors, Typography } from '@/constants/theme';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { logEvent } from '@/utils/analytics';
 import { useEffect, useRef, useState } from 'react';
@@ -196,7 +196,7 @@ export function TopNavigation({
   style,
 }: TopNavigationProps) {
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   
   // Main type: unified tab structure (1 or 2+ items)
   const effectiveTabs = tabsProp ?? [{ id: 'default', label: title }];
@@ -270,7 +270,7 @@ export function TopNavigation({
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.staticWhite }, style]}>
+    <View style={[styles.container, { backgroundColor: palette.staticWhite }, style]}>
       {/* Content */}
       <View style={styles.content}>
         {/* Left Section */}
@@ -283,7 +283,7 @@ export function TopNavigation({
               accessibilityRole="button"
               accessibilityLabel="뒤로 가기"
             >
-              <Icon name="arrowLeft" size={24} color={colors.text} />
+              <Icon name="arrowLeft" size={24} color={palette.text} />
             </Pressable>
           )}
 
@@ -300,13 +300,13 @@ export function TopNavigation({
                     <Text
                       style={[
                         styles.mainTitle,
-                        { color: isActive ? colors.text : colors.textAssistive },
+                        { color: isActive ? palette.text : palette.textAssistive },
                       ]}
                     >
                       {displayLabel}
                     </Text>
                     {showDropdownArrow && isActive && (
-                      <Icon name="arrowDown" variant="solid" size={24} color={colors.textAssistive} />
+                      <Icon name="arrowDown" variant="solid" size={24} color={palette.textAssistive} />
                     )}
                   </>
                 );
@@ -334,7 +334,7 @@ export function TopNavigation({
         {/* Center Section (Sub Type Only) */}
         {type === 'sub' && !showDay && (
           <View style={styles.centerSection}>
-            <Text style={[styles.subTitle, { color: colors.text }]}>
+            <Text style={[styles.subTitle, { color: palette.text }]}>
               {title}
             </Text>
           </View>
@@ -347,11 +347,11 @@ export function TopNavigation({
             disabled={!showDropdownArrow}
             style={styles.centerDateContainer}
           >
-            <Text style={[styles.subTitle, { color: colors.text }]}>
+            <Text style={[styles.subTitle, { color: palette.text }]}>
               {dateText}
             </Text>
             {showDropdownArrow && (
-              <Icon name="arrowDown" variant="solid" size={24} color={colors.textAssistive} />
+              <Icon name="arrowDown" variant="solid" size={24} color={palette.textAssistive} />
             )}
           </Pressable>
         )}
@@ -360,13 +360,13 @@ export function TopNavigation({
         <View style={styles.rightSection}>
           {/* Main Type: Period Toggle with Switch Animation */}
           {type === 'main' && onPeriodChange && (
-            <View style={[styles.periodToggle, { backgroundColor: colors.fill }]}>
+            <View style={[styles.periodToggle, { backgroundColor: palette.fill }]}>
               {/* Animated Background (Switch Effect) */}
               <Animated.View
                 style={[
                   styles.periodBackground,
                   { 
-                    backgroundColor: colors.staticWhite,
+                    backgroundColor: palette.staticWhite,
                     transform: [{ translateX: periodSlideX }]
                   },
                 ]}
@@ -389,7 +389,7 @@ export function TopNavigation({
                 <Text
                   style={[
                     styles.periodText,
-                    { color: periodType === 'year' ? colors.text : colors.textAssistive },
+                    { color: periodType === 'year' ? palette.text : palette.textAssistive },
                   ]}
                 >
                   년도
@@ -411,7 +411,7 @@ export function TopNavigation({
                 <Text
                   style={[
                     styles.periodText,
-                    { color: periodType === 'month' ? colors.text : colors.textAssistive },
+                    { color: periodType === 'month' ? palette.text : palette.textAssistive },
                   ]}
                 >
                   월
@@ -424,11 +424,11 @@ export function TopNavigation({
           {type === 'sub' && showRightButton && (
             <Pressable
               onPress={handleRightButtonPress}
-              style={[styles.rightButton, { backgroundColor: colors.primary }]}
+              style={[styles.rightButton, { backgroundColor: palette.primary }]}
               accessibilityRole="button"
               accessibilityLabel={rightButtonText}
             >
-              <Text style={[styles.rightButtonText, { color: colors.staticWhite }]}>
+              <Text style={[styles.rightButtonText, { color: palette.staticWhite }]}>
                 {rightButtonText}
               </Text>
             </Pressable>
@@ -441,14 +441,14 @@ export function TopNavigation({
               accessibilityRole="button"
               accessibilityLabel={`${rightIconName} 아이콘 버튼`}
             >
-              <Icon name={rightIconName} size={24} color={colors.text} />
+              <Icon name={rightIconName} size={24} color={palette.text} />
             </Pressable>
           )}
         </View>
       </View>
 
       {/* Bottom Divider */}
-      <View style={[styles.divider, { backgroundColor: colors.border }]} />
+      <View style={[styles.divider, { backgroundColor: palette.border }]} />
 
       {/* Year/Month Picker */}
       {yearOptions && yearOptions.length > 0 && showMonthPicker ? (
@@ -502,7 +502,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   mainTitle: {
-    ...Typography.headline4.r.bold,
+    ...typography.headline4.r.bold,
   },
   centerSection: {
     position: 'absolute',
@@ -518,7 +518,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   subTitle: {
-    ...Typography.body1.l.bold,
+    ...typography.body1.l.bold,
   },
   rightSection: {
     flexDirection: 'row',
@@ -551,7 +551,7 @@ const styles = StyleSheet.create({
     // Removed - using animated background instead
   },
   periodText: {
-    ...Typography.body2.r.bold,
+    ...typography.body2.r.bold,
   },
   rightButton: {
     paddingHorizontal: 16,
@@ -561,7 +561,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   rightButtonText: {
-    ...Typography.body2.r.medium,
+    ...typography.body2.r.medium,
   },
   divider: {
     height: 1,

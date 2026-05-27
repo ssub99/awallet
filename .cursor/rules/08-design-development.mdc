@@ -17,13 +17,13 @@ description: Design system implementation and development best practices
 
 **ALWAYS check these before hardcoding:**
 
-- **Colors**: Use [theme-colors.ts](mdc:constants/theme-colors.ts)
+- **colors**: Use [theme-colors.ts](mdc:constants/theme-colors.ts)
   - Check Semantic colors (e.g., `Semantic/Fill/Normal` → `colors.fill`)
   - Check Static colors (e.g., `Semantic/Static/Black` → `colors.staticBlack`)
   - Check Atomic colors if needed
 
-- **Typography**: Use [typography.ts](mdc:constants/typography.ts)
-  - Check Typography system (e.g., `body01/l_16/bold` → `Typography.body1.l.bold`)
+- **typography**: Use [constants/typography/](mdc:constants/typography/)
+  - Check typography system (e.g., `body01/l_16/bold` → `typography.body1.l.bold`)
   - Never hardcode font sizes, weights, or line heights
 
 - **Spacing**: Use design system spacing values
@@ -75,14 +75,15 @@ Which approach would you prefer?"
 // ❌ WRONG - Hardcoded colors
 <View style={{ backgroundColor: '#ffffff' }}>
 
-// ✅ CORRECT - Use theme
-<View style={{ backgroundColor: colors.background }}>
+// ✅ CORRECT - Use theme (resolved palette)
+// const palette = colors[colorScheme ?? 'light'];
+<View style={{ backgroundColor: palette.background }}>
 
 // ❌ WRONG - Hardcoded typography
 <Text style={{ fontSize: 16, fontWeight: '700', lineHeight: 24 }}>
 
-// ✅ CORRECT - Use Typography
-<Text style={Typography.body1.l.bold}>
+// ✅ CORRECT - Use typography
+<Text style={typography.body1.l.bold}>
 
 // ❌ WRONG - Magic numbers
 <View style={{ padding: 16, gap: 8, borderRadius: 12 }}>

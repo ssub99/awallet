@@ -1,4 +1,3 @@
-import { pretendardTextOpticalAdjust } from '@/constants/typography';
 import React from 'react';
 import type { TextProps } from 'react-native';
 import OriginalTextDefault from '../node_modules/react-native/Libraries/Text/Text';
@@ -14,7 +13,6 @@ function Text(props: TextProps) {
   return React.createElement(OriginalText, {
     ...DISABLE_SYSTEM_FONT_SCALING,
     ...props,
-    style: [pretendardTextOpticalAdjust(), props.style],
   });
 }
 

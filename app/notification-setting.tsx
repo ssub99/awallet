@@ -7,8 +7,8 @@
 
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Switch } from '@/components/ui/switch';
-import { ThemeColors } from '@/constants/theme-colors';
-import { Typography, TypographyLayout } from '@/constants/typography';
+import { themeColors } from '@/constants/theme-colors';
+import { typography, typographyLayout } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { handleNotificationToggle } from '@/hooks/use-notifications';
@@ -26,7 +26,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function NotificationSettingScreen() {
   const colorScheme = useColorScheme();
-  const colors = ThemeColors[colorScheme ?? 'light'];
+  const colors = themeColors[colorScheme ?? 'light'];
   const router = useRouter();
   const { setLoading } = useLoading();
 
@@ -148,7 +148,7 @@ const styles = StyleSheet.create({
     paddingTop: 24,
   },
   sectionTitle: {
-    ...TypographyLayout.sectionTitle,
+    ...typographyLayout.sectionTitle,
     marginBottom: 8,
   },
   card: {
@@ -167,10 +167,10 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   switchLabel: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
   },
   recurringCaption: {
-    ...Typography.body2.r.regular,
+    ...typography.body2.r.regular,
     marginTop: 0,
   },
   divider: {

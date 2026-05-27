@@ -11,12 +11,12 @@
  */
 
 import { Icon, IconName } from '@/components/ui/icon';
-import { Colors } from '@/constants/theme';
+import { colors, type ColorPalette } from '@/constants/theme';
 import {
-  TypographyLayout,
-  TypographyLayoutFieldAreaInputHeight,
-  TypographyLayoutFieldLineRowHeight,
-  TypographyLayoutFieldLineShortMinHeight,
+  typographyLayout,
+  typographyLayoutFieldAreaInputHeight,
+  typographyLayoutFieldLineRowHeight,
+  typographyLayoutFieldLineShortMinHeight,
 } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { forwardRef, useImperativeHandle, useRef, useState, type ReactNode } from 'react';
@@ -191,7 +191,7 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
   const defaultPlaceholder = inputType === 'number' ? '0' : '내용 입력';
   const finalPlaceholder = placeholder ?? defaultPlaceholder;
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   
   const inputRef = useRef<TextInput>(null);
 
@@ -202,26 +202,26 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
   const hasCalendarDate = calendar && calendarDate;
 
   // Border color based on state
-  const borderColor = disabled ? colors.border : isFocused ? colors.primary : colors.border;
+  const borderColor = disabled ? palette.border : isFocused ? palette.primary : palette.border;
   
   // Background color based on state
-  const backgroundColor = disabled ? colors.fillDisabled : colors.staticWhite;
+  const backgroundColor = disabled ? palette.fillDisabled : palette.staticWhite;
   
   // Text color based on state
-  const textColor = disabled ? colors.textDisabled : colors.text;
+  const textColor = disabled ? palette.textDisabled : palette.text;
   
   // Placeholder color
-  const placeholderColor = disabled ? colors.textDisabled : colors.textAssistive;
+  const placeholderColor = disabled ? palette.textDisabled : palette.textAssistive;
   
   // Icon color based on state
   // Calendar mode: Black when date is set, otherwise assistive
   // Input mode: Black when focused or has value, otherwise assistive
   const iconColor = disabled
-    ? colors.textDisabled
+    ? palette.textDisabled
     : hasCalendarDate || isFocused || hasValue
-    ? colors.staticBlack
-    : colors.textAssistive;
-  const resolvedSortationColor = sortationColor ?? colors.primary;
+    ? palette.staticBlack
+    : palette.textAssistive;
+  const resolvedSortationColor = sortationColor ?? palette.primary;
   const shouldUseCompactEmojiGap = !!sortationEmoji && !showSortationDot;
   // iOS: 네이티브 placeholder·입력 텍스트를 동일 UITextField 경로로 맞춤 (커스텀 Text 오버레이는 살짝 위로 쏠림)
   const shouldUseCustomLinePlaceholder =
@@ -373,13 +373,13 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
                     <View
                       style={[
                         styles.sortationIndicator,
-                        { backgroundColor: resolvedSortationColor, borderColor: colors.border },
+                        { backgroundColor: resolvedSortationColor, borderColor: palette.border },
                       ]}
                     />
                   )}
                   {sortationEmoji ? (
                     <View style={shortver ? styles.inputLineTextWrapShort : styles.inputLineTextWrap}>
-                      <Text style={[styles.sortationEmoji, { color: disabled ? colors.textDisabled : colors.textNeutral }]}>
+                      <Text style={[styles.sortationEmoji, { color: disabled ? palette.textDisabled : palette.textNeutral }]}>
                         {sortationEmoji}
                       </Text>
                     </View>
@@ -471,28 +471,28 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
                     name={rightIcon}
                     variant="line"
                     size={10}
-                    color={disabled ? colors.textDisabled : colors.textNeutral}
+                    color={disabled ? palette.textDisabled : palette.textNeutral}
                     style={styles.rightIcon}
                   />
                 )}
 
                 {/* Unit (for number input) */}
                 {unit && inputType === 'number' && (
-                  <Text style={[styles.unit, { color: disabled ? colors.textDisabled : colors.textAssistive, marginLeft: 4 }]}>
+                  <Text style={[styles.unit, { color: disabled ? palette.textDisabled : palette.textAssistive, marginLeft: 4 }]}>
                     {unit}
                   </Text>
                 )}
 
                 {/* Time Display */}
                 {timeDisplay && (
-                  <Text style={[styles.time, { color: colors.primary }]}>
+                  <Text style={[styles.time, { color: palette.primary }]}>
                     {timeDisplay}
                   </Text>
                 )}
 
                 {/* Right Text (dayselect mode) */}
                 {rightText && (
-                  <Text style={[styles.rightText, { color: disabled ? colors.textDisabled : colors.textAssistive }]}>
+                  <Text style={[styles.rightText, { color: disabled ? palette.textDisabled : palette.textAssistive }]}>
                     {rightText}
                   </Text>
                 )}
@@ -503,7 +503,7 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
                     name={rightIcon ?? (sortation || shortver ? 'arrowDown' : 'arrowRight')}
                     variant="line"
                     size={shortver ? 16 : 24}
-                    color={disabled ? colors.textDisabled : colors.staticBlack}
+                    color={disabled ? palette.textDisabled : palette.staticBlack}
                     style={styles.rightArrow}
                   />
                 )}
@@ -566,16 +566,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    minHeight: TypographyLayoutFieldLineRowHeight,
+    minHeight: typographyLayoutFieldLineRowHeight,
   },
   contentShort: {
-    minHeight: TypographyLayoutFieldLineShortMinHeight,
+    minHeight: typographyLayoutFieldLineShortMinHeight,
   },
   contentArea: {
     alignItems: 'flex-start',
     alignSelf: 'stretch',
     flex: 1,
-    minHeight: TypographyLayoutFieldAreaInputHeight,
+    minHeight: typographyLayoutFieldAreaInputHeight,
   },
   leftSection: {
     flex: 1,
@@ -590,12 +590,12 @@ const styles = StyleSheet.create({
   icon: {
     // Icon is 24x24
   },
-  inputLineTextWrap: TypographyLayout.fieldLineWrap,
-  inputLineTextWrapShort: TypographyLayout.fieldLineShortWrap,
+  inputLineTextWrap: typographyLayout.fieldLineWrap,
+  inputLineTextWrapShort: typographyLayout.fieldLineShortWrap,
   inputFieldWrap: {
     flex: 1,
     justifyContent: 'center',
-    minHeight: TypographyLayoutFieldLineRowHeight,
+    minHeight: typographyLayoutFieldLineRowHeight,
     position: 'relative',
   },
   inputPlaceholderWrap: {
@@ -605,18 +605,18 @@ const styles = StyleSheet.create({
   inputFieldWrapArea: {
     alignSelf: 'stretch',
     justifyContent: 'flex-start',
-    minHeight: TypographyLayoutFieldAreaInputHeight,
+    minHeight: typographyLayoutFieldAreaInputHeight,
   },
-  inputLine: TypographyLayout.fieldLineInput,
-  inputAreaField: TypographyLayout.fieldAreaInput,
-  inputLineButtonText: TypographyLayout.fieldLine,
-  inputPlaceholderText: TypographyLayout.fieldLinePlaceholder,
-  inputShort: TypographyLayout.fieldLineShort,
-  inputShortField: TypographyLayout.fieldLineShortInput,
+  inputLine: typographyLayout.fieldLineInput,
+  inputAreaField: typographyLayout.fieldAreaInput,
+  inputLineButtonText: typographyLayout.fieldLine,
+  inputPlaceholderText: typographyLayout.fieldLinePlaceholder,
+  inputShort: typographyLayout.fieldLineShort,
+  inputShortField: typographyLayout.fieldLineShortInput,
   inputEmojiGapCompact: {
     marginLeft: -4,
   },
-  inputNumber: TypographyLayout.fieldNumber,
+  inputNumber: typographyLayout.fieldNumber,
   valueRenderer: {
     flex: 1,
   },
@@ -625,22 +625,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  unit: TypographyLayout.fieldLine,
-  time: TypographyLayout.fieldLine,
-  rightText: TypographyLayout.fieldLine,
+  unit: typographyLayout.fieldLine,
+  time: typographyLayout.fieldLine,
+  rightText: typographyLayout.fieldLine,
   rightArrow: {
     // Icon is 24x24
   },
   rightIcon: {
     // Icon is 24x24
   },
-  calendarDate: TypographyLayout.fieldLine,
+  calendarDate: typographyLayout.fieldLine,
   sortationIndicator: {
     width: 16,
     height: 16,
     borderRadius: 99,
     borderWidth: 1,
   },
-  sortationEmoji: TypographyLayout.fieldLine,
+  sortationEmoji: typographyLayout.fieldLine,
 });
 

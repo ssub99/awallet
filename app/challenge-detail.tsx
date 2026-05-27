@@ -8,7 +8,7 @@
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Icon } from '@/components/ui/icon';
 import { Tag } from '@/components/ui/tag';
-import { Colors, Typography } from '@/constants/theme';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';
 import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -58,7 +58,7 @@ const useCategoryEmojiMap = () => {
 
 export default function ChallengeDetailScreen() {
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   const router = useRouter();
   const params = useLocalSearchParams<{ challengeId?: string }>();
   const challengeId = params.challengeId ?? '';
@@ -236,7 +236,7 @@ export default function ChallengeDetailScreen() {
   const challengeTitle = challenge ? `${challenge.category}` : '챌린지 상세 내역';
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.staticWhite }]} edges={['top', 'bottom']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: palette.staticWhite }]} edges={['top', 'bottom']}>
       <StatusBar barStyle="dark-content" />
 
       <TopNavigation
@@ -250,20 +250,20 @@ export default function ChallengeDetailScreen() {
       />
 
       {/* Detail Card Area */}
-      <View style={[styles.detailCardBackground, { backgroundColor: colors.fill }]}>
-        <View style={[styles.detailCard, { backgroundColor: colors.staticWhite }]}>
+      <View style={[styles.detailCardBackground, { backgroundColor: palette.fill }]}>
+        <View style={[styles.detailCard, { backgroundColor: palette.staticWhite }]}>
           {/* Header */}
           <View style={styles.headerRow}>
-            <Text style={[styles.categoryName, { color: colors.text }]}>
+            <Text style={[styles.categoryName, { color: palette.text }]}>
               {categoryEmoji} {challengeTitle}
             </Text>
-            <Text style={[styles.progressLabel, { color: colors.text }]}>
+            <Text style={[styles.progressLabel, { color: palette.text }]}>
               {stats.isBeforeStart ? '진행 전' : `${stats.progress}%`}
             </Text>
           </View>
 
           {/* Progress */}
-          <View style={[styles.progressBarBackground, { backgroundColor: colors.border }]}>
+          <View style={[styles.progressBarBackground, { backgroundColor: palette.border }]}>
             <View
               style={[
                 styles.progressBarFill,
@@ -272,7 +272,7 @@ export default function ChallengeDetailScreen() {
                   backgroundColor: stats.isBeforeStart
                     ? '#9e9e9e'
                     : stats.isOverBudget
-                    ? colors.statusNegative ?? '#ef5252'
+                    ? palette.statusNegative ?? '#ef5252'
                     : '#1ac673',
                 },
               ]}
@@ -282,16 +282,16 @@ export default function ChallengeDetailScreen() {
           {/* Amounts */}
           <View style={styles.amountsContainer}>
             <View style={styles.amountRow}>
-              <Text style={[styles.amountLabel, { color: colors.textAssistive }]}>목표 소비금액</Text>
-              <Text style={[styles.amountValue, { color: colors.text }]}>{stats.targetAmount.toLocaleString()}원</Text>
+              <Text style={[styles.amountLabel, { color: palette.textAssistive }]}>목표 소비금액</Text>
+              <Text style={[styles.amountValue, { color: palette.text }]}>{stats.targetAmount.toLocaleString()}원</Text>
             </View>
             <View style={styles.amountRow}>
-              <Text style={[styles.amountLabel, { color: colors.textAssistive }]}>현재 소비금액</Text>
-              <Text style={[styles.amountValue, { color: colors.text }]}>{stats.totalAmount.toLocaleString()}원</Text>
+              <Text style={[styles.amountLabel, { color: palette.textAssistive }]}>현재 소비금액</Text>
+              <Text style={[styles.amountValue, { color: palette.text }]}>{stats.totalAmount.toLocaleString()}원</Text>
             </View>
             <View style={styles.amountRow}>
-              <Text style={[styles.amountLabel, { color: colors.textAssistive }]}>챌린지 기간</Text>
-              <Text style={[styles.amountValue, { color: colors.text }]}>{stats.period}</Text>
+              <Text style={[styles.amountLabel, { color: palette.textAssistive }]}>챌린지 기간</Text>
+              <Text style={[styles.amountValue, { color: palette.text }]}>{stats.period}</Text>
             </View>
           </View>
         </View>
@@ -299,7 +299,7 @@ export default function ChallengeDetailScreen() {
 
       {/* Expense List */}
       <ScrollView
-        style={[styles.listScrollContainer, { backgroundColor: colors.staticWhite }]}
+        style={[styles.listScrollContainer, { backgroundColor: palette.staticWhite }]}
         contentContainerStyle={[
           styles.listScrollContent,
           (!challenge || timelineData.length === 0) && styles.listScrollContentEmpty,
@@ -310,13 +310,13 @@ export default function ChallengeDetailScreen() {
       >
         {!challenge ? (
           <View style={styles.emptyContainer}>
-            <Icon name="info" variant="line" size={24} color={colors.textAssistive} />
-            <Text style={[styles.emptyText, { color: colors.textAssistive }]}>챌린지를 찾을 수 없습니다.</Text>
+            <Icon name="info" variant="line" size={24} color={palette.textAssistive} />
+            <Text style={[styles.emptyText, { color: palette.textAssistive }]}>챌린지를 찾을 수 없습니다.</Text>
           </View>
         ) : timelineData.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Icon name="info" variant="line" size={24} color={colors.textAssistive} />
-            <Text style={[styles.emptyText, { color: colors.textAssistive }]}>
+            <Icon name="info" variant="line" size={24} color={palette.textAssistive} />
+            <Text style={[styles.emptyText, { color: palette.textAssistive }]}>
               해당 챌린지의 소비 내역이 없습니다.
             </Text>
           </View>
@@ -339,7 +339,7 @@ export default function ChallengeDetailScreen() {
                           {/* Date */}
                           <View style={styles.dateColumn}>
                             {isFirstInGroup && (
-                              <Text style={[styles.dateText, { color: colors.textAssistive }]}>{formatDate(date)}</Text>
+                              <Text style={[styles.dateText, { color: palette.textAssistive }]}>{formatDate(date)}</Text>
                             )}
                           </View>
 
@@ -347,11 +347,11 @@ export default function ChallengeDetailScreen() {
                           <View style={styles.itemContent}>
                             <View style={styles.itemRow1}>
                               <View style={styles.categoryContainer}>
-                                <Text style={[styles.categoryText, { color: colors.text }]}>{`${categoryEmoji} ${item.category}`}</Text>
+                                <Text style={[styles.categoryText, { color: palette.text }]}>{`${categoryEmoji} ${item.category}`}</Text>
                               </View>
                               <View style={styles.amountContainer}>
                                 <Text
-                                  style={[styles.amountText, { color: colors.text }]}
+                                  style={[styles.amountText, { color: palette.text }]}
                                   adjustsFontSizeToFit
                                   numberOfLines={1}
                                   minimumFontScale={0.7}
@@ -363,7 +363,7 @@ export default function ChallengeDetailScreen() {
 
                             <View style={styles.itemRow2}>
                               <View style={styles.memoContainer}>
-                                <Text style={[styles.memoText, { color: colors.textAssistive }]}>
+                                <Text style={[styles.memoText, { color: palette.textAssistive }]}>
                                   {item.memo ? item.memo.replace(/\n/g, ' ') : ' '}
                                 </Text>
                                 {item.isInstallment && item.isPrepaid && <Tag label="할부·선결제" status="positive" />}
@@ -385,7 +385,7 @@ export default function ChallengeDetailScreen() {
                               isFirstInGroup || isLastInGroup
                                 ? styles.itemDividerInset
                                 : styles.itemDividerContent,
-                              { backgroundColor: colors.border },
+                              { backgroundColor: palette.border },
                             ]}
                           />
                         ) : null}
@@ -422,10 +422,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   categoryName: {
-    ...Typography.headline4.r.bold,
+    ...typography.headline4.r.bold,
   },
   progressLabel: {
-    ...Typography.headline4.r.bold,
+    ...typography.headline4.r.bold,
   },
   progressBarBackground: {
     height: 10,
@@ -446,10 +446,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   amountLabel: {
-    ...Typography.body2.r.medium,
+    ...typography.body2.r.medium,
   },
   amountValue: {
-    ...Typography.body1.l.bold,
+    ...typography.body1.l.bold,
   },
   listScrollContainer: {
     flex: 1,
@@ -467,7 +467,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   emptyText: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
     marginTop: 12,
   },
   dateGroup: {
@@ -483,7 +483,7 @@ const styles = StyleSheet.create({
     width: 94,
   },
   dateText: {
-    ...Typography.body2.r.medium,
+    ...typography.body2.r.medium,
   },
   itemContent: {
     flex: 1,
@@ -502,14 +502,14 @@ const styles = StyleSheet.create({
     flex: 6,
   },
   categoryText: {
-    ...Typography.body2.r.bold,
+    ...typography.body2.r.bold,
   },
   amountContainer: {
     flex: 4,
     alignItems: 'flex-end',
   },
   amountText: {
-    ...Typography.body2.r.bold,
+    ...typography.body2.r.bold,
     textAlign: 'right',
   },
   memoContainer: {
@@ -518,7 +518,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   memoText: {
-    ...Typography.body2.r.regular,
+    ...typography.body2.r.regular,
     flex: 1,
   },
   itemDividerInset: {

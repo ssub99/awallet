@@ -6,14 +6,14 @@
  */
 
 import { Selectbox } from '@/components/ui/selectbox';
-import { Colors, Typography } from '@/constants/theme';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 export default function SelectboxDemoScreen() {
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
 
   // Sample options - 10+ items for testing
   const categoryOptions = [
@@ -68,21 +68,21 @@ export default function SelectboxDemoScreen() {
 
   return (
     <ScrollView
-      style={[styles.container, { backgroundColor: colors.background }]}
+      style={[styles.container, { backgroundColor: palette.background }]}
       contentContainerStyle={styles.contentContainer}
     >
       {/* Header */}
-      <Text style={[Typography.headline1.xl.bold, { color: colors.text, marginBottom: 8 }]}>
+      <Text style={[typography.headline1.xl.bold, { color: palette.text, marginBottom: 8 }]}>
         Selectbox Components
       </Text>
-      <Text style={[Typography.body1.l.regular, { color: colors.textNeutral, marginBottom: 32 }]}>
+      <Text style={[typography.body1.l.regular, { color: palette.textNeutral, marginBottom: 32 }]}>
         Native picker with platform-specific UI
       </Text>
 
       {/* Default State */}
-      <SectionHeader title="Default State" colors={colors} />
+      <SectionHeader title="Default State" colors={palette} />
       
-      <SubSectionHeader title="No Selection" colors={colors} />
+      <SubSectionHeader title="No Selection" colors={palette} />
       <Selectbox
         options={categoryOptions}
         value={category}
@@ -91,7 +91,7 @@ export default function SelectboxDemoScreen() {
         title="카테고리"
       />
 
-      <SubSectionHeader title="With Selection" colors={colors} />
+      <SubSectionHeader title="With Selection" colors={palette} />
       <Selectbox
         options={categoryOptions}
         value={categoryWithValue}
@@ -101,7 +101,7 @@ export default function SelectboxDemoScreen() {
       />
 
       {/* Disabled State */}
-      <SectionHeader title="Disabled State" colors={colors} />
+      <SectionHeader title="Disabled State" colors={palette} />
       
       <Selectbox
         options={categoryOptions}
@@ -113,9 +113,9 @@ export default function SelectboxDemoScreen() {
       />
 
       {/* Different Options */}
-      <SectionHeader title="Different Options" colors={colors} />
+      <SectionHeader title="Different Options" colors={palette} />
       
-      <SubSectionHeader title="Month Selector (12 items)" colors={colors} />
+      <SubSectionHeader title="Month Selector (12 items)" colors={palette} />
       <Selectbox
         options={monthOptions}
         value={month}
@@ -124,7 +124,7 @@ export default function SelectboxDemoScreen() {
         title="조회 월"
       />
 
-      <SubSectionHeader title="Account Selector (10 items)" colors={colors} />
+      <SubSectionHeader title="Account Selector (10 items)" colors={palette} />
       <Selectbox
         options={accountOptions}
         value={account}
@@ -133,7 +133,7 @@ export default function SelectboxDemoScreen() {
         title="계좌"
       />
 
-      <SubSectionHeader title="Category Selector (13 items)" colors={colors} />
+      <SubSectionHeader title="Category Selector (13 items)" colors={palette} />
       <Selectbox
         options={categoryOptions}
         value={category}
@@ -143,11 +143,11 @@ export default function SelectboxDemoScreen() {
       />
 
       {/* Real-world Examples */}
-      <SectionHeader title="Real-world Examples" colors={colors} />
+      <SectionHeader title="Real-world Examples" colors={palette} />
 
       <View style={styles.column}>
         <View>
-          <Text style={[Typography.body2.r.medium, { color: colors.text, marginBottom: 8 }]}>
+          <Text style={[typography.body2.r.medium, { color: palette.text, marginBottom: 8 }]}>
             카테고리
           </Text>
           <Selectbox
@@ -160,7 +160,7 @@ export default function SelectboxDemoScreen() {
         </View>
 
         <View>
-          <Text style={[Typography.body2.r.medium, { color: colors.text, marginBottom: 8 }]}>
+          <Text style={[typography.body2.r.medium, { color: palette.text, marginBottom: 8 }]}>
             출금 계좌
           </Text>
           <Selectbox
@@ -173,7 +173,7 @@ export default function SelectboxDemoScreen() {
         </View>
 
         <View>
-          <Text style={[Typography.body2.r.medium, { color: colors.text, marginBottom: 8 }]}>
+          <Text style={[typography.body2.r.medium, { color: palette.text, marginBottom: 8 }]}>
             조회 월
           </Text>
           <Selectbox
@@ -187,25 +187,25 @@ export default function SelectboxDemoScreen() {
       </View>
 
       {/* Selectbox Specs */}
-      <SectionHeader title="Selectbox Specifications" colors={colors} />
-      <View style={[styles.specsContainer, { backgroundColor: colors.fill }]}>
-        <SpecItem label="Height" value="48px" colors={colors} />
-        <SpecItem label="Border Radius" value="12px" colors={colors} />
-        <SpecItem label="Padding" value="12px" colors={colors} />
-        <SpecItem label="Font Size" value="16px" colors={colors} />
-        <SpecItem label="Picker Type" value="Native" colors={colors} />
+      <SectionHeader title="Selectbox Specifications" colors={palette} />
+      <View style={[styles.specsContainer, { backgroundColor: palette.fill }]}>
+        <SpecItem label="Height" value="48px" colors={palette} />
+        <SpecItem label="Border Radius" value="12px" colors={palette} />
+        <SpecItem label="Padding" value="12px" colors={palette} />
+        <SpecItem label="Font Size" value="16px" colors={palette} />
+        <SpecItem label="Picker Type" value="Native" colors={palette} />
       </View>
 
       {/* Platform Info */}
-      <SectionHeader title="Platform Behavior" colors={colors} />
-      <View style={[styles.infoContainer, { backgroundColor: colors.fill }]}>
-        <Text style={[Typography.body2.r.regular, { color: colors.textNeutral, marginBottom: 8 }]}>
+      <SectionHeader title="Platform Behavior" colors={palette} />
+      <View style={[styles.infoContainer, { backgroundColor: palette.fill }]}>
+        <Text style={[typography.body2.r.regular, { color: palette.textNeutral, marginBottom: 8 }]}>
           📱 <Text style={{ fontWeight: '600' }}>iOS</Text>: 화면 하단 휠(Wheel) 형태
         </Text>
-        <Text style={[Typography.body2.r.regular, { color: colors.textNeutral, marginBottom: 8 }]}>
+        <Text style={[typography.body2.r.regular, { color: palette.textNeutral, marginBottom: 8 }]}>
           🤖 <Text style={{ fontWeight: '600' }}>Android</Text>: 네이티브 드롭다운 다이얼로그
         </Text>
-        <Text style={[Typography.body2.r.regular, { color: colors.textNeutral }]}>
+        <Text style={[typography.body2.r.regular, { color: palette.textNeutral }]}>
           🌐 <Text style={{ fontWeight: '600' }}>Web</Text>: 브라우저 기본 select
         </Text>
       </View>
@@ -223,11 +223,11 @@ function SectionHeader({
   colors,
 }: {
   title: string;
-  colors: typeof Colors.light | typeof Colors.dark;
+  colors: ColorPalette;
 }) {
   return (
     <Text
-      style={[Typography.headline3.m.bold, { color: colors.text, marginTop: 32, marginBottom: 16 }]}
+      style={[typography.headline3.m.bold, { color: colors.text, marginTop: 32, marginBottom: 16 }]}
     >
       {title}
     </Text>
@@ -242,12 +242,12 @@ function SubSectionHeader({
   colors,
 }: {
   title: string;
-  colors: typeof Colors.light | typeof Colors.dark;
+  colors: ColorPalette;
 }) {
   return (
     <Text
       style={[
-        Typography.body1.l.medium,
+        typography.body1.l.medium,
         { color: colors.textNeutral, marginTop: 16, marginBottom: 8 },
       ]}
     >
@@ -266,12 +266,12 @@ function SpecItem({
 }: {
   label: string;
   value: string;
-  colors: typeof Colors.light | typeof Colors.dark;
+  colors: ColorPalette;
 }) {
   return (
     <View style={styles.specItem}>
-      <Text style={[Typography.body2.r.regular, { color: colors.textNeutral }]}>{label}</Text>
-      <Text style={[Typography.body2.r.bold, { color: colors.text }]}>{value}</Text>
+      <Text style={[typography.body2.r.regular, { color: colors.textNeutral }]}>{label}</Text>
+      <Text style={[typography.body2.r.bold, { color: colors.text }]}>{value}</Text>
     </View>
   );
 }

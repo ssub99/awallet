@@ -11,14 +11,14 @@
  */
 
 import { Icon } from '@/components/ui/icon';
-import { AtomicColors } from '@/constants/atomic-colors';
+import { atomicColors } from '@/constants/atomic-colors';
 import {
   pickInitialQuickInputTipIndex,
   QUICK_INPUT_TIPS,
   rememberQuickInputTipIndex,
   resolveSequentialTipIndex,
 } from '@/constants/quick-input-tips';
-import { Colors, Typography } from '@/constants/theme';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
   loadQuickInputTipBoxExpanded,
@@ -37,9 +37,9 @@ import {
 } from 'react-native';
 
 /** Figma Frame 262 fill — Atomic/Neutral/100 */
-const TIP_BOX_BACKGROUND = AtomicColors.neutral[100];
+const TIP_BOX_BACKGROUND = atomicColors.neutral[100];
 /** 어코디언 버튼 영역 배경 — Atomic/Neutral/100 */
-const BUTTON_AREA_BACKGROUND = AtomicColors.neutral[100];
+const BUTTON_AREA_BACKGROUND = atomicColors.neutral[100];
 
 const BOX_HEIGHT = 48;
 const BOX_RADIUS = 12;
@@ -400,7 +400,7 @@ function TipFlowingSentence({
 
 export function QuickInputTipBox() {
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   const [viewportWidth, setViewportWidth] = useState(0);
   const [contentWidth, setContentWidth] = useState(0);
   const [measuredForTip, setMeasuredForTip] = useState('');
@@ -699,7 +699,7 @@ export function QuickInputTipBox() {
       {/* overflow:hidden 밖에서 측정 — flex 제약으로 Text/배지가 줄바꿈되는 문제 방지 */}
       <View style={styles.measureHost} pointerEvents="none">
         <Text
-          style={[styles.badgeText, styles.measureBadgeText, { color: colors.staticWhite }]}
+          style={[styles.badgeText, styles.measureBadgeText, { color: palette.staticWhite }]}
           onTextLayout={(event) => {
             const textWidth = event.nativeEvent.lines.reduce(
               (max, line) => Math.max(max, line.width),
@@ -712,7 +712,7 @@ export function QuickInputTipBox() {
         </Text>
         <Text
           key={currentTip}
-          style={[styles.message, { color: colors.text }]}
+          style={[styles.message, { color: palette.text }]}
           onTextLayout={(event) => {
             const lineWidth = event.nativeEvent.lines.reduce(
               (max, line) => Math.max(max, line.width),
@@ -742,10 +742,10 @@ export function QuickInputTipBox() {
               <View
                 style={[
                   styles.badge,
-                  { backgroundColor: colors.primary, width: badgeWidth },
+                  { backgroundColor: palette.primary, width: badgeWidth },
                 ]}
               >
-                <Text style={[styles.badgeText, { color: colors.staticWhite }]}>TIP</Text>
+                <Text style={[styles.badgeText, { color: palette.staticWhite }]}>TIP</Text>
               </View>
 
               {containerWidth > 0 && expandedMessageMaxWidth > 0 && (
@@ -782,7 +782,7 @@ export function QuickInputTipBox() {
                         <TipFlowingSentence
                           key={`${tipIndex}-${currentTip}`}
                           text={currentTip}
-                          textColor={colors.text}
+                          textColor={palette.text}
                           contentWidth={activeContentWidth}
                           viewportWidth={
                             expandedMessageMaxWidth > 0 ? expandedMessageMaxWidth : viewportWidth
@@ -829,7 +829,7 @@ export function QuickInputTipBox() {
                     name="arrowLeft"
                     variant="solid"
                     size={COLLAPSE_BUTTON_SIZE}
-                    color={colors.text}
+                    color={palette.text}
                   />
                 </Animated.View>
                 <Animated.View style={[styles.collapseIcon, { opacity: arrowRightOpacity }]}>
@@ -837,7 +837,7 @@ export function QuickInputTipBox() {
                     name="arrowRight"
                     variant="solid"
                     size={COLLAPSE_BUTTON_SIZE}
-                    color={colors.text}
+                    color={palette.text}
                   />
                 </Animated.View>
               </View>
@@ -913,7 +913,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   badgeText: {
-    ...Typography.detail.r.bold,
+    ...typography.detail.r.bold,
     flexShrink: 0,
     textAlign: 'center',
     ...(Platform.OS === 'android' ? { includeFontPadding: false } : null),
@@ -945,7 +945,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   message: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
     flexShrink: 0,
   },
   collapseButtonHitArea: {

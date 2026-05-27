@@ -8,12 +8,8 @@
  */
 
 import { AndroidSpinnerWheelColumn } from '@/components/ui/android-spinner-wheel-column';
-import { Colors } from '@/constants/theme';
-import {
-  resolvePlatformTypographySize,
-  Typography,
-  TypographyLayout,
-} from '@/constants/typography';
+import { colors, type ColorPalette } from '@/constants/theme';
+import { typography, typographyLayout, typographyScale } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
   buildNativePickerDate,
@@ -101,7 +97,7 @@ export function DatePicker({
   referenceMonth,
 }: DatePickerProps) {
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   const isAndroid = Platform.OS === 'android';
   const isIos = Platform.OS === 'ios';
 
@@ -124,9 +120,9 @@ export function DatePicker({
     [dayOptions, isAndroid, isCustomListOnly, monthOptions, yearOptions],
   );
 
-  const wheelTypo = resolvePlatformTypographySize(22);
+  const wheelTypo = typographyScale.pickerWheel.ios;
   const iosWheelItemStyle = isIos
-    ? { color: colors.staticBlack, fontSize: wheelTypo.fontSize, lineHeight: wheelTypo.lineHeight }
+    ? { color: palette.staticBlack, fontSize: wheelTypo.fontSize, lineHeight: wheelTypo.lineHeight }
     : undefined;
 
   const [tempYear, setTempYear] = useState<number | undefined>(() =>
@@ -468,7 +464,7 @@ export function DatePicker({
     <Picker
       selectedValue={selected}
       onValueChange={onValueChange}
-      style={[styles.iosPicker, { backgroundColor: colors.staticWhite, color: colors.text }]}
+      style={[styles.iosPicker, { backgroundColor: palette.staticWhite, color: palette.text }]}
       itemStyle={iosWheelItemStyle}
     >
       {options.map((option) => (
@@ -495,14 +491,14 @@ export function DatePicker({
             accessibilityLabel="닫기"
           />
           <View
-            style={[styles.androidYearMonthDialog, { backgroundColor: colors.background }]}
+            style={[styles.androidYearMonthDialog, { backgroundColor: palette.background }]}
           >
-          <Text style={[styles.androidYearMonthTitle, { color: colors.text }]}>{title}</Text>
+          <Text style={[styles.androidYearMonthTitle, { color: palette.text }]}>{title}</Text>
 
           <View
             style={[
               styles.androidYearMonthSpinnerRow,
-              { backgroundColor: colors.staticWhite },
+              { backgroundColor: palette.staticWhite },
             ]}
           >
             {yearOptions && yearOptions.length > 0 ? (
@@ -551,7 +547,7 @@ export function DatePicker({
           <View
             style={[
               styles.androidYearMonthActions,
-              { borderTopColor: colors.border, backgroundColor: colors.fill },
+              { borderTopColor: palette.border, backgroundColor: palette.fill },
             ]}
           >
             <Pressable
@@ -563,7 +559,7 @@ export function DatePicker({
               accessibilityRole="button"
               accessibilityLabel="취소"
             >
-              <Text style={[styles.androidYearMonthCancel, { color: colors.textNeutral }]}>
+              <Text style={[styles.androidYearMonthCancel, { color: palette.textNeutral }]}>
                 취소
               </Text>
             </Pressable>
@@ -576,7 +572,7 @@ export function DatePicker({
               accessibilityRole="button"
               accessibilityLabel="확인"
             >
-              <Text style={[styles.androidYearMonthConfirm, { color: colors.primary }]}>
+              <Text style={[styles.androidYearMonthConfirm, { color: palette.primary }]}>
                 확인
               </Text>
             </Pressable>
@@ -601,7 +597,7 @@ export function DatePicker({
         style={[styles.modalContent, { transform: [{ translateY: pickerTranslateY }] }]}
       >
         <Pressable onPress={(e) => e.stopPropagation()}>
-          <View style={[styles.pickerHeader, { backgroundColor: colors.background }]}>
+          <View style={[styles.pickerHeader, { backgroundColor: palette.background }]}>
             <Pressable
               onPress={() => {
                 onCancelPress?.();
@@ -609,10 +605,10 @@ export function DatePicker({
               }}
               style={styles.headerButton}
             >
-              <Text style={[styles.cancelButton, { color: colors.textNeutral }]}>취소</Text>
+              <Text style={[styles.cancelButton, { color: palette.textNeutral }]}>취소</Text>
             </Pressable>
 
-            <Text style={[styles.pickerTitle, { color: colors.text }]}>{title}</Text>
+            <Text style={[styles.pickerTitle, { color: palette.text }]}>{title}</Text>
 
             <Pressable
               onPress={() => {
@@ -621,7 +617,7 @@ export function DatePicker({
               }}
               style={styles.headerButton}
             >
-              <Text style={[styles.doneButton, { color: colors.primary }]}>완료</Text>
+              <Text style={[styles.doneButton, { color: palette.primary }]}>완료</Text>
             </Pressable>
           </View>
 
@@ -682,14 +678,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     minWidth: 60,
   },
-  cancelButton: TypographyLayout.pickerNavRegular,
+  cancelButton: typographyLayout.pickerNavRegular,
   pickerTitle: {
-    ...TypographyLayout.pickerNavMedium,
+    ...typographyLayout.pickerNavMedium,
     flex: 1,
     textAlign: 'center',
   },
   doneButton: {
-    ...TypographyLayout.pickerNavMedium,
+    ...typographyLayout.pickerNavMedium,
     textAlign: 'right',
   },
   pickerRow: {
@@ -722,7 +718,7 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   androidYearMonthTitle: {
-    ...Typography.body1.l.bold,
+    ...typography.body1.l.bold,
     textAlign: 'center',
     paddingTop: 20,
     paddingBottom: 8,
@@ -751,9 +747,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   androidYearMonthCancel: {
-    ...Typography.body1.l.medium,
+    ...typography.body1.l.medium,
   },
   androidYearMonthConfirm: {
-    ...Typography.body1.l.bold,
+    ...typography.body1.l.bold,
   },
 });

@@ -10,7 +10,7 @@
  * 
  * Token Mapping:
  * - Figma/Notion tokens follow the pattern: color-atomic-{category}-{scale}
- * - Example: "color-atomic-blue-500" maps to AtomicColors.blue[500]
+ * - Example: "color-atomic-blue-500" maps to atomicColors.blue[500]
  */
 
 // Base colors - Single source of truth
@@ -19,7 +19,7 @@ const common = {
   100: '#000000',  // black - Token: color-atomic-common-black-100
 } as const;
 
-export const AtomicColors = {
+export const atomicColors = {
   /**
    * Common colors (Base)
    * These are referenced by other color scales
@@ -132,25 +132,25 @@ export type NeutralScale = 0 | 50 | 100 | 200 | 300 | 400 | 500 | 600 | 700 | 80
  */
 export const TokenMap = {
   // Common
-  'color-atomic-common-white-0': AtomicColors.common[0],
-  'color-atomic-common-black-100': AtomicColors.common[100],
+  'color-atomic-common-white-0': atomicColors.common[0],
+  'color-atomic-common-black-100': atomicColors.common[100],
 
   // Neutral (selected examples)
-  'color-atomic-neutral-0': AtomicColors.neutral[0],
-  'color-atomic-neutral-500': AtomicColors.neutral[500],
-  'color-atomic-neutral-1000': AtomicColors.neutral[1000],
+  'color-atomic-neutral-0': atomicColors.neutral[0],
+  'color-atomic-neutral-500': atomicColors.neutral[500],
+  'color-atomic-neutral-1000': atomicColors.neutral[1000],
 
   // Cool Neutral
-  'color-atomic-coolneutral-500': AtomicColors.coolNeutral[500],
+  'color-atomic-coolneutral-500': atomicColors.coolNeutral[500],
 
   // Blue
-  'color-atomic-blue-500': AtomicColors.blue[500],
+  'color-atomic-blue-500': atomicColors.blue[500],
 
   // Red
-  'color-atomic-red-500': AtomicColors.red[500],
+  'color-atomic-red-500': atomicColors.red[500],
 
   // Green
-  'color-atomic-green-500': AtomicColors.green[500],
+  'color-atomic-green-500': atomicColors.green[500],
 } as const;
 
 /**

@@ -3,7 +3,7 @@ import {
   type StackNavigationOptions,
 } from '@react-navigation/stack';
 
-import { ThemeColors } from '@/constants/theme-colors';
+import { themeColors } from '@/constants/theme-colors';
 
 /**
  * Android Expo Go — JS Stack 전역.
@@ -11,7 +11,7 @@ import { ThemeColors } from '@/constants/theme-colors';
  */
 export const ANDROID_JS_STACK_SCREEN_OPTIONS: StackNavigationOptions = {
   headerShown: false,
-  cardStyle: { backgroundColor: ThemeColors.light.background },
+  cardStyle: { backgroundColor: themeColors.light.background },
   gestureEnabled: true,
   gestureDirection: 'horizontal',
   cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,

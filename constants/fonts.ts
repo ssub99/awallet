@@ -36,7 +36,7 @@ export function pretendardFontFamily(fontWeight: TextStyle['fontWeight'] = '400'
   return PRETENDARD_FAMILY.regular;
 }
 
-/** Typography / StyleSheet helper — correct family per weight on all platforms */
+/** typography / StyleSheet helper — correct family per weight on all platforms */
 export function pretendardTextStyle(
   weight: PretendardWeight | TextStyle['fontWeight'] = '400',
 ): Pick<TextStyle, 'fontFamily' | 'fontWeight'> {

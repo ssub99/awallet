@@ -5,7 +5,7 @@
  * Shows consumption ratio, amount, and status for each month.
  */
 
-import { Colors, Typography } from '@/constants/theme';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { logEvent } from '@/utils/analytics';
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from 'react';
@@ -37,7 +37,7 @@ export interface YearViewRef {
 export const YearView = forwardRef<YearViewRef, YearViewProps>(
   ({ year, monthsData, initialMonth, onMonthPress, yearCardAnalyticsScreenName }, ref) => {
     const colorScheme = useColorScheme();
-    const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+    const palette = colors[colorScheme ?? 'light'] as ColorPalette;
     const scrollViewRef = useRef<ScrollView>(null);
 
     // 1월부터 12월까지 정렬
@@ -92,7 +92,7 @@ export const YearView = forwardRef<YearViewRef, YearViewProps>(
           <MonthCard
             key={data.month}
             data={data}
-            colors={colors}
+            colors={palette}
             yearCardAnalyticsScreenName={yearCardAnalyticsScreenName}
             onPress={
               onMonthPress
@@ -113,7 +113,7 @@ export const YearView = forwardRef<YearViewRef, YearViewProps>(
  */
 interface MonthCardProps {
   data: MonthData;
-  colors: typeof Colors.light;
+  colors: ColorPalette;
   yearCardAnalyticsScreenName?: string;
   onPress?: () => void;
 }
@@ -245,11 +245,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   monthText: {
-    ...Typography.headline2.l.bold,
+    ...typography.headline2.l.bold,
     color: '#ffffff',
   },
   statusText: {
-    ...Typography.headline2.l.bold,
+    ...typography.headline2.l.bold,
     color: '#ffffff',
   },
   cardInfo: {
@@ -264,10 +264,10 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   infoLabel: {
-    ...Typography.body2.r.regular,
+    ...typography.body2.r.regular,
   },
   infoValue: {
-    ...Typography.headline4.r.bold,
+    ...typography.headline4.r.bold,
     color: '#ffffff',
   },
   infoValueRight: {

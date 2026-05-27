@@ -20,7 +20,7 @@ import { Selectbox } from '@/components/ui/selectbox';
 import { Switch } from '@/components/ui/switch';
 import { Tab } from '@/components/ui/tab';
 import { Tag } from '@/components/ui/tag';
-import { Colors, Typography } from '@/constants/theme';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
@@ -210,7 +210,7 @@ function getTriggerType(trigger: unknown): string {
 
 export default function ComponentsScreen() {
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<ComponentTab>('test');
 
@@ -234,7 +234,7 @@ export default function ComponentsScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: '#fff' }]}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       
-      <View style={[styles.innerContainer, { backgroundColor: colors.background }]}>
+      <View style={[styles.innerContainer, { backgroundColor: palette.background }]}>
         {/* Top Navigation */}
         <TopNavigation
           type="sub"
@@ -258,19 +258,19 @@ export default function ComponentsScreen() {
 
         {/* Content */}
         <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-          {activeTab === 'test' && <TestContent colors={colors} />}
-          {activeTab === 'buttons' && <ButtonsContent colors={colors} />}
-          {activeTab === 'inputs' && <InputsContent colors={colors} />}
-          {activeTab === 'selectboxs' && <SelectboxsContent colors={colors} />}
-          {activeTab === 'radios' && <RadiosContent colors={colors} />}
-          {activeTab === 'checkboxes' && <CheckboxesContent colors={colors} />}
-          {activeTab === 'switches' && <SwitchesContent colors={colors} />}
-          {activeTab === 'modals' && <ModalsContent colors={colors} />}
-          {activeTab === 'bottomsheets' && <BottomsheetsContent colors={colors} />}
-          {activeTab === 'tags' && <TagsContent colors={colors} />}
-          {activeTab === 'calendars' && <CalendarsContent colors={colors} />}
-          {activeTab === 'tabs' && <TabsContent colors={colors} />}
-          {activeTab === 'topnav' && <TopNavContent colors={colors} />}
+          {activeTab === 'test' && <TestContent colors={palette} />}
+          {activeTab === 'buttons' && <ButtonsContent colors={palette} />}
+          {activeTab === 'inputs' && <InputsContent colors={palette} />}
+          {activeTab === 'selectboxs' && <SelectboxsContent colors={palette} />}
+          {activeTab === 'radios' && <RadiosContent colors={palette} />}
+          {activeTab === 'checkboxes' && <CheckboxesContent colors={palette} />}
+          {activeTab === 'switches' && <SwitchesContent colors={palette} />}
+          {activeTab === 'modals' && <ModalsContent colors={palette} />}
+          {activeTab === 'bottomsheets' && <BottomsheetsContent colors={palette} />}
+          {activeTab === 'tags' && <TagsContent colors={palette} />}
+          {activeTab === 'calendars' && <CalendarsContent colors={palette} />}
+          {activeTab === 'tabs' && <TabsContent colors={palette} />}
+          {activeTab === 'topnav' && <TopNavContent colors={palette} />}
         </ScrollView>
       </View>
     </SafeAreaView>
@@ -280,7 +280,7 @@ export default function ComponentsScreen() {
 /**
  * Test Content
  */
-function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.dark }) {
+function TestContent({ colors }: { colors: ColorPalette }) {
   const [devMode, setDevMode] = useState(false);
   const { refresh } = useAppData();
 
@@ -1375,7 +1375,7 @@ function TestContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
 /**
  * Buttons Content
  */
-function ButtonsContent({ colors }: { colors: typeof Colors.light | typeof Colors.dark }) {
+function ButtonsContent({ colors }: { colors: ColorPalette }) {
   return (
     <>
       {/* Primary Buttons - Solid */}
@@ -1527,7 +1527,7 @@ function ButtonsContent({ colors }: { colors: typeof Colors.light | typeof Color
 /**
  * Inputs Content
  */
-function InputsContent({ colors }: { colors: typeof Colors.light | typeof Colors.dark }) {
+function InputsContent({ colors }: { colors: ColorPalette }) {
   const [text, setText] = useState('');
   const [textActive, setTextActive] = useState('내용');
   const [number, setNumber] = useState('');
@@ -1676,7 +1676,7 @@ function InputsContent({ colors }: { colors: typeof Colors.light | typeof Colors
 /**
  * Selectboxs Content
  */
-function SelectboxsContent({ colors }: { colors: typeof Colors.light | typeof Colors.dark }) {
+function SelectboxsContent({ colors }: { colors: ColorPalette }) {
   const [category, setCategory] = useState('');
   const [categoryWithValue, setCategoryWithValue] = useState('food');
 
@@ -1738,7 +1738,7 @@ function SelectboxsContent({ colors }: { colors: typeof Colors.light | typeof Co
 /**
  * Radios Content
  */
-function RadiosContent({ colors }: { colors: typeof Colors.light | typeof Colors.dark }) {
+function RadiosContent({ colors }: { colors: ColorPalette }) {
   const [payment, setPayment] = useState('credit');
   const [singleChecked, setSingleChecked] = useState(false);
 
@@ -1832,7 +1832,7 @@ function RadiosContent({ colors }: { colors: typeof Colors.light | typeof Colors
 /**
  * Checkboxes Content
  */
-function CheckboxesContent({ colors }: { colors: typeof Colors.light | typeof Colors.dark }) {
+function CheckboxesContent({ colors }: { colors: ColorPalette }) {
   const [agree, setAgree] = useState(false);
   const [marketing, setMarketing] = useState(false);
   const [singleChecked, setSingleChecked] = useState(false);
@@ -1918,7 +1918,7 @@ function CheckboxesContent({ colors }: { colors: typeof Colors.light | typeof Co
 /**
  * Switches Content
  */
-function SwitchesContent({ colors }: { colors: typeof Colors.light | typeof Colors.dark }) {
+function SwitchesContent({ colors }: { colors: ColorPalette }) {
   const [switch1, setSwitch1] = useState(false);
   const [switch2, setSwitch2] = useState(true);
   const [notifications, setNotifications] = useState(true);
@@ -1952,7 +1952,7 @@ function SwitchesContent({ colors }: { colors: typeof Colors.light | typeof Colo
       <SectionHeader title="Interactive Switches" colors={colors} />
       <View style={styles.column}>
         <View style={styles.switchRow}>
-          <Text style={[Typography.body1.l.medium, { color: colors.text }]}>
+          <Text style={[typography.body1.l.medium, { color: colors.text }]}>
             Switch 1
           </Text>
           <Switch
@@ -1961,7 +1961,7 @@ function SwitchesContent({ colors }: { colors: typeof Colors.light | typeof Colo
           />
         </View>
         <View style={styles.switchRow}>
-          <Text style={[Typography.body1.l.medium, { color: colors.text }]}>
+          <Text style={[typography.body1.l.medium, { color: colors.text }]}>
             Switch 2
           </Text>
           <Switch
@@ -1976,10 +1976,10 @@ function SwitchesContent({ colors }: { colors: typeof Colors.light | typeof Colo
       <View style={styles.column}>
         <View style={styles.switchRow}>
           <View>
-            <Text style={[Typography.body1.l.medium, { color: colors.text }]}>
+            <Text style={[typography.body1.l.medium, { color: colors.text }]}>
               알림 받기
             </Text>
-            <Text style={[Typography.body2.r.regular, { color: colors.textNeutral }]}>
+            <Text style={[typography.body2.r.regular, { color: colors.textNeutral }]}>
               새로운 거래 알림을 받습니다
             </Text>
           </View>
@@ -1990,10 +1990,10 @@ function SwitchesContent({ colors }: { colors: typeof Colors.light | typeof Colo
         </View>
         <View style={styles.switchRow}>
           <View>
-            <Text style={[Typography.body1.l.medium, { color: colors.text }]}>
+            <Text style={[typography.body1.l.medium, { color: colors.text }]}>
               다크 모드
             </Text>
-            <Text style={[Typography.body2.r.regular, { color: colors.textNeutral }]}>
+            <Text style={[typography.body2.r.regular, { color: colors.textNeutral }]}>
               어두운 테마 사용
             </Text>
           </View>
@@ -2021,7 +2021,7 @@ function SwitchesContent({ colors }: { colors: typeof Colors.light | typeof Colo
 /**
  * Modals Content
  */
-function ModalsContent({ colors }: { colors: typeof Colors.light | typeof Colors.dark }) {
+function ModalsContent({ colors }: { colors: ColorPalette }) {
   const [showAlertWithTitle, setShowAlertWithTitle] = useState(false);
   const [showAlertNoTitle, setShowAlertNoTitle] = useState(false);
   const [showConfirmWithTitle, setShowConfirmWithTitle] = useState(false);
@@ -2044,7 +2044,7 @@ function ModalsContent({ colors }: { colors: typeof Colors.light | typeof Colors
         confirmText="확인"
         onConfirm={() => setShowAlertWithTitle(false)}
       >
-        <Text style={[Typography.body1.l.regular, { color: colors.textNeutral, textAlign: 'center' }]}>
+        <Text style={[typography.body1.l.regular, { color: colors.textNeutral, textAlign: 'center' }]}>
           내용을 입력해 주세요.
         </Text>
       </ModalPopup>
@@ -2063,7 +2063,7 @@ function ModalsContent({ colors }: { colors: typeof Colors.light | typeof Colors
         confirmText="확인"
         onConfirm={() => setShowAlertNoTitle(false)}
       >
-        <Text style={[Typography.body1.l.regular, { color: colors.textNeutral, textAlign: 'center' }]}>
+        <Text style={[typography.body1.l.regular, { color: colors.textNeutral, textAlign: 'center' }]}>
           내용을 입력해 주세요.
         </Text>
       </ModalPopup>
@@ -2085,7 +2085,7 @@ function ModalsContent({ colors }: { colors: typeof Colors.light | typeof Colors
         onConfirm={() => setShowConfirmWithTitle(false)}
         onCancel={() => setShowConfirmWithTitle(false)}
       >
-        <Text style={[Typography.body1.l.regular, { color: colors.textNeutral, textAlign: 'center' }]}>
+        <Text style={[typography.body1.l.regular, { color: colors.textNeutral, textAlign: 'center' }]}>
           내용을 입력해 주세요.
         </Text>
       </ModalPopup>
@@ -2106,7 +2106,7 @@ function ModalsContent({ colors }: { colors: typeof Colors.light | typeof Colors
         onConfirm={() => setShowConfirmNoTitle(false)}
         onCancel={() => setShowConfirmNoTitle(false)}
       >
-        <Text style={[Typography.body1.l.regular, { color: colors.textNeutral, textAlign: 'center' }]}>
+        <Text style={[typography.body1.l.regular, { color: colors.textNeutral, textAlign: 'center' }]}>
           내용을 입력해 주세요.
         </Text>
       </ModalPopup>
@@ -2130,7 +2130,7 @@ function ModalsContent({ colors }: { colors: typeof Colors.light | typeof Colors
 /**
  * TopNav Content
  */
-function TopNavContent({ colors }: { colors: typeof Colors.light | typeof Colors.dark }) {
+function TopNavContent({ colors }: { colors: ColorPalette }) {
   const [periodType, setPeriodType] = useState<'year' | 'month'>('month');
   
   // Get current date
@@ -2243,7 +2243,7 @@ function TopNavContent({ colors }: { colors: typeof Colors.light | typeof Colors
 /**
  * Bottomsheets Content
  */
-function BottomsheetsContent({ colors }: { colors: typeof Colors.light | typeof Colors.dark }) {
+function BottomsheetsContent({ colors }: { colors: ColorPalette }) {
   const [showBasicSheet, setShowBasicSheet] = useState(false);
   const [showWithConfirm, setShowWithConfirm] = useState(false);
   const [showCustomContent, setShowCustomContent] = useState(false);
@@ -2264,7 +2264,7 @@ function BottomsheetsContent({ colors }: { colors: typeof Colors.light | typeof 
         title="타이틀"
         onClose={() => setShowBasicSheet(false)}
       >
-        <Text style={[Typography.body1.l.regular, { color: colors.text }]}>
+        <Text style={[typography.body1.l.regular, { color: colors.text }]}>
           이것은 기본 Bottomsheet입니다.{'\n'}
           닫기 버튼으로 닫을 수 있습니다.
         </Text>
@@ -2289,10 +2289,10 @@ function BottomsheetsContent({ colors }: { colors: typeof Colors.light | typeof 
         }}
         onClose={() => setShowWithConfirm(false)}
       >
-        <Text style={[Typography.body1.l.regular, { color: colors.text, marginBottom: 16 }]}>
+        <Text style={[typography.body1.l.regular, { color: colors.text, marginBottom: 16 }]}>
           확인 버튼이 있는 Bottomsheet입니다.
         </Text>
-        <Text style={[Typography.body2.r.regular, { color: colors.textNeutral }]}>
+        <Text style={[typography.body2.r.regular, { color: colors.textNeutral }]}>
           우측 상단의 확인 버튼을 눌러보세요.
         </Text>
       </ModalBottomsheet>
@@ -2327,10 +2327,10 @@ function BottomsheetsContent({ colors }: { colors: typeof Colors.light | typeof 
                 minHeight: 56,
               }}
             >
-              <Text style={[Typography.body1.l.regular, { color: colors.text }]}>
+              <Text style={[typography.body1.l.regular, { color: colors.text }]}>
                 {item}
               </Text>
-              <Text style={[Typography.body1.l.regular, { color: colors.textNeutral }]}>
+              <Text style={[typography.body1.l.regular, { color: colors.textNeutral }]}>
                 1일
               </Text>
             </View>
@@ -2356,7 +2356,7 @@ function BottomsheetsContent({ colors }: { colors: typeof Colors.light | typeof 
 /**
  * Tags Content
  */
-function TagsContent({ colors }: { colors: typeof Colors.light | typeof Colors.dark }) {
+function TagsContent({ colors }: { colors: ColorPalette }) {
   const [selectedTag, setSelectedTag] = useState<string>('전체');
 
   return (
@@ -2401,7 +2401,7 @@ function TagsContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
 /**
  * Calendars Content
  */
-function CalendarsContent({ colors }: { colors: typeof Colors.light | typeof Colors.dark }) {
+function CalendarsContent({ colors }: { colors: ColorPalette }) {
   const [selectedDate, setSelectedDate] = useState('2025-10-16');
 
   // Sample data - 입금/소비 금액
@@ -2453,28 +2453,28 @@ function CalendarsContent({ colors }: { colors: typeof Colors.light | typeof Col
       {/* Selected Date Info */}
       <View style={[styles.specsContainer, { backgroundColor: colors.fill, marginTop: 16 }]}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-          <Text style={[Typography.body2.r.medium, { color: colors.textNeutral }]}>
+          <Text style={[typography.body2.r.medium, { color: colors.textNeutral }]}>
             선택된 날짜
           </Text>
-          <Text style={[Typography.body2.r.bold, { color: colors.text }]}>
+          <Text style={[typography.body2.r.bold, { color: colors.text }]}>
             {selectedDate}
           </Text>
         </View>
         {sampleData[selectedDate] && (
           <>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              <Text style={[Typography.body2.r.medium, { color: colors.textNeutral }]}>
+              <Text style={[typography.body2.r.medium, { color: colors.textNeutral }]}>
                 입금
               </Text>
-              <Text style={[Typography.body2.r.bold, { color: '#058943' }]}>
+              <Text style={[typography.body2.r.bold, { color: '#058943' }]}>
                 {sampleData[selectedDate].totalIncome?.toLocaleString() || 0}원
               </Text>
             </View>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              <Text style={[Typography.body2.r.medium, { color: colors.textNeutral }]}>
+              <Text style={[typography.body2.r.medium, { color: colors.textNeutral }]}>
                 소비
               </Text>
-              <Text style={[Typography.body2.r.bold, { color: '#ef2a2a' }]}>
+              <Text style={[typography.body2.r.bold, { color: '#ef2a2a' }]}>
                 {sampleData[selectedDate].totalExpense?.toLocaleString() || 0}원
               </Text>
             </View>
@@ -2515,7 +2515,7 @@ function CalendarsContent({ colors }: { colors: typeof Colors.light | typeof Col
 /**
  * Tabs Content
  */
-function TabsContent({ colors }: { colors: typeof Colors.light | typeof Colors.dark }) {
+function TabsContent({ colors }: { colors: ColorPalette }) {
   const [twoTab, setTwoTab] = useState('income');
   const [threeTab, setThreeTab] = useState('monthly');
   const [fourTab, setFourTab] = useState('all');
@@ -2589,7 +2589,7 @@ function TabsContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
         onValueChange={setTwoTab}
       />
       <View style={[styles.tabPreview, { backgroundColor: colors.fill }]}>
-        <Text style={[Typography.body2.r.regular, { color: colors.text }]}>
+        <Text style={[typography.body2.r.regular, { color: colors.text }]}>
           선택: <Text style={{ fontWeight: '700' }}>{twoTabs.find(t => t.value === twoTab)?.label}</Text>
         </Text>
       </View>
@@ -2601,7 +2601,7 @@ function TabsContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
         onValueChange={setThreeTab}
       />
       <View style={[styles.tabPreview, { backgroundColor: colors.fill }]}>
-        <Text style={[Typography.body2.r.regular, { color: colors.text }]}>
+        <Text style={[typography.body2.r.regular, { color: colors.text }]}>
           선택: <Text style={{ fontWeight: '700' }}>{threeTabs.find(t => t.value === threeTab)?.label}</Text>
         </Text>
       </View>
@@ -2613,7 +2613,7 @@ function TabsContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
         onValueChange={setFourTab}
       />
       <View style={[styles.tabPreview, { backgroundColor: colors.fill }]}>
-        <Text style={[Typography.body2.r.regular, { color: colors.text }]}>
+        <Text style={[typography.body2.r.regular, { color: colors.text }]}>
           선택: <Text style={{ fontWeight: '700' }}>{fourTabs.find(t => t.value === fourTab)?.label}</Text>
         </Text>
       </View>
@@ -2625,7 +2625,7 @@ function TabsContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
         onValueChange={setFiveTab}
       />
       <View style={[styles.tabPreview, { backgroundColor: colors.fill }]}>
-        <Text style={[Typography.body2.r.regular, { color: colors.text }]}>
+        <Text style={[typography.body2.r.regular, { color: colors.text }]}>
           선택: <Text style={{ fontWeight: '700' }}>{fiveTabs.find(t => t.value === fiveTab)?.label}</Text>
         </Text>
       </View>
@@ -2638,7 +2638,7 @@ function TabsContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
         scrollable
       />
       <View style={[styles.tabPreview, { backgroundColor: colors.fill }]}>
-        <Text style={[Typography.body2.r.regular, { color: colors.text }]}>
+        <Text style={[typography.body2.r.regular, { color: colors.text }]}>
           선택: <Text style={{ fontWeight: '700' }}>{sixTabs.find(t => t.value === sixTab)?.label}</Text>
         </Text>
       </View>
@@ -2651,7 +2651,7 @@ function TabsContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
         scrollable
       />
       <View style={[styles.tabPreview, { backgroundColor: colors.fill }]}>
-        <Text style={[Typography.body2.r.regular, { color: colors.text }]}>
+        <Text style={[typography.body2.r.regular, { color: colors.text }]}>
           선택: <Text style={{ fontWeight: '700' }}>{sevenTabs.find(t => t.value === sevenTab)?.label}</Text>
         </Text>
       </View>
@@ -2664,7 +2664,7 @@ function TabsContent({ colors }: { colors: typeof Colors.light | typeof Colors.d
         scrollable
       />
       <View style={[styles.tabPreview, { backgroundColor: colors.fill }]}>
-        <Text style={[Typography.body2.r.regular, { color: colors.text }]}>
+        <Text style={[typography.body2.r.regular, { color: colors.text }]}>
           선택: <Text style={{ fontWeight: '700' }}>{eightTabs.find(t => t.value === eightTab)?.label}</Text>
         </Text>
       </View>
@@ -2680,11 +2680,11 @@ function SectionHeader({
   colors,
 }: {
   title: string;
-  colors: typeof Colors.light | typeof Colors.dark;
+  colors: ColorPalette;
 }) {
   return (
     <Text
-      style={[Typography.headline3.m.bold, { color: colors.text, marginTop: 24, marginBottom: 12 }]}
+      style={[typography.headline3.m.bold, { color: colors.text, marginTop: 24, marginBottom: 12 }]}
     >
       {title}
     </Text>
@@ -2701,12 +2701,12 @@ function SpecItem({
 }: {
   label: string;
   value: string;
-  colors: typeof Colors.light | typeof Colors.dark;
+  colors: ColorPalette;
 }) {
   return (
     <View style={styles.specItem}>
-      <Text style={[Typography.body2.r.regular, { color: colors.textNeutral }]}>{label}</Text>
-      <Text style={[Typography.body2.r.bold, { color: colors.text }]}>{value}</Text>
+      <Text style={[typography.body2.r.regular, { color: colors.textNeutral }]}>{label}</Text>
+      <Text style={[typography.body2.r.bold, { color: colors.text }]}>{value}</Text>
     </View>
   );
 }
@@ -2774,7 +2774,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   testButtonText: {
-    ...Typography.body2.r.medium,
+    ...typography.body2.r.medium,
   },
   testButtonRow: {
     flexDirection: 'row',
@@ -2787,7 +2787,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   testButtonSmallText: {
-    ...Typography.detail.r.bold,
+    ...typography.detail.r.bold,
   },
   infoBox: {
     padding: 16,
@@ -2795,10 +2795,10 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   infoText: {
-    ...Typography.body2.r.regular,
+    ...typography.body2.r.regular,
   },
   switchLabel: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
   },
   // Developer Mode Container
   devModeContainer: {
@@ -2826,11 +2826,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   dateButtonText: {
-    ...Typography.detail.r.bold,
+    ...typography.detail.r.bold,
     marginBottom: 2,
   },
   dateButtonSubText: {
-    ...Typography.detail.r.regular,
+    ...typography.detail.r.regular,
   },
   restoreButton: {
     paddingVertical: 12,
@@ -2840,7 +2840,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   restoreButtonText: {
-    ...Typography.detail.r.bold,
+    ...typography.detail.r.bold,
   },
   deleteButton: {
     paddingVertical: 14,
@@ -2850,7 +2850,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   deleteButtonText: {
-    ...Typography.body2.r.bold,
+    ...typography.body2.r.bold,
   },
   specItem: {
     flexDirection: 'row',

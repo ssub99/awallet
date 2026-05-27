@@ -5,8 +5,8 @@
  * 피그마 Chat_left 시안 기반
  */
 
-import { Colors, Typography } from '@/constants/theme';
-import { TypographyLayout } from '@/constants/typography';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
+import { typographyLayout } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -50,7 +50,7 @@ function ConfirmRow({
 }: {
   label: string;
   value: string;
-  colors: typeof Colors.light;
+  colors: ColorPalette;
 }) {
   return (
     <View style={styles.row}>
@@ -73,7 +73,7 @@ function PaymentTypeRow({
   value: string;
   color?: string;
   emoji?: string;
-  colors: typeof Colors.light;
+  colors: ColorPalette;
 }) {
   return (
     <View style={styles.row}>
@@ -97,7 +97,7 @@ const CARD_ANIMATION_DURATION = 500;
 
 export function QuickInputConfirmCard({ data, onConfirm, onCancel, addLoading = false }: QuickInputConfirmCardProps) {
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   const translateY = useSharedValue(-CARD_SLIDE_OFFSET);
   const [isExiting, setIsExiting] = useState(false);
 
@@ -145,13 +145,13 @@ export function QuickInputConfirmCard({ data, onConfirm, onCancel, addLoading = 
         : '일반 기록 생성';
 
   return (
-    <Animated.View style={[styles.card, { backgroundColor: colors.staticWhite }, animatedStyle]}>
-      <Text style={[styles.title, { color: colors.textNeutral }]}>{title}</Text>
-      <View style={[styles.divider, { backgroundColor: colors.border }]} />
+    <Animated.View style={[styles.card, { backgroundColor: palette.staticWhite }, animatedStyle]}>
+      <Text style={[styles.title, { color: palette.textNeutral }]}>{title}</Text>
+      <View style={[styles.divider, { backgroundColor: palette.border }]} />
       <View style={styles.content}>
-        <ConfirmRow label={ROW_LABELS.category} value={categoryDisplay} colors={colors} />
-        <ConfirmRow label={ROW_LABELS.date} value={data.date} colors={colors} />
-        <ConfirmRow label={ROW_LABELS.amount} value={data.amount} colors={colors} />
+        <ConfirmRow label={ROW_LABELS.category} value={categoryDisplay} colors={palette} />
+        <ConfirmRow label={ROW_LABELS.date} value={data.date} colors={palette} />
+        <ConfirmRow label={ROW_LABELS.amount} value={data.amount} colors={palette} />
         {data.recordType !== 'income' ? (
           <>
             <PaymentTypeRow
@@ -159,21 +159,21 @@ export function QuickInputConfirmCard({ data, onConfirm, onCancel, addLoading = 
               value={data.paymentType ?? ''}
               color={data.paymentTypeColor}
               emoji={data.paymentTypeEmoji}
-              colors={colors}
+              colors={palette}
             />
             <ConfirmRow
               label={ROW_LABELS.repeatOption1}
               value={[data.repeatOption1, data.repeatOption2, data.repeatOption3]
                 .filter(Boolean)
                 .join(' · ')}
-              colors={colors}
+              colors={palette}
             />
           </>
         ) : null}
       </View>
       <View style={styles.buttonRow}>
         <Pressable
-          style={[styles.button, { backgroundColor: colors.fillStrong }]}
+          style={[styles.button, { backgroundColor: palette.fillStrong }]}
           onPress={onConfirm}
           disabled={buttonsDisabled}
           accessibilityRole="button"
@@ -183,16 +183,16 @@ export function QuickInputConfirmCard({ data, onConfirm, onCancel, addLoading = 
           {addLoading ? (
             <ActivityIndicator
               size={Platform.OS === 'android' ? 20 : 'small'}
-              color={colors.textNeutral}
+              color={palette.textNeutral}
             />
           ) : (
-            <Text style={[styles.buttonText, { color: colors.textNeutral }]}>추가</Text>
+            <Text style={[styles.buttonText, { color: palette.textNeutral }]}>추가</Text>
           )}
         </Pressable>
         <Pressable
           style={[
             styles.button,
-            { backgroundColor: buttonsDisabled ? colors.fillDisabled : colors.fillStrong },
+            { backgroundColor: buttonsDisabled ? palette.fillDisabled : palette.fillStrong },
           ]}
           onPress={handleCancel}
           disabled={buttonsDisabled}
@@ -201,7 +201,7 @@ export function QuickInputConfirmCard({ data, onConfirm, onCancel, addLoading = 
           accessibilityState={{ disabled: buttonsDisabled }}
         >
           <Text
-            style={[styles.buttonText, { color: buttonsDisabled ? colors.textDisabled : colors.textNeutral }]}
+            style={[styles.buttonText, { color: buttonsDisabled ? palette.textDisabled : palette.textNeutral }]}
           >
             취소
           </Text>
@@ -219,7 +219,7 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
   },
   title: {
-    ...Typography.headline4.r.bold,
+    ...typography.headline4.r.bold,
   },
   divider: {
     height: 1,
@@ -235,11 +235,11 @@ const styles = StyleSheet.create({
     minHeight: 24,
   },
   label: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
     width: 64,
   },
   value: {
-    ...Typography.body1.l.medium,
+    ...typography.body1.l.medium,
     marginLeft: 8,
     flex: 1,
     textAlign: 'left',
@@ -260,7 +260,7 @@ const styles = StyleSheet.create({
     borderRadius: 99,
     borderWidth: 1,
   },
-  paymentEmoji: TypographyLayout.fieldLine,
+  paymentEmoji: typographyLayout.fieldLine,
   buttonRow: {
     flexDirection: 'row',
     gap: 8,
@@ -274,6 +274,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   buttonText: {
-    ...Typography.body1.l.medium,
+    ...typography.body1.l.medium,
   },
 });

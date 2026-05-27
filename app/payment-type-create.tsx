@@ -2,8 +2,8 @@ import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Radio } from '@/components/ui/radio';
-import { AtomicColors } from '@/constants/atomic-colors';
-import { Colors, Typography } from '@/constants/theme';
+import { atomicColors } from '@/constants/atomic-colors';
+import { colors, typography } from '@/constants/theme';
 import { useToast } from '@/contexts/toast-context';
 import { loadPaymentSubtypes, savePaymentSubtypes } from '@/utils/payment-types';
 import {
@@ -36,7 +36,7 @@ type PaymentSubtypeType = 'credit' | 'debit';
 
 export default function PaymentTypeCreateScreen() {
   const COLOR_PICKER_PREWARM_MS = 220;
-  const colors = Colors.light;
+  const palette = colors.light;
   const router = useRouter();
   const { showToast } = useToast();
   const insets = useSafeAreaInsets();
@@ -253,14 +253,14 @@ export default function PaymentTypeCreateScreen() {
   }, [color, description, label, router, selectedType, showToast]);
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]} edges={['top', 'bottom']}>
       <Stack.Screen options={{ headerShown: false }} />
       <StatusBar barStyle="dark-content" />
 
       <TopNavigation type="sub" title="결제 유형 생성" showLeftIcon onLeftIconPress={handleBack} />
 
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <View style={[styles.content, { backgroundColor: colors.fill }]}>
+        <View style={[styles.content, { backgroundColor: palette.fill }]}>
           <ScrollView
             ref={scrollViewRef}
             style={styles.scrollView}
@@ -280,16 +280,16 @@ export default function PaymentTypeCreateScreen() {
             <View style={styles.colorSection}>
               <Pressable
                 onPress={handleToggleColorPicker}
-                style={[styles.colorCircle, { backgroundColor: color, borderColor: colors.border }]}
+                style={[styles.colorCircle, { backgroundColor: color, borderColor: palette.border }]}
                 accessibilityRole="button"
                 accessibilityLabel="결제 유형 색상 선택"
               />
             </View>
 
             <View style={styles.section}>
-              <Text style={[styles.label, { color: colors.text }]}>
+              <Text style={[styles.label, { color: palette.text }]}>
                 결제 유형 이름{' '}
-                <Text style={{ color: colors.statusNegative }} accessibilityLabel="필수">
+                <Text style={{ color: palette.statusNegative }} accessibilityLabel="필수">
                   *
                 </Text>
               </Text>
@@ -303,9 +303,9 @@ export default function PaymentTypeCreateScreen() {
             </View>
 
             <View style={styles.section}>
-              <Text style={[styles.label, { color: colors.text }]}>
+              <Text style={[styles.label, { color: palette.text }]}>
                 결제 유형{' '}
-                <Text style={{ color: colors.statusNegative }} accessibilityLabel="필수">
+                <Text style={{ color: palette.statusNegative }} accessibilityLabel="필수">
                   *
                 </Text>
               </Text>
@@ -335,7 +335,7 @@ export default function PaymentTypeCreateScreen() {
                 descriptionSectionHeightRef.current = layout.height;
               }}
             >
-              <Text style={[styles.label, { color: colors.text }]}>설명</Text>
+              <Text style={[styles.label, { color: palette.text }]}>설명</Text>
               <Input
                 ref={descriptionInputRef}
                 variant="area"
@@ -358,8 +358,8 @@ export default function PaymentTypeCreateScreen() {
                 style={[
                   styles.colorPickerPopover,
                   {
-                    backgroundColor: AtomicColors.neutral[100],
-                    borderColor: colors.border,
+                    backgroundColor: atomicColors.neutral[100],
+                    borderColor: palette.border,
                     opacity: colorPickerOpacity,
                     transform: [{ scale: colorPickerScale }],
                   },
@@ -377,7 +377,7 @@ export default function PaymentTypeCreateScreen() {
         </View>
       </TouchableWithoutFeedback>
 
-      <View style={[styles.bottomButtonContainer, { backgroundColor: colors.staticWhite }]}>
+      <View style={[styles.bottomButtonContainer, { backgroundColor: palette.staticWhite }]}>
         <Button onPress={handleCreate}>생성</Button>
       </View>
     </SafeAreaView>
@@ -427,7 +427,7 @@ const styles = StyleSheet.create({
     marginBottom: 32,
     gap: 8,
   },
-  label: { ...Typography.body1.l.bold },
+  label: { ...typography.body1.l.bold },
   radioRow: { flexDirection: 'row', alignItems: 'center' },
   radioCol: { flex: 1, alignItems: 'flex-start' },
 });

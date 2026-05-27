@@ -10,7 +10,7 @@ import { HomeMonthStatusCard } from '@/components/ui/home-month-status-card';
 import { Icon } from '@/components/ui/icon';
 import { QuickInputShort } from '@/components/ui/quick-input-short';
 import { MonthData, YearView, YearViewRef } from '@/components/ui/year-view';
-import { Colors, Typography } from '@/constants/theme';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';
 import { useCreateSheetContext } from '@/contexts/create-sheet-context';
 import { useLoading } from '@/contexts/loading-context';
@@ -66,7 +66,7 @@ const FAB_SIZE = 48;
 export default function HomeScreen() {
   const initialPendingTarget = getLatestPendingCalendarTarget();
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   const iconWhite = useThemeColor({}, 'staticWhite');
   const navigation = useNavigation();
   const router = useRouter();
@@ -931,7 +931,7 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.screenWrapper}>
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]} edges={['top']}>
       
       {/* Top Navigation */}
       <Animated.View style={{ opacity: isContentReady ? contentOpacity : 0 }}>
@@ -1027,7 +1027,7 @@ export default function HomeScreen() {
           styles.fab,
           styles.fabShadow,
           {
-            backgroundColor: colors.primary,
+            backgroundColor: palette.primary,
             // 탭 콘텐츠 영역 기준이므로 탭바 위 12px만 적용 (레이아웃에 둘 때와 동일한 시각 위치)
             bottom: FAB_OFFSET_ABOVE_TABS,
           },
@@ -1102,11 +1102,11 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   cardLabel: {
-    ...Typography.body2.r.medium,
+    ...typography.body2.r.medium,
     flexShrink: 0, // Prevent label from shrinking
   },
   cardAmount: {
-    ...Typography.body1.l.bold,
+    ...typography.body1.l.bold,
     flex: 1, // Take remaining space
     textAlign: 'right',
   },

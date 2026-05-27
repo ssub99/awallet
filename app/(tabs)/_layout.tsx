@@ -4,14 +4,14 @@ import { Platform, StyleSheet, View } from 'react-native';
 
 import { TabBar } from '@/components/navigation/tab-bar';
 import { Icon } from '@/components/ui/icon';
-import { Colors } from '@/constants/theme';
+import { colors } from '@/constants/theme';
 import { CreateSheetProvider } from '@/contexts/create-sheet-context';
 import { QuickInputProvider } from '@/contexts/quick-input-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
+  const palette = colors[colorScheme ?? 'light'];
 
   return (
     <QuickInputProvider>
@@ -21,7 +21,7 @@ export default function TabLayout() {
         initialRouteName="home"
         tabBar={(props) => <TabBar {...props} />}
         screenOptions={{
-          tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+          tabBarActiveTintColor: palette.tint,
           headerShown: false,
           // Android: 키보드 시 탭바가 IME inset으로 같이 올라가는 것 방지 (edge-to-edge)
           ...(Platform.OS === 'android'
@@ -42,7 +42,7 @@ export default function TabLayout() {
           options={{
             title: '홈',
             tabBarIcon: ({ focused }) => (
-              <Icon name="home" variant={focused ? 'solid' : 'line'} size={28} color={colors.staticBlack} />
+              <Icon name="home" variant={focused ? 'solid' : 'line'} size={28} color={palette.staticBlack} />
             ),
           }}
         />
@@ -51,7 +51,7 @@ export default function TabLayout() {
           options={{
             title: '챌린지∙통계',
             tabBarIcon: ({ focused }) => (
-              <Icon name="challenge" variant={focused ? 'solid' : 'line'} size={28} color={colors.staticBlack} />
+              <Icon name="challenge" variant={focused ? 'solid' : 'line'} size={28} color={palette.staticBlack} />
             ),
           }}
         />
@@ -60,7 +60,7 @@ export default function TabLayout() {
           options={{
             title: '설정',
             tabBarIcon: ({ focused }) => (
-              <Icon name="setting" variant={focused ? 'solid' : 'line'} size={28} color={colors.staticBlack} />
+              <Icon name="setting" variant={focused ? 'solid' : 'line'} size={28} color={palette.staticBlack} />
             ),
           }}
         />

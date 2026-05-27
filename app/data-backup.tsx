@@ -5,8 +5,8 @@
 
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Icon } from '@/components/ui/icon';
-import { ThemeColors } from '@/constants/theme-colors';
-import { Typography, TypographyLayout } from '@/constants/typography';
+import { themeColors } from '@/constants/theme-colors';
+import { typography, typographyLayout } from '@/constants/typography';
 import { useAppData } from '@/contexts/app-data-context';
 import { useLoading } from '@/contexts/loading-context';
 import { useToast } from '@/contexts/toast-context';
@@ -110,7 +110,7 @@ const EXCEL_BACKUP_NOTICE_ITEMS = [
 
 export default function DataBackupScreen() {
   const colorScheme = useColorScheme();
-  const colors = ThemeColors[colorScheme ?? 'light'];
+  const colors = themeColors[colorScheme ?? 'light'];
   const router = useRouter();
   const { setLoading } = useLoading();
   const { showToast } = useToast();
@@ -410,7 +410,7 @@ const styles = StyleSheet.create({
     gap: 0,
   },
   sectionTitle: {
-    ...TypographyLayout.sectionTitle,
+    ...typographyLayout.sectionTitle,
     marginBottom: 8,
   },
   card: {
@@ -426,7 +426,7 @@ const styles = StyleSheet.create({
     minHeight: 56,
   },
   menuLabel: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
   },
   divider: {
     height: 1,
@@ -441,7 +441,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   noticeTitle: {
-    ...Typography.body2.r.bold,
+    ...typography.body2.r.bold,
   },
   noticeList: {
     gap: 4,
@@ -452,10 +452,10 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   noticeBullet: {
-    ...Typography.body2.r.regular,
+    ...typography.body2.r.regular,
   },
   noticeBody: {
-    ...Typography.body2.r.regular,
+    ...typography.body2.r.regular,
     flex: 1,
   },
 });

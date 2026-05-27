@@ -10,9 +10,9 @@
  *  - Controlled component: parent owns `value` and `onValueChange`
  */
 
-import { AtomicColors } from '@/constants/atomic-colors';
-import { Colors, Typography } from '@/constants/theme';
-import { compactSingleLineTextStyle } from '@/constants/typography';
+import { atomicColors } from '@/constants/atomic-colors';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
+import { singleRowCenteredTextStyle } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import type { TextStyle, ViewStyle } from 'react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -77,7 +77,7 @@ export function SegmentControls({
   style,
 }: SegmentControlsProps) {
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
 
   // Size-based dimensions
   const sizeConfig = size === 'small' 
@@ -89,27 +89,27 @@ export function SegmentControls({
     ...styles.segment,
     height: sizeConfig.height,
     borderRadius: sizeConfig.borderRadius,
-    backgroundColor: colors.staticWhite,
+    backgroundColor: palette.staticWhite,
   };
 
   // Size-based typography
   const baseTextStyle: TextStyle = {
-    ...compactSingleLineTextStyle(
-      size === 'small' ? Typography.body2.r.regular : Typography.body1.l.regular,
+    ...singleRowCenteredTextStyle(
+      size === 'small' ? typography.body2.r.regular : typography.body1.l.regular,
     ),
     textAlign: 'center',
-    color: colors.textAssistive,
+    color: palette.textAssistive,
   };
 
   const activeTextStyle: TextStyle = {
-    ...compactSingleLineTextStyle(
-      size === 'small' ? Typography.body2.r.bold : Typography.body1.l.bold,
+    ...singleRowCenteredTextStyle(
+      size === 'small' ? typography.body2.r.bold : typography.body1.l.bold,
     ),
-    color: colors.primaryHeavy,
+    color: palette.primaryHeavy,
   };
 
   const disabledTextStyle: TextStyle = {
-    color: colors.textDisabled,
+    color: palette.textDisabled,
   };
 
   const handlePress = (segmentValue: string, segmentDisabled: boolean | undefined) => {
@@ -132,7 +132,7 @@ export function SegmentControls({
           styles.segmentGroup,
           {
             borderRadius: sizeConfig.borderRadius,
-            borderColor: colors.border,
+            borderColor: palette.border,
           },
         ]}
       >
@@ -155,12 +155,12 @@ export function SegmentControls({
                   ? {
                       // 전체 disabled 상태에서 선택된 세그먼트: 두께 2, Line/Normal
                       borderWidth: 2,
-                      borderColor: colors.border,
+                      borderColor: palette.border,
                     }
                   : {
                       // 활성 상태에서 선택된 세그먼트: 두께 1, Primary/Heavy
                       borderWidth: 1,
-                      borderColor: isOptionDisabled ? colors.border : colors.primaryHeavy,
+                      borderColor: isOptionDisabled ? palette.border : palette.primaryHeavy,
                     }
               )
             : (() => {
@@ -171,7 +171,7 @@ export function SegmentControls({
                     borderBottomWidth: 1,
                     borderLeftWidth: 1,
                     borderRightWidth: 1,
-                    borderColor: colors.border,
+                    borderColor: palette.border,
                   };
                 }
 
@@ -180,7 +180,7 @@ export function SegmentControls({
                   borderTopWidth: 1,
                   borderBottomWidth: 1,
                   borderRightWidth: 1,
-                  borderColor: colors.border,
+                  borderColor: palette.border,
                 };
               })();
 
@@ -193,12 +193,12 @@ export function SegmentControls({
           //   - 개별 disabled 옵션: Disabled 배경
           const backgroundStyle: ViewStyle | null = disabled
             ? ({
-                backgroundColor: isActive ? colors.fillDisabled : colors.fill,
+                backgroundColor: isActive ? palette.fillDisabled : palette.fill,
               } as ViewStyle)
             : isOptionDisabled
-            ? ({ backgroundColor: colors.fillDisabled } as ViewStyle)
+            ? ({ backgroundColor: palette.fillDisabled } as ViewStyle)
             : isActive
-            ? ({ backgroundColor: AtomicColors.blue[50] } as ViewStyle)
+            ? ({ backgroundColor: atomicColors.blue[50] } as ViewStyle)
             : null;
 
           const segmentBorderRadiusStyle: ViewStyle = {

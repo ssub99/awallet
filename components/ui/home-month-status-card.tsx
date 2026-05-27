@@ -3,8 +3,8 @@
  */
 
 import { computeUnifiedSingleLineFontSize } from '@/components/ui/auto-shrink-single-line-text';
-import { AtomicColors } from '@/constants/atomic-colors';
-import { Colors, Typography } from '@/constants/theme';
+import { atomicColors } from '@/constants/atomic-colors';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { singleRowCenteredTextStyle } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { memo, useCallback, useMemo, useState } from 'react';
@@ -18,7 +18,7 @@ const monthStatusCenteredText = {
   textAlign: 'center' as const,
 };
 
-const monthStatusAmountTextStyle = Typography.body1.l.bold;
+const monthStatusAmountTextStyle = typography.body1.l.bold;
 
 export interface HomeMonthStatusCardProps {
   incomeText: string;
@@ -40,7 +40,7 @@ function HomeMonthStatusCardInner({
   onBalancePress,
 }: HomeMonthStatusCardProps) {
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
 
   const [amountColumnWidth, setAmountColumnWidth] = useState(0);
 
@@ -70,8 +70,8 @@ function HomeMonthStatusCardInner({
   }, []);
 
   return (
-    <View style={[styles.monthStatusWrap, { backgroundColor: colors.fill }]}>
-      <View style={[styles.monthStatusCard, { backgroundColor: colors.staticWhite }]}>
+    <View style={[styles.monthStatusWrap, { backgroundColor: palette.fill }]}>
+      <View style={[styles.monthStatusCard, { backgroundColor: palette.staticWhite }]}>
         <Pressable
           style={styles.monthStatusPressable}
           onPress={onIncomePress}
@@ -79,9 +79,9 @@ function HomeMonthStatusCardInner({
           accessibilityLabel="수입 기록하기"
         >
           <View style={styles.monthStatusItem} onLayout={onAmountColumnLayout}>
-            <Text style={[styles.monthStatusLabel, { color: colors.textNeutral }]}>수입</Text>
+            <Text style={[styles.monthStatusLabel, { color: palette.textNeutral }]}>수입</Text>
             <Text
-              style={[amountTextStyle, monthStatusCenteredText, { color: colors.text }]}
+              style={[amountTextStyle, monthStatusCenteredText, { color: palette.text }]}
               numberOfLines={1}
             >
               {incomeText}
@@ -89,7 +89,7 @@ function HomeMonthStatusCardInner({
           </View>
         </Pressable>
 
-        <View style={[styles.monthStatusDivider, { backgroundColor: colors.border }]} />
+        <View style={[styles.monthStatusDivider, { backgroundColor: palette.border }]} />
 
         <Pressable
           style={styles.monthStatusPressable}
@@ -98,9 +98,9 @@ function HomeMonthStatusCardInner({
           accessibilityLabel="소비 기록하기"
         >
           <View style={styles.monthStatusItem}>
-            <Text style={[styles.monthStatusLabel, { color: colors.textNeutral }]}>소비</Text>
+            <Text style={[styles.monthStatusLabel, { color: palette.textNeutral }]}>소비</Text>
             <Text
-              style={[amountTextStyle, monthStatusCenteredText, { color: colors.text }]}
+              style={[amountTextStyle, monthStatusCenteredText, { color: palette.text }]}
               numberOfLines={1}
             >
               {expenseText}
@@ -108,7 +108,7 @@ function HomeMonthStatusCardInner({
           </View>
         </Pressable>
 
-        <View style={[styles.monthStatusDivider, { backgroundColor: colors.border }]} />
+        <View style={[styles.monthStatusDivider, { backgroundColor: palette.border }]} />
 
         <Pressable
           style={styles.monthStatusPressable}
@@ -117,13 +117,13 @@ function HomeMonthStatusCardInner({
           accessibilityLabel="챌린지 통계 소비 리포트 보기"
         >
           <View style={styles.monthStatusItem}>
-            <Text style={[styles.monthStatusLabel, { color: colors.textNeutral }]}>잔액</Text>
+            <Text style={[styles.monthStatusLabel, { color: palette.textNeutral }]}>잔액</Text>
             <Text
               style={[
                 amountTextStyle,
                 monthStatusCenteredText,
                 {
-                  color: balanceNegative ? AtomicColors.red[500] : AtomicColors.green[600],
+                  color: balanceNegative ? atomicColors.red[500] : atomicColors.green[600],
                 },
               ]}
               numberOfLines={1}
@@ -168,7 +168,7 @@ const styles = StyleSheet.create({
     overflow: 'visible',
   },
   monthStatusLabel: {
-    ...singleRowCenteredTextStyle(Typography.detail.r.medium),
+    ...singleRowCenteredTextStyle(typography.detail.r.medium),
     ...monthStatusCenteredText,
   },
   monthStatusDivider: {

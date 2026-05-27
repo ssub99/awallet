@@ -9,7 +9,7 @@ import {
   type CalendarDayGridType,
 } from '@/components/ui/calendar-day-cell';
 import { computeUnifiedSingleLineFontSize } from '@/components/ui/auto-shrink-single-line-text';
-import { Typography } from '@/constants/theme';
+import { typography } from '@/constants/theme';
 import type { CalendarGridCell, CalendarMonthSlot } from '@/utils/calendar-month-grid-cache';
 
 export interface DayData {
@@ -38,8 +38,8 @@ export type CalendarDayCellDescriptor = {
 const EMPTY_DAY_DATA: Record<string, DayData> = {};
 export { EMPTY_DAY_DATA };
 
-const MONTH_PAGE_AMOUNT_EXPENSE_STYLE = Typography.tiny.r.regular;
-const MONTH_PAGE_AMOUNT_INCOME_STYLE = Typography.tiny.r.regular;
+const MONTH_PAGE_AMOUNT_EXPENSE_STYLE = typography.tiny.r.regular;
+const MONTH_PAGE_AMOUNT_INCOME_STYLE = typography.tiny.r.regular;
 const MONTH_PAGE_AMOUNT_HORIZONTAL_INSET = 2;
 const MONTH_PAGE_AMOUNT_MIN_FONT_SCALE = 0.55;
 

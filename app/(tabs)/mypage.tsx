@@ -9,8 +9,8 @@ import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Icon } from '@/components/ui/icon';
 import { Switch } from '@/components/ui/switch';
 import { getAppStoreWriteReviewUrl } from '@/constants/app-store';
-import { ThemeColors } from '@/constants/theme-colors';
-import { Typography } from '@/constants/typography';
+import { themeColors } from '@/constants/theme-colors';
+import { typography } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { monthStartEvent } from '@/hooks/use-month-start';
@@ -23,7 +23,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function MyPageScreen() {
   const colorScheme = useColorScheme();
-  const colors = ThemeColors[colorScheme ?? 'light'];
+  const colors = themeColors[colorScheme ?? 'light'];
   const router = useRouter();
   const { setLoading } = useLoading();
   const hasInitializedRef = useRef(false);   // 마이페이지 최초 진입 1회만 로드
@@ -506,7 +506,7 @@ const styles = StyleSheet.create({
     height: 56,
   },
   settingLabel: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
   },
   settingValue: {
     flexDirection: 'row',
@@ -514,7 +514,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   settingValueText: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
   },
 
   // Menu Row
@@ -535,6 +535,6 @@ const styles = StyleSheet.create({
     minHeight: 58,
   },
   menuLabel: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
   },
 });

@@ -6,8 +6,8 @@
  */
 
 import { Icon } from '@/components/ui/icon';
-import { Colors, Typography } from '@/constants/theme';
-import { compactSingleLineTextStyle } from '@/constants/typography';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
+import { singleRowCenteredTextStyle } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
 
@@ -55,7 +55,7 @@ export function Checkbox({
   style,
 }: CheckboxProps) {
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
 
   const handlePress = () => {
     if (onPress) {
@@ -63,21 +63,21 @@ export function Checkbox({
     }
   };
 
-  // Colors based on state
+  // colors based on state
   const boxBorderColor = disabled
-    ? colors.border
+    ? palette.border
     : checked
-    ? colors.primary
-    : colors.border;
+    ? palette.primary
+    : palette.border;
 
   const boxBackgroundColor = disabled
-    ? colors.fillDisabled
+    ? palette.fillDisabled
     : checked
-    ? colors.backgroundAlt // Light blue #ecf0f8
-    : colors.staticWhite;
+    ? palette.backgroundAlt // Light blue #ecf0f8
+    : palette.staticWhite;
 
-  const checkColor = disabled ? colors.textDisabled : colors.primary;
-  const labelColor = disabled ? colors.textDisabled : colors.text;
+  const checkColor = disabled ? palette.textDisabled : palette.primary;
+  const labelColor = disabled ? palette.textDisabled : palette.text;
 
   return (
     <Pressable
@@ -114,7 +114,7 @@ export function Checkbox({
         >
           {label}
           {required ? (
-            <Text style={[styles.requiredMark, { color: colors.statusNegative }]}> *</Text>
+            <Text style={[styles.requiredMark, { color: palette.statusNegative }]}> *</Text>
           ) : null}
         </Text>
       )}
@@ -136,11 +136,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   label: {
-    ...compactSingleLineTextStyle(Typography.body2.r.medium),
+    ...singleRowCenteredTextStyle(typography.body2.r.medium),
     marginLeft: 8,
   },
   requiredMark: {
-    ...compactSingleLineTextStyle(Typography.body2.r.medium),
+    ...singleRowCenteredTextStyle(typography.body2.r.medium),
   },
 });
 

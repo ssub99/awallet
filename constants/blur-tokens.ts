@@ -1,4 +1,4 @@
-import { AtomicColors } from '@/constants/atomic-colors';
+import { atomicColors } from '@/constants/atomic-colors';
 
 const withOpacity = (hex: string, opacity: number): string => {
   const r = parseInt(hex.slice(1, 3), 16);
@@ -34,7 +34,7 @@ function platformBlurOverlay(ios: string, android: string): PlatformBlurOverlay 
  * Keypad overlay: iOS 80% neutral (HEAD); Android lower so dimezis blur stays visible.
  */
 /** Android 고정 배경 — Atomic/Cool Neutral/100 */
-const COOL_NEUTRAL_100 = AtomicColors.coolNeutral[100];
+const COOL_NEUTRAL_100 = atomicColors.coolNeutral[100];
 
 export const BlurTokens = {
   quickInputShort: {
@@ -45,8 +45,8 @@ export const BlurTokens = {
   keypad: {
     ...platformBlurIntensity(16),
     overlay: platformBlurOverlay(
-      withOpacity(AtomicColors.neutral[300], 0.8),
-      withOpacity(AtomicColors.neutral[300], 0.38)
+      withOpacity(atomicColors.neutral[300], 0.8),
+      withOpacity(atomicColors.neutral[300], 0.38)
     ),
     androidFallbackBackground: 'rgba(253, 253, 253, 0.98)',
   },

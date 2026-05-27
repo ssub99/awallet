@@ -1,4 +1,4 @@
-import { Typography } from '@/constants/typography';
+import { typography } from '@/constants/typography';
 import { StyleSheet, Text, type TextProps } from 'react-native';
 
 import { useThemeColor } from '@/hooks/use-theme-color';
@@ -35,12 +35,12 @@ export function ThemedText({
 }
 
 const styles = StyleSheet.create({
-  default: Typography.body1.l.regular,
-  defaultSemiBold: Typography.body1.l.medium,
-  title: Typography.headline1.xl.bold,
-  subtitle: Typography.headline4.r.bold,
+  default: typography.body1.l.regular,
+  defaultSemiBold: typography.body1.l.medium,
+  title: typography.headline1.xl.bold,
+  subtitle: typography.headline4.r.bold,
   link: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
     color: '#0a7ea4',
   },
 });

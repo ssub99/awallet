@@ -1,7 +1,7 @@
 import { useAppFonts } from '@/hooks/use-app-fonts';
 import { useMetaFacebookAttSync } from '@/hooks/use-meta-facebook-att-sync';
 import { useFirstLaunchNotificationPermission } from '@/hooks/use-notifications';
-import { Colors } from '@/constants/theme';
+import { colors, type ColorPalette } from '@/constants/theme';
 import { initAmplitude, logEvent } from '@/utils/analytics';
 import { isAtLeastVersion } from '@/utils/app-version';
 import {
@@ -42,7 +42,7 @@ export function useRootLayoutBootstrap() {
   const [storeUpdateGate, setStoreUpdateGate] = useState<StoreUpdateGateState | null>(null);
   const storeAlertPresentedRef = useRef(false);
   const storeGateResumeFromBackgroundRef = useRef(false);
-  const colors = Colors[colorScheme] as typeof Colors.light;
+  const palette = colors[colorScheme] as ColorPalette;
 
   SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -234,5 +234,5 @@ export function useRootLayoutBootstrap() {
     splashFinished &&
     !(storeUpdateGate?.forceUpdate === true);
 
-  return { colors, onLayoutRootView, showApp };
+  return { palette, onLayoutRootView, showApp };
 }

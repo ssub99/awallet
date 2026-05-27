@@ -11,8 +11,7 @@
  * ```
  */
 
-import { Colors } from '@/constants/theme';
-import { pretendardIconOpticalAdjust } from '@/constants/typography';
+import { colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { View, ViewStyle } from 'react-native';
 
@@ -216,7 +215,7 @@ export function Icon({
   accessibilityLabel,
 }: IconProps) {
   const colorScheme = useColorScheme();
-  const defaultColor = Colors[colorScheme ?? 'light'].icon;
+  const defaultColor = colors[colorScheme ?? 'light'].icon;
   
   const IconComponent = getIconComponent(name, variant);
   const iconColor = color ?? defaultColor;
@@ -233,7 +232,6 @@ export function Icon({
     <View
       style={[
         { width: size, height: size, alignItems: 'center', justifyContent: 'center' },
-        pretendardIconOpticalAdjust(),
         style,
       ]}
       accessibilityLabel={accessibilityLabel ?? `${name} icon`}

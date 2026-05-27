@@ -1,5 +1,5 @@
 import { Icon } from '@/components/ui/icon';
-import { Colors } from '@/constants/theme';
+import { colors, type ColorPalette } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Animated, StyleSheet, View } from 'react-native';
 import { Circle, Defs, LinearGradient, Stop, Svg } from 'react-native-svg';
@@ -32,7 +32,7 @@ export interface QuickInputStarProps {
  */
 export function QuickInputStar({ size = 20, starScale, starRotate }: QuickInputStarProps) {
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
 
   const WrapperComponent = starScale || starRotate ? Animated.View : View;
 
@@ -78,7 +78,7 @@ export function QuickInputStar({ size = 20, starScale, starRotate }: QuickInputS
         <Circle cx={size / 2} cy={size / 2} r={size / 2} fill="url(#starCircleGradient)" />
       </Svg>
       <WrapperComponent style={[styles.iconInner, animatedStyle]}>
-        <Icon name="star" variant="line" size={size === 20 ? 10 : 12} color={colors.staticWhite} />
+        <Icon name="star" variant="line" size={size === 20 ? 10 : 12} color={palette.staticWhite} />
       </WrapperComponent>
     </View>
   );

@@ -3,7 +3,7 @@ import React from 'react';
 
 import { TabBar } from '@/components/navigation/tab-bar';
 import { Icon } from '@/components/ui/icon';
-import { Colors } from '@/constants/theme';
+import { colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export default function DevTabLayout() {
@@ -14,7 +14,7 @@ export default function DevTabLayout() {
       initialRouteName="components"
       tabBar={(props) => <TabBar {...props} />}
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+        tabBarActiveTintColor: colors[colorScheme ?? 'light'].tint,
         headerShown: false,
       }}>
       {/* Development/Test Screens */}

@@ -7,7 +7,7 @@
 import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, Text, ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Typography } from '@/constants/typography';
+import { typography } from '@/constants/typography';
 
 export interface ToastProps {
   /**
@@ -126,7 +126,7 @@ const styles = StyleSheet.create({
   },
   text: {
     color: '#ffffff', // Figma design
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
   },
 });
 

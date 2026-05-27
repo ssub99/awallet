@@ -7,9 +7,9 @@ import { TopNavigation } from '@/components/navigation/top-navigation';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Icon } from '@/components/ui/icon';
 import { ModalPopup } from '@/components/ui/modal-popup';
-import { AtomicColors } from '@/constants/atomic-colors';
-import { ThemeColors } from '@/constants/theme-colors';
-import { Typography } from '@/constants/typography';
+import { atomicColors } from '@/constants/atomic-colors';
+import { themeColors } from '@/constants/theme-colors';
+import { typography } from '@/constants/typography';
 import { useAppData } from '@/contexts/app-data-context';
 import { useLoading } from '@/contexts/loading-context';
 import { useToast } from '@/contexts/toast-context';
@@ -60,7 +60,7 @@ function RecurringGroupCard({
   onDeletePress,
 }: {
   item: RecurringInstallmentGroupSummary;
-  colors: typeof ThemeColors.light;
+  colors: typeof themeColors.light;
   onDeletePress: (item: RecurringInstallmentGroupSummary) => void;
 }) {
   const hasMemo = item.memo.trim().length > 0;
@@ -68,7 +68,7 @@ function RecurringGroupCard({
   return (
     <View style={styles.cardRow}>
       <Pressable
-        style={[styles.deleteColumn, { backgroundColor: AtomicColors.red[50] }]}
+        style={[styles.deleteColumn, { backgroundColor: atomicColors.red[50] }]}
         onPress={() => onDeletePress(item)}
         accessibilityRole="button"
         accessibilityLabel={`${item.categoryDisplay} 반복 기록 삭제`}
@@ -110,7 +110,7 @@ function DetailRow({
 }: {
   label: string;
   value: string;
-  colors: typeof ThemeColors.light;
+  colors: typeof themeColors.light;
 }) {
   return (
     <View style={styles.detailRow}>
@@ -128,7 +128,7 @@ function DetailRow({
 
 export default function RecurringRecordManagementScreen() {
   const colorScheme = useColorScheme();
-  const colors = ThemeColors[colorScheme ?? 'light'];
+  const colors = themeColors[colorScheme ?? 'light'];
   const router = useRouter();
   const { refresh } = useAppData();
   const { setLoading } = useLoading();
@@ -432,7 +432,7 @@ export default function RecurringRecordManagementScreen() {
         <Text style={[styles.deleteConfirmText, { color: colors.textNeutral }]}>
           {pendingDelete ? (
             <>
-              <Text style={Typography.body1.l.bold}>{pendingDelete.categoryDisplay}</Text>
+              <Text style={typography.body1.l.bold}>{pendingDelete.categoryDisplay}</Text>
               {'에\n포함된 반복 기록은 전부 삭제됩니다.\n삭제를 진행하시겠어요?'}
             </>
           ) : null}
@@ -468,7 +468,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   yearText: {
-    ...Typography.body1.l.bold,
+    ...typography.body1.l.bold,
   },
   bodyArea: {
     flex: 1,
@@ -506,7 +506,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   memoText: {
-    ...Typography.body2.r.regular,
+    ...typography.body2.r.regular,
   },
   infoDivider: {
     height: 1,
@@ -514,11 +514,11 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   categoryText: {
-    ...Typography.body1.l.bold,
+    ...typography.body1.l.bold,
     flex: 1,
   },
   amountText: {
-    ...Typography.body1.l.bold,
+    ...typography.body1.l.bold,
   },
   infoBody: {
     gap: 2,
@@ -531,11 +531,11 @@ const styles = StyleSheet.create({
     minHeight: 21,
   },
   detailLabel: {
-    ...Typography.body2.r.regular,
+    ...typography.body2.r.regular,
     width: 49,
   },
   detailValue: {
-    ...Typography.body2.r.regular,
+    ...typography.body2.r.regular,
     flex: 1,
     flexShrink: 1,
     minWidth: 0,
@@ -553,11 +553,11 @@ const styles = StyleSheet.create({
     transform: [{ translateY: EMPTY_STATE_VERTICAL_OFFSET }],
   },
   globalEmptyText: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
     textAlign: 'center',
   },
   deleteConfirmText: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
     textAlign: 'center',
   },
 });

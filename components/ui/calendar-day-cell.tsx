@@ -2,7 +2,7 @@
  * Home calendar day cell (memoized for month transitions).
  */
 
-import { Typography } from '@/constants/theme';
+import { typography } from '@/constants/theme';
 import { memo, useCallback } from 'react';
 import { Dimensions, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -186,13 +186,13 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   dayTextSelected: {
-    ...Typography.body1.l.bold,
+    ...typography.body1.l.bold,
   },
   dayTextDefault: {
-    ...Typography.body1.l.bold,
+    ...typography.body1.l.bold,
   },
   dayTextOtherMonth: {
-    ...Typography.body1.l.medium,
+    ...typography.body1.l.medium,
   },
   costContainer: {
     marginTop: 4,
@@ -202,11 +202,11 @@ const styles = StyleSheet.create({
     overflow: 'visible',
   },
   expenseText: {
-    ...Typography.tiny.r.regular,
+    ...typography.tiny.r.regular,
     color: '#ef2a2a',
   },
   incomeText: {
-    ...Typography.tiny.r.regular,
+    ...typography.tiny.r.regular,
     color: '#058943',
   },
 });

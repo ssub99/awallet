@@ -1,6 +1,6 @@
 import { BlurRuntime } from '@/constants/blur-runtime';
-import { Colors, Typography } from '@/constants/theme';
-import { compactSingleLineTextStyle } from '@/constants/typography';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
+import { singleRowCenteredTextStyle } from '@/constants/typography';
 import { Icon } from '@/components/ui/icon';
 import { GlassSurface } from '@/components/ui/glass-surface';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -59,7 +59,7 @@ export function QuickInputShort({
   starRotate,
 }: QuickInputShortProps) {
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   const containerRef = useRef<ComponentRef<typeof Pressable>>(null);
   const lastShortBottomRef = useRef<number | null>(null);
 
@@ -93,7 +93,7 @@ export function QuickInputShort({
     });
   }, [onPress, bottom]);
 
-  const fillOverlay = shouldApplyReactBlurOverlay() ? colors.fill : undefined;
+  const fillOverlay = shouldApplyReactBlurOverlay() ? palette.fill : undefined;
 
   return (
     <Pressable
@@ -122,10 +122,10 @@ export function QuickInputShort({
         <View style={styles.quickInputContent} pointerEvents="box-none">
           <View style={styles.quickInputLeft}>
             <QuickInputStar size={20} starScale={starScale} starRotate={starRotate} />
-            <Text style={[styles.quickInputText, { color: colors.textNeutral }]}>기록 간편입력</Text>
+            <Text style={[styles.quickInputText, { color: palette.textNeutral }]}>기록 간편입력</Text>
           </View>
           <View style={styles.quickInputArrow}>
-            <Icon name="arrowRight" variant="line" size={16} color={colors.textAssistive} />
+            <Icon name="arrowRight" variant="line" size={16} color={palette.textAssistive} />
           </View>
         </View>
       </GlassSurface>
@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   quickInputText: {
-    ...compactSingleLineTextStyle(Typography.body2.r.medium),
+    ...singleRowCenteredTextStyle(typography.body2.r.medium),
   },
   quickInputArrow: {
     width: 16,

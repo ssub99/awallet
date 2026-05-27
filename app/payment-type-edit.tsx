@@ -3,8 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ModalPopup } from '@/components/ui/modal-popup';
 import { Radio } from '@/components/ui/radio';
-import { AtomicColors } from '@/constants/atomic-colors';
-import { Colors, Typography } from '@/constants/theme';
+import { atomicColors } from '@/constants/atomic-colors';
+import { colors, typography } from '@/constants/theme';
 import { useToast } from '@/contexts/toast-context';
 import { getAllExpenses } from '@/utils/expenses';
 import {
@@ -43,7 +43,7 @@ import ColorPicker, { HueSlider, Panel1 } from 'reanimated-color-picker';
 
 export default function PaymentTypeEditScreen() {
   const COLOR_PICKER_PREWARM_MS = 220;
-  const colors = Colors.light;
+  const palette = colors.light;
   const router = useRouter();
   const { showToast } = useToast();
   const insets = useSafeAreaInsets();
@@ -395,14 +395,14 @@ export default function PaymentTypeEditScreen() {
   }, [currentSubtype, isCurrentDefaultSubtype, paymentSubtypes, router, showToast]);
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]} edges={['top', 'bottom']}>
       <Stack.Screen options={{ headerShown: false }} />
       <StatusBar barStyle="dark-content" />
 
       <TopNavigation type="sub" title="결제 유형 편집" showLeftIcon onLeftIconPress={handleBack} />
 
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <View style={[styles.content, { backgroundColor: colors.fill }]}>
+        <View style={[styles.content, { backgroundColor: palette.fill }]}>
           <ScrollView
             ref={scrollViewRef}
             style={styles.scrollView}
@@ -424,7 +424,7 @@ export default function PaymentTypeEditScreen() {
             <View style={styles.colorSection}>
               <Pressable
                 onPress={handleToggleColorPicker}
-                style={[styles.colorCircle, { backgroundColor: color, borderColor: colors.border }]}
+                style={[styles.colorCircle, { backgroundColor: color, borderColor: palette.border }]}
                 accessibilityRole="button"
                 accessibilityLabel="결제 유형 색상 선택"
               />
@@ -432,9 +432,9 @@ export default function PaymentTypeEditScreen() {
 
             <View style={styles.section}>
               <View style={styles.inputHeader}>
-                <Text style={[styles.label, { color: colors.text }]}>
+                <Text style={[styles.label, { color: palette.text }]}>
                   결제 유형 이름{' '}
-                  <Text style={{ color: colors.statusNegative }} accessibilityLabel="필수">
+                  <Text style={{ color: palette.statusNegative }} accessibilityLabel="필수">
                     *
                   </Text>
                 </Text>
@@ -456,9 +456,9 @@ export default function PaymentTypeEditScreen() {
             </View>
 
             <View style={styles.section}>
-              <Text style={[styles.label, { color: colors.text }]}>
+              <Text style={[styles.label, { color: palette.text }]}>
                 결제 유형{' '}
-                <Text style={{ color: colors.statusNegative }} accessibilityLabel="필수">
+                <Text style={{ color: palette.statusNegative }} accessibilityLabel="필수">
                   *
                 </Text>
               </Text>
@@ -480,7 +480,7 @@ export default function PaymentTypeEditScreen() {
                 descriptionSectionHeightRef.current = layout.height;
               }}
             >
-              <Text style={[styles.label, { color: colors.text }]}>설명</Text>
+              <Text style={[styles.label, { color: palette.text }]}>설명</Text>
               <Input
                 ref={descriptionInputRef}
                 variant="area"
@@ -502,8 +502,8 @@ export default function PaymentTypeEditScreen() {
                 style={[
                   styles.colorPickerPopover,
                   {
-                    backgroundColor: AtomicColors.neutral[100],
-                    borderColor: colors.border,
+                    backgroundColor: atomicColors.neutral[100],
+                    borderColor: palette.border,
                     opacity: colorPickerOpacity,
                     transform: [{ scale: colorPickerScale }],
                   },
@@ -521,7 +521,7 @@ export default function PaymentTypeEditScreen() {
         </View>
       </TouchableWithoutFeedback>
 
-      <View style={[styles.bottomButtonContainer, { backgroundColor: colors.staticWhite }]}>
+      <View style={[styles.bottomButtonContainer, { backgroundColor: palette.staticWhite }]}>
         <Button onPress={handleSave}>저장</Button>
       </View>
 
@@ -534,7 +534,7 @@ export default function PaymentTypeEditScreen() {
         closeOnBackdrop
         backdropInteractive
       >
-        <Text style={[styles.modalText, { color: colors.textNeutral }]}>
+        <Text style={[styles.modalText, { color: palette.textNeutral }]}>
           '{currentSubtype?.label ?? ''}'의{'\n'}
           결제 유형을 삭제하시겠어요?
         </Text>
@@ -548,7 +548,7 @@ export default function PaymentTypeEditScreen() {
         closeOnBackdrop
         backdropInteractive
       >
-        <Text style={[styles.modalText, { color: colors.textNeutral }]}>
+        <Text style={[styles.modalText, { color: palette.textNeutral }]}>
           해당 결제 유형으로 생성된{'\n'}
           소비 기록을 먼저 삭제한 후{'\n'}
           결제 유형을 삭제할 수 있습니다.
@@ -609,10 +609,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  label: { ...Typography.body1.l.bold },
+  label: { ...typography.body1.l.bold },
   deleteText: {
-    ...Typography.body1.l.regular,
-    color: Colors.light.statusNegative,
+    ...typography.body1.l.regular,
+    color: colors.light.statusNegative,
   },
   // 피그마: 신용(좌) / 체크(우)로 고정 배치
   // - 2컬럼(각 50%)으로 쪼개서, 체크카드가 화면 중앙(50%)에서 시작하도록 맞춤
@@ -620,7 +620,7 @@ const styles = StyleSheet.create({
   radioCol: { flex: 1, alignItems: 'flex-start' },
 
   modalText: {
-    ...Typography.body1.l.regular,
+    ...typography.body1.l.regular,
     textAlign: 'center',
   },
 });

@@ -5,7 +5,7 @@
  * Features smooth spring animation when toggling.
  */
 
-import { Colors } from '@/constants/theme';
+import { colors, type ColorPalette } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useEffect, useRef } from 'react';
 import { Animated, Platform, Pressable, StyleSheet, ViewStyle } from 'react-native';
@@ -42,7 +42,7 @@ export function Switch({
   style,
 }: SwitchProps) {
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   
   // Animation value for toggle position
   const togglePosition = useRef(new Animated.Value(value ? 24 : 0)).current;
@@ -65,7 +65,7 @@ export function Switch({
     }
   };
 
-  // Colors based on state
+  // colors based on state
   const trackColor = disabled
     ? '#e0e0e0' // Disabled: gray from Figma (both on/off same color)
     : value
@@ -89,7 +89,7 @@ export function Switch({
         style={[
           styles.toggle,
           {
-            backgroundColor: colors.staticWhite,
+            backgroundColor: palette.staticWhite,
             transform: [{ translateX: togglePosition }],
           },
         ]}

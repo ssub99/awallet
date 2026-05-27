@@ -8,7 +8,7 @@
 import type { CalendarDaySelectGridType } from '@/components/ui/calendar-day-select-cell';
 import { CalendarDaySelectMonthPage } from '@/components/ui/calendar-day-select-month-page';
 import { Icon } from '@/components/ui/icon';
-import { Colors, Typography } from '@/constants/theme';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useWeekStart } from '@/hooks/use-week-start';
 import {
@@ -167,7 +167,7 @@ function CalendarDaySelectInner({
   onInvalidPastDate,
 }: CalendarDaySelectProps) {
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   const { weekdays, adjustFirstDayOfWeek } = useWeekStart();
 
   const gridCacheRef = useRef(new Map<string, CalendarGridCell[]>());
@@ -232,12 +232,12 @@ function CalendarDaySelectInner({
 
   const cellColorProps = useMemo(
     () => ({
-      textAssistive: colors.textAssistive,
-      textNeutral: colors.textNeutral,
-      staticWhite: colors.staticWhite,
-      primary: colors.primary,
+      textAssistive: palette.textAssistive,
+      textNeutral: palette.textNeutral,
+      staticWhite: palette.staticWhite,
+      primary: palette.primary,
     }),
-    [colors.primary, colors.staticWhite, colors.textAssistive, colors.textNeutral],
+    [palette.primary, palette.staticWhite, palette.textAssistive, palette.textNeutral],
   );
 
   const scrollToCenter = useCallback((extendSuppress = true) => {
@@ -655,10 +655,10 @@ function CalendarDaySelectInner({
             accessibilityRole="button"
             accessibilityLabel="이전 달"
           >
-            <Icon name="arrowLeft" variant="line" size={24} color={colors.text} />
+            <Icon name="arrowLeft" variant="line" size={24} color={palette.text} />
           </Pressable>
 
-          <Text style={[styles.navTitle, { color: colors.text }]}>
+          <Text style={[styles.navTitle, { color: palette.text }]}>
             {currentYear}년 {String(currentMonth).padStart(2, '0')}월
           </Text>
 
@@ -668,20 +668,20 @@ function CalendarDaySelectInner({
             accessibilityRole="button"
             accessibilityLabel="다음 달"
           >
-            <Icon name="arrowRight" variant="line" size={24} color={colors.text} />
+            <Icon name="arrowRight" variant="line" size={24} color={palette.text} />
           </Pressable>
         </View>
       )}
 
-      <View style={[styles.weekdayHeader, { backgroundColor: colors.fillStrong }]}>
+      <View style={[styles.weekdayHeader, { backgroundColor: palette.fillStrong }]}>
         {weekdays.map((day) => (
           <View key={day} style={[styles.weekdayCell, { width: DAY_CELL_WIDTH }]}>
-            <Text style={[styles.weekdayText, { color: colors.textNeutral }]}>{day}</Text>
+            <Text style={[styles.weekdayText, { color: palette.textNeutral }]}>{day}</Text>
           </View>
         ))}
       </View>
 
-      <View style={[styles.pagerViewport, { backgroundColor: colors.staticWhite }]}>
+      <View style={[styles.pagerViewport, { backgroundColor: palette.staticWhite }]}>
         <ScrollView
           ref={scrollViewRef}
           horizontal
@@ -743,7 +743,7 @@ function CalendarDaySelectInner({
 
         {isSwipeSettling && settleOverlaySlot ? (
           <View
-            style={[styles.swipeSettleOverlay, { backgroundColor: colors.staticWhite }]}
+            style={[styles.swipeSettleOverlay, { backgroundColor: palette.staticWhite }]}
             pointerEvents="none"
           >
             <CalendarDaySelectMonthPage
@@ -786,7 +786,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   navTitle: {
-    ...Typography.body2.r.bold,
+    ...typography.body2.r.bold,
   },
   weekdayHeader: {
     flexDirection: 'row',
@@ -799,7 +799,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   weekdayText: {
-    ...Typography.detail.r.medium,
+    ...typography.detail.r.medium,
   },
   pagerViewport: {
     height: DAY_CELLS_AREA_HEIGHT,

@@ -12,8 +12,8 @@
  * ```
  */
 
-import { Colors } from '@/constants/theme';
-import { compactSingleLineTextStyle, Typography } from '@/constants/typography';
+import { colors, type ColorPalette } from '@/constants/theme';
+import { singleRowCenteredTextStyle, typography } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ActivityIndicator, Platform, Pressable, PressableProps, StyleSheet, Text, TextStyle, View, ViewStyle } from 'react-native';
 
@@ -75,7 +75,7 @@ export function Button({
   ...pressableProps
 }: ButtonProps) {
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
+  const palette = colors[colorScheme ?? 'light'];
 
   // 시각적 비활성 상태는 disabled prop만 따르고,
   // 로딩 중에는 스타일은 유지하되 클릭만 막는다.
@@ -89,8 +89,8 @@ export function Button({
   };
 
   // Get button styles based on variant, type, size, and state
-  const buttonStyle = getButtonStyle(colors as any, variant, type, size, isVisuallyDisabled);
-  const textStyle = getTextStyle(colors as any, variant, type, size, isVisuallyDisabled);
+  const buttonStyle = getButtonStyle(palette, variant, type, size, isVisuallyDisabled);
+  const textStyle = getTextStyle(palette, variant, type, size, isVisuallyDisabled);
 
   return (
     <Pressable
@@ -118,7 +118,7 @@ export function Button({
                   // 회색 배경(assistive)이나 라인 타입은 플랫폼 기본 색상을 사용.
                   color={
                     type === 'solid' && (variant === 'primary' || variant === 'negative')
-                      ? colors.staticWhite
+                      ? palette.staticWhite
                       : undefined
                   }
                 />
@@ -144,7 +144,7 @@ export function Button({
  * Get button container styles based on variant, type, and state
  */
 function getButtonStyle(
-  colors: typeof Colors.light,
+  colors: ColorPalette,
   variant: ButtonProps['variant'],
   type: ButtonProps['type'],
   size: ButtonProps['size'],
@@ -236,7 +236,7 @@ function getButtonStyle(
  * Get text styles based on variant, type, and state
  */
 function getTextStyle(
-  colors: typeof Colors.light,
+  colors: ColorPalette,
   variant: ButtonProps['variant'],
   type: ButtonProps['type'],
   size: ButtonProps['size'],
@@ -299,11 +299,11 @@ const styles = StyleSheet.create({
     minWidth: 48,
   },
   textLarge: {
-    ...compactSingleLineTextStyle(Typography.button1.l.medium),
+    ...singleRowCenteredTextStyle(typography.button1.l.medium),
     textAlign: 'center',
   },
   textSmall: {
-    ...compactSingleLineTextStyle(Typography.button2.r.medium),
+    ...singleRowCenteredTextStyle(typography.button2.r.medium),
     textAlign: 'center',
   },
   spinnerOverlay: {

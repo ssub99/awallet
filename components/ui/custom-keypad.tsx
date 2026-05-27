@@ -1,8 +1,8 @@
 import { GlassSurface } from '@/components/ui/glass-surface';
 import { Icon } from '@/components/ui/icon';
 import { BlurRuntime } from '@/constants/blur-runtime';
-import { AtomicColors } from '@/constants/atomic-colors';
-import { Colors, Typography } from '@/constants/theme';
+import { atomicColors } from '@/constants/atomic-colors';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
@@ -205,7 +205,7 @@ export function CustomKeypad({
   onExpressionChange,
 }: CustomKeypadProps) {
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   const { width: windowWidth } = useWindowDimensions();
   const [containerWidth, setContainerWidth] = useState(windowWidth);
 
@@ -406,17 +406,17 @@ export function CustomKeypad({
   const renderKeyContent = (key: KeyDefinition) => {
     switch (key.type) {
       case 'digit':
-        return <Text style={[styles.numberText, { color: colors.textNeutral }]}>{key.label}</Text>;
+        return <Text style={[styles.numberText, { color: palette.textNeutral }]}>{key.label}</Text>;
       case 'operator':
-        return <Icon name="operation" size={24} color={colors.textStrong} />;
+        return <Icon name="operation" size={24} color={palette.textStrong} />;
       case 'equal':
-        return <Icon name="operationEqual" size={24} color={colors.textStrong} />;
+        return <Icon name="operationEqual" size={24} color={palette.textStrong} />;
       case 'clear':
-        return <Text style={[styles.clearText, { color: colors.text }]}>{key.label}</Text>;
+        return <Text style={[styles.clearText, { color: palette.text }]}>{key.label}</Text>;
       case 'delete':
-        return <Icon name="keypadDelete" size={24} color={colors.textStrong} />;
+        return <Icon name="keypadDelete" size={24} color={palette.textStrong} />;
       case 'confirm':
-        return <Text style={[styles.confirmText, { color: colors.staticWhite }]}>{key.label}</Text>;
+        return <Text style={[styles.confirmText, { color: palette.staticWhite }]}>{key.label}</Text>;
       default:
         return null;
     }
@@ -472,7 +472,7 @@ export function CustomKeypad({
                 styles.keyButton,
                 { width: buttonWidth, height: buttonHeight },
                 (isAction || isDelete) && styles.keyButtonAction,
-                isConfirm && { backgroundColor: colors.primary },
+                isConfirm && { backgroundColor: palette.primary },
               ];
               return (
                 <Pressable
@@ -528,27 +528,27 @@ const styles = StyleSheet.create({
   },
   keyButton: {
     borderRadius: 8,
-    backgroundColor: AtomicColors.common[0],
+    backgroundColor: atomicColors.common[0],
     alignItems: 'center',
     justifyContent: 'center',
   },
   keyButtonAction: {
-    backgroundColor: AtomicColors.coolNeutral[50],
+    backgroundColor: atomicColors.coolNeutral[50],
   },
   keyButtonPressed: {
     opacity: 0.7,
   },
   keyButtonDigitPressed: {
-    backgroundColor: AtomicColors.coolNeutral[100],
+    backgroundColor: atomicColors.coolNeutral[100],
   },
   numberText: {
-    ...Typography.headline3.m.regular,
+    ...typography.headline3.m.regular,
   },
   clearText: {
-    ...Typography.headline4.r.regular,
+    ...typography.headline4.r.regular,
   },
   confirmText: {
-    ...Typography.button1.l.bold,
+    ...typography.button1.l.bold,
   },
   homeIndicator: {
     height: HOME_INDICATOR_HEIGHT,
@@ -559,7 +559,7 @@ const styles = StyleSheet.create({
   homeIndicatorLine: {
     width: 135,
     height: 1,
-    backgroundColor: AtomicColors.neutral[100],
+    backgroundColor: atomicColors.neutral[100],
   },
   androidBottomPadding: {
     height: BOTTOM_PADDING,

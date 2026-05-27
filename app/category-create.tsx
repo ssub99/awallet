@@ -10,8 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
 import { type CategoryType } from '@/constants/categories';
-import { Colors, Typography } from '@/constants/theme';
-import { TypographyLayout } from '@/constants/typography';
+import { colors, typography } from '@/constants/theme';
+import { typographyLayout } from '@/constants/typography';
 import { useToast } from '@/contexts/toast-context';
 import { useAndroidKeyboardBottomCtaHide } from '@/hooks/use-android-keyboard-bottom-cta-hide';
 import { loadCategories, saveCategories } from '@/utils/categories';
@@ -77,7 +77,7 @@ const CATEGORY_LABELS: Record<EmojiCategory, string> = {
 };
 
 export default function CategoryCreateScreen() {
-  const colors = Colors.light;
+  const palette = colors.light;
   const router = useRouter();
   const { showToast } = useToast();
   const params = useLocalSearchParams<{ type?: string }>();
@@ -327,7 +327,7 @@ export default function CategoryCreateScreen() {
     <SafeAreaView
       style={[
         styles.container,
-        { backgroundColor: colors.background, paddingTop: insets.top },
+        { backgroundColor: palette.background, paddingTop: insets.top },
       ]}
       edges={['bottom']}
     >
@@ -336,7 +336,7 @@ export default function CategoryCreateScreen() {
       <TopNavigation type="sub" title={title} showLeftIcon onLeftIconPress={handleBack} />
 
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <View style={[styles.content, { backgroundColor: colors.fill }]}>
+        <View style={[styles.content, { backgroundColor: palette.fill }]}>
           <ScrollView
             style={styles.scrollView}
             contentContainerStyle={styles.scrollContent}
@@ -348,7 +348,7 @@ export default function CategoryCreateScreen() {
             {/* Emoji Selection */}
             <View style={styles.emojiSection}>
               <Pressable
-                style={[styles.emojiButton, { borderColor: colors.border }]}
+                style={[styles.emojiButton, { borderColor: palette.border }]}
                 onPress={handleEmojiPress}
                 accessibilityRole="button"
                 accessibilityLabel="이모지 선택"
@@ -359,7 +359,7 @@ export default function CategoryCreateScreen() {
             
             {/* Category Name Input */}
             <View style={styles.inputSection}>
-              <Text style={[styles.label, { color: colors.text }]}>
+              <Text style={[styles.label, { color: palette.text }]}>
                 카테고리 이름
               </Text>
               <Input
@@ -384,7 +384,7 @@ export default function CategoryCreateScreen() {
       <View
         style={[
           styles.bottomButtonContainer,
-          { backgroundColor: colors.staticWhite },
+          { backgroundColor: palette.staticWhite },
         ]}
       >
         <Button onPress={handleCreate}>
@@ -523,14 +523,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.light.staticWhite,
+    backgroundColor: colors.light.staticWhite,
   },
-  emojiText: TypographyLayout.categoryEmojiMedium,
+  emojiText: typographyLayout.categoryEmojiMedium,
   inputSection: {
     marginBottom: 24,
   },
   label: {
-    ...Typography.body1.l.bold,
+    ...typography.body1.l.bold,
     marginBottom: 8,
   },
   input: {
@@ -544,7 +544,7 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   emojiPickerContainer: {
-    backgroundColor: Colors.light.staticWhite,
+    backgroundColor: colors.light.staticWhite,
   },
   emojiPickerContentWrapper: {
     height: 264,
@@ -567,18 +567,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'flex-start',
     paddingLeft: 12,
-    backgroundColor: Colors.light.staticWhite,
+    backgroundColor: colors.light.staticWhite,
     marginVertical: 2,
   },
   categoryListItemActive: {
     backgroundColor: '#ededed',
   },
   categoryListItemText: {
-    ...Typography.body1.l.regular,
-    color: Colors.light.text,
+    ...typography.body1.l.regular,
+    color: colors.light.text,
   },
   categoryListItemTextActive: {
-    color: Colors.light.text,
+    color: colors.light.text,
   },
   emojiGrid: {
     height: 264,
@@ -606,7 +606,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  emojiItemText: TypographyLayout.categoryEmojiLarge,
+  emojiItemText: typographyLayout.categoryEmojiLarge,
   homeIndicatorContainer: {
     width: '100%',
   },
