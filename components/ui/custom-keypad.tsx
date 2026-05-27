@@ -3,6 +3,7 @@ import { Icon } from '@/components/ui/icon';
 import { BlurRuntime } from '@/constants/blur-runtime';
 import { atomicColors } from '@/constants/atomic-colors';
 import { colors, typography, type ColorPalette } from '@/constants/theme';
+import { typographyLayout } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
@@ -548,7 +549,7 @@ const styles = StyleSheet.create({
     ...typography.headline4.r.regular,
   },
   confirmText: {
-    ...typography.button1.l.bold,
+    ...typographyLayout.buttonTextLarge,
   },
   homeIndicator: {
     height: HOME_INDICATOR_HEIGHT,

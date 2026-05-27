@@ -8,6 +8,7 @@
 import { DatePicker } from '@/components/ui/date-picker';
 import { Icon, type IconName } from '@/components/ui/icon';
 import { colors, typography, type ColorPalette } from '@/constants/theme';
+import { typographyLayout } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { logEvent } from '@/utils/analytics';
 import { useEffect, useRef, useState } from 'react';
@@ -518,7 +519,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   subTitle: {
-    ...typography.body1.l.bold,
+    ...typographyLayout.tabTextActive,
   },
   rightSection: {
     flexDirection: 'row',
@@ -551,7 +552,7 @@ const styles = StyleSheet.create({
     // Removed - using animated background instead
   },
   periodText: {
-    ...typography.body2.r.bold,
+    ...typographyLayout.chipTextActive,
   },
   rightButton: {
     paddingHorizontal: 16,
@@ -561,7 +562,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   rightButtonText: {
-    ...typography.body2.r.medium,
+    ...typographyLayout.chipTextDefault,
   },
   divider: {
     height: 1,

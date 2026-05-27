@@ -6,7 +6,7 @@
  */
 
 import { colors, type ColorPalette } from '@/constants/theme';
-import { typography } from '@/constants/typography';
+import { typography, typographyLayout } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useEffect, useRef } from 'react';
 import {
@@ -265,14 +265,14 @@ const styles = StyleSheet.create({
     marginRight: 0,
   },
   label: {
-    ...typography.body1.l.regular,
+    ...typographyLayout.fieldLine,
     textAlign: 'left',
   },
   valueContainer: {
     flex: 1,
   },
   value: {
-    ...typography.body1.l.medium,
+    ...typographyLayout.fieldLineMedium,
     textAlign: 'left',
   },
   buttonSection: {
@@ -290,7 +290,7 @@ const styles = StyleSheet.create({
     width: 144,
   },
   subButtonText: {
-    ...typography.body1.l.medium,
+    ...typographyLayout.fieldLineMedium,
   },
   mainButton: {
     height: 48,
@@ -300,6 +300,6 @@ const styles = StyleSheet.create({
     width: 143,
   },
   mainButtonText: {
-    ...typography.body1.l.medium,
+    ...typographyLayout.fieldLineMedium,
   },
 });

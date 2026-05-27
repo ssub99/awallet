@@ -1,6 +1,7 @@
 import { BasicCalendarDaySelect } from '@/components/ui/calendar-day-basic';
 import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
-import { colors, typography, type ColorPalette } from '@/constants/theme';
+import { colors, type ColorPalette } from '@/constants/theme';
+import { typographyLayout } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { memo, useCallback } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -123,6 +124,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   confirmButtonText: {
-    ...typography.body1.l.medium,
+    ...typographyLayout.fieldLineMedium,
   },
 });

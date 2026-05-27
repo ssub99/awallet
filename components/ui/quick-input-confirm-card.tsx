@@ -235,11 +235,11 @@ const styles = StyleSheet.create({
     minHeight: 24,
   },
   label: {
-    ...typography.body1.l.regular,
+    ...typographyLayout.fieldLine,
     width: 64,
   },
   value: {
-    ...typography.body1.l.medium,
+    ...typographyLayout.fieldLineMedium,
     marginLeft: 8,
     flex: 1,
     textAlign: 'left',
@@ -274,6 +274,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   buttonText: {
-    ...typography.body1.l.medium,
+    ...typographyLayout.fieldLineMedium,
   },
 });

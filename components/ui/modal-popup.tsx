@@ -6,6 +6,7 @@
  */
 
 import { colors, typography, type ColorPalette } from '@/constants/theme';
+import { typographyLayout } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ReactNode, useEffect, useRef } from 'react';
 import {
@@ -360,7 +361,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   buttonText: {
-    ...typography.body1.l.medium,
+    ...typographyLayout.fieldLineMedium,
   },
 });
 

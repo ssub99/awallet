@@ -18,7 +18,8 @@ import {
   rememberQuickInputTipIndex,
   resolveSequentialTipIndex,
 } from '@/constants/quick-input-tips';
-import { colors, typography, type ColorPalette } from '@/constants/theme';
+import { colors, type ColorPalette } from '@/constants/theme';
+import { typographyLayout } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
   loadQuickInputTipBoxExpanded,
@@ -913,10 +914,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   badgeText: {
-    ...typography.detail.r.bold,
+    ...typographyLayout.tagText,
     flexShrink: 0,
     textAlign: 'center',
-    ...(Platform.OS === 'android' ? { includeFontPadding: false } : null),
   },
   messageGestureHost: {
     height: BOX_HEIGHT,
@@ -945,7 +945,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   message: {
-    ...typography.body1.l.regular,
+    ...typographyLayout.fieldLine,
     flexShrink: 0,
   },
   collapseButtonHitArea: {

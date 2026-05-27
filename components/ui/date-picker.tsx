@@ -9,7 +9,7 @@
 
 import { AndroidSpinnerWheelColumn } from '@/components/ui/android-spinner-wheel-column';
 import { colors, type ColorPalette } from '@/constants/theme';
-import { typography, typographyLayout } from '@/constants/typography';
+import { typographyLayout } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
   buildNativePickerDate,
@@ -717,7 +717,7 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   androidYearMonthTitle: {
-    ...typography.body1.l.bold,
+    ...typographyLayout.sectionTitle,
     textAlign: 'center',
     paddingTop: 20,
     paddingBottom: 8,
@@ -746,9 +746,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   androidYearMonthCancel: {
-    ...typography.body1.l.medium,
+    ...typographyLayout.fieldLineMedium,
   },
   androidYearMonthConfirm: {
-    ...typography.body1.l.bold,
+    ...typographyLayout.sectionTitle,
   },
 });

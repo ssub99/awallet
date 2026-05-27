@@ -12,7 +12,8 @@
  * RN Modal is outside the app SafeAreaProvider — Provider below is required so insets subscribe to the modal window.
  */
 
-import { colors, typography, type ColorPalette } from '@/constants/theme';
+import { colors, type ColorPalette } from '@/constants/theme';
+import { typographyLayout } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
   getAndroidNavigationBarInset,
@@ -360,7 +361,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   title: {
-    ...typography.body1.l.bold,
+    ...typographyLayout.sectionTitle,
   },
   confirmButton: {
     paddingHorizontal: 16,
@@ -375,7 +376,7 @@ const styles = StyleSheet.create({
     height: 32,
   },
   confirmText: {
-    ...typography.button2.r.medium,
+    ...typographyLayout.buttonTextSmall,
   },
   divider: {
     height: 1,
