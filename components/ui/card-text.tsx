@@ -1,17 +1,11 @@
-import { typographyLayout } from '@/constants/typography';
-import { Text, type TextProps, type TextStyle } from 'react-native';
-
-type CardTextVariant = 'title' | 'meta';
-
-const CARD_TEXT_VARIANTS: Record<CardTextVariant, TextStyle> = {
-  title: typographyLayout.cardTitle,
-  meta: typographyLayout.cardMeta,
-};
+import { AppText, type CardVariant } from '@/components/ui/app-text';
+import { type TextProps } from 'react-native';
 
 type CardTextProps = TextProps & {
-  variant?: CardTextVariant;
+  variant?: CardVariant;
 };
 
-export function CardText({ variant = 'meta', style, ...rest }: CardTextProps) {
-  return <Text style={[CARD_TEXT_VARIANTS[variant], style]} {...rest} />;
+/** AppText thin wrapper — card context */
+export function CardText({ variant = 'meta', ...rest }: CardTextProps) {
+  return <AppText context="card" variant={variant} {...rest} />;
 }

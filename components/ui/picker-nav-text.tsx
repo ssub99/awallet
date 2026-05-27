@@ -1,18 +1,11 @@
-import { typographyLayout } from '@/constants/typography';
-import { Text, type TextProps, type TextStyle } from 'react-native';
-
-type PickerNavTextVariant = 'regular' | 'medium' | 'bold';
-
-const PICKER_NAV_VARIANTS: Record<PickerNavTextVariant, TextStyle> = {
-  regular: typographyLayout.pickerNavRegular,
-  medium: typographyLayout.pickerNavMedium,
-  bold: typographyLayout.pickerNavBold,
-};
+import { AppText, type PickerNavVariant } from '@/components/ui/app-text';
+import { type TextProps } from 'react-native';
 
 type PickerNavTextProps = TextProps & {
-  variant?: PickerNavTextVariant;
+  variant?: PickerNavVariant;
 };
 
-export function PickerNavText({ variant = 'regular', style, ...rest }: PickerNavTextProps) {
-  return <Text style={[PICKER_NAV_VARIANTS[variant], style]} {...rest} />;
+/** AppText thin wrapper — pickerNav context */
+export function PickerNavText({ variant = 'regular', ...rest }: PickerNavTextProps) {
+  return <AppText context="pickerNav" variant={variant} {...rest} />;
 }

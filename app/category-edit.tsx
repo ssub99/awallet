@@ -10,10 +10,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
 import { ModalPopup } from '@/components/ui/modal-popup';
+import { CategoryEmojiText } from '@/components/ui/category-emoji-text';
 import { UiLineText } from '@/components/ui/ui-line-text';
 import { type CategoryType } from '@/constants/categories';
 import { colors, typography } from '@/constants/theme';
-import { typographyLayout } from '@/constants/typography';
 import { useToast } from '@/contexts/toast-context';
 import { useAndroidKeyboardBottomCtaHide } from '@/hooks/use-android-keyboard-bottom-cta-hide';
 import { loadCategories, saveCategories } from '@/utils/categories';
@@ -547,7 +547,7 @@ export default function CategoryEditScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="이모지 선택"
               >
-                <Text style={styles.emojiText}>{selectedEmoji}</Text>
+                <CategoryEmojiText variant="large">{selectedEmoji}</CategoryEmojiText>
               </Pressable>
             </View>
             
@@ -674,7 +674,7 @@ export default function CategoryEditScreen() {
                             accessibilityRole="button"
                             accessibilityLabel={`이모지 ${emoji} 선택`}
                           >
-                            <Text style={styles.emojiItemText}>{emoji}</Text>
+                            <CategoryEmojiText variant="large">{emoji}</CategoryEmojiText>
                           </Pressable>
                         ))}
                       </View>
@@ -749,9 +749,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: colors.light.staticWhite,
-  },
-  emojiText: {
-    ...typographyLayout.categoryEmojiLarge,
   },
   inputSection: {
     marginBottom: 24,
@@ -835,9 +832,6 @@ const styles = StyleSheet.create({
     height: 48,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  emojiItemText: {
-    ...typographyLayout.categoryEmojiLarge,
   },
   homeIndicatorContainer: {
     width: '100%',

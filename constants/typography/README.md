@@ -24,7 +24,7 @@ Figma 텍스트 스타일(`body01`, `headline01` …)과 코드 API 이름이 �
 
 ## `typographyLayout` 키 규칙 (동결)
 
-- **접두사 = 맥락**: `uiLine*` · `fieldInput*` · `pickerNav*` · `card*` · `spinnerWheel*` · `pickerWheel*`
+- **접두사 = 맥락**: `uiLine*` · `fieldInput*` · `pickerNav*` · `card*` · `categoryEmoji*` · `spinnerWheel*` · `pickerWheel*`
 - **uiLine 패턴**: `uiLine` + `{Figma토큰}` + `{Weight}` — 예: `uiLineBody01Medium`, `uiLineButton02Regular`
 - **fieldInput 패턴**: `fieldInput` + `{역할}` — 예: `fieldInputLine`, `fieldInputPlaceholder`, `fieldInputLineWrap`
 - **같은 uiLine 메트릭이면 키 하나** — 컴포넌트명(`tabText*`, `buttonText*`)으로 새 키 만들지 않음
@@ -34,40 +34,58 @@ Figma 텍스트 스타일(`body01`, `headline01` …)과 코드 API 이름이 �
 
 `uiLineTextStyle`은 `constants/typography/` 밖에서 호출하지 않습니다.
 
-## 화면에서 쓰는 API
+## 화면에서 쓰는 API (최종형)
+
+`app/*` 화면은 아래 **공개 wrapper**를 사용합니다. 토큰 매핑은 `components/ui/app-text.tsx`(`AppText`) 한 곳에서 처리합니다.
 
 ```tsx
-// Figma Body/01 Regular (paragraph)
+// 섹션 제목 (semantic role)
+<SectionTitle>기본 정보</SectionTitle>
+
+// 한 줄 UI 텍스트 (uiLine)
+<UiLineText variant="body01Regular">삭제</UiLineText>
+
+// Input 맥락 표시 텍스트 (fieldInput)
+<FieldInputText variant="number">12,000</FieldInputText>
+
+// 피커 네비게이션 (pickerNav)
+<PickerNavText variant="medium">확인</PickerNavText>
+
+// 카드 텍스트 (card)
+<CardText variant="title">식비</CardText>
+
+// 카테고리 이모지 (categoryEmoji)
+<CategoryEmojiText variant="medium">🍔</CategoryEmojiText>
+
+// 여러 줄 본문 (paragraph) — typographyLayout 금지 범위 밖
 <Text style={typography.body01.regular} />
-
-// TextInput 한 줄
-<TextInput style={typographyLayout.fieldInputLine} />
-
-// 폼 행 표시 Text / 탭·버튼 라벨 (uiLine)
-<Text style={typographyLayout.uiLineBody01Regular} />
-<Text style={typographyLayout.uiLineButton01Medium} />
-
-// 피커 상단 (uiLine 메트릭, picker 접두)
-<Text style={typographyLayout.pickerNavMedium} />
 ```
 
-## 화면 단순화 권장 (Phase 1+)
+### AppText SSOT
 
-- `app/*` 화면은 `typographyLayout`를 직접 고르기보다 UI 프리미티브를 우선 사용합니다.
-- 예: `SectionTitle`(내부 `uiLineBody01Bold`), `UiLineText`(내부 `uiLine*` 매핑)
-- `Button`/`Tab`/`Input`은 이미 내부에서 `typographyLayout`를 처리합니다.
-- 원칙: 화면에서는 role 중심 API, 타이포 엔진(`uiLine`/`fieldInput`) 선택은 컴포넌트 내부로 캡슐화
+```
+[app 화면]  SectionTitle / UiLineText / CategoryEmojiText / …
+              ↓ thin wrapper (components/ui/*-text.tsx)
+[SSOT]      AppText (context + variant → typographyLayout / typography)
+              ↓
+[토큰]      typographyLayout.* / typography.*
+```
 
-`typographyScale`, `getPlatformTypographySizes` 등은 내부/동적 축소용입니다. 일반 화면은 `typography` / `typographyLayout`만 사용합니다.
+- **화면 개발자**: context wrapper 이름만 선택 (`UiLineText`, `CardText` …)
+- **DS 유지보수**: variant map 수정은 `app-text.tsx`만 변경
+- **`AppText` 직접 사용**: `components/ui/` 내부 또는 wrapper 구현에서만 (화면 `app/*`에서는 wrapper 권장)
+- `Button`/`Tab`/`Input`은 기존처럼 내부에서 `typographyLayout` 처리
 
-## Guardrail (Phase 5)
+`typographyScale`, `getPlatformTypographySizes` 등은 내부/동적 축소용입니다.
+
+## Guardrail
 
 - `eslint.config.js`에 `app/**/*.tsx` 전역 규칙을 적용했습니다.
-- 모든 화면에서 `typographyLayout.uiLine*` 직접 접근을 금지합니다.
-- 동일 범위에서 `typographyLayout.fieldInput*` / `pickerNav*` / `card*` 직접 접근도 금지합니다.
-- 권장 경로:
+- 모든 화면에서 `typographyLayout.uiLine*` / `fieldInput*` / `pickerNav*` / `card*` / `categoryEmoji*` 직접 접근을 금지합니다.
+- 권장 경로 (모두 `AppText` thin wrapper):
   - 섹션 타이틀: `SectionTitle`
   - 한 줄 UI 텍스트: `UiLineText`
-  - 입력 계열: `Input`/`FieldInputText`/`FieldInputLineWrap`
+  - 입력 계열: `Input` / `FieldInputText` / `FieldInputLineWrap`
   - 피커 네비게이션: `PickerNavText`
-  - 카드 텍스트: `CardText` (내부 paragraph 메트릭 유지)
+  - 카드 텍스트: `CardText`
+  - 카테고리 이모지: `CategoryEmojiText`

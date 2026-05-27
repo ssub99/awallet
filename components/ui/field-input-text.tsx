@@ -1,24 +1,17 @@
+import { AppText, type FieldInputVariant } from '@/components/ui/app-text';
 import { typographyLayout } from '@/constants/typography';
-import { Text, View, type TextProps, type TextStyle, type ViewProps, type ViewStyle } from 'react-native';
-
-type FieldInputTextVariant = 'line' | 'placeholder' | 'number';
-
-const FIELD_INPUT_TEXT_VARIANTS: Record<FieldInputTextVariant, TextStyle> = {
-  line: typographyLayout.fieldInputLine,
-  placeholder: typographyLayout.fieldInputPlaceholder,
-  number: typographyLayout.fieldInputNumber,
-};
+import { View, type TextProps, type ViewProps, type ViewStyle } from 'react-native';
 
 type FieldInputTextProps = TextProps & {
-  variant?: FieldInputTextVariant;
+  variant?: FieldInputVariant;
 };
 
 /**
  * Input 맥락 텍스트 프리미티브.
- * 화면에서는 variant만 선택하고 fieldInput 토큰은 내부에서 매핑한다.
+ * 화면에서는 variant만 선택하고 fieldInput 토큰은 AppText 내부에서 매핑한다.
  */
-export function FieldInputText({ variant = 'line', style, ...rest }: FieldInputTextProps) {
-  return <Text style={[FIELD_INPUT_TEXT_VARIANTS[variant], style]} {...rest} />;
+export function FieldInputText({ variant = 'line', ...rest }: FieldInputTextProps) {
+  return <AppText context="fieldInput" variant={variant} {...rest} />;
 }
 
 type FieldInputLineWrapProps = ViewProps;
