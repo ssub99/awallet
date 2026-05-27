@@ -6,9 +6,11 @@
  */
 
 import { TopNavigation } from '@/components/navigation/top-navigation';
+import { SectionTitle } from '@/components/ui/section-title';
 import { Switch } from '@/components/ui/switch';
+import { UiLineText } from '@/components/ui/ui-line-text';
 import { themeColors } from '@/constants/theme-colors';
-import { typography, typographyLayout } from '@/constants/typography';
+import { typography } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { handleNotificationToggle } from '@/hooks/use-notifications';
@@ -98,12 +100,14 @@ export default function NotificationSettingScreen() {
       />
 
       <View style={[styles.contentWrapper, { backgroundColor: colors.fill }]}>
-        <Text style={[styles.sectionTitle, { color: colors.staticBlack }]}>알림 형태</Text>
+        <SectionTitle style={[styles.sectionTitleSpacing, { color: colors.staticBlack }]}>
+          알림 형태
+        </SectionTitle>
 
         <View style={[styles.card, { backgroundColor: colors.staticWhite }]}>
           <View style={styles.recurringSection}>
             <View style={styles.recurringTitleRow}>
-              <Text style={[styles.switchLabel, { color: colors.text }]}>일반 알림</Text>
+              <UiLineText style={[styles.switchLabel, { color: colors.text }]}>일반 알림</UiLineText>
               <Switch
                 value={normalNotificationEnabled}
                 onValueChange={(value) => {
@@ -120,7 +124,7 @@ export default function NotificationSettingScreen() {
 
           <View style={styles.recurringSection}>
             <View style={styles.recurringTitleRow}>
-              <Text style={[styles.switchLabel, { color: colors.text }]}>챌린지 알림</Text>
+              <UiLineText style={[styles.switchLabel, { color: colors.text }]}>챌린지 알림</UiLineText>
               <Switch
                 value={challengeNotificationEnabled}
                 onValueChange={(value) => {
@@ -147,8 +151,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 24,
   },
-  sectionTitle: {
-    ...typographyLayout.uiLineBody01Bold,
+  sectionTitleSpacing: {
     marginBottom: 8,
   },
   card: {
@@ -166,9 +169,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 0,
   },
-  switchLabel: {
-    ...typographyLayout.uiLineBody01Regular,
-  },
+  switchLabel: {},
   recurringCaption: {
     ...typography.body02.regular,
     marginTop: 0,

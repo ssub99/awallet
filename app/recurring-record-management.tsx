@@ -7,9 +7,10 @@ import { TopNavigation } from '@/components/navigation/top-navigation';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Icon } from '@/components/ui/icon';
 import { ModalPopup } from '@/components/ui/modal-popup';
+import { UiLineText } from '@/components/ui/ui-line-text';
 import { atomicColors } from '@/constants/atomic-colors';
 import { themeColors } from '@/constants/theme-colors';
-import { typography, typographyLayout } from '@/constants/typography';
+import { typography } from '@/constants/typography';
 import { useAppData } from '@/contexts/app-data-context';
 import { useLoading } from '@/contexts/loading-context';
 import { useToast } from '@/contexts/toast-context';
@@ -78,12 +79,12 @@ function RecurringGroupCard({
 
       <View style={[styles.infoCard, { backgroundColor: colors.background }]}>
         <View style={styles.infoHeader}>
-          <Text style={[styles.categoryText, { color: colors.text }]} numberOfLines={1}>
+          <UiLineText variant="body01Bold" style={[styles.categoryText, { color: colors.text }]} numberOfLines={1}>
             {item.categoryDisplay}
-          </Text>
-          <Text style={[styles.amountText, { color: colors.text }]}>
+          </UiLineText>
+          <UiLineText variant="body01Bold" style={[styles.amountText, { color: colors.text }]}>
             {item.amount.toLocaleString('ko-KR')}원
-          </Text>
+          </UiLineText>
         </View>
 
         {hasMemo ? (
@@ -352,7 +353,9 @@ export default function RecurringRecordManagementScreen() {
             accessibilityRole="button"
             accessibilityLabel="년도 선택"
           >
-            <Text style={[styles.yearText, { color: colors.text }]}>{selectedYear}년</Text>
+            <UiLineText variant="body01Bold" style={[styles.yearText, { color: colors.text }]}>
+              {selectedYear}년
+            </UiLineText>
           </Pressable>
 
           <Pressable
@@ -432,7 +435,7 @@ export default function RecurringRecordManagementScreen() {
         <Text style={[styles.deleteConfirmText, { color: colors.textNeutral }]}>
           {pendingDelete ? (
             <>
-              <Text style={typographyLayout.uiLineBody01Bold}>{pendingDelete.categoryDisplay}</Text>
+              <UiLineText variant="body01Bold">{pendingDelete.categoryDisplay}</UiLineText>
               {'에\n포함된 반복 기록은 전부 삭제됩니다.\n삭제를 진행하시겠어요?'}
             </>
           ) : null}
@@ -468,7 +471,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   yearText: {
-    ...typographyLayout.uiLineBody01Bold,
+    
   },
   bodyArea: {
     flex: 1,
@@ -514,11 +517,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   categoryText: {
-    ...typographyLayout.uiLineBody01Bold,
     flex: 1,
   },
   amountText: {
-    ...typographyLayout.uiLineBody01Bold,
+    
   },
   infoBody: {
     gap: 2,

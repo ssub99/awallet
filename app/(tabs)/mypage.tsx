@@ -8,9 +8,10 @@
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Icon } from '@/components/ui/icon';
 import { Switch } from '@/components/ui/switch';
+import { UiLineText } from '@/components/ui/ui-line-text';
 import { getAppStoreWriteReviewUrl } from '@/constants/app-store';
 import { themeColors } from '@/constants/theme-colors';
-import { typography, typographyLayout } from '@/constants/typography';
+import { typography } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { monthStartEvent } from '@/hooks/use-month-start';
@@ -268,11 +269,11 @@ export default function MyPageScreen() {
               accessibilityRole="button"
               accessibilityLabel="월 시작일 설정"
             >
-              <Text style={[styles.settingLabel, { color: colors.text }]}>월 시작일</Text>
+              <UiLineText style={[styles.settingLabel, { color: colors.text }]}>월 시작일</UiLineText>
               <View style={styles.settingValue}>
-                <Text style={[styles.settingValueText, { color: colors.textNeutral }]}>
+                <UiLineText style={[styles.settingValueText, { color: colors.textNeutral }]}>
                   {monthStartDay}
-                </Text>
+                </UiLineText>
                 <Icon name="arrowRight" size={24} color={colors.text} />
               </View>
             </Pressable>
@@ -281,9 +282,9 @@ export default function MyPageScreen() {
 
             {/* Week Start Sunday */}
             <View style={[styles.settingRow, { height: 56 }]}>
-              <Text style={[styles.settingLabel, { color: colors.text }]}>
+              <UiLineText style={[styles.settingLabel, { color: colors.text }]}>
                 한주 일요일 시작
-              </Text>
+              </UiLineText>
               <View style={styles.settingValue}>
                 <Switch 
                   value={weekStartsSunday}
@@ -303,7 +304,7 @@ export default function MyPageScreen() {
               accessibilityRole="button"
               accessibilityLabel="알림 설정"
             >
-              <Text style={[styles.settingLabel, { color: colors.text }]}>알림 설정</Text>
+              <UiLineText style={[styles.settingLabel, { color: colors.text }]}>알림 설정</UiLineText>
               <View style={styles.settingValue}>
                 <Icon name="arrowRight" size={24} color={colors.text} />
               </View>
@@ -321,7 +322,7 @@ export default function MyPageScreen() {
               accessibilityRole="button"
               accessibilityLabel="수입 카테고리 설정"
             >
-              <Text style={[styles.menuLabel, { color: colors.text }]}>수입 카테고리 설정</Text>
+              <UiLineText style={[styles.menuLabel, { color: colors.text }]}>수입 카테고리 설정</UiLineText>
               <Icon name="arrowRight" size={24} color={colors.text} />
             </Pressable>
 
@@ -336,7 +337,7 @@ export default function MyPageScreen() {
               accessibilityRole="button"
               accessibilityLabel="지출 카테고리 설정"
             >
-              <Text style={[styles.menuLabel, { color: colors.text }]}>지출 카테고리 설정</Text>
+              <UiLineText style={[styles.menuLabel, { color: colors.text }]}>지출 카테고리 설정</UiLineText>
               <Icon name="arrowRight" size={24} color={colors.text} />
             </Pressable>
 
@@ -351,7 +352,7 @@ export default function MyPageScreen() {
               accessibilityRole="button"
               accessibilityLabel="결제 유형 설정"
             >
-              <Text style={[styles.menuLabel, { color: colors.text }]}>결제 유형 설정</Text>
+              <UiLineText style={[styles.menuLabel, { color: colors.text }]}>결제 유형 설정</UiLineText>
               <Icon name="arrowRight" size={24} color={colors.text} />
             </Pressable>
 
@@ -366,7 +367,7 @@ export default function MyPageScreen() {
               accessibilityRole="button"
               accessibilityLabel="반복 기록 관리"
             >
-              <Text style={[styles.menuLabel, { color: colors.text }]}>반복 기록 관리</Text>
+              <UiLineText style={[styles.menuLabel, { color: colors.text }]}>반복 기록 관리</UiLineText>
               <Icon name="arrowRight" size={24} color={colors.text} />
             </Pressable>
           </View>
@@ -380,7 +381,7 @@ export default function MyPageScreen() {
               accessibilityRole="button"
               accessibilityLabel="문의하기"
             >
-              <Text style={[styles.menuLabel, { color: colors.text }]}>문의하기</Text>
+              <UiLineText style={[styles.menuLabel, { color: colors.text }]}>문의하기</UiLineText>
               <Icon name="arrowRight" size={24} color={colors.text} />
             </Pressable>
 
@@ -393,7 +394,7 @@ export default function MyPageScreen() {
               accessibilityRole="button"
               accessibilityLabel="리뷰 쓰기"
             >
-              <Text style={[styles.menuLabel, { color: colors.text }]}>리뷰 쓰기</Text>
+              <UiLineText style={[styles.menuLabel, { color: colors.text }]}>리뷰 쓰기</UiLineText>
               <Icon name="arrowRight" size={24} color={colors.text} />
             </Pressable>
           </View>
@@ -406,7 +407,7 @@ export default function MyPageScreen() {
               accessibilityRole="button"
               accessibilityLabel="개인정보처리방침"
             >
-              <Text style={[styles.menuLabel, { color: colors.text }]}>개인정보처리방침</Text>
+              <UiLineText style={[styles.menuLabel, { color: colors.text }]}>개인정보처리방침</UiLineText>
               <Icon name="arrowRight" size={24} color={colors.text} />
             </Pressable>
 
@@ -418,7 +419,7 @@ export default function MyPageScreen() {
               accessibilityRole="button"
               accessibilityLabel="이용약관"
             >
-              <Text style={[styles.menuLabel, { color: colors.text }]}>이용약관</Text>
+              <UiLineText style={[styles.menuLabel, { color: colors.text }]}>이용약관</UiLineText>
               <Icon name="arrowRight" size={24} color={colors.text} />
             </Pressable>
           </View>
@@ -431,7 +432,7 @@ export default function MyPageScreen() {
               accessibilityRole="button"
               accessibilityLabel="데이터 백업/복원"
             >
-              <Text style={[styles.menuLabel, { color: colors.text }]}>데이터 백업/복원</Text>
+              <UiLineText style={[styles.menuLabel, { color: colors.text }]}>데이터 백업/복원</UiLineText>
               <Icon name="arrowRight" size={24} color={colors.text} />
             </Pressable>
           </View>
@@ -448,9 +449,9 @@ export default function MyPageScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="테스트 환경 바로가기"
               >
-                <Text style={[styles.menuLabel, { color: colors.text }]}>
+                <UiLineText style={[styles.menuLabel, { color: colors.text }]}>
                   테스트 환경 바로가기
-                </Text>
+                </UiLineText>
                 <Icon name="arrowRight" size={24} color={colors.text} />
               </Pressable>
             </View>
@@ -506,7 +507,7 @@ const styles = StyleSheet.create({
     height: 56,
   },
   settingLabel: {
-    ...typographyLayout.uiLineBody01Regular,
+    
   },
   settingValue: {
     flexDirection: 'row',
@@ -514,7 +515,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   settingValueText: {
-    ...typographyLayout.uiLineBody01Regular,
+    
   },
 
   // Menu Row
@@ -535,6 +536,6 @@ const styles = StyleSheet.create({
     minHeight: 58,
   },
   menuLabel: {
-    ...typographyLayout.uiLineBody01Regular,
+    
   },
 });

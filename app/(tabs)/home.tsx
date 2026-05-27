@@ -10,7 +10,7 @@ import { HomeMonthStatusCard } from '@/components/ui/home-month-status-card';
 import { Icon } from '@/components/ui/icon';
 import { QuickInputShort } from '@/components/ui/quick-input-short';
 import { MonthData, YearView, YearViewRef } from '@/components/ui/year-view';
-import { colors, typography, type ColorPalette, typographyLayout } from '@/constants/theme';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';
 import { useCreateSheetContext } from '@/contexts/create-sheet-context';
 import { useLoading } from '@/contexts/loading-context';
@@ -1106,7 +1106,6 @@ const styles = StyleSheet.create({
     flexShrink: 0, // Prevent label from shrinking
   },
   cardAmount: {
-    ...typographyLayout.uiLineBody01Bold,
     flex: 1, // Take remaining space
     textAlign: 'right',
   },

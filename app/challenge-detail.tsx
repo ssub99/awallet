@@ -8,7 +8,8 @@
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Icon } from '@/components/ui/icon';
 import { Tag } from '@/components/ui/tag';
-import { colors, typography, type ColorPalette, typographyLayout } from '@/constants/theme';
+import { UiLineText } from '@/components/ui/ui-line-text';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';
 import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -283,15 +284,21 @@ export default function ChallengeDetailScreen() {
           <View style={styles.amountsContainer}>
             <View style={styles.amountRow}>
               <Text style={[styles.amountLabel, { color: palette.textAssistive }]}>목표 소비금액</Text>
-              <Text style={[styles.amountValue, { color: palette.text }]}>{stats.targetAmount.toLocaleString()}원</Text>
+              <UiLineText variant="body01Bold" style={[styles.amountValue, { color: palette.text }]}>
+                {stats.targetAmount.toLocaleString()}원
+              </UiLineText>
             </View>
             <View style={styles.amountRow}>
               <Text style={[styles.amountLabel, { color: palette.textAssistive }]}>현재 소비금액</Text>
-              <Text style={[styles.amountValue, { color: palette.text }]}>{stats.totalAmount.toLocaleString()}원</Text>
+              <UiLineText variant="body01Bold" style={[styles.amountValue, { color: palette.text }]}>
+                {stats.totalAmount.toLocaleString()}원
+              </UiLineText>
             </View>
             <View style={styles.amountRow}>
               <Text style={[styles.amountLabel, { color: palette.textAssistive }]}>챌린지 기간</Text>
-              <Text style={[styles.amountValue, { color: palette.text }]}>{stats.period}</Text>
+              <UiLineText variant="body01Bold" style={[styles.amountValue, { color: palette.text }]}>
+                {stats.period}
+              </UiLineText>
             </View>
           </View>
         </View>
@@ -449,7 +456,7 @@ const styles = StyleSheet.create({
     ...typography.body02.medium,
   },
   amountValue: {
-    ...typographyLayout.uiLineBody01Bold,
+    
   },
   listScrollContainer: {
     flex: 1,

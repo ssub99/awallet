@@ -3,8 +3,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ModalPopup } from '@/components/ui/modal-popup';
 import { Radio } from '@/components/ui/radio';
+import { UiLineText } from '@/components/ui/ui-line-text';
 import { atomicColors } from '@/constants/atomic-colors';
-import { colors, typography, typographyLayout } from '@/constants/theme';
+import { colors, typography } from '@/constants/theme';
 import { useToast } from '@/contexts/toast-context';
 import { getAllExpenses } from '@/utils/expenses';
 import {
@@ -432,18 +433,18 @@ export default function PaymentTypeEditScreen() {
 
             <View style={styles.section}>
               <View style={styles.inputHeader}>
-                <Text style={[styles.label, { color: palette.text }]}>
+                <UiLineText variant="body01Bold" style={[styles.label, { color: palette.text }]}>
                   결제 유형 이름{' '}
                   <Text style={{ color: palette.statusNegative }} accessibilityLabel="필수">
                     *
                   </Text>
-                </Text>
+                </UiLineText>
                 <Pressable
                   onPress={handleDeletePress}
                   accessibilityRole="button"
                   accessibilityLabel="결제 유형 삭제"
                 >
-                  <Text style={styles.deleteText}>삭제</Text>
+                  <UiLineText style={styles.deleteText}>삭제</UiLineText>
                 </Pressable>
               </View>
               <Input
@@ -456,12 +457,12 @@ export default function PaymentTypeEditScreen() {
             </View>
 
             <View style={styles.section}>
-              <Text style={[styles.label, { color: palette.text }]}>
+              <UiLineText variant="body01Bold" style={[styles.label, { color: palette.text }]}>
                 결제 유형{' '}
                 <Text style={{ color: palette.statusNegative }} accessibilityLabel="필수">
                   *
                 </Text>
-              </Text>
+              </UiLineText>
               <View style={styles.radioRow}>
                 <View style={styles.radioCol}>
                   <Radio checked={subtypeType === 'credit'} label="신용카드" disabled />
@@ -480,7 +481,7 @@ export default function PaymentTypeEditScreen() {
                 descriptionSectionHeightRef.current = layout.height;
               }}
             >
-              <Text style={[styles.label, { color: palette.text }]}>설명</Text>
+              <UiLineText variant="body01Bold" style={[styles.label, { color: palette.text }]}>설명</UiLineText>
               <Input
                 ref={descriptionInputRef}
                 variant="area"
@@ -609,9 +610,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  label: { ...typographyLayout.uiLineBody01Bold },
+  label: {},
   deleteText: {
-    ...typographyLayout.uiLineBody01Regular,
     color: colors.light.statusNegative,
   },
   // 피그마: 신용(좌) / 체크(우)로 고정 배치

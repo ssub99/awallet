@@ -9,20 +9,25 @@ import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Accordion } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
+import { CardText } from '@/components/ui/card-text';
 import { CustomKeypad, getKeypadHeight, type CustomKeypadOperator, type ExpressionToken } from '@/components/ui/custom-keypad';
 import { CustomKeypadOverlay, getCustomKeypadScrollPaddingBottom } from '@/components/ui/custom-keypad-overlay';
 import { DatePicker } from '@/components/ui/date-picker';
+import { FieldInputText } from '@/components/ui/field-input-text';
 import { Input } from '@/components/ui/input';
 import { ModalBottomsheet, ModalBottomsheetBottomInset } from '@/components/ui/modal-bottomsheet';
 import { ModalPopup } from '@/components/ui/modal-popup';
+import { PickerNavText } from '@/components/ui/picker-nav-text';
 import { PrepaymentModal } from '@/components/ui/prepayment-modal';
 import { RecordDatePickerHost } from '@/components/ui/record-date-picker-sheet';
 import { Radio } from '@/components/ui/radio';
+import { SectionTitle } from '@/components/ui/section-title';
 import { Switch } from '@/components/ui/switch';
 import { Tag } from '@/components/ui/tag';
+import { UiLineText } from '@/components/ui/ui-line-text';
 import { atomicColors } from '@/constants/atomic-colors';
 import { colors, typography, type ColorPalette } from '@/constants/theme';
-import { typographyLayout, typographyLayoutFieldLineRowHeight } from '@/constants/typography';
+import { typographyLayoutFieldLineRowHeight } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
 import { useToast } from '@/contexts/toast-context';
 import { calendarRefreshEvent } from '@/hooks/calendar-events';
@@ -732,9 +737,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         {tokensToRender.map((token, index) => {
           if (token.type === 'number') {
             return (
-              <Text key={`num-${index}`} style={[styles.amountExpressionText, { color: textColor }]}>
+              <FieldInputText variant="number" key={`num-${index}`} style={[styles.amountExpressionText, { color: textColor }]}>
                 {formatAmountDisplay(token.value)}
-              </Text>
+              </FieldInputText>
             );
           }
 
@@ -742,13 +747,14 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           if (!symbol) return null;
 
           return (
-            <Text
+            <FieldInputText
+              variant="number"
               key={`op-${index}`}
               style={[styles.amountExpressionOperator, { color: operatorColor }]}
               accessibilityLabel="연산자"
             >
               {symbol}
-            </Text>
+            </FieldInputText>
           );
         })}
       </ScrollView>
@@ -5110,16 +5116,16 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             {mode === 'edit' && (
               <View style={[styles.section, { paddingTop: 24 }]}>
                 <View style={styles.sectionHeader}>
-                  <Text style={[styles.sectionTitle, { color: palette.staticBlack }]}>
+                  <SectionTitle style={[styles.sectionTitle, { color: palette.staticBlack }]}>
                     {editData?.isPrepaid ? '소비 내역' : '소비 정보'}
-                  </Text>
+                  </SectionTitle>
                   <Pressable onPress={() => {
                     // 통합 삭제 모달만 사용 (유형과 무관하게 동일 플로우)
                     setShowDeleteConfirm(true);
                   }}>
-                    <Text style={[styles.deleteText, { color: palette.statusNegative }]}>
+                    <UiLineText style={[styles.deleteText, { color: palette.statusNegative }]}>
                       삭제
-                    </Text>
+                    </UiLineText>
                   </Pressable>
                 </View>
                 
@@ -5127,17 +5133,19 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                   <View style={styles.expenseInfoContent}>
                     <View style={styles.expenseInfoRow}>
                       <View style={styles.expenseInfoCell}>
-                        <Text
+                        <CardText
+                          variant="title"
                           style={[styles.expenseCategory, { color: palette.text }]}
                           adjustsFontSizeToFit
                           numberOfLines={1}
                           minimumFontScale={0.7}
                         >
                           {categoryDisplay || '카테고리'}
-                        </Text>
+                        </CardText>
                       </View>
                       <View style={[styles.expenseInfoCell, styles.expenseInfoCellEnd]}>
-                        <Text
+                        <CardText
+                          variant="title"
                           style={[styles.expenseAmount, { color: palette.text }]}
                           adjustsFontSizeToFit
                           numberOfLines={1}
@@ -5146,25 +5154,26 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                           {amount && !isNaN(Number(amount.replace(/,/g, '')))
                             ? `${Number(amount.replace(/,/g, '')).toLocaleString()}원`
                             : '0원'}
-                        </Text>
+                        </CardText>
                       </View>
                     </View>
                     <View style={styles.expenseInfoRow}>
                       <View style={styles.expenseInfoCellDate}>
-                        <Text style={[styles.expenseDate, { color: palette.textAssistive }]}>
+                        <CardText variant="meta" style={[styles.expenseDate, { color: palette.textAssistive }]}>
                           {editData?.isPrepaid && editData?.originalDate
                             ? editData.originalDate
                             : displayDate || '날짜'}
-                        </Text>
+                        </CardText>
                       </View>
                       <View style={[styles.expenseInfoCellMemo, styles.expenseInfoCellEnd]}>
-                        <Text
+                        <CardText
+                          variant="meta"
                           style={[styles.expenseMemo, { color: palette.textAssistive }]}
                           numberOfLines={1}
                           ellipsizeMode="tail"
                         >
                           {memo || '메모 없음'}
-                        </Text>
+                        </CardText>
                       </View>
                     </View>
                   </View>
@@ -5177,12 +5186,12 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                         {editData?.isPrepaid ? (
                           // 선결제 처리된 경우: 선결제 일자와 복구 버튼 표시
                           <>
-                            <Text style={[styles.prepaymentRefundLabel, { color: palette.textAssistive }]}>
+                            <UiLineText style={[styles.prepaymentRefundLabel, { color: palette.textAssistive }]}>
                               선결제 일자 : {editData?.prepaidDate 
                                 ? formatPrepaidDate(editData.prepaidDate)
                                 : formatPrepaidDate(editData.date || '')
                               }
-                            </Text>
+                            </UiLineText>
                             <View style={styles.prepaymentRefundActions}>
                               <Pressable
                                 style={styles.prepaymentRefundButton}
@@ -5195,21 +5204,21 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                                   setShowPrepaymentRestore(true);
                                 }}
                               >
-                                <Text style={[styles.prepaymentRefundText, { color: palette.textAssistive }]}>
+                                <UiLineText style={[styles.prepaymentRefundText, { color: palette.textAssistive }]}>
                                   선결제 처리 복구
-                                </Text>
+                                </UiLineText>
                               </Pressable>
                             </View>
                           </>
                         ) : editData?.isRefunded ? (
                           // 환불 처리된 경우: 환불 처리날짜와 복구 버튼 표시
                           <>
-                            <Text style={[styles.prepaymentRefundLabel, { color: palette.textAssistive }]}>
+                            <UiLineText style={[styles.prepaymentRefundLabel, { color: palette.textAssistive }]}>
                               환불 처리날짜 : {editData?.refundedAt 
                                 ? formatRefundDate(editData.refundedAt)
                                 : formatRefundDate(new Date().toISOString())
                               }
-                            </Text>
+                            </UiLineText>
                             <View style={styles.prepaymentRefundActions}>
                               <Pressable
                                 style={styles.prepaymentRefundButton}
@@ -5223,21 +5232,21 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                                   setShowRefundRestore(true);
                                 }}
                               >
-                                <Text style={[styles.prepaymentRefundText, { color: palette.textAssistive }]}>
+                                <UiLineText style={[styles.prepaymentRefundText, { color: palette.textAssistive }]}>
                                   환불 처리 복구
-                                </Text>
+                                </UiLineText>
                               </Pressable>
                             </View>
                           </>
                         ) : editData?.isSettled ? (
                           // 결산 처리된 경우: 결산 처리날짜와 복구 버튼 표시
                           <>
-                            <Text style={[styles.prepaymentRefundLabel, { color: palette.textAssistive }]}>
+                            <UiLineText style={[styles.prepaymentRefundLabel, { color: palette.textAssistive }]}>
                               결산 처리날짜 : {editData?.settledAt
                                 ? formatSettlementDate(editData.settledAt)
                                 : formatSettlementDate(new Date().toISOString())
                               }
-                            </Text>
+                            </UiLineText>
                             <View style={styles.prepaymentRefundActions}>
                               <Pressable
                                 style={styles.prepaymentRefundButton}
@@ -5249,18 +5258,18 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                                   setShowSettlementRestore(true);
                                 }}
                               >
-                                <Text style={[styles.prepaymentRefundText, { color: palette.textAssistive }]}>
+                                <UiLineText style={[styles.prepaymentRefundText, { color: palette.textAssistive }]}>
                                   결산 처리 복구
-                                </Text>
+                                </UiLineText>
                               </Pressable>
                             </View>
                           </>
                         ) : (
                           // 일반 할부 기록인 경우: 정산 처리 버튼 표시 (선결제/환불/결산 드롭다운)
                           <>
-                            <Text style={[styles.prepaymentRefundLabel, { color: palette.textAssistive }]}>
+                            <UiLineText style={[styles.prepaymentRefundLabel, { color: palette.textAssistive }]}>
                               선결제·환불·결산 미적용
-                            </Text>
+                            </UiLineText>
                             <View ref={settlementButtonRef} collapsable={false}>
                               <Pressable
                                 style={[styles.prepaymentRefundButton, { marginLeft: 0 }]}
@@ -5280,9 +5289,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                                   });
                                 }}
                               >
-                                <Text style={[styles.prepaymentRefundText, { color: palette.textAssistive }]}>
+                                <UiLineText style={[styles.prepaymentRefundText, { color: palette.textAssistive }]}>
                                   정산 처리
-                                </Text>
+                                </UiLineText>
                               </Pressable>
                             </View>
                           </>
@@ -5296,9 +5305,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
             {/* 카테고리 */}
             <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: palette.staticBlack }]}>
+              <SectionTitle style={[styles.sectionTitle, { color: palette.staticBlack }]}>
                 카테고리 <Text style={{ color: palette.statusNegative }}>*</Text>
-              </Text>
+              </SectionTitle>
               <Input
                 value={categoryDisplay}
                 placeholder="카테고리 선택"
@@ -5313,9 +5322,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             {/* 결제 유형 - 수정 모드일 때만 기존 위치에 표시 */}
             {mode === 'edit' && (
               <View style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: palette.staticBlack }]}>
+                <SectionTitle style={[styles.sectionTitle, { color: palette.staticBlack }]}>
                   결제 유형 <Text style={{ color: palette.statusNegative }}>*</Text>
-                </Text>
+                </SectionTitle>
                 <Input
                   value={stickyPaymentTypeDisplay.label}
                   buttonMode={true}
@@ -5333,9 +5342,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             {/* 날짜 */}
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <Text style={[styles.sectionTitle, { color: palette.staticBlack }]}>
+                <SectionTitle style={[styles.sectionTitle, { color: palette.staticBlack }]}>
                   날짜 <Text style={{ color: palette.statusNegative }}>*</Text>
-                </Text>
+                </SectionTitle>
                 <Pressable
                   style={styles.recurringInstallmentButton}
                   onPress={() => {
@@ -5366,7 +5375,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                     setShowRecurringInstallmentSheet(true);
                   }}
                 >
-                  <Text style={[
+                  <UiLineText style={[
                     styles.recurringInstallmentButtonText, 
                     { 
                       color: palette.textAssistive 
@@ -5386,7 +5395,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                       }
                       return '반복/할부 설정';
                     })()}
-                  </Text>
+                  </UiLineText>
                 </Pressable>
               </View>
               <Input
@@ -5422,9 +5431,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               }}
             >
               <View style={styles.sectionHeader}>
-                <Text style={[styles.sectionTitle, { color: palette.staticBlack }]}>
+                <SectionTitle style={[styles.sectionTitle, { color: palette.staticBlack }]}>
                   금액 <Text style={{ color: palette.statusNegative }}>*</Text>
-                </Text>
+                </SectionTitle>
               </View>
               
               {/* 금액 입력 필드 */}
@@ -5486,9 +5495,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               memoSectionHeightRef.current = layout.height;
             }}
           >
-            <Text style={[styles.sectionTitle, { color: palette.staticBlack }]}>
+            <SectionTitle style={[styles.sectionTitle, { color: palette.staticBlack }]}>
               메모
-            </Text>
+            </SectionTitle>
             <Input
               ref={memoInputRef}
               variant="area"
@@ -5530,9 +5539,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             {/* 상단 라인 */}
             <View style={[styles.paymentTypeTopLine, { backgroundColor: palette.border }]} />
             <View style={styles.paymentTypeStickyContent}>
-              <Text style={[styles.paymentTypeStickyLabel, { color: palette.textNeutral }]}>
+              <UiLineText variant="body01Bold" style={[styles.paymentTypeStickyLabel, { color: palette.textNeutral }]}>
                 결제 유형
-              </Text>
+              </UiLineText>
               <View style={styles.paymentTypeStickyControls}>
                 <Input
                   value={stickyPaymentTypeDisplay.label}
@@ -5645,9 +5654,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                           ]}
                           onPress={() => handleSettlementMenuSelect(label)}
                         >
-                          <Text style={[styles.settlementDropdownMenuLabel, { color: palette.text }]}>
+                          <PickerNavText style={[styles.settlementDropdownMenuLabel, { color: palette.text }]}>
                             {label}
-                          </Text>
+                          </PickerNavText>
                         </Pressable>
                       ))}
                     </GlassSurface>
@@ -5667,9 +5676,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                           ]}
                           onPress={() => handleSettlementMenuSelect(label)}
                         >
-                          <Text style={[styles.settlementDropdownMenuLabel, { color: palette.text }]}>
+                          <PickerNavText style={[styles.settlementDropdownMenuLabel, { color: palette.text }]}>
                             {label}
-                          </Text>
+                          </PickerNavText>
                         </Pressable>
                       ))}
                     </View>
@@ -5769,7 +5778,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 onPress={() => handlePaymentTypeSelect('cash')}
               >
                 <Text style={styles.paymentTypeSheetCashEmoji}>💰</Text>
-                <Text style={[styles.paymentTypeSheetCashText, { color: palette.textNeutral }]}>현금 선택</Text>
+                <UiLineText style={[styles.paymentTypeSheetCashText, { color: palette.textNeutral }]}>현금 선택</UiLineText>
               </Pressable>
             </View>
 
@@ -5802,9 +5811,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                               !item.description.trim() && styles.paymentTypeSheetTextBlockSingleLine,
                             ]}
                           >
-                            <Text style={[styles.paymentTypeSheetTitle, { color: palette.text }]} numberOfLines={1}>
+                            <UiLineText style={[styles.paymentTypeSheetTitle, { color: palette.text }]} numberOfLines={1}>
                               {item.label}
-                            </Text>
+                            </UiLineText>
                             {item.description.trim() ? (
                               <Text style={[styles.paymentTypeSheetSubtitle, { color: palette.textAssistive }]} numberOfLines={1}>
                                 {item.description}
@@ -5879,16 +5888,16 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         >
           {/* 소비 형태 (드래프트: 확인 시에만 반영) */}
           <View style={styles.sheetSection}>
-            <Text style={[styles.sectionTitle, { color: palette.staticBlack }]}>
+            <SectionTitle style={[styles.sectionTitle, { color: palette.staticBlack }]}>
               소비 형태
-            </Text>
+            </SectionTitle>
             <View style={[styles.card, { backgroundColor: palette.staticWhite }]}>
               {/* 정기 지출 여부 */}
               <View style={styles.recurringSection}>
                 <View style={styles.recurringTitleRow}>
-                  <Text style={[styles.switchLabel, { color: palette.text }]}>
+                  <UiLineText style={[styles.switchLabel, { color: palette.text }]}>
                     정기 지출 여부
-                  </Text>
+                  </UiLineText>
                   <Pressable
                     onPress={() => {
                       if (mode === 'edit') {
@@ -5942,9 +5951,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               {/* 할부 여부 */}
               <View style={styles.recurringSection}>
                 <View style={styles.recurringTitleRow}>
-                  <Text style={[styles.switchLabel, { color: palette.text }]}>
+                  <UiLineText style={[styles.switchLabel, { color: palette.text }]}>
                     할부 여부
-                  </Text>
+                  </UiLineText>
                   <Pressable
                     onPress={() => {
                       if (mode === 'edit') {
@@ -5991,9 +6000,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
           {/* 반복 기간 / 할부 기간 (드래프트) */}
           <View style={styles.sheetSection}>
-            <Text style={[styles.sectionTitle, { color: palette.staticBlack }]}>
+            <SectionTitle style={[styles.sectionTitle, { color: palette.staticBlack }]}>
               {draftIsInstallment ? '할부 기간' : '반복 기간'}
-            </Text>
+            </SectionTitle>
             <View style={styles.chipContainer}>
               {draftIsRecurring || (!draftIsRecurring && !draftIsInstallment && !draftHasSelectedInstallment) ? (
                 <>
@@ -6105,9 +6114,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
           {/* 기록일이 주말인 경우 (드래프트) */}
           <View style={styles.sheetSection}>
-            <Text style={[styles.sectionTitle, { color: palette.staticBlack }]}>
+            <SectionTitle style={[styles.sectionTitle, { color: palette.staticBlack }]}>
               기록일이 주말인 경우
-            </Text>
+            </SectionTitle>
             <View style={[styles.card, { backgroundColor: palette.staticWhite }]}>
               <Pressable 
                 style={styles.radioRow}
@@ -6125,9 +6134,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 }}
                 disabled={!draftIsRecurring && !draftIsInstallment}
               >
-                <Text style={[styles.weekendOptionText, { color: palette.text }]}>
+                <UiLineText style={[styles.weekendOptionText, { color: palette.text }]}>
                   관계없이 주말 기록
-                </Text>
+                </UiLineText>
                 <Radio
                   checked={draftWeekendOption === 'weekend'}
                   onPress={() => {
@@ -6165,9 +6174,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 }}
                 disabled={!draftIsRecurring && !draftIsInstallment}
               >
-                <Text style={[styles.weekendOptionText, { color: palette.text }]}>
+                <UiLineText style={[styles.weekendOptionText, { color: palette.text }]}>
                   금주 금요일 기록
-                </Text>
+                </UiLineText>
                 <Radio
                   checked={draftWeekendOption === 'friday'}
                   onPress={() => {
@@ -6205,9 +6214,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 }}
                 disabled={!draftIsRecurring && !draftIsInstallment}
               >
-                <Text style={[styles.weekendOptionText, { color: palette.text }]}>
+                <UiLineText style={[styles.weekendOptionText, { color: palette.text }]}>
                   차주 월요일 기록
-                </Text>
+                </UiLineText>
                 <Radio
                   checked={draftWeekendOption === 'monday'}
                   onPress={() => {
@@ -6309,12 +6318,12 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
           <View style={[styles.settlementInfoCard, { backgroundColor: palette.fill }]}>
             <View style={styles.settlementTopRow}>
-              <Text style={[styles.recurringCategory, { color: palette.text }]}>
+              <UiLineText variant="body01Bold" style={[styles.recurringCategory, { color: palette.text }]}>
                 {categoryDisplay || '카테고리'}
-              </Text>
-              <Text style={[styles.recurringAmount, { color: palette.text }]}>
+              </UiLineText>
+              <UiLineText variant="body01Bold" style={[styles.recurringAmount, { color: palette.text }]}>
                 {settlementAmountText}
-              </Text>
+              </UiLineText>
             </View>
 
             <View style={[styles.settlementDivider, { backgroundColor: palette.border }]} />
@@ -6339,12 +6348,12 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             <View style={[styles.settlementDivider, { backgroundColor: palette.border }]} />
 
             <View style={styles.settlementTopRow}>
-              <Text style={[styles.recurringCategory, { color: palette.text }]}>
+              <UiLineText variant="body01Bold" style={[styles.recurringCategory, { color: palette.text }]}>
                 최종 정산
-              </Text>
-              <Text style={[styles.recurringAmount, { color: palette.text }]}>
+              </UiLineText>
+              <UiLineText variant="body01Bold" style={[styles.recurringAmount, { color: palette.text }]}>
                 0원
-              </Text>
+              </UiLineText>
             </View>
             <View style={styles.recurringPeriodRow}>
               <Text style={[styles.recurringPeriod, { color: palette.textAssistive }]}>
@@ -6384,12 +6393,12 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           {/* 할부 기록 정보 카드 */}
           <View style={[styles.recurringInfoCard, { backgroundColor: palette.fill }]}>
             <View style={styles.recurringInfoRow}>
-              <Text style={[styles.recurringCategory, { color: palette.text }]}>
+              <UiLineText variant="body01Bold" style={[styles.recurringCategory, { color: palette.text }]}>
                 {categoryDisplay || '카테고리'}
-              </Text>
-              <Text style={[styles.recurringAmount, { color: palette.text }]}>
+              </UiLineText>
+              <UiLineText variant="body01Bold" style={[styles.recurringAmount, { color: palette.text }]}>
                 {getRefundAmount()}
-              </Text>
+              </UiLineText>
             </View>
             <View style={styles.recurringPeriodRow}>
               <Text style={[styles.recurringPeriod, { color: palette.textAssistive }]}>
@@ -6412,12 +6421,12 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               }}
             >
               <View style={styles.deleteOptionContent}>
-                <Text style={[styles.deleteOptionTitle, { color: palette.text }]}>
+                <UiLineText variant="body01Medium" style={[styles.deleteOptionTitle, { color: palette.text }]}>
                   전체 환불
-                </Text>
-                <Text style={[styles.deleteOptionDescription, { color: palette.textAssistive }]}>
+                </UiLineText>
+                <UiLineText style={[styles.deleteOptionDescription, { color: palette.textAssistive }]}>
                   {getRecordTypeLabel()} 기록을 모두 환불합니다.
-                </Text>
+                </UiLineText>
               </View>
               <Radio
                 checked={refundOption === 'all'}
@@ -6445,12 +6454,12 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               }}
             >
               <View style={styles.deleteOptionContent}>
-                <Text style={[styles.deleteOptionTitle, { color: palette.text }]}>
+                <UiLineText variant="body01Medium" style={[styles.deleteOptionTitle, { color: palette.text }]}>
                   오늘만 환불
-                </Text>
-                <Text style={[styles.deleteOptionDescription, { color: palette.textAssistive }]}>
+                </UiLineText>
+                <UiLineText style={[styles.deleteOptionDescription, { color: palette.textAssistive }]}>
                   해당 날짜만 환불합니다.
-                </Text>
+                </UiLineText>
               </View>
               <Radio
                 checked={refundOption === 'today'}
@@ -6478,12 +6487,12 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               }}
             >
               <View style={styles.deleteOptionContent}>
-                <Text style={[styles.deleteOptionTitle, { color: palette.text }]}>
+                <UiLineText variant="body01Medium" style={[styles.deleteOptionTitle, { color: palette.text }]}>
                   오늘 포함한 이후의 기록 환불
-                </Text>
-                <Text style={[styles.deleteOptionDescription, { color: palette.textAssistive }]}>
+                </UiLineText>
+                <UiLineText style={[styles.deleteOptionDescription, { color: palette.textAssistive }]}>
                   이전 기록은 유지하고 환불합니다.
-                </Text>
+                </UiLineText>
               </View>
               <Radio
                 checked={refundOption === 'future'}
@@ -6519,12 +6528,12 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           </Text>
           <View style={[styles.recurringInfoCard, { backgroundColor: palette.fill }]}>
             <View style={styles.recurringInfoRow}>
-              <Text style={[styles.recurringCategory, { color: palette.text }]}>
+              <UiLineText variant="body01Bold" style={[styles.recurringCategory, { color: palette.text }]}>
                 {categoryDisplay || '카테고리'}
-              </Text>
-              <Text style={[styles.recurringAmount, { color: palette.text }]}>
+              </UiLineText>
+              <UiLineText variant="body01Bold" style={[styles.recurringAmount, { color: palette.text }]}>
                 {(editData?.amount ?? 0).toLocaleString()}원
-              </Text>
+              </UiLineText>
             </View>
             <View style={styles.recurringPeriodRow}>
               <Text style={[styles.recurringPeriod, { color: palette.textAssistive }]}>
@@ -6598,12 +6607,12 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
             <View style={[styles.recurringInfoCard, { backgroundColor: palette.fill }]}>
               <View style={styles.recurringInfoRow}>
-                <Text style={[styles.recurringCategory, { color: palette.text }]}>
+                <UiLineText variant="body01Bold" style={[styles.recurringCategory, { color: palette.text }]}>
                   {categoryDisplay || '카테고리'}
-                </Text>
-                <Text style={[styles.recurringAmount, { color: palette.text }]}>
+                </UiLineText>
+                <UiLineText variant="body01Bold" style={[styles.recurringAmount, { color: palette.text }]}>
                   {getRefundRestoreAmount()}
-                </Text>
+                </UiLineText>
               </View>
               <View style={styles.recurringPeriodRow}>
                 <Text style={[styles.recurringPeriod, { color: palette.textAssistive }]}>
@@ -6624,12 +6633,12 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 }}
               >
                 <View style={styles.deleteOptionContent}>
-                  <Text style={[styles.deleteOptionTitle, { color: palette.text }]}>
+                  <UiLineText variant="body01Medium" style={[styles.deleteOptionTitle, { color: palette.text }]}>
                     전체 환불 복구
-                  </Text>
-                  <Text style={[styles.deleteOptionDescription, { color: palette.textAssistive }]}>
+                  </UiLineText>
+                  <UiLineText style={[styles.deleteOptionDescription, { color: palette.textAssistive }]}>
                     {getRecordTypeLabel()} 기록을 모두 복구합니다.
-                  </Text>
+                  </UiLineText>
                 </View>
                 <Radio
                   checked={refundRestoreOption === 'all'}
@@ -6656,12 +6665,12 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 }}
               >
                 <View style={styles.deleteOptionContent}>
-                  <Text style={[styles.deleteOptionTitle, { color: palette.text }]}>
+                  <UiLineText variant="body01Medium" style={[styles.deleteOptionTitle, { color: palette.text }]}>
                     오늘만 환불 복구
-                  </Text>
-                  <Text style={[styles.deleteOptionDescription, { color: palette.textAssistive }]}>
+                  </UiLineText>
+                  <UiLineText style={[styles.deleteOptionDescription, { color: palette.textAssistive }]}>
                     해당 날짜만 복구합니다.
-                  </Text>
+                  </UiLineText>
                 </View>
                 <Radio
                   checked={refundRestoreOption === 'today'}
@@ -6688,12 +6697,12 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 }}
               >
                 <View style={styles.deleteOptionContent}>
-                  <Text style={[styles.deleteOptionTitle, { color: palette.text }]}>
+                  <UiLineText variant="body01Medium" style={[styles.deleteOptionTitle, { color: palette.text }]}>
                     오늘 포함한 이후의 기록 복구
-                  </Text>
-                  <Text style={[styles.deleteOptionDescription, { color: palette.textAssistive }]}>
+                  </UiLineText>
+                  <UiLineText style={[styles.deleteOptionDescription, { color: palette.textAssistive }]}>
                     이전 기록은 유지하고 복구합니다.
-                  </Text>
+                  </UiLineText>
                 </View>
                 <Radio
                   checked={refundRestoreOption === 'future'}
@@ -6744,12 +6753,12 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           </Text>
           <View style={[styles.recurringInfoCard, { backgroundColor: palette.fill }]}>
             <View style={styles.recurringInfoRow}>
-              <Text style={[styles.recurringCategory, { color: palette.text }]}>
+              <UiLineText variant="body01Bold" style={[styles.recurringCategory, { color: palette.text }]}>
                 {categoryDisplay || '카테고리'}
-              </Text>
-              <Text style={[styles.recurringAmount, { color: palette.text }]}>
+              </UiLineText>
+              <UiLineText variant="body01Bold" style={[styles.recurringAmount, { color: palette.text }]}>
                 {settlementRestoreAmountText}
-              </Text>
+              </UiLineText>
             </View>
             <View style={styles.recurringPeriodRow}>
               <Text style={[styles.recurringPeriod, { color: palette.textAssistive }]}>
@@ -6905,7 +6914,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  sectionTitle: typographyLayout.uiLineBody01Bold,
+  sectionTitle: {},
   currentYearMonth: {
     ...typography.body02.regular,
   },
@@ -6930,7 +6939,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   recurringInstallmentButtonText: {
-    ...typographyLayout.uiLineBody01Regular,
     textDecorationLine: 'underline',
   },
   card: {
@@ -6948,9 +6956,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 0,
   },
-  switchLabel: {
-    ...typographyLayout.uiLineBody01Regular,
-  },
+  switchLabel: {},
   recurringCaption: {
     ...typography.body02.regular,
     marginTop: 0,
@@ -6967,7 +6973,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  weekendOptionText: typographyLayout.uiLineBody01Regular,
+  weekendOptionText: {},
   amountInput: {
     flex: 1,
   },
@@ -6998,14 +7004,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     minWidth: 60,
   },
-  cancelButton: typographyLayout.pickerNavRegular,
+  cancelButton: {},
   pickerTitle: {
-    ...typographyLayout.pickerNavMedium,
     flex: 1,
     textAlign: 'center',
   },
   doneButton: {
-    ...typographyLayout.pickerNavMedium,
     textAlign: 'right',
   },
   pickerRow: {
@@ -7037,9 +7041,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  paymentTypeStickyLabel: {
-    ...typographyLayout.uiLineBody01Bold,
-  },
+  paymentTypeStickyLabel: {},
   paymentTypeStickyControls: {
     width: 200,
   },
@@ -7114,9 +7116,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  paymentTypeSheetTitle: {
-    ...typographyLayout.uiLineBody01Regular,
-  },
+  paymentTypeSheetTitle: {},
   paymentTypeSheetSubtitle: {
     ...typography.body02.regular,
   },
@@ -7128,7 +7128,6 @@ const styles = StyleSheet.create({
     ...typography.headline04.medium,
   },
   paymentTypeSheetCashText: {
-    ...typographyLayout.uiLineBody01Regular,
     textDecorationLine: 'underline',
   },
   alertText: {
@@ -7168,9 +7167,6 @@ const styles = StyleSheet.create({
     height: 48,
     width: 100,
   },
-  periodSelectText: {
-    ...typographyLayout.uiLineBody01Medium,
-  },
   periodSelectInput: {
     width: 100,
     height: 48,
@@ -7190,8 +7186,8 @@ const styles = StyleSheet.create({
     gap: 6,
     minHeight: typographyLayoutFieldLineRowHeight,
   },
-  amountExpressionText: typographyLayout.fieldInputNumber,
-  amountExpressionOperator: typographyLayout.fieldInputNumber,
+  amountExpressionText: {},
+  amountExpressionOperator: {},
   installmentAmountContainer: {
     marginTop: 12,
     padding: 12,
@@ -7203,9 +7199,6 @@ const styles = StyleSheet.create({
   },
   installmentAmountLabel: {
     ...typography.body02.medium,
-  },
-  installmentAmountValue: {
-    ...typographyLayout.uiLineBody01Bold,
   },
   // 정기 지출 날짜 선택 스타일
   recurringDateContainer: {
@@ -7220,9 +7213,6 @@ const styles = StyleSheet.create({
   recurringDateLeft: {
     flex: 1,
   },
-  recurringDateLabel: {
-    ...typographyLayout.uiLineBody01Regular,
-  },
   recurringDateRight: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -7232,12 +7222,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  dayPickerText: {
-    ...typographyLayout.uiLineBody01Regular,
-  },
   // 소비 정보 카드 스타일
   deleteText: {
-    ...typographyLayout.uiLineBody01Regular,
     textDecorationLine: 'underline',
   },
   expenseInfoCard: {
@@ -7280,7 +7266,6 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   prepaymentRefundLabel: {
-    ...typographyLayout.uiLineBody01Regular,
     flexShrink: 1,
   },
   prepaymentRefundActions: {
@@ -7293,7 +7278,6 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
   },
   prepaymentRefundText: {
-    ...typographyLayout.uiLineBody01Regular,
     textDecorationLine: 'underline',
   },
   settlementDropdownMenuContainer: {
@@ -7344,12 +7328,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: 'rgba(0, 0, 0, 0.12)',
   },
-  settlementDropdownMenuLabel: typographyLayout.pickerNavRegular,
-  expenseCategory: typographyLayout.cardTitle,
-  expenseDate: typographyLayout.cardMeta,
-  expenseAmount: typographyLayout.cardTitle,
+  settlementDropdownMenuLabel: {},
+  expenseCategory: {},
+  expenseDate: {},
+  expenseAmount: {},
   expenseMemo: {
-    ...typographyLayout.cardMeta,
     textAlign: 'right',
   },
   deleteConfirmText: {
@@ -7374,12 +7357,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  recurringCategory: {
-    ...typographyLayout.uiLineBody01Bold,
-  },
-  recurringAmount: {
-    ...typographyLayout.uiLineBody01Bold,
-  },
+  recurringCategory: {},
+  recurringAmount: {},
   recurringPeriodRow: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
@@ -7426,12 +7405,8 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 4,
   },
-  deleteOptionTitle: {
-    ...typographyLayout.uiLineBody01Medium,
-  },
-  deleteOptionDescription: {
-    ...typographyLayout.uiLineBody01Regular,
-  },
+  deleteOptionTitle: {},
+  deleteOptionDescription: {},
   deleteOptionDivider: {
     height: 1,
     marginHorizontal: 20,

@@ -80,6 +80,7 @@ const fieldInputTypographyLayout = {
   fieldInputShortLineWrap,
   fieldInputShortLine,
   fieldInputAreaDisplay: {
+    // 의도적으로 paragraph 메트릭 사용 (fieldInput area 설명 텍스트 용도)
     ...typography.body01.regular,
     ...androidTextMetrics(),
   } satisfies TextStyle,
@@ -139,6 +140,7 @@ const dynamicShrinkLayout = {
 
 /** Android 스피너 휠 — paragraph body01 유지 (uiLine 전환 시 lh 변경). */
 const paragraphWheelLayout = {
+  // Android spinner wheel은 paragraph body01을 유지한다 (uiLine 전환 시 lh가 달라짐).
   spinnerWheelRegular: typography.body01.regular,
   spinnerWheelBold: typography.body01.bold,
   pickerWheelIos: createTypographyStyle('pickerWheel', font_weights.regular),
@@ -151,8 +153,10 @@ const sharedTypographyLayout = {
   pickerNavRegular: uiLineTextStyle(typography.pickerNav.regular),
   pickerNavMedium: uiLineTextStyle(typography.pickerNav.medium),
   pickerNavBold: uiLineTextStyle(typography.pickerNav.bold),
+  // 카드 텍스트는 paragraph 메트릭을 의도적으로 유지한다.
   cardTitle: typography.headline04.bold,
   cardMeta: typography.body02.regular,
+  // 이모지 텍스트도 paragraph 메트릭을 직접 사용한다.
   categoryEmojiMedium: typography.categoryEmojiM.regular,
   categoryEmojiLarge: typography.categoryEmojiL.regular,
 } as const satisfies Record<string, TextStyle>;

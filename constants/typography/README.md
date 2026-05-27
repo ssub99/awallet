@@ -51,4 +51,23 @@ Figma 텍스트 스타일(`body01`, `headline01` …)과 코드 API 이름이 �
 <Text style={typographyLayout.pickerNavMedium} />
 ```
 
+## 화면 단순화 권장 (Phase 1+)
+
+- `app/*` 화면은 `typographyLayout`를 직접 고르기보다 UI 프리미티브를 우선 사용합니다.
+- 예: `SectionTitle`(내부 `uiLineBody01Bold`), `UiLineText`(내부 `uiLine*` 매핑)
+- `Button`/`Tab`/`Input`은 이미 내부에서 `typographyLayout`를 처리합니다.
+- 원칙: 화면에서는 role 중심 API, 타이포 엔진(`uiLine`/`fieldInput`) 선택은 컴포넌트 내부로 캡슐화
+
 `typographyScale`, `getPlatformTypographySizes` 등은 내부/동적 축소용입니다. 일반 화면은 `typography` / `typographyLayout`만 사용합니다.
+
+## Guardrail (Phase 5)
+
+- `eslint.config.js`에 `app/**/*.tsx` 전역 규칙을 적용했습니다.
+- 모든 화면에서 `typographyLayout.uiLine*` 직접 접근을 금지합니다.
+- 동일 범위에서 `typographyLayout.fieldInput*` / `pickerNav*` / `card*` 직접 접근도 금지합니다.
+- 권장 경로:
+  - 섹션 타이틀: `SectionTitle`
+  - 한 줄 UI 텍스트: `UiLineText`
+  - 입력 계열: `Input`/`FieldInputText`/`FieldInputLineWrap`
+  - 피커 네비게이션: `PickerNavText`
+  - 카드 텍스트: `CardText` (내부 paragraph 메트릭 유지)

@@ -4,6 +4,10 @@
  */
 
 const ios = {
+  /**
+   * paragraph는 현재 iOS/Android 값이 동일하다.
+   * 향후 플랫폼별 차이가 필요해질 가능성을 고려해 축은 분리 유지한다.
+   */
   paragraph: {
     headline01: { lineHeight: 48 },
     headline02: { lineHeight: 42 },
@@ -32,6 +36,10 @@ const ios = {
 } as const;
 
 const android = {
+  /**
+   * paragraph는 현재 iOS/Android 값이 동일하다.
+   * uiLine/fieldInput처럼 플랫폼별 튜닝이 필요해지면 여기서 분기한다.
+   */
   paragraph: {
     headline01: { lineHeight: 48 },
     headline02: { lineHeight: 42 },

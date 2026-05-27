@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
 import { ModalPopup } from '@/components/ui/modal-popup';
+import { UiLineText } from '@/components/ui/ui-line-text';
 import { type CategoryType } from '@/constants/categories';
 import { colors, typography } from '@/constants/theme';
 import { typographyLayout } from '@/constants/typography';
@@ -553,15 +554,15 @@ export default function CategoryEditScreen() {
             {/* Category Name Input */}
             <View style={styles.inputSection}>
               <View style={styles.inputHeader}>
-                <Text style={[styles.label, { color: colors.light.text }]}>
+                <UiLineText variant="body01Bold" style={[styles.label, { color: colors.light.text }]}>
                   카테고리 이름
-                </Text>
+                </UiLineText>
                 <Pressable
                   onPress={handleDeletePress}
                   accessibilityRole="button"
                   accessibilityLabel="카테고리 삭제"
                 >
-                  <Text style={styles.deleteText}>삭제</Text>
+                  <UiLineText style={styles.deleteText}>삭제</UiLineText>
                 </Pressable>
               </View>
               <Input
@@ -626,14 +627,14 @@ export default function CategoryEditScreen() {
                     accessibilityRole="button"
                     accessibilityLabel={CATEGORY_LABELS[category]}
                   >
-                    <Text 
+                    <UiLineText 
                       style={[
                         styles.categoryListItemText,
                         selectedCategory === category && styles.categoryListItemTextActive,
                       ]}
                     >
                       {CATEGORY_LABELS[category]}
-                    </Text>
+                    </UiLineText>
                   </Pressable>
                 ))}
               </ScrollView>
@@ -762,13 +763,12 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   label: {
-    ...typographyLayout.uiLineBody01Bold,
+    
   },
   input: {
     marginTop: 0,
   },
   deleteText: {
-    ...typographyLayout.uiLineBody01Regular,
     color: '#ef2a2a',
   },
   emojiPickerContent: {
@@ -805,7 +805,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#ededed',
   },
   categoryListItemText: {
-    ...typographyLayout.uiLineBody01Regular,
     color: colors.light.text,
   },
   categoryListItemTextActive: {

@@ -7,8 +7,9 @@
 
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Icon } from '@/components/ui/icon';
+import { UiLineText } from '@/components/ui/ui-line-text';
 import { themeColors } from '@/constants/theme-colors';
-import { typography, typographyLayout } from '@/constants/typography';
+import { typography } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { monthStartEvent } from '@/hooks/use-month-start';
 import {
@@ -367,9 +368,9 @@ export default function MonthStartDayScreen() {
                   accessibilityLabel={`${day}일 선택`}
                   accessibilityState={{ selected: selectedDay === day }}
                 >
-                  <Text style={[styles.dayText, { color: colors.text }]}>
+                  <UiLineText style={[styles.dayText, { color: colors.text }]}>
                     {day}일
-                  </Text>
+                  </UiLineText>
                   
                   {selectedDay === day && (
                     <Icon name="check" size={24} color={colors.primary} />
@@ -416,7 +417,7 @@ const styles = StyleSheet.create({
     minHeight: 56,
   },
   dayText: {
-    ...typographyLayout.uiLineBody01Regular,
+    
   },
   divider: {
     height: 1,

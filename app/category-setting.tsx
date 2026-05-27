@@ -7,10 +7,11 @@
 
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Icon } from '@/components/ui/icon';
+import { UiLineText } from '@/components/ui/ui-line-text';
 import { getCategoriesByType, type CategoryType } from '@/constants/categories';
 import { areCategoriesSame, loadCategories } from '@/utils/categories';
 import { themeColors } from '@/constants/theme-colors';
-import { typography, typographyLayout } from '@/constants/typography';
+import { typography } from '@/constants/typography';
 import {
   applySavedOrder,
   getOrderedCategoriesFromCache,
@@ -76,9 +77,7 @@ const styles = StyleSheet.create({
     width: 21,
     textAlign: 'center',
   },
-  categoryLabel: {
-    ...typographyLayout.uiLineBody01Regular,
-  },
+  categoryLabel: {},
   divider: {
     height: 1,
     marginLeft: 16,
@@ -182,9 +181,9 @@ function CategoryItem({
             >
               <View style={styles.categoryLeft}>
                 <Text style={styles.categoryEmoji}>{item.emoji}</Text>
-                <Text style={[styles.categoryLabel, { color: colors.text }]}>
+                <UiLineText style={[styles.categoryLabel, { color: colors.text }]}>
                   {item.label}
-                </Text>
+                </UiLineText>
               </View>
               <Pressable
                 onPressIn={() => {

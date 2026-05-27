@@ -1,9 +1,10 @@
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Chip } from '@/components/ui/chip';
 import { Icon } from '@/components/ui/icon';
+import { UiLineText } from '@/components/ui/ui-line-text';
 import { Tag } from '@/components/ui/tag';
 import { themeColors } from '@/constants/theme-colors';
-import { typography, typographyLayout } from '@/constants/typography';
+import { typography } from '@/constants/typography';
 import {
     arePaymentSubtypesSame,
     DEFAULT_PAYMENT_SUBTYPES,
@@ -69,7 +70,7 @@ const styles = StyleSheet.create({
   paymentTypeIndicator: { width: 16, height: 16, borderRadius: 99, borderWidth: 1 },
   paymentTypeTextBlock: { flex: 1, marginLeft: 12 },
   paymentTypeTextBlockSingleLine: { justifyContent: 'center' },
-  paymentTypeTitle: { ...typographyLayout.uiLineBody01Regular },
+  paymentTypeTitle: {},
   paymentTypeSubtitle: { ...typography.body02.regular },
   paymentTypeRight: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   divider: { height: 1, marginLeft: 16, marginRight: 16 },
@@ -142,9 +143,9 @@ function PaymentTypeItem({
               <View style={styles.paymentTypeLeft}>
                 <View style={[styles.paymentTypeIndicator, { backgroundColor: item.color, borderColor: colors.border }]} />
                 <View style={[styles.paymentTypeTextBlock, !item.description.trim() && styles.paymentTypeTextBlockSingleLine]}>
-                  <Text style={[styles.paymentTypeTitle, { color: colors.text }]} numberOfLines={1}>
+                  <UiLineText style={[styles.paymentTypeTitle, { color: colors.text }]} numberOfLines={1}>
                     {item.label}
-                  </Text>
+                  </UiLineText>
                   {item.description.trim() ? (
                     <Text style={[styles.paymentTypeSubtitle, { color: colors.textAssistive }]} numberOfLines={1}>
                       {item.description}

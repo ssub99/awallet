@@ -11,8 +11,9 @@ import { Chip } from '@/components/ui/chip';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Icon } from '@/components/ui/icon';
 import { ModalBottomsheet, ModalBottomsheetBottomInset } from '@/components/ui/modal-bottomsheet';
+import { UiLineText } from '@/components/ui/ui-line-text';
 import { CONSUMPTION_REPORT_API_URL } from '@/constants/api';
-import { colors, typography, type ColorPalette, typographyLayout } from '@/constants/theme';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';
 import { useCreateSheetContext } from '@/contexts/create-sheet-context';
 import { useLoading } from '@/contexts/loading-context';
@@ -500,10 +501,14 @@ const MonthSwitcher: React.FC<MonthSwitcherProps> = ({
           accessibilityRole="button"
           accessibilityLabel="년월 선택"
         >
-          <Text style={[styles.periodText, { color: textColor }]}>{dateLabel}</Text>
+          <UiLineText variant="body01Bold" style={[styles.periodText, { color: textColor }]}>
+            {dateLabel}
+          </UiLineText>
         </Pressable>
       ) : (
-        <Text style={[styles.periodText, { color: textColor }]}>{dateLabel}</Text>
+        <UiLineText variant="body01Bold" style={[styles.periodText, { color: textColor }]}>
+          {dateLabel}
+        </UiLineText>
       )}
 
       <Pressable
@@ -2340,14 +2345,15 @@ export default function ChallengeTabScreen() {
                   accessibilityState={{ selected: reportSubTab === 'score' }}
                   accessibilityLabel="소비 리포트"
                 >
-                  <Text
+                  <UiLineText
+                    variant={reportSubTab === 'score' ? 'body01Bold' : 'body01Medium'}
                     style={[
                       reportSubTab === 'score' ? styles.reportSubTabTextActive : styles.reportSubTabTextInactive,
                       { color: reportSubTab === 'score' ? palette.text : palette.textAssistive },
                     ]}
                   >
                     소비 리포트
-                  </Text>
+                  </UiLineText>
                   {reportSubTab === 'score' && (
                     <View style={[styles.reportSubTabIndicator, { backgroundColor: palette.primary }]} />
                   )}
@@ -2359,14 +2365,15 @@ export default function ChallengeTabScreen() {
                   accessibilityState={{ selected: reportSubTab === 'trend' }}
                   accessibilityLabel="소비 현황"
                 >
-                  <Text
+                  <UiLineText
+                    variant={reportSubTab === 'trend' ? 'body01Bold' : 'body01Medium'}
                     style={[
                       reportSubTab === 'trend' ? styles.reportSubTabTextActive : styles.reportSubTabTextInactive,
                       { color: reportSubTab === 'trend' ? palette.text : palette.textAssistive },
                     ]}
                   >
                     소비 현황
-                  </Text>
+                  </UiLineText>
                   {reportSubTab === 'trend' && (
                     <View style={[styles.reportSubTabIndicator, { backgroundColor: palette.primary }]} />
                   )}
@@ -2398,9 +2405,9 @@ export default function ChallengeTabScreen() {
                       accessibilityRole="button"
                       accessibilityLabel="년월 선택"
                     >
-                      <Text style={[styles.reportMonthText, { color: palette.text }]}>
+                      <UiLineText variant="body01Bold" style={[styles.reportMonthText, { color: palette.text }]}>
                         {reportScoreYear}년 {String(reportScoreMonth).padStart(2, '0')}월
-                      </Text>
+                      </UiLineText>
                     </Pressable>
                     <Pressable
                       onPress={handleNextMonth}
@@ -2435,7 +2442,9 @@ export default function ChallengeTabScreen() {
                         <Text style={[styles.reportScoreValue, { color: palette.text }]}>
                           {hasCheckedScore && displayedFqScore != null ? displayedFqScore : '?'}
                         </Text>
-                        <Text style={[styles.reportScoreUnit, { color: palette.text }]}>점</Text>
+                        <UiLineText variant="body01Bold" style={[styles.reportScoreUnit, { color: palette.text }]}>
+                          점
+                        </UiLineText>
                       </View>
                       {scoreMessageLines.map((line, idx) => (
                         <Text
@@ -2606,9 +2615,9 @@ export default function ChallengeTabScreen() {
                       accessibilityRole="button"
                       accessibilityLabel="년월 선택"
                     >
-                      <Text style={[styles.reportMonthText, { color: palette.text }]}>
+                      <UiLineText variant="body01Bold" style={[styles.reportMonthText, { color: palette.text }]}>
                         {reportTrendYear}년 {String(reportTrendMonth).padStart(2, '0')}월
-                      </Text>
+                      </UiLineText>
                     </Pressable>
                     <Pressable
                       onPress={handleNextMonth}
@@ -2702,12 +2711,12 @@ export default function ChallengeTabScreen() {
                           accessibilityLabel={`${item.category} 상세`}
                         >
                           <View style={styles.trendCategorySection}>
-                            <Text style={[styles.trendCategoryName, { color: palette.text }]}>
+                            <UiLineText variant="body01Bold" style={[styles.trendCategoryName, { color: palette.text }]}>
                               {categoryEmojiMap[item.category] || '📝'} {item.category}
-                            </Text>
-                            <Text style={[styles.trendCategoryStats, { color: palette.text }]}>
+                            </UiLineText>
+                            <UiLineText variant="body01Bold" style={[styles.trendCategoryStats, { color: palette.text }]}>
                               {`${item.count}건 · ${item.amount.toLocaleString()}원`}
-                            </Text>
+                            </UiLineText>
                           </View>
                         </Pressable>
                       ))}
@@ -2836,16 +2845,18 @@ export default function ChallengeTabScreen() {
                 >
                   <View style={styles.challengeHeader}>
                     <View style={styles.challengeCategory}>
-                      <Text style={[styles.challengeCategoryName, { color: palette.text }]}>
+                      <UiLineText variant="body01Bold" style={[styles.challengeCategoryName, { color: palette.text }]}>
                         {categoryEmoji || '📝'} {challenge.category}
-                      </Text>
+                      </UiLineText>
                       {status.showProgressComplete && status.bgColor !== 'transparent' && (
                         <View style={[styles.statusBadge, { backgroundColor: status.bgColor }]}>
                           <Text style={[styles.statusText, { color: '#ffffff' }]}>{status.text}</Text>
                         </View>
                       )}
                     </View>
-                    <Text style={[styles.statusLabel, { color: palette.text }]}>{status.rightLabel}</Text>
+                    <UiLineText variant="body01Bold" style={[styles.statusLabel, { color: palette.text }]}>
+                      {status.rightLabel}
+                    </UiLineText>
                   </View>
 
                   <View style={[styles.progressContainer, { backgroundColor: '#E3E3E3' }]}>
@@ -2863,15 +2874,15 @@ export default function ChallengeTabScreen() {
                   <View style={styles.challengeAmounts}>
                     <View style={styles.amountLeft}>
                       <Text style={[styles.amountLabel, { color: palette.textAssistive }]}>현재 소비금액</Text>
-                      <Text style={[styles.amountValue, { color: palette.textNeutral }]}>
+                      <UiLineText variant="body01Bold" style={[styles.amountValue, { color: palette.textNeutral }]}>
                         {status.isBeforeStart ? '0원' : `${currentAmount.toLocaleString()}원`}
-                      </Text>
+                      </UiLineText>
                     </View>
                     <View style={styles.amountRight}>
                       <Text style={[styles.amountLabel, { color: palette.textAssistive }]}>목표 소비금액</Text>
-                      <Text style={[styles.amountValue, { color: palette.textNeutral }]}>
+                      <UiLineText variant="body01Bold" style={[styles.amountValue, { color: palette.textNeutral }]}>
                         {targetAmount.toLocaleString()}원
-                      </Text>
+                      </UiLineText>
                     </View>
                   </View>
                 </Pressable>
@@ -2921,7 +2932,7 @@ export default function ChallengeTabScreen() {
                         >
                           {item.type === 'cash' ? (
                             <View style={styles.trendPaymentFilterEmojiWrap}>
-                              <Text style={styles.trendPaymentFilterCashEmoji}>💰</Text>
+                              <UiLineText style={styles.trendPaymentFilterCashEmoji}>💰</UiLineText>
                             </View>
                           ) : (
                             <View
@@ -2937,9 +2948,9 @@ export default function ChallengeTabScreen() {
                               !item.description.trim() && styles.trendPaymentFilterTextBlockSingleLine,
                             ]}
                           >
-                            <Text style={[styles.trendPaymentFilterTitle, { color: palette.text }]} numberOfLines={1}>
+                            <UiLineText style={[styles.trendPaymentFilterTitle, { color: palette.text }]} numberOfLines={1}>
                               {item.label}
-                            </Text>
+                            </UiLineText>
                             {item.description.trim() ? (
                               <Text
                                 style={[styles.trendPaymentFilterSubtitle, { color: palette.textAssistive }]}
@@ -3068,7 +3079,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   periodText: {
-    ...typographyLayout.uiLineBody01Bold,
     textAlign: 'center',
   },
   monthArrowButton: {
@@ -3124,10 +3134,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   reportSubTabTextActive: {
-    ...typographyLayout.uiLineBody01Bold,
+    
   },
   reportSubTabTextInactive: {
-    ...typographyLayout.uiLineBody01Medium,
+    
   },
   reportSubTabIndicator: {
     position: 'absolute',
@@ -3196,7 +3206,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   reportMonthText: {
-    ...typographyLayout.uiLineBody01Bold,
+    
   },
   reportScoreCard: {
     width: '100%',
@@ -3223,7 +3233,6 @@ const styles = StyleSheet.create({
     ...typography.headline01.bold,
   },
   reportScoreUnit: {
-    ...typographyLayout.uiLineBody01Bold,
     marginLeft: 4,
   },
   reportScoreMessage: {
@@ -3343,11 +3352,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   trendCategoryName: {
-    ...typographyLayout.uiLineBody01Bold,
     flex: 1,
   },
   trendCategoryStats: {
-    ...typographyLayout.uiLineBody01Bold,
+    
   },
   challengeList: {
     paddingHorizontal: 16,
@@ -3371,7 +3379,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   challengeCategoryName: {
-    ...typographyLayout.uiLineBody01Bold,
+    
   },
   statusBadge: {
     borderRadius: 4,
@@ -3382,7 +3390,7 @@ const styles = StyleSheet.create({
     ...typography.detail.bold,
   },
   statusLabel: {
-    ...typographyLayout.uiLineBody01Bold,
+    
   },
   progressContainer: {
     height: 10,
@@ -3410,7 +3418,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   amountValue: {
-    ...typographyLayout.uiLineBody01Bold,
+    
   },
   trendPaymentFilterSheetContent: {
     padding: 0,
@@ -3448,7 +3456,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   trendPaymentFilterCashEmoji: {
-    ...typographyLayout.uiLineBody01Regular,
+    
   },
   trendPaymentFilterEmojiWrap: {
     width: 16,
@@ -3468,7 +3476,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   trendPaymentFilterTitle: {
-    ...typographyLayout.uiLineBody01Regular,
+    
   },
   trendPaymentFilterSubtitle: {
     ...typography.body02.regular,

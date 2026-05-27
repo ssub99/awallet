@@ -5,8 +5,10 @@
 
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Icon } from '@/components/ui/icon';
+import { SectionTitle } from '@/components/ui/section-title';
+import { UiLineText } from '@/components/ui/ui-line-text';
 import { themeColors } from '@/constants/theme-colors';
-import { typography, typographyLayout } from '@/constants/typography';
+import { typography } from '@/constants/typography';
 import { useAppData } from '@/contexts/app-data-context';
 import { useLoading } from '@/contexts/loading-context';
 import { useToast } from '@/contexts/toast-context';
@@ -290,9 +292,9 @@ export default function DataBackupScreen() {
           <View style={styles.backupNoticeGroup}>
             {/* Section: 백업/복원 */}
             <View style={styles.sectionBlock}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              <SectionTitle style={[styles.sectionTitleSpacing, { color: colors.text }]}>
                 백업/복원
-              </Text>
+              </SectionTitle>
               <View style={[styles.card, { backgroundColor: colors.background }]}>
                 <Pressable
                   style={styles.menuRow}
@@ -300,9 +302,9 @@ export default function DataBackupScreen() {
                   accessibilityRole="button"
                   accessibilityLabel="데이터 백업하기 전용파일"
                 >
-                  <Text style={[styles.menuLabel, { color: colors.text }]}>
+                  <UiLineText style={[styles.menuLabel, { color: colors.text }]}>
                     데이터 백업하기(전용파일)
-                  </Text>
+                  </UiLineText>
                   <Icon name="arrowRight" size={24} color={colors.text} />
                 </Pressable>
                 <View style={[styles.divider, { backgroundColor: colors.border }]} />
@@ -312,9 +314,9 @@ export default function DataBackupScreen() {
                   accessibilityRole="button"
                   accessibilityLabel="데이터 백업하기 엑셀파일"
                 >
-                  <Text style={[styles.menuLabel, { color: colors.text }]}>
+                  <UiLineText style={[styles.menuLabel, { color: colors.text }]}>
                     데이터 백업하기(엑셀파일)
-                  </Text>
+                  </UiLineText>
                   <Icon name="arrowRight" size={24} color={colors.text} />
                 </Pressable>
                 <View style={[styles.divider, { backgroundColor: colors.border }]} />
@@ -324,9 +326,9 @@ export default function DataBackupScreen() {
                   accessibilityRole="button"
                   accessibilityLabel="데이터 복원하기"
                 >
-                  <Text style={[styles.menuLabel, { color: colors.text }]}>
+                  <UiLineText style={[styles.menuLabel, { color: colors.text }]}>
                     데이터 복원하기
-                  </Text>
+                  </UiLineText>
                   <Icon name="arrowRight" size={24} color={colors.text} />
                 </Pressable>
               </View>
@@ -357,7 +359,7 @@ export default function DataBackupScreen() {
 
           {/* Section: 기타 */}
           <View style={styles.sectionBlock}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>기타</Text>
+            <SectionTitle style={[styles.sectionTitleSpacing, { color: colors.text }]}>기타</SectionTitle>
             <View style={[styles.card, { backgroundColor: colors.background }]}>
               <Pressable
                 style={styles.menuRow}
@@ -365,9 +367,9 @@ export default function DataBackupScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="전체 초기화"
               >
-                <Text style={[styles.menuLabel, { color: colors.text }]}>
+                <UiLineText style={[styles.menuLabel, { color: colors.text }]}>
                   전체 초기화
-                </Text>
+                </UiLineText>
                 <Icon name="arrowRight" size={24} color={colors.text} />
               </Pressable>
             </View>
@@ -409,8 +411,7 @@ const styles = StyleSheet.create({
   sectionBlock: {
     gap: 0,
   },
-  sectionTitle: {
-    ...typographyLayout.uiLineBody01Bold,
+  sectionTitleSpacing: {
     marginBottom: 8,
   },
   card: {
@@ -425,9 +426,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     minHeight: 56,
   },
-  menuLabel: {
-    ...typographyLayout.uiLineBody01Regular,
-  },
+  menuLabel: {},
   divider: {
     height: 1,
     marginHorizontal: 16,

@@ -8,7 +8,8 @@ import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Icon } from '@/components/ui/icon';
 import { ModalBottomsheet, ModalBottomsheetBottomInset } from '@/components/ui/modal-bottomsheet';
 import { Tag } from '@/components/ui/tag';
-import { colors, typography, type ColorPalette, typographyLayout } from '@/constants/theme';
+import { UiLineText } from '@/components/ui/ui-line-text';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';
 import {
   publishCalendarTarget,
@@ -1144,7 +1145,7 @@ export default function MonthlyExpenseTimelineScreen() {
       {/* Month Summary - 고정 (애니메이션 제외, Apr 18과 동일) */}
       <View>
         <View style={[styles.summaryContainer, { backgroundColor: palette.background }]}>
-          <Text style={[styles.summaryMonth, { color: palette.staticBlack }]}>
+          <UiLineText variant="body01Bold" style={[styles.summaryMonth, { color: palette.staticBlack }]}>
             {(() => {
               const { startDate, endDate } = getCustomMonthRange(
                 headerYear,
@@ -1157,31 +1158,33 @@ export default function MonthlyExpenseTimelineScreen() {
               const endDay = String(endDate.getDate()).padStart(2, '0');
               return `${startMonth}.${startDay} - ${endMonth}.${endDay}`;
             })()}
-          </Text>
+          </UiLineText>
           
           <View style={styles.summaryAmounts}>
             <View style={styles.summaryIncomeContainer}>
-              <Text 
+              <UiLineText
+                variant="body01Bold"
                 style={[styles.summaryIncome, { color: palette.text }]}
                 adjustsFontSizeToFit
                 numberOfLines={1}
                 minimumFontScale={0.7}
               >
                 + {monthlyTotals.income.toLocaleString()}원
-              </Text>
+              </UiLineText>
             </View>
             
             <View style={[styles.summaryDivider, { backgroundColor: palette.border }]} />
             
             <View style={styles.summaryExpenseContainer}>
-              <Text 
+              <UiLineText
+                variant="body01Bold"
                 style={[styles.summaryExpense, { color: palette.text }]}
                 adjustsFontSizeToFit
                 numberOfLines={1}
                 minimumFontScale={0.7}
               >
                 - {monthlyTotals.expense.toLocaleString()}원
-              </Text>
+              </UiLineText>
             </View>
           </View>
         </View>
@@ -1589,19 +1592,19 @@ export default function MonthlyExpenseTimelineScreen() {
                     >
                       {item.type === 'cash' ? (
                         <View style={styles.paymentFilterEmojiWrap}>
-                          <Text style={styles.paymentFilterCashEmoji}>💰</Text>
+                          <UiLineText style={styles.paymentFilterCashEmoji}>💰</UiLineText>
                         </View>
                       ) : item.type === 'income' ? (
                         <View style={styles.paymentFilterEmojiWrap}>
-                          <Text style={styles.paymentFilterCashEmoji}>💵</Text>
+                          <UiLineText style={styles.paymentFilterCashEmoji}>💵</UiLineText>
                         </View>
                       ) : (
                         <View style={[styles.paymentFilterIndicator, { backgroundColor: item.color, borderColor: palette.border }]} />
                       )}
                       <View style={[styles.paymentFilterTextBlock, !item.description.trim() && styles.paymentFilterTextBlockSingleLine]}>
-                        <Text style={[styles.paymentFilterTitle, { color: palette.text }]} numberOfLines={1}>
+                        <UiLineText style={[styles.paymentFilterTitle, { color: palette.text }]} numberOfLines={1}>
                           {item.label}
-                        </Text>
+                        </UiLineText>
                         {item.description.trim() ? (
                           <Text style={[styles.paymentFilterSubtitle, { color: palette.textAssistive }]} numberOfLines={1}>
                             {item.description}
@@ -1707,7 +1710,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   summaryMonth: {
-    ...typographyLayout.uiLineBody01Bold,
+    
   },
   summaryAmounts: {
     flexDirection: 'row',
@@ -1721,7 +1724,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   summaryIncome: {
-    ...typographyLayout.uiLineBody01Bold,
+    
   },
   summaryDivider: {
     width: 1,
@@ -1732,7 +1735,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   summaryExpense: {
-    ...typographyLayout.uiLineBody01Bold,
+    
   },
   summaryBottomDivider: {
     height: 1,
@@ -1861,11 +1864,11 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   categoryName: {
-    ...typographyLayout.uiLineBody01Bold,
+    
     flex: 1,
   },
   categoryStatsText: {
-    ...typographyLayout.uiLineBody01Bold,
+    
   },
   categorySeparator: {
     height: 1,
@@ -1908,7 +1911,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   challengeCategoryName: {
-    ...typographyLayout.uiLineBody01Bold,
+    
   },
   challengeStatus: {
     flexDirection: 'row',
@@ -1924,7 +1927,7 @@ const styles = StyleSheet.create({
     ...typography.detail.bold,
   },
   statusLabel: {
-    ...typographyLayout.uiLineBody01Bold,
+    
   },
   progressContainer: {
     height: 10,
@@ -1952,7 +1955,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   amountValue: {
-    ...typographyLayout.uiLineBody01Bold,
+    
   },
   paymentFilterSheetContent: {
     padding: 0,
@@ -1989,7 +1992,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   paymentFilterCashEmoji: {
-    ...typographyLayout.uiLineBody01Regular,
+    
   },
   paymentFilterEmojiWrap: {
     width: 16,
@@ -2008,7 +2011,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   paymentFilterTitle: {
-    ...typographyLayout.uiLineBody01Regular,
+    
   },
   paymentFilterSubtitle: {
     ...typography.body02.regular,

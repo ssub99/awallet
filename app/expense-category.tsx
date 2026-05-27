@@ -6,8 +6,9 @@
 
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Icon } from '@/components/ui/icon';
+import { UiLineText } from '@/components/ui/ui-line-text';
 import { getCategoriesByType, type Category } from '@/constants/categories';
-import { colors, typography, type ColorPalette, typographyLayout } from '@/constants/theme';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useToast } from '@/contexts/toast-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { logEvent } from '@/utils/analytics';
@@ -289,9 +290,9 @@ export default function ExpenseCategoryScreen() {
                 >
                   <View style={styles.categoryContent}>
                     <Text style={styles.categoryEmoji}>{category.emoji}</Text>
-                    <Text style={[styles.categoryLabel, { color: palette.text }]}>
+                    <UiLineText style={[styles.categoryLabel, { color: palette.text }]}>
                       {category.label}
-                    </Text>
+                    </UiLineText>
                   </View>
                   
                   {selectedCategory === category.label && (
@@ -351,7 +352,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   categoryLabel: {
-    ...typographyLayout.uiLineBody01Regular,
+    
   },
   checkIcon: {
     width: 24,

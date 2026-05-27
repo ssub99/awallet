@@ -20,7 +20,8 @@ import { Selectbox } from '@/components/ui/selectbox';
 import { Switch } from '@/components/ui/switch';
 import { Tab } from '@/components/ui/tab';
 import { Tag } from '@/components/ui/tag';
-import { colors, typography, type ColorPalette, typographyLayout } from '@/constants/theme';
+import { UiLineText } from '@/components/ui/ui-line-text';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
@@ -357,9 +358,9 @@ function TestContent({ colors }: { colors: ColorPalette }) {
       <View style={[styles.devModeContainer, { backgroundColor: colors.fill }]}>
         {/* Developer Mode Toggle */}
         <View style={styles.devModeSwitchRow}>
-          <Text style={[styles.switchLabel, { color: colors.text }]}>
+          <UiLineText style={[styles.switchLabel, { color: colors.text }]}>
             개발자 모드
-          </Text>
+          </UiLineText>
           <Switch value={devMode} onValueChange={setDevMode} />
         </View>
       </View>
@@ -2798,7 +2799,7 @@ const styles = StyleSheet.create({
     ...typography.body02.regular,
   },
   switchLabel: {
-    ...typographyLayout.uiLineBody01Regular,
+    
   },
   // Developer Mode Container
   devModeContainer: {

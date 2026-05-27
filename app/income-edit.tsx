@@ -8,13 +8,15 @@ import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Button } from '@/components/ui/button';
 import { CustomKeypad, getKeypadHeight, type CustomKeypadOperator, type ExpressionToken } from '@/components/ui/custom-keypad';
 import { CustomKeypadOverlay, getCustomKeypadScrollPaddingBottom } from '@/components/ui/custom-keypad-overlay';
+import { FieldInputText } from '@/components/ui/field-input-text';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { RecordDatePickerHost } from '@/components/ui/record-date-picker-sheet';
+import { SectionTitle } from '@/components/ui/section-title';
+import { UiLineText } from '@/components/ui/ui-line-text';
 import { ModalPopup } from '@/components/ui/modal-popup';
 import { atomicColors } from '@/constants/atomic-colors';
 import { colors, typography, type ColorPalette } from '@/constants/theme';
-import { typographyLayout } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
 import { useAndroidKeypadBackDismiss } from '@/hooks/use-android-keypad-back-dismiss';
 import { useRecordFormMemoKeyboard } from '@/hooks/use-record-form-memo-keyboard';
@@ -343,9 +345,9 @@ export default function IncomeEditScreen() {
         {tokensToRender.map((token, index) => {
           if (token.type === 'number') {
             return (
-              <Text key={`num-${index}`} style={[styles.amountExpressionText, { color: palette.text }]}>
+              <FieldInputText variant="number" key={`num-${index}`} style={[styles.amountExpressionText, { color: palette.text }]}>
                 {formatAmountDisplay(token.value)}
-              </Text>
+              </FieldInputText>
             );
           }
 
@@ -353,13 +355,14 @@ export default function IncomeEditScreen() {
           if (!symbol) return null;
 
           return (
-            <Text
+            <FieldInputText
+              variant="number"
               key={`op-${index}`}
               style={[styles.amountExpressionOperator, { color: palette.textNeutral }]}
               accessibilityLabel="연산자"
             >
               {symbol}
-            </Text>
+            </FieldInputText>
           );
         })}
       </ScrollView>
@@ -831,9 +834,9 @@ export default function IncomeEditScreen() {
         >
           {/* 카테고리 */}
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: palette.staticBlack }]}>
+            <SectionTitle style={[styles.sectionTitle, { color: palette.staticBlack }]}>
               카테고리 <Text style={{ color: palette.statusNegative }}>*</Text>
-            </Text>
+            </SectionTitle>
             <Input
               value={categoryDisplay}
               placeholder="카테고리 선택"
@@ -846,27 +849,27 @@ export default function IncomeEditScreen() {
           {/* 날짜 */}
           <View style={styles.section}>
             <View style={styles.dateHeader}>
-              <Text style={[styles.sectionTitle, { color: palette.staticBlack }]}>
+              <SectionTitle style={[styles.sectionTitle, { color: palette.staticBlack }]}>
                 날짜 <Text style={{ color: palette.statusNegative }}>*</Text>
-              </Text>
+              </SectionTitle>
               <Pressable onPress={handleDeleteButtonPress}>
-                <Text style={[styles.deleteButton, { color: palette.statusNegative }]}> 
+                <UiLineText style={[styles.deleteButton, { color: palette.statusNegative }]}>
                   삭제
-                </Text>
+                </UiLineText>
               </Pressable>
             </View>
             <Pressable onPress={handleDatePress}>
               <View style={[styles.card, { backgroundColor: palette.staticWhite }]}>
                 <View style={styles.dateRow}>
                   <Icon name="calendarMonth" variant="line" size={24} color={palette.text} />
-                  <Text style={[styles.dateText, { color: palette.text }]}>
+                  <UiLineText style={[styles.dateText, { color: palette.text }]}>
                     {(() => {
                       if (!date) return '';
                       const [year, month, day] = date.split('.').map(d => parseInt(d, 10));
                       const dayOfWeek = getDayOfWeekLabel(year, month, day);
                       return `${date}(${dayOfWeek})`;
                     })()}
-                  </Text>
+                  </UiLineText>
                 </View>
               </View>
             </Pressable>
@@ -880,9 +883,9 @@ export default function IncomeEditScreen() {
               setAmountSectionY(layout.y);
             }}
           >
-            <Text style={[styles.sectionTitle, { color: palette.staticBlack }]}>
+            <SectionTitle style={[styles.sectionTitle, { color: palette.staticBlack }]}>
               금액 <Text style={{ color: palette.statusNegative }}>*</Text>
-            </Text>
+            </SectionTitle>
             <Input
               variant="line"
               inputType="number"
@@ -908,9 +911,9 @@ export default function IncomeEditScreen() {
               memoSectionHeightRef.current = layout.height;
             }}
           >
-            <Text style={[styles.sectionTitle, { color: palette.staticBlack }]}>
+            <SectionTitle style={[styles.sectionTitle, { color: palette.staticBlack }]}>
               메모
-            </Text>
+            </SectionTitle>
             <Input
               ref={memoInputRef}
               variant="area"
@@ -1066,14 +1069,13 @@ const styles = StyleSheet.create({
     paddingTop: 24,
     gap: 8,
   },
-  sectionTitle: typographyLayout.uiLineBody01Bold,
+  sectionTitle: {},
   dateHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
   deleteButton: {
-    ...typographyLayout.uiLineBody01Regular,
     textDecorationLine: 'underline',
   },
   card: {
@@ -1088,9 +1090,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     gap: 8,
   },
-  dateText: {
-    ...typographyLayout.uiLineBody01Regular,
-  },
+  dateText: {},
   bottomButtonContainer: {
     paddingHorizontal: 16,
     paddingTop: 16,
@@ -1106,6 +1106,6 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     gap: 6,
   },
-  amountExpressionText: typographyLayout.fieldInputNumber,
-  amountExpressionOperator: typographyLayout.fieldInputNumber,
+  amountExpressionText: {},
+  amountExpressionOperator: {},
 });

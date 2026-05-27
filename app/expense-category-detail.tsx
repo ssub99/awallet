@@ -6,7 +6,8 @@
 
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Tag } from '@/components/ui/tag';
-import { colors, typography, type ColorPalette, typographyLayout } from '@/constants/theme';
+import { UiLineText } from '@/components/ui/ui-line-text';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';
 import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -255,25 +256,25 @@ export default function ExpenseCategoryDetailScreen() {
               <Text style={[styles.statLabel, { color: palette.textAssistive }]}>
                 {monthLabel} 소비건수
               </Text>
-              <Text style={[styles.statValue, { color: palette.text }]}>
+              <UiLineText variant="body01Bold" style={[styles.statValue, { color: palette.text }]}>
                 {categoryStats.count}건
-              </Text>
+              </UiLineText>
             </View>
             <View style={styles.statRow}>
               <Text style={[styles.statLabel, { color: palette.textAssistive }]}>
                 {monthLabel} 소비합계
               </Text>
-              <Text style={[styles.statValue, { color: palette.text }]}>
+              <UiLineText variant="body01Bold" style={[styles.statValue, { color: palette.text }]}>
                 {categoryStats.totalAmount.toLocaleString()}원
-              </Text>
+              </UiLineText>
             </View>
             <View style={styles.statRow}>
               <Text style={[styles.statLabel, { color: palette.textAssistive }]}>
                 소비 기간
               </Text>
-              <Text style={[styles.statValue, { color: palette.text }]}>
+              <UiLineText variant="body01Bold" style={[styles.statValue, { color: palette.text }]}>
                 {categoryStats.period}
-              </Text>
+              </UiLineText>
             </View>
           </View>
         </View>
@@ -434,7 +435,7 @@ const styles = StyleSheet.create({
     ...typography.body02.medium,
   },
   statValue: {
-    ...typographyLayout.uiLineBody01Bold,
+    
   },
   emptyContainer: {
     flex: 1,

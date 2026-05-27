@@ -9,6 +9,7 @@ import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
+import { UiLineText } from '@/components/ui/ui-line-text';
 import { type CategoryType } from '@/constants/categories';
 import { colors, typography } from '@/constants/theme';
 import { typographyLayout } from '@/constants/typography';
@@ -359,9 +360,9 @@ export default function CategoryCreateScreen() {
             
             {/* Category Name Input */}
             <View style={styles.inputSection}>
-              <Text style={[styles.label, { color: palette.text }]}>
+              <UiLineText variant="body01Bold" style={[styles.label, { color: palette.text }]}>
                 카테고리 이름
-              </Text>
+              </UiLineText>
               <Input
                 ref={categoryNameInputRef}
                 value={categoryName}
@@ -424,14 +425,14 @@ export default function CategoryCreateScreen() {
                     accessibilityRole="button"
                     accessibilityLabel={CATEGORY_LABELS[category]}
                   >
-                    <Text 
+                    <UiLineText 
                       style={[
                         styles.categoryListItemText,
                         selectedCategory === category && styles.categoryListItemTextActive,
                       ]}
                     >
                       {CATEGORY_LABELS[category]}
-                    </Text>
+                    </UiLineText>
                   </Pressable>
                 ))}
               </ScrollView>
@@ -530,7 +531,6 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   label: {
-    ...typographyLayout.uiLineBody01Bold,
     marginBottom: 8,
   },
   input: {
@@ -574,7 +574,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#ededed',
   },
   categoryListItemText: {
-    ...typographyLayout.uiLineBody01Regular,
     color: colors.light.text,
   },
   categoryListItemTextActive: {

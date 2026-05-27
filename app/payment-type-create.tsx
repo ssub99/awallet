@@ -2,8 +2,9 @@ import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Radio } from '@/components/ui/radio';
+import { UiLineText } from '@/components/ui/ui-line-text';
 import { atomicColors } from '@/constants/atomic-colors';
-import { colors, typography, typographyLayout } from '@/constants/theme';
+import { colors, typography } from '@/constants/theme';
 import { useToast } from '@/contexts/toast-context';
 import { loadPaymentSubtypes, savePaymentSubtypes } from '@/utils/payment-types';
 import {
@@ -287,12 +288,12 @@ export default function PaymentTypeCreateScreen() {
             </View>
 
             <View style={styles.section}>
-              <Text style={[styles.label, { color: palette.text }]}>
+              <UiLineText variant="body01Bold" style={[styles.label, { color: palette.text }]}>
                 결제 유형 이름{' '}
                 <Text style={{ color: palette.statusNegative }} accessibilityLabel="필수">
                   *
                 </Text>
-              </Text>
+              </UiLineText>
               <Input
                 value={label}
                 onChangeText={setLabel}
@@ -303,12 +304,12 @@ export default function PaymentTypeCreateScreen() {
             </View>
 
             <View style={styles.section}>
-              <Text style={[styles.label, { color: palette.text }]}>
+              <UiLineText variant="body01Bold" style={[styles.label, { color: palette.text }]}>
                 결제 유형{' '}
                 <Text style={{ color: palette.statusNegative }} accessibilityLabel="필수">
                   *
                 </Text>
-              </Text>
+              </UiLineText>
               <View style={styles.radioRow}>
                 <View style={styles.radioCol}>
                   <Radio
@@ -335,7 +336,7 @@ export default function PaymentTypeCreateScreen() {
                 descriptionSectionHeightRef.current = layout.height;
               }}
             >
-              <Text style={[styles.label, { color: palette.text }]}>설명</Text>
+              <UiLineText variant="body01Bold" style={[styles.label, { color: palette.text }]}>설명</UiLineText>
               <Input
                 ref={descriptionInputRef}
                 variant="area"
@@ -427,7 +428,7 @@ const styles = StyleSheet.create({
     marginBottom: 32,
     gap: 8,
   },
-  label: { ...typographyLayout.uiLineBody01Bold },
+  label: {},
   radioRow: { flexDirection: 'row', alignItems: 'center' },
   radioCol: { flex: 1, alignItems: 'flex-start' },
 });
