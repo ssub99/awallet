@@ -1,8 +1,127 @@
-import type { TextStyle } from 'react-native';
+/**
+ * UI 맥락별 타이포 프리셋 — Input(fieldInput) · singleRow · paragraph.
+ * OS 분기는 merge.ts 및 본 파일 Input 블록에서만.
+ */
 
-import { inputSectionTitleText, inputTypographyLayout } from './layout-input';
-import { createTypographyStyle, singleRowCenteredTextStyle } from './merge';
+import { Platform, type TextStyle, type ViewStyle } from 'react-native';
+
+import { pretendardTextStyle } from '@/constants/fonts';
+
+import {
+  androidTextMetrics,
+  createTypographyStyle,
+  getFieldInputLineHeight,
+  getPlatformTypographySizes,
+  singleRowCenteredTextStyle,
+  typographyLayoutFieldAreaInputHeight,
+  typographyLayoutFieldLineRowHeight,
+  typographyLayoutFieldLineShortMinHeight,
+} from './merge';
 import { typography } from './typography-tree';
+
+// --- Input field (48px line, 96px area) ------------------------------------
+
+const body01FontSize = getPlatformTypographySizes('body01').fontSize;
+
+const fieldLineTextMetrics: Pick<TextStyle, 'includeFontPadding'> = {
+  includeFontPadding: false,
+};
+
+const fieldLineSingleLineBase = singleRowCenteredTextStyle(typography.body1.l.regular);
+const fieldLineSingleLineBoldBase = singleRowCenteredTextStyle(typography.body1.l.bold);
+
+/**
+ * iOS line TextInput
+ * - fieldLineWrap 24px: Figma 콘텐츠 행(레이아웃 박스), flex로 자식 세로 중앙
+ * - lineHeight 20: UITextField 글리프 메트릭(lh 24와 동일하면 행이 꽉 차 하단 쏠림)
+ */
+const iosFieldLineInputStyle: TextStyle = {
+  ...pretendardTextStyle('400'),
+  fontSize: body01FontSize,
+  lineHeight: getFieldInputLineHeight('line'),
+  padding: 0,
+  margin: 0,
+  flex: 1,
+  alignSelf: 'stretch',
+  includeFontPadding: false,
+  textAlignVertical: 'center',
+};
+
+const fieldLineSingleLine: TextStyle = {
+  ...fieldLineSingleLineBase,
+  ...fieldLineTextMetrics,
+};
+
+const fieldLineSingleLineBold: TextStyle = {
+  ...fieldLineSingleLineBoldBase,
+  ...fieldLineTextMetrics,
+};
+
+const fieldLineRowText: TextStyle = fieldLineSingleLine;
+
+const fieldLineRowTextWrap: ViewStyle = {
+  height: typographyLayoutFieldLineRowHeight,
+  justifyContent: 'center',
+};
+
+const fieldLineRowTextShortWrap: ViewStyle = {
+  height: typographyLayoutFieldLineShortMinHeight,
+  justifyContent: 'center',
+};
+
+const inputTypographyLayout = {
+  fieldLine: fieldLineRowText,
+  fieldLineWrap: fieldLineRowTextWrap,
+  fieldLineShortWrap: fieldLineRowTextShortWrap,
+  fieldLineShort: {
+    ...singleRowCenteredTextStyle(typography.body2.r.regular),
+    ...fieldLineTextMetrics,
+  } satisfies TextStyle,
+  fieldArea: {
+    ...typography.body1.l.regular,
+    ...androidTextMetrics(),
+  } satisfies TextStyle,
+  fieldLinePlaceholder: fieldLineSingleLine,
+  fieldLineInput: Platform.select({
+    ios: iosFieldLineInputStyle,
+    default: {
+      ...fieldLineSingleLine,
+      flex: 1,
+      padding: 0,
+      margin: 0,
+      textAlignVertical: 'center' as const,
+      height: typographyLayoutFieldLineRowHeight,
+      includeFontPadding: false,
+    },
+  }) as TextStyle,
+  fieldLineShortInput: {
+    ...singleRowCenteredTextStyle(typography.body2.r.regular),
+    flex: 1,
+    padding: 0,
+    margin: 0,
+    textAlignVertical: 'center' as const,
+    height: typographyLayoutFieldLineShortMinHeight,
+    includeFontPadding: false,
+  } satisfies TextStyle,
+  fieldAreaInput: {
+    ...pretendardTextStyle('400'),
+    fontSize: body01FontSize,
+    lineHeight: getFieldInputLineHeight('area'),
+    ...androidTextMetrics(),
+    flex: 1,
+    padding: 0,
+    margin: 0,
+    height: typographyLayoutFieldAreaInputHeight,
+    textAlignVertical: 'top' as const,
+    paddingTop: 0,
+  } satisfies TextStyle,
+  fieldNumber: {
+    ...fieldLineSingleLineBold,
+    textAlign: 'right' as const,
+  } satisfies TextStyle,
+} as const;
+
+// --- Component singleRow · paragraph presets --------------------------------
 
 /** 동일 singleRow 메트릭 — 컴포넌트별 키는 의미 유지, 값은 alias */
 const rowBody1Medium = singleRowCenteredTextStyle(typography.body1.l.medium);
@@ -11,7 +130,6 @@ const rowButton2Medium = singleRowCenteredTextStyle(typography.button2.r.medium)
 
 /**
  * UI 컴포넌트별 singleRow 프리셋 — components/ui/* StyleSheet에서만 참조.
- * (scale 이름 rowBody1 대신 실제 컴포넌트·용도 기준)
  */
 const componentSingleRowLayout = {
   buttonTextLarge: singleRowCenteredTextStyle(typography.button1.l.medium),
@@ -38,24 +156,18 @@ const componentSingleRowLayout = {
   fieldLineMedium: rowBody1Medium,
 } as const satisfies Record<string, TextStyle>;
 
-/**
- * 가로 맞춤 축소 — base는 typographyLayout, 소비처에서 scaleTextStyleFontSize만 적용.
- */
+/** 가로 맞춤 축소 — 소비처에서 scaleTextStyleFontSize만 적용 */
 const dynamicShrinkLayout = {
-  /** 홈 월 현황 금액 (sectionTitle과 동일 singleRow body01 bold) */
   monthStatusAmount: singleRowCenteredTextStyle(typography.body1.l.bold),
-  /** 캘린더 셀 지출·수입 금액 (paragraph tiny) */
   calendarAmount: typography.tiny.r.regular,
 } as const satisfies Record<string, TextStyle>;
 
 /**
- * Android 스피너 휠(48px) — paragraph body01 유지.
- * singleRowCenteredTextStyle 적용 시 Android lineHeight가 바뀌므로 분리.
+ * Android 스피너 휠 — paragraph body01 유지 (singleRow 전환 시 lh 변경).
  */
 const paragraphWheelLayout = {
   spinnerWheelItemRegular: typography.body1.l.regular,
   spinnerWheelItemBold: typography.body1.l.bold,
-  /** iOS UIPicker wheel — paragraph pickerWheel (색은 컴포넌트에서 palette로 덮음) */
   pickerWheelItemIos: createTypographyStyle('pickerWheel', '400'),
 } as const satisfies Record<string, TextStyle>;
 
@@ -68,14 +180,11 @@ const sharedTypographyLayout = {
   pickerNavBold: singleRowCenteredTextStyle(typography.pickerNav.nav.bold),
   infoCardTitle: typography.headline4.r.bold,
   infoCardMeta: typography.body2.r.regular,
-  sectionTitle: inputSectionTitleText,
+  sectionTitle: fieldLineSingleLineBold,
   categoryEmojiMedium: typography.categoryEmoji.m.regular,
   categoryEmojiLarge: typography.categoryEmoji.l.regular,
 } as const satisfies Record<string, TextStyle>;
 
-/**
- * UI 맥락별 타이포 프리셋 (OS 분기는 merge · layout-input에서만).
- */
 export const typographyLayout = {
   ...inputTypographyLayout,
   ...sharedTypographyLayout,
