@@ -10,7 +10,7 @@ description: Expo Router navigation and routing patterns
 ### Directory Structure (DO NOT CHANGE):
 ```
 app/
-  _layout.tsx           → Root layout
+  _layout.tsx           → Root layout (all platforms)
   (tabs)/               → Tab group
     _layout.tsx         → Tab navigator layout
     explore.tsx         → /explore route

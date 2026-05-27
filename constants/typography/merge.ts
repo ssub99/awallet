@@ -115,6 +115,21 @@ export function createTypographyStyle(scale: TypographyScaleKey, weight: Pretend
   };
 }
 
+/** fieldInput TextStyle (입력용 font family/weight + 플랫폼 lineHeight) */
+export function createFieldInputTypographyStyle(
+  variant: 'line' | 'area',
+  weight: PretendardWeight = '400',
+  scaleKey: 'body01' = 'body01',
+): TextStyle {
+  const { fontSize } = getPlatformTypographySizes(scaleKey);
+  return {
+    ...pretendardTextStyle(weight),
+    fontSize,
+    lineHeight: getFieldInputLineHeight(variant, scaleKey),
+    ...androidTextMetrics(),
+  };
+}
+
 /** TextStyle에서 fontSize/lineHeight 추출 — 미지정 시 body01 paragraph(플랫폼) */
 export function resolveTextStyleMetrics(textStyle: TextStyle) {
   const fallback = getPlatformTypographySizes('body01');

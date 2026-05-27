@@ -5,13 +5,11 @@
 
 import { Platform, type TextStyle, type ViewStyle } from 'react-native';
 
-import { pretendardTextStyle } from '@/constants/fonts';
-
 import {
   androidTextMetrics,
+  createFieldInputTypographyStyle,
   createTypographyStyle,
   getFieldInputLineHeight,
-  getPlatformTypographySizes,
   singleRowCenteredTextStyle,
   typographyLayoutFieldAreaInputHeight,
   typographyLayoutFieldLineRowHeight,
@@ -20,8 +18,6 @@ import {
 import { typography } from './typography-tree';
 
 // --- Input field (48px line, 96px area) ------------------------------------
-
-const body01FontSize = getPlatformTypographySizes('body01').fontSize;
 
 const fieldLineTextMetrics: Pick<TextStyle, 'includeFontPadding'> = {
   includeFontPadding: false,
@@ -35,18 +31,6 @@ const fieldLineSingleLineBoldBase = singleRowCenteredTextStyle(typography.body1.
  * - fieldLineWrap 24px: Figma 콘텐츠 행(레이아웃 박스), flex로 자식 세로 중앙
  * - lineHeight 20: UITextField 글리프 메트릭(lh 24와 동일하면 행이 꽉 차 하단 쏠림)
  */
-const iosFieldLineInputStyle: TextStyle = {
-  ...pretendardTextStyle('400'),
-  fontSize: body01FontSize,
-  lineHeight: getFieldInputLineHeight('line'),
-  padding: 0,
-  margin: 0,
-  flex: 1,
-  alignSelf: 'stretch',
-  includeFontPadding: false,
-  textAlignVertical: 'center',
-};
-
 const fieldLineSingleLine: TextStyle = {
   ...fieldLineSingleLineBase,
   ...fieldLineTextMetrics,
@@ -83,7 +67,15 @@ const inputTypographyLayout = {
   } satisfies TextStyle,
   fieldLinePlaceholder: fieldLineSingleLine,
   fieldLineInput: Platform.select({
-    ios: iosFieldLineInputStyle,
+    ios: {
+      ...createFieldInputTypographyStyle('line'),
+      padding: 0,
+      margin: 0,
+      flex: 1,
+      alignSelf: 'stretch',
+      includeFontPadding: false,
+      textAlignVertical: 'center',
+    },
     default: {
       ...fieldLineSingleLine,
       flex: 1,
@@ -104,10 +96,7 @@ const inputTypographyLayout = {
     includeFontPadding: false,
   } satisfies TextStyle,
   fieldAreaInput: {
-    ...pretendardTextStyle('400'),
-    fontSize: body01FontSize,
-    lineHeight: getFieldInputLineHeight('area'),
-    ...androidTextMetrics(),
+    ...createFieldInputTypographyStyle('area'),
     flex: 1,
     padding: 0,
     margin: 0,
