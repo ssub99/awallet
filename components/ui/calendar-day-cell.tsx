@@ -3,7 +3,6 @@
  */
 
 import { Typography } from '@/constants/theme';
-import { recordCalendarDayCellMemoSkip } from '@/utils/calendar-month-debug';
 import { memo, useCallback } from 'react';
 import { Dimensions, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -159,10 +158,6 @@ function calendarDayCellPropsAreEqual(
     prev.primary === next.primary &&
     prev.amountFontSizes?.expense === next.amountFontSizes?.expense &&
     prev.amountFontSizes?.income === next.amountFontSizes?.income;
-
-  if (__DEV__ && equal) {
-    recordCalendarDayCellMemoSkip();
-  }
 
   return equal;
 }

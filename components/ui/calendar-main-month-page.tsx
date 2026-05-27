@@ -23,11 +23,7 @@ export interface DayData {
     timestamp: number;
   }[];
 }
-import {
-  logCalendarMonthDebug,
-  recordCalendarMonthPageRender,
-} from '@/utils/calendar-month-debug';
-import { memo, useLayoutEffect, useMemo, useRef } from 'react';
+import { memo, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 export type CalendarDayCellDescriptor = {
@@ -41,8 +37,6 @@ export type CalendarDayCellDescriptor = {
 
 const EMPTY_DAY_DATA: Record<string, DayData> = {};
 export { EMPTY_DAY_DATA };
-
-const MONTH_PAGE_DEBUG_TAG = '[CalendarMainMonthPage]';
 
 const MONTH_PAGE_AMOUNT_EXPENSE_STYLE = Typography.tiny.r.regular;
 const MONTH_PAGE_AMOUNT_INCOME_STYLE = Typography.tiny.r.regular;
@@ -172,7 +166,6 @@ function CalendarMainMonthPageComponent({
   cellColorProps,
 }: CalendarMainMonthPageProps) {
   const showAmounts = gridType === 'current';
-  const pageDebugSeqRef = useRef(0);
 
   const { amountFontSizes, cellDescriptors } = useMemo(() => {
     if (showSettlePlaceholder) {
@@ -253,29 +246,6 @@ function CalendarMainMonthPageComponent({
       cellDescriptors: descriptors,
     };
   }, [showAmounts, showSettlePlaceholder, monthDayDataSignature, monthData, dayData, selectedDate]);
-
-  if (__DEV__ && !showSettlePlaceholder) {
-    recordCalendarMonthPageRender(showAmounts ? 'full' : 'lite');
-  }
-
-  useLayoutEffect(() => {
-    if (!__DEV__ || showSettlePlaceholder) {
-      return;
-    }
-    logCalendarMonthDebug(MONTH_PAGE_DEBUG_TAG, pageDebugSeqRef, 'layout commit', {
-      gridType,
-      month: `${monthData.year}-${String(monthData.month).padStart(2, '0')}`,
-      showAmounts,
-      cellCount: monthData.grid.length,
-    });
-  }, [
-    gridType,
-    monthData.year,
-    monthData.month,
-    monthData.grid.length,
-    showAmounts,
-    showSettlePlaceholder,
-  ]);
 
   if (showSettlePlaceholder) {
     return (

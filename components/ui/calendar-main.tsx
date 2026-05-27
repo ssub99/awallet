@@ -28,17 +28,6 @@ import {
   shiftSlotsForward,
 } from '@/utils/calendar-month-grid-cache';
 import {
-  beginMonthTransitionTiming,
-  completeMonthTransitionTiming,
-  formatCalendarMonthLabel,
-  logCalendarDayCellDebugSummary,
-  logCalendarMonthDebug,
-  markMonthTransitionTiming,
-  measureCalendarMonthDebug,
-  resetCalendarDayCellDebugCounters,
-  type MonthTransitionTimingSession,
-} from '@/utils/calendar-month-debug';
-import {
   memo,
   useCallback,
   useEffect,
@@ -73,7 +62,6 @@ const CALENDAR_CENTER_PAGE_INDEX = 1;
 const CALENDAR_CENTER_SCROLL_X = SCREEN_WIDTH * CALENDAR_CENTER_PAGE_INDEX;
 
 const DAY_CELL_WIDTH = Math.floor(SCREEN_WIDTH / 7);
-const CALENDAR_MAIN_DEBUG_TAG = '[CalendarMain]';
 /** scrollToCenter·리센터 후 지연 momentum 무시 (Android 이중 커밋 방지) */
 const PROGRAMMATIC_SCROLL_SUPPRESS_MS = 280;
 /** 중앙에서 시작한 드래그만 스와이프로 인정 */
@@ -303,7 +291,6 @@ function CalendarMainInner({
   const [isPagerScrollLocked, setIsPagerScrollLocked] = useState(false);
   const [settleOverlaySlot, setSettleOverlaySlot] = useState<CalendarMonthSlot | null>(null);
   const pendingSwipeSlotsRef = useRef<CalendarMonthSlot[] | null>(null);
-  const pendingSwipeToLabelRef = useRef('');
   /** scrollToCenter 중 onScrollBeginDrag 오인 방지 */
   const programmaticScrollRef = useRef(false);
   /** release 후 pager layout까지 spurious momentum 차단 */
@@ -355,8 +342,6 @@ function CalendarMainInner({
   const scrollViewRef = useRef<ScrollView>(null);
   const scrollOffsetRef = useRef(CALENDAR_CENTER_SCROLL_X);
   const [scrollInitialized, setScrollInitialized] = useState(false);
-  const calendarDebugSeqRef = useRef(0);
-  const monthTransitionTimingRef = useRef<MonthTransitionTimingSession | null>(null);
 
   const scrollToCenter = useCallback((extendSuppress = true) => {
     programmaticScrollRef.current = true;
@@ -390,12 +375,6 @@ function CalendarMainInner({
     scrollLockedRef.current = false;
     setIsPagerScrollLocked(false);
     lastPagerUnlockAtRef.current = Date.now();
-    logCalendarMonthDebug(
-      CALENDAR_MAIN_DEBUG_TAG,
-      calendarDebugSeqRef,
-      'scrollLockedRef -> false (pager unlock)',
-      { guardMs: SWIPE_POST_RELEASE_GUARD_MS },
-    );
   }, [scrollToCenter]);
 
   useEffect(() => {
@@ -425,47 +404,6 @@ function CalendarMainInner({
     scrollToCenter();
   }, [buildGrid, monthStartDay, scrollToCenter, weekLayoutSignature]);
 
-  useEffect(() => {
-    logCalendarMonthDebug(CALENDAR_MAIN_DEBUG_TAG, calendarDebugSeqRef, 'mount', {
-      boot: formatCalendarMonthLabel(bootYear, bootMonth),
-      monthStartDay,
-    });
-  }, [bootMonth, bootYear, monthStartDay]);
-
-  useEffect(() => {
-    logCalendarMonthDebug(CALENDAR_MAIN_DEBUG_TAG, calendarDebugSeqRef, 'displayMonth updated', {
-      display: formatCalendarMonthLabel(displayYear, displayMonth),
-    });
-    if (__DEV__ && monthTransitionTimingRef.current) {
-      markMonthTransitionTiming(
-        CALENDAR_MAIN_DEBUG_TAG,
-        calendarDebugSeqRef,
-        monthTransitionTimingRef,
-        'displayMonth render',
-      );
-    }
-  }, [displayMonth, displayYear]);
-
-  useEffect(() => {
-    logCalendarMonthDebug(CALENDAR_MAIN_DEBUG_TAG, calendarDebugSeqRef, 'monthSlots updated', {
-      slots: monthSlots.map((s) => formatCalendarMonthLabel(s.year, s.month)),
-    });
-    if (__DEV__ && monthTransitionTimingRef.current) {
-      markMonthTransitionTiming(
-        CALENDAR_MAIN_DEBUG_TAG,
-        calendarDebugSeqRef,
-        monthTransitionTimingRef,
-        'monthSlots render',
-      );
-      logCalendarDayCellDebugSummary(
-        CALENDAR_MAIN_DEBUG_TAG,
-        calendarDebugSeqRef,
-        'monthSlots cell summary',
-        { slots: monthSlots.map((s) => formatCalendarMonthLabel(s.year, s.month)) },
-      );
-    }
-  }, [monthSlots]);
-
   /** unlock 직후 Android pager가 page 1·2에 남는 경우 즉시 중앙 복귀 */
   useLayoutEffect(() => {
     if (isPagerScrollLocked) {
@@ -484,17 +422,6 @@ function CalendarMainInner({
 
     const targetYear = externalView.year;
     const targetMonth = externalView.month;
-    const toLabel = formatCalendarMonthLabel(targetYear, targetMonth);
-    const fromLabel = formatCalendarMonthLabel(
-      centerYearMonthRef.current.year,
-      centerYearMonthRef.current.month,
-    );
-
-    beginMonthTransitionTiming(monthTransitionTimingRef, 'external', toLabel);
-    logCalendarMonthDebug(CALENDAR_MAIN_DEBUG_TAG, calendarDebugSeqRef, 'externalView sync', {
-      from: fromLabel,
-      to: toLabel,
-    });
 
     const { year: cy, month: cm } = centerYearMonthRef.current;
     const dist = monthDistance(cy, cm, targetYear, targetMonth);
@@ -506,30 +433,9 @@ function CalendarMainInner({
       if (currentMonth !== targetMonth) {
         setCurrentMonth(targetMonth);
       }
-      markMonthTransitionTiming(
-        CALENDAR_MAIN_DEBUG_TAG,
-        calendarDebugSeqRef,
-        monthTransitionTimingRef,
-        'externalView noop (same month)',
-        { dist },
-      );
-      completeMonthTransitionTiming(
-        CALENDAR_MAIN_DEBUG_TAG,
-        calendarDebugSeqRef,
-        monthTransitionTimingRef,
-        'complete (external noop)',
-      );
       onExternalViewApplied?.();
       return;
     }
-
-    markMonthTransitionTiming(
-      CALENDAR_MAIN_DEBUG_TAG,
-      calendarDebugSeqRef,
-      monthTransitionTimingRef,
-      'resolveSlotsForTargetMonth',
-      { dist },
-    );
 
     setMonthSlots((prev) =>
       resolveSlotsForTargetMonth(
@@ -546,19 +452,7 @@ function CalendarMainInner({
     centerYearMonthRef.current = { year: targetYear, month: targetMonth };
     setCurrentYear(targetYear);
     setCurrentMonth(targetMonth);
-    markMonthTransitionTiming(
-      CALENDAR_MAIN_DEBUG_TAG,
-      calendarDebugSeqRef,
-      monthTransitionTimingRef,
-      'scrollToCenter sync',
-    );
     scrollToCenter();
-    completeMonthTransitionTiming(
-      CALENDAR_MAIN_DEBUG_TAG,
-      calendarDebugSeqRef,
-      monthTransitionTimingRef,
-      'complete (external)',
-    );
     onExternalViewApplied?.();
   }, [
     buildGrid,
@@ -640,19 +534,11 @@ function CalendarMainInner({
     }
 
     const pendingSlots = pendingSwipeSlotsRef.current;
-    const toLabel = pendingSwipeToLabelRef.current;
     pendingSwipeSlotsRef.current = null;
-    pendingSwipeToLabelRef.current = '';
 
     flushSync(() => {
       if (pendingSlots) {
         setMonthSlots(pendingSlots);
-        markMonthTransitionTiming(
-          CALENDAR_MAIN_DEBUG_TAG,
-          calendarDebugSeqRef,
-          monthTransitionTimingRef,
-          'shift monthSlots (release)',
-        );
       }
       setSettleOverlaySlot(null);
       isSwipeSettlingRef.current = false;
@@ -660,69 +546,26 @@ function CalendarMainInner({
     });
 
     applyPagerUnlockAfterSwipe();
-    if (!pendingSlots) {
-      logCalendarMonthDebug(
-        CALENDAR_MAIN_DEBUG_TAG,
-        calendarDebugSeqRef,
-        'scrollLockedRef -> false (release, no slot shift)',
-        { to: toLabel },
-      );
-    }
 
     if (showTitle) {
       syncDisplayMonthFromCenterRef();
     }
-    logCalendarMonthDebug(
-      CALENDAR_MAIN_DEBUG_TAG,
-      calendarDebugSeqRef,
-      'swipe release (commit sync)',
-      { to: toLabel },
-    );
-    completeMonthTransitionTiming(
-      CALENDAR_MAIN_DEBUG_TAG,
-      calendarDebugSeqRef,
-      monthTransitionTimingRef,
-      'complete (ui unlocked)',
-    );
   }, [applyPagerUnlockAfterSwipe, scrollToCenter, showTitle, syncDisplayMonthFromCenterRef]);
 
   const commitSwipeMonthsToMove = useCallback(
-    (monthsToMove: number, offsetX: number, page: number) => {
+    (monthsToMove: number) => {
       if (scrollLockedRef.current || monthsToMove === 0) {
         return;
       }
 
-      const fromLabel = formatCalendarMonthLabel(
-        centerYearMonthRef.current.year,
-        centerYearMonthRef.current.month,
-      );
       const { year: nextYear, month: nextMonth } = addCalendarMonths(
         centerYearMonthRef.current.year,
         centerYearMonthRef.current.month,
         monthsToMove,
       );
-      const toLabel = formatCalendarMonthLabel(nextYear, nextMonth);
       const nextGrid = buildGrid(nextYear, nextMonth);
       const nextWeekCount = countWeeksInGrid(nextGrid);
 
-      resetCalendarDayCellDebugCounters();
-      beginMonthTransitionTiming(monthTransitionTimingRef, 'swipe', toLabel);
-      logCalendarMonthDebug(CALENDAR_MAIN_DEBUG_TAG, calendarDebugSeqRef, 'swipe commit', {
-        from: fromLabel,
-        to: toLabel,
-        monthsToMove,
-        offsetX,
-        page,
-      });
-      markMonthTransitionTiming(
-        CALENDAR_MAIN_DEBUG_TAG,
-        calendarDebugSeqRef,
-        monthTransitionTimingRef,
-        'swipe commit',
-        { nextWeekCount, prevWeekCount: centerWeekCountRef.current },
-      );
-
-      const prevWeekCount = centerWeekCountRef.current;
       scrollLockedRef.current = true;
       setIsPagerScrollLocked(true);
       centerWeekCountRef.current = nextWeekCount;
@@ -732,7 +575,6 @@ function CalendarMainInner({
           ? shiftSlotsForward(gridCacheRef.current, monthSlots, monthStartDay, buildGrid)
           : shiftSlotsBackward(gridCacheRef.current, monthSlots, monthStartDay, buildGrid);
       pendingSwipeSlotsRef.current = nextSlots;
-      pendingSwipeToLabelRef.current = toLabel;
 
       flushSync(() => {
         isSwipeSettlingRef.current = true;
@@ -742,12 +584,6 @@ function CalendarMainInner({
       });
 
       applyCenterMonth(nextYear, nextMonth, { syncDisplayState: false });
-      markMonthTransitionTiming(
-        CALENDAR_MAIN_DEBUG_TAG,
-        calendarDebugSeqRef,
-        monthTransitionTimingRef,
-        'applyCenterMonth (swipe, display deferred)',
-      );
 
       suppressMomentumUntilRef.current = Date.now() + PROGRAMMATIC_SCROLL_SUPPRESS_MS;
       swipeCooldownUntilRef.current =
@@ -756,12 +592,6 @@ function CalendarMainInner({
       lastSwipeCommitAtRef.current = Date.now();
       activeUserDragRef.current = false;
       scrollToCenter(false);
-      markMonthTransitionTiming(
-        CALENDAR_MAIN_DEBUG_TAG,
-        calendarDebugSeqRef,
-        monthTransitionTimingRef,
-        'scrollToCenter sync',
-      );
       releaseSwipeTransition();
     },
     [
@@ -774,22 +604,8 @@ function CalendarMainInner({
     ],
   );
 
-  const logSwipeIgnored = useCallback(
-    (reason: string, details: Record<string, unknown> = {}) => {
-      if (__DEV__) {
-        logCalendarMonthDebug(
-          CALENDAR_MAIN_DEBUG_TAG,
-          calendarDebugSeqRef,
-          `swipe ignored (${reason})`,
-          details,
-        );
-      }
-    },
-    [],
-  );
-
   const tryCommitSwipeFromScrollEnd = useCallback(
-    (offsetX: number, source: 'momentum' | 'dragEnd') => {
+    (offsetX: number) => {
       const page = Math.round(offsetX / SCREEN_WIDTH);
       const monthsToMove = page - CALENDAR_CENTER_PAGE_INDEX;
 
@@ -797,7 +613,6 @@ function CalendarMainInner({
         Date.now() < suppressMomentumUntilRef.current &&
         !activeUserDragRef.current
       ) {
-        logSwipeIgnored('suppressMomentum', { source, offsetX, page });
         if (!isOffsetAtCenterPage(offsetX)) {
           scrollToCenter(false);
         }
@@ -808,7 +623,6 @@ function CalendarMainInner({
         Date.now() < postReleaseGuardUntilRef.current &&
         !activeUserDragRef.current
       ) {
-        logSwipeIgnored('postReleaseGuard', { source, offsetX, page });
         if (!isOffsetAtCenterPage(offsetX)) {
           scrollToCenter(false);
         }
@@ -816,16 +630,11 @@ function CalendarMainInner({
       }
 
       if (scrollLockedRef.current || isSwipeSettlingRef.current) {
-        logSwipeIgnored(
-          scrollLockedRef.current ? 'scrollLockedRef' : 'isSwipeSettling',
-          { source, offsetX, page },
-        );
         activeUserDragRef.current = false;
         return;
       }
 
       if (Date.now() < swipeCooldownUntilRef.current) {
-        logSwipeIgnored('swipeCooldown', { source, offsetX, page });
         if (!isOffsetAtCenterPage(offsetX)) {
           scrollToCenter(false);
         }
@@ -834,7 +643,6 @@ function CalendarMainInner({
       }
 
       if (!activeUserDragRef.current) {
-        logSwipeIgnored('noActiveUserDrag', { source, offsetX, page });
         if (!isOffsetAtCenterPage(offsetX)) {
           scrollToCenter(false);
         }
@@ -842,13 +650,6 @@ function CalendarMainInner({
       }
 
       if (userDragBeginAtRef.current < lastPagerUnlockAtRef.current) {
-        logSwipeIgnored('dragBeforeUnlock', {
-          source,
-          offsetX,
-          page,
-          dragBeganAt: userDragBeginAtRef.current,
-          lastUnlockAt: lastPagerUnlockAtRef.current,
-        });
         activeUserDragRef.current = false;
         scrollToCenter();
         return;
@@ -863,7 +664,6 @@ function CalendarMainInner({
       }
 
       if (dragGestureCommittedRef.current) {
-        logSwipeIgnored('dragGestureCommitted', { source, offsetX, page });
         activeUserDragRef.current = false;
         scrollToCenter(false);
         return;
@@ -874,13 +674,6 @@ function CalendarMainInner({
         lastSwipeCommitAtRef.current > 0 &&
         sinceLastCommitMs < SWIPE_MIN_COMMIT_INTERVAL_MS
       ) {
-        logSwipeIgnored('commitThrottle', {
-          source,
-          offsetX,
-          page,
-          sinceLastCommitMs,
-          minIntervalMs: SWIPE_MIN_COMMIT_INTERVAL_MS,
-        });
         activeUserDragRef.current = false;
         if (!isOffsetAtCenterPage(offsetX)) {
           scrollToCenter(false);
@@ -890,22 +683,19 @@ function CalendarMainInner({
 
       dragGestureCommittedRef.current = true;
       activeUserDragRef.current = false;
-      commitSwipeMonthsToMove(monthsToMove, offsetX, page);
+      commitSwipeMonthsToMove(monthsToMove);
     },
-    [commitSwipeMonthsToMove, logSwipeIgnored, scrollToCenter],
+    [commitSwipeMonthsToMove, scrollToCenter],
   );
 
   const handleScrollBeginDrag = useCallback(() => {
     if (isSwipeSettlingRef.current) {
-      logSwipeIgnored('beginDrag isSwipeSettling', {});
       return;
     }
     if (Date.now() < swipeCooldownUntilRef.current) {
-      logSwipeIgnored('beginDrag swipeCooldown', {});
       return;
     }
     if (scrollLockedRef.current) {
-      logSwipeIgnored('beginDrag scrollLockedRef', {});
       return;
     }
 
@@ -920,7 +710,6 @@ function CalendarMainInner({
         userDragBeginAtRef.current = Date.now();
         return;
       }
-      logSwipeIgnored('beginDrag offCenter', { offsetX, page });
       scrollToCenter(false);
       return;
     }
@@ -928,13 +717,13 @@ function CalendarMainInner({
     activeUserDragRef.current = true;
     dragGestureCommittedRef.current = false;
     userDragBeginAtRef.current = Date.now();
-  }, [logSwipeIgnored, scrollToCenter]);
+  }, [scrollToCenter]);
 
   const handleMomentumScrollEnd = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
       const offsetX = event.nativeEvent.contentOffset.x;
       scrollOffsetRef.current = offsetX;
-      tryCommitSwipeFromScrollEnd(offsetX, 'momentum');
+      tryCommitSwipeFromScrollEnd(offsetX);
     },
     [tryCommitSwipeFromScrollEnd],
   );
@@ -947,7 +736,7 @@ function CalendarMainInner({
 
       if (Platform.OS === 'android') {
         if (Math.abs(velocityX) < IOS_DRAG_END_VELOCITY_THRESHOLD) {
-          tryCommitSwipeFromScrollEnd(offsetX, 'dragEnd');
+          tryCommitSwipeFromScrollEnd(offsetX);
         }
         return;
       }
@@ -956,36 +745,19 @@ function CalendarMainInner({
         return;
       }
 
-      tryCommitSwipeFromScrollEnd(offsetX, 'dragEnd');
+      tryCommitSwipeFromScrollEnd(offsetX);
     },
     [tryCommitSwipeFromScrollEnd],
   );
 
   const monthDayDataSignatures = useMemo(
     () =>
-      measureCalendarMonthDebug(
-        CALENDAR_MAIN_DEBUG_TAG,
-        calendarDebugSeqRef,
-        'resolveMonthDayDataSignatures',
-        () => {
-          const { signatures, cacheHits, cacheMisses } = resolveCalendarPagerDayDataSignatures(
-            monthSlots,
-            CALENDAR_CENTER_PAGE_INDEX,
-            dayData,
-            dayDataSignature,
-          );
-          if (__DEV__) {
-            logCalendarMonthDebug(
-              CALENDAR_MAIN_DEBUG_TAG,
-              calendarDebugSeqRef,
-              'monthDayDataSignatures cache',
-              { cacheHits, cacheMisses },
-            );
-          }
-          return signatures;
-        },
-        { slotCount: monthSlots.length },
-      ),
+      resolveCalendarPagerDayDataSignatures(
+        monthSlots,
+        CALENDAR_CENTER_PAGE_INDEX,
+        dayData,
+        dayDataSignature,
+      ).signatures,
     [dayData, dayDataSignature, monthSlots],
   );
 

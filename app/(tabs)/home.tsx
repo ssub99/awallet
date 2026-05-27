@@ -31,15 +31,6 @@ import { logEvent } from '@/utils/analytics';
 import { isAtLeastVersion, QUICK_INPUT_MIN_VERSION } from '@/utils/app-version';
 import { createSheetEvent } from '@/utils/create-sheet-event';
 import {
-  beginMonthTransitionTiming,
-  completeMonthTransitionTiming,
-  formatCalendarMonthLabel,
-  logCalendarMonthDebug,
-  markMonthTransitionTiming,
-  measureCalendarMonthDebug,
-  type MonthTransitionTimingSession,
-} from '@/utils/calendar-month-debug';
-import {
   buildCalendarMonthTotalsIndex,
   getCalendarMonthTotalsFromIndex,
 } from '@/utils/calendar-month-totals';
@@ -71,7 +62,6 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const FAB_SIZE = 48;
-const HOME_DEBUG_TAG = '[HomeScreen]';
 
 export default function HomeScreen() {
   const initialPendingTarget = getLatestPendingCalendarTarget();
@@ -183,46 +173,6 @@ export default function HomeScreen() {
   const selectedDateRef = useRef(selectedDate);
   const currentYearRef = useRef(currentYear);
   const currentMonthRef = useRef(currentMonth);
-  const homeDebugSeqRef = useRef(0);
-  const homeMonthTimingRef = useRef<MonthTransitionTimingSession | null>(null);
-  const homeRenderCountRef = useRef(0);
-  const calendarDataRefForDebug = useRef(calendarData);
-
-  useEffect(() => {
-    if (!__DEV__) {
-      return;
-    }
-    homeRenderCountRef.current += 1;
-    logCalendarMonthDebug(HOME_DEBUG_TAG, homeDebugSeqRef, 'render commit', {
-      renderCount: homeRenderCountRef.current,
-      periodType,
-      month: formatCalendarMonthLabel(currentYear, currentMonth),
-      calendarDataRefChanged: calendarData !== calendarDataRefForDebug.current,
-      calendarDataKeyCount: Object.keys(calendarData).length,
-    });
-    calendarDataRefForDebug.current = calendarData;
-  });
-
-  useEffect(() => {
-    if (!__DEV__) {
-      return;
-    }
-    logCalendarMonthDebug(HOME_DEBUG_TAG, homeDebugSeqRef, 'month state committed', {
-      month: formatCalendarMonthLabel(currentYear, currentMonth),
-    });
-    markMonthTransitionTiming(
-      HOME_DEBUG_TAG,
-      homeDebugSeqRef,
-      homeMonthTimingRef,
-      'month state committed (useEffect)',
-    );
-    completeMonthTransitionTiming(
-      HOME_DEBUG_TAG,
-      homeDebugSeqRef,
-      homeMonthTimingRef,
-      'complete (home path)',
-    );
-  }, [currentMonth, currentYear]);
 
   useEffect(() => {
     selectedDateRef.current = selectedDate;
@@ -251,30 +201,10 @@ export default function HomeScreen() {
   );
 
   const handleCalendarMonthChange = useCallback((year: number, month: number) => {
-    const toLabel = formatCalendarMonthLabel(year, month);
-    beginMonthTransitionTiming(homeMonthTimingRef, 'swipe', toLabel);
-    logCalendarMonthDebug(HOME_DEBUG_TAG, homeDebugSeqRef, 'handleCalendarMonthChange', {
-      to: toLabel,
-      from: formatCalendarMonthLabel(currentYearRef.current, currentMonthRef.current),
-    });
     currentYearRef.current = year;
     currentMonthRef.current = month;
-    markMonthTransitionTiming(
-      HOME_DEBUG_TAG,
-      homeDebugSeqRef,
-      homeMonthTimingRef,
-      'setCurrentYear/Month (sync)',
-    );
     setCurrentYear(year);
     setCurrentMonth(month);
-    if (__DEV__) {
-      markMonthTransitionTiming(
-        HOME_DEBUG_TAG,
-        homeDebugSeqRef,
-        homeMonthTimingRef,
-        'setCurrentYear/Month committed (sync)',
-      );
-    }
   }, []);
 
   const handleCalendarDayPress = useCallback(
@@ -852,58 +782,45 @@ export default function HomeScreen() {
   );
 
   // 현재 커스텀 월 합산 (reload 없음 — 이미 로드된 calendarData 필터만)
-  const financialData = useMemo(
-    () =>
-      measureCalendarMonthDebug(
-        HOME_DEBUG_TAG,
-        homeDebugSeqRef,
-        'financialData useMemo',
-        () => {
-          if (monthStartDay === 1 && calendarMonthTotalsIndex) {
-            return getCalendarMonthTotalsFromIndex(
-              calendarMonthTotalsIndex,
-              currentYear,
-              currentMonth,
-            );
-          }
+  const financialData = useMemo(() => {
+    if (monthStartDay === 1 && calendarMonthTotalsIndex) {
+      return getCalendarMonthTotalsFromIndex(
+        calendarMonthTotalsIndex,
+        currentYear,
+        currentMonth,
+      );
+    }
 
-          let totalIncome = 0;
-          let totalExpense = 0;
+    let totalIncome = 0;
+    let totalExpense = 0;
 
-          const { startDate, endDate } = getCustomMonthRange(
-            currentYear,
-            currentMonth,
-            monthStartDay,
-          );
-          const startTime = startDate.getTime();
-          const endTime = endDate.getTime();
+    const { startDate, endDate } = getCustomMonthRange(
+      currentYear,
+      currentMonth,
+      monthStartDay,
+    );
+    const startTime = startDate.getTime();
+    const endTime = endDate.getTime();
 
-          for (const [dateString, data] of Object.entries(calendarData)) {
-            const date = parseCalendarDateKeyLocal(dateString);
-            if (!date) {
-              continue;
-            }
-            const time = date.getTime();
-            if (time < startTime || time > endTime) {
-              continue;
-            }
-            totalIncome += data.totalIncome || 0;
-            totalExpense += data.totalExpense || 0;
-          }
+    for (const [dateString, data] of Object.entries(calendarData)) {
+      const date = parseCalendarDateKeyLocal(dateString);
+      if (!date) {
+        continue;
+      }
+      const time = date.getTime();
+      if (time < startTime || time > endTime) {
+        continue;
+      }
+      totalIncome += data.totalIncome || 0;
+      totalExpense += data.totalExpense || 0;
+    }
 
-          return {
-            income: totalIncome,
-            expense: totalExpense,
-            balance: totalIncome - totalExpense,
-          };
-        },
-        {
-          month: formatCalendarMonthLabel(currentYear, currentMonth),
-          calendarDataKeyCount: Object.keys(calendarData).length,
-        },
-      ),
-    [currentYear, currentMonth, calendarData, calendarMonthTotalsIndex, monthStartDay],
-  );
+    return {
+      income: totalIncome,
+      expense: totalExpense,
+      balance: totalIncome - totalExpense,
+    };
+  }, [currentYear, currentMonth, calendarData, calendarMonthTotalsIndex, monthStartDay]);
 
   const monthlyIncomeText = useMemo(() => {
     const amount = Number(financialData.income) || 0;

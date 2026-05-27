@@ -7,11 +7,9 @@ import { AtomicColors } from '@/constants/atomic-colors';
 import { Colors, Typography } from '@/constants/theme';
 import { singleRowCenteredTextStyle } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { logCalendarMonthDebug } from '@/utils/calendar-month-debug';
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import { LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-native';
 
-const HOME_STATUS_CARD_DEBUG_TAG = '[HomeMonthStatusCard]';
 const MONTH_STATUS_AMOUNT_HORIZONTAL_INSET = 4;
 const MONTH_STATUS_AMOUNT_MIN_FONT_SCALE = 0.75;
 
@@ -41,18 +39,6 @@ function HomeMonthStatusCardInner({
   onExpensePress,
   onBalancePress,
 }: HomeMonthStatusCardProps) {
-  const statusCardDebugSeqRef = useRef(0);
-
-  useEffect(() => {
-    if (!__DEV__) {
-      return;
-    }
-    logCalendarMonthDebug(HOME_STATUS_CARD_DEBUG_TAG, statusCardDebugSeqRef, 'render commit', {
-      incomeText,
-      expenseText,
-      balanceText,
-    });
-  });
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'] as typeof Colors.light;
 

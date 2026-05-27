@@ -30,6 +30,10 @@ export function monthDistance(y1: number, m1: number, y2: number, m2: number): n
   return (y2 - y1) * 12 + (m2 - m1);
 }
 
+export function formatCalendarMonthLabel(year: number, month: number): string {
+  return `${year}-${String(month).padStart(2, '0')}`;
+}
+
 export function getCachedMonthGrid(
   cache: Map<string, CalendarGridCell[]>,
   year: number,
