@@ -1,10 +1,5 @@
+import { font_weights } from './typography.base';
 import { createTypographyStyle } from './merge';
-
-const font_weights = {
-  bold: '700' as const,
-  medium: '500' as const,
-  regular: '400' as const,
-} as const;
 
 export const typography = {
   headline1: {

@@ -9,12 +9,12 @@ import {
   androidTextMetrics,
   createFieldInputTypographyStyle,
   createTypographyStyle,
-  getFieldInputLineHeight,
   singleRowCenteredTextStyle,
   typographyLayoutFieldAreaInputHeight,
   typographyLayoutFieldLineRowHeight,
   typographyLayoutFieldLineShortMinHeight,
 } from './merge';
+import { font_weights } from './typography.base';
 import { typography } from './typography-tree';
 
 // --- Input field (48px line, 96px area) ------------------------------------
@@ -26,11 +26,6 @@ const fieldLineTextMetrics: Pick<TextStyle, 'includeFontPadding'> = {
 const fieldLineSingleLineBase = singleRowCenteredTextStyle(typography.body1.l.regular);
 const fieldLineSingleLineBoldBase = singleRowCenteredTextStyle(typography.body1.l.bold);
 
-/**
- * iOS line TextInput
- * - fieldLineWrap 24px: Figma 콘텐츠 행(레이아웃 박스), flex로 자식 세로 중앙
- * - lineHeight 20: UITextField 글리프 메트릭(lh 24와 동일하면 행이 꽉 차 하단 쏠림)
- */
 const fieldLineSingleLine: TextStyle = {
   ...fieldLineSingleLineBase,
   ...fieldLineTextMetrics,
@@ -53,6 +48,19 @@ const fieldLineRowTextShortWrap: ViewStyle = {
   justifyContent: 'center',
 };
 
+/** line TextInput — fieldInput 메트릭 + TextInput 레이아웃 (iOS/Android 공통) */
+function fieldLineInputTextInputStyle(platformExtras: TextStyle): TextStyle {
+  return {
+    ...createFieldInputTypographyStyle('line'),
+    padding: 0,
+    margin: 0,
+    flex: 1,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+    ...platformExtras,
+  };
+}
+
 const inputTypographyLayout = {
   fieldLine: fieldLineRowText,
   fieldLineWrap: fieldLineRowTextWrap,
@@ -67,24 +75,10 @@ const inputTypographyLayout = {
   } satisfies TextStyle,
   fieldLinePlaceholder: fieldLineSingleLine,
   fieldLineInput: Platform.select({
-    ios: {
-      ...createFieldInputTypographyStyle('line'),
-      padding: 0,
-      margin: 0,
-      flex: 1,
-      alignSelf: 'stretch',
-      includeFontPadding: false,
-      textAlignVertical: 'center',
-    },
-    default: {
-      ...fieldLineSingleLine,
-      flex: 1,
-      padding: 0,
-      margin: 0,
-      textAlignVertical: 'center' as const,
+    ios: fieldLineInputTextInputStyle({ alignSelf: 'stretch' }),
+    default: fieldLineInputTextInputStyle({
       height: typographyLayoutFieldLineRowHeight,
-      includeFontPadding: false,
-    },
+    }),
   }) as TextStyle,
   fieldLineShortInput: {
     ...singleRowCenteredTextStyle(typography.body2.r.regular),
@@ -157,7 +151,7 @@ const dynamicShrinkLayout = {
 const paragraphWheelLayout = {
   spinnerWheelItemRegular: typography.body1.l.regular,
   spinnerWheelItemBold: typography.body1.l.bold,
-  pickerWheelItemIos: createTypographyStyle('pickerWheel', '400'),
+  pickerWheelItemIos: createTypographyStyle('pickerWheel', font_weights.regular),
 } as const satisfies Record<string, TextStyle>;
 
 const sharedTypographyLayout = {

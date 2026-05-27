@@ -7,7 +7,7 @@ import { Platform, type TextStyle } from 'react-native';
 import { pretendardTextStyle, type PretendardWeight } from '@/constants/fonts';
 
 import { typographyAndroid } from './typography.android';
-import { typographyBase, type TypographyScaleKey } from './typography.base';
+import { font_weights, typographyBase, type TypographyScaleKey } from './typography.base';
 import { typographyIos } from './typography.ios';
 
 export type TypoSize = { fontSize: number; lineHeight: number };
@@ -118,7 +118,7 @@ export function createTypographyStyle(scale: TypographyScaleKey, weight: Pretend
 /** fieldInput TextStyle (입력용 font family/weight + 플랫폼 lineHeight) */
 export function createFieldInputTypographyStyle(
   variant: 'line' | 'area',
-  weight: PretendardWeight = '400',
+  weight: PretendardWeight = font_weights.regular,
   scaleKey: 'body01' = 'body01',
 ): TextStyle {
   const { fontSize } = getPlatformTypographySizes(scaleKey);
