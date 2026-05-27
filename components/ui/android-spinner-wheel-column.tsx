@@ -209,11 +209,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   itemText: {
-    ...typographyLayout.spinnerWheelItemRegular,
+    ...typographyLayout.spinnerWheelRegular,
     textAlign: 'center',
   },
   itemTextSelected: {
-    ...typographyLayout.spinnerWheelItemBold,
+    ...typographyLayout.spinnerWheelBold,
     textAlign: 'center',
   },
 });

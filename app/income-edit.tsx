@@ -1066,14 +1066,14 @@ const styles = StyleSheet.create({
     paddingTop: 24,
     gap: 8,
   },
-  sectionTitle: typographyLayout.sectionTitle,
+  sectionTitle: typographyLayout.uiLineBody01Bold,
   dateHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
   deleteButton: {
-    ...typographyLayout.fieldLine,
+    ...typographyLayout.uiLineBody01Regular,
     textDecorationLine: 'underline',
   },
   card: {
@@ -1089,7 +1089,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   dateText: {
-    ...typographyLayout.fieldLine,
+    ...typographyLayout.uiLineBody01Regular,
   },
   bottomButtonContainer: {
     paddingHorizontal: 16,
@@ -1106,6 +1106,6 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     gap: 6,
   },
-  amountExpressionText: typographyLayout.fieldNumber,
-  amountExpressionOperator: typographyLayout.fieldNumber,
+  amountExpressionText: typographyLayout.fieldInputNumber,
+  amountExpressionOperator: typographyLayout.fieldInputNumber,
 });

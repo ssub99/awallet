@@ -188,13 +188,13 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   dayTextSelected: {
-    ...typographyLayout.tabTextActive,
+    ...typographyLayout.uiLineBody01Bold,
   },
   dayTextDefault: {
-    ...typographyLayout.tabTextActive,
+    ...typographyLayout.uiLineBody01Bold,
   },
   dayTextOtherMonth: {
-    ...typographyLayout.fieldLineMedium,
+    ...typographyLayout.uiLineBody01Medium,
   },
   costContainer: {
     marginTop: 4,

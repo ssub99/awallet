@@ -2,8 +2,8 @@
  * Typography runtime — 유일한 Platform.OS 분기 지점.
  *
  * 1. typography.base     → fontSize, font_weights
- * 2. typography.platform → ios/android lineHeight (paragraph · singleRow · fieldInput)
- * 3. createTypographyStyle / singleRowCenteredTextStyle / createFieldInputTypographyStyle
+ * 2. typography.platform → ios/android lineHeight (paragraph · uiLine · fieldInput)
+ * 3. createTypographyStyle / uiLineTextStyle / createFieldInputTypographyStyle
  */
 
 import { Platform, type TextStyle } from 'react-native';
@@ -11,9 +11,9 @@ import { Platform, type TextStyle } from 'react-native';
 import { pretendardTextStyle, type PretendardWeight } from '@/constants/fonts';
 
 import { font_weights, typographyBase, type TypographyScaleKey } from './typography.base';
-import { typographyPlatform, type SingleRowScaleKey } from './typography.platform';
+import { typographyPlatform, type UiLineScaleKey } from './typography.platform';
 
-export type { SingleRowScaleKey };
+export type { UiLineScaleKey };
 export type TypoSize = { fontSize: number; lineHeight: number };
 
 export type TypographyScaleEntry = {
@@ -74,25 +74,25 @@ export function androidTextMetrics(): Pick<TextStyle, 'includeFontPadding'> {
 }
 
 /**
- * 단일 행 UI lineHeight — iOS는 행 높이·design lh, Android는 Pretendard 메트릭 보정.
+ * uiLine 행 UI lineHeight — iOS는 행 높이·design lh, Android는 Pretendard 메트릭 보정.
  */
-export function getSingleRowLineHeight(fontSize: number, designLineHeight: number): number {
+export function getUiLineLineHeight(fontSize: number, designLineHeight: number): number {
   const scaleKey = findScaleKeyByFontSize(fontSize);
   if (scaleKey == null) {
     return designLineHeight;
   }
 
-  const iosSingleRow = typographyPlatform.ios.singleRow;
-  const androidSingleRow = typographyPlatform.android.singleRow;
+  const iosUiLine = typographyPlatform.ios.uiLine;
+  const androidUiLine = typographyPlatform.android.uiLine;
 
-  if (!(scaleKey in iosSingleRow)) {
+  if (!(scaleKey in iosUiLine)) {
     return designLineHeight;
   }
 
-  const key = scaleKey as SingleRowScaleKey;
+  const key = scaleKey as UiLineScaleKey;
   return Platform.OS === 'android'
-    ? androidSingleRow[key].lineHeight
-    : iosSingleRow[key].lineHeight;
+    ? androidUiLine[key].lineHeight
+    : iosUiLine[key].lineHeight;
 }
 
 /** fieldInput lineHeight (TextInput 전용) */
@@ -160,13 +160,13 @@ export function scaleTextStyleFontSize(textStyle: TextStyle, targetFontSize: num
   return { ...textStyle, fontSize: targetFontSize, lineHeight };
 }
 
-/** 고정 높이 행 — transform 제거 + OS별 singleRow lineHeight */
-export function singleRowCenteredTextStyle(style: TextStyle): TextStyle {
+/** 고정 높이 행 — transform 제거 + OS별 uiLine lineHeight */
+export function uiLineTextStyle(style: TextStyle): TextStyle {
   const fontSize = typeof style.fontSize === 'number' ? style.fontSize : 16;
   const designLineHeight =
     typeof style.lineHeight === 'number' ? style.lineHeight : fontSize;
   const { transform: _transform, ...rest } = style;
-  const lineHeight = getSingleRowLineHeight(fontSize, designLineHeight);
+  const lineHeight = getUiLineLineHeight(fontSize, designLineHeight);
   return {
     ...rest,
     lineHeight,

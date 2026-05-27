@@ -235,11 +235,11 @@ const styles = StyleSheet.create({
     minHeight: 24,
   },
   label: {
-    ...typographyLayout.fieldLine,
+    ...typographyLayout.uiLineBody01Regular,
     width: 64,
   },
   value: {
-    ...typographyLayout.fieldLineMedium,
+    ...typographyLayout.uiLineBody01Medium,
     marginLeft: 8,
     flex: 1,
     textAlign: 'left',
@@ -260,7 +260,7 @@ const styles = StyleSheet.create({
     borderRadius: 99,
     borderWidth: 1,
   },
-  paymentEmoji: typographyLayout.fieldLine,
+  paymentEmoji: typographyLayout.uiLineBody01Regular,
   buttonRow: {
     flexDirection: 'row',
     gap: 8,
@@ -274,6 +274,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   buttonText: {
-    ...typographyLayout.fieldLineMedium,
+    ...typographyLayout.uiLineBody01Medium,
   },
 });

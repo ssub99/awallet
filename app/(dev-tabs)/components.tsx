@@ -2798,7 +2798,7 @@ const styles = StyleSheet.create({
     ...typography.body02.regular,
   },
   switchLabel: {
-    ...typographyLayout.fieldLine,
+    ...typographyLayout.uiLineBody01Regular,
   },
   // Developer Mode Container
   devModeContainer: {

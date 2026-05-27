@@ -416,7 +416,7 @@ const styles = StyleSheet.create({
     minHeight: 56,
   },
   dayText: {
-    ...typographyLayout.fieldLine,
+    ...typographyLayout.uiLineBody01Regular,
   },
   divider: {
     height: 1,

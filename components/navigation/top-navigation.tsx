@@ -519,7 +519,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   subTitle: {
-    ...typographyLayout.tabTextActive,
+    ...typographyLayout.uiLineBody01Bold,
   },
   rightSection: {
     flexDirection: 'row',
@@ -552,7 +552,7 @@ const styles = StyleSheet.create({
     // Removed - using animated background instead
   },
   periodText: {
-    ...typographyLayout.chipTextActive,
+    ...typographyLayout.uiLineBody02Bold,
   },
   rightButton: {
     paddingHorizontal: 16,
@@ -562,7 +562,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   rightButtonText: {
-    ...typographyLayout.chipTextDefault,
+    ...typographyLayout.uiLineBody02Medium,
   },
   divider: {
     height: 1,

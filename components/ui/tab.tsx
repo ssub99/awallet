@@ -173,11 +173,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   tabTextActive: {
-    ...typographyLayout.tabTextActive,
+    ...typographyLayout.uiLineBody01Bold,
     textAlign: 'center',
   },
   tabTextDefault: {
-    ...typographyLayout.tabTextInactive,
+    ...typographyLayout.uiLineBody01Medium,
     textAlign: 'center',
   },
   indicator: {

@@ -238,8 +238,8 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
   },
-  placeholder: typographyLayout.fieldLinePlaceholder,
-  input: typographyLayout.fieldLineInput,
+  placeholder: typographyLayout.fieldInputPlaceholder,
+  input: typographyLayout.fieldInputLine,
   cancelButton: {
     width: 24,
     height: 24,

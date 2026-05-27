@@ -21,7 +21,7 @@ export {
   typographyLayoutFieldLineRowHeight,
   typographyLayoutFieldLineShortMinHeight,
 } from './merge';
-export type { SingleRowScaleKey, TypographyScaleEntry, TypoSize } from './merge';
+export type { UiLineScaleKey, TypographyScaleEntry, TypoSize } from './merge';
 
 export { typographyLayout } from './layout';
 export { typography } from './typography-tree';

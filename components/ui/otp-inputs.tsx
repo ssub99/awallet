@@ -177,7 +177,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
     paddingTop: 0,
     paddingBottom: 0,
-    ...typographyLayout.otpDigit,
+    ...typographyLayout.uiLineHeadline03Bold,
     textAlignVertical: 'center',
   },
   errorText: {

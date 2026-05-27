@@ -138,7 +138,7 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   label: {
-    ...typographyLayout.radioLabel,
+    ...typographyLayout.uiLineBody02Medium,
     marginLeft: 8,
   },
 });

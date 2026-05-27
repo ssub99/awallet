@@ -94,13 +94,13 @@ export function SegmentControls({
 
   // Size-based typography
   const baseTextStyle: TextStyle = {
-    ...(size === 'small' ? typographyLayout.segmentSmallRegular : typographyLayout.segmentLargeRegular),
+    ...(size === 'small' ? typographyLayout.uiLineBody02Regular : typographyLayout.uiLineBody01Regular),
     textAlign: 'center',
     color: palette.textAssistive,
   };
 
   const activeTextStyle: TextStyle = {
-    ...(size === 'small' ? typographyLayout.segmentSmallBold : typographyLayout.segmentLargeBold),
+    ...(size === 'small' ? typographyLayout.uiLineBody02Bold : typographyLayout.uiLineBody01Bold),
     color: palette.primaryHeavy,
   };
 

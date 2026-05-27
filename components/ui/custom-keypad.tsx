@@ -549,7 +549,7 @@ const styles = StyleSheet.create({
     ...typography.headline04.regular,
   },
   confirmText: {
-    ...typographyLayout.buttonTextLarge,
+    ...typographyLayout.uiLineButton01Medium,
   },
   homeIndicator: {
     height: HOME_INDICATOR_HEIGHT,

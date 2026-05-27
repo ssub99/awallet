@@ -1,6 +1,6 @@
 /**
  * Figma 타이포 토큰 (플랫폼 공통) — fontSize · fontWeight · layout.
- * lineHeight·singleRow·fieldInput은 typography.platform.ts (ios / android).
+ * lineHeight·uiLine·fieldInput은 typography.platform.ts (ios / android).
  */
 
 import type { PretendardWeight } from '@/constants/fonts';

@@ -148,7 +148,7 @@ const styles = StyleSheet.create({
     paddingTop: 24,
   },
   sectionTitle: {
-    ...typographyLayout.sectionTitle,
+    ...typographyLayout.uiLineBody01Bold,
     marginBottom: 8,
   },
   card: {
@@ -167,7 +167,7 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   switchLabel: {
-    ...typographyLayout.fieldLine,
+    ...typographyLayout.uiLineBody01Regular,
   },
   recurringCaption: {
     ...typography.body02.regular,

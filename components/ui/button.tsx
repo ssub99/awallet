@@ -299,11 +299,11 @@ const styles = StyleSheet.create({
     minWidth: 48,
   },
   textLarge: {
-    ...typographyLayout.buttonTextLarge,
+    ...typographyLayout.uiLineButton01Medium,
     textAlign: 'center',
   },
   textSmall: {
-    ...typographyLayout.buttonTextSmall,
+    ...typographyLayout.uiLineButton02Medium,
     textAlign: 'center',
   },
   spinnerOverlay: {

@@ -168,7 +168,7 @@ const styles = StyleSheet.create({
     overflow: 'visible',
   },
   monthStatusLabel: {
-    ...typographyLayout.monthStatusLabel,
+    ...typographyLayout.uiLineDetailMedium,
     ...monthStatusCenteredText,
   },
   monthStatusDivider: {

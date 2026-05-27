@@ -580,8 +580,8 @@ export default function ChallengeCreateScreen() {
                 <View style={styles.yearMonthRow}>
                   <View style={styles.yearMonthLeft}>
                     <Icon name="calendarMonth" variant="line" size={24} color={palette.text} />
-                    <View style={typographyLayout.fieldLineWrap}>
-                      <Text style={[typographyLayout.fieldLine, { color: palette.text }]}>
+                    <View style={typographyLayout.fieldInputLineWrap}>
+                      <Text style={[typographyLayout.uiLineBody01Regular, { color: palette.text }]}>
                         {startYear}.{String(startMonth).padStart(2, '0')}
                       </Text>
                     </View>
@@ -671,8 +671,8 @@ export default function ChallengeCreateScreen() {
                       시작 년월 부터 반복할 개월 수
                     </Text>
                     <View style={styles.monthPickerValue}>
-                      <View style={typographyLayout.fieldLineWrap}>
-                        <Text style={[typographyLayout.fieldLine, { color: palette.textAssistive }]}>
+                      <View style={typographyLayout.fieldInputLineWrap}>
+                        <Text style={[typographyLayout.uiLineBody01Regular, { color: palette.textAssistive }]}>
                           {recurringMonths}개월
                         </Text>
                       </View>
@@ -826,7 +826,7 @@ const styles = StyleSheet.create({
   section: {
     gap: 8,
   },
-  sectionTitle: typographyLayout.sectionTitle,
+  sectionTitle: typographyLayout.uiLineBody01Bold,
   card: {
     borderRadius: 12,
     borderWidth: 1,
@@ -840,7 +840,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   categoryText: {
-    ...typographyLayout.fieldLine,
+    ...typographyLayout.uiLineBody01Regular,
   },
   yearMonthRow: {
     flexDirection: 'row',
@@ -864,7 +864,7 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   switchLabel: {
-    ...typographyLayout.fieldLine,
+    ...typographyLayout.uiLineBody01Regular,
   },
   recurringCaption: {
     ...typography.body02.regular,
@@ -878,7 +878,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   monthPickerPlaceholder: {
-    ...typographyLayout.fieldLine,
+    ...typographyLayout.uiLineBody01Regular,
   },
   monthPickerValue: {
     flexDirection: 'row',
@@ -900,6 +900,6 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     gap: 6,
   },
-  amountExpressionText: typographyLayout.fieldNumber,
-  amountExpressionOperator: typographyLayout.fieldNumber,
+  amountExpressionText: typographyLayout.fieldInputNumber,
+  amountExpressionOperator: typographyLayout.fieldInputNumber,
 });

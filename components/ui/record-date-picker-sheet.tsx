@@ -124,6 +124,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   confirmButtonText: {
-    ...typographyLayout.fieldLineMedium,
+    ...typographyLayout.uiLineBody01Medium,
   },
 });

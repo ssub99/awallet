@@ -701,8 +701,8 @@ export default function ChallengeEditScreen() {
                 <View style={styles.yearMonthRow}>
                   <View style={styles.yearMonthLeft}>
                     <Icon name="calendarMonth" variant="line" size={24} color="#bdbdbd" />
-                    <View style={typographyLayout.fieldLineWrap}>
-                      <Text style={[typographyLayout.fieldLine, { color: '#bdbdbd' }]}>
+                    <View style={typographyLayout.fieldInputLineWrap}>
+                      <Text style={[typographyLayout.uiLineBody01Regular, { color: '#bdbdbd' }]}>
                         {(() => {
                           if (!startDate) return '';
                           const [year, month] = startDate.split('.');
@@ -781,8 +781,8 @@ export default function ChallengeEditScreen() {
                       시작 년월 부터 반복할 개월 수
                     </Text>
                     <View style={styles.monthPickerValue}>
-                      <View style={typographyLayout.fieldLineWrap}>
-                        <Text style={[typographyLayout.fieldLine, { color: '#bdbdbd' }]}>
+                      <View style={typographyLayout.fieldInputLineWrap}>
+                        <Text style={[typographyLayout.uiLineBody01Regular, { color: '#bdbdbd' }]}>
                           {recurringCount}개월
                         </Text>
                       </View>
@@ -904,9 +904,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  sectionTitle: typographyLayout.sectionTitle,
+  sectionTitle: typographyLayout.uiLineBody01Bold,
   deleteText: {
-    ...typographyLayout.fieldLine,
+    ...typographyLayout.uiLineBody01Regular,
     textDecorationLine: 'underline',
   },
   challengeInfoCard: {
@@ -957,7 +957,7 @@ const styles = StyleSheet.create({
     ...typography.body02.medium,
   },
   amountValue: {
-    ...typographyLayout.sectionTitle,
+    ...typographyLayout.uiLineBody01Bold,
   },
   disabledCard: {
     borderRadius: 12,
@@ -965,7 +965,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(144, 146, 158, 0.16)',
   },
   disabledText: {
-    ...typographyLayout.fieldLine,
+    ...typographyLayout.uiLineBody01Regular,
   },
   yearMonthRow: {
     flexDirection: 'row',
@@ -989,7 +989,7 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   switchLabel: {
-    ...typographyLayout.fieldLine,
+    ...typographyLayout.uiLineBody01Regular,
   },
   recurringCaption: {
     ...typography.body02.regular,
@@ -1018,6 +1018,6 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     gap: 6,
   },
-  amountExpressionText: typographyLayout.fieldNumber,
-  amountExpressionOperator: typographyLayout.fieldNumber,
+  amountExpressionText: typographyLayout.fieldInputNumber,
+  amountExpressionOperator: typographyLayout.fieldInputNumber,
 });

@@ -136,11 +136,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   label: {
-    ...typographyLayout.checkboxLabel,
+    ...typographyLayout.uiLineBody02Medium,
     marginLeft: 8,
   },
   requiredMark: {
-    ...typographyLayout.checkboxLabel,
+    ...typographyLayout.uiLineBody02Medium,
   },
 });
 

@@ -427,7 +427,7 @@ const styles = StyleSheet.create({
     marginBottom: 32,
     gap: 8,
   },
-  label: { ...typographyLayout.sectionTitle },
+  label: { ...typographyLayout.uiLineBody01Bold },
   radioRow: { flexDirection: 'row', alignItems: 'center' },
   radioCol: { flex: 1, alignItems: 'flex-start' },
 });

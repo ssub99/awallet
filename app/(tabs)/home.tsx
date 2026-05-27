@@ -1106,7 +1106,7 @@ const styles = StyleSheet.create({
     flexShrink: 0, // Prevent label from shrinking
   },
   cardAmount: {
-    ...typographyLayout.sectionTitle,
+    ...typographyLayout.uiLineBody01Bold,
     flex: 1, // Take remaining space
     textAlign: 'right',
   },

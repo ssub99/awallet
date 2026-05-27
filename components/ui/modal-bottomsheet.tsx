@@ -361,7 +361,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   title: {
-    ...typographyLayout.sectionTitle,
+    ...typographyLayout.uiLineBody01Bold,
   },
   confirmButton: {
     paddingHorizontal: 16,
@@ -376,7 +376,7 @@ const styles = StyleSheet.create({
     height: 32,
   },
   confirmText: {
-    ...typographyLayout.buttonTextSmall,
+    ...typographyLayout.uiLineButton02Medium,
   },
   divider: {
     height: 1,

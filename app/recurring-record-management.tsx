@@ -432,7 +432,7 @@ export default function RecurringRecordManagementScreen() {
         <Text style={[styles.deleteConfirmText, { color: colors.textNeutral }]}>
           {pendingDelete ? (
             <>
-              <Text style={typographyLayout.sectionTitle}>{pendingDelete.categoryDisplay}</Text>
+              <Text style={typographyLayout.uiLineBody01Bold}>{pendingDelete.categoryDisplay}</Text>
               {'에\n포함된 반복 기록은 전부 삭제됩니다.\n삭제를 진행하시겠어요?'}
             </>
           ) : null}
@@ -468,7 +468,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   yearText: {
-    ...typographyLayout.sectionTitle,
+    ...typographyLayout.uiLineBody01Bold,
   },
   bodyArea: {
     flex: 1,
@@ -514,11 +514,11 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   categoryText: {
-    ...typographyLayout.sectionTitle,
+    ...typographyLayout.uiLineBody01Bold,
     flex: 1,
   },
   amountText: {
-    ...typographyLayout.sectionTitle,
+    ...typographyLayout.uiLineBody01Bold,
   },
   infoBody: {
     gap: 2,

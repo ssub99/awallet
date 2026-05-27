@@ -265,14 +265,14 @@ const styles = StyleSheet.create({
     marginRight: 0,
   },
   label: {
-    ...typographyLayout.fieldLine,
+    ...typographyLayout.uiLineBody01Regular,
     textAlign: 'left',
   },
   valueContainer: {
     flex: 1,
   },
   value: {
-    ...typographyLayout.fieldLineMedium,
+    ...typographyLayout.uiLineBody01Medium,
     textAlign: 'left',
   },
   buttonSection: {
@@ -290,7 +290,7 @@ const styles = StyleSheet.create({
     width: 144,
   },
   subButtonText: {
-    ...typographyLayout.fieldLineMedium,
+    ...typographyLayout.uiLineBody01Medium,
   },
   mainButton: {
     height: 48,
@@ -300,6 +300,6 @@ const styles = StyleSheet.create({
     width: 143,
   },
   mainButtonText: {
-    ...typographyLayout.fieldLineMedium,
+    ...typographyLayout.uiLineBody01Medium,
   },
 });

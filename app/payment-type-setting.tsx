@@ -69,7 +69,7 @@ const styles = StyleSheet.create({
   paymentTypeIndicator: { width: 16, height: 16, borderRadius: 99, borderWidth: 1 },
   paymentTypeTextBlock: { flex: 1, marginLeft: 12 },
   paymentTypeTextBlockSingleLine: { justifyContent: 'center' },
-  paymentTypeTitle: { ...typographyLayout.fieldLine },
+  paymentTypeTitle: { ...typographyLayout.uiLineBody01Regular },
   paymentTypeSubtitle: { ...typography.body02.regular },
   paymentTypeRight: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   divider: { height: 1, marginLeft: 16, marginRight: 16 },

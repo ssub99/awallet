@@ -25,11 +25,12 @@ description: Design system implementation and development best practices
 - **typography**: Use [constants/typography/](mdc:constants/typography/) — see [README](mdc:constants/typography/README.md)
   1. Tokens (`typography.base` + `typography.platform`) — numbers only, no screen import
   2. Runtime (`merge.ts` — **only** `Platform.OS` branch)
-  3. Presets — `typography.body01.regular` (Figma names), `typographyLayout.*` (Input · singleRow UI)
-  - Single-row labels/rows → `typographyLayout.fieldLine` / `sectionTitle` / component presets (`buttonTextLarge`, …)
-  - Dynamic horizontal shrink → base `typographyLayout.calendarAmount` / `monthStatusAmount` + `scaleTextStyleFontSize` (fontSize만 덮지 않음)
-  - iOS picker wheel → `typographyLayout.pickerWheelItemIos` (+ color만 palette로)
-  - Do not call `singleRowCenteredTextStyle` outside `constants/typography/`
+  3. Presets — `typography.body01.regular` (Figma names), `typographyLayout.*` (fieldInput · uiLine UI)
+  - Single-row labels/rows → `typographyLayout.uiLineBody01Regular` / `uiLineBody01Bold` / `uiLineBody01Medium` (토큰 기준 키만)
+  - TextInput → `typographyLayout.fieldInputLine` / `fieldInputPlaceholder` / `fieldInputArea`
+  - Dynamic horizontal shrink → `typographyLayout.calendarAmount` / `monthStatusAmount` + `scaleTextStyleFontSize` (fontSize만 덮지 않음)
+  - iOS picker wheel → `typographyLayout.pickerWheelIos` (+ color만 palette로)
+  - Do not call `uiLineTextStyle` outside `constants/typography/`
   - Never hardcode font sizes, weights, or line heights in `app/` or `components/`
 
 - **Spacing**: Use design system spacing values

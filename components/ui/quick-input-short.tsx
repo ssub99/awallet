@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   quickInputText: {
-    ...typographyLayout.quickInputShortLabel,
+    ...typographyLayout.uiLineBody02Medium,
   },
   quickInputArrow: {
     width: 16,

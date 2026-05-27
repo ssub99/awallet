@@ -311,7 +311,7 @@ const styles = StyleSheet.create({
     height: 24,
   },
   text: {
-    ...typographyLayout.selectboxDisplayText,
+    ...typographyLayout.uiLineBody01Regular,
   },
   // Android Picker
   androidPicker: {

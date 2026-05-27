@@ -91,7 +91,7 @@ const styles = StyleSheet.create({
     minHeight: 26, // Figma design height
   },
   text: {
-    ...typographyLayout.tagText,
+    ...typographyLayout.uiLineDetailBold,
     textAlign: 'center',
   },
 });

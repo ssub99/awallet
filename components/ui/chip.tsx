@@ -153,15 +153,15 @@ const styles = StyleSheet.create({
     // height can be overridden via style prop
   },
   textActive: {
-    ...typographyLayout.chipTextActive,
+    ...typographyLayout.uiLineBody02Bold,
     textAlign: 'center',
   },
   textDefault: {
-    ...typographyLayout.chipTextDefault,
+    ...typographyLayout.uiLineBody02Medium,
     textAlign: 'center',
   },
   textDisabled: {
-    ...typographyLayout.chipTextDefault,
+    ...typographyLayout.uiLineBody02Medium,
     textAlign: 'center',
   },
 });

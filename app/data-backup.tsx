@@ -410,7 +410,7 @@ const styles = StyleSheet.create({
     gap: 0,
   },
   sectionTitle: {
-    ...typographyLayout.sectionTitle,
+    ...typographyLayout.uiLineBody01Bold,
     marginBottom: 8,
   },
   card: {
@@ -426,7 +426,7 @@ const styles = StyleSheet.create({
     minHeight: 56,
   },
   menuLabel: {
-    ...typographyLayout.fieldLine,
+    ...typographyLayout.uiLineBody01Regular,
   },
   divider: {
     height: 1,

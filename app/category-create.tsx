@@ -530,7 +530,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   label: {
-    ...typographyLayout.sectionTitle,
+    ...typographyLayout.uiLineBody01Bold,
     marginBottom: 8,
   },
   input: {
@@ -574,7 +574,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#ededed',
   },
   categoryListItemText: {
-    ...typographyLayout.fieldLine,
+    ...typographyLayout.uiLineBody01Regular,
     color: colors.light.text,
   },
   categoryListItemTextActive: {

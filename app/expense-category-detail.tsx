@@ -434,7 +434,7 @@ const styles = StyleSheet.create({
     ...typography.body02.medium,
   },
   statValue: {
-    ...typographyLayout.sectionTitle,
+    ...typographyLayout.uiLineBody01Bold,
   },
   emptyContainer: {
     flex: 1,

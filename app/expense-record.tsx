@@ -6905,7 +6905,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  sectionTitle: typographyLayout.sectionTitle,
+  sectionTitle: typographyLayout.uiLineBody01Bold,
   currentYearMonth: {
     ...typography.body02.regular,
   },
@@ -6930,7 +6930,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   recurringInstallmentButtonText: {
-    ...typographyLayout.fieldLine,
+    ...typographyLayout.uiLineBody01Regular,
     textDecorationLine: 'underline',
   },
   card: {
@@ -6949,7 +6949,7 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   switchLabel: {
-    ...typographyLayout.fieldLine,
+    ...typographyLayout.uiLineBody01Regular,
   },
   recurringCaption: {
     ...typography.body02.regular,
@@ -6967,7 +6967,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  weekendOptionText: typographyLayout.fieldLine,
+  weekendOptionText: typographyLayout.uiLineBody01Regular,
   amountInput: {
     flex: 1,
   },
@@ -7038,7 +7038,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   paymentTypeStickyLabel: {
-    ...typographyLayout.sectionTitle,
+    ...typographyLayout.uiLineBody01Bold,
   },
   paymentTypeStickyControls: {
     width: 200,
@@ -7115,7 +7115,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   paymentTypeSheetTitle: {
-    ...typographyLayout.fieldLine,
+    ...typographyLayout.uiLineBody01Regular,
   },
   paymentTypeSheetSubtitle: {
     ...typography.body02.regular,
@@ -7128,7 +7128,7 @@ const styles = StyleSheet.create({
     ...typography.headline04.medium,
   },
   paymentTypeSheetCashText: {
-    ...typographyLayout.fieldLine,
+    ...typographyLayout.uiLineBody01Regular,
     textDecorationLine: 'underline',
   },
   alertText: {
@@ -7169,7 +7169,7 @@ const styles = StyleSheet.create({
     width: 100,
   },
   periodSelectText: {
-    ...typographyLayout.fieldLineMedium,
+    ...typographyLayout.uiLineBody01Medium,
   },
   periodSelectInput: {
     width: 100,
@@ -7190,8 +7190,8 @@ const styles = StyleSheet.create({
     gap: 6,
     minHeight: typographyLayoutFieldLineRowHeight,
   },
-  amountExpressionText: typographyLayout.fieldNumber,
-  amountExpressionOperator: typographyLayout.fieldNumber,
+  amountExpressionText: typographyLayout.fieldInputNumber,
+  amountExpressionOperator: typographyLayout.fieldInputNumber,
   installmentAmountContainer: {
     marginTop: 12,
     padding: 12,
@@ -7205,7 +7205,7 @@ const styles = StyleSheet.create({
     ...typography.body02.medium,
   },
   installmentAmountValue: {
-    ...typographyLayout.sectionTitle,
+    ...typographyLayout.uiLineBody01Bold,
   },
   // 정기 지출 날짜 선택 스타일
   recurringDateContainer: {
@@ -7221,7 +7221,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   recurringDateLabel: {
-    ...typographyLayout.fieldLine,
+    ...typographyLayout.uiLineBody01Regular,
   },
   recurringDateRight: {
     flexDirection: 'row',
@@ -7233,11 +7233,11 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   dayPickerText: {
-    ...typographyLayout.fieldLine,
+    ...typographyLayout.uiLineBody01Regular,
   },
   // 소비 정보 카드 스타일
   deleteText: {
-    ...typographyLayout.fieldLine,
+    ...typographyLayout.uiLineBody01Regular,
     textDecorationLine: 'underline',
   },
   expenseInfoCard: {
@@ -7280,7 +7280,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   prepaymentRefundLabel: {
-    ...typographyLayout.fieldLine,
+    ...typographyLayout.uiLineBody01Regular,
     flexShrink: 1,
   },
   prepaymentRefundActions: {
@@ -7293,7 +7293,7 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
   },
   prepaymentRefundText: {
-    ...typographyLayout.fieldLine,
+    ...typographyLayout.uiLineBody01Regular,
     textDecorationLine: 'underline',
   },
   settlementDropdownMenuContainer: {
@@ -7345,11 +7345,11 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(0, 0, 0, 0.12)',
   },
   settlementDropdownMenuLabel: typographyLayout.pickerNavRegular,
-  expenseCategory: typographyLayout.infoCardTitle,
-  expenseDate: typographyLayout.infoCardMeta,
-  expenseAmount: typographyLayout.infoCardTitle,
+  expenseCategory: typographyLayout.cardTitle,
+  expenseDate: typographyLayout.cardMeta,
+  expenseAmount: typographyLayout.cardTitle,
   expenseMemo: {
-    ...typographyLayout.infoCardMeta,
+    ...typographyLayout.cardMeta,
     textAlign: 'right',
   },
   deleteConfirmText: {
@@ -7375,10 +7375,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   recurringCategory: {
-    ...typographyLayout.sectionTitle,
+    ...typographyLayout.uiLineBody01Bold,
   },
   recurringAmount: {
-    ...typographyLayout.sectionTitle,
+    ...typographyLayout.uiLineBody01Bold,
   },
   recurringPeriodRow: {
     flexDirection: 'row',
@@ -7427,10 +7427,10 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   deleteOptionTitle: {
-    ...typographyLayout.fieldLineMedium,
+    ...typographyLayout.uiLineBody01Medium,
   },
   deleteOptionDescription: {
-    ...typographyLayout.fieldLine,
+    ...typographyLayout.uiLineBody01Regular,
   },
   deleteOptionDivider: {
     height: 1,

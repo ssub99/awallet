@@ -83,9 +83,9 @@ export function Accordion({
 
   const textStyle = useMemo(() => {
     if (disabled) {
-      return typographyLayout.accordionTextDisabled;
+      return typographyLayout.uiLineButton02Medium;
     }
-    return expanded ? typographyLayout.accordionTextExpanded : typographyLayout.accordionTextCollapsed;
+    return expanded ? typographyLayout.uiLineButton02Regular : typographyLayout.uiLineButton02Medium;
   }, [disabled, expanded]);
 
   const handlePress = () => {

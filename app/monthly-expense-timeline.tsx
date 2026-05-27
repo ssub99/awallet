@@ -1707,7 +1707,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   summaryMonth: {
-    ...typographyLayout.sectionTitle,
+    ...typographyLayout.uiLineBody01Bold,
   },
   summaryAmounts: {
     flexDirection: 'row',
@@ -1721,7 +1721,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   summaryIncome: {
-    ...typographyLayout.sectionTitle,
+    ...typographyLayout.uiLineBody01Bold,
   },
   summaryDivider: {
     width: 1,
@@ -1732,7 +1732,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   summaryExpense: {
-    ...typographyLayout.sectionTitle,
+    ...typographyLayout.uiLineBody01Bold,
   },
   summaryBottomDivider: {
     height: 1,
@@ -1861,11 +1861,11 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   categoryName: {
-    ...typographyLayout.sectionTitle,
+    ...typographyLayout.uiLineBody01Bold,
     flex: 1,
   },
   categoryStatsText: {
-    ...typographyLayout.sectionTitle,
+    ...typographyLayout.uiLineBody01Bold,
   },
   categorySeparator: {
     height: 1,
@@ -1908,7 +1908,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   challengeCategoryName: {
-    ...typographyLayout.sectionTitle,
+    ...typographyLayout.uiLineBody01Bold,
   },
   challengeStatus: {
     flexDirection: 'row',
@@ -1924,7 +1924,7 @@ const styles = StyleSheet.create({
     ...typography.detail.bold,
   },
   statusLabel: {
-    ...typographyLayout.sectionTitle,
+    ...typographyLayout.uiLineBody01Bold,
   },
   progressContainer: {
     height: 10,
@@ -1952,7 +1952,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   amountValue: {
-    ...typographyLayout.sectionTitle,
+    ...typographyLayout.uiLineBody01Bold,
   },
   paymentFilterSheetContent: {
     padding: 0,
@@ -1989,7 +1989,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   paymentFilterCashEmoji: {
-    ...typographyLayout.fieldLine,
+    ...typographyLayout.uiLineBody01Regular,
   },
   paymentFilterEmojiWrap: {
     width: 16,
@@ -2008,7 +2008,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   paymentFilterTitle: {
-    ...typographyLayout.fieldLine,
+    ...typographyLayout.uiLineBody01Regular,
   },
   paymentFilterSubtitle: {
     ...typography.body02.regular,

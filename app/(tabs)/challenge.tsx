@@ -3068,7 +3068,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   periodText: {
-    ...typographyLayout.sectionTitle,
+    ...typographyLayout.uiLineBody01Bold,
     textAlign: 'center',
   },
   monthArrowButton: {
@@ -3124,10 +3124,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   reportSubTabTextActive: {
-    ...typographyLayout.sectionTitle,
+    ...typographyLayout.uiLineBody01Bold,
   },
   reportSubTabTextInactive: {
-    ...typographyLayout.fieldLineMedium,
+    ...typographyLayout.uiLineBody01Medium,
   },
   reportSubTabIndicator: {
     position: 'absolute',
@@ -3196,7 +3196,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   reportMonthText: {
-    ...typographyLayout.sectionTitle,
+    ...typographyLayout.uiLineBody01Bold,
   },
   reportScoreCard: {
     width: '100%',
@@ -3223,7 +3223,7 @@ const styles = StyleSheet.create({
     ...typography.headline01.bold,
   },
   reportScoreUnit: {
-    ...typographyLayout.sectionTitle,
+    ...typographyLayout.uiLineBody01Bold,
     marginLeft: 4,
   },
   reportScoreMessage: {
@@ -3343,11 +3343,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   trendCategoryName: {
-    ...typographyLayout.sectionTitle,
+    ...typographyLayout.uiLineBody01Bold,
     flex: 1,
   },
   trendCategoryStats: {
-    ...typographyLayout.sectionTitle,
+    ...typographyLayout.uiLineBody01Bold,
   },
   challengeList: {
     paddingHorizontal: 16,
@@ -3371,7 +3371,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   challengeCategoryName: {
-    ...typographyLayout.sectionTitle,
+    ...typographyLayout.uiLineBody01Bold,
   },
   statusBadge: {
     borderRadius: 4,
@@ -3382,7 +3382,7 @@ const styles = StyleSheet.create({
     ...typography.detail.bold,
   },
   statusLabel: {
-    ...typographyLayout.sectionTitle,
+    ...typographyLayout.uiLineBody01Bold,
   },
   progressContainer: {
     height: 10,
@@ -3410,7 +3410,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   amountValue: {
-    ...typographyLayout.sectionTitle,
+    ...typographyLayout.uiLineBody01Bold,
   },
   trendPaymentFilterSheetContent: {
     padding: 0,
@@ -3448,7 +3448,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   trendPaymentFilterCashEmoji: {
-    ...typographyLayout.fieldLine,
+    ...typographyLayout.uiLineBody01Regular,
   },
   trendPaymentFilterEmojiWrap: {
     width: 16,
@@ -3468,7 +3468,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   trendPaymentFilterTitle: {
-    ...typographyLayout.fieldLine,
+    ...typographyLayout.uiLineBody01Regular,
   },
   trendPaymentFilterSubtitle: {
     ...typography.body02.regular,

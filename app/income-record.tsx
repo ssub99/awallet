@@ -905,7 +905,7 @@ const styles = StyleSheet.create({
     paddingTop: 24,
     gap: 8,
   },
-  sectionTitle: typographyLayout.sectionTitle,
+  sectionTitle: typographyLayout.uiLineBody01Bold,
   card: {
     borderRadius: 12,
     borderWidth: 1,
@@ -919,7 +919,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   dateText: {
-    ...typographyLayout.fieldLine,
+    ...typographyLayout.uiLineBody01Regular,
   },
   bottomButtonContainer: {
     paddingHorizontal: 16,
@@ -936,7 +936,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     gap: 6,
   },
-  amountExpressionText: typographyLayout.fieldNumber,
-  amountExpressionOperator: typographyLayout.fieldNumber,
+  amountExpressionText: typographyLayout.fieldInputNumber,
+  amountExpressionOperator: typographyLayout.fieldInputNumber,
 });
 

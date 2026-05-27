@@ -449,7 +449,7 @@ const styles = StyleSheet.create({
     ...typography.body02.medium,
   },
   amountValue: {
-    ...typographyLayout.sectionTitle,
+    ...typographyLayout.uiLineBody01Bold,
   },
   listScrollContainer: {
     flex: 1,

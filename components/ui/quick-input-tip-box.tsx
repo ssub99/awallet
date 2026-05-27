@@ -914,7 +914,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   badgeText: {
-    ...typographyLayout.tagText,
+    ...typographyLayout.uiLineDetailBold,
     flexShrink: 0,
     textAlign: 'center',
   },
@@ -945,7 +945,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   message: {
-    ...typographyLayout.fieldLine,
+    ...typographyLayout.uiLineBody01Regular,
     flexShrink: 0,
   },
   collapseButtonHitArea: {

@@ -590,8 +590,8 @@ const styles = StyleSheet.create({
   icon: {
     // Icon is 24x24
   },
-  inputLineTextWrap: typographyLayout.fieldLineWrap,
-  inputLineTextWrapShort: typographyLayout.fieldLineShortWrap,
+  inputLineTextWrap: typographyLayout.fieldInputLineWrap,
+  inputLineTextWrapShort: typographyLayout.fieldInputShortLineWrap,
   inputFieldWrap: {
     flex: 1,
     justifyContent: 'center',
@@ -607,16 +607,16 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     minHeight: typographyLayoutFieldAreaInputHeight,
   },
-  inputLine: typographyLayout.fieldLineInput,
-  inputAreaField: typographyLayout.fieldAreaInput,
-  inputLineButtonText: typographyLayout.fieldLine,
-  inputPlaceholderText: typographyLayout.fieldLinePlaceholder,
-  inputShort: typographyLayout.fieldLineShort,
-  inputShortField: typographyLayout.fieldLineShortInput,
+  inputLine: typographyLayout.fieldInputLine,
+  inputAreaField: typographyLayout.fieldInputArea,
+  inputLineButtonText: typographyLayout.uiLineBody01Regular,
+  inputPlaceholderText: typographyLayout.fieldInputPlaceholder,
+  inputShort: typographyLayout.fieldInputShortLine,
+  inputShortField: typographyLayout.fieldInputShortLineInput,
   inputEmojiGapCompact: {
     marginLeft: -4,
   },
-  inputNumber: typographyLayout.fieldNumber,
+  inputNumber: typographyLayout.fieldInputNumber,
   valueRenderer: {
     flex: 1,
   },
@@ -625,22 +625,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  unit: typographyLayout.fieldLine,
-  time: typographyLayout.fieldLine,
-  rightText: typographyLayout.fieldLine,
+  unit: typographyLayout.uiLineBody01Regular,
+  time: typographyLayout.uiLineBody01Regular,
+  rightText: typographyLayout.uiLineBody01Regular,
   rightArrow: {
     // Icon is 24x24
   },
   rightIcon: {
     // Icon is 24x24
   },
-  calendarDate: typographyLayout.fieldLine,
+  calendarDate: typographyLayout.uiLineBody01Regular,
   sortationIndicator: {
     width: 16,
     height: 16,
     borderRadius: 99,
     borderWidth: 1,
   },
-  sortationEmoji: typographyLayout.fieldLine,
+  sortationEmoji: typographyLayout.uiLineBody01Regular,
 });
 

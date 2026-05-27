@@ -609,9 +609,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  label: { ...typographyLayout.sectionTitle },
+  label: { ...typographyLayout.uiLineBody01Bold },
   deleteText: {
-    ...typographyLayout.fieldLine,
+    ...typographyLayout.uiLineBody01Regular,
     color: colors.light.statusNegative,
   },
   // 피그마: 신용(좌) / 체크(우)로 고정 배치

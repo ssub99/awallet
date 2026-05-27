@@ -1,5 +1,5 @@
 /**
- * OS별 lineHeight override — paragraph · singleRow · fieldInput.
+ * OS별 lineHeight override — paragraph · uiLine · fieldInput.
  * fontSize는 typography.base. iOS / Android를 한 파일에서 비교.
  */
 
@@ -20,7 +20,7 @@ const ios = {
     categoryEmojiM: { lineHeight: 54 },
     categoryEmojiL: { lineHeight: 48 },
   },
-  singleRow: {
+  uiLine: {
     body01: { lineHeight: 24 },
     body02: { lineHeight: 21 },
     pickerNav: { lineHeight: 25.5 },
@@ -48,7 +48,7 @@ const android = {
     categoryEmojiM: { lineHeight: 54 },
     categoryEmojiL: { lineHeight: 48 },
   },
-  singleRow: {
+  uiLine: {
     body01: { lineHeight: 21 },
     body02: { lineHeight: 18 },
     pickerNav: { lineHeight: 21 },
@@ -61,4 +61,4 @@ const android = {
 
 export const typographyPlatform = { ios, android } as const;
 
-export type SingleRowScaleKey = keyof typeof typographyPlatform.ios.singleRow;
+export type UiLineScaleKey = keyof typeof typographyPlatform.ios.uiLine;

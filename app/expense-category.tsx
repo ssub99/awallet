@@ -351,7 +351,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   categoryLabel: {
-    ...typographyLayout.fieldLine,
+    ...typographyLayout.uiLineBody01Regular,
   },
   checkIcon: {
     width: 24,

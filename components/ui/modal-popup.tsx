@@ -361,7 +361,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   buttonText: {
-    ...typographyLayout.fieldLineMedium,
+    ...typographyLayout.uiLineBody01Medium,
   },
 });
 

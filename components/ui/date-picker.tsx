@@ -121,7 +121,7 @@ export function DatePicker({
   );
 
   const iosWheelItemStyle = isIos
-    ? { ...typographyLayout.pickerWheelItemIos, color: palette.staticBlack }
+    ? { ...typographyLayout.pickerWheelIos, color: palette.staticBlack }
     : undefined;
 
   const [tempYear, setTempYear] = useState<number | undefined>(() =>
@@ -717,7 +717,7 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   androidYearMonthTitle: {
-    ...typographyLayout.sectionTitle,
+    ...typographyLayout.uiLineBody01Bold,
     textAlign: 'center',
     paddingTop: 20,
     paddingBottom: 8,
@@ -746,9 +746,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   androidYearMonthCancel: {
-    ...typographyLayout.fieldLineMedium,
+    ...typographyLayout.uiLineBody01Medium,
   },
   androidYearMonthConfirm: {
-    ...typographyLayout.sectionTitle,
+    ...typographyLayout.uiLineBody01Bold,
   },
 });

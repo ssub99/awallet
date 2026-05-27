@@ -506,7 +506,7 @@ const styles = StyleSheet.create({
     height: 56,
   },
   settingLabel: {
-    ...typographyLayout.fieldLine,
+    ...typographyLayout.uiLineBody01Regular,
   },
   settingValue: {
     flexDirection: 'row',
@@ -514,7 +514,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   settingValueText: {
-    ...typographyLayout.fieldLine,
+    ...typographyLayout.uiLineBody01Regular,
   },
 
   // Menu Row
@@ -535,6 +535,6 @@ const styles = StyleSheet.create({
     minHeight: 58,
   },
   menuLabel: {
-    ...typographyLayout.fieldLine,
+    ...typographyLayout.uiLineBody01Regular,
   },
 });
