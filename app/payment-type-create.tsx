@@ -12,7 +12,7 @@ import {
   scrollScrollViewSectionAboveKeyboard,
 } from '@/utils/record-form-keyboard-scroll';
 import { ulid } from 'ulid';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated,
@@ -39,11 +39,13 @@ export default function PaymentTypeCreateScreen() {
   const COLOR_PICKER_PREWARM_MS = 220;
   const palette = colors.light;
   const router = useRouter();
+  const params = useLocalSearchParams<{ type?: string }>();
+  const initialSelectedType: PaymentSubtypeType = params.type === 'debit' ? 'debit' : 'credit';
   const { showToast } = useToast();
   const insets = useSafeAreaInsets();
   const [label, setLabel] = useState('');
   const [description, setDescription] = useState('');
-  const [selectedType, setSelectedType] = useState<PaymentSubtypeType>('credit');
+  const [selectedType, setSelectedType] = useState<PaymentSubtypeType>(initialSelectedType);
   const [color, setColor] = useState<string>('#3664CE');
 
   const [isColorPickerMounted, setIsColorPickerMounted] = useState(false);

@@ -46,7 +46,7 @@ function toSettingItem(item: PaymentSubtype, isDefault: boolean): PaymentTypeIte
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { flex: 1, padding: 16, minHeight: 0 },
-  card: { flex: 1, borderRadius: 16, overflow: 'visible', minHeight: 0 },
+  card: { flex: 1, borderRadius: 16, overflow: 'hidden', minHeight: 0 },
   chipRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
   scrollContent: { paddingTop: 4, paddingBottom: 16 },
   handleArea: { padding: 8, margin: -8 },
@@ -80,18 +80,14 @@ function PaymentTypeItem({
   item,
   drag,
   isActive,
-  index,
   colors,
-  onDragStart,
   showDivider,
   onPress,
 }: {
   item: PaymentTypeItemData;
   drag: () => void;
   isActive: boolean;
-  index: number | undefined;
   colors: typeof themeColors.light;
-  onDragStart: (params: { index: number }) => void;
   showDivider: boolean;
   onPress: (item: PaymentTypeItemData) => void;
 }) {
@@ -157,10 +153,8 @@ function PaymentTypeItem({
                 {item.isDefault ? <Tag label="기본" status="normal" /> : null}
                 <Pressable
                   onPressIn={() => {
-                    if (index !== undefined) onDragStart({ index });
                     drag();
                   }}
-                  onLongPress={drag}
                   style={styles.handleArea}
                   accessibilityRole="button"
                   accessibilityLabel="드래그 핸들"
@@ -184,12 +178,17 @@ export default function PaymentTypeSettingScreen() {
   const [selectedFilter, setSelectedFilter] = useState<PaymentMethodType>('credit');
   const [paymentSubtypes, setPaymentSubtypes] = useState<PaymentSubtype[]>(() => initialSubtypes);
   const [isListDataReady, setIsListDataReady] = useState(() => getPaymentSubtypesMemoryCache() != null);
+  const [isDragAutoscrollEnabled, setIsDragAutoscrollEnabled] = useState(false);
 
   const previousIndexRef = useRef<number | null>(null);
   const hasTriggeredStartHapticRef = useRef<boolean>(false);
   const dragStartIndexRef = useRef<number | null>(null);
   const isDraggingRef = useRef<boolean>(false);
   const lastDragEndTimeRef = useRef<number>(0);
+  const scrollOffsetYRef = useRef(0);
+  const dragSessionIdRef = useRef(0);
+  const activeDragSessionIdRef = useRef<number | null>(null);
+  const dragPhaseRef = useRef<'idle' | 'dragging' | 'settling'>('idle');
 
   const applyLoadedSubtypes = useCallback((loaded: PaymentSubtype[]) => {
     setPaymentSubtypes((current) => (arePaymentSubtypesSame(current, loaded) ? current : loaded));
@@ -233,55 +232,91 @@ export default function PaymentTypeSettingScreen() {
     return filtered.map((item, index) => toSettingItem(item, index === 0));
   }, [paymentSubtypes, selectedFilter]);
 
-  const handleDragStart = useCallback(({ index }: { index: number }) => {
-    if (!hasTriggeredStartHapticRef.current) {
-      isDraggingRef.current = true;
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      hasTriggeredStartHapticRef.current = true;
-      dragStartIndexRef.current = index;
-      previousIndexRef.current = index;
+  const arePaymentTypeItemsSame = useCallback((a: PaymentTypeItemData[], b: PaymentTypeItemData[]) => {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i += 1) {
+      if (a[i]?.id !== b[i]?.id) return false;
     }
+    return true;
+  }, []);
+
+  const handleDragStart = useCallback(({ index }: { index: number }) => {
+    if (dragPhaseRef.current !== 'idle') {
+      if (!isDraggingRef.current) {
+        dragPhaseRef.current = 'idle';
+        activeDragSessionIdRef.current = null;
+        hasTriggeredStartHapticRef.current = false;
+      } else {
+        return;
+      }
+    }
+    dragPhaseRef.current = 'dragging';
+    dragSessionIdRef.current += 1;
+    activeDragSessionIdRef.current = dragSessionIdRef.current;
+    isDraggingRef.current = true;
+    setIsDragAutoscrollEnabled(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    hasTriggeredStartHapticRef.current = true;
+    dragStartIndexRef.current = index;
+    previousIndexRef.current = index;
   }, []);
 
   const handlePlaceholderIndexChange = useCallback((index: number) => {
     if (previousIndexRef.current !== null && previousIndexRef.current !== index) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
     previousIndexRef.current = index;
   }, []);
 
   const handleDragEnd = useCallback(
     ({ data }: { data: PaymentTypeItemData[] }) => {
+      const activeSessionId = activeDragSessionIdRef.current;
+      if (activeSessionId == null || dragStartIndexRef.current == null) {
+        return;
+      }
+      dragPhaseRef.current = 'settling';
+      const isSameOrder = arePaymentTypeItemsSame(paymentTypes, data);
       lastDragEndTimeRef.current = Date.now();
       isDraggingRef.current = false;
+      setIsDragAutoscrollEnabled(false);
+      activeDragSessionIdRef.current = null;
       previousIndexRef.current = null;
       hasTriggeredStartHapticRef.current = false;
       dragStartIndexRef.current = null;
+      dragPhaseRef.current = 'idle';
 
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          const nextSubtypes = [
-            ...paymentSubtypes.filter((item) => item.type !== selectedFilter),
-            ...data.map((item) => {
-              const source = paymentSubtypes.find((origin) => origin.id === item.id);
-              return {
-                id: item.id,
-                type: item.type,
-                label: item.label,
-                description: source?.description ?? '',
-                color: item.color,
-              } as PaymentSubtype;
-            }),
-          ];
-          setPaymentSubtypes(nextSubtypes);
-          savePaymentSubtypes(nextSubtypes).catch((error) => {
-            console.error('결제 유형 순서 저장 중 오류:', error);
-          });
-        });
+      if (isSameOrder) {
+        return;
+      }
+
+      const nextSubtypes = [
+        ...paymentSubtypes.filter((item) => item.type !== selectedFilter),
+        ...data.map((item) => {
+          const source = paymentSubtypes.find((origin) => origin.id === item.id);
+          return {
+            id: item.id,
+            type: item.type,
+            label: item.label,
+            description: source?.description ?? '',
+            color: item.color,
+          } as PaymentSubtype;
+        }),
+      ];
+      setPaymentSubtypes(nextSubtypes);
+      savePaymentSubtypes(nextSubtypes).catch((error) => {
+        console.error('결제 유형 순서 저장 중 오류:', error);
       });
     },
-    [paymentSubtypes, selectedFilter]
+    [arePaymentTypeItemsSame, paymentSubtypes, paymentTypes, selectedFilter]
   );
+
+  const handleRelease = useCallback(() => {
+    if (activeDragSessionIdRef.current == null || dragStartIndexRef.current == null) {
+      return;
+    }
+    setIsDragAutoscrollEnabled(false);
+    dragPhaseRef.current = 'settling';
+  }, []);
 
   const handlePaymentTypePress = useCallback(
     (item: PaymentTypeItemData) => {
@@ -309,15 +344,13 @@ export default function PaymentTypeSettingScreen() {
           item={item}
           drag={drag}
           isActive={isActive}
-          index={index}
           colors={colors}
-          onDragStart={handleDragStart}
           showDivider={!isLast && !isActive}
           onPress={handlePaymentTypePress}
         />
       );
     },
-    [colors, handleDragStart, handlePaymentTypePress, paymentTypes.length]
+    [colors, handlePaymentTypePress, paymentTypes.length]
   );
 
   const renderPlaceholder = useCallback(
@@ -341,7 +374,12 @@ export default function PaymentTypeSettingScreen() {
         onLeftIconPress={() => router.back()}
         showRightButton
         rightButtonText="생성"
-        onRightButtonPress={() => router.push('/payment-type-create' as any)}
+        onRightButtonPress={() =>
+          router.push({
+            pathname: '/payment-type-create' as any,
+            params: { type: selectedFilter },
+          })
+        }
       />
 
       <View style={[styles.content, { backgroundColor: colors.fill }]}>
@@ -372,20 +410,24 @@ export default function PaymentTypeSettingScreen() {
               data={paymentTypes}
               onDragBegin={(index: number) => handleDragStart({ index })}
               onPlaceholderIndexChange={handlePlaceholderIndexChange}
-              onRelease={() => {}}
+              onRelease={handleRelease}
               onDragEnd={handleDragEnd}
               animationConfig={{ damping: 50, stiffness: 1000, mass: 0.5, overshootClamping: true }}
               keyExtractor={(item) => item.id}
               renderItem={renderItem}
               renderPlaceholder={renderPlaceholder}
               contentContainerStyle={styles.scrollContent}
-              clipToPadding={false}
               getItemLayout={(data, index) => ({
                 length: 57,
                 offset: 57 * index,
                 index,
               })}
               removeClippedSubviews={false}
+              autoscrollThreshold={isDragAutoscrollEnabled ? 56 : 0}
+              autoscrollSpeed={isDragAutoscrollEnabled ? 48 : 0}
+              onScrollOffsetChange={(offset: number) => {
+                scrollOffsetYRef.current = offset;
+              }}
               bounces={false}
               overScrollMode="never"
               showsVerticalScrollIndicator={false}
