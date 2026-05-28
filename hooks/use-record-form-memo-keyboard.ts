@@ -261,7 +261,7 @@ export function useRecordFormMemoKeyboard({
   }, [commitKeyboardGeometry]);
 
   useEffect(() => {
-    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const showEvent = 'keyboardDidShow';
     const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
 
     const showSub = Keyboard.addListener(showEvent, (event) => {
@@ -367,14 +367,7 @@ export function useRecordFormMemoKeyboard({
     iosFinalizeGraceCountRef.current = 0;
     clearMemoScrollTimeout();
     setIsMemoSystemKeyboardOpen(true);
-    if (Platform.OS === 'ios') {
-      requestAnimationFrame(() => {
-        if (!pendingIosFocusScrollRef.current || !isMemoFocusedRef.current) {
-          return;
-        }
-        void tryResolveIosFocusScroll('onFocus');
-      });
-    } else {
+    if (Platform.OS !== 'ios') {
       void tryResolveIosFocusScroll('onFocus');
     }
     if (Platform.OS === 'ios') {
