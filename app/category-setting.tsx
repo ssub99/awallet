@@ -24,7 +24,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
 import DraggableFlatList, { RenderItemParams, ScaleDecorator } from 'react-native-draggable-flatlist';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // 스타일 정의 (컴포넌트 함수 밖에서 정의하여 CategoryItem에서 접근 가능하도록)
 const styles = StyleSheet.create({
@@ -215,6 +215,7 @@ function CategoryItem({
 export default function CategorySettingScreen() {
   const colors = themeColors.light;
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ type?: string }>();
   
   const categoryType = (params.type as CategoryType) || 'expense';
@@ -401,7 +402,13 @@ export default function CategorySettingScreen() {
   }, [colors]);
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
+    <SafeAreaView
+      style={[
+        styles.container,
+        { backgroundColor: colors.background, paddingTop: insets.top },
+      ]}
+      edges={['bottom']}
+    >
       <StatusBar barStyle="dark-content" />
       
       {/* Top Navigation */}
@@ -427,6 +434,10 @@ export default function CategorySettingScreen() {
           ) : (
             <DraggableFlatList
               data={categories}
+              initialNumToRender={categories.length}
+              maxToRenderPerBatch={categories.length}
+              updateCellsBatchingPeriod={0}
+              windowSize={Math.max(5, categories.length)}
               onDragBegin={(index: number) => {
                 handleDragStart({ index });
               }}

@@ -39,7 +39,7 @@ export function getOrderedCategoriesFromCache(type: CategoryType): Category[] | 
   if (savedOrder === undefined) {
     return null;
   }
-  if (savedOrder.length > 0) {
+  if (savedOrder && savedOrder.length > 0) {
     return applySavedOrder(categories, savedOrder);
   }
   return categories;
