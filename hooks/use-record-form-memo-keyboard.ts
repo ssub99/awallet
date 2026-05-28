@@ -22,10 +22,13 @@ type UseRecordFormMemoKeyboardParams = {
   safeAreaBottom: number;
 };
 
-const MEMO_FOCUS_SCROLL_DELAY_MS = 350;
-const IOS_FOCUS_SCROLL_RETRY_DELAY_MS = 180;
-const IOS_FOCUS_SCROLL_MAX_ATTEMPTS = 2;
-const IOS_FOCUS_SCROLL_STALL_RETRY_THRESHOLD = 1;
+const MEMO_FOCUS_SCROLL_DELAY_MS = 500;
+const IOS_FOCUS_SCROLL_RETRY_DELAY_MS = 300;
+const IOS_FOCUS_SCROLL_MAX_ATTEMPTS = 1;
+const IOS_FOCUS_SCROLL_MAX_ATTEMPTS_LARGE_MOVE = 2;
+const IOS_FOCUS_SCROLL_LARGE_MOVE_THRESHOLD_PX = 140;
+const IOS_FOCUS_SCROLL_STALL_RETRY_THRESHOLD = 2;
+const IOS_FOCUS_SCROLL_STALL_GUARD_MS = 140;
 const IOS_FOCUS_SCROLL_SETTLE_GRACE_MS = 260;
 const IOS_FOCUS_SCROLL_FINALIZE_TOLERANCE_PX = 8;
 const IOS_FOCUS_SCROLL_MAX_GRACE_RETRIES = 2;
@@ -40,14 +43,7 @@ export function useRecordFormMemoKeyboard({
   windowHeight,
   safeAreaBottom,
 }: UseRecordFormMemoKeyboardParams) {
-  const debugLog = (event: string, payload?: Record<string, unknown>) => {
-    if (!__DEV__) return;
-    console.log('[MemoInputDebug]', `[memo-keyboard] ${event}`, {
-      ts: Date.now(),
-      platform: Platform.OS,
-      ...payload,
-    });
-  };
+  const debugLog = (_event: string, _payload?: Record<string, unknown>) => {};
   const memoInputRef = useRef<TextInput>(null);
   const scrollYRef = useRef(0);
   const isMemoFocusedRef = useRef(false);
@@ -57,7 +53,9 @@ export function useRecordFormMemoKeyboard({
   const iosFocusScrollAttemptCountRef = useRef(0);
   const iosFocusScrollMovedRef = useRef(false);
   const iosPendingTargetScrollYRef = useRef<number | null>(null);
+  const iosLastOverflowRef = useRef(0);
   const iosScrollInFlightRef = useRef(false);
+  const iosInFlightStartedAtRef = useRef(0);
   const iosLastRetryScrollYRef = useRef(0);
   const iosNoProgressRetryCountRef = useRef(0);
   const iosFinalizeGraceCountRef = useRef(0);
@@ -117,13 +115,17 @@ export function useRecordFormMemoKeyboard({
   );
 
   const tryResolveIosFocusScroll = useCallback(
-    (source: 'onFocus' | 'keyboardShow') => {
+    (source: 'onFocus' | 'keyboardShow' | 'paddingRetry') => {
       if (Platform.OS !== 'ios') return false;
       if (!pendingIosFocusScrollRef.current) {
         debugLog('tryResolveIosFocusScroll:skip(no pending)', { source });
         return false;
       }
-      if (iosScrollInFlightRef.current && iosPendingTargetScrollYRef.current != null) {
+      if (
+        source !== 'paddingRetry' &&
+        iosScrollInFlightRef.current &&
+        iosPendingTargetScrollYRef.current != null
+      ) {
         debugLog('tryResolveIosFocusScroll:skip(inFlight)', {
           source,
           targetY: iosPendingTargetScrollYRef.current,
@@ -176,8 +178,10 @@ export function useRecordFormMemoKeyboard({
           return;
         }
         if (moved) {
+          iosLastOverflowRef.current = overflow;
           iosPendingTargetScrollYRef.current = targetY;
           iosScrollInFlightRef.current = true;
+          iosInFlightStartedAtRef.current = Date.now();
           iosLastRetryScrollYRef.current = scrollYRef.current;
           iosNoProgressRetryCountRef.current = 0;
           debugLog('tryResolveIosFocusScroll:awaitScrollEvent', {
@@ -338,7 +342,7 @@ export function useRecordFormMemoKeyboard({
       scrollYBefore: scrollYRef.current,
       memoSectionY: memoSectionYRef.current,
     });
-    void tryResolveIosFocusScroll('onFocus');
+    void tryResolveIosFocusScroll('paddingRetry');
   }, [keyboardPaddingBottom, memoSectionYRef, tryResolveIosFocusScroll]);
 
   const handleMemoFocus = useCallback(() => {
@@ -355,7 +359,9 @@ export function useRecordFormMemoKeyboard({
     iosFocusScrollMovedRef.current = false;
     iosFocusScrollAttemptCountRef.current = 0;
     iosPendingTargetScrollYRef.current = null;
+    iosLastOverflowRef.current = 0;
     iosScrollInFlightRef.current = false;
+    iosInFlightStartedAtRef.current = 0;
     iosLastRetryScrollYRef.current = scrollYRef.current;
     iosNoProgressRetryCountRef.current = 0;
     iosFinalizeGraceCountRef.current = 0;
@@ -387,12 +393,29 @@ export function useRecordFormMemoKeyboard({
             moved: iosFocusScrollMovedRef.current,
           });
           const currentY = scrollYRef.current;
+          const maxAttemptsForCurrentMove =
+            iosLastOverflowRef.current >= IOS_FOCUS_SCROLL_LARGE_MOVE_THRESHOLD_PX
+              ? IOS_FOCUS_SCROLL_MAX_ATTEMPTS_LARGE_MOVE
+              : IOS_FOCUS_SCROLL_MAX_ATTEMPTS;
+          const inFlightGuardActive =
+            iosScrollInFlightRef.current &&
+            Date.now() - iosInFlightStartedAtRef.current < IOS_FOCUS_SCROLL_STALL_GUARD_MS;
           const progressed = currentY > iosLastRetryScrollYRef.current + 0.5;
           if (progressed) {
             iosLastRetryScrollYRef.current = currentY;
             iosNoProgressRetryCountRef.current = 0;
-          } else {
+          } else if (!inFlightGuardActive) {
             iosNoProgressRetryCountRef.current += 1;
+          }
+          if (inFlightGuardActive) {
+            debugLog('handleMemoFocus:iosRetry(guard window)', {
+              guardMs: IOS_FOCUS_SCROLL_STALL_GUARD_MS,
+              elapsedMs: Date.now() - iosInFlightStartedAtRef.current,
+              targetY: iosPendingTargetScrollYRef.current,
+              scrollYNow: currentY,
+            });
+            scheduleIosRetry(IOS_FOCUS_SCROLL_RETRY_DELAY_MS);
+            return;
           }
           if (
             iosScrollInFlightRef.current &&
@@ -400,7 +423,7 @@ export function useRecordFormMemoKeyboard({
           ) {
             if (
               pendingIosFocusScrollRef.current &&
-              iosFocusScrollAttemptCountRef.current < IOS_FOCUS_SCROLL_MAX_ATTEMPTS
+              iosFocusScrollAttemptCountRef.current < maxAttemptsForCurrentMove
             ) {
               scheduleIosRetry(IOS_FOCUS_SCROLL_RETRY_DELAY_MS);
               return;
@@ -416,11 +439,16 @@ export function useRecordFormMemoKeyboard({
               scrollYNow: currentY,
             });
             iosScrollInFlightRef.current = false;
+            iosInFlightStartedAtRef.current = 0;
           }
-          void tryResolveIosFocusScroll('onFocus');
+          const canRunAnotherResolve =
+            iosFocusScrollAttemptCountRef.current < maxAttemptsForCurrentMove;
+          if (canRunAnotherResolve) {
+            void tryResolveIosFocusScroll('onFocus');
+          }
           if (
             pendingIosFocusScrollRef.current &&
-            iosFocusScrollAttemptCountRef.current < IOS_FOCUS_SCROLL_MAX_ATTEMPTS
+            iosFocusScrollAttemptCountRef.current < maxAttemptsForCurrentMove
           ) {
             scheduleIosRetry(IOS_FOCUS_SCROLL_RETRY_DELAY_MS);
             return;
@@ -444,6 +472,21 @@ export function useRecordFormMemoKeyboard({
           }
           if (
             pendingIosFocusScrollRef.current &&
+            iosScrollInFlightRef.current &&
+            iosFinalizeGraceCountRef.current <= IOS_FOCUS_SCROLL_MAX_GRACE_RETRIES
+          ) {
+            iosFinalizeGraceCountRef.current += 1;
+            debugLog('handleMemoFocus:iosSettleGrace(finalize guard)', {
+              targetY: iosPendingTargetScrollYRef.current,
+              scrollYNow: scrollYRef.current,
+              graceCount: iosFinalizeGraceCountRef.current,
+              inFlight: iosScrollInFlightRef.current,
+            });
+            scheduleIosRetry(IOS_FOCUS_SCROLL_SETTLE_GRACE_MS);
+            return;
+          }
+          if (
+            pendingIosFocusScrollRef.current &&
             !iosFocusScrollMovedRef.current &&
             iosPendingTargetScrollYRef.current != null
           ) {
@@ -453,6 +496,7 @@ export function useRecordFormMemoKeyboard({
               iosFocusScrollMovedRef.current = true;
               pendingIosFocusScrollRef.current = false;
               iosScrollInFlightRef.current = false;
+              iosInFlightStartedAtRef.current = 0;
               suppressKeyboardHideBlurRef.current = false;
               debugLog('handleMemoFocus:resolvedByFinalizeProximity', {
                 targetY,
@@ -464,6 +508,7 @@ export function useRecordFormMemoKeyboard({
           }
           pendingIosFocusScrollRef.current = false;
           iosScrollInFlightRef.current = false;
+          iosInFlightStartedAtRef.current = 0;
           suppressKeyboardHideBlurRef.current = false;
           debugLog('handleMemoFocus:iosFinalize', {
             pendingIosFocusScroll: pendingIosFocusScrollRef.current,
@@ -493,6 +538,7 @@ export function useRecordFormMemoKeyboard({
       iosFocusScrollMovedRef.current = true;
       pendingIosFocusScrollRef.current = false;
       iosScrollInFlightRef.current = false;
+      iosInFlightStartedAtRef.current = 0;
       suppressKeyboardHideBlurRef.current = false;
       debugLog('onMemoScroll:resolved(moved)', {
         nextY,
@@ -512,7 +558,9 @@ export function useRecordFormMemoKeyboard({
     pendingIosFocusScrollRef.current = false;
     pendingIosScrollAfterPaddingRef.current = false;
     iosPendingTargetScrollYRef.current = null;
+    iosLastOverflowRef.current = 0;
     iosScrollInFlightRef.current = false;
+    iosInFlightStartedAtRef.current = 0;
     iosFinalizeGraceCountRef.current = 0;
     suppressKeyboardHideBlurRef.current = false;
     clearMemoScrollTimeout();

@@ -2580,17 +2580,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   }, []);
 
   const handleMemoFocus = () => {
-    if (__DEV__) {
-      console.log('[MemoInputDebug]', '[expense-record] handleMemoFocus:start', {
-        ts: Date.now(),
-        mode,
-        isKeypadVisible,
-        isMemoFocused,
-        skipNextDismiss: skipNextDismissRef.current,
-        memoSectionY: memoSectionYRef.current,
-        memoSectionHeight: memoSectionHeightRef.current,
-      });
-    }
     void logEvent('ui', {
       screen_name: analyticsScreenName,
       target: 'memo',
@@ -5475,13 +5464,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               setMemoSectionY(layout.y);
               memoSectionYRef.current = layout.y;
               memoSectionHeightRef.current = layout.height;
-              if (__DEV__) {
-                console.log('[MemoInputDebug]', '[expense-record] memoSection:onLayout', {
-                  ts: Date.now(),
-                  y: layout.y,
-                  height: layout.height,
-                });
-              }
             }}
           >
             <SectionTitle style={[styles.sectionTitle, { color: palette.staticBlack }]}>
@@ -5496,13 +5478,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               maxLength={20}
               multiline
               onPressIn={() => {
-                if (__DEV__) {
-                  console.log('[MemoInputDebug]', '[expense-record] memoInput:onPressIn', {
-                    ts: Date.now(),
-                    isKeypadVisible,
-                    skipNextDismiss: skipNextDismissRef.current,
-                  });
-                }
                 memoPointerHandlers.onPressIn();
                 clearDismissTimeout();
                 skipNextDismissRef.current = true;
