@@ -614,8 +614,8 @@ export default function CategorySettingScreen() {
                 index,
               })}
               removeClippedSubviews={false}
-              autoscrollThreshold={isDragAutoscrollEnabled ? 56 : 0}
-              autoscrollSpeed={isDragAutoscrollEnabled ? 48 : 0}
+              autoscrollThreshold={56}
+              autoscrollSpeed={48}
               onScrollOffsetChange={(offset: number) => {
                 scrollOffsetYRef.current = offset;
               }}
