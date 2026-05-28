@@ -254,6 +254,13 @@ export default function CategorySettingScreen() {
   const dragStartIndexRef = useRef<number | null>(null);
   const isDraggingRef = useRef<boolean>(false);
   const lastDragEndTimeRef = useRef<number>(0);
+  const listRef = useRef<{
+    scrollToOffset: (params: { offset: number; animated?: boolean }) => void;
+  } | null>(null);
+  const postDropSettlingRef = useRef(false);
+  const sameOrderDropRef = useRef(false);
+  const postDropLockOffsetRef = useRef<number | null>(null);
+  const postDropTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const applyLoadedCategories = useCallback(
     (finalCategories: Array<{ emoji: string; label: string; type: CategoryType }>) => {
@@ -266,6 +273,37 @@ export default function CategorySettingScreen() {
     },
     [],
   );
+
+  const clearPostDropSettling = useCallback(() => {
+    postDropSettlingRef.current = false;
+    sameOrderDropRef.current = false;
+    postDropLockOffsetRef.current = null;
+    if (postDropTimerRef.current) {
+      clearTimeout(postDropTimerRef.current);
+      postDropTimerRef.current = null;
+    }
+  }, []);
+
+  const startPostDropSettling = useCallback((lockOffset: number) => {
+    postDropSettlingRef.current = true;
+    sameOrderDropRef.current = true;
+    postDropLockOffsetRef.current = lockOffset;
+
+    if (postDropTimerRef.current) {
+      clearTimeout(postDropTimerRef.current);
+    }
+    postDropTimerRef.current = setTimeout(() => {
+      clearPostDropSettling();
+    }, 220);
+  }, [clearPostDropSettling]);
+
+  useEffect(() => {
+    return () => {
+      if (postDropTimerRef.current) {
+        clearTimeout(postDropTimerRef.current);
+      }
+    };
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -413,9 +451,17 @@ export default function CategorySettingScreen() {
 
     // 순서/내용이 동일하면 상태 변경을 건너뛰어 드롭 직후 자동 스크롤을 방지
     if (isSameOrder) {
+      const lockOffset = scrollOffsetYRef.current;
+      startPostDropSettling(lockOffset);
       logCategorySettingDebug('drag:end(skip state update - same order)', {
         sessionId: activeSessionId,
         scrollY: scrollOffsetYRef.current,
+      });
+      requestAnimationFrame(() => {
+        listRef.current?.scrollToOffset({ offset: lockOffset, animated: false });
+      });
+      requestAnimationFrame(() => {
+        listRef.current?.scrollToOffset({ offset: lockOffset, animated: false });
       });
       return;
     }
@@ -430,7 +476,7 @@ export default function CategorySettingScreen() {
       .catch((error) => {
         console.error('카테고리 순서 저장 중 오류:', error);
       });
-  }, [categories, categoryType, saveCategoryOrder]);
+  }, [categories, categoryType, saveCategoryOrder, startPostDropSettling]);
   
   // 드래그 릴리스 핸들러 (드롭 시 즉시 호출)
   const handleRelease = useCallback(() => {
@@ -587,6 +633,11 @@ export default function CategorySettingScreen() {
             </View>
           ) : (
             <DraggableFlatList
+              ref={(instance) => {
+                listRef.current = instance as unknown as {
+                  scrollToOffset: (params: { offset: number; animated?: boolean }) => void;
+                } | null;
+              }}
               data={categories}
               initialNumToRender={categories.length}
               maxToRenderPerBatch={categories.length}
@@ -621,6 +672,18 @@ export default function CategorySettingScreen() {
               }}
               onScroll={(event) => {
                 const nextY = event.nativeEvent.contentOffset.y;
+                if (
+                  postDropSettlingRef.current &&
+                  sameOrderDropRef.current &&
+                  postDropLockOffsetRef.current != null &&
+                  !isDraggingRef.current
+                ) {
+                  const lockOffset = postDropLockOffsetRef.current;
+                  if (Math.abs(nextY - lockOffset) > 1) {
+                    listRef.current?.scrollToOffset({ offset: lockOffset, animated: false });
+                    return;
+                  }
+                }
                 const now = Date.now();
                 const prevY = previousScrollOffsetYRef.current;
                 const deltaY = nextY - prevY;
@@ -642,6 +705,9 @@ export default function CategorySettingScreen() {
                 }
               }}
               onScrollBeginDrag={() => {
+                if (postDropSettlingRef.current) {
+                  clearPostDropSettling();
+                }
                 logCategorySettingDebug('list:scrollBeginDrag', {
                   scrollY: scrollOffsetYRef.current,
                   phase: dragPhaseRef.current,
@@ -671,6 +737,9 @@ export default function CategorySettingScreen() {
                   isDragging: isDraggingRef.current,
                   phase: dragPhaseRef.current,
                 });
+                if (postDropSettlingRef.current) {
+                  clearPostDropSettling();
+                }
               }}
               scrollEventThrottle={16}
               showsVerticalScrollIndicator={false}
