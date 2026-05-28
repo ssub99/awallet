@@ -101,6 +101,12 @@ type ScrollScrollViewSectionParams = {
   keyboardEnd: KeyboardEndCoordinates;
   inputRef?: RefObject<TextInput | null>;
   windowHeight?: number;
+  onScrollAttemptResult?: (result: {
+    moved: boolean;
+    overflow: number;
+    scrollYBefore: number;
+    targetY: number;
+  }) => void;
 };
 
 function runAfterAndroidKeyboardLayout(task: () => void): void {
@@ -120,9 +126,11 @@ export function scrollScrollViewSectionAboveKeyboard({
   keyboardEnd,
   inputRef,
   windowHeight = Dimensions.get('window').height,
+  onScrollAttemptResult,
 }: ScrollScrollViewSectionParams): void {
   const scrollView = scrollViewRef.current;
   if (!scrollView) {
+    onScrollAttemptResult?.({ moved: false, overflow: 0, scrollYBefore: 0, targetY: 0 });
     return;
   }
 
@@ -141,9 +149,12 @@ export function scrollScrollViewSectionAboveKeyboard({
       inputRef.current.measureInWindow((_x, inputTop, _w, inputHeight) => {
         const overflow = inputTop + inputHeight - targetMeasuredInputBottom;
         if (overflow <= 0) {
+          onScrollAttemptResult?.({ moved: false, overflow, scrollYBefore, targetY: scrollYBefore });
           return;
         }
-        finishScroll(scrollYBefore + overflow);
+        const targetY = scrollYBefore + overflow;
+        finishScroll(targetY);
+        onScrollAttemptResult?.({ moved: true, overflow, scrollYBefore, targetY });
       });
       return;
     }
@@ -151,6 +162,7 @@ export function scrollScrollViewSectionAboveKeyboard({
     const sectionY = sectionYRef.current;
     const sectionHeight = sectionHeightRef.current;
     if (sectionY <= 0 || sectionHeight <= 0) {
+      onScrollAttemptResult?.({ moved: false, overflow: 0, scrollYBefore, targetY: scrollYBefore });
       return;
     }
 
@@ -159,9 +171,12 @@ export function scrollScrollViewSectionAboveKeyboard({
         scrollViewTop + sectionY + sectionHeight - scrollYBefore;
       const overflow = sectionBottomInWindow - targetBorderBottom;
       if (overflow <= 0) {
+        onScrollAttemptResult?.({ moved: false, overflow, scrollYBefore, targetY: scrollYBefore });
         return;
       }
-      finishScroll(scrollYBefore + overflow);
+      const targetY = scrollYBefore + overflow;
+      finishScroll(targetY);
+      onScrollAttemptResult?.({ moved: true, overflow, scrollYBefore, targetY });
     });
   };
 
