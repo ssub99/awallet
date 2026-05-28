@@ -1398,6 +1398,19 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         };
         await createIncome(incomeRecord, { simpleCreation: true });
         await refreshWidgetWithCurrentMonth().catch(() => {});
+        const actualDateKey = actualDate.replace(/\./g, '-');
+        const savedDate = new Date(
+          parseInt(actualDate.split('.')[0], 10),
+          parseInt(actualDate.split('.')[1], 10) - 1,
+          parseInt(actualDate.split('.')[2], 10)
+        );
+        const monthStartDay = await loadMonthStartDay();
+        const { year: targetYear, month: targetMonth } = getCustomMonthInfo(savedDate, monthStartDay);
+        publishCalendarTarget({
+          year: targetYear,
+          month: targetMonth,
+          targetDate: actualDateKey,
+        });
         pendingRecordRef.current = null;
         setConfirmCardData(null);
         hideQuickInput();

@@ -137,13 +137,12 @@ export default function HomeScreen() {
     null,
   );
   const syncCalendarExternalView = useCallback((year: number, month: number) => {
-    if (
-      year === currentYearRef.current &&
-      month === currentMonthRef.current
-    ) {
-      return;
-    }
-    setCalendarExternalView({ year, month });
+    setCalendarExternalView((prev) => {
+      if (prev?.year === year && prev?.month === month) {
+        return prev;
+      }
+      return { year, month };
+    });
   }, []);
   const handleYearMonthPress = useCallback(
     (month: number) => {
