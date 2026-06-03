@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- assets/images/widget-logo-mark.svg -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="18dp"
+    android:height="17dp"
+    android:viewportWidth="18"
+    android:viewportHeight="17">
+    <path
+        android:fillColor="#2F54C4"
+        android:pathData="M9.86503,4.16395 L14.724,15.973 C14.9789,16.5926 15.6051,17 16.3024,17 C17.5107,17 18.3313,15.8282 17.8694,14.7625 L12.4287,2.20907 C11.1492,-0.743035 6.76532,-0.734273 5.49881,2.22292 L0.128161,14.7629 C-0.329104,15.8306 0.493602,17 1.70198,17 C2.40202,17 3.0305,16.5904 3.28546,15.9681 L8.12094,4.16518 C8.4312,3.40786 9.55361,3.40707 9.86503,4.16395 Z" />
+    <path
+        android:fillColor="#20C565"
+        android:pathData="M9,10 m-2,0 a2,2 0 1,1 4,0 a2,2 0 1,1 -4,0" />
+</vector>

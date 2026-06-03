@@ -58,3 +58,4 @@ Gradle sync 시 위 오류가 나면 Android Studio가 **PATH에 node를 못 찾
 - Android Studio Build Variant: `stageDebug`, `productionRelease` 등
 - 로컬 스테이지 prebuild: `EAS_BUILD_PROFILE=stage npx expo prebuild -p android`
 - EAS: `eas.json`의 `gradleCommand`가 프로필별 variant와 연결됨
+- 로컬 `expo run:android` 스테이지: `--variant stageDebug`만으로는 부족함. Expo가 설치 확인에 쓰는 패키지는 `build.gradle`의 **첫 번째** `applicationId`(production)라서, stage APK 설치 후에도 `com.ssong.awallet`를 찾다 실패할 수 있음. → `npm run android:stage -- --device` (내부: `--app-id com.ssong.awallet.stage` + `EAS_BUILD_PROFILE=stage`)

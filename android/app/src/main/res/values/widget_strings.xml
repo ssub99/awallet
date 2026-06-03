@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="monthly_expense_widget_title">이번달 소비</string>
+    <string name="monthly_expense_widget_logo_content_description">에이월렛</string>
+    <string name="monthly_expense_widget_description">이번달 소비 금액을 한눈에 확인할 수 있어요.</string>
+</resources>

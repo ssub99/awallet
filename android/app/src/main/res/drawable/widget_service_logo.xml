@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- assets/images/widget-service-logo.svg -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="22dp" />
+            <solid android:color="#FFFFFF" />
+            <size
+                android:width="36dp"
+                android:height="36dp" />
+        </shape>
+    </item>
+    <item
+        android:width="16dp"
+        android:height="15dp"
+        android:drawable="@drawable/widget_logo_mark"
+        android:gravity="center" />
+</layer-list>

@@ -89,6 +89,7 @@ app-example
 !/android/tools/
 !/android/tools/node
 !/android/local.properties.example
+!/android/keystore.properties.example
 !/android/gradle.properties
 !/android/gradlew
 !/android/gradlew.bat
@@ -119,6 +120,14 @@ app-example
 # 위젯·네이티브 리소스 (추가 시 커밋). 아이콘·폰트 등 prebuild 산출 res는 제외.
 !/android/app/src/main/res/xml/
 !/android/app/src/main/res/xml/**
+!/android/app/src/main/res/layout/
+!/android/app/src/main/res/layout/monthly_expense_widget.xml
+!/android/app/src/main/res/drawable/
+!/android/app/src/main/res/drawable/widget_*
+!/android/app/src/main/res/values/widget_dimens.xml
+!/android/app/src/main/res/values/widget_colors.xml
+!/android/app/src/main/res/values/widget_strings.xml
+!/android/app/src/main/res/values-night/widget_colors.xml
 # 앱 위젯 확장 모듈 추가 시 (iOS awalletWidget / awalletStageWidget 대칭)
 # !/android/awalletWidget/
 # !/android/awalletWidget/**

@@ -926,9 +926,9 @@ export default function HomeScreen() {
     ],
   );
 
-  // iOS 위젯에 이번달 소비 요약 데이터 동기화
+  // iOS/Android 위젯에 이번달 소비 요약 데이터 동기화
   useEffect(() => {
-    if (Platform.OS !== 'ios') {
+    if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
       return;
     }
 

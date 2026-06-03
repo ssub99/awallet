@@ -215,7 +215,7 @@ export function useRootLayoutBootstrap() {
   }, [appIsReady]);
 
   useEffect(() => {
-    if (Platform.OS !== 'ios') return;
+    if (Platform.OS !== 'ios' && Platform.OS !== 'android') return;
     resetMonthlyExpenseMaskInWidget().catch(() => {});
     const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
       if (next === 'active') {

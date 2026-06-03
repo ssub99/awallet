@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 위젯 카드는 라이트 고정 — Semantic/Label 동일 -->
+    <color name="semantic_label_neutral">#424242</color>
+    <color name="semantic_label_normal">#222222</color>
+    <color name="widget_title_text">@color/semantic_label_neutral</color>
+    <color name="widget_amount_text">@color/semantic_label_normal</color>
+    <color name="widget_mask_background">#DADBE2</color>
+    <color name="widget_amount_text_masked">#00000000</color>
+</resources>

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_card_background"
+    android:padding="@dimen/widget_padding">
+
+    <ImageView
+        android:id="@+id/widget_service_logo"
+        android:layout_width="@dimen/widget_logo_size"
+        android:layout_height="@dimen/widget_logo_size"
+        android:layout_alignParentStart="true"
+        android:layout_alignParentTop="true"
+        android:contentDescription="@string/monthly_expense_widget_logo_content_description"
+        android:scaleType="fitCenter"
+        android:src="@drawable/widget_service_logo" />
+
+    <!-- 금액: 우하단 고정 + 텍스트 너비만큼 마스크 (RemoteViews setViewLayoutWidth) -->
+    <TextView
+        android:id="@+id/widget_amount"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentEnd="true"
+        android:layout_alignParentBottom="true"
+        android:ellipsize="end"
+        android:gravity="end"
+        android:includeFontPadding="false"
+        android:maxLines="1"
+        android:paddingStart="0dp"
+        android:paddingEnd="0dp"
+        android:textColor="@color/widget_amount_text"
+        android:textSize="@dimen/widget_amount_text_size"
+        android:textStyle="bold" />
+
+    <!-- 이번달 소비: 금액 위, 우측 정렬 -->
+    <TextView
+        android:id="@+id/widget_title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_above="@id/widget_amount"
+        android:layout_alignEnd="@id/widget_amount"
+        android:layout_marginBottom="@dimen/widget_title_amount_spacing"
+        android:includeFontPadding="false"
+        android:text="@string/monthly_expense_widget_title"
+        android:textColor="@color/widget_title_text"
+        android:textSize="12sp" />
+</RelativeLayout>

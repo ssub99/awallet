@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="widget_padding">20dp</dimen>
+    <dimen name="widget_logo_size">36dp</dimen>
+    <dimen name="widget_amount_text_size">21sp</dimen>
+    <dimen name="widget_title_amount_spacing">2dp</dimen>
+</resources>
