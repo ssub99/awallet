@@ -1,0 +1,60 @@
+/**
+ * Android Studio(GUI)는 터미널 PATH를 못 받아 `node`를 찾지 못하는 경우가 많습니다.
+ * settings.gradle / app/build.gradle 에서 이 스크립트를 apply 한 뒤 awalletNodeExecutable 을 사용합니다.
+ *
+ * Expo `expo-autolinking-settings` 는 bare `node`만 호출 → `.idea/gradle.xml` PATH 또는 `android/tools/node` 래퍼 필요.
+ *
+ * 우선순위: NODE_BINARY > local.properties(node.executable | nodejs.dir) > Homebrew 경로 > node
+ */
+
+def resolveAndroidRootDir() {
+  if (binding.hasVariable('settingsDir')) {
+    return settingsDir
+  }
+  return rootProject.projectDir
+}
+
+def resolveNodeExecutable(File androidRoot) {
+  def fromEnv = System.getenv('NODE_BINARY')?.trim()
+  if (fromEnv) {
+    return fromEnv
+  }
+
+  def localPropsFile = new File(androidRoot, 'local.properties')
+  if (localPropsFile.exists()) {
+    def props = new Properties()
+    localPropsFile.withInputStream { props.load(it) }
+    def explicit = props.getProperty('node.executable')?.trim()
+    if (explicit) {
+      return explicit
+    }
+    def nodejsDir = props.getProperty('nodejs.dir')?.trim()
+    if (nodejsDir) {
+      def candidate = new File(nodejsDir, 'bin/node')
+      if (candidate.canExecute()) {
+        return candidate.absolutePath
+      }
+    }
+  }
+
+  def home = System.getenv('HOME') ?: ''
+  def candidates = [
+    '/opt/homebrew/bin/node',
+    '/usr/local/bin/node',
+    "${home}/.nvm/current/bin/node",
+  ]
+  for (path in candidates) {
+    def file = new File(path)
+    if (file.canExecute()) {
+      return file.absolutePath
+    }
+  }
+
+  return 'node'
+}
+
+def androidRoot = resolveAndroidRootDir()
+def resolvedNode = resolveNodeExecutable(androidRoot)
+
+gradle.ext.awalletNodeExecutable = resolvedNode
+ext.awalletNodeExecutable = resolvedNode

@@ -1,0 +1,14 @@
+# Android Studio / Gradle용 (이 파일을 local.properties 로 복사)
+# local.properties 는 gitignore 되어 있으며, 기기별로 설정합니다.
+#
+# Android Studio가 "Cannot run program node" 오류를 낼 때:
+#   cp local.properties.example local.properties
+#   node.executable 를 본인 PC의 node 경로로 수정 (터미널에서 `which node` 로 확인)
+
+sdk.dir=/Users/YOUR_USER/Library/Android/sdk
+
+# 필수에 가깝음: GUI로 연 Android Studio는 PATH에 node가 없을 수 있음
+node.executable=/usr/local/bin/node
+
+# 대안 (node.executable 대신 디렉터리만 지정)
+# nodejs.dir=/usr/local

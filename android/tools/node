@@ -1,0 +1,39 @@
+#!/bin/sh
+# Expo/React Native Gradle 플러그인은 PATH의 `node`를 호출합니다.
+# Android Studio(GUI)는 터미널 PATH를 못 받으므로 gradlew가 android/tools 를 PATH 앞에 둡니다.
+set -eu
+
+ANDROID_ROOT="$(CDPATH= cd "$(dirname "$0")/.." && pwd)"
+LOCAL_PROPS="$ANDROID_ROOT/local.properties"
+
+if [ -n "${NODE_BINARY:-}" ] && [ -x "${NODE_BINARY}" ]; then
+  exec "${NODE_BINARY}" "$@"
+fi
+
+if [ -f "$LOCAL_PROPS" ]; then
+  NODE_EXE=$(grep -E '^node\.executable=' "$LOCAL_PROPS" | head -1 | cut -d= -f2- | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+  if [ -n "$NODE_EXE" ] && [ -x "$NODE_EXE" ]; then
+    exec "$NODE_EXE" "$@"
+  fi
+  NODEJS_DIR=$(grep -E '^nodejs\.dir=' "$LOCAL_PROPS" | head -1 | cut -d= -f2- | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+  if [ -n "$NODEJS_DIR" ] && [ -x "$NODEJS_DIR/bin/node" ]; then
+    exec "$NODEJS_DIR/bin/node" "$@"
+  fi
+fi
+
+for candidate in \
+  /opt/homebrew/bin/node \
+  /usr/local/bin/node \
+  "${HOME:+$HOME/.nvm/current/bin/node}" \
+  ; do
+  if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+    exec "$candidate" "$@"
+  fi
+done
+
+if command -v node >/dev/null 2>&1; then
+  exec "$(command -v node)" "$@"
+fi
+
+echo "awallet: node를 찾을 수 없습니다. android/local.properties 에 node.executable=/path/to/node 를 설정하세요." >&2
+exit 127

@@ -3,24 +3,34 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "android": {
+        "gradleCommand": ":app:assembleProductionDebug"
+      }
     },
     "stage": {
       "distribution": "internal",
       "channel": "stage",
       "ios": { "buildConfiguration": "Release" },
-      "android": {}
+      "android": {
+        "gradleCommand": ":app:assembleStageRelease"
+      }
     },
     "stage-testflight": {
       "distribution": "store",
       "channel": "stage",
       "ios": { "buildConfiguration": "Release" },
-      "android": {}
+      "android": {
+        "gradleCommand": ":app:bundleStageRelease"
+      }
     },
     "production": {
       "distribution": "store",
       "channel": "production",
-      "ios": { "buildConfiguration": "Release" }
+      "ios": { "buildConfiguration": "Release" },
+      "android": {
+        "gradleCommand": ":app:bundleProductionRelease"
+      }
     }
   },
   "submit": {

@@ -15,8 +15,12 @@ description: Version bumps, EAS build, store submission, EAS Update (OTA). Produ
 | Update channel (`eas.json` + `app.config.ts`) | `production` | `stage` |
 | Main iOS target | `awallet` → `ios/awallet/Info.plist` | `awallet-stage` → `ios/awallet/Info-stage.plist` |
 | Xcode | `EXPO_UPDATES_CHANNELS = production` | `EXPO_UPDATES_CHANNELS = stage` |
+| Android package / Gradle flavor | `production` → `com.ssong.awallet` | `stage` → `com.ssong.awallet.stage` |
+| Android Studio variant (예) | `productionRelease` | `stageRelease` / `stageDebug` |
 
 `updates.channel` is set in **`app.config.ts`** from `EAS_BUILD_PROFILE`, not in static `app.json`. Without that env var locally, channel defaults to **`production`** — set `EAS_BUILD_PROFILE` for stage-aligned local builds.
+
+**Android EAS:** `eas.json` `gradleCommand` — stage `:app:assembleStageRelease` (internal) / `:app:bundleStageRelease` (store), production `:app:bundleProductionRelease`.
 
 ## Expo (`app.json`)
 
