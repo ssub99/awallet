@@ -11,6 +11,7 @@
     "android": "expo run:android",
     "android:stage": "EAS_BUILD_PROFILE=stage expo run:android --variant stageDebug --app-id com.ssong.awallet.stage",
     "android:production": "EAS_BUILD_PROFILE=production expo run:android --variant productionDebug --app-id com.ssong.awallet",
+    "android:install-production-release": "cd android && ./gradlew :app:installProductionRelease",
     "android:release-bundle": "cd android && ./gradlew :app:bundleProductionRelease",
     "android:setup-signing": "bash scripts/setup-android-release-signing.sh",
     "ios": "expo run:ios",

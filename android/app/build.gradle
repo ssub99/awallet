@@ -160,6 +160,11 @@ android {
     androidResources {
         ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'
     }
+    lint {
+        abortOnError false
+        // 로컬 installProductionRelease 시 Metaspace OOM 방지 (EAS/스토어 빌드는 별도)
+        checkReleaseBuilds false
+    }
 }
 
 // Apply static values from `gradle.properties` to the `android.packagingOptions`

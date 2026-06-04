@@ -20,6 +20,10 @@ interface WidgetDataSyncModule {
     monthStartDay: number;
   }) => Promise<void>;
   clearMonthlyExpenseRevealState: () => Promise<void>;
+  /** 위젯 trampoline 2초 스플래시 직후 — JS prepare() 추가 대기 스킵 (1회 소비) */
+  consumeWidgetTrampolineSplash?: () => Promise<boolean>;
+  /** Main 위 네이티브 스플래시 오버레이 제거 (홈 표시 직전) */
+  dismissWidgetMainSplashOverlay?: () => Promise<void>;
 }
 
 const { WidgetDataSync } = NativeModules;
@@ -121,6 +125,40 @@ export async function saveMonthlyExpenseToWidget(
  * 위젯 금액 공개 상태를 초기화(재마스킹)합니다.
  * 앱 진입 직후 호출해 위젯에 금액이 계속 노출되지 않도록 합니다.
  */
+export async function dismissWidgetMainSplashOverlayOnAndroid(): Promise<void> {
+  if (Platform.OS !== 'android') {
+    return;
+  }
+  if (
+    !widgetDataSync ||
+    typeof widgetDataSync.dismissWidgetMainSplashOverlay !== 'function'
+  ) {
+    return;
+  }
+  try {
+    await widgetDataSync.dismissWidgetMainSplashOverlay();
+  } catch {
+    // ignore
+  }
+}
+
+export async function consumeWidgetTrampolineSplashOnAndroid(): Promise<boolean> {
+  if (Platform.OS !== 'android') {
+    return false;
+  }
+  if (
+    !widgetDataSync ||
+    typeof widgetDataSync.consumeWidgetTrampolineSplash !== 'function'
+  ) {
+    return false;
+  }
+  try {
+    return Boolean(await widgetDataSync.consumeWidgetTrampolineSplash());
+  } catch {
+    return false;
+  }
+}
+
 export async function resetMonthlyExpenseMaskInWidget(): Promise<void> {
   if (!isNativeWidgetPlatform) return;
 

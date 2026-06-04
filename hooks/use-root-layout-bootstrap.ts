@@ -22,7 +22,12 @@ import {
 } from '@/utils/notification-scheduler';
 import { initializePaymentSubtypes } from '@/utils/payment-types';
 import { showStoreUpdateAlert } from '@/utils/show-store-update-alert';
-import { refreshWidgetWithCurrentMonth, resetMonthlyExpenseMaskInWidget } from '@/utils/widget-data-sync';
+import {
+  consumeWidgetTrampolineSplashOnAndroid,
+  dismissWidgetMainSplashOverlayOnAndroid,
+  refreshWidgetWithCurrentMonth,
+  resetMonthlyExpenseMaskInWidget,
+} from '@/utils/widget-data-sync';
 import Constants from 'expo-constants';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Updates from 'expo-updates';
@@ -33,6 +38,9 @@ interface StoreUpdateGateState {
   forceUpdate: boolean;
   message: string;
 }
+
+/** [WidgetLaunchExtras.SPLASH_DURATION_MS] / prepare() 기본 스플래시 대기 */
+const ROOT_SPLASH_MIN_MS = 2000;
 
 export function useRootLayoutBootstrap() {
   const { fontsLoaded, fontError } = useAppFonts();
@@ -79,7 +87,12 @@ export function useRootLayoutBootstrap() {
           }
         }
 
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        const skipMinSplash =
+          Platform.OS === 'android' && (await consumeWidgetTrampolineSplashOnAndroid());
+        const splashDelayMs = skipMinSplash ? 0 : ROOT_SPLASH_MIN_MS;
+        if (splashDelayMs > 0) {
+          await new Promise((resolve) => setTimeout(resolve, splashDelayMs));
+        }
 
         await initAmplitude();
         await initializePaymentSubtypes();
@@ -147,17 +160,32 @@ export function useRootLayoutBootstrap() {
 
   const fontsReady = fontsLoaded || fontError != null;
 
-  useEffect(() => {
-    if (appIsReady && fontsReady) {
-      SplashScreen.hideAsync().catch(() => {});
-    }
-  }, [appIsReady, fontsReady]);
+  const showApp =
+    appIsReady &&
+    fontsReady &&
+    splashFinished &&
+    !(storeUpdateGate?.forceUpdate === true);
 
-  const onLayoutRootView = useCallback(async () => {
-    if (appIsReady && fontsReady) {
-      await SplashScreen.hideAsync();
+  const splashHiddenRef = useRef(false);
+
+  const hideSplashWhenReady = useCallback(async () => {
+    if (!showApp || splashHiddenRef.current) {
+      return;
     }
-  }, [appIsReady, fontsReady]);
+    splashHiddenRef.current = true;
+    if (Platform.OS === 'android') {
+      await dismissWidgetMainSplashOverlayOnAndroid();
+    }
+    await SplashScreen.hideAsync();
+  }, [showApp]);
+
+  useEffect(() => {
+    hideSplashWhenReady().catch(() => {});
+  }, [hideSplashWhenReady]);
+
+  const onLayoutRootView = useCallback(() => {
+    hideSplashWhenReady().catch(() => {});
+  }, [hideSplashWhenReady]);
 
   const { permissionChecked } = useFirstLaunchNotificationPermission();
 
@@ -227,12 +255,6 @@ export function useRootLayoutBootstrap() {
     });
     return () => sub.remove();
   }, []);
-
-  const showApp =
-    appIsReady &&
-    fontsReady &&
-    splashFinished &&
-    !(storeUpdateGate?.forceUpdate === true);
 
   return { palette, onLayoutRootView, showApp };
 }

@@ -5,7 +5,7 @@ import android.content.Context
 import android.content.Intent
 
 /**
- * Android 전용: 마스킹 시 탭 → 5초 공개, 공개 중 탭 → 앱 실행(스플래시 포함 cold start).
+ * Android 전용: 마스킹 시 탭 → 5초 공개, 공개 중 탭 → 앱 실행(런처와 동일 intent).
  */
 class MonthlyExpenseWidgetActionReceiver : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent?) {
@@ -14,11 +14,15 @@ class MonthlyExpenseWidgetActionReceiver : BroadcastReceiver() {
     }
 
     val appContext = context.applicationContext
-    if (WidgetDataStore.isRevealed(appContext)) {
-      appContext.startActivity(WidgetAppLaunch.buildLaunchIntent(appContext))
+    val isRevealed = WidgetDataStore.isRevealed(appContext)
+    WidgetDebugLog.d("widgetTap isRevealed=$isRevealed")
+    if (isRevealed) {
+      WidgetDebugLog.d("widgetTap → 앱 실행 (공개 상태)")
+      WidgetAppLaunch.startAppFromWidget(appContext)
       return
     }
 
+    WidgetDebugLog.d("widgetTap → 5초 공개만 (앱 미실행)")
     WidgetDataStore.setRevealed(appContext, true)
     WidgetRevealScheduler.scheduleRemask(appContext)
     MonthlyExpenseWidgetUpdater.updateAll(appContext)

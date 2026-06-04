@@ -48,6 +48,32 @@ class WidgetDataSyncModule(reactContext: ReactApplicationContext) :
   }
 
   @ReactMethod
+  fun dismissWidgetMainSplashOverlay(promise: Promise) {
+    mainHandler.post {
+      try {
+        val activity = reactApplicationContext.currentActivity
+        if (activity != null) {
+          WidgetMainSplashOverlay.dismiss(activity)
+        }
+        promise.resolve(null)
+      } catch (e: Exception) {
+        promise.reject("ERROR", "Failed to dismiss widget splash overlay: ${e.message}", e)
+      }
+    }
+  }
+
+  @ReactMethod
+  fun consumeWidgetTrampolineSplash(promise: Promise) {
+    try {
+      val consumed =
+        WidgetLaunchPrefs.consumeTrampolineSplashPending(reactApplicationContext.applicationContext)
+      promise.resolve(consumed)
+    } catch (e: Exception) {
+      promise.reject("ERROR", "Failed to consume trampoline splash flag: ${e.message}", e)
+    }
+  }
+
+  @ReactMethod
   fun clearMonthlyExpenseRevealState(promise: Promise) {
     try {
       val context = reactApplicationContext.applicationContext

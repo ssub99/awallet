@@ -25,7 +25,7 @@ export function RootLayoutShell({
   navigation,
 }: RootLayoutShellProps) {
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor }}>
       <KeyboardProvider>
         <LoadingProvider>
           <SafeAreaProvider initialMetrics={initialWindowMetrics}>
