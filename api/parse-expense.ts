@@ -14,7 +14,10 @@ import {
 } from '../utils/parse-expense-relative-date';
 import { resolveExpenseRecurringTypeFromMessage } from '../utils/expense-calculations';
 import { resolveHolidayDateFromMessage } from './holiday-calendar';
-import { getBaseSystemPrompt } from './ai-system-prompts';
+import {
+  isSimpleExpenseCandidate,
+  tryParseSimpleExpense,
+} from '../utils/parse-expense-simple';
 import {
   checkRateLimit,
   DEFAULT_AI_RATE_LIMIT_POLICY,
@@ -80,7 +83,6 @@ function buildExpenseSystemPrompt(
   today: string,
   paymentSubtypeOptions: PaymentSubtypeOption[],
 ): string {
-  const base = getBaseSystemPrompt();
   const categoryList =
     categories.length > 0 ? categories.join(', ') : '(없음. suggestedCategory로만 제안)';
   const creditSubtypeLabels = paymentSubtypeOptions
@@ -91,46 +93,27 @@ function buildExpenseSystemPrompt(
     .map((item) => item.label);
   const paymentSubtypeGuide =
     paymentSubtypeOptions.length > 0
-      ? `신용 결제유형: ${creditSubtypeLabels.join(', ') || '(없음)'}\n체크 결제유형: ${debitSubtypeLabels.join(', ') || '(없음)'}`
-      : '결제유형 목록: (없음)';
+      ? `신용: ${creditSubtypeLabels.join(', ') || '(없음)'} / 체크: ${debitSubtypeLabels.join(', ') || '(없음)'}`
+      : '결제유형: (없음)';
 
-  return `${base}
-
-가계부 지출 추출 에이전트입니다. JSON만 출력해야 합니다.
-
-규칙:
-1. 요청 없으면 생성/삭제 금지.
-1-1. 수입 키워드(월급/급여/보너스/입금/용돈/환급/꽁돈)면 recordType을 income으로 설정.
-2. 결제 기본: credit. 체크/현금 요청 시 debit/cash. 기본값 지정 요청 시 기억.
-2-1. 사용자가 카드사/카드명(예: 신한카드)을 언급하면 paymentSubtypeLabel에 해당 결제유형 라벨을 넣음.
-2-2. paymentMethod가 cash면 paymentSubtypeLabel은 반드시 빈 값(생략).
-3. 날짜는 기준일 ${today} 기준. YYYY.MM.DD. (저번주/이번주/다음주+요일 조합은 서버에서 월요일 시작 주로 재계산해 보정될 수 있음)
-4. 소비 외 질문→reply에 "소비 기록 관련해서만 답변드릴 수 있어요."
-5. 부족한 항목 있으면 reply에 요청. 카테고리 목록에 없거나 비어있으면 반드시 suggestedCategory 1개 제안(이모지+이름 10자).
-6. 메모는 사용자가 별도로 요청할 때만 기록에 넣음. 자연어로 메모를 요청한 경우(메모도 넣어줘·메모 남겨 등) memo는 비우거나 짧은 초안만 넣음(서버에서 재정제).
+  return `가계부 지출 추출. 응답은 JSON 한 덩어리만.
 
 카테고리: ${categoryList}
+기준일: ${today}
 ${paymentSubtypeGuide}
-- 목록이 비어있거나 매칭 없으면 records[].category는 null, suggestedCategory는 반드시 채움(예: 옷→쇼핑).
-금액: 숫자만. 2만원→20000. paymentMethod: 신용/카드→credit, 체크/현금→debit/cash. 여러 건이면 records에 복수.
-recordType이 income이면 paymentMethod/paymentSubtypeLabel은 비움.
-수입은 반복 기록 미지원: recordType이 income이면 isRecurring/isInstallment를 넣지 않음.
 
-반복/할부: **반드시** 사용자 메시지에서 정기(월세·구독·정기결제·매달·매월) 또는 할부(3개월 할부 등) 의도가 있으면 해당 필드를 채움.
-- 구독/매달/매월/월세/정기결제 → isRecurring: true, recurringType: "매월", totalMonths: 12, weekendOption: "weekend"
-- 주중/평일/주말 + 반복 표현(씩/마다 등) → isRecurring: true, recurringType: "주중" 또는 "주말"
-- 할부 N개월 → isInstallment: true, totalMonths: N(2~12), weekendOption: "weekend"
-- 올해초부터/올해 N월부터/저번달부터 등은 반복·할부 지출의 시작일.
-- 일반 지출 → isRecurring, isInstallment 모두 생략 또는 false
-- recurringType: 매일|매주|2주|3주|4주|매월|2개월 마다|3개월 마다|4개월 마다|5개월 마다|6개월 마다|주중|주말. 매달/매월/월세/구독이면 "매월".
-- totalMonths: 정기 매월이면 12. 할부면 개월수.
-- weekendOption: "weekend"|"friday"|"monday". 기본 "weekend". 주말 날짜+금요일 기록 원하면 "friday".
+규칙:
+- 수입(월급/급여/보너스/입금/용돈/환급/꽁돈)→recordType:income, 결제수단 필드 생략, 반복/할부 없음
+- 결제 기본 credit. 체크/현금→debit/cash. cash면 paymentSubtypeLabel 생략
+- 카드사·카드명 언급 시 paymentSubtypeLabel에 목록 라벨 매칭
+- 날짜 YYYY.MM.DD (저번주/이번주/다음주+요일은 서버 보정 가능)
+- 카테고리 미매칭 시 records[].category null, suggestedCategory 1개(이모지+이름≤10자)
+- 메모는 사용자가 명시 요청할 때만. 자연어 메모 요청(메모도 넣어줘 등)은 memo 비우거나 짧게
+- 정기(구독/매달/월세)·할부(N개월) 의도 시 isRecurring/isInstallment·recurringType·totalMonths·weekendOption 채움
+- 금액 숫자만(2만원→20000). 복수 건이면 records 배열
+- 소비 외 질문→reply: "소비 기록 관련해서만 답변드릴 수 있어요."
 
-예: "티빙 구독 8천원 매달" → {"category":"구독 서비스","date":"오늘","amount":8000,"isRecurring":true,"recurringType":"매월","totalMonths":12,"weekendOption":"weekend"}
-
-JSON 형식: {"records":[{"recordType","category","date","amount","paymentMethod","paymentSubtypeLabel","memo","isRecurring","isInstallment","recurringType","totalMonths","weekendOption"}],"suggestedCategory":null 또는 {"label","emoji"},"reply":null}
-reply는 사용자에게 할 말(부족한 항목 안내·거절 멘트 등) 있을 때만 문자열, 없으면 null.
-`;
+형식: {"records":[{"recordType","category","date","amount","paymentMethod","paymentSubtypeLabel","memo","isRecurring","isInstallment","recurringType","totalMonths","weekendOption"}],"suggestedCategory":null|{"label","emoji"},"reply":null}`;
 }
 
 function buildExpenseUserPrompt(
@@ -320,6 +303,20 @@ export async function POST(request: Request): Promise<Response> {
       );
     }
 
+    const trimmedMessage = message.trim();
+    if (isSimpleExpenseCandidate(trimmedMessage, history.length)) {
+      const simple = tryParseSimpleExpense(
+        trimmedMessage,
+        categories,
+        today,
+        paymentSubtypeOptions,
+      );
+      if (simple != null) {
+        recordRateLimitSuccess(rateLimitCheck.key, DEFAULT_AI_RATE_LIMIT_POLICY);
+        return Response.json(simple);
+      }
+    }
+
     const systemPrompt = buildExpenseSystemPrompt(categories, today, paymentSubtypeOptions);
     const userPrompt = buildExpenseUserPrompt(message, history);
     const geminiModel = resolveGeminiModel();
@@ -340,7 +337,7 @@ export async function POST(request: Request): Promise<Response> {
         ],
         generationConfig: {
           temperature: 0.2,
-          maxOutputTokens: 1024,
+          maxOutputTokens: 512,
           responseMimeType: 'application/json',
         },
       }),

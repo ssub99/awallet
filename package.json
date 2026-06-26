@@ -18,6 +18,7 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "verify:memo": "npx tsx scripts/verify-parse-expense-memo.ts",
+    "verify:simple": "npx tsx scripts/verify-parse-expense-simple.ts",
     "eas": "eas",
     "postinstall": "patch-package"
   },
