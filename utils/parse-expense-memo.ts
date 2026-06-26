@@ -11,11 +11,40 @@ const AMOUNT_IN_TEXT_RE = /(\d[\d,]*)\s*(?:원|(만원|천원|백원))/g;
 
 /** 끝 구문(복수 토큰) 서술 패턴 */
 const TRAILING_PHRASE_RES: RegExp[] = [
-  /\s+[\uAC00-\uD7A3]+러\s+갔(?:어|음|다|을|는)?$/,
-  /\s+[\uAC00-\uD7A3]+고\s+있(?:어|음|다|네)?$/,
+  /\s+[\uAC00-\uD7A3]+러\s+갔(?:어|음|다|을|는|슴)?$/,
+  /\s+[\uAC00-\uD7A3]+고\s+있(?:어|음|다|네|슴)?$/,
   /\s+[\uAC00-\uD7A3]+는\s+중$/,
-  /\s+[\uAC00-\uD7A3]+다\s+왔(?:어|음|다)?$/,
+  /\s+[\uAC00-\uD7A3]+다\s+왔(?:어|음|다|슴)?$/,
 ];
+
+/** 명사형·구어 종결 어미 (먹음, 먹었슴, 마심, 적심 등) — 심/김/참/중은 명사 오탐이 많아 제외 */
+const NOMINAL_ACTION_TAIL_RE = /[\uAC00-\uD7A3]+(?:음|슴|냄|움|겸|함|봄)$/;
+
+/** 2글자 명사형 동작 (마심, 적심 등) — 화이트리스트 */
+const SHORT_NOMINAL_ACTION_TAILS = new Set(['마심', '적심', '드심', '담심', '씹심']);
+
+/** 어미 패턴과 겹치지만 메모 내용인 명사 — 오탐 방지 */
+const ACTION_TAIL_NOUN_BLOCKLIST = new Set([
+  '점심',
+  '야심',
+  '현금',
+  '백금',
+  '적금',
+  '심심',
+  '골심',
+  '중심',
+]);
+
+/** 구어·오타 동작 표현 (먹음 변형) */
+const SLANG_ACTION_GOLD_RE = /^(?:머금|무금|먹금)$/;
+
+/** 금액 직전 구간 끝의 반복·할부 힌트 (메모 본문이 아님) */
+const TRAILING_RECURRING_HINT_RE =
+  /\s+(?:매월|매달|매주|매일|구독|정기|월세|subscription|monthly|recurring|\d+개월(?:\s*할부)?)\s*$/i;
+
+/** 과거·서술 어미 (먹었어, 마셨어, …) */
+const PAST_ACTION_TAIL_RE =
+  /[\uAC00-\uD7A3]+(?:셨|렸|웠|겼|줬|났|봤|갔|듯|[었았했였])(?:어|음|다|네|지|요|죠|슴)?$/;
 
 function findMemoDirectiveMatch(message: string): RegExpExecArray | null {
   const normalized = message.trim();
@@ -44,13 +73,35 @@ function findFirstAmountIndex(text: string, searchFrom: number): number | null {
 export function looksLikeActionTail(token: string): boolean {
   const t = token.trim();
   if (t.length < 2) return false;
+  if (ACTION_TAIL_NOUN_BLOCKLIST.has(t)) return false;
 
   if (/^[\uAC00-\uD7A3]{2,}러$/.test(t)) return true;
-  if (/[\uAC00-\uD7A3]+(?:셨|렸|웠|겼|줬|났|봤|갔|듯|[었았했였])(?:어|음|다|네|지|요|죠)?$/.test(t)) return true;
-  if (/[\uAC00-\uD7A3]+겠(?:어|음|다|네|지|요)?$/.test(t)) return true;
-  if (/[\uAC00-\uD7A3]+(?:함|봄|중)$/.test(t)) return true;
+  if (PAST_ACTION_TAIL_RE.test(t)) return true;
+  if (SHORT_NOMINAL_ACTION_TAILS.has(t)) return true;
+  if (NOMINAL_ACTION_TAIL_RE.test(t)) return true;
+  if (/[\uAC00-\uD7A3]+겠(?:어|음|다|네|지|요|슴)?$/.test(t)) return true;
+  if (SLANG_ACTION_GOLD_RE.test(t)) return true;
 
   return false;
+}
+
+function stripTrailingRecurringHints(span: string): string {
+  let result = span.trim();
+  let changed = true;
+  while (changed) {
+    changed = false;
+    const next = result.replace(TRAILING_RECURRING_HINT_RE, '').trim();
+    if (next !== result) {
+      result = next;
+      changed = true;
+    }
+  }
+  return result;
+}
+
+function hasEmbeddedNarrativeToken(text: string): boolean {
+  const tokens = text.trim().split(/\s+/).filter(Boolean);
+  return tokens.some((token) => looksLikeActionTail(token));
 }
 
 function stillHasNarrativeTail(text: string): boolean {
@@ -61,9 +112,7 @@ function stillHasNarrativeTail(text: string): boolean {
     if (re.test(trimmed)) return true;
   }
 
-  const lastSpace = trimmed.lastIndexOf(' ');
-  const lastToken = lastSpace >= 0 ? trimmed.slice(lastSpace + 1) : trimmed;
-  return looksLikeActionTail(lastToken);
+  return hasEmbeddedNarrativeToken(trimmed);
 }
 
 function stripTrailingTokenNarrative(memo: string): string {
@@ -79,7 +128,7 @@ function stripTrailingTokenNarrative(memo: string): string {
 
 /** 금액 직전 raw 구간에서 끝 서술·동작 표현을 규칙으로 제거합니다. */
 export function applyMemoRulesToSpan(rawSpan: string): string {
-  let result = rawSpan.trim();
+  let result = stripTrailingRecurringHints(rawSpan);
   if (result.length === 0) return result;
 
   let changed = true;
@@ -134,16 +183,26 @@ export function extractMemoFromMessage(message: string): string | null {
 }
 
 /**
- * 규칙 후에도 끝 서술이 남아 있거나, 규칙이 전혀 적용되지 않았는데 서술이 보이면 AI 정제가 필요합니다.
+ * Gemini memo 정제를 시도할지 판단합니다.
+ * 규칙만으로 이미 깨끗하면(원문과 동일·서술 없음) 스킵해 토큰을 아낍니다.
  */
-export function needsMemoAiRefinement(rawSpan: string, ruleMemo: string): boolean {
+export function shouldRefineMemoWithAi(rawSpan: string, ruleMemo: string): boolean {
   const raw = rawSpan.trim();
   const ruled = ruleMemo.trim();
-  if (raw.length === 0 || ruled.length === 0) return false;
+  if (raw.length === 0) return false;
 
-  if (raw !== ruled) {
-    return stillHasNarrativeTail(ruled);
+  if (ruled.length === 0) {
+    return true;
   }
 
-  return stillHasNarrativeTail(raw);
+  if (raw === ruled && !stillHasNarrativeTail(ruled) && !hasEmbeddedNarrativeToken(raw)) {
+    return false;
+  }
+
+  return true;
+}
+
+/** @deprecated shouldRefineMemoWithAi 사용 */
+export function needsMemoAiRefinement(rawSpan: string, ruleMemo: string): boolean {
+  return shouldRefineMemoWithAi(rawSpan, ruleMemo);
 }

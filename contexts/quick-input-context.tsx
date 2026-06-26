@@ -594,6 +594,16 @@ function applyMessageFallback(raw: PendingParseRecord, message: string): Pending
   const record = normalizePendingRecord(raw);
   const msg = message.trim();
   if (!msg) return record;
+
+  const applyMemoIfPresent = (next: PendingParseRecord): PendingParseRecord => {
+    const apiMemo = typeof next.memo === 'string' ? next.memo.trim() : '';
+    if (apiMemo.length > 0) return next;
+
+    const ruleMemo = extractMemoFromMessage(msg);
+    if (ruleMemo == null) return next;
+    return { ...next, memo: ruleMemo };
+  };
+
   const inferredRecurringType = resolveExpenseRecurringTypeFromMessage(msg, record.recurringType);
   const hasRecurring =
     inferredRecurringType != null ||
@@ -601,12 +611,14 @@ function applyMessageFallback(raw: PendingParseRecord, message: string): Pending
     /subscription|monthly|recurring/.test(msg);
   const hasInstallment = /할부|\d+개월\s*할부/.test(msg);
   if (hasRecurring && toBool(record.isRecurring) && !toBool(record.isInstallment)) {
-    return normalizePendingRecord({
-      ...record,
-      recurringType: inferredRecurringType || record.recurringType || '매월',
-      totalMonths: record.totalMonths ?? 12,
-      weekendOption: (record.weekendOption as 'weekend' | 'friday' | 'monday') || 'weekend',
-    });
+    return applyMemoIfPresent(
+      normalizePendingRecord({
+        ...record,
+        recurringType: inferredRecurringType || record.recurringType || '매월',
+        totalMonths: record.totalMonths ?? 12,
+        weekendOption: (record.weekendOption as 'weekend' | 'friday' | 'monday') || 'weekend',
+      }),
+    );
   }
   if (hasRecurring && !toBool(record.isRecurring) && !toBool(record.isInstallment)) {
     let recurringType = record.recurringType;
@@ -616,31 +628,30 @@ function applyMessageFallback(raw: PendingParseRecord, message: string): Pending
       else if (/매일|일간|daily/.test(msg)) recurringType = '매일';
       else recurringType = '매월';
     }
-    return normalizePendingRecord({
-      ...record,
-      isRecurring: true,
-      recurringType,
-      totalMonths: record.totalMonths ?? 12,
-      weekendOption: (record.weekendOption as 'weekend' | 'friday' | 'monday') || 'weekend',
-    });
+    return applyMemoIfPresent(
+      normalizePendingRecord({
+        ...record,
+        isRecurring: true,
+        recurringType,
+        totalMonths: record.totalMonths ?? 12,
+        weekendOption: (record.weekendOption as 'weekend' | 'friday' | 'monday') || 'weekend',
+      }),
+    );
   }
   if (hasInstallment && !toBool(record.isRecurring) && !toBool(record.isInstallment)) {
     const m = msg.match(/(\d+)개월/);
     const months = m ? Math.min(12, Math.max(2, parseInt(m[1], 10) || 3)) : 3;
-    return normalizePendingRecord({
-      ...record,
-      isInstallment: true,
-      totalMonths: record.totalMonths ?? months,
-      weekendOption: (record.weekendOption as 'weekend' | 'friday' | 'monday') || 'weekend',
-    });
+    return applyMemoIfPresent(
+      normalizePendingRecord({
+        ...record,
+        isInstallment: true,
+        totalMonths: record.totalMonths ?? months,
+        weekendOption: (record.weekendOption as 'weekend' | 'friday' | 'monday') || 'weekend',
+      }),
+    );
   }
 
-  const ruleMemo = extractMemoFromMessage(msg);
-  if (ruleMemo != null) {
-    return { ...record, memo: ruleMemo };
-  }
-
-  return record;
+  return applyMemoIfPresent(record);
 }
 
 function getRepeatOption1(record: PendingParseRecord): string {

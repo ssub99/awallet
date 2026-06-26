@@ -10,7 +10,7 @@ import { refineMemoSpanWithGemini } from './refine-expense-memo';
 import {
   applyMemoRulesToSpan,
   extractMemoRawSpan,
-  needsMemoAiRefinement,
+  shouldRefineMemoWithAi,
 } from '../utils/parse-expense-memo';
 import {
   resolveExpenseSeriesStartDateFromMessage,
@@ -486,7 +486,7 @@ export async function POST(request: Request): Promise<Response> {
       const ruleMemo = applyMemoRulesToSpan(rawMemoSpan);
       let finalMemo = ruleMemo.length > 0 ? ruleMemo : null;
 
-      if (finalMemo != null && needsMemoAiRefinement(rawMemoSpan, finalMemo)) {
+      if (shouldRefineMemoWithAi(rawMemoSpan, ruleMemo)) {
         const aiMemo = await refineMemoSpanWithGemini(rawMemoSpan, apiKey, geminiModel);
         if (aiMemo != null) {
           finalMemo = aiMemo;

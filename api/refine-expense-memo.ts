@@ -31,7 +31,9 @@ export async function refineMemoSpanWithGemini(
 
   const systemPrompt = `지출 메모 추출기입니다. JSON만 출력합니다.
 입력은 간편입력 문장에서 "메모"와 금액 사이 원문입니다.
-memo에는 지출 대상·관계·내용(명사구)만 넣고, 행위·서술(먹었어, 마셨어, 썼어, 갔다, 시켰어, 정산했어 등)은 제거합니다.
+memo에는 지출 대상·관계·내용(명사구)만 넣고, 행위·서술은 모두 제거합니다.
+제거 예: 먹었어, 먹음, 먹었슴, 마셨어, 마심, 적심, 썼어, 갔다, 머금, 무금, 시켰어, 정산했어, 즐겼어 등
+유지 예: "엄마랑 치킨", "형이랑 점심밥", "초이한테 박카스랑 계란"
 JSON 형식: {"memo":"..."}`;
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`;
