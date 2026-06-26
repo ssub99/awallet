@@ -6,6 +6,7 @@
  * Response: { records, suggestedCategory?, reply? }
  */
 
+import { extractMemoFromMessage } from '../utils/parse-expense-memo';
 import {
   resolveExpenseSeriesStartDateFromMessage,
   resolveRelativeWeekdayDateFromMessage,
@@ -472,6 +473,16 @@ export async function POST(request: Request): Promise<Response> {
           const seriesStartDate = resolveExpenseSeriesStartDateFromMessage(message, today, r.date);
           return seriesStartDate ? { ...r, date: seriesStartDate } : r;
         }),
+      };
+    }
+
+    const ruleMemo = extractMemoFromMessage(message);
+    if (ruleMemo != null && result.records.length > 0) {
+      result = {
+        ...result,
+        records: result.records.map((r, index) =>
+          index === 0 ? { ...r, memo: ruleMemo } : r,
+        ),
       };
     }
 

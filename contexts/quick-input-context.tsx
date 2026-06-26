@@ -40,6 +40,7 @@ import {
     resolveExpenseSeriesStartDateFromMessage,
     resolveRelativeWeekdayDateFromMessage,
 } from '@/utils/parse-expense-relative-date';
+import { extractMemoFromMessage } from '@/utils/parse-expense-memo';
 import { getDefaultSubtypeIdByMethod, loadPaymentSubtypes, type PaymentSubtype } from '@/utils/payment-types';
 import {
     keyboardMetricsToEndCoordinates,
@@ -633,6 +634,12 @@ function applyMessageFallback(raw: PendingParseRecord, message: string): Pending
       weekendOption: (record.weekendOption as 'weekend' | 'friday' | 'monday') || 'weekend',
     });
   }
+
+  const ruleMemo = extractMemoFromMessage(msg);
+  if (ruleMemo != null) {
+    return { ...record, memo: ruleMemo };
+  }
+
   return record;
 }
 
