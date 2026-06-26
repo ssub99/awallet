@@ -6,7 +6,12 @@
  * Response: { records, suggestedCategory?, reply? }
  */
 
-import { extractMemoFromMessage } from '../utils/parse-expense-memo';
+import { refineMemoSpanWithGemini } from './refine-expense-memo';
+import {
+  applyMemoRulesToSpan,
+  extractMemoRawSpan,
+  needsMemoAiRefinement,
+} from '../utils/parse-expense-memo';
 import {
   resolveExpenseSeriesStartDateFromMessage,
   resolveRelativeWeekdayDateFromMessage,
@@ -476,14 +481,26 @@ export async function POST(request: Request): Promise<Response> {
       };
     }
 
-    const ruleMemo = extractMemoFromMessage(message);
-    if (ruleMemo != null && result.records.length > 0) {
-      result = {
-        ...result,
-        records: result.records.map((r, index) =>
-          index === 0 ? { ...r, memo: ruleMemo } : r,
-        ),
-      };
+    const rawMemoSpan = extractMemoRawSpan(message);
+    if (rawMemoSpan != null && result.records.length > 0) {
+      const ruleMemo = applyMemoRulesToSpan(rawMemoSpan);
+      let finalMemo = ruleMemo.length > 0 ? ruleMemo : null;
+
+      if (finalMemo != null && needsMemoAiRefinement(rawMemoSpan, finalMemo)) {
+        const aiMemo = await refineMemoSpanWithGemini(rawMemoSpan, apiKey, geminiModel);
+        if (aiMemo != null) {
+          finalMemo = aiMemo;
+        }
+      }
+
+      if (finalMemo != null) {
+        result = {
+          ...result,
+          records: result.records.map((r, index) =>
+            index === 0 ? { ...r, memo: finalMemo } : r,
+          ),
+        };
+      }
     }
 
     recordRateLimitSuccess(rateLimitCheck.key, DEFAULT_AI_RATE_LIMIT_POLICY);
