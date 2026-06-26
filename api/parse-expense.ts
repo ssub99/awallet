@@ -64,8 +64,8 @@ interface ParseExpenseResponse {
 
 const MAX_HISTORY_MESSAGES = 6;
 
-/** 기본 모델. Vercel env `awallet_gemini_model` 로 덮어쓰기 가능 */
-const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash';
+/** 기본 모델. Vercel env `awallet_gemini_model` 로 덮어쓰기 가능 (테스트: flash-lite) */
+const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash-lite';
 
 function resolveGeminiModel(): string {
   const fromEnv = process.env.awallet_gemini_model ?? process.env.AWALLET_GEMINI_MODEL;
