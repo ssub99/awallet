@@ -62,6 +62,17 @@ interface ParseExpenseResponse {
 
 const MAX_HISTORY_MESSAGES = 6;
 
+/** 테스트: flash-lite 대신 gemini-2.0-flash 기본. Vercel env `awallet_gemini_model` 로 덮어쓰기 가능 */
+const DEFAULT_GEMINI_MODEL = 'gemini-2.0-flash';
+
+function resolveGeminiModel(): string {
+  const fromEnv = process.env.awallet_gemini_model ?? process.env.AWALLET_GEMINI_MODEL;
+  if (typeof fromEnv === 'string' && fromEnv.trim().length > 0) {
+    return fromEnv.trim();
+  }
+  return DEFAULT_GEMINI_MODEL;
+}
+
 function buildExpenseSystemPrompt(
   categories: string[],
   today: string,
@@ -309,7 +320,8 @@ export async function POST(request: Request): Promise<Response> {
 
     const systemPrompt = buildExpenseSystemPrompt(categories, today, paymentSubtypeOptions);
     const userPrompt = buildExpenseUserPrompt(message, history);
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${apiKey}`;
+    const geminiModel = resolveGeminiModel();
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`;
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -334,8 +346,13 @@ export async function POST(request: Request): Promise<Response> {
 
     if (!res.ok) {
       const errText = await res.text();
+      console.error('[parse-expense] gemini failed', {
+        model: geminiModel,
+        status: res.status,
+        details: errText.slice(0, 500),
+      });
       return Response.json(
-        { error: 'Gemini API error', details: errText },
+        { error: 'Gemini API error', model: geminiModel, details: errText },
         { status: 502 }
       );
     }

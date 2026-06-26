@@ -21,6 +21,9 @@ export {
 export type { FontWeight, TypographyStyleToken } from './typography';
 export type { ThemeColorKey, ThemeColorScheme } from './theme-colors';
 
+export { spacing, spacingPx, spacingVariableName } from './spacing';
+export type { SpacingToken } from './spacing';
+
 /** Resolved light/dark semantic palette (e.g. colors[colorScheme]). */
 export type ColorPalette = (typeof colors)['light'];
 

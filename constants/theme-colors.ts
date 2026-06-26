@@ -77,6 +77,9 @@ export const themeColors = {
     statusNegative: atomicColors.red[500],  // Status/Negative - #EF2A2A (Error/Danger)
     // Note: Add statusPositive, statusWarning, statusInfo as needed
 
+    // ========== Overlay ==========
+    overlayDim: withOpacity(atomicColors.common[100], 0.3), // Dim backdrop — #000000 30%
+
     // ========== Interaction ==========
     // Interaction states
     disabled: withOpacity(atomicColors.coolNeutral[500], 0.12), // Interaction/Disabled - rgba(144,146,158,0.12)
@@ -126,6 +129,9 @@ export const themeColors = {
 
     // ========== Status ==========
     statusNegative: atomicColors.red[400],  // Slightly lighter for dark mode
+
+    // ========== Overlay ==========
+    overlayDim: withOpacity(atomicColors.common[100], 0.3), // Dim backdrop — #000000 30%
 
     // ========== Interaction ==========
     disabled: withOpacity(atomicColors.coolNeutral[500], 0.12),

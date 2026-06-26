@@ -192,7 +192,7 @@ export function ModalPopup({
       <Animated.View
         style={[
           styles.backdrop,
-          { opacity: dimOpacity }
+          { opacity: dimOpacity, backgroundColor: palette.overlayDim },
         ]}
         pointerEvents={backdropInteractive ? 'auto' : 'none'}
       >
@@ -314,7 +314,6 @@ export function ModalPopup({
 const styles = StyleSheet.create({
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     zIndex: 99999,
   },
   container: {

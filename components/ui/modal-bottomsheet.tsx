@@ -218,6 +218,7 @@ function ModalBottomsheetContent({
       <Animated.View
         style={[
           styles.backdrop,
+          { backgroundColor: palette.overlayDim },
           embedded ? { opacity: dimOpacity, zIndex: 100001 } : { opacity: dimOpacity },
         ]}
         pointerEvents={embedded ? (visible ? 'auto' : 'none') : undefined}
@@ -316,7 +317,6 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
     zIndex: 1000,
   },
   sheetContainer: {
