@@ -5,10 +5,13 @@
  */
 import {
   applyMemoRulesToSpan,
+  buildMemoRefinementPlan,
   extractMemoFromMessage,
   extractMemoRawSpan,
+  hasMemoIntent,
   looksLikeActionTail,
   shouldRefineMemoWithAi,
+  type MemoRefinementMode,
 } from '../utils/parse-expense-memo';
 
 interface MessageCase {
@@ -17,6 +20,8 @@ interface MessageCase {
   rawSpan: string | null;
   memo: string | null;
   shouldAi: boolean | null;
+  intent: boolean;
+  planMode: MemoRefinementMode | null;
 }
 
 interface ActionTailCase {
@@ -31,6 +36,8 @@ const MESSAGE_CASES: MessageCase[] = [
     rawSpan: '형이랑 점심밥',
     memo: '형이랑 점심밥',
     shouldAi: false,
+    intent: true,
+    planMode: 'skip',
   },
   {
     label: '점심 명사 오탐 방지',
@@ -38,6 +45,8 @@ const MESSAGE_CASES: MessageCase[] = [
     rawSpan: '형이랑 점심',
     memo: '형이랑 점심',
     shouldAi: false,
+    intent: true,
+    planMode: 'skip',
   },
   {
     label: '현금 명사 오탐 방지',
@@ -45,6 +54,8 @@ const MESSAGE_CASES: MessageCase[] = [
     rawSpan: '현금',
     memo: '현금',
     shouldAi: false,
+    intent: true,
+    planMode: 'skip',
   },
   {
     label: '백금 반지 복합 명사',
@@ -52,6 +63,8 @@ const MESSAGE_CASES: MessageCase[] = [
     rawSpan: '백금 반지',
     memo: '백금 반지',
     shouldAi: false,
+    intent: true,
+    planMode: 'skip',
   },
   {
     label: '과거 서술 제거',
@@ -59,6 +72,8 @@ const MESSAGE_CASES: MessageCase[] = [
     rawSpan: '엄마랑 치킨 먹었어',
     memo: '엄마랑 치킨',
     shouldAi: true,
+    intent: true,
+    planMode: 'span',
   },
   {
     label: '구어 종결 어미',
@@ -66,6 +81,8 @@ const MESSAGE_CASES: MessageCase[] = [
     rawSpan: '엄마랑 치킨 먹었슴',
     memo: '엄마랑 치킨',
     shouldAi: true,
+    intent: true,
+    planMode: 'span',
   },
   {
     label: '명사형 종결',
@@ -73,6 +90,8 @@ const MESSAGE_CASES: MessageCase[] = [
     rawSpan: '친구랑 밥 먹음',
     memo: '친구랑 밥',
     shouldAi: true,
+    intent: true,
+    planMode: 'span',
   },
   {
     label: '점심 + 먹음 (점심 유지)',
@@ -80,6 +99,8 @@ const MESSAGE_CASES: MessageCase[] = [
     rawSpan: '점심 먹음',
     memo: '점심',
     shouldAi: true,
+    intent: true,
+    planMode: 'span',
   },
   {
     label: '구어 오타 머금',
@@ -87,6 +108,8 @@ const MESSAGE_CASES: MessageCase[] = [
     rawSpan: '형 머금',
     memo: '형',
     shouldAi: true,
+    intent: true,
+    planMode: 'span',
   },
   {
     label: '구어 오타 무금',
@@ -94,6 +117,8 @@ const MESSAGE_CASES: MessageCase[] = [
     rawSpan: '형 무금',
     memo: '형',
     shouldAi: true,
+    intent: true,
+    planMode: 'span',
   },
   {
     label: '반복 힌트 매월 + 서술',
@@ -101,6 +126,8 @@ const MESSAGE_CASES: MessageCase[] = [
     rawSpan: '엄마랑 치킨 먹었어 매월',
     memo: '엄마랑 치킨',
     shouldAi: true,
+    intent: true,
+    planMode: 'span',
   },
   {
     label: '메모는 접두',
@@ -108,6 +135,8 @@ const MESSAGE_CASES: MessageCase[] = [
     rawSpan: '형이랑 점심',
     memo: '형이랑 점심',
     shouldAi: false,
+    intent: true,
+    planMode: 'skip',
   },
   {
     label: '문장 중간 메모 지시',
@@ -115,6 +144,8 @@ const MESSAGE_CASES: MessageCase[] = [
     rawSpan: '초이한테 박카스랑 계란',
     memo: '초이한테 박카스랑 계란',
     shouldAi: false,
+    intent: true,
+    planMode: 'skip',
   },
   {
     label: '콤마 금액',
@@ -122,6 +153,8 @@ const MESSAGE_CASES: MessageCase[] = [
     rawSpan: '계란',
     memo: '계란',
     shouldAi: false,
+    intent: true,
+    planMode: 'skip',
   },
   {
     label: '원 없는 금액 — 미지원',
@@ -129,6 +162,8 @@ const MESSAGE_CASES: MessageCase[] = [
     rawSpan: null,
     memo: null,
     shouldAi: null,
+    intent: false,
+    planMode: null,
   },
   {
     label: '메모 지시 없음',
@@ -136,6 +171,35 @@ const MESSAGE_CASES: MessageCase[] = [
     rawSpan: null,
     memo: null,
     shouldAi: null,
+    intent: false,
+    planMode: null,
+  },
+  {
+    label: '자연어 메모 요청 (끝)',
+    message: '저녁에 치킨 먹었는데 5만원 썼어 메모도 넣어줘',
+    rawSpan: null,
+    memo: null,
+    shouldAi: null,
+    intent: true,
+    planMode: 'full_message',
+  },
+  {
+    label: '자연어 메모 남겨',
+    message: '형이랑 점심 먹고 2만5천원 메모 남겨',
+    rawSpan: null,
+    memo: null,
+    shouldAi: null,
+    intent: true,
+    planMode: 'full_message',
+  },
+  {
+    label: '자연어 메모해줘',
+    message: '카페 5500원 메모해줘',
+    rawSpan: null,
+    memo: null,
+    shouldAi: null,
+    intent: true,
+    planMode: 'full_message',
   },
 ];
 
@@ -163,19 +227,32 @@ function runMessageCases(): number {
   for (const testCase of MESSAGE_CASES) {
     const prefix = `[${testCase.label}]`;
 
+    const intent = hasMemoIntent(testCase.message);
+    assertEqual(`${prefix} intent`, intent, testCase.intent);
+
     const rawSpan = extractMemoRawSpan(testCase.message);
     assertEqual(`${prefix} rawSpan`, rawSpan, testCase.rawSpan);
 
     const memo = extractMemoFromMessage(testCase.message);
     assertEqual(`${prefix} memo`, memo, testCase.memo);
 
-    if (testCase.shouldAi === null) {
-      if (rawSpan != null) {
-        throw new Error(`${prefix} shouldAi: expected null gate but rawSpan exists`);
-      }
+    const plan = buildMemoRefinementPlan(testCase.message);
+    if (testCase.planMode === null) {
+      assertEqual(`${prefix} plan`, plan, null);
     } else {
-      const ruled = rawSpan != null ? applyMemoRulesToSpan(rawSpan) : '';
-      const shouldAi = shouldRefineMemoWithAi(rawSpan ?? '', ruled);
+      if (plan == null) {
+        throw new Error(`${prefix} plan: expected mode ${testCase.planMode}, got null`);
+      }
+      assertEqual(`${prefix} planMode`, plan.mode, testCase.planMode);
+    }
+
+    if (testCase.shouldAi === null) {
+      if (rawSpan != null && testCase.planMode !== 'skip' && testCase.planMode !== 'span') {
+        // structured AI gate only applies when rawSpan exists
+      }
+    } else if (rawSpan != null) {
+      const ruled = applyMemoRulesToSpan(rawSpan);
+      const shouldAi = shouldRefineMemoWithAi(rawSpan, ruled);
       assertEqual(`${prefix} shouldAi`, shouldAi, testCase.shouldAi);
     }
 
@@ -197,10 +274,24 @@ function runActionTailCases(): number {
   return passed;
 }
 
+function runNaturalLanguagePlanInput(): number {
+  const message = '저녁에 치킨 먹었는데 5만원 썼어 메모도 넣어줘';
+  const draft = '저녁에 치킨 먹었는데 5만원 썼어';
+  const plan = buildMemoRefinementPlan(message, draft);
+  if (plan?.mode !== 'full_message') {
+    throw new Error('natural plan: expected full_message');
+  }
+  if (!plan.aiInput.includes('문장:') || !plan.aiInput.includes('초안(memo):')) {
+    throw new Error('natural plan: aiInput should include sentence and draft');
+  }
+  return 1;
+}
+
 function main(): void {
   const messagePassed = runMessageCases();
   const actionPassed = runActionTailCases();
-  const total = messagePassed + actionPassed;
+  const naturalPassed = runNaturalLanguagePlanInput();
+  const total = messagePassed + actionPassed + naturalPassed;
 
   console.log(`verify-parse-expense-memo: ${total} cases passed`);
 }

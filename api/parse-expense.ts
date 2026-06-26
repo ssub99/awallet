@@ -6,12 +6,8 @@
  * Response: { records, suggestedCategory?, reply? }
  */
 
-import { refineMemoSpanWithGemini } from './refine-expense-memo';
-import {
-  applyMemoRulesToSpan,
-  extractMemoRawSpan,
-  shouldRefineMemoWithAi,
-} from '../utils/parse-expense-memo';
+import { refineMemoWithGemini } from './refine-expense-memo';
+import { buildMemoRefinementPlan } from '../utils/parse-expense-memo';
 import {
   resolveExpenseSeriesStartDateFromMessage,
   resolveRelativeWeekdayDateFromMessage,
@@ -111,7 +107,7 @@ function buildExpenseSystemPrompt(
 3. 날짜는 기준일 ${today} 기준. YYYY.MM.DD. (저번주/이번주/다음주+요일 조합은 서버에서 월요일 시작 주로 재계산해 보정될 수 있음)
 4. 소비 외 질문→reply에 "소비 기록 관련해서만 답변드릴 수 있어요."
 5. 부족한 항목 있으면 reply에 요청. 카테고리 목록에 없거나 비어있으면 반드시 suggestedCategory 1개 제안(이모지+이름 10자).
-6. 메모는 사용자가 별도로 요청할 때만 기록에 넣음.
+6. 메모는 사용자가 별도로 요청할 때만 기록에 넣음. 자연어로 메모를 요청한 경우(메모도 넣어줘·메모 남겨 등) memo는 비우거나 짧은 초안만 넣음(서버에서 재정제).
 
 카테고리: ${categoryList}
 ${paymentSubtypeGuide}
@@ -481,13 +477,25 @@ export async function POST(request: Request): Promise<Response> {
       };
     }
 
-    const rawMemoSpan = extractMemoRawSpan(message);
-    if (rawMemoSpan != null && result.records.length > 0) {
-      const ruleMemo = applyMemoRulesToSpan(rawMemoSpan);
-      let finalMemo = ruleMemo.length > 0 ? ruleMemo : null;
+    const mainAiMemo =
+      result.records.length > 0 && typeof result.records[0].memo === 'string'
+        ? result.records[0].memo
+        : null;
+    const memoPlan = buildMemoRefinementPlan(message, mainAiMemo);
 
-      if (shouldRefineMemoWithAi(rawMemoSpan, ruleMemo)) {
-        const aiMemo = await refineMemoSpanWithGemini(rawMemoSpan, apiKey, geminiModel);
+    if (memoPlan != null && result.records.length > 0) {
+      let finalMemo = memoPlan.ruleMemo;
+
+      if (memoPlan.mode !== 'skip') {
+        const aiMemo = await refineMemoWithGemini(
+          {
+            mode: memoPlan.mode === 'span' ? 'span' : 'full_message',
+            text: memoPlan.aiInput,
+            ruleMemo: memoPlan.ruleMemo,
+          },
+          apiKey,
+          geminiModel,
+        );
         if (aiMemo != null) {
           finalMemo = aiMemo;
         }

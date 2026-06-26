@@ -1,11 +1,14 @@
 /**
- * 간편입력(parse-expense)용: "메모 … 금액" 지시에서 memo 필드를 규칙으로 추출합니다.
- * 서술 제거는 동사 목록이 아니라 끝 토큰·어미 패턴으로 처리합니다.
- * API에서는 규칙만으로 부족할 때 Gemini micro-call로 보강합니다.
+ * 간편입력(parse-expense)용 메모 추출·정제 규칙.
+ * 구조화 `메모 … 금액` 패턴은 규칙 fast path, 자연어 메모 요청은 API에서 AI 정제.
  */
 
-/** `메모` 지시 접두 (공백·콜론·는 허용) */
+/** `메모` 지시 접두 — 뒤에 메모 본문이 바로 옴 (공백·콜론·는 허용) */
 const MEMO_DIRECTIVE_RE = /(?:^|\s)메모(?:[:：는]?\s+)/;
+
+/** 자연어 메모 요청 (메모도 넣어줘, 메모 남겨, 메모해줘 등) */
+const MEMO_NATURAL_INTENT_RE =
+  /(?:^|\s)메모(?:도|까지|한번|에|는)?(?:\s+)?(?:넣어|남겨|적어|써|기록|추가|달아|해)(?:\s*줘)?|(?:^|\s)메모\s*(?:좀\s*)?(?:넣어|적어|써)(?:\s*줘)?|(?:^|\s)메모\s*해(?:\s*줘)?/;
 
 const AMOUNT_IN_TEXT_RE = /(\d[\d,]*)\s*(?:원|(만원|천원|백원))/g;
 
@@ -205,4 +208,78 @@ export function shouldRefineMemoWithAi(rawSpan: string, ruleMemo: string): boole
 /** @deprecated shouldRefineMemoWithAi 사용 */
 export function needsMemoAiRefinement(rawSpan: string, ruleMemo: string): boolean {
   return shouldRefineMemoWithAi(rawSpan, ruleMemo);
+}
+
+export type MemoRefinementMode = 'skip' | 'span' | 'full_message';
+
+export interface MemoRefinementPlan {
+  mode: MemoRefinementMode;
+  rawSpan: string | null;
+  ruleMemo: string | null;
+  aiInput: string;
+}
+
+/**
+ * 메모 기록 의도가 있는지 (구조화 지시 또는 자연어 요청).
+ */
+export function hasMemoIntent(message: string): boolean {
+  const normalized = message.trim();
+  if (normalized.length === 0) return false;
+
+  if (extractMemoRawSpan(normalized) != null) {
+    return true;
+  }
+
+  return MEMO_NATURAL_INTENT_RE.test(normalized);
+}
+
+/**
+ * API memo 정제 단계 계획. 의도 없으면 null.
+ * - skip: 규칙만으로 충분 (구조화·깨끗)
+ * - span: `메모 … 금액` 구간만 AI에 전달
+ * - full_message: 자연어 요청 — 전체 문장(+선택적 메인 AI 초안)을 AI에 전달
+ */
+export function buildMemoRefinementPlan(
+  message: string,
+  mainAiMemo?: string | null,
+): MemoRefinementPlan | null {
+  if (!hasMemoIntent(message)) {
+    return null;
+  }
+
+  const normalized = message.trim();
+  const rawSpan = extractMemoRawSpan(normalized);
+  const ruled = rawSpan != null ? applyMemoRulesToSpan(rawSpan) : '';
+  const ruleMemo = ruled.length > 0 ? ruled : null;
+
+  if (rawSpan != null && !shouldRefineMemoWithAi(rawSpan, ruled)) {
+    return {
+      mode: 'skip',
+      rawSpan,
+      ruleMemo,
+      aiInput: '',
+    };
+  }
+
+  if (rawSpan != null) {
+    return {
+      mode: 'span',
+      rawSpan,
+      ruleMemo,
+      aiInput: rawSpan,
+    };
+  }
+
+  const draft = typeof mainAiMemo === 'string' ? mainAiMemo.trim() : '';
+  const aiInput =
+    draft.length > 0
+      ? `문장: ${normalized}\n초안(memo): ${draft}`
+      : normalized;
+
+  return {
+    mode: 'full_message',
+    rawSpan: null,
+    ruleMemo: null,
+    aiInput,
+  };
 }
