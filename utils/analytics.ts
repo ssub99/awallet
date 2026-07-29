@@ -326,10 +326,11 @@ export function logRecordLifecycleCount(
 ): void {
   const eventName = action === 'create' ? 'record_created' : 'record_deleted';
   const completeEventName = action === 'create' ? 'created_complete' : 'deleted_complete';
-  // 수입(및 이 헬퍼로 보내는 기록)은 단건이므로 repeat_count는 항상 none. 생성·삭제·완료 이벤트 모두 동일 스키마.
+  // 수입(및 이 헬퍼로 보내는 기록)은 단건이므로 repeat_count·repeat_kind는 항상 none. 생성·삭제·완료 이벤트 모두 동일 스키마.
   const payload: Record<string, unknown> = {
     record_type: entity,
     repeat_count: 'none',
+    repeat_kind: 'none',
   };
   if (typeof extra?.memo === 'boolean') {
     payload.memo = extra.memo;
@@ -341,6 +342,7 @@ export function logRecordLifecycleCount(
   const completePayload: Record<string, unknown> = {
     record_type: entity,
     repeat_count: 'none',
+    repeat_kind: 'none',
   };
   if (typeof extra?.memo === 'boolean') {
     completePayload.memo = extra.memo;
