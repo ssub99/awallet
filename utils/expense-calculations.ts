@@ -151,10 +151,65 @@ export function adjustWeekendDate(dateString: string, option: 'friday' | 'monday
 
 /**
  * 해당 월의 실제 일자를 계산합니다 (월말 처리)
+ * desiredDay가 그달 말일보다 크면 말일로만 내리고, 절대 올리지 않음.
  */
 export function getActualDayForMonth(year: number, month: number, desiredDay: number): number {
   const lastDayOfMonth = new Date(year, month, 0).getDate();
   return Math.min(desiredDay, lastDayOfMonth);
+}
+
+/**
+ * 달력 기준 월 가산 (1–12월). JS Date#setMonth 오버플로를 피한다.
+ * 예: 1월 + 1 → 2월 (1/31 → setMonth 시 3/3이 되는 문제 방지)
+ */
+export function addCalendarMonths(
+  year: number,
+  month: number,
+  deltaMonths: number,
+): { year: number; month: number } {
+  const index = year * 12 + (month - 1) + deltaMonths;
+  return {
+    year: Math.floor(index / 12),
+    month: (index % 12) + 1,
+  };
+}
+
+/** YYYY.MM.DD + 앵커 일로 안전한 날짜 문자열 생성 */
+export function formatDateWithDayAnchor(
+  year: number,
+  month: number,
+  anchorDay: number,
+): string {
+  const day = getActualDayForMonth(year, month, anchorDay);
+  return `${year}.${String(month).padStart(2, '0')}.${String(day).padStart(2, '0')}`;
+}
+
+const MONTH_BASED_RECURRING_DELTAS: Record<string, number> = {
+  매월: 1,
+  '2개월 마다': 2,
+  '3개월 마다': 3,
+  '4개월 마다': 4,
+  '5개월 마다': 5,
+  '6개월 마다': 6,
+};
+
+export function getMonthBasedRecurringDelta(recurringType: string): number | null {
+  if (Object.prototype.hasOwnProperty.call(MONTH_BASED_RECURRING_DELTAS, recurringType)) {
+    return MONTH_BASED_RECURRING_DELTAS[recurringType];
+  }
+  // 알 수 없는 타입은 기존과 같이 매월로 취급
+  if (
+    recurringType !== '매일' &&
+    recurringType !== '매주' &&
+    recurringType !== '2주' &&
+    recurringType !== '3주' &&
+    recurringType !== '4주' &&
+    recurringType !== '주중' &&
+    recurringType !== '주말'
+  ) {
+    return 1;
+  }
+  return null;
 }
 
 /**
@@ -259,14 +314,30 @@ export function resolveExpenseRecurringTypeFromMessage(
 
 /**
  * recurringType에 따른 다음 날짜 계산 (정기/할부 기록 생성용)
+ *
+ * 월 단위(매월·N개월 마다): 시작 의도 일자(anchorDay)를 유지하고 말일만 아래로 클램프.
+ * JS Date#setMonth 사용 금지 (1/31 → 3/3 오버플로 방지).
+ *
+ * @param anchorDay 시리즈 의도 일(1–31). 생략 시 currentDate의 day 사용.
+ *   주말옵션으로 첫날만 이동한 뒤에도 매월 앵커를 유지하려면 반드시 전달.
  */
 export function getNextRecurringDate(
   currentDate: string,
   recurringType: string,
   _iteration: number,
-  startYear: number
+  startYear: number,
+  anchorDay?: number,
 ): string | null {
   const [year, month, day] = currentDate.split('.').map(Number);
+  const monthDelta = getMonthBasedRecurringDelta(recurringType);
+
+  if (monthDelta != null) {
+    const resolvedAnchor = anchorDay ?? day;
+    const next = addCalendarMonths(year, month, monthDelta);
+    if (next.year > startYear) return null;
+    return formatDateWithDayAnchor(next.year, next.month, resolvedAnchor);
+  }
+
   const dateObj = new Date(year, month - 1, day);
   let nextDate: Date;
 
@@ -291,30 +362,6 @@ export function getNextRecurringDate(
       nextDate = new Date(dateObj);
       nextDate.setDate(dateObj.getDate() + 28);
       break;
-    case '매월':
-      nextDate = new Date(dateObj);
-      nextDate.setMonth(dateObj.getMonth() + 1);
-      break;
-    case '2개월 마다':
-      nextDate = new Date(dateObj);
-      nextDate.setMonth(dateObj.getMonth() + 2);
-      break;
-    case '3개월 마다':
-      nextDate = new Date(dateObj);
-      nextDate.setMonth(dateObj.getMonth() + 3);
-      break;
-    case '4개월 마다':
-      nextDate = new Date(dateObj);
-      nextDate.setMonth(dateObj.getMonth() + 4);
-      break;
-    case '5개월 마다':
-      nextDate = new Date(dateObj);
-      nextDate.setMonth(dateObj.getMonth() + 5);
-      break;
-    case '6개월 마다':
-      nextDate = new Date(dateObj);
-      nextDate.setMonth(dateObj.getMonth() + 6);
-      break;
     case '주중':
       nextDate = new Date(dateObj);
       nextDate.setDate(dateObj.getDate() + 1);
@@ -331,7 +378,7 @@ export function getNextRecurringDate(
       break;
     default:
       nextDate = new Date(dateObj);
-      nextDate.setMonth(dateObj.getMonth() + 1);
+      nextDate.setDate(dateObj.getDate() + 1);
       break;
   }
 
@@ -339,17 +386,36 @@ export function getNextRecurringDate(
   const nextYearNum = nextDate.getFullYear();
   const nextMonthNum = nextDate.getMonth() + 1;
   const nextDayNum = nextDate.getDate();
-  const actualDay = getActualDayForMonth(nextYearNum, nextMonthNum, nextDayNum);
-  return `${nextYearNum}.${String(nextMonthNum).padStart(2, '0')}.${String(actualDay).padStart(2, '0')}`;
+  return `${nextYearNum}.${String(nextMonthNum).padStart(2, '0')}.${String(nextDayNum).padStart(2, '0')}`;
 }
 
 /**
  * recurringType에 따른 반복 횟수 계산 (해당 년도 내)
+ * 월 단위는 day 앵커 + 말일 클램프 기준으로 센다.
  */
 export function calculateRecurringIterations(startDate: string, recurringType: string): number {
   const [startYear, startMonth, startDay] = startDate.split('.').map(Number);
-  const startDateObj = new Date(startYear, startMonth - 1, startDay);
   const endOfYear = new Date(startYear, 11, 31);
+  const monthDelta = getMonthBasedRecurringDelta(recurringType);
+
+  if (monthDelta != null) {
+    let iterations = 0;
+    let year = startYear;
+    let month = startMonth;
+    for (;;) {
+      const day = getActualDayForMonth(year, month, startDay);
+      const current = new Date(year, month - 1, day);
+      if (current > endOfYear) break;
+      iterations++;
+      const next = addCalendarMonths(year, month, monthDelta);
+      if (next.year > startYear) break;
+      year = next.year;
+      month = next.month;
+    }
+    return iterations;
+  }
+
+  const startDateObj = new Date(startYear, startMonth - 1, startDay);
   let iterations = 0;
   let currentDate = new Date(startDateObj);
 
@@ -371,24 +437,6 @@ export function calculateRecurringIterations(startDate: string, recurringType: s
       case '4주':
         currentDate.setDate(currentDate.getDate() + 28);
         break;
-      case '매월':
-        currentDate.setMonth(currentDate.getMonth() + 1);
-        break;
-      case '2개월 마다':
-        currentDate.setMonth(currentDate.getMonth() + 2);
-        break;
-      case '3개월 마다':
-        currentDate.setMonth(currentDate.getMonth() + 3);
-        break;
-      case '4개월 마다':
-        currentDate.setMonth(currentDate.getMonth() + 4);
-        break;
-      case '5개월 마다':
-        currentDate.setMonth(currentDate.getMonth() + 5);
-        break;
-      case '6개월 마다':
-        currentDate.setMonth(currentDate.getMonth() + 6);
-        break;
       case '주중':
         currentDate.setDate(currentDate.getDate() + 1);
         while (currentDate <= endOfYear && (currentDate.getDay() === 0 || currentDate.getDay() === 6)) {
@@ -402,7 +450,7 @@ export function calculateRecurringIterations(startDate: string, recurringType: s
         }
         break;
       default:
-        currentDate.setMonth(currentDate.getMonth() + 1);
+        currentDate.setDate(currentDate.getDate() + 1);
         break;
     }
   }

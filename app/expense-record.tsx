@@ -46,8 +46,13 @@ import { popToTabsRoute } from '@/utils/pop-to-tabs-route';
 import { rebuildCalendarDataFromStores } from '@/utils/rebuild-calendar-data';
 import { getCustomMonthInfo } from '@/utils/custom-month';
 import {
-  getRecurringWeekendOptionDisplayLabel,
+  addCalendarMonths,
+  calculateRecurringIterations,
   formatRecurringSummaryLabel,
+  formatDateWithDayAnchor,
+  getActualDayForMonth,
+  getNextRecurringDate,
+  getRecurringWeekendOptionDisplayLabel,
 } from '@/utils/expense-calculations';
 import { initializePaymentSubtypes, type PaymentSubtype } from '@/utils/payment-types';
 import {
@@ -105,205 +110,11 @@ type CalendarBucket = {
 };
 
 /**
- * 해당 월의 실제 일자 계산 (월말 처리)
- * 예: 2월 31일 → 2월 28일 (마지막 날)
- */
-function getActualDayForMonth(year: number, month: number, desiredDay: number): number {
-  const lastDayOfMonth = new Date(year, month, 0).getDate();
-  return Math.min(desiredDay, lastDayOfMonth);
-}
-
-/**
  * 해당 년도 내에 있는지 확인
  */
 function isWithinYear(dateString: string, targetYear: number): boolean {
   const [year] = dateString.split('.').map(Number);
   return year === targetYear;
-}
-
-/**
- * recurringType에 따른 다음 날짜 계산
- * @param currentDate 현재 날짜 (YYYY.MM.DD 형식)
- * @param recurringType 반복 타입
- * @param iteration 현재 반복 횟수 (0부터 시작, 현재는 사용하지 않음)
- * @param startYear 시작 년도 (해당 년도 내에서만 생성)
- * @returns 다음 날짜 (YYYY.MM.DD 형식) 또는 null (해당 년도 초과 시)
- */
-function getNextRecurringDate(
-  currentDate: string,
-  recurringType: string,
-  iteration: number,
-  startYear: number
-): string | null {
-  const [year, month, day] = currentDate.split('.').map(Number);
-  const dateObj = new Date(year, month - 1, day);
-  
-  let nextDate: Date;
-  
-  switch (recurringType) {
-    case '매일':
-      nextDate = new Date(dateObj);
-      nextDate.setDate(dateObj.getDate() + 1);
-      break;
-    case '매주':
-      nextDate = new Date(dateObj);
-      nextDate.setDate(dateObj.getDate() + 7);
-      break;
-    case '2주':
-      nextDate = new Date(dateObj);
-      nextDate.setDate(dateObj.getDate() + 14);
-      break;
-    case '3주':
-      nextDate = new Date(dateObj);
-      nextDate.setDate(dateObj.getDate() + 21);
-      break;
-    case '4주':
-      nextDate = new Date(dateObj);
-      nextDate.setDate(dateObj.getDate() + 28);
-      break;
-    case '매월':
-      nextDate = new Date(dateObj);
-      nextDate.setMonth(dateObj.getMonth() + 1);
-      break;
-    case '2개월 마다':
-      nextDate = new Date(dateObj);
-      nextDate.setMonth(dateObj.getMonth() + 2);
-      break;
-    case '3개월 마다':
-      nextDate = new Date(dateObj);
-      nextDate.setMonth(dateObj.getMonth() + 3);
-      break;
-    case '4개월 마다':
-      nextDate = new Date(dateObj);
-      nextDate.setMonth(dateObj.getMonth() + 4);
-      break;
-    case '5개월 마다':
-      nextDate = new Date(dateObj);
-      nextDate.setMonth(dateObj.getMonth() + 5);
-      break;
-    case '6개월 마다':
-      nextDate = new Date(dateObj);
-      nextDate.setMonth(dateObj.getMonth() + 6);
-      break;
-    case '주중':
-      // 다음 평일 찾기 (월~금)
-      nextDate = new Date(dateObj);
-      nextDate.setDate(dateObj.getDate() + 1);
-      while (nextDate.getDay() === 0 || nextDate.getDay() === 6) {
-        nextDate.setDate(nextDate.getDate() + 1);
-      }
-      break;
-    case '주말':
-      // 다음 주말 찾기 (토~일)
-      nextDate = new Date(dateObj);
-      nextDate.setDate(dateObj.getDate() + 1);
-      while (nextDate.getDay() !== 0 && nextDate.getDay() !== 6) {
-        nextDate.setDate(nextDate.getDate() + 1);
-      }
-      break;
-    default:
-      // 기본값: 매월
-      nextDate = new Date(dateObj);
-      nextDate.setMonth(dateObj.getMonth() + 1);
-      break;
-  }
-  
-  // 해당 년도 내에 있는지 확인
-  const nextYear = nextDate.getFullYear();
-  if (nextYear > startYear) {
-    return null; // 해당 년도 초과
-  }
-  
-  const nextYearNum = nextDate.getFullYear();
-  const nextMonthNum = nextDate.getMonth() + 1;
-  const nextDayNum = nextDate.getDate();
-  
-  // 월말 처리
-  const actualDay = getActualDayForMonth(nextYearNum, nextMonthNum, nextDayNum);
-  
-  return `${nextYearNum}.${String(nextMonthNum).padStart(2, '0')}.${String(actualDay).padStart(2, '0')}`;
-}
-
-/**
- * recurringType에 따른 반복 횟수 계산 (해당 년도 내에서)
- * @param startDate 시작 날짜 (YYYY.MM.DD 형식)
- * @param recurringType 반복 타입
- * @returns 반복 횟수
- */
-function calculateRecurringIterations(startDate: string, recurringType: string): number {
-  const [startYear, startMonth, startDay] = startDate.split('.').map(Number);
-  const startDateObj = new Date(startYear, startMonth - 1, startDay);
-  const endOfYear = new Date(startYear, 11, 31); // 12월 31일
-  
-  let iterations = 0;
-  let currentDate = new Date(startDateObj);
-  
-  // 시작일 포함하여 계산
-  while (currentDate <= endOfYear) {
-    iterations++;
-    
-    // 다음 날짜 계산
-    switch (recurringType) {
-      case '매일':
-        currentDate.setDate(currentDate.getDate() + 1);
-        break;
-      case '매주':
-        currentDate.setDate(currentDate.getDate() + 7);
-        break;
-      case '2주':
-        currentDate.setDate(currentDate.getDate() + 14);
-        break;
-      case '3주':
-        currentDate.setDate(currentDate.getDate() + 21);
-        break;
-      case '4주':
-        currentDate.setDate(currentDate.getDate() + 28);
-        break;
-      case '매월':
-        currentDate.setMonth(currentDate.getMonth() + 1);
-        break;
-      case '2개월 마다':
-        currentDate.setMonth(currentDate.getMonth() + 2);
-        break;
-      case '3개월 마다':
-        currentDate.setMonth(currentDate.getMonth() + 3);
-        break;
-      case '4개월 마다':
-        currentDate.setMonth(currentDate.getMonth() + 4);
-        break;
-      case '5개월 마다':
-        currentDate.setMonth(currentDate.getMonth() + 5);
-        break;
-      case '6개월 마다':
-        currentDate.setMonth(currentDate.getMonth() + 6);
-        break;
-      case '주중':
-        // 다음 평일 찾기
-        currentDate.setDate(currentDate.getDate() + 1);
-        while (currentDate <= endOfYear && (currentDate.getDay() === 0 || currentDate.getDay() === 6)) {
-          currentDate.setDate(currentDate.getDate() + 1);
-        }
-        break;
-      case '주말':
-        // 다음 주말 찾기
-        currentDate.setDate(currentDate.getDate() + 1);
-        while (currentDate <= endOfYear && currentDate.getDay() !== 0 && currentDate.getDay() !== 6) {
-          currentDate.setDate(currentDate.getDate() + 1);
-        }
-        break;
-      default:
-        // 기본값: 매월
-        currentDate.setMonth(currentDate.getMonth() + 1);
-        break;
-    }
-    
-    // 년도 초과 확인
-    if (currentDate.getFullYear() > startYear) {
-      break;
-    }
-  }
-  
-  return iterations;
 }
 
 // ===== 삭제 기능 유틸리티 함수들 =====
@@ -1966,7 +1777,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         
         // index만큼 반복하여 날짜 계산 (index가 0이면 시작일 반환)
         for (let j = 0; j < index; j++) {
-          const nextDate = getNextRecurringDate(currentDate, currentRecurringType, j, originalStartYear);
+          const nextDate = getNextRecurringDate(
+            currentDate,
+            currentRecurringType,
+            j,
+            originalStartYear,
+            baseDay,
+          );
           if (!nextDate) {
             // 해당 년도 초과 시 null 반환
             return null;
@@ -1987,12 +1804,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         return { dot: futureDate, key: futureDate.replace(/\./g, '-') };
       }
       
-      // 할부 옵션 또는 기본 로직: 월 단위로 증가
-      const target = new Date(baseDate);
-      target.setMonth(baseDate.getMonth() + index);
-
-      const futureYear = target.getFullYear();
-      const futureMonth = target.getMonth() + 1;
+      // 할부 옵션 또는 기본 로직: 월 단위로 증가 (앵커 일 유지, setMonth 오버플로 금지)
+      const shifted = addCalendarMonths(originalStartYear, originalStartMonth, index);
+      const futureYear = shifted.year;
+      const futureMonth = shifted.month;
       
       // 해당 년도 초과 시 null 반환
       if (futureYear > originalStartYear) {
@@ -3161,7 +2976,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
         // 기본은 기존 로직(조정된 actualDate 기준). 엣지 케이스만 원본 날짜 기준으로 계산
         const startDateForIterations = isEdgeCaseAdjusted ? date : actualDate;
-        const [yearNum, monthNum, dayNum] = startDateForIterations.split('.').map(Number);
+        const [yearNum, monthNum] = startDateForIterations.split('.').map(Number);
+        const [, , seriesAnchorDay] = date.split('.').map(Number);
         const startYear = yearNum;
         
         // 정기 옵션인 경우 recurringType에 따라 반복 횟수 계산
@@ -3185,33 +3001,30 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           // 다음 날짜 계산
           let nextDate: string | null;
           if (isRecurring) {
-            // 정기 옵션: recurringType에 따라 다음 날짜 계산
-            nextDate = getNextRecurringDate(currentDate, recurringType, iteration, startYear);
+            // 정기 옵션: recurringType에 따라 다음 날짜 계산 (의도 일자 앵커 유지)
+            nextDate = getNextRecurringDate(
+              currentDate,
+              recurringType,
+              iteration,
+              startYear,
+              seriesAnchorDay,
+            );
             if (!nextDate) {
               // 해당 년도 초과 시 중단
               break;
             }
           } else {
-            // 할부 옵션: 월 단위로 증가 (기존 로직)
-            let futureMonth = monthNum + iteration;
-            let futureYear = yearNum;
-            
-            // 월이 12를 넘으면 연도 증가
-            while (futureMonth > 12) {
-              futureMonth -= 12;
-              futureYear += 1;
-            }
+            // 할부 옵션: 월 단위로 증가 (의도 일자 앵커, setMonth 미사용)
+            const shifted = addCalendarMonths(yearNum, monthNum, iteration);
+            const futureYear = shifted.year;
+            const futureMonth = shifted.month;
             
             // 해당 년도 초과 시 중단
             if (futureYear > startYear) {
               break;
             }
             
-            // 월말 처리: 해당 월의 실제 일자 계산
-            const actualDay = getActualDayForMonth(futureYear, futureMonth, dayNum);
-            
-            // 미래 날짜 생성
-            nextDate = `${futureYear}.${String(futureMonth).padStart(2, '0')}.${String(actualDay).padStart(2, '0')}`;
+            nextDate = formatDateWithDayAnchor(futureYear, futureMonth, seriesAnchorDay);
           }
           
           if (!nextDate) {
@@ -3229,7 +3042,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             // 첫 번째 반복 날짜가 actualDate 이하이면 한 번 더 건너뛰기
             if (nextDateObj <= actualDateObj) {
               // nextDate를 기준으로 다음 반복 날짜를 다시 계산
-              const nextNextDate = getNextRecurringDate(nextDate, recurringType, iteration, startYear);
+              const nextNextDate = getNextRecurringDate(
+                nextDate,
+                recurringType,
+                iteration,
+                startYear,
+                seriesAnchorDay,
+              );
               if (!nextNextDate) {
                 // 다음 날짜가 없으면 중단
                 break;
@@ -3407,32 +3226,24 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               let nextDate: string | null;
               if (isRecurring) {
                 // 정기 옵션: recurringType에 따라 다음 날짜 계산
-                nextDate = getNextRecurringDate(currentDate, recurringType, iteration, startYear);
+                nextDate = getNextRecurringDate(
+                  currentDate,
+                  recurringType,
+                  iteration,
+                  startYear,
+                  dayNum,
+                );
                 if (!nextDate) {
                   // 해당 년도 초과 시 중단
                   break;
                 }
               } else {
-                // 할부 옵션: 월 단위로 증가 (기존 로직)
-                let futureMonth = monthNum + iteration;
-                let futureYear = yearNum;
-                
-                // 월이 12를 넘으면 연도 증가
-                while (futureMonth > 12) {
-                  futureMonth -= 12;
-                  futureYear += 1;
-                }
-                
-                // 해당 년도 초과 시 중단
-                if (futureYear > startYear) {
+                // 할부 옵션: 월 단위로 증가 (의도 일자 앵커)
+                const shifted = addCalendarMonths(yearNum, monthNum, iteration);
+                if (shifted.year > startYear) {
                   break;
                 }
-                
-                // 월말 처리: 해당 월의 실제 일자 계산
-                const actualDay = getActualDayForMonth(futureYear, futureMonth, dayNum);
-                
-                // 미래 날짜 생성
-                nextDate = `${futureYear}.${String(futureMonth).padStart(2, '0')}.${String(actualDay).padStart(2, '0')}`;
+                nextDate = formatDateWithDayAnchor(shifted.year, shifted.month, dayNum);
               }
               
               if (!nextDate) {
@@ -3447,7 +3258,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 const actualDateObj = new Date(actualYear, actualMonth - 1, actualDay);
                 
                 if (nextDateObj <= actualDateObj) {
-                  const nextNextDate = getNextRecurringDate(nextDate, recurringType, iteration, startYear);
+                  const nextNextDate = getNextRecurringDate(
+                    nextDate,
+                    recurringType,
+                    iteration,
+                    startYear,
+                    dayNum,
+                  );
                   if (!nextNextDate) {
                     break;
                   }

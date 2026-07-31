@@ -24,6 +24,7 @@ import { loadCategories } from '@/utils/categories';
 import { triggerChallengeNotifications } from '@/utils/challenge-utils';
 import { getCustomMonthInfo } from '@/utils/custom-month';
 import {
+    addCalendarMonths,
     adjustWeekendDate,
     calculateRecurringIterations,
     getActualDayForMonth,
@@ -1429,12 +1430,9 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       if ((isRecurring || isInstallment) && !isRecurring) {
         const [yearNum, monthNum, dayNum] = dateStr.split('.').map(Number);
         for (let i = 1; i < totalMonths; i++) {
-          let futureMonth = monthNum + i;
-          let futureYear = yearNum;
-          while (futureMonth > 12) {
-            futureMonth -= 12;
-            futureYear += 1;
-          }
+          const shifted = addCalendarMonths(yearNum, monthNum, i);
+          let futureYear = shifted.year;
+          let futureMonth = shifted.month;
           const actualDay = getActualDayForMonth(futureYear, futureMonth, dayNum);
           let futureDate = `${futureYear}.${String(futureMonth).padStart(2, '0')}.${String(actualDay).padStart(2, '0')}`;
           const futureDateObj = new Date(futureYear, futureMonth - 1, actualDay);
@@ -1459,8 +1457,15 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         iterations = calculateRecurringIterations(actualDate, recurringType);
         let currentDate = actualDate;
         const startYear = year;
+        const [, , seriesAnchorDay] = dateStr.split('.').map(Number);
         for (let iteration = 1; iteration < iterations; iteration++) {
-          const nextDate = getNextRecurringDate(currentDate, recurringType, iteration, startYear);
+          const nextDate = getNextRecurringDate(
+            currentDate,
+            recurringType,
+            iteration,
+            startYear,
+            seriesAnchorDay,
+          );
           if (!nextDate) break;
           const isEdgeCaseAdjusted =
             isRecurring &&
@@ -1475,7 +1480,13 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
               parseInt(actualDate.split('.')[2], 10)
             );
             if (nextDateObj <= actualDateObj) {
-              const nextNext = getNextRecurringDate(nextDate, recurringType, iteration, startYear);
+              const nextNext = getNextRecurringDate(
+                nextDate,
+                recurringType,
+                iteration,
+                startYear,
+                seriesAnchorDay,
+              );
               if (nextNext) futureDate = nextNext;
             }
           }

@@ -23,6 +23,7 @@
     "verify:won": "npx tsx scripts/verify-parse-korean-won-amount.ts",
     "try:parse": "npx tsx scripts/try-parse-expense.ts",
     "verify:reviews": "npx tsx scripts/verify-parse-expense-reviews.ts",
+    "verify:recurring-month": "npx tsx scripts/verify-recurring-month-anchor.ts",
     "eas": "eas",
     "postinstall": "patch-package"
   },
