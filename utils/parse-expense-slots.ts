@@ -20,6 +20,7 @@ import {
   hasRecurringHintInMessage,
   type ParseExpenseReviewWeekendOption,
 } from './parse-expense-reviews';
+import { collectKoreanWonAmountsFromMessage } from './parse-korean-won-amount';
 
 export type ParseExpenseSlotRecordType = 'expense' | 'income';
 
@@ -114,6 +115,8 @@ export function collectAmountsFromMessage(message: string): number[] {
       amounts.push(man * 10_000 + (Number.isFinite(cheon) ? cheon * 1_000 : 0));
     }
   }
+
+  amounts.push(...collectKoreanWonAmountsFromMessage(message));
 
   return amounts;
 }

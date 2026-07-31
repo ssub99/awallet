@@ -1094,6 +1094,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     const now = Date.now();
     if (lockEndTimeRef.current > now) {
       const remainingSec = Math.ceil((lockEndTimeRef.current - now) / 1000);
+      console.warn('[QuickInput:parse] client lock', { remainingSec });
       showToast(`잠시 후 다시 시도해 주세요.(${remainingSec}초)`);
       return;
     }
@@ -1101,6 +1102,10 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     const windowStart = now - RATE_LIMIT_WINDOW_MS;
     const timestamps = rateLimitTimestampsRef.current.filter((t) => t > windowStart);
     if (timestamps.length >= RATE_LIMIT_MAX_REQUESTS) {
+      console.warn('[QuickInput:parse] client rate limit', {
+        count: timestamps.length,
+        max: RATE_LIMIT_MAX_REQUESTS,
+      });
       showToast('잠시 후 다시 시도해 주세요.');
       return;
     }
@@ -1118,10 +1123,23 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       const date = new Date();
       const today = `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}`;
       if (hasUnresolvablePersonalDateHint(message) && !hasConcreteDateHint(message, today)) {
+        console.warn('[QuickInput:parse] blocked: personal date hint without concrete date', { message, today });
         showToast(requiredFieldToast('date'));
         return;
       }
       const securityHeaders = await getApiSecurityHeaders();
+      const requestBody = { message, categories, today };
+
+      console.log('[QuickInput:parse] request', {
+        url: PARSE_EXPENSE_API_URL,
+        today,
+        message,
+        categoryCount: categories.length,
+        categoriesSample: categories.slice(0, 12),
+        headerKeys: Object.keys(securityHeaders),
+        hasSecret: typeof securityHeaders['x-awallet-internal-secret'] === 'string',
+        hasDeviceId: typeof securityHeaders['x-device-id'] === 'string',
+      });
 
       const res = await fetch(PARSE_EXPENSE_API_URL, {
         method: 'POST',
@@ -1129,16 +1147,49 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
           'Content-Type': 'application/json',
           ...securityHeaders,
         },
-        body: JSON.stringify({ message, categories, today }),
+        body: JSON.stringify(requestBody),
       });
 
-      const data = (await res.json()) as {
+      const rawText = await res.text();
+      console.log('[QuickInput:parse] response meta', {
+        status: res.status,
+        ok: res.ok,
+        contentType: res.headers.get('content-type'),
+        bodyLength: rawText.length,
+        bodyPreview: rawText.slice(0, 800),
+      });
+
+      let data: {
         records?: PendingParseRecord[];
         suggestedCategory?: { label: string; emoji: string } | null;
         reply?: string | null;
+        error?: string;
+        details?: unknown;
       };
+      try {
+        data = JSON.parse(rawText) as typeof data;
+      } catch (parseErr) {
+        console.error('[QuickInput:parse] JSON parse failed', parseErr);
+        showToast('요청에 실패했습니다. 다시 시도해 주세요.');
+        return;
+      }
+
+      console.log('[QuickInput:parse] response json', {
+        status: res.status,
+        reply: data?.reply ?? null,
+        error: data?.error ?? null,
+        recordCount: Array.isArray(data?.records) ? data.records.length : null,
+        records: data?.records ?? null,
+        suggestedCategory: data?.suggestedCategory ?? null,
+      });
 
       if (!res.ok) {
+        console.warn('[QuickInput:parse] !res.ok → failure toast', {
+          status: res.status,
+          reply: data?.reply,
+          error: data?.error,
+          details: data?.details,
+        });
         showToast(data?.reply ?? '요청에 실패했습니다. 다시 시도해 주세요.');
         return;
       }
@@ -1147,11 +1198,13 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       const suggested = data.suggestedCategory;
       if (records.length === 0) {
         if (data.reply === requiredFieldToast('date')) {
+          console.warn('[QuickInput:parse] empty records → date toast', { reply: data.reply });
           showToast(data.reply);
           return;
         }
         const validationToast = resolveMessageValidationToast(message, categories, today);
         if (validationToast) {
+          console.warn('[QuickInput:parse] empty records → validation toast', { validationToast });
           showToast(validationToast);
           return;
         }
@@ -1159,12 +1212,17 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         if (nonRecordCountRef.current >= NON_RECORD_LOCK_THRESHOLD) {
           lockEndTimeRef.current = Date.now() + NON_RECORD_LOCK_MS;
         }
+        console.warn('[QuickInput:parse] empty records → non-record toast', {
+          nonRecordCount: nonRecordCountRef.current,
+          reply: data.reply,
+        });
         showToast('지출하신 소비내역을 입력해 주세요.');
         return;
       }
 
       nonRecordCountRef.current = 0;
       const first = applyParseExpenseReviews(records[0], message, today);
+      console.log('[QuickInput:parse] reviewed first record', first);
       const paymentSubtypes = await paymentSubtypesPromise;
       const isIncomeRecord = first.recordType === 'income' || hasIncomeHintInMessage(message);
       const shouldApplyExplicitSubtype =
@@ -1210,15 +1268,18 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       const parsedAmount = Number(first.amount);
       const normalizedCategory = typeof normalizedFirst.category === 'string' ? normalizedFirst.category.trim() : '';
       if (!normalizedCategory) {
+        console.warn('[QuickInput:parse] missing category after review', { normalizedFirst });
         showToast(requiredFieldToast('category'));
         return;
       }
       if (!isValidPendingDate(normalizedFirst.date) || !Number.isFinite(parsedAmount) || parsedAmount <= 0) {
         if (!isValidPendingDate(normalizedFirst.date)) {
+          console.warn('[QuickInput:parse] invalid date', { date: normalizedFirst.date });
           showToast('올바른 날짜를 기입해 주세요.');
           return;
         }
         if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+          console.warn('[QuickInput:parse] invalid amount', { amount: first.amount });
           showToast(requiredFieldToast('amount'));
           return;
         }
@@ -1242,6 +1303,14 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
           : (normalizedFirst.paymentSubtypeColor ?? defaultCreditSubtype?.color);
       const paymentTypeEmoji = normalizedFirst.paymentMethod === 'cash' ? '💰' : undefined;
 
+      console.log('[QuickInput:parse] success → confirm card', {
+        categoryLabel,
+        amount: parsedAmount,
+        date: normalizedFirst.date,
+        recordType: normalizedFirst.recordType,
+        memo: normalizedFirst.memo,
+      });
+
       setConfirmCardData({
         recordType: normalizedFirst.recordType,
         category: categoryLabel,
@@ -1255,7 +1324,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         repeatOption2: normalizedFirst.recordType === 'income' ? undefined : getRepeatOption2(normalizedFirst),
         repeatOption3: normalizedFirst.recordType === 'income' ? undefined : getRepeatOption3(normalizedFirst),
       });
-    } catch {
+    } catch (err) {
+      console.error('[QuickInput:parse] catch → failure toast', err);
       showToast('요청에 실패했습니다. 다시 시도해 주세요.');
       // 토큰 비용 절감: 실패 시 자동 재시도 없음 (사용자가 다시 보내기 시에만 재요청)
     } finally {
