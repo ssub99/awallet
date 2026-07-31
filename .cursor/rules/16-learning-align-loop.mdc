@@ -1,0 +1,33 @@
+---
+description: Fluid 학습 정렬 루프 — baseline vs compose 자동 대조·patch·반복
+alwaysApply: true
+---
+
+# Fluid 학습 정렬 루프 (전역)
+
+Figma **baseline(원본)** 과 **compose(생성 시안)** 를 자동 대조하고, Tier1 차이는 patch로 맞춘 뒤 **diff 0 + verify PASS**까지 반복한다.
+
+**SSOT (Fluid repo):** `/Users/ssong/Fluid/docs/policies/learning-user-guide.md` § 학습 정렬 루프  
+**상세 룰:** `/Users/ssong/Fluid/.cursor/rules/16-learning-align-loop.mdc`
+
+## 루프
+
+```
+compose → diff → Tier1 patch → 재diff
+  → violations 0 + verify PASS → 학습 sample (완료)
+  → Tier2만 남음 → Fluid catalog/atomic 수정 후 recompose · 루프 재실행
+```
+
+## CLI (Fluid repo, relay 연결 필수)
+
+```bash
+cd /Users/ssong/Fluid
+node cli/diff-frames.mjs <pattern> <baselineId> <composeId>
+node cli/align-intent.mjs <pattern> <baselineId> [composeId]
+```
+
+## 에이전트
+
+- intent 정렬 작업 시 **수동 눈대중 대신** `align-intent` 또는 `diff-frames` 우선
+- Tier2 escalations는 catalog/atomic 수정 후 루프 재실행
+- TalkToFigma 우회 금지 · 자동 catalog 승격 금지 (`14-learning-user-guide` 원칙 유지)

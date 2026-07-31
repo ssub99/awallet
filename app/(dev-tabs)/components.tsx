@@ -1637,12 +1637,14 @@ function InputsContent({ colors }: { colors: ColorPalette }) {
       <SectionHeader title="Calendar Input - Default" colors={colors} />
       <Input
         calendar
+        onPress={() => {}}
       />
 
       <SectionHeader title="Calendar Input - Active" colors={colors} />
       <Input
         calendar
         calendarDate="2025.09.28"
+        onPress={() => {}}
       />
 
       <SectionHeader title="Calendar Input - Disabled" colors={colors} />
@@ -1650,6 +1652,23 @@ function InputsContent({ colors }: { colors: ColorPalette }) {
         calendar
         calendarDate="2025.09.28"
         disabled
+      />
+
+      {/* Day Select (dayselect + righticon) */}
+      <SectionHeader title="Line Input - Day Select" colors={colors} />
+      <Input
+        value="내용 입력"
+        rightText="텍스트"
+        showRightArrow
+        onPress={() => {}}
+      />
+
+      {/* Selection with arrow (righticon, no dayselect) */}
+      <SectionHeader title="Line Input - Selection Arrow" colors={colors} />
+      <Input
+        value="내용 입력"
+        showRightArrow
+        onPress={() => {}}
       />
 
       {/* Textarea */}

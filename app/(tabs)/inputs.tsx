@@ -148,12 +148,14 @@ export default function InputDemoScreen() {
       <SubSectionHeader title="Default (no date)" colors={palette} />
       <Input
         calendar
+        onPress={() => {}}
       />
 
       <SubSectionHeader title="Active (with date)" colors={palette} />
       <Input
         calendar
         calendarDate="2025.09.28"
+        onPress={() => {}}
       />
 
       <SubSectionHeader title="Disabled (with date)" colors={palette} />
@@ -161,6 +163,23 @@ export default function InputDemoScreen() {
         calendar
         calendarDate="2025.09.28"
         disabled
+      />
+
+      {/* Day Select */}
+      <SectionHeader title="Day Select Inputs" colors={palette} />
+      <Input
+        value="내용 입력"
+        rightText="텍스트"
+        showRightArrow
+        onPress={() => {}}
+      />
+
+      {/* Selection Arrow */}
+      <SectionHeader title="Selection Inputs" colors={palette} />
+      <Input
+        value="내용 입력"
+        showRightArrow
+        onPress={() => {}}
       />
 
       {/* Real-world Examples */}
@@ -211,6 +230,7 @@ export default function InputDemoScreen() {
           <Input
             calendar
             calendarDate="2025.09.28"
+            onPress={() => {}}
           />
         </View>
       </View>

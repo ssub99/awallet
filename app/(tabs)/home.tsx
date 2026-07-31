@@ -16,24 +16,24 @@ import { useCreateSheetContext } from '@/contexts/create-sheet-context';
 import { useLoading } from '@/contexts/loading-context';
 import { FAB_OFFSET_ABOVE_TABS, useQuickInputContext } from '@/contexts/quick-input-context';
 import {
-    applyPendingCalendarTargetEvent,
-    calendarRefreshEvent,
-    consumeLatestPendingCalendarTarget,
-    getLatestPendingCalendarTarget,
-    peekLatestPendingCalendarTarget,
-    persistPendingCalendarTarget,
-    setLatestPendingCalendarTarget,
+  applyPendingCalendarTargetEvent,
+  calendarRefreshEvent,
+  consumeLatestPendingCalendarTarget,
+  getLatestPendingCalendarTarget,
+  peekLatestPendingCalendarTarget,
+  persistPendingCalendarTarget,
+  setLatestPendingCalendarTarget,
 } from '@/hooks/calendar-events';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { logEvent } from '@/utils/analytics';
 import { isAtLeastVersion, QUICK_INPUT_MIN_VERSION } from '@/utils/app-version';
-import { createSheetEvent } from '@/utils/create-sheet-event';
 import {
   buildCalendarMonthTotalsIndex,
   getCalendarMonthTotalsFromIndex,
 } from '@/utils/calendar-month-totals';
+import { createSheetEvent } from '@/utils/create-sheet-event';
 import {
   getCustomMonthInfo,
   getCustomMonthRange,
@@ -56,8 +56,7 @@ import {
   Platform,
   Pressable,
   StyleSheet,
-  Text,
-  View,
+  View
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 

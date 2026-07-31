@@ -2,7 +2,7 @@
   "expo": {
     "name": "awallet",
     "slug": "awallet",
-    "version": "1.1.2",
+    "version": "1.1.6",
     "description": "당신의 현명한 소비 기록 awallet",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -22,10 +22,10 @@
         "CFBundleName": "에이월렛",
         "NSUserNotificationsUsageDescription": "소비 기록 알림과 챌린지 리마인더를 받기 위해 알림 권한이 필요합니다.",
         "ITSAppUsesNonExemptEncryption": false,
-        "CFBundleShortVersionString": "1.1.2",
+        "CFBundleShortVersionString": "1.1.6",
         "CFBundleVersion": "45"
       },
-      "runtimeVersion": "1.1.2"
+      "runtimeVersion": "1.1.6"
     },
     "android": {
       "softwareKeyboardLayoutMode": "resize",
@@ -39,11 +39,11 @@
       "package": "com.ssong.awallet",
       "googleServicesFile": "./android-firebase/google-services.json",
       "playStoreUrl": "https://play.google.com/store/apps/details?id=com.ssong.awallet",
-      "versionCode": 45,
+      "versionCode": 46,
       "permissions": [
         "android.permission.POST_NOTIFICATIONS"
       ],
-      "runtimeVersion": "1.1.2"
+      "runtimeVersion": "1.1.6"
     },
     "web": {
       "output": "static",
@@ -140,7 +140,7 @@
       "url": "https://u.expo.dev/f33074c8-df40-4c61-bcfe-826b22dabd0a",
       "fallbackToCacheTimeout": 0,
       "checkAutomatically": "ON_LOAD",
-      "runtimeVersion": "1.1.2"
+      "runtimeVersion": "1.1.6"
     },
     "extra": {
       "supportEmail": "ssuby99@gmail.com",

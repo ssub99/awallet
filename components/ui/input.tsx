@@ -118,7 +118,8 @@ export interface InputProps extends Omit<TextInputProps, 'style'> {
   onPress?: () => void;
   
   /**
-   * Button mode - displays as a button for selection (like category picker)
+   * Button mode - displays as a button for selection (like category picker).
+   * Also implied when calendar, rightText (dayselect), or showRightArrow is set (Figma DS).
    */
   buttonMode?: boolean;
 
@@ -195,6 +196,10 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
   
   const inputRef = useRef<TextInput>(null);
 
+  // Figma DS: calendar · dayselect(rightText) · righticon(showRightArrow) variants use buttonmode=true
+  const resolvedButtonMode =
+    buttonMode || calendar || !!rightText || showRightArrow;
+
   // 외부 ref를 내부 inputRef에 연결
   useImperativeHandle(ref, () => inputRef.current as TextInput);
   const [isFocused, setIsFocused] = useState(false);
@@ -228,7 +233,7 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
     Platform.OS !== 'ios' &&
     variant === 'line' &&
     inputType === 'text' &&
-    !buttonMode &&
+    !resolvedButtonMode &&
     !valueRenderer &&
     !shortver;
 
@@ -250,7 +255,7 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
   };
 
   const handleChangeText = (text: string) => {
-    if (!onChangeText || disabled || buttonMode) return;
+    if (!onChangeText || disabled || resolvedButtonMode) return;
 
     if (inputType === 'number') {
       const formatted = formatNumber(text);
@@ -260,7 +265,7 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
     }
   };
 
-  const isMultilineArea = variant === 'area' && !buttonMode && !calendar;
+  const isMultilineArea = variant === 'area' && !resolvedButtonMode && !calendar;
   /**
    * 커스텀 키패드 패턴(editable=false + onPress):
    * Pressable은 Android에서 인접 필드 포커스 시 pressed 상태가 남을 수 있음.
@@ -327,9 +332,9 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
   const handlePressablePress = () => {
     if (onPress) {
       onPress();
-    } else if (disabled && !buttonMode) {
+    } else if (disabled && !resolvedButtonMode) {
       return;
-    } else if (!calendar && !buttonMode) {
+    } else if (!calendar && !resolvedButtonMode) {
       inputRef.current?.focus();
     }
   };
@@ -397,7 +402,7 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
               )}
 
               {/* Text Input or Button Mode Text */}
-              {buttonMode ? (
+              {resolvedButtonMode ? (
                 variant === 'line' ? (
                   <View style={styles.inputFieldWrap}>
                     <View style={shortver ? styles.inputLineTextWrapShort : styles.inputLineTextWrap}>

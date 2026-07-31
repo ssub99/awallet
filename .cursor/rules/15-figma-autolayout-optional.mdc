@@ -1,0 +1,25 @@
+---
+description: Figma 작업 시 Auto Layout 무조건 적용 금지 — baseline 배치 모델 우선
+alwaysApply: true
+---
+
+# Figma Auto Layout — 선택 적용 (전역)
+
+Fluid compose/patch·바이브 디자인·TalkToFigma 편집 시 **Auto Layout을 기본·강제로 적용하지 않는다.**
+
+## MUST
+
+1. baseline의 레이아웃 **모델**을 먼저 확인한다 (루트 `layoutMode: NONE` vs `VERTICAL`, absolute 형제 vs wrapper autolayout).
+2. 원본이 free-position·`ABSOLUTE` 겹침이면 **동일 모델**을 유지한다.
+3. `layoutMode` / `layoutPositioning`은 baseline·`layoutContracts`·DS 조립 **목적이 있을 때만** Recipe·atomic에 넣는다.
+4. DS INSTANCE·COMPONENT **내부** Auto Layout은 재구성하지 않는다.
+
+## MUST NOT
+
+- 루트에 VERTICAL Auto Layout을 기본으로 깔기
+- “정리”를 이유로 absolute 슬롯을 autolayout 행/스택으로 치환하기
+- layout 슬롯 verify PASS만 보고 시각 일치를 가정하기
+
+## SSOT
+
+`Fluid/docs/policies/figma-autolayout.md`
