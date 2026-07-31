@@ -30,17 +30,18 @@ import {
     getDayOfWeekLabel,
     getNextRecurringDate,
     getRecurringWeekendOptionDisplayLabel,
-    resolveExpenseRecurringTypeFromMessage,
 } from '@/utils/expense-calculations';
 import { createExpensesBatch, type ExpenseRecord, type PaymentMethod } from '@/utils/expenses';
 import { generateGroupId, generateRecordId } from '@/utils/id-generator';
 import { createIncome, type IncomeRecord } from '@/utils/incomes';
 import { rescheduleDailyReminderIfNeeded } from '@/utils/notification-scheduler';
+import { resolveRelativeWeekdayDateFromMessage } from '@/utils/parse-expense-relative-date';
 import {
-    resolveExpenseSeriesStartDateFromMessage,
-    resolveRelativeWeekdayDateFromMessage,
-} from '@/utils/parse-expense-relative-date';
-import { extractMemoFromMessage } from '@/utils/parse-expense-memo';
+    hasIncomeHintInMessage,
+    reviewDates,
+    reviewMemoRuleFallback,
+    reviewRecordTypeAndSeries,
+} from '@/utils/parse-expense-reviews';
 import { getDefaultSubtypeIdByMethod, loadPaymentSubtypes, type PaymentSubtype } from '@/utils/payment-types';
 import {
     keyboardMetricsToEndCoordinates,
@@ -417,10 +418,6 @@ function hasConcreteDateHint(message: string, today: string): boolean {
   );
 }
 
-function hasIncomeHintInMessage(message: string): boolean {
-  return /월급|급여|보너스|입금|용돈|환급|수입|꽁돈|용돈받/.test(message) || /salary|income|bonus|windfall/.test(message.toLowerCase());
-}
-
 function formatDateDisplay(dateStr: string): string {
   const parsed = parsePendingDate(dateStr);
   if (!parsed) return dateStr;
@@ -589,69 +586,19 @@ function isValidPendingDate(date: unknown): date is string {
   return typeof date === 'string' && parsePendingDate(date) != null;
 }
 
-/** 메시지에서 정기/할부 의도 추론 후 record에 반영 (API 미반환 시 클라이언트 fallback) */
-function applyMessageFallback(raw: PendingParseRecord, message: string): PendingParseRecord {
+/**
+ * API 응답 1건에 규칙 보정 SSOT 적용 (타입·시리즈·날짜·메모 규칙 fallback).
+ * 서버가 이미 적용했어도 idempotent. Simple 경로는 서버 리뷰를 건너뛰므로 클라이언트에서도 동일 유틸 사용.
+ */
+function applyParseExpenseReviews(
+  raw: PendingParseRecord,
+  message: string,
+  today: string,
+): PendingParseRecord {
   const record = normalizePendingRecord(raw);
-  const msg = message.trim();
-  if (!msg) return record;
-
-  const applyMemoIfPresent = (next: PendingParseRecord): PendingParseRecord => {
-    const apiMemo = typeof next.memo === 'string' ? next.memo.trim() : '';
-    if (apiMemo.length > 0) return next;
-
-    const ruleMemo = extractMemoFromMessage(msg);
-    if (ruleMemo == null) return next;
-    return { ...next, memo: ruleMemo };
-  };
-
-  const inferredRecurringType = resolveExpenseRecurringTypeFromMessage(msg, record.recurringType);
-  const hasRecurring =
-    inferredRecurringType != null ||
-    /구독|매달|매월|월세|정기|매주|매일/.test(msg) ||
-    /subscription|monthly|recurring/.test(msg);
-  const hasInstallment = /할부|\d+개월\s*할부/.test(msg);
-  if (hasRecurring && toBool(record.isRecurring) && !toBool(record.isInstallment)) {
-    return applyMemoIfPresent(
-      normalizePendingRecord({
-        ...record,
-        recurringType: inferredRecurringType || record.recurringType || '매월',
-        totalMonths: record.totalMonths ?? 12,
-        weekendOption: (record.weekendOption as 'weekend' | 'friday' | 'monday') || 'weekend',
-      }),
-    );
-  }
-  if (hasRecurring && !toBool(record.isRecurring) && !toBool(record.isInstallment)) {
-    let recurringType = record.recurringType;
-    if (!recurringType) {
-      if (inferredRecurringType) recurringType = inferredRecurringType;
-      else if (/매주|주간|weekly/.test(msg)) recurringType = '매주';
-      else if (/매일|일간|daily/.test(msg)) recurringType = '매일';
-      else recurringType = '매월';
-    }
-    return applyMemoIfPresent(
-      normalizePendingRecord({
-        ...record,
-        isRecurring: true,
-        recurringType,
-        totalMonths: record.totalMonths ?? 12,
-        weekendOption: (record.weekendOption as 'weekend' | 'friday' | 'monday') || 'weekend',
-      }),
-    );
-  }
-  if (hasInstallment && !toBool(record.isRecurring) && !toBool(record.isInstallment)) {
-    const m = msg.match(/(\d+)개월/);
-    const months = m ? Math.min(12, Math.max(2, parseInt(m[1], 10) || 3)) : 3;
-    return applyMemoIfPresent(
-      normalizePendingRecord({
-        ...record,
-        isInstallment: true,
-        totalMonths: record.totalMonths ?? months,
-        weekendOption: (record.weekendOption as 'weekend' | 'friday' | 'monday') || 'weekend',
-      }),
-    );
-  }
-
-  return applyMemoIfPresent(record);
+  const withTypeSeries = reviewRecordTypeAndSeries(message, record);
+  const withDates = reviewDates(message, today, withTypeSeries);
+  return normalizePendingRecord(reviewMemoRuleFallback(message, withDates));
 }
 
 function getRepeatOption1(record: PendingParseRecord): string {
@@ -1217,7 +1164,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       }
 
       nonRecordCountRef.current = 0;
-      const first = applyMessageFallback(records[0], message);
+      const first = applyParseExpenseReviews(records[0], message, today);
       const paymentSubtypes = await paymentSubtypesPromise;
       const isIncomeRecord = first.recordType === 'income' || hasIncomeHintInMessage(message);
       const shouldApplyExplicitSubtype =
@@ -1242,7 +1189,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         : first.paymentMethod === 'cash'
         ? 'cash'
         : (matchedSubtypeForFirst?.type ?? first.paymentMethod ?? inferPaymentMethodFromLabel(first.paymentSubtypeLabel) ?? 'credit');
-      const normalizedFirstBase: PendingParseRecord = {
+      const normalizedFirst: PendingParseRecord = {
         ...first,
         recordType: isIncomeRecord ? 'income' : 'expense',
         paymentMethod: isIncomeRecord ? undefined : resolvedPaymentMethod,
@@ -1260,17 +1207,6 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         totalMonths: isIncomeRecord ? undefined : first.totalMonths,
         weekendOption: isIncomeRecord ? undefined : first.weekendOption,
       };
-      const relativeDate = resolveRelativeWeekdayDateFromMessage(message, today);
-      const normalizedFirstWithRelativeDate: PendingParseRecord = relativeDate
-        ? { ...normalizedFirstBase, date: relativeDate }
-        : normalizedFirstBase;
-      const seriesStartDate =
-        !isIncomeRecord && (normalizedFirstWithRelativeDate.isRecurring || normalizedFirstWithRelativeDate.isInstallment)
-          ? resolveExpenseSeriesStartDateFromMessage(message, today, normalizedFirstWithRelativeDate.date)
-          : null;
-      const normalizedFirst: PendingParseRecord = seriesStartDate
-        ? { ...normalizedFirstWithRelativeDate, date: seriesStartDate }
-        : normalizedFirstWithRelativeDate;
       const parsedAmount = Number(first.amount);
       const normalizedCategory = typeof normalizedFirst.category === 'string' ? normalizedFirst.category.trim() : '';
       if (!normalizedCategory) {

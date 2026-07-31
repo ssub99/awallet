@@ -8,11 +8,7 @@
 
 import { refineMemoWithGemini } from './refine-expense-memo';
 import { buildMemoRefinementPlan } from '../utils/parse-expense-memo';
-import {
-  resolveExpenseSeriesStartDateFromMessage,
-  resolveRelativeWeekdayDateFromMessage,
-} from '../utils/parse-expense-relative-date';
-import { resolveExpenseRecurringTypeFromMessage } from '../utils/expense-calculations';
+import { applySyncParseExpenseReviews } from '../utils/parse-expense-reviews';
 import { resolveHolidayDateFromMessage } from './holiday-calendar';
 import {
   isSimpleExpenseCandidate,
@@ -106,10 +102,10 @@ ${paymentSubtypeGuide}
 - 수입(월급/급여/보너스/입금/용돈/환급/꽁돈)→recordType:income, 결제수단 필드 생략, 반복/할부 없음
 - 결제 기본 credit. 체크/현금→debit/cash. cash면 paymentSubtypeLabel 생략
 - 카드사·카드명 언급 시 paymentSubtypeLabel에 목록 라벨 매칭
-- 날짜 YYYY.MM.DD (저번주/이번주/다음주+요일은 서버 보정 가능)
+- 날짜: 명시된 절대일만 YYYY.MM.DD. 상대요일·공휴일·시리즈 시작일은 서버 규칙이 확정하므로 대략값/오늘이어도 됨
 - 카테고리 미매칭 시 records[].category null, suggestedCategory 1개(이모지+이름≤10자)
 - 메모는 사용자가 명시 요청할 때만. 자연어 메모 요청(메모도 넣어줘 등)은 memo 비우거나 짧게
-- 정기(구독/매달/월세)·할부(N개월) 의도 시 isRecurring/isInstallment·recurringType·totalMonths·weekendOption 채움
+- 정기(구독/매달/월세)·할부(N개월) 의도가 보이면 isRecurring/isInstallment true만 우선. recurringType·totalMonths·weekendOption은 힌트면 채우고 불확실하면 생략(서버 보정)
 - 금액 숫자만(2만원→20000). 복수 건이면 records 배열
 - 소비 외 질문→reply: "소비 기록 관련해서만 답변드릴 수 있어요."
 
@@ -312,8 +308,9 @@ export async function POST(request: Request): Promise<Response> {
         paymentSubtypeOptions,
       );
       if (simple != null) {
+        const reviewed = applySyncParseExpenseReviews(trimmedMessage, today, simple);
         recordRateLimitSuccess(rateLimitCheck.key, DEFAULT_AI_RATE_LIMIT_POLICY);
-        return Response.json(simple);
+        return Response.json(reviewed);
       }
     }
 
@@ -369,78 +366,6 @@ export async function POST(request: Request): Promise<Response> {
       );
     }
 
-    // 메시지 기반 fallback: 구독/매달/매월 등이 있는데 AI가 isRecurring을 안 준 경우
-    const msg = message.toLowerCase();
-    const inferredRecurringType = resolveExpenseRecurringTypeFromMessage(message);
-    const hasRecurringHint =
-      inferredRecurringType != null ||
-      /구독|매달|매월|월세|정기|매주|매일/.test(msg) ||
-      /subscription|monthly|recurring/.test(msg);
-    const hasInstallmentHint = /할부|\d+개월\s*할부/.test(msg);
-    if (result.records.length > 0) {
-      const first = result.records[0] as ExpenseRecordSuggestion;
-      const hasIncomeHint = /월급|급여|보너스|입금|용돈|환급|수입|꽁돈|용돈받/.test(msg) || /salary|income|bonus|windfall/.test(msg);
-      if (hasIncomeHint) {
-        result = {
-          ...result,
-          records: [
-            {
-              ...first,
-              recordType: 'income',
-              paymentMethod: undefined,
-              paymentSubtypeLabel: undefined,
-              isRecurring: undefined,
-              isInstallment: undefined,
-              recurringType: undefined,
-              totalMonths: undefined,
-              weekendOption: undefined,
-            },
-            ...result.records.slice(1),
-          ],
-        };
-      } else if (hasRecurringHint && !first.isRecurring && !first.isInstallment) {
-        result = {
-          ...result,
-          records: [
-            {
-              ...first,
-              isRecurring: true,
-              recurringType: inferredRecurringType || first.recurringType || '매월',
-              totalMonths: first.totalMonths ?? 12,
-              weekendOption: first.weekendOption ?? 'weekend',
-            },
-            ...result.records.slice(1),
-          ],
-        };
-      } else if (first.isRecurring && inferredRecurringType && inferredRecurringType !== first.recurringType) {
-        result = {
-          ...result,
-          records: [
-            {
-              ...first,
-              recurringType: inferredRecurringType,
-            },
-            ...result.records.slice(1),
-          ],
-        };
-      } else if (hasInstallmentHint && !first.isRecurring && !first.isInstallment) {
-        const match = msg.match(/(\d+)개월/);
-        const months = match ? Math.min(12, Math.max(2, parseInt(match[1], 10) || 3)) : 3;
-        result = {
-          ...result,
-          records: [
-            {
-              ...first,
-              isInstallment: true,
-              totalMonths: first.totalMonths ?? months,
-              weekendOption: first.weekendOption ?? 'weekend',
-            },
-            ...result.records.slice(1),
-          ],
-        };
-      }
-    }
-
     const holidayDate = await resolveHolidayDateFromMessage(message, today);
     if (holidayDate.status === 'unresolved') {
       return Response.json({
@@ -450,29 +375,11 @@ export async function POST(request: Request): Promise<Response> {
       });
     }
 
-    const relativeDate =
-      holidayDate.status === 'matched'
-        ? holidayDate.date
-        : resolveRelativeWeekdayDateFromMessage(message, today);
-    if (relativeDate != null && result.records.length > 0) {
-      result = {
-        ...result,
-        records: result.records.map((r) => ({ ...r, date: relativeDate })),
-      };
-    }
-
-    if (result.records.length > 0) {
-      result = {
-        ...result,
-        records: result.records.map((r) => {
-          const isExpenseSeries =
-            r.recordType !== 'income' && (r.isRecurring === true || r.isInstallment === true);
-          if (!isExpenseSeries) return r;
-          const seriesStartDate = resolveExpenseSeriesStartDateFromMessage(message, today, r.date);
-          return seriesStartDate ? { ...r, date: seriesStartDate } : r;
-        }),
-      };
-    }
+    // 타입·시리즈·상대날짜·시리즈시작일 — utils/parse-expense-reviews SSOT
+    result = applySyncParseExpenseReviews(message, today, result, {
+      absoluteDateOverride:
+        holidayDate.status === 'matched' ? holidayDate.date : null,
+    });
 
     const mainAiMemo =
       result.records.length > 0 && typeof result.records[0].memo === 'string'
