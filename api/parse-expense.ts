@@ -378,7 +378,7 @@ export async function POST(request: Request): Promise<Response> {
         thinkingLevel,
       });
 
-      if (!geminiResult.ok) {
+      if (geminiResult.ok === false) {
         lastGeminiError = {
           status: geminiResult.status,
           details: geminiResult.details,
