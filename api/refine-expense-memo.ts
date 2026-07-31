@@ -48,10 +48,13 @@ memo에 넣을 것: 누구와, 무엇을, 어디서 등 지출 맥락(명사구)
 JSON 형식: {"memo":"..."}`;
 }
 
+export type RefineMemoThinkingLevel = 'minimal' | 'low';
+
 export async function refineMemoWithGemini(
   request: RefineMemoRequest,
   apiKey: string,
   geminiModel: string,
+  thinkingLevel: RefineMemoThinkingLevel = 'minimal',
 ): Promise<string | null> {
   const text = request.text.trim();
   if (text.length === 0) return null;
@@ -81,6 +84,9 @@ export async function refineMemoWithGemini(
         temperature: 0.1,
         maxOutputTokens: 128,
         responseMimeType: 'application/json',
+        thinkingConfig: {
+          thinkingLevel,
+        },
       },
     }),
   });

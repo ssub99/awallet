@@ -92,6 +92,9 @@ interface ConsumptionReportResponse {
 }
 
 const GEMINI_REQUEST_TIMEOUT_MS = 15000;
+const GEMINI_MODEL = 'gemini-3.5-flash-lite';
+/** 리포트: thinking은 low만 사용 */
+const GEMINI_THINKING_LEVEL = 'low' as const;
 
 type AiErrorType = 'UPSTREAM_HTTP_ERROR' | 'AI_PARSE_ERROR' | 'AI_TIMEOUT';
 
@@ -681,7 +684,7 @@ export async function POST(request: Request): Promise<Response> {
 
     const systemPrompt = buildConsumptionSystemPrompt();
     const userPrompt = buildConsumptionUserPrompt(payload);
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
 
     const MAX_ATTEMPTS = 1;
 
@@ -710,6 +713,9 @@ export async function POST(request: Request): Promise<Response> {
               temperature: 0.7,
               maxOutputTokens: 720,
               responseMimeType: 'application/json',
+              thinkingConfig: {
+                thinkingLevel: GEMINI_THINKING_LEVEL,
+              },
             },
           }),
           signal: controller.signal,

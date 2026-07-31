@@ -64,7 +64,10 @@ interface ParseExpenseResponse {
 const MAX_HISTORY_MESSAGES = 6;
 
 /** 기본 모델. Vercel env `awallet_gemini_model` 로 덮어쓰기 가능 */
-const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash';
+const DEFAULT_GEMINI_MODEL = 'gemini-3.5-flash-lite';
+
+/** 간편입력: 1차 minimal → JSON 실패 시 low 재시도 */
+type ParseExpenseThinkingLevel = 'minimal' | 'low';
 
 function resolveGeminiModel(): string {
   const fromEnv = process.env.awallet_gemini_model ?? process.env.AWALLET_GEMINI_MODEL;
@@ -72,6 +75,50 @@ function resolveGeminiModel(): string {
     return fromEnv.trim();
   }
   return DEFAULT_GEMINI_MODEL;
+}
+
+async function generateParseExpenseContent(params: {
+  apiKey: string;
+  geminiModel: string;
+  systemPrompt: string;
+  userPrompt: string;
+  thinkingLevel: ParseExpenseThinkingLevel;
+}): Promise<{ ok: true; text: string } | { ok: false; status: number; details: string }> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${params.geminiModel}:generateContent?key=${params.apiKey}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      systemInstruction: {
+        role: 'system',
+        parts: [{ text: params.systemPrompt }],
+      },
+      contents: [
+        {
+          role: 'user',
+          parts: [{ text: params.userPrompt }],
+        },
+      ],
+      generationConfig: {
+        temperature: 0.2,
+        maxOutputTokens: 512,
+        responseMimeType: 'application/json',
+        thinkingConfig: {
+          thinkingLevel: params.thinkingLevel,
+        },
+      },
+    }),
+  });
+
+  if (!res.ok) {
+    return { ok: false, status: res.status, details: await res.text() };
+  }
+
+  const data = (await res.json()) as {
+    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+  };
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+  return { ok: true, text };
 }
 
 function buildExpenseSystemPrompt(
@@ -317,52 +364,54 @@ export async function POST(request: Request): Promise<Response> {
     const systemPrompt = buildExpenseSystemPrompt(categories, today, paymentSubtypeOptions);
     const userPrompt = buildExpenseUserPrompt(message, history);
     const geminiModel = resolveGeminiModel();
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        systemInstruction: {
-          role: 'system',
-          parts: [{ text: systemPrompt }],
-        },
-        contents: [
-          {
-            role: 'user',
-            parts: [{ text: userPrompt }],
-          },
-        ],
-        generationConfig: {
-          temperature: 0.2,
-          maxOutputTokens: 512,
-          responseMimeType: 'application/json',
-        },
-      }),
-    });
 
-    if (!res.ok) {
-      const errText = await res.text();
-      console.error('[parse-expense] gemini failed', {
-        model: geminiModel,
-        status: res.status,
-        details: errText.slice(0, 500),
+    const thinkingLevels: ParseExpenseThinkingLevel[] = ['minimal', 'low'];
+    let result: ParseExpenseResponse | null = null;
+    let lastGeminiError: { status: number; details: string } | null = null;
+
+    for (const thinkingLevel of thinkingLevels) {
+      const geminiResult = await generateParseExpenseContent({
+        apiKey,
+        geminiModel,
+        systemPrompt,
+        userPrompt,
+        thinkingLevel,
       });
-      return Response.json(
-        { error: 'Gemini API error', model: geminiModel, details: errText },
-        { status: 502 }
-      );
+
+      if (!geminiResult.ok) {
+        lastGeminiError = {
+          status: geminiResult.status,
+          details: geminiResult.details,
+        };
+        console.error('[parse-expense] gemini failed', {
+          model: geminiModel,
+          thinkingLevel,
+          status: geminiResult.status,
+          details: geminiResult.details.slice(0, 500),
+        });
+        // HTTP 실패는 thinking 올려 재시도하지 않음
+        break;
+      }
+
+      result = parseGeminiJson(geminiResult.text);
+      if (result != null) break;
     }
 
-    const data = (await res.json()) as {
-      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-    };
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-    let result = parseGeminiJson(text);
+    if (lastGeminiError != null && result == null) {
+      return Response.json(
+        {
+          error: 'Gemini API error',
+          model: geminiModel,
+          details: lastGeminiError.details,
+        },
+        { status: 502 },
+      );
+    }
 
     if (!result) {
       return Response.json(
         { error: 'Failed to parse AI response' },
-        { status: 502 }
+        { status: 502 },
       );
     }
 
@@ -399,6 +448,7 @@ export async function POST(request: Request): Promise<Response> {
           },
           apiKey,
           geminiModel,
+          'minimal',
         );
         if (aiMemo != null) {
           finalMemo = aiMemo;
