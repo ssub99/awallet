@@ -149,10 +149,10 @@ ${paymentSubtypeGuide}
 - 수입(월급/급여/보너스/입금/용돈/환급/꽁돈)→recordType:income, 결제수단 필드 생략, 반복/할부 없음
 - 결제 기본 credit. 체크/현금→debit/cash. cash면 paymentSubtypeLabel 생략
 - 카드사·카드명 언급 시 paymentSubtypeLabel에 목록 라벨 매칭
-- 날짜: 명시된 절대일만 YYYY.MM.DD. 상대요일·공휴일·시리즈 시작일은 서버 규칙이 확정하므로 대략값/오늘이어도 됨
-- 카테고리 미매칭 시 records[].category null, suggestedCategory 1개(이모지+이름≤10자)
-- 메모는 사용자가 명시 요청할 때만. 자연어 메모 요청(메모도 넣어줘 등)은 memo 비우거나 짧게
-- 정기(구독/매달/월세)·할부(N개월) 의도가 보이면 isRecurring/isInstallment true만 우선. recurringType·totalMonths·weekendOption은 힌트면 채우고 불확실하면 생략(서버 보정)
+- 날짜: 명시된 절대일만 YYYY.MM.DD. 상대요일·공휴일·시리즈 시작일·매달 N일·주말옵션은 서버 규칙이 확정하므로 대략값/오늘이어도 됨
+- 카테고리: 위 목록 안에서만 의미에 맞게 선택. 미매칭 시 records[].category null, suggestedCategory 1개(이모지+이름≤10자)
+- 메모는 사용자가 명시 요청할 때만. 자연어 메모 요청(메모도 넣어줘 등)은 memo 비우거나 짧게. 주말옵션·반복 지시어는 memo에 넣지 않음
+- 정기(구독/매달/월세)·할부(N개월) 의도만 보이면 isRecurring/isInstallment true 힌트. recurringType·totalMonths·weekendOption·형태 확정은 서버 규칙이 함(불확실하면 생략)
 - 금액 숫자만(2만원→20000). 복수 건이면 records 배열
 - 소비 외 질문→reply: "소비 기록 관련해서만 답변드릴 수 있어요."
 

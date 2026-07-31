@@ -18,24 +18,13 @@ import {
 } from '../utils/parse-expense-simple';
 import { extractParseExpenseSlots } from '../utils/parse-expense-slots';
 import { applySyncParseExpenseReviews } from '../utils/parse-expense-reviews';
+import { getAllCategories } from '../constants/categories';
 
 const DEFAULT_STAGE_API =
   'https://awallet-git-ing-awallet-vercel-api.vercel.app';
 const INTERNAL_API_SECRET_FALLBACK = 'awallet-internal-2026-Yv9pZQkR8F2M';
 
-const DEFAULT_CATEGORIES = [
-  '식비',
-  '카페',
-  '술',
-  '교통',
-  '쇼핑',
-  '생활',
-  '주거',
-  '의료',
-  '문화',
-  '급여',
-  '용돈',
-];
+const DEFAULT_CATEGORIES = getAllCategories().map((c) => c.label);
 
 function todayDot(): string {
   const d = new Date();

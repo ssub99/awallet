@@ -6,7 +6,11 @@
  * 선택: date · memo · series(반복/할부·주말옵션)
  */
 
-import { resolveExpenseRecurringTypeFromMessage } from './expense-calculations';
+import {
+  extractWeekendOptionFromMessage,
+  resolveExpenseRecurringTypeFromMessage,
+  stripWeekendOptionClauses,
+} from './expense-calculations';
 import {
   extractMemoFromMessage,
   extractMemoRawSpan,
@@ -18,6 +22,7 @@ import {
   hasIncomeHintInMessage,
   hasInstallmentHintInMessage,
   hasRecurringHintInMessage,
+  resolveMonthlyRecurringDayDateFromMessage,
   type ParseExpenseReviewWeekendOption,
 } from './parse-expense-reviews';
 import { collectKoreanWonAmountsFromMessage } from './parse-korean-won-amount';
@@ -149,7 +154,13 @@ export function extractDateSlot(
   message: string,
   today: string,
 ): { date: string | null; dateOmitted: boolean; unresolved: boolean } {
-  const relative = resolveRelativeWeekdayDateFromMessage(message, today);
+  const monthlyDay = resolveMonthlyRecurringDayDateFromMessage(message, today);
+  if (monthlyDay != null) {
+    return { date: monthlyDay, dateOmitted: false, unresolved: false };
+  }
+
+  const messageForRelative = stripWeekendOptionClauses(message);
+  const relative = resolveRelativeWeekdayDateFromMessage(messageForRelative, today);
   if (relative != null) {
     return { date: relative, dateOmitted: false, unresolved: false };
   }
@@ -192,7 +203,8 @@ export function extractDateSlot(
     };
   }
 
-  if (WEEKDAY_OR_RELATIVE_HINT_RE.test(message)) {
+  // 주말옵션 절을 뺀 뒤에만 요일 미해석 거절 (금요일 옵션 오탐 방지)
+  if (WEEKDAY_OR_RELATIVE_HINT_RE.test(messageForRelative)) {
     return { date: null, dateOmitted: false, unresolved: true };
   }
 
@@ -200,14 +212,7 @@ export function extractDateSlot(
 }
 
 function extractWeekendOptionSlot(message: string): ParseExpenseReviewWeekendOption {
-  const compact = message.replace(/\s+/g, '');
-  if (/금주요?금요일|주말이면금요일|금요일에기록|금요일기록/.test(compact)) {
-    return 'friday';
-  }
-  if (/차주요?월요일|주말이면월요일|월요일에기록|월요일기록/.test(compact)) {
-    return 'monday';
-  }
-  return 'weekend';
+  return extractWeekendOptionFromMessage(message);
 }
 
 export function extractSeriesSlot(message: string): {
@@ -229,8 +234,9 @@ export function extractSeriesSlot(message: string): {
 
   const weekendOption = extractWeekendOptionSlot(message);
 
-  if (hasInstallment && !hasRecurring) {
-    const match = message.match(/(\d+)개월/);
+  // 할부가 정기 힌트보다 우선
+  if (hasInstallment) {
+    const match = message.match(/(\d+)\s*개월/);
     const months = match ? Math.min(12, Math.max(2, parseInt(match[1], 10) || 3)) : 3;
     return {
       isInstallment: true,

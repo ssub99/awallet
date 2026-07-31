@@ -22,6 +22,8 @@ type Case = {
     isInstallment?: boolean;
     recurringType?: string;
     totalMonths?: number;
+    weekendOption?: 'weekend' | 'friday' | 'monday';
+    memo?: string;
   };
   expect: {
     recordType?: 'expense' | 'income';
@@ -29,6 +31,8 @@ type Case = {
     isInstallment?: boolean;
     recurringType?: string;
     date?: string;
+    weekendOption?: 'weekend' | 'friday' | 'monday';
+    memo?: string;
   };
 };
 
@@ -91,6 +95,28 @@ const cases: Case[] = [
       date: '2026.07.27',
     },
   },
+  {
+    name: 'monthly + weekend option friday (not weekend recurring)',
+    message:
+      '매달 31일에 건강보험 22982원 주말옵션은 금요일에 나가도록 해줘 메모도 넣어주고',
+    today: '2026.07.31',
+    input: {
+      category: '세금',
+      date: '2026.07.01',
+      amount: 22982,
+      isRecurring: true,
+      recurringType: '주말',
+      weekendOption: 'weekend',
+      memo: '건강보험 주말옵션',
+    },
+    expect: {
+      isRecurring: true,
+      recurringType: '매월',
+      date: '2026.07.31',
+      weekendOption: 'friday',
+      memo: '건강보험',
+    },
+  },
 ];
 
 function assertEqual(actual: unknown, expected: unknown, label: string): void {
@@ -132,6 +158,12 @@ for (const c of cases) {
   }
   if (c.expect.date !== undefined) {
     assertEqual(out.date, c.expect.date, `${c.name} date`);
+  }
+  if (c.expect.weekendOption !== undefined) {
+    assertEqual(out.weekendOption, c.expect.weekendOption, `${c.name} weekendOption`);
+  }
+  if (c.expect.memo !== undefined) {
+    assertEqual(out.memo, c.expect.memo, `${c.name} memo`);
   }
   passed += 1;
   console.log(`ok  ${c.name}`);

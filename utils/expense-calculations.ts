@@ -277,18 +277,65 @@ function hasRecurringTone(message: string): boolean {
 }
 
 /**
+ * 주말옵션(금요일/월요일 이동) 문구 — 반복 주기·날짜 요일 힌트와 구분한다.
+ */
+export function stripWeekendOptionClauses(message: string): string {
+  return message
+    .replace(/주말\s*옵션[^.!?\n]{0,40}/gi, ' ')
+    .replace(/주말이면\s*(?:금요일|월요일)/g, ' ')
+    .replace(/(?:금주\s*)?금요일에\s*(?:나가|기록)[^.!?\n]{0,20}/g, ' ')
+    .replace(/(?:차주\s*)?월요일에\s*(?:나가|기록)[^.!?\n]{0,20}/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * 문장에서 주말옵션만 추출. 요청 없으면 weekend(관계없이 주말 기록).
+ */
+export function extractWeekendOptionFromMessage(
+  message: string,
+): 'weekend' | 'friday' | 'monday' {
+  const compact = message.replace(/\s+/g, '');
+  if (
+    /주말옵션(?:은|을|이)?금요일|주말이면금요일|금주요?금요일|금요일에(?:나가|기록)|금요일기록/.test(
+      compact,
+    )
+  ) {
+    return 'friday';
+  }
+  if (
+    /주말옵션(?:은|을|이)?월요일|주말이면월요일|차주요?월요일|월요일에(?:나가|기록)|월요일기록/.test(
+      compact,
+    )
+  ) {
+    return 'monday';
+  }
+  return 'weekend';
+}
+
+/**
  * 간편입력 문장에서 반복 주기를 규칙 기반으로 보정합니다.
  * "3주전" 같은 시작 시점 표현은 주기로 보지 않고, "3주마다/3주 간격"만 주기로 인정합니다.
+ * "주말옵션"은 주기(주말)가 아니며, 매달/매월이 있으면 매월이 우선합니다.
  */
 export function resolveExpenseRecurringTypeFromMessage(
   message: string,
   currentRecurringType?: string,
 ): string | undefined {
-  const compact = message.replace(/\s+/g, '').toLowerCase();
+  const stripped = stripWeekendOptionClauses(message);
+  const compact = stripped.replace(/\s+/g, '').toLowerCase();
 
   if (/매일|매일마다|매일같이|일마다|daily/.test(compact)) return '매일';
   if (/(?:주중|평일)(?:마다)?/.test(compact) && hasRecurringTone(compact)) return '주중';
-  if (/주말(?:마다)?/.test(compact) && hasRecurringTone(compact)) return '주말';
+
+  // 매달/매월은 "주말옵션…나가" 보다 먼저 — 매월 확정
+  if (
+    /구독|매달|매월|월마다|월세|정기결제|자동이체|통신료|보험료|관리비|학원비|헬스장|적금|subscription|monthly|recurring/.test(
+      compact,
+    )
+  ) {
+    return '매월';
+  }
 
   if (/격주|2주마다|2주간격|2주주기|매2주/.test(compact)) return '2주';
   if (/3주마다|3주간격|3주주기|매3주/.test(compact)) return '3주';
@@ -301,13 +348,8 @@ export function resolveExpenseRecurringTypeFromMessage(
   if (/5개월마다|5개월간격|5개월주기|매5개월/.test(compact)) return '5개월 마다';
   if (/6개월마다|6개월간격|6개월주기|매6개월|반기마다/.test(compact)) return '6개월 마다';
 
-  if (
-    /구독|매달|매월|월마다|월세|정기결제|자동이체|통신료|보험료|관리비|학원비|헬스장|적금|subscription|monthly|recurring/.test(
-      compact,
-    )
-  ) {
-    return '매월';
-  }
+  // 주기로서의 주말만 (주말마다). 주말옵션은 strip 후 남아 있지 않음
+  if (/주말마다|매주말|주말씩/.test(compact)) return '주말';
 
   return currentRecurringType;
 }
