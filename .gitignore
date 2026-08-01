@@ -146,3 +146,9 @@ ios/GoogleService-Info.plist
 google-services.json
 android/app/google-services.json
 !android-firebase/google-services.json
+
+# AI agent tooling (generated)
+graphify-out/
+.cursor/rules/claude-mem-context.mdc
+.cursor/hooks.json
+.vercel/
