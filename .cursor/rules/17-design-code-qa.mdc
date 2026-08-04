@@ -1,0 +1,27 @@
+---
+description: Design↔Code QA — 미학습 시 대조 금지·학습 선행 안내 (Fluid SSOT)
+alwaysApply: true
+---
+
+# Design ↔ Code QA — 학습 선행 (전역)
+
+구현 후 **디자인↔코드 자동 대조**는 Fluid에 **그 화면이 학습돼 있을 때만** 한다.
+
+**SSOT:** `/Users/ssong/Fluid/docs/policies/design-code-qa.md`  
+**상세 룰:** `/Users/ssong/Fluid/.cursor/rules/26-design-code-qa.mdc`
+
+## 용어
+
+- **화면 ID (`screenId`)** — 검수할 화면·상태
+- **파일 묶음 / 슬롯 묶음 / extends** — 코드 파일 복제 없이 화면만 늘리는 확장 구조
+- **학습됨 / 미학습** — learning-store evidence 유무  
+- 「패턴 키」라고 하지 않음
+
+## MUST
+
+| 상황 | 동작 |
+|------|------|
+| 화면 **학습됨** | QA 가능 |
+| **미학습** | QA 미실행 + 학습 선행 안내 |
+
+개발은 막지 않고, **자동화 QA만** 스킵한다.

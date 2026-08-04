@@ -30,6 +30,12 @@ import { getCustomMonthInfo } from '@/utils/custom-month';
 import { generateRecordId } from '@/utils/id-generator';
 import { createIncome, type IncomeRecord as IncomeRecordType } from '@/utils/incomes';
 import { refreshWidgetWithCurrentMonth } from '@/utils/widget-data-sync';
+import {
+  cancelQuickInputRecordEdit,
+  completeQuickInputRecordEdit,
+  peekQuickInputIncomeDraftSeed,
+} from '@/utils/quick-input-expense-draft-bridge';
+import { incomeFormToQuickInputPending } from '@/utils/quick-input-pending-record';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
@@ -107,7 +113,11 @@ export default function IncomeRecordScreen() {
     selectedDate?: string;
     calendarYear?: string;
     calendarMonth?: string;
+    quickInputDraft?: string;
   }>();
+  const isQuickInputDraftMode = params.quickInputDraft === '1';
+  const quickInputDraftCompletedRef = useRef(false);
+  const quickInputDraftHydratedRef = useRef(false);
 
   // 디버깅용 로그
 
@@ -299,6 +309,44 @@ export default function IncomeRecordScreen() {
     };
     loadMonthStart();
   }, []);
+
+  useEffect(() => {
+    if (!isQuickInputDraftMode || quickInputDraftHydratedRef.current) {
+      return;
+    }
+    const seed = peekQuickInputIncomeDraftSeed();
+    if (!seed) {
+      router.back();
+      return;
+    }
+
+    quickInputDraftHydratedRef.current = true;
+    setCategory(seed.category);
+    const initialAmount = seed.amount.toString();
+    if (initialAmount && !Number.isNaN(Number(initialAmount))) {
+      setAmount(Number(initialAmount).toLocaleString());
+    } else {
+      setAmount(initialAmount);
+    }
+    setAmountExpression([]);
+    setDate(seed.date.replace(/-/g, '.'));
+    setMemo(seed.memo);
+    setTempSelectedDate(seed.date.replace(/\./g, '-'));
+  }, [isQuickInputDraftMode, router]);
+
+  useEffect(() => {
+    if (!isQuickInputDraftMode) {
+      return;
+    }
+
+    const unsubscribe = navigation.addListener('beforeRemove', () => {
+      if (!quickInputDraftCompletedRef.current) {
+        cancelQuickInputRecordEdit();
+      }
+    });
+
+    return unsubscribe;
+  }, [isQuickInputDraftMode, navigation]);
 
   // Alert state
   const [showAmountAlert, setShowAmountAlert] = useState<boolean>(false);
@@ -521,6 +569,24 @@ export default function IncomeRecordScreen() {
 
     if (!amount || amount === '0' || amount.trim() === '') {
       setShowAmountAlert(true);
+      return;
+    }
+
+    if (isQuickInputDraftMode) {
+      const incomeAmount = parseFloat(amount.replace(/,/g, ''));
+      if (!Number.isFinite(incomeAmount) || incomeAmount <= 0) {
+        setShowAmountAlert(true);
+        return;
+      }
+      const pending = incomeFormToQuickInputPending({
+        category,
+        date,
+        incomeAmount,
+        memo,
+      });
+      quickInputDraftCompletedRef.current = true;
+      completeQuickInputRecordEdit(pending);
+      router.back();
       return;
     }
     

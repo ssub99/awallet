@@ -1,0 +1,58 @@
+---
+description: Figma 선택·스펙 확인 시 Fluid MCP 기본 — TalkToFigma는 저수준 편집만
+alwaysApply: true
+---
+
+# Figma MCP — Fluid 기본 (전역)
+
+Figma **선택 확인**, **노드 스펙 읽기**, **구현 상태 대조**(피그마 ↔ 코드) 시 **Fluid MCP를 기본**으로 쓴다. TalkToFigma는 저수준 편집·Fluid에 없는 작업만.
+
+**SSOT (Fluid):** `Fluid/.cursor/rules/21-user-selected-baseline.mdc` · `Fluid/.cursor/skills/fluid-vibe-design/SKILL.md`
+
+---
+
+## MUST (기본 경로)
+
+| 목적 | Fluid MCP (우선) |
+|------|------------------|
+| relay·catalog 확인 | `fluid_get_active_channel` |
+| 사용자 선택 | `fluid_get_selection` |
+| 노드 트리·스펙 | `fluid_get_node_info` |
+| DS 컴포넌트 | `fluid_get_component_info` · `fluid_get_local_components` |
+| 스타일·토큰 | `fluid_get_local_styles` |
+| compose·patch·verify | `fluid_compose_screen` · `fluid_patch_screen` · `fluid_verify_frame` |
+
+**권장 순서 (구현 확인·컴포넌트 작업):**
+
+```
+fluid_get_active_channel (필요 시)
+ → fluid_get_selection
+ → fluid_get_node_info (선택 nodeId)
+ → awallet 코드·DS 토큰과 대조
+```
+
+`channel` 인자는 relay가 `recommendedChannel`을 쓰면 **생략** 가능.
+
+---
+
+## MUST NOT
+
+- 구현 확인·스펙 대조 목적으로 **TalkToFigma `join_channel` · `get_selection` · `get_node_info` · `read_my_design`** 를 Fluid와 **동일 목적**으로 먼저 호출
+- Fluid relay 연결됨에도 TalkToFigma로 선택만 다시 읽기
+
+---
+
+## TalkToFigma — 예외 (저수준 편집)
+
+Fluid MCP에 **대응 도구가 없을 때만**:
+
+- 노드 생성·이동·색·텍스트 직접 수정 (`create_*`, `set_*`, `move_node`, …)
+- 사용자가 **TalkToFigma로** 명시 요청
+- Fluid compose/patch/verify **우회** 편집 (학습·align 루프 정책상 금지 — `16-learning-align-loop.mdc`)
+
+---
+
+## awallet 맥락
+
+- **컴포넌트 추가·수정** 후 Figma `tooltip` 등과 맞는지 볼 때도 위 Fluid 순서를 따른다.
+- **Design↔Code 자동 QA**는 `17-design-code-qa.mdc` — 학습된 화면만; 수동 스펙 대조는 본 룰(Fluid 읽기)과 별개.

@@ -20,6 +20,7 @@ import { Selectbox } from '@/components/ui/selectbox';
 import { Switch } from '@/components/ui/switch';
 import { Tab } from '@/components/ui/tab';
 import { Tag } from '@/components/ui/tag';
+import { Tooltip } from '@/components/ui/tooltip';
 import { UiLineText } from '@/components/ui/ui-line-text';
 import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';
@@ -54,7 +55,7 @@ import { useState } from 'react';
 import { Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-type ComponentTab = 'test' | 'buttons' | 'inputs' | 'selectboxs' | 'radios' | 'checkboxes' | 'switches' | 'modals' | 'bottomsheets' | 'tags' | 'calendars' | 'tabs' | 'topnav';
+type ComponentTab = 'test' | 'buttons' | 'inputs' | 'selectboxs' | 'radios' | 'checkboxes' | 'switches' | 'modals' | 'bottomsheets' | 'tags' | 'tooltips' | 'calendars' | 'tabs' | 'topnav';
 
 function getRecordValue(value: unknown, key: string): unknown {
   return value && typeof value === 'object' ? (value as Record<string, unknown>)[key] : undefined;
@@ -226,6 +227,7 @@ export default function ComponentsScreen() {
     { label: 'Modals', value: 'modals' as ComponentTab },
     { label: 'Bottomsheets', value: 'bottomsheets' as ComponentTab },
     { label: 'Tags', value: 'tags' as ComponentTab },
+    { label: 'Tooltips', value: 'tooltips' as ComponentTab },
     { label: 'Calendars', value: 'calendars' as ComponentTab },
     { label: 'Tabs', value: 'tabs' as ComponentTab },
     { label: 'TopNav', value: 'topnav' as ComponentTab },
@@ -269,6 +271,7 @@ export default function ComponentsScreen() {
           {activeTab === 'modals' && <ModalsContent colors={palette} />}
           {activeTab === 'bottomsheets' && <BottomsheetsContent colors={palette} />}
           {activeTab === 'tags' && <TagsContent colors={palette} />}
+          {activeTab === 'tooltips' && <TooltipsContent colors={palette} />}
           {activeTab === 'calendars' && <CalendarsContent colors={palette} />}
           {activeTab === 'tabs' && <TabsContent colors={palette} />}
           {activeTab === 'topnav' && <TopNavContent colors={palette} />}
@@ -2368,6 +2371,35 @@ function BottomsheetsContent({ colors }: { colors: ColorPalette }) {
         <SpecItem label="Animation" value="Slide up from bottom" colors={colors} />
         <SpecItem label="Backdrop" value="Dim (like native picker)" colors={colors} />
         <SpecItem label="Structure" value="Flexible (children prop)" colors={colors} />
+      </View>
+    </>
+  );
+}
+
+/**
+ * Tooltips Content
+ */
+function TooltipsContent({ colors }: { colors: ColorPalette }) {
+  return (
+    <>
+      <SectionHeader title="Tooltip — Default (arrow top)" colors={colors} />
+      <Tooltip text="텍스트" />
+
+      <SectionHeader title="Tooltip — Arrow bottom" colors={colors} />
+      <Tooltip text="텍스트" placement="bottom" />
+
+      <SectionHeader title="Tooltip — Long text (max width 200)" colors={colors} />
+      <Tooltip text="긴 메모 텍스트가 body 최대 가로 200px에서 단어 단위로 줄바꿈됩니다" />
+
+      <SectionHeader title="Tooltip Specifications" colors={colors} />
+      <View style={[styles.specsContainer, { backgroundColor: colors.fill }]}>
+        <SpecItem label="Body padding H" value="12px (spacing-300)" colors={colors} />
+        <SpecItem label="Body padding V" value="8px (spacing-200)" colors={colors} />
+        <SpecItem label="Body max width" value="200px" colors={colors} />
+        <SpecItem label="Body radius" value="10px" colors={colors} />
+        <SpecItem label="Arrow" value="8 × 6px polygon" colors={colors} />
+        <SpecItem label="Background" value="Atomic/Neutral/800" colors={colors} />
+        <SpecItem label="Text" value="body02 regular 14 / Static White" colors={colors} />
       </View>
     </>
   );

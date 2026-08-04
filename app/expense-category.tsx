@@ -12,9 +12,12 @@ import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useToast } from '@/contexts/toast-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { logEvent } from '@/utils/analytics';
-import { loadCategories } from '@/utils/categories';
+import {
+  EXPENSE_RECORD_SCREEN_FUNNEL_ROUTE_PARAMS,
+} from '@/utils/expense-record-creation-mode';
 import { getAllChallenges, type ChallengeRecord } from '@/utils/challenges';
 import { applySavedOrder, loadCategoryOrder } from '@/utils/category-order';
+import { loadCategories } from '@/utils/categories';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
@@ -134,7 +137,8 @@ export default function ExpenseCategoryScreen() {
             category: selectedCategory,
             selectedDate: params.selectedDate,
             calendarYear: params.calendarYear,
-            calendarMonth: params.calendarMonth
+            calendarMonth: params.calendarMonth,
+            ...(pathname === '/expense-record' ? EXPENSE_RECORD_SCREEN_FUNNEL_ROUTE_PARAMS : {}),
           },
         });
       }
@@ -276,7 +280,10 @@ export default function ExpenseCategoryScreen() {
                           category: category.label,
                           selectedDate: params.selectedDate,
                           calendarYear: params.calendarYear,
-                          calendarMonth: params.calendarMonth
+                          calendarMonth: params.calendarMonth,
+                          ...(targetPathname === '/expense-record'
+                            ? EXPENSE_RECORD_SCREEN_FUNNEL_ROUTE_PARAMS
+                            : {}),
                         },
                       });
                     }

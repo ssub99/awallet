@@ -50,9 +50,17 @@ import {
     resolveIosQuickInputBottomAboveAnchor,
     resolveQuickInputBottomAboveKeyboard,
 } from '@/utils/quick-input-keyboard-position';
+import {
+  beginQuickInputRecordEdit,
+} from '@/utils/quick-input-expense-draft-bridge';
+import {
+  EXPENSE_RECORD_QUICK_INPUT_DRAFT_ROUTE_PARAMS,
+} from '@/utils/expense-record-creation-mode';
+import type { QuickInputPendingRecord } from '@/utils/quick-input-pending-record';
 import { refreshWidgetWithCurrentMonth } from '@/utils/widget-data-sync';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
+import { useRouter } from 'expo-router';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
 import type { TextInput } from 'react-native';
 import {
@@ -183,22 +191,7 @@ const NON_RECORD_LOCK_THRESHOLD = 3;
 const NON_RECORD_LOCK_MS = 30_000;
 
 /** parse-expense API가 반환하는 기록 한 건 (확인 카드·기록 생성용) */
-interface PendingParseRecord {
-  recordType?: 'expense' | 'income';
-  category: string | null;
-  date: string;
-  amount: number;
-  paymentMethod?: 'credit' | 'debit' | 'cash';
-  paymentSubtypeLabel?: string;
-  paymentSubtypeId?: string;
-  paymentSubtypeColor?: string;
-  memo?: string;
-  isRecurring?: boolean;
-  isInstallment?: boolean;
-  recurringType?: string;
-  totalMonths?: number;
-  weekendOption?: 'weekend' | 'friday' | 'monday';
-}
+type PendingParseRecord = QuickInputPendingRecord;
 
 function toPendingParseRecord(value: unknown): PendingParseRecord | null {
   if (!value || typeof value !== 'object') {
@@ -624,8 +617,52 @@ function getRepeatOption3(record: PendingParseRecord): string {
   });
 }
 
+async function buildConfirmCardFromPending(
+  pending: PendingParseRecord,
+  deps: {
+    getExpenseCategoriesCached: () => Promise<Array<{ label: string; emoji: string }>>;
+    getIncomeCategoriesCached: () => Promise<Array<{ label: string; emoji: string }>>;
+    getPaymentSubtypesCached: () => Promise<PaymentSubtype[]>;
+  },
+): Promise<QuickInputConfirmCardData> {
+  const categoryList = await deps.getExpenseCategoriesCached();
+  const incomeCategoryList = await deps.getIncomeCategoriesCached();
+  const paymentSubtypes = await deps.getPaymentSubtypesCached();
+  const parsedAmount = Number(pending.amount);
+  const categoryLabel = pending.category ?? '기타';
+  const matchedCategory = categoryList.find((c) => c.label === categoryLabel);
+  const matchedIncomeCategory = incomeCategoryList.find((c) => c.label === categoryLabel);
+  const defaultCreditSubtype = paymentSubtypes.find(
+    (item) => item.id === getDefaultSubtypeIdByMethod('credit', paymentSubtypes),
+  );
+  const fallbackSubtypeLabel = paymentMethodToLabel(pending.paymentMethod);
+  const inferredSubtypeLabel = pending.paymentSubtypeLabel?.trim();
+  const paymentTypeLabel =
+    pending.paymentMethod === 'cash' ? '현금' : inferredSubtypeLabel || fallbackSubtypeLabel;
+  const paymentTypeColor =
+    pending.paymentMethod === 'cash'
+      ? undefined
+      : (pending.paymentSubtypeColor ?? defaultCreditSubtype?.color);
+
+  return {
+    recordType: pending.recordType,
+    category: categoryLabel,
+    categoryEmoji: (matchedIncomeCategory?.emoji ?? matchedCategory?.emoji) || undefined,
+    date: formatDateDisplay(pending.date),
+    amount: formatAmount(parsedAmount),
+    paymentType: pending.recordType === 'income' ? undefined : paymentTypeLabel,
+    paymentTypeColor: pending.recordType === 'income' ? undefined : paymentTypeColor,
+    paymentTypeEmoji: pending.recordType === 'income' ? undefined : pending.paymentMethod === 'cash' ? '💰' : undefined,
+    memo: pending.memo,
+    repeatOption1: pending.recordType === 'income' ? undefined : getRepeatOption1(pending),
+    repeatOption2: pending.recordType === 'income' ? undefined : getRepeatOption2(pending),
+    repeatOption3: pending.recordType === 'income' ? undefined : getRepeatOption3(pending),
+  };
+}
+
 export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { showToast } = useToast();
   const { refresh } = useAppData();
   const [isQuickInputVisible, setIsQuickInputVisible] = useState(false);
@@ -637,6 +674,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const [confirmCardData, setConfirmCardData] = useState<QuickInputConfirmCardData | null>(null);
   const [isQuickInputSendLoading, setIsQuickInputSendLoading] = useState(false);
   const [isQuickInputConfirmAdding, setIsQuickInputConfirmAdding] = useState(false);
+  /** 소비 기록 생성(변경) 화면 진입 중 오버레이 숨김 */
+  const [isQuickInputOverlaySuppressed, setIsQuickInputOverlaySuppressed] = useState(false);
   const shortBottomFromScreen = useSharedValue(KEYBOARD_GAP);
   const animatedBottom = useSharedValue(KEYBOARD_GAP);
   const shouldFollowKeyboard = useSharedValue(false);
@@ -1252,6 +1291,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         paymentType: normalizedFirst.recordType === 'income' ? undefined : paymentTypeLabel,
         paymentTypeColor: normalizedFirst.recordType === 'income' ? undefined : paymentTypeColor,
         paymentTypeEmoji: normalizedFirst.recordType === 'income' ? undefined : paymentTypeEmoji,
+        memo: normalizedFirst.memo,
         repeatOption1: normalizedFirst.recordType === 'income' ? undefined : getRepeatOption1(normalizedFirst),
         repeatOption2: normalizedFirst.recordType === 'income' ? undefined : getRepeatOption2(normalizedFirst),
         repeatOption3: normalizedFirst.recordType === 'income' ? undefined : getRepeatOption3(normalizedFirst),
@@ -1560,8 +1600,58 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       screen_name: '/home',
       target: 'sentence-cardadd-cancel',
     });
+    pendingRecordRef.current = null;
     setConfirmCardData(null);
   }, []);
+
+  const handleConfirmCardChange = useCallback(() => {
+    void logEvent('btn', {
+      screen_name: '/home',
+      target: 'sentence-cardadd-change',
+    });
+    const pending = pendingRecordRef.current;
+    if (!pending) {
+      return;
+    }
+
+    const isIncome = pending.recordType === 'income';
+    Keyboard.dismiss();
+    beginQuickInputRecordEdit(pending, {
+      onComplete: (updated) => {
+        pendingRecordRef.current = updated;
+        void buildConfirmCardFromPending(updated, {
+          getExpenseCategoriesCached,
+          getIncomeCategoriesCached,
+          getPaymentSubtypesCached,
+        })
+          .then((card) => {
+            setConfirmCardData(card);
+            setIsQuickInputOverlaySuppressed(false);
+            setIsQuickInputContentVisible(true);
+          })
+          .catch(() => {
+            setIsQuickInputOverlaySuppressed(false);
+            setIsQuickInputContentVisible(true);
+          });
+      },
+      onCancel: () => {
+        setIsQuickInputOverlaySuppressed(false);
+        setIsQuickInputContentVisible(true);
+      },
+    });
+    setIsQuickInputOverlaySuppressed(true);
+    router.push({
+      pathname: isIncome ? '/income-record' : '/expense-record',
+      params: isIncome
+        ? { quickInputDraft: '1' }
+        : EXPENSE_RECORD_QUICK_INPUT_DRAFT_ROUTE_PARAMS,
+    });
+  }, [
+    getExpenseCategoriesCached,
+    getIncomeCategoriesCached,
+    getPaymentSubtypesCached,
+    router,
+  ]);
 
   useEffect(() => {
     if (!confirmCardData) {
@@ -1782,7 +1872,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     <QuickInputContext.Provider value={value}>
       <View style={styles.root}>
         {children}
-        {isQuickInputVisible && (
+        {isQuickInputVisible && !isQuickInputOverlaySuppressed && (
           <View style={styles.overlay} pointerEvents="box-none">
               <RNAnimated.View
                 pointerEvents="auto"
@@ -1801,6 +1891,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                         data={confirmCardData}
                         onConfirm={handleConfirmCardAdd}
                         onCancel={handleConfirmCardCancel}
+                        onChange={handleConfirmCardChange}
                         addLoading={isQuickInputConfirmAdding}
                       />
                     </View>

@@ -73,6 +73,20 @@ import { extractTimestampFromId, generateGroupId, generateRecordId } from '@/uti
 import { getAllIncomes } from '@/utils/incomes';
 import { rescheduleDailyReminderIfNeeded } from '@/utils/notification-scheduler';
 import { refreshWidgetWithCurrentMonth } from '@/utils/widget-data-sync';
+import {
+  cancelQuickInputExpenseEdit,
+  completeQuickInputExpenseEdit,
+  peekQuickInputExpenseDraftSeed,
+} from '@/utils/quick-input-expense-draft-bridge';
+import { expenseFormToQuickInputPending } from '@/utils/quick-input-pending-record';
+import {
+  isQuickInputDraftCreationContext,
+  isScreenFunnelCreationContext,
+  formatScreenFunnelContinueCreateToast,
+  resolveExpenseRecordCreationContext,
+  resolveScreenFunnelSaveIntent,
+  type ScreenFunnelSaveIntent,
+} from '@/utils/expense-record-creation-mode';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GlassSurface } from '@/components/ui/glass-surface';
 import { BlurTokens } from '@/constants/blur-tokens';
@@ -336,7 +350,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   const insets = useSafeAreaInsets();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const KEYPAD_HEIGHT = getKeypadHeight(windowWidth);
-  const { setLoading } = useLoading();
+  const { isLoading, setLoading } = useLoading();
   const { showToast } = useToast();
   const params = useLocalSearchParams<{ 
     category?: string; 
@@ -344,7 +358,25 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     calendarYear?: string;
     calendarMonth?: string;
     dateKey?: string;
+    quickInputDraft?: string;
+    creationFunnel?: string;
   }>();
+  const creationContext = useMemo(
+    () =>
+      resolveExpenseRecordCreationContext({
+        mode,
+        quickInputDraft: params.quickInputDraft,
+        creationFunnel: params.creationFunnel,
+      }),
+    [mode, params.creationFunnel, params.quickInputDraft],
+  );
+  const isQuickInputDraftCreation = isQuickInputDraftCreationContext(creationContext);
+  const isScreenFunnelCreation = isScreenFunnelCreationContext(creationContext);
+  const quickInputDraftCompletedRef = useRef(false);
+  const quickInputDraftHydratedRef = useRef(false);
+  /** 일반 퍼널 저장 후: complete(홈) | continue(계속 생성) */
+  const screenFunnelSaveIntentRef = useRef<ScreenFunnelSaveIntent>('complete');
+  const screenFunnelSavedCountRef = useRef(0);
   const analyticsScreenName = mode === 'edit' ? '/expense-edit' : '/expense-record';
   const scrollViewRef = useRef<ScrollView>(null);
 
@@ -397,6 +429,55 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       });
     },
     [navigation, router]
+  );
+
+  const resetFormForContinueCreate = useCallback(() => {
+    setAmount('');
+    setAmountExpression([]);
+    setMemo('');
+  }, []);
+
+  const completeScreenFunnelCreate = useCallback(
+    async ({
+      year,
+      month,
+      targetDate,
+      intent,
+      savedCount,
+    }: {
+      year: number;
+      month: number;
+      targetDate: string;
+      intent: ScreenFunnelSaveIntent;
+      savedCount: number;
+    }) => {
+      const resolvedIntent = resolveScreenFunnelSaveIntent(intent);
+      if (resolvedIntent === 'continue') {
+        if (savedCount > 0) {
+          resetFormForContinueCreate();
+          calendarRefreshEvent.emit();
+          showToast(formatScreenFunnelContinueCreateToast(savedCount));
+        }
+        screenFunnelSaveIntentRef.current = 'complete';
+        return;
+      }
+
+      await goHomeWithFocus({
+        year,
+        month,
+        targetDate,
+      });
+    },
+    [goHomeWithFocus, resetFormForContinueCreate, showToast],
+  );
+
+  const finalizeQuickInputDraftEdit = useCallback(
+    (pending: ReturnType<typeof expenseFormToQuickInputPending>) => {
+      quickInputDraftCompletedRef.current = true;
+      completeQuickInputExpenseEdit(pending);
+      router.back();
+    },
+    [router],
   );
 
   /** 수정 저장 후: 기존 타임라인으로 pop (스택 누적·reset 깜빡임 방지) */
@@ -1490,6 +1571,111 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     }
   }, [defaultCreditSubtypeId, defaultDebitSubtypeId, mode, editData, formattedToday]);
 
+  useEffect(() => {
+    if (!isQuickInputDraftCreation || quickInputDraftHydratedRef.current) {
+      return;
+    }
+    const seed = peekQuickInputExpenseDraftSeed();
+    if (!seed) {
+      router.back();
+      return;
+    }
+    if (seed.paymentMethod !== 'cash' && paymentTypeSheetItems.length === 0) {
+      return;
+    }
+
+    quickInputDraftHydratedRef.current = true;
+    setCategory(seed.category);
+    const initialAmount = seed.amount.toString();
+    if (initialAmount && !Number.isNaN(Number(initialAmount))) {
+      setAmount(Number(initialAmount).toLocaleString());
+    } else {
+      setAmount(initialAmount);
+    }
+
+    const normalizedDate = seed.date.replace(/-/g, '.');
+    setDate(normalizedDate);
+    setDisplayDate(normalizedDate);
+    setPrepaymentDate(normalizedDate);
+
+    const dateParts = normalizedDate.split('.');
+    if (dateParts.length === 3) {
+      setSelectedDay(parseInt(dateParts[2], 10));
+    }
+
+    setMemo(seed.memo);
+    setIsRecurring(seed.isRecurring);
+
+    if (seed.isRecurring) {
+      if (seed.recurringType.trim() !== '') {
+        setRecurringType(seed.recurringType);
+        if (seed.recurringType === '매월') {
+          setTotalMonths(1);
+        } else if (seed.recurringType === '2개월 마다') {
+          setTotalMonths(2);
+        } else if (seed.recurringType === '3개월 마다') {
+          setTotalMonths(3);
+        } else if (seed.recurringType === '4개월 마다') {
+          setTotalMonths(4);
+        } else if (seed.recurringType === '5개월 마다') {
+          setTotalMonths(5);
+        } else if (seed.recurringType === '6개월 마다') {
+          setTotalMonths(6);
+        } else {
+          setTotalMonths(seed.totalMonths || 2);
+        }
+      } else {
+        setRecurringType('매월');
+        setTotalMonths(seed.totalMonths || 2);
+      }
+    } else {
+      setTotalMonths(seed.isInstallment ? seed.totalMonths || 2 : 2);
+      setRecurringType('매월');
+    }
+
+    setIsInstallment(seed.isInstallment);
+    setHasSelectedInstallment(seed.isInstallment);
+    setWeekendOption(seed.weekendOption);
+
+    const initialPaymentMethod: PaymentMethod =
+      seed.paymentMethod === 'debit' || seed.paymentMethod === 'cash'
+        ? seed.paymentMethod
+        : 'credit';
+    setPaymentMethod(initialPaymentMethod);
+
+    const hasStoredSubtypeId =
+      initialPaymentMethod !== 'cash' &&
+      typeof seed.paymentSubtypeId === 'string' &&
+      seed.paymentSubtypeId.length > 0;
+    if (hasStoredSubtypeId) {
+      setSelectedPaymentSubtypeId(seed.paymentSubtypeId as string);
+    } else if (initialPaymentMethod === 'credit') {
+      setSelectedPaymentSubtypeId(defaultCreditSubtypeId);
+    } else if (initialPaymentMethod === 'debit') {
+      setSelectedPaymentSubtypeId(defaultDebitSubtypeId);
+    }
+  }, [
+    defaultCreditSubtypeId,
+    defaultDebitSubtypeId,
+    isQuickInputDraftCreation,
+    paymentTypeSheetItems.length,
+    router,
+  ]);
+
+  useEffect(() => {
+    if (!isQuickInputDraftCreation) {
+      return;
+    }
+
+    const unsubscribe = navigation.addListener('beforeRemove', () => {
+      if (!quickInputDraftCompletedRef.current) {
+        cancelQuickInputExpenseEdit();
+      }
+    });
+
+    return unsubscribe;
+  }, [isQuickInputDraftCreation, navigation]);
+
   const {
     memoInputRef,
     keyboardPaddingBottom,
@@ -2544,6 +2730,18 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       screen_name: analyticsScreenName,
       target: 'cta',
     });
+    if (isScreenFunnelCreation) {
+      screenFunnelSaveIntentRef.current = 'complete';
+    }
+    void handleConfirm();
+  };
+
+  const handleBottomCtaContinuePress = () => {
+    void logEvent('btn', {
+      screen_name: analyticsScreenName,
+      target: 'cta-continue',
+    });
+    screenFunnelSaveIntentRef.current = 'continue';
     void handleConfirm();
   };
 
@@ -2596,6 +2794,24 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         } else if ((isRecurring || isInstallment) && isWeekendDay && weekendOption === 'weekend') {
 
         }
+      }
+
+      if (isQuickInputDraftCreation) {
+        const pending = expenseFormToQuickInputPending({
+          category,
+          actualDate,
+          expenseAmount,
+          memo,
+          paymentMethod,
+          selectedPaymentSubtype,
+          isRecurring,
+          isInstallment,
+          recurringType,
+          totalMonths,
+          weekendOption,
+        });
+        finalizeQuickInputDraftEdit(pending);
+        return;
       }
       
       const actualDateKey = actualDate.replace(/\./g, '-');
@@ -3392,6 +3608,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             }),
           );
         }
+
+        screenFunnelSavedCountRef.current =
+          batchCreateSavedCount > 0 ? batchCreateSavedCount : generalCreateSavedCount;
       } catch (error) {
         console.error('[expense-record] expense save error:', error);
         // 에러가 발생해도 AsyncStorage 저장은 계속 진행
@@ -3471,6 +3690,14 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           year: targetYear,
           month: targetMonth,
           targetDate: targetDateKey,
+        });
+      } else if (isScreenFunnelCreation) {
+        await completeScreenFunnelCreate({
+          year: targetYear,
+          month: targetMonth,
+          targetDate: targetDateKey,
+          intent: screenFunnelSaveIntentRef.current,
+          savedCount: screenFunnelSavedCountRef.current,
         });
       } else {
         await goHomeWithFocus({
@@ -5356,9 +5583,36 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             paddingTop: 16,
           }
         ]}>
-          <Button onPress={handleBottomCtaConfirmPress}>
-            {mode === 'edit' ? '저장' : '확인'}
-          </Button>
+          {isScreenFunnelCreation ? (
+            <View style={styles.bottomButtonRow}>
+              <View style={styles.bottomButtonContinueWrap}>
+                <Button
+                  variant="assistive"
+                  type="solid"
+                  onPress={handleBottomCtaContinuePress}
+                  loading={isLoading}
+                  disabled={isLoading}
+                  style={styles.bottomButtonFullWidth}
+                >
+                  계속 생성
+                </Button>
+              </View>
+              <View style={styles.bottomButtonPrimaryWrap}>
+                <Button
+                  onPress={handleBottomCtaConfirmPress}
+                  loading={isLoading}
+                  disabled={isLoading}
+                  style={styles.bottomButtonFullWidth}
+                >
+                  확인
+                </Button>
+              </View>
+            </View>
+          ) : (
+            <Button onPress={handleBottomCtaConfirmPress} loading={isLoading} disabled={isLoading}>
+              {mode === 'edit' ? '저장' : '확인'}
+            </Button>
+          )}
         </View>
 
         {isKeypadMounted && (
@@ -6811,6 +7065,21 @@ const styles = StyleSheet.create({
   bottomButtonContainer: {
     paddingHorizontal: 16,
     paddingTop: 16,
+  },
+  bottomButtonRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: 8,
+  },
+  bottomButtonContinueWrap: {
+    width: 112,
+  },
+  bottomButtonPrimaryWrap: {
+    flex: 1,
+  },
+  bottomButtonFullWidth: {
+    alignSelf: 'stretch',
+    width: '100%',
   },
   paymentTypeStickyContainer: {
     paddingHorizontal: 16,
