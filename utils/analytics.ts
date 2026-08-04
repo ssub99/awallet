@@ -11,6 +11,7 @@ import {
 import Constants from 'expo-constants';
 import * as Updates from 'expo-updates';
 import { Platform } from 'react-native';
+import { getOrCreateDeviceId } from '@/utils/device-id';
 import { SessionReplayPlugin } from './amplitude-session-replay';
 
 const isNativeMobile = Platform.OS === 'ios' || Platform.OS === 'android';
@@ -122,6 +123,15 @@ export async function initAmplitude(): Promise<void> {
   }
 
   amplitudeReady = true;
+
+  // 로그인 없는 서비스: 앱 device_id를 Amplitude User ID로 사용 (API x-device-id와 동일)
+  try {
+    const deviceId = await getOrCreateDeviceId();
+    await setUserId(deviceId);
+  } catch (error) {
+    console.warn('[Analytics] User ID(device_id) 설정 실패:', error);
+  }
+
   if (__DEV__) {
     console.log('[Analytics] Amplitude 이벤트 전송 준비 완료');
   }
