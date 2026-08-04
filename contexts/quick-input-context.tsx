@@ -1607,7 +1607,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const handleConfirmCardChange = useCallback(() => {
     void logEvent('btn', {
       screen_name: '/home',
-      target: 'sentence-cardadd-change',
+      target: 'sentence-cardadd-modify',
     });
     const pending = pendingRecordRef.current;
     if (!pending) {

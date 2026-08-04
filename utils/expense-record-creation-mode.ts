@@ -62,7 +62,7 @@ export function resolveScreenFunnelSaveIntent(
 
 export function formatScreenFunnelContinueCreateToast(savedCount: number): string {
   const count = Number.isFinite(savedCount) && savedCount > 0 ? Math.floor(savedCount) : 1;
-  return `${count}건 생성이 완료 되었습니다.`;
+  return `${count}건의 기록이 생성되었습니다.`;
 }
 
 if (__DEV__) {
@@ -82,5 +82,10 @@ if (__DEV__) {
   console.assert(
     isScreenFunnelCreationContext(screen),
     'creationFunnel=screen → screen funnel',
+  );
+
+  console.assert(
+    formatScreenFunnelContinueCreateToast(3) === '3건의 기록이 생성되었습니다.',
+    'continue-create toast copy',
   );
 }

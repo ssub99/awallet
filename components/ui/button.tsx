@@ -72,6 +72,7 @@ export function Button({
   loading = false,
   children,
   onPress,
+  style,
   ...pressableProps
 }: ButtonProps) {
   const colorScheme = useColorScheme();
@@ -100,6 +101,7 @@ export function Button({
         styles.base,
         buttonStyle.container,
         size === 'large' ? styles.large : styles.small,
+        typeof style === 'function' ? style({ pressed }) : style,
         pressed && !isPressDisabled && styles.pressed,
       ]}
       accessibilityRole="button"
@@ -288,7 +290,7 @@ const styles = StyleSheet.create({
   },
   large: {
     height: 48,
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
     borderRadius: 12,
     minWidth: 64,
   },

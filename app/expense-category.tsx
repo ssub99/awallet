@@ -138,7 +138,7 @@ export default function ExpenseCategoryScreen() {
             selectedDate: params.selectedDate,
             calendarYear: params.calendarYear,
             calendarMonth: params.calendarMonth,
-            ...(pathname === '/expense-record' ? EXPENSE_RECORD_SCREEN_FUNNEL_ROUTE_PARAMS : {}),
+            ...EXPENSE_RECORD_SCREEN_FUNNEL_ROUTE_PARAMS,
           },
         });
       }
@@ -281,9 +281,7 @@ export default function ExpenseCategoryScreen() {
                           selectedDate: params.selectedDate,
                           calendarYear: params.calendarYear,
                           calendarMonth: params.calendarMonth,
-                          ...(targetPathname === '/expense-record'
-                            ? EXPENSE_RECORD_SCREEN_FUNNEL_ROUTE_PARAMS
-                            : {}),
+                          ...EXPENSE_RECORD_SCREEN_FUNNEL_ROUTE_PARAMS,
                         },
                       });
                     }

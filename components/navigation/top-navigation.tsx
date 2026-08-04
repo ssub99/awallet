@@ -6,7 +6,7 @@
  */
 
 import { DatePicker } from '@/components/ui/date-picker';
-import { Icon, type IconName } from '@/components/ui/icon';
+import { Icon, type IconName, type IconVariant } from '@/components/ui/icon';
 import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { typographyLayout } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -14,11 +14,21 @@ import { logEvent } from '@/utils/analytics';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
 
+/** Figma icon-double Frame 7: 32×32 icon slots, 12px gap (76px row) */
+const LEFT_ICON_DOUBLE_GAP = 12;
+
+export interface TopNavigationLeftIconAction {
+  name: IconName;
+  variant?: IconVariant;
+  onPress?: () => void;
+  accessibilityLabel: string;
+}
+
 export interface TopNavigationProps {
   /**
    * Navigation type
    * - main: Large title with period selector
-   * - sub: Small centered title with back button
+   * - sub: Small centered title; left icons per showLeftIcon / iconDouble
    */
   type?: 'main' | 'sub';
   
@@ -57,14 +67,24 @@ export interface TopNavigationProps {
   dateText?: string;
   
   /**
-   * Show left icon (back button for sub type)
+   * Show left icon (sub type, icon-double=false). Renders single back arrow.
    */
   showLeftIcon?: boolean;
+
+  /**
+   * Figma icon-double. Sub type only — true: up to 2 left icons via leftIcons (32×32 slots, 12px gap).
+   */
+  iconDouble?: boolean;
   
   /**
-   * Left icon press handler
+   * Left icon press handler (sub + showLeftIcon + iconDouble=false)
    */
   onLeftIconPress?: () => void;
+
+  /**
+   * Sub + iconDouble. Left icon buttons (1–2). Icons spaced 16px apart.
+   */
+  leftIcons?: TopNavigationLeftIconAction[];
   
   /**
    * Show right button (small button for sub type)
@@ -175,7 +195,9 @@ export function TopNavigation({
   showDay = false,
   dateText,
   showLeftIcon = false,
+  iconDouble = false,
   onLeftIconPress,
+  leftIcons,
   showRightButton = false,
   rightButtonText = '확인',
   onRightButtonPress,
@@ -211,10 +233,11 @@ export function TopNavigation({
   const periodSlideX = useRef(new Animated.Value(periodType === 'year' ? 0 : 46)).current;
 
   const handleLeftIconPress = () => {
-    if (onLeftIconPress) {
-      onLeftIconPress();
-    }
+    onLeftIconPress?.();
   };
+
+  const dualLeftIcons =
+    type === 'sub' && iconDouble ? leftIcons?.slice(0, 2) ?? [] : [];
 
   const handleRightButtonPress = () => {
     if (onRightButtonPress) {
@@ -276,8 +299,30 @@ export function TopNavigation({
       <View style={styles.content}>
         {/* Left Section */}
         <View style={styles.leftSection}>
+          {/* Sub icon-double: 32×32 slots, 12px gap (Figma Frame 7) */}
+          {type === 'sub' && iconDouble && dualLeftIcons.length > 0 ? (
+            <View style={styles.leftIconGroup}>
+              {dualLeftIcons.map((iconAction, index) => (
+                <Pressable
+                  key={`${iconAction.name}-${index}`}
+                  onPress={() => iconAction.onPress?.()}
+                  style={styles.iconButton}
+                  accessibilityRole="button"
+                  accessibilityLabel={iconAction.accessibilityLabel}
+                >
+                  <Icon
+                    name={iconAction.name}
+                    variant={iconAction.variant ?? 'line'}
+                    size={24}
+                    color={palette.text}
+                  />
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+
           {/* Sub Type: Back Icon */}
-          {type === 'sub' && showLeftIcon && (
+          {type === 'sub' && !iconDouble && showLeftIcon && (
             <Pressable
               onPress={handleLeftIconPress}
               style={styles.iconButton}
@@ -332,7 +377,7 @@ export function TopNavigation({
           )}
         </View>
 
-        {/* Center Section (Sub Type Only) */}
+        {/* Center Section (Sub / SubDualIcon) */}
         {type === 'sub' && !showDay && (
           <View style={styles.centerSection}>
             <Text style={[styles.subTitle, { color: palette.text }]}>
@@ -485,6 +530,11 @@ const styles = StyleSheet.create({
   leftSection: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  leftIconGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: LEFT_ICON_DOUBLE_GAP,
   },
   mainTabsRow: {
     flexDirection: 'row',

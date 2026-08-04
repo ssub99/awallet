@@ -5,7 +5,10 @@
  * Supports both create and edit modes.
  */
 
-import { TopNavigation } from '@/components/navigation/top-navigation';
+import {
+  TopNavigation,
+  type TopNavigationLeftIconAction,
+} from '@/components/navigation/top-navigation';
 import { Accordion } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
@@ -431,10 +434,12 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     [navigation, router]
   );
 
+  /** 계속 생성: 금액·메모만 초기화 (카테고리·날짜·결제 유형 등 유지) */
   const resetFormForContinueCreate = useCallback(() => {
     setAmount('');
     setAmountExpression([]);
     setMemo('');
+    setIsKeypadVisible(false);
   }, []);
 
   const completeScreenFunnelCreate = useCallback(
@@ -462,6 +467,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         return;
       }
 
+      screenFunnelSaveIntentRef.current = 'complete';
       await goHomeWithFocus({
         year,
         month,
@@ -2665,7 +2671,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     );
   };
 
-  const handleConfirm = async () => {
+  const handleConfirm = async (options?: { screenFunnelIntent?: ScreenFunnelSaveIntent }) => {
     // 필수값 검증
     if (!category) {
       setCategoryToastMessage('카테고리를 선택해 주세요.');
@@ -2722,31 +2728,42 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     }
     
     // 실제 저장 진행
-    await saveExpenseRecord();
+    await saveExpenseRecord(options);
   };
 
   const handleBottomCtaConfirmPress = () => {
+    if (isLoading) {
+      return;
+    }
     void logEvent('btn', {
       screen_name: analyticsScreenName,
       target: 'cta',
     });
-    if (isScreenFunnelCreation) {
-      screenFunnelSaveIntentRef.current = 'complete';
-    }
-    void handleConfirm();
+    void handleConfirm(
+      isScreenFunnelCreation ? { screenFunnelIntent: 'complete' } : undefined,
+    );
   };
 
   const handleBottomCtaContinuePress = () => {
+    if (isLoading) {
+      return;
+    }
     void logEvent('btn', {
       screen_name: analyticsScreenName,
-      target: 'cta-continue',
+      target: 'keep-generating',
     });
     screenFunnelSaveIntentRef.current = 'continue';
-    void handleConfirm();
+    void handleConfirm({ screenFunnelIntent: 'continue' });
   };
 
-  const saveExpenseRecord = async () => {
+  const saveExpenseRecord = async (options?: {
+    screenFunnelIntent?: ScreenFunnelSaveIntent;
+  }) => {
     setLoading(true);
+    setIsKeypadVisible(false);
+    Keyboard.dismiss();
+    let keepLoadingAfterSave = false;
+    let deferLoadingClearToRefresh = false;
     try {
       const storedData = await AsyncStorage.getItem('calendarData');
       const calendarData = storedData ? JSON.parse(storedData) : {};
@@ -3685,6 +3702,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       const targetYear = customMonthInfo.year;
       const targetMonth = customMonthInfo.month;
 
+      const screenFunnelIntent =
+        options?.screenFunnelIntent ?? screenFunnelSaveIntentRef.current;
+
       if (mode === 'edit') {
         await goTimelineWithFocusAfterSave({
           year: targetYear,
@@ -3696,9 +3716,14 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           year: targetYear,
           month: targetMonth,
           targetDate: targetDateKey,
-          intent: screenFunnelSaveIntentRef.current,
+          intent: screenFunnelIntent,
           savedCount: screenFunnelSavedCountRef.current,
         });
+        if (screenFunnelIntent === 'complete') {
+          keepLoadingAfterSave = true;
+        } else {
+          deferLoadingClearToRefresh = true;
+        }
       } else {
         await goHomeWithFocus({
           year: targetYear,
@@ -3709,6 +3734,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     } catch (error) {
       console.error('[SAVE] error:', error);
     } finally {
+      if (keepLoadingAfterSave || deferLoadingClearToRefresh) {
+        return;
+      }
       setLoading(false);
     }
   };
@@ -3863,6 +3891,60 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   const handleBack = () => {
     router.back();
   };
+
+  const handleTopNavHomePress = useCallback(async () => {
+    void logEvent('btn', {
+      screen_name: analyticsScreenName,
+      target: 'top-nav-home',
+    });
+
+    const recordDateKey = formatDateKey(date);
+    const [yearNum, monthNum, dayNum] = recordDateKey.split('-').map(Number);
+    const recordDate = new Date(yearNum, monthNum - 1, dayNum);
+    const monthStartDay = await loadMonthStartDay();
+    const customMonthInfo = getCustomMonthInfo(recordDate, monthStartDay);
+
+    if (params.calendarYear && params.calendarMonth) {
+      await goHomeWithFocus({
+        year: Number(params.calendarYear),
+        month: Number(params.calendarMonth),
+        targetDate: recordDateKey,
+        refresh: false,
+      });
+      return;
+    }
+
+    await goHomeWithFocus({
+      year: customMonthInfo.year,
+      month: customMonthInfo.month,
+      targetDate: recordDateKey,
+      refresh: false,
+    });
+  }, [
+    analyticsScreenName,
+    date,
+    goHomeWithFocus,
+    params.calendarMonth,
+    params.calendarYear,
+  ]);
+
+  const screenFunnelTopNavLeftIcons = useMemo(
+    (): TopNavigationLeftIconAction[] => [
+      {
+        name: 'arrowLeft',
+        onPress: handleBack,
+        accessibilityLabel: '뒤로 가기',
+      },
+      {
+        name: 'home',
+        onPress: () => {
+          void handleTopNavHomePress();
+        },
+        accessibilityLabel: '홈으로 가기',
+      },
+    ],
+    [handleBack, handleTopNavHomePress],
+  );
 
   const handleDeleteConfirm = async () => {
     if (mode !== 'edit' || !editData) {
@@ -5063,15 +5145,24 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     <SafeAreaView style={[styles.container, { backgroundColor: palette.staticWhite }]} edges={['top']}>
       <StatusBar barStyle="dark-content" />
       
-      <TopNavigation
-        type="sub"
-        title={mode === 'edit' ? '소비내역 수정' : '소비 기록'}
-        showLeftIcon
-        onLeftIconPress={handleBack}
-      />
+      {isScreenFunnelCreation ? (
+        <TopNavigation
+          type="sub"
+          iconDouble
+          title="소비 기록"
+          leftIcons={screenFunnelTopNavLeftIcons}
+        />
+      ) : (
+        <TopNavigation
+          type="sub"
+          title={mode === 'edit' ? '소비내역 수정' : '소비 기록'}
+          showLeftIcon
+          onLeftIconPress={handleBack}
+        />
+      )}
 
       <View style={[styles.content, { backgroundColor: palette.fill }]}>
-        <ScrollView 
+          <ScrollView 
           ref={scrollViewRef}
           style={styles.scrollView}
           contentContainerStyle={[
@@ -5590,8 +5681,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                   variant="assistive"
                   type="solid"
                   onPress={handleBottomCtaContinuePress}
-                  loading={isLoading}
-                  disabled={isLoading}
+                  loading={false}
                   style={styles.bottomButtonFullWidth}
                 >
                   계속 생성
@@ -5600,8 +5690,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               <View style={styles.bottomButtonPrimaryWrap}>
                 <Button
                   onPress={handleBottomCtaConfirmPress}
-                  loading={isLoading}
-                  disabled={isLoading}
+                  loading={false}
                   style={styles.bottomButtonFullWidth}
                 >
                   확인

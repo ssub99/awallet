@@ -2234,7 +2234,44 @@ function TopNavContent({ colors }: { colors: ColorPalette }) {
         onLeftIconPress={() => {}}
       />
 
-      {/* 6. Sub - With Day (날짜 + 뒤로 + 월 선택) */}
+      {/* 6. Sub icon-double - 좌측 아이콘 2개 (Figma icon-double=true) */}
+      <SectionHeader title="Sub icon-double - 좌측 아이콘 2개" colors={colors} />
+      <TopNavigation
+        type="sub"
+        iconDouble
+        title="타이틀"
+        leftIcons={[
+          {
+            name: 'arrowLeft',
+            onPress: () => {},
+            accessibilityLabel: '뒤로 가기',
+          },
+          {
+            name: 'home',
+            onPress: () => {},
+            accessibilityLabel: '홈으로 가기',
+          },
+        ]}
+      />
+      <TopNavigation
+        type="sub"
+        iconDouble
+        title="타이틀"
+        leftIcons={[
+          {
+            name: 'close',
+            onPress: () => {},
+            accessibilityLabel: '닫기',
+          },
+          {
+            name: 'filter',
+            onPress: () => {},
+            accessibilityLabel: '필터',
+          },
+        ]}
+      />
+
+      {/* 7. Sub - With Day (날짜 + 뒤로 + 월 선택) */}
       <SectionHeader title="Sub - 날짜 + 뒤로 (클릭하면 월 선택)" colors={colors} />
       <TopNavigation
         type="sub"

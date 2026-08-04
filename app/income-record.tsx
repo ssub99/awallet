@@ -4,7 +4,10 @@
  * Screen for recording income/deposit transactions.
  */
 
-import { TopNavigation } from '@/components/navigation/top-navigation';
+import {
+  TopNavigation,
+  type TopNavigationLeftIconAction,
+} from '@/components/navigation/top-navigation';
 import { Button } from '@/components/ui/button';
 import { CustomKeypad, getKeypadHeight, type CustomKeypadOperator, type ExpressionToken } from '@/components/ui/custom-keypad';
 import { CustomKeypadOverlay, getCustomKeypadScrollPaddingBottom } from '@/components/ui/custom-keypad-overlay';
@@ -18,6 +21,7 @@ import { ModalPopup } from '@/components/ui/modal-popup';
 import { atomicColors } from '@/constants/atomic-colors';
 import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useLoading } from '@/contexts/loading-context';
+import { useToast } from '@/contexts/toast-context';
 import { calendarRefreshEvent, publishCalendarTargetAsync } from '@/hooks/calendar-events';
 import { popToTabsRoute } from '@/utils/pop-to-tabs-route';
 import { useAndroidKeypadBackDismiss } from '@/hooks/use-android-keypad-back-dismiss';
@@ -36,6 +40,14 @@ import {
   peekQuickInputIncomeDraftSeed,
 } from '@/utils/quick-input-expense-draft-bridge';
 import { incomeFormToQuickInputPending } from '@/utils/quick-input-pending-record';
+import {
+  formatScreenFunnelContinueCreateToast,
+  isQuickInputDraftCreationContext,
+  isScreenFunnelCreationContext,
+  resolveExpenseRecordCreationContext,
+  resolveScreenFunnelSaveIntent,
+  type ScreenFunnelSaveIntent,
+} from '@/utils/expense-record-creation-mode';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
@@ -62,6 +74,8 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 /**
  * 요일 계산 함수
  */
+const formatDateKey = (date: string): string => date.replace(/\./g, '-');
+
 function getDayOfWeekLabel(year: number, month: number, day: number): string {
   const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
   const date = new Date(year, month - 1, day);
@@ -107,17 +121,32 @@ export default function IncomeRecordScreen() {
     [navigation, router]
   );
   const insets = useSafeAreaInsets();
-  const { setLoading } = useLoading();
+  const { isLoading, setLoading } = useLoading();
+  const { showToast } = useToast();
   const params = useLocalSearchParams<{ 
     category?: string;
     selectedDate?: string;
     calendarYear?: string;
     calendarMonth?: string;
     quickInputDraft?: string;
+    creationFunnel?: string;
   }>();
-  const isQuickInputDraftMode = params.quickInputDraft === '1';
+  const creationContext = useMemo(
+    () =>
+      resolveExpenseRecordCreationContext({
+        mode: 'create',
+        quickInputDraft: params.quickInputDraft,
+        creationFunnel: params.creationFunnel,
+      }),
+    [params.creationFunnel, params.quickInputDraft],
+  );
+  const isQuickInputDraftMode = isQuickInputDraftCreationContext(creationContext);
+  const isScreenFunnelCreation = isScreenFunnelCreationContext(creationContext);
   const quickInputDraftCompletedRef = useRef(false);
   const quickInputDraftHydratedRef = useRef(false);
+  const screenFunnelSaveIntentRef = useRef<ScreenFunnelSaveIntent>('complete');
+  const screenFunnelSavedCountRef = useRef(0);
+  const analyticsScreenName = '/income-record';
 
   // 디버깅용 로그
 
@@ -560,7 +589,49 @@ export default function IncomeRecordScreen() {
   const getCategoryEmojiSafe = (label: string): string => categoryEmojiMap[label] ?? '';
   const categoryDisplay = category ? `${getCategoryEmojiSafe(category)} ${category}` : '';
 
-  const handleConfirm = async () => {
+  const resetFormForContinueCreate = useCallback(() => {
+    setAmount('');
+    setAmountExpression([]);
+    setMemo('');
+    setIsKeypadVisible(false);
+  }, []);
+
+  const completeScreenFunnelCreate = useCallback(
+    async ({
+      year,
+      month,
+      targetDate,
+      intent,
+      savedCount,
+    }: {
+      year: number;
+      month: number;
+      targetDate: string;
+      intent: ScreenFunnelSaveIntent;
+      savedCount: number;
+    }) => {
+      const resolvedIntent = resolveScreenFunnelSaveIntent(intent);
+      if (resolvedIntent === 'continue') {
+        if (savedCount > 0) {
+          resetFormForContinueCreate();
+          calendarRefreshEvent.emit();
+          showToast(formatScreenFunnelContinueCreateToast(savedCount));
+        }
+        screenFunnelSaveIntentRef.current = 'complete';
+        return;
+      }
+
+      screenFunnelSaveIntentRef.current = 'complete';
+      await goHomeWithFocus({
+        year,
+        month,
+        targetDate,
+      });
+    },
+    [goHomeWithFocus, resetFormForContinueCreate, showToast],
+  );
+
+  const handleConfirm = async (options?: { screenFunnelIntent?: ScreenFunnelSaveIntent }) => {
     // 필수값 검증
     if (!category) {
       setShowCategoryAlert(true);
@@ -591,6 +662,8 @@ export default function IncomeRecordScreen() {
     }
     
     setLoading(true);
+    let keepLoadingAfterSave = false;
+    let deferLoadingClearToRefresh = false;
     try {
       // 수입 기록 데이터 준비
       const incomeAmount = parseFloat(amount.replace(/,/g, ''));
@@ -660,46 +733,150 @@ export default function IncomeRecordScreen() {
       const customMonthInfo = getCustomMonthInfo(savedDate, currentMonthStartDay);
       const targetYear = customMonthInfo.year;
       const targetMonth = customMonthInfo.month;
-      
-      // Stack 정리: 수입 기록 제거하고 홈으로
-      await goHomeWithFocus({
-        year: targetYear,
-        month: targetMonth,
-        targetDate: dateKey,
-      });
+
+      screenFunnelSavedCountRef.current = 1;
+
+      const screenFunnelIntent =
+        options?.screenFunnelIntent ?? screenFunnelSaveIntentRef.current;
+
+      if (isScreenFunnelCreation) {
+        await completeScreenFunnelCreate({
+          year: targetYear,
+          month: targetMonth,
+          targetDate: dateKey,
+          intent: screenFunnelIntent,
+          savedCount: screenFunnelSavedCountRef.current,
+        });
+        if (screenFunnelIntent === 'complete') {
+          keepLoadingAfterSave = true;
+        } else {
+          deferLoadingClearToRefresh = true;
+        }
+      } else {
+        await goHomeWithFocus({
+          year: targetYear,
+          month: targetMonth,
+          targetDate: dateKey,
+        });
+      }
     } catch (error) {
       console.error('[수입 생성] error:', error);
     } finally {
+      if (keepLoadingAfterSave || deferLoadingClearToRefresh) {
+        return;
+      }
       setLoading(false);
     }
   };
 
   const handleBack = () => {
-    void logEvent('btn', {
-      screen_name: '/income-record',
-      target: 'category-option-prev',
-    });
     router.back();
   };
 
-  const handleCtaPress = () => {
+  const handleTopNavHomePress = useCallback(async () => {
     void logEvent('btn', {
-      screen_name: '/income-record',
+      screen_name: analyticsScreenName,
+      target: 'top-nav-home',
+    });
+
+    const recordDateKey = formatDateKey(date);
+    const [yearNum, monthNum, dayNum] = recordDateKey.split('-').map(Number);
+    const recordDate = new Date(yearNum, monthNum - 1, dayNum);
+    const currentMonthStartDay = await loadMonthStartDay();
+    const customMonthInfo = getCustomMonthInfo(recordDate, currentMonthStartDay);
+
+    if (params.calendarYear && params.calendarMonth) {
+      await goHomeWithFocus({
+        year: Number(params.calendarYear),
+        month: Number(params.calendarMonth),
+        targetDate: recordDateKey,
+        refresh: false,
+      });
+      return;
+    }
+
+    await goHomeWithFocus({
+      year: customMonthInfo.year,
+      month: customMonthInfo.month,
+      targetDate: recordDateKey,
+      refresh: false,
+    });
+  }, [
+    analyticsScreenName,
+    date,
+    goHomeWithFocus,
+    params.calendarMonth,
+    params.calendarYear,
+  ]);
+
+  const screenFunnelTopNavLeftIcons = useMemo(
+    (): TopNavigationLeftIconAction[] => [
+      {
+        name: 'arrowLeft',
+        onPress: handleBack,
+        accessibilityLabel: '뒤로 가기',
+      },
+      {
+        name: 'home',
+        onPress: () => {
+          void handleTopNavHomePress();
+        },
+        accessibilityLabel: '홈으로 가기',
+      },
+    ],
+    [handleBack, handleTopNavHomePress],
+  );
+
+  const handleBottomCtaConfirmPress = () => {
+    if (isLoading) {
+      return;
+    }
+    void logEvent('btn', {
+      screen_name: analyticsScreenName,
       target: 'cta',
     });
-    void handleConfirm();
+    void handleConfirm(
+      isScreenFunnelCreation ? { screenFunnelIntent: 'complete' } : undefined,
+    );
+  };
+
+  const handleBottomCtaContinuePress = () => {
+    if (isLoading) {
+      return;
+    }
+    void logEvent('btn', {
+      screen_name: analyticsScreenName,
+      target: 'keep-generating',
+    });
+    screenFunnelSaveIntentRef.current = 'continue';
+    void handleConfirm({ screenFunnelIntent: 'continue' });
   };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: palette.staticWhite }]} edges={['top']}>
       <StatusBar barStyle="dark-content" />
       
-      <TopNavigation
-        type="sub"
-        title="수입 기록"
-        showLeftIcon
-        onLeftIconPress={handleBack}
-      />
+      {isScreenFunnelCreation ? (
+        <TopNavigation
+          type="sub"
+          iconDouble
+          title="수입 기록"
+          leftIcons={screenFunnelTopNavLeftIcons}
+        />
+      ) : (
+        <TopNavigation
+          type="sub"
+          title="수입 기록"
+          showLeftIcon
+          onLeftIconPress={() => {
+            void logEvent('btn', {
+              screen_name: analyticsScreenName,
+              target: 'category-option-prev',
+            });
+            handleBack();
+          }}
+        />
+      )}
 
       <View style={[styles.content, { backgroundColor: palette.fill }]}>
         <ScrollView
@@ -886,6 +1063,7 @@ export default function IncomeRecordScreen() {
             {
               backgroundColor: palette.staticWhite,
               paddingBottom: 16 + insets.bottom,
+              paddingTop: 16,
             },
           ]}
           onTouchEnd={() => {
@@ -894,9 +1072,34 @@ export default function IncomeRecordScreen() {
             }
           }}
         >
-          <Button onPress={handleCtaPress}>
-            확인
-          </Button>
+          {isScreenFunnelCreation ? (
+            <View style={styles.bottomButtonRow}>
+              <View style={styles.bottomButtonContinueWrap}>
+                <Button
+                  variant="assistive"
+                  type="solid"
+                  onPress={handleBottomCtaContinuePress}
+                  loading={false}
+                  style={styles.bottomButtonFullWidth}
+                >
+                  계속 생성
+                </Button>
+              </View>
+              <View style={styles.bottomButtonPrimaryWrap}>
+                <Button
+                  onPress={handleBottomCtaConfirmPress}
+                  loading={false}
+                  style={styles.bottomButtonFullWidth}
+                >
+                  확인
+                </Button>
+              </View>
+            </View>
+          ) : (
+            <Button onPress={handleBottomCtaConfirmPress} loading={isLoading} disabled={isLoading}>
+              확인
+            </Button>
+          )}
         </View>
       </View>
 
@@ -982,6 +1185,21 @@ const styles = StyleSheet.create({
   bottomButtonContainer: {
     paddingHorizontal: 16,
     paddingTop: 16,
+  },
+  bottomButtonRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: 8,
+  },
+  bottomButtonContinueWrap: {
+    width: 112,
+  },
+  bottomButtonPrimaryWrap: {
+    flex: 1,
+  },
+  bottomButtonFullWidth: {
+    alignSelf: 'stretch',
+    width: '100%',
   },
   alertText: {
     ...typography.body01.regular,
