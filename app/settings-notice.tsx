@@ -10,6 +10,7 @@ import { ListEmptyPlaceholder } from '@/components/ui/list-empty-placeholder';
 import { NoticeVideoThumbnail } from '@/components/ui/notice-video-thumbnail';
 import { ModalPopup } from '@/components/ui/modal-popup';
 import { UiLineText } from '@/components/ui/ui-line-text';
+import { SUB_STACK_SCREEN_GESTURE_OPTIONS } from '@/constants/sub-stack-screen-options';
 import { themeColors } from '@/constants/theme-colors';
 import { typography } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
@@ -293,7 +294,7 @@ export default function SettingsNoticeScreen() {
       style={[styles.container, { backgroundColor: colors.staticWhite }]}
       edges={['top', 'bottom']}
     >
-      <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
+      <Stack.Screen options={SUB_STACK_SCREEN_GESTURE_OPTIONS} />
 
       <TopNavigation
         type="sub"

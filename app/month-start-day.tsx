@@ -8,6 +8,7 @@
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Icon } from '@/components/ui/icon';
 import { UiLineText } from '@/components/ui/ui-line-text';
+import { SUB_STACK_SCREEN_OPTIONS } from '@/constants/sub-stack-screen-options';
 import { themeColors } from '@/constants/theme-colors';
 import { typography } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -29,10 +30,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const MONTH_START_DAY_UPDATED_AT_KEY = 'monthStartDayUpdatedAt';
+
+export const options = SUB_STACK_SCREEN_OPTIONS;
 
 export default function MonthStartDayScreen() {
   const colorScheme = useColorScheme();
@@ -337,8 +340,6 @@ export default function MonthStartDayScreen() {
       style={[styles.container, { backgroundColor: colors.staticWhite }]} 
       edges={['top', 'bottom']}
     >
-      <StatusBar barStyle="dark-content" />
-
       {/* Top Navigation */}
       <TopNavigation
         type="sub"

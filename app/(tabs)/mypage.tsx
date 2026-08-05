@@ -10,6 +10,7 @@ import { Icon } from '@/components/ui/icon';
 import { NoticeUnreadBadge } from '@/components/ui/notice-unread-badge';
 import { Switch } from '@/components/ui/switch';
 import { UiLineText } from '@/components/ui/ui-line-text';
+import { SUB_STACK_SCREEN_OPTIONS } from '@/constants/sub-stack-screen-options';
 import { getAppStoreWriteReviewUrl } from '@/constants/app-store';
 import { themeColors } from '@/constants/theme-colors';
 import { typography } from '@/constants/typography';
@@ -247,7 +248,12 @@ export default function MyPageScreen() {
       style={[styles.container, { backgroundColor: colors.background }]} 
       edges={['top']}
     >
-      <Stack.Screen options={{ headerShown: false, gestureEnabled: false }} />
+      <Stack.Screen
+        options={{
+          ...SUB_STACK_SCREEN_OPTIONS,
+          gestureEnabled: false,
+        }}
+      />
 
       {/* Top Navigation (shared component) - Figma main type (no arrow) */}
       <Animated.View style={{ opacity: isContentReady ? contentOpacity : 0 }}>

@@ -8,6 +8,7 @@ import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { NoticeVideoThumbnail } from '@/components/ui/notice-video-thumbnail';
 import { UiLineText } from '@/components/ui/ui-line-text';
+import { SUB_STACK_SCREEN_GESTURE_OPTIONS } from '@/constants/sub-stack-screen-options';
 import { themeColors } from '@/constants/theme-colors';
 import { typographyLayout } from '@/constants/typography';
 import { useToast } from '@/contexts/toast-context';
@@ -23,7 +24,6 @@ import {
   Keyboard,
   Pressable,
   ScrollView,
-  StatusBar,
   StyleSheet,
   TouchableWithoutFeedback,
   View,
@@ -185,8 +185,7 @@ export function NoticeFormScreen({
       style={[styles.container, { backgroundColor: colors.staticWhite }]}
       edges={['top', 'bottom']}
     >
-      <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
-      <StatusBar barStyle="dark-content" />
+      <Stack.Screen options={SUB_STACK_SCREEN_GESTURE_OPTIONS} />
 
       <TopNavigation
         type="sub"

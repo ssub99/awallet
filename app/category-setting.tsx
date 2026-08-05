@@ -10,6 +10,7 @@ import { Icon } from '@/components/ui/icon';
 import { UiLineText } from '@/components/ui/ui-line-text';
 import { getCategoriesByType, type CategoryType } from '@/constants/categories';
 import { areCategoriesSame, loadCategories } from '@/utils/categories';
+import { SUB_STACK_SCREEN_OPTIONS } from '@/constants/sub-stack-screen-options';
 import { themeColors } from '@/constants/theme-colors';
 import { typography } from '@/constants/typography';
 import {
@@ -21,7 +22,7 @@ import {
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Platform, Pressable, StatusBar, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import DraggableFlatList, { RenderItemParams, ScaleDecorator } from 'react-native-draggable-flatlist';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -225,6 +226,8 @@ function CategoryItem({
     </ScaleDecorator>
   );
 }
+
+export const options = SUB_STACK_SCREEN_OPTIONS;
 
 export default function CategorySettingScreen() {
   const colors = themeColors.light;
@@ -609,8 +612,6 @@ export default function CategorySettingScreen() {
       ]}
       edges={['bottom']}
     >
-      <StatusBar barStyle="dark-content" />
-      
       {/* Top Navigation */}
       <TopNavigation
         type="sub"
