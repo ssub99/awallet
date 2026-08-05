@@ -50,7 +50,12 @@ def resolveNodeExecutable(File androidRoot) {
     }
   }
 
-  return 'node'
+  def toolsNode = new File(androidRoot, 'tools/node')
+  if (toolsNode.canExecute()) {
+    return toolsNode.absolutePath
+  }
+
+  return toolsNode.absolutePath
 }
 
 def androidRoot = resolveAndroidRootDir()

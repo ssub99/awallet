@@ -2,9 +2,8 @@ apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 
-def nodeExecutable = gradle.ext.hasProperty('awalletNodeExecutable')
-  ? gradle.ext.awalletNodeExecutable
-  : 'node'
+apply from: new File(rootProject.projectDir, 'node-path.gradle')
+def nodeExecutable = gradle.ext.awalletNodeExecutable
 
 def projectRoot = rootDir.getAbsoluteFile().getParentFile().getAbsolutePath()
 
@@ -103,8 +102,8 @@ android {
         applicationId 'com.ssong.awallet'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 47
-        versionName "1.1.7"
+        versionCode 48
+        versionName "1.1.8"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }

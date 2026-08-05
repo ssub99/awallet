@@ -40,11 +40,11 @@
       "package": "com.ssong.awallet",
       "googleServicesFile": "./android-firebase/google-services.json",
       "playStoreUrl": "https://play.google.com/store/apps/details?id=com.ssong.awallet",
-      "versionCode": 47,
+      "versionCode": 48,
       "permissions": [
         "android.permission.POST_NOTIFICATIONS"
       ],
-      "runtimeVersion": "1.1.7"
+      "runtimeVersion": "1.1.8"
     },
     "web": {
       "output": "static",

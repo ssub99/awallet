@@ -27,6 +27,9 @@ Gradle sync 시 위 오류가 나면 Android Studio가 **PATH에 node를 못 찾
 
 프로젝트 루트에서 **`npm install`** 시 `patch-package`가 아래 패치를 적용합니다.
 
+- `patches/expo-constants+18.0.13.patch` — `get-app-config-android.gradle` bare `node` → `local.properties` / `node-path.gradle`
+- `patches/react-native-reanimated+4.1.3.patch` — Reanimated Gradle bare `node` → `rootProject.ext.awalletNodeExecutable`
+- `patches/react-native-worklets+0.5.1.patch` — Worklets Gradle bare `node` → 동일
 - `patches/expo-modules-autolinking+3.0.25.patch` — settings 플러그인 `node` → `local.properties`
 - `patches/expo+54.0.34.patch` — `expo/scripts/autolinking.gradle` 동일
 - `patches/expo-modules-core+3.0.30.patch` — stage/production flavor 시 `productionRelease` 컴포넌트
