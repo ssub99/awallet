@@ -3,14 +3,18 @@ import { themeColors } from '@/constants/theme-colors';
 import { useNoticeVideoThumbnail } from '@/hooks/use-notice-video-thumbnail';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Image } from 'expo-image';
-import { ActivityIndicator, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { memo } from 'react';
+import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 interface NoticeVideoThumbnailProps {
   uri: string;
   style?: StyleProp<ViewStyle>;
 }
 
-export function NoticeVideoThumbnail({ uri, style }: NoticeVideoThumbnailProps) {
+export const NoticeVideoThumbnail = memo(function NoticeVideoThumbnail({
+  uri,
+  style,
+}: NoticeVideoThumbnailProps) {
   const colorScheme = useColorScheme();
   const colors = themeColors[colorScheme ?? 'light'];
   const posterUri = useNoticeVideoThumbnail(uri);
@@ -18,16 +22,20 @@ export function NoticeVideoThumbnail({ uri, style }: NoticeVideoThumbnailProps) 
   return (
     <View style={[styles.container, { backgroundColor: colors.staticBlack }, style]}>
       {posterUri != null ? (
-        <Image source={{ uri: posterUri }} style={styles.image} contentFit="cover" />
-      ) : (
-        <ActivityIndicator color={colors.staticWhite} />
-      )}
+        <Image
+          source={{ uri: posterUri }}
+          style={styles.image}
+          contentFit="cover"
+          cachePolicy="memory-disk"
+          transition={0}
+        />
+      ) : null}
       <View style={styles.playBadge}>
         <Icon name="play" variant="solid" size={16} color={colors.staticWhite} accessibilityLabel="영상" />
       </View>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {

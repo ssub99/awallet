@@ -15,6 +15,7 @@ import { typography } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
 import { useToast } from '@/contexts/toast-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { prefetchNoticeVideoThumbnail } from '@/hooks/use-notice-video-thumbnail';
 import { deleteDevAppNotice, loadDevAppNotices } from '@/utils/dev-app-notices';
 import { fetchAppNotices, type AppNotice } from '@/utils/fetch-app-notices';
 import { encodeNoticeMediaViewerParams } from '@/utils/notice-image-viewer-params';
@@ -22,7 +23,7 @@ import { buildNoticeMediaItems } from '@/utils/notice-media';
 import { markNoticesViewed } from '@/utils/notice-read-state';
 import { Image } from 'expo-image';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -77,9 +78,35 @@ function NoticeAccordionItem({
   canEditLocalNotice: boolean;
 }) {
   const mediaItems = buildNoticeMediaItems(notice);
+  const videoUris = useMemo(
+    () => mediaItems.filter((item) => item.type === 'video').map((item) => item.uri),
+    [notice.id, notice.videos, notice.images],
+  );
+  const [hasExpandedOnce, setHasExpandedOnce] = useState(false);
+
+  useEffect(() => {
+    for (const uri of videoUris) {
+      prefetchNoticeVideoThumbnail(uri);
+    }
+  }, [videoUris]);
+
+  useEffect(() => {
+    if (expanded) {
+      setHasExpandedOnce(true);
+    }
+  }, [expanded]);
+
+  const showExpandedBody = expanded || hasExpandedOnce;
 
   return (
     <View style={[styles.noticeCard, { backgroundColor: colors.staticWhite }]}>
+      {videoUris.length > 0 ? (
+        <View style={styles.hiddenVideoPrefetch} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          {videoUris.map((uri) => (
+            <NoticeVideoThumbnail key={`prefetch-${uri}`} uri={uri} />
+          ))}
+        </View>
+      ) : null}
       <Pressable
         onPress={onToggle}
         style={styles.noticeHeaderBlock}
@@ -107,8 +134,13 @@ function NoticeAccordionItem({
         </Text>
       </Pressable>
 
-      {expanded ? (
-        <View style={styles.noticeExpandedBody}>
+      {showExpandedBody ? (
+        <View
+          style={[styles.noticeExpandedBody, !expanded && styles.noticeExpandedBodyHidden]}
+          pointerEvents={expanded ? 'auto' : 'none'}
+          accessibilityElementsHidden={!expanded}
+          importantForAccessibility={expanded ? 'auto' : 'no-hide-descendants'}
+        >
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
           <Text style={[styles.noticeContent, { color: colors.textNeutral }]}>
             {notice.body}
@@ -184,6 +216,11 @@ export default function SettingsNoticeScreen() {
       noticesRef.current = items;
       setNotices(items);
       setDevNoticeIds(new Set(devItems.map((notice) => notice.id)));
+      for (const notice of items) {
+        for (const uri of notice.videos ?? []) {
+          prefetchNoticeVideoThumbnail(uri);
+        }
+      }
     } finally {
       setLoading(false);
     }
@@ -342,6 +379,14 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 16,
   },
+  hiddenVideoPrefetch: {
+    position: 'absolute',
+    width: 64,
+    height: 64,
+    opacity: 0,
+    overflow: 'hidden',
+    pointerEvents: 'none',
+  },
   noticeHeaderBlock: {
     gap: 4,
   },
@@ -356,6 +401,9 @@ const styles = StyleSheet.create({
   },
   noticeExpandedBody: {
     gap: 16,
+  },
+  noticeExpandedBodyHidden: {
+    display: 'none',
   },
   noticeDate: {
     ...typography.body02.regular,
