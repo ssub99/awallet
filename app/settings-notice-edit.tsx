@@ -9,6 +9,7 @@ import { useLoading } from '@/contexts/loading-context';
 import { useToast } from '@/contexts/toast-context';
 import { getDevAppNoticeById, updateDevAppNotice } from '@/utils/dev-app-notices';
 import type { AppNotice } from '@/utils/fetch-app-notices';
+import { isLocalDevOnlyUIEnabled } from '@/utils/dev-only-ui';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { StatusBar } from 'react-native';
@@ -46,6 +47,11 @@ export default function SettingsNoticeEditScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const loadNotice = useCallback(async () => {
+    if (!isLocalDevOnlyUIEnabled()) {
+      router.back();
+      return;
+    }
+
     if (noticeId == null || noticeId.length === 0) {
       showToast('편집할 공지를 찾을 수 없습니다.');
       router.back();
@@ -68,8 +74,12 @@ export default function SettingsNoticeEditScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      if (!isLocalDevOnlyUIEnabled()) {
+        router.back();
+        return;
+      }
       void loadNotice();
-    }, [loadNotice]),
+    }, [loadNotice, router]),
   );
 
   const initialValues = useMemo(
@@ -130,7 +140,7 @@ export default function SettingsNoticeEditScreen() {
     }
   };
 
-  if (notice == null) {
+  if (!isLocalDevOnlyUIEnabled() || notice == null) {
     return (
       <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
         <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />

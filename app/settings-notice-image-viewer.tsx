@@ -19,7 +19,6 @@ import {
 import type { NoticeMediaItem } from '@/utils/notice-media';
 import { clampNoticeVideoSeekTime } from '@/utils/notice-media';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
@@ -35,8 +34,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export { encodeNoticeMediaViewerParams };
-
-const IMAGE_VIEWER_STATUS_BAR_STYLE = 'light' as const;
 
 const imageViewerStackScreenOptions = {
   headerShown: false,
@@ -168,7 +165,6 @@ export default function SettingsNoticeImageViewerScreen() {
     return (
       <SafeAreaView style={[styles.container, styles.emptyContainer]} edges={['top', 'bottom']}>
         <Stack.Screen options={imageViewerStackScreenOptions} />
-        <StatusBar style={IMAGE_VIEWER_STATUS_BAR_STYLE} />
         <Pressable onPress={handleClose} accessibilityRole="button" accessibilityLabel="닫기">
           <Icon name="close" variant="line" size={24} color={colors.staticWhite} />
         </Pressable>
@@ -186,7 +182,6 @@ export default function SettingsNoticeImageViewerScreen() {
           gestureEnabled: !zoomActiveRef.current,
         }}
       />
-      <StatusBar style={IMAGE_VIEWER_STATUS_BAR_STYLE} />
 
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.header}>

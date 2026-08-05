@@ -4,17 +4,14 @@ import {
   parseAppNoticesPayload,
   type AppNotice,
 } from '@/utils/fetch-app-notices';
+import { isLocalDevOnlyUIEnabled } from '@/utils/dev-only-ui';
 import { noticeUnreadEvent } from '@/utils/notice-read-state';
 
 /** __DEV__ 로컬 등록 공지 AsyncStorage 키 — 전체 초기화 시 보존 */
 export const DEV_PUBLISHED_NOTICES_STORAGE_KEY = 'devPublishedAppNotices';
 
-/** __DEV__ 전용 — 작성 화면에서 등록한 공지 (로컬 URI 이미지 포함). */
+/** AsyncStorage 로컬 공지 — dev에서 작성, stage/prod/dev 모든 환경에서 목록 표시. */
 export async function loadDevAppNotices(): Promise<AppNotice[]> {
-  if (!__DEV__) {
-    return [];
-  }
-
   try {
     const raw = await AsyncStorage.getItem(DEV_PUBLISHED_NOTICES_STORAGE_KEY);
     if (raw == null) {
@@ -28,7 +25,7 @@ export async function loadDevAppNotices(): Promise<AppNotice[]> {
 }
 
 export async function publishDevAppNotice(notice: AppNotice): Promise<void> {
-  if (!__DEV__) {
+  if (!isLocalDevOnlyUIEnabled()) {
     return;
   }
 
@@ -40,7 +37,7 @@ export async function publishDevAppNotice(notice: AppNotice): Promise<void> {
 
 /** __DEV__ 로컬 등록 공지 단건 조회. */
 export async function getDevAppNoticeById(noticeId: string): Promise<AppNotice | null> {
-  if (!__DEV__) {
+  if (!isLocalDevOnlyUIEnabled()) {
     return null;
   }
 
@@ -50,7 +47,7 @@ export async function getDevAppNoticeById(noticeId: string): Promise<AppNotice |
 
 /** __DEV__ 로컬 등록 공지 수정. 수정됐으면 true. */
 export async function updateDevAppNotice(updated: AppNotice): Promise<boolean> {
-  if (!__DEV__) {
+  if (!isLocalDevOnlyUIEnabled()) {
     return false;
   }
 
@@ -72,7 +69,7 @@ export async function updateDevAppNotice(updated: AppNotice): Promise<boolean> {
 
 /** __DEV__ 로컬 등록 공지 삭제. 삭제됐으면 true. */
 export async function deleteDevAppNotice(noticeId: string): Promise<boolean> {
-  if (!__DEV__) {
+  if (!isLocalDevOnlyUIEnabled()) {
     return false;
   }
 
@@ -89,7 +86,7 @@ export async function deleteDevAppNotice(noticeId: string): Promise<boolean> {
 
 /** __DEV__ 전체 초기화 전 — 작성한 로컬 공지 스냅샷 */
 export async function backupDevPublishedNoticesForReset(): Promise<string | null> {
-  if (!__DEV__) {
+  if (!isLocalDevOnlyUIEnabled()) {
     return null;
   }
   return AsyncStorage.getItem(DEV_PUBLISHED_NOTICES_STORAGE_KEY);
@@ -97,7 +94,7 @@ export async function backupDevPublishedNoticesForReset(): Promise<string | null
 
 /** __DEV__ 전체 초기화 후 — 작성한 로컬 공지 복원 */
 export async function restoreDevPublishedNoticesAfterReset(snapshot: string | null): Promise<void> {
-  if (!__DEV__ || snapshot == null) {
+  if (!isLocalDevOnlyUIEnabled() || snapshot == null) {
     return;
   }
   await AsyncStorage.setItem(DEV_PUBLISHED_NOTICES_STORAGE_KEY, snapshot);

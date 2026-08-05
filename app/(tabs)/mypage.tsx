@@ -16,6 +16,7 @@ import { typography } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useNoticeUnreadCount } from '@/hooks/use-notice-unread-count';
+import { isLocalDevOnlyUIEnabled } from '@/utils/dev-only-ui';
 import { monthStartEvent } from '@/hooks/use-month-start';
 import { weekStartEvent } from '@/hooks/use-week-start';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -464,8 +465,8 @@ export default function MyPageScreen() {
             </Pressable>
           </View>
 
-          {/* Notice compose (only in __DEV__) */}
-          {__DEV__ && (
+          {/* Notice compose (Metro 로컬 dev 전용) */}
+          {isLocalDevOnlyUIEnabled() && (
             <View style={[styles.card, { backgroundColor: colors.background }]}>
               <Pressable
                 style={styles.menuRowSingle}
@@ -481,8 +482,8 @@ export default function MyPageScreen() {
             </View>
           )}
 
-          {/* Test Environment Card (only in __DEV__) */}
-          {__DEV__ && (
+          {/* Test Environment Card (Metro 로컬 dev 전용) */}
+          {isLocalDevOnlyUIEnabled() && (
             <View style={[styles.card, { backgroundColor: colors.background }]}>
               <Pressable 
                 style={styles.menuRow}

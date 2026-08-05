@@ -99,9 +99,9 @@ export function parseAppNoticesPayload(data: unknown): AppNotice[] {
   return notices.sort((a, b) => b.publishedAt - a.publishedAt);
 }
 
-/** Vercel app-notices.json + (__DEV__) 로컬 등록분. 실패·미배포 시 dev만 또는 빈 목록. */
+/** Vercel app-notices.json + 로컬 등록분(AsyncStorage). 실패·미배포 시 로컬만 또는 빈 목록. */
 export async function fetchAppNotices(): Promise<AppNotice[]> {
-  const devNotices = __DEV__ ? await loadDevAppNotices() : [];
+  const devNotices = await loadDevAppNotices();
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
@@ -117,9 +117,6 @@ export async function fetchAppNotices(): Promise<AppNotice[]> {
     }
     const json: unknown = await res.json();
     const remote = parseAppNoticesPayload(json);
-    if (!__DEV__) {
-      return remote;
-    }
     const byId = new Map<string, AppNotice>();
     for (const notice of [...devNotices, ...remote]) {
       byId.set(notice.id, notice);

@@ -8,8 +8,11 @@ import { NoticeFormScreen } from '@/components/ui/notice-form-screen';
 import { useToast } from '@/contexts/toast-context';
 import { publishDevAppNotice } from '@/utils/dev-app-notices';
 import type { AppNotice } from '@/utils/fetch-app-notices';
-import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { isLocalDevOnlyUIEnabled } from '@/utils/dev-only-ui';
+import { Stack, useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
+import { StatusBar } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 function buildNoticeDraftPayload(
   title: string,
@@ -36,6 +39,7 @@ export default function SettingsNoticeComposeScreen() {
   const router = useRouter();
   const { showToast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const localDevOnlyUIEnabled = isLocalDevOnlyUIEnabled();
 
   const initialValues = useMemo(
     () => ({
@@ -46,6 +50,23 @@ export default function SettingsNoticeComposeScreen() {
     }),
     [],
   );
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!localDevOnlyUIEnabled) {
+        router.back();
+      }
+    }, [localDevOnlyUIEnabled, router]),
+  );
+
+  if (!localDevOnlyUIEnabled) {
+    return (
+      <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
+        <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
+        <StatusBar barStyle="dark-content" />
+      </SafeAreaView>
+    );
+  }
 
   const handleSubmit = async (values: {
     title: string;

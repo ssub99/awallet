@@ -17,6 +17,7 @@ import { useToast } from '@/contexts/toast-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { prefetchNoticeVideoThumbnail } from '@/hooks/use-notice-video-thumbnail';
 import { deleteDevAppNotice, loadDevAppNotices } from '@/utils/dev-app-notices';
+import { isLocalDevOnlyUIEnabled } from '@/utils/dev-only-ui';
 import { fetchAppNotices, type AppNotice } from '@/utils/fetch-app-notices';
 import { encodeNoticeMediaViewerParams } from '@/utils/notice-image-viewer-params';
 import { buildNoticeMediaItems } from '@/utils/notice-media';
@@ -27,7 +28,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Pressable,
   ScrollView,
-  StatusBar,
   StyleSheet,
   Text,
   View,
@@ -168,7 +168,7 @@ function NoticeAccordionItem({
               ))}
             </View>
           ) : null}
-          {__DEV__ ? (
+          {isLocalDevOnlyUIEnabled() ? (
             <View style={styles.actionRow}>
               {canEditLocalNotice ? (
                 <NoticeDevActionLink
@@ -211,7 +211,7 @@ export default function SettingsNoticeScreen() {
       setLoading(true);
       const [items, devItems] = await Promise.all([
         fetchAppNotices(),
-        __DEV__ ? loadDevAppNotices() : Promise.resolve([] as AppNotice[]),
+        loadDevAppNotices(),
       ]);
       noticesRef.current = items;
       setNotices(items);
@@ -297,7 +297,6 @@ export default function SettingsNoticeScreen() {
       edges={['top', 'bottom']}
     >
       <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
-      <StatusBar barStyle="dark-content" />
 
       <TopNavigation
         type="sub"
@@ -334,7 +333,7 @@ export default function SettingsNoticeScreen() {
         )}
       </View>
 
-      {__DEV__ ? (
+      {isLocalDevOnlyUIEnabled() ? (
         <ModalPopup
           visible={pendingDeleteNoticeId !== null}
           title="게시물 삭제 안내"

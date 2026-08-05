@@ -13,6 +13,7 @@ import {
   DEV_PUBLISHED_NOTICES_STORAGE_KEY,
   restoreDevPublishedNoticesAfterReset,
 } from '@/utils/dev-app-notices';
+import { isLocalDevOnlyUIEnabled } from '@/utils/dev-only-ui';
 import { clearAllExpenses } from '@/utils/expenses';
 import { clearAllIncomes } from '@/utils/incomes';
 import {
@@ -63,7 +64,7 @@ const CONSUMPTION_REPORT_RESET_HANDLED_AT_KEY = 'consumptionReportResetHandledAt
 const DEV_PRESERVED_STORAGE_KEYS = new Set<string>([DEV_PUBLISHED_NOTICES_STORAGE_KEY]);
 
 function resolveKeysToRemove(): string[] {
-  if (!__DEV__) {
+  if (!isLocalDevOnlyUIEnabled()) {
     return KEYS_TO_REMOVE;
   }
   return KEYS_TO_REMOVE.filter((key) => !DEV_PRESERVED_STORAGE_KEYS.has(key));
