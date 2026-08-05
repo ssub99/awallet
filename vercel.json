@@ -1,7 +1,7 @@
 {
   "version": 2,
   "framework": null,
-  "buildCommand": "mkdir -p public/notices && cp -R static/notices/. public/notices/ 2>/dev/null || true && cp static/app-version.json public/app-version.json && cp static/app-notices.json public/app-notices.json && echo '<!DOCTYPE html><html><body><p>API only.</p></body></html>' > public/index.html",
+  "buildCommand": "bash scripts/vercel-build-public.sh",
   "outputDirectory": "public",
   "functions": {
     "api/parse-expense.ts": {
