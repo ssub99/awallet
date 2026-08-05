@@ -34,6 +34,11 @@ export function prefetchNoticeVideoThumbnail(videoUri: string): void {
   void loadNoticeVideoThumbnail(videoUri);
 }
 
+/** 프리로드 완료까지 대기 (공지 목록·뷰어 게이트용) */
+export function awaitNoticeVideoThumbnail(videoUri: string): Promise<string | null> {
+  return loadNoticeVideoThumbnail(videoUri);
+}
+
 export function useNoticeVideoThumbnail(videoUri: string | null): string | null {
   const [posterUri, setPosterUri] = useState<string | null>(() => {
     if (videoUri == null) {

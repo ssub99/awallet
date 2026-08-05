@@ -12,15 +12,18 @@ import { atomicColors } from '@/constants/atomic-colors';
 import { themeColors } from '@/constants/theme-colors';
 import { typographyLayout } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useLoading } from '@/contexts/loading-context';
 import {
   encodeNoticeMediaViewerParams,
   parseNoticeMediaViewerParams,
 } from '@/utils/notice-image-viewer-params';
 import type { NoticeMediaItem } from '@/utils/notice-media';
 import { clampNoticeVideoSeekTime } from '@/utils/notice-media';
+import { prefetchNoticeMediaItems } from '@/utils/prefetch-notice-media';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Animated,
   FlatList,
   LayoutChangeEvent,
   NativeScrollEvent,
@@ -46,6 +49,8 @@ const imageViewerStackScreenOptions = {
     : {}),
 } as const;
 
+const VIEWER_CONTENT_FADE_IN_MS = 200;
+
 function resolvePageIndex(offsetX: number, pageWidth: number, itemCount: number): number {
   if (pageWidth <= 0 || itemCount <= 0) {
     return 0;
@@ -64,6 +69,7 @@ export default function SettingsNoticeImageViewerScreen() {
   const { width } = useWindowDimensions();
   const colorScheme = useColorScheme();
   const colors = themeColors[colorScheme ?? 'light'];
+  const { setLoading } = useLoading();
 
   const { media, initialIndex } = useMemo(
     () => parseNoticeMediaViewerParams(params.media, params.images, params.initialIndex),
@@ -82,9 +88,11 @@ export default function SettingsNoticeImageViewerScreen() {
   const [seekTime, setSeekTime] = useState<number | null>(null);
   const [seekSeq, setSeekSeq] = useState(0);
   const [isVideoScrubbing, setIsVideoScrubbing] = useState(false);
+  const [isMediaReady, setIsMediaReady] = useState(false);
   const videoDurationRef = useRef(0);
   const zoomActiveRef = useRef(false);
   const listRef = useRef<FlatList<NoticeMediaItem>>(null);
+  const contentOpacity = useRef(new Animated.Value(0)).current;
 
   const currentItem = media[pageIndex];
   const showVideoTimeline = galleryHasVideo && currentItem?.type === 'video';
@@ -150,9 +158,15 @@ export default function SettingsNoticeImageViewerScreen() {
     setVideoProgress({ currentTime, duration });
   }, []);
 
-  const handleVideoSeek = useCallback((timeSeconds: number) => {
+  const handleVideoSeekCommit = useCallback((timeSeconds: number) => {
     const clampedTime = clampNoticeVideoSeekTime(timeSeconds, videoDurationRef.current);
     setVideoProgress((current) => ({ ...current, currentTime: clampedTime }));
+    setSeekTime(clampedTime);
+    setSeekSeq((seq) => seq + 1);
+  }, []);
+
+  const handleVideoSeekPreview = useCallback((timeSeconds: number) => {
+    const clampedTime = clampNoticeVideoSeekTime(timeSeconds, videoDurationRef.current);
     setSeekTime(clampedTime);
     setSeekSeq((seq) => seq + 1);
   }, []);
@@ -179,6 +193,43 @@ export default function SettingsNoticeImageViewerScreen() {
     }, []),
   );
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const prepareMedia = async () => {
+      if (media.length === 0) {
+        setIsMediaReady(true);
+        contentOpacity.setValue(1);
+        return;
+      }
+
+      setIsMediaReady(false);
+      contentOpacity.setValue(0);
+      setLoading(true);
+      try {
+        await prefetchNoticeMediaItems(media);
+      } finally {
+        if (cancelled) {
+          return;
+        }
+        setLoading(false);
+        setIsMediaReady(true);
+        Animated.timing(contentOpacity, {
+          toValue: 1,
+          duration: VIEWER_CONTENT_FADE_IN_MS,
+          useNativeDriver: true,
+        }).start();
+      }
+    };
+
+    void prepareMedia();
+
+    return () => {
+      cancelled = true;
+      setLoading(false);
+    };
+  }, [contentOpacity, media, setLoading]);
+
   if (media.length === 0) {
     return (
       <SafeAreaView style={[styles.container, styles.emptyContainer]} edges={['top', 'bottom']}>
@@ -195,6 +246,17 @@ export default function SettingsNoticeImageViewerScreen() {
 
   const pageLabel = `${pageIndex + 1}/${media.length}`;
 
+  if (!isMediaReady) {
+    return (
+      <View style={styles.container}>
+        {Platform.OS === 'ios' ? (
+          <StatusBar barStyle="light-content" backgroundColor={atomicColors.neutral[900]} />
+        ) : null}
+        <Stack.Screen options={imageViewerStackScreenOptions} />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       {Platform.OS === 'ios' ? (
@@ -207,6 +269,7 @@ export default function SettingsNoticeImageViewerScreen() {
         }}
       />
 
+      <Animated.View style={[styles.viewerContent, { opacity: contentOpacity }]}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.header}>
           <Pressable
@@ -285,7 +348,8 @@ export default function SettingsNoticeImageViewerScreen() {
               <NoticeVideoTimeline
                 currentTime={videoProgress.currentTime}
                 duration={videoProgress.duration}
-                onSeek={handleVideoSeek}
+                onSeek={handleVideoSeekCommit}
+                onScrubPreview={handleVideoSeekPreview}
                 onScrubStart={handleScrubStart}
                 onScrubEnd={handleScrubEnd}
               />
@@ -295,6 +359,7 @@ export default function SettingsNoticeImageViewerScreen() {
       </View>
 
       <SafeAreaView edges={['bottom']} style={styles.bottomSafeArea} />
+      </Animated.View>
     </View>
   );
 }
@@ -303,6 +368,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: atomicColors.neutral[900],
+  },
+  viewerContent: {
+    flex: 1,
   },
   emptyContainer: {
     justifyContent: 'flex-start',

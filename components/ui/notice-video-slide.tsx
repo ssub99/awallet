@@ -143,6 +143,7 @@ export function NoticeVideoSlide({
       if (!isScrubbingRef.current) {
         wasPlayingBeforeScrubRef.current = player.playing;
         isScrubbingRef.current = true;
+        player.pause();
       }
       return;
     }
@@ -164,12 +165,11 @@ export function NoticeVideoSlide({
     }
 
     player.currentTime = seekTime;
-    onProgressChange(seekTime, player.duration);
 
     if (wasPlayingBeforeScrubRef.current || player.playing) {
       void player.play();
     }
-  }, [isActive, onProgressChange, player, seekSeq, seekTime]);
+  }, [isActive, player, seekSeq, seekTime]);
 
   const handleTogglePlayback = useCallback(() => {
     if (player.playing) {

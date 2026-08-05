@@ -15,17 +15,18 @@ import { typography } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
 import { useToast } from '@/contexts/toast-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { prefetchNoticeVideoThumbnail } from '@/hooks/use-notice-video-thumbnail';
 import { deleteDevAppNotice, loadDevAppNotices } from '@/utils/dev-app-notices';
 import { isLocalDevOnlyUIEnabled } from '@/utils/dev-only-ui';
 import { fetchAppNotices, type AppNotice } from '@/utils/fetch-app-notices';
 import { encodeNoticeMediaViewerParams } from '@/utils/notice-image-viewer-params';
 import { buildNoticeMediaItems } from '@/utils/notice-media';
 import { markNoticesViewed } from '@/utils/notice-read-state';
+import { prefetchNoticesMedia } from '@/utils/prefetch-notice-media';
 import { Image } from 'expo-image';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Animated,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -35,6 +36,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const NOTICE_EMPTY_MESSAGE = '등록된 공지사항이 없습니다.';
+const NOTICE_CONTENT_FADE_IN_MS = 200;
 
 function NoticeDevActionLink({
   label,
@@ -78,17 +80,7 @@ function NoticeAccordionItem({
   canEditLocalNotice: boolean;
 }) {
   const mediaItems = buildNoticeMediaItems(notice);
-  const videoUris = useMemo(
-    () => mediaItems.filter((item) => item.type === 'video').map((item) => item.uri),
-    [notice.id, notice.videos, notice.images],
-  );
   const [hasExpandedOnce, setHasExpandedOnce] = useState(false);
-
-  useEffect(() => {
-    for (const uri of videoUris) {
-      prefetchNoticeVideoThumbnail(uri);
-    }
-  }, [videoUris]);
 
   useEffect(() => {
     if (expanded) {
@@ -100,13 +92,6 @@ function NoticeAccordionItem({
 
   return (
     <View style={[styles.noticeCard, { backgroundColor: colors.staticWhite }]}>
-      {videoUris.length > 0 ? (
-        <View style={styles.hiddenVideoPrefetch} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-          {videoUris.map((uri) => (
-            <NoticeVideoThumbnail key={`prefetch-${uri}`} uri={uri} />
-          ))}
-        </View>
-      ) : null}
       <Pressable
         onPress={onToggle}
         style={styles.noticeHeaderBlock}
@@ -204,27 +189,33 @@ export default function SettingsNoticeScreen() {
   const [pendingDeleteNoticeId, setPendingDeleteNoticeId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [devNoticeIds, setDevNoticeIds] = useState<Set<string>>(() => new Set());
+  const [isContentReady, setIsContentReady] = useState(false);
   const noticesRef = useRef<AppNotice[]>([]);
+  const contentOpacity = useRef(new Animated.Value(0)).current;
 
   const loadNotices = useCallback(async () => {
     try {
+      setIsContentReady(false);
+      contentOpacity.setValue(0);
       setLoading(true);
       const [items, devItems] = await Promise.all([
         fetchAppNotices(),
         loadDevAppNotices(),
       ]);
+      await prefetchNoticesMedia(items);
       noticesRef.current = items;
       setNotices(items);
       setDevNoticeIds(new Set(devItems.map((notice) => notice.id)));
-      for (const notice of items) {
-        for (const uri of notice.videos ?? []) {
-          prefetchNoticeVideoThumbnail(uri);
-        }
-      }
     } finally {
       setLoading(false);
+      setIsContentReady(true);
+      Animated.timing(contentOpacity, {
+        toValue: 1,
+        duration: NOTICE_CONTENT_FADE_IN_MS,
+        useNativeDriver: true,
+      }).start();
     }
-  }, [setLoading]);
+  }, [contentOpacity, setLoading]);
 
   useFocusEffect(
     useCallback(() => {
@@ -306,30 +297,32 @@ export default function SettingsNoticeScreen() {
       />
 
       <View style={[styles.body, { backgroundColor: colors.fill }]}>
-        {notices.length === 0 ? (
+        {!isContentReady ? null : notices.length === 0 ? (
           <ListEmptyPlaceholder message={NOTICE_EMPTY_MESSAGE} />
         ) : (
-          <ScrollView
-            style={styles.scrollView}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-            bounces={false}
-            overScrollMode="never"
-          >
-            {notices.map((notice) => (
-              <NoticeAccordionItem
-                key={notice.id}
-                notice={notice}
-                expanded={expandedId === notice.id}
-                onToggle={() => handleToggle(notice.id)}
-                onMediaPress={(index) => handleNoticeMediaPress(notice, index)}
-                onEdit={() => handleEditPress(notice.id)}
-                onDelete={() => handleDeletePress(notice.id)}
-                canEditLocalNotice={devNoticeIds.has(notice.id)}
-                colors={colors}
-              />
-            ))}
-          </ScrollView>
+          <Animated.View style={[styles.listArea, { opacity: contentOpacity }]}>
+            <ScrollView
+              style={styles.scrollView}
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={false}
+              bounces={false}
+              overScrollMode="never"
+            >
+              {notices.map((notice) => (
+                <NoticeAccordionItem
+                  key={notice.id}
+                  notice={notice}
+                  expanded={expandedId === notice.id}
+                  onToggle={() => handleToggle(notice.id)}
+                  onMediaPress={(index) => handleNoticeMediaPress(notice, index)}
+                  onEdit={() => handleEditPress(notice.id)}
+                  onDelete={() => handleDeletePress(notice.id)}
+                  canEditLocalNotice={devNoticeIds.has(notice.id)}
+                  colors={colors}
+                />
+              ))}
+            </ScrollView>
+          </Animated.View>
         )}
       </View>
 
@@ -363,6 +356,10 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 0,
   },
+  listArea: {
+    flex: 1,
+    minHeight: 0,
+  },
   scrollView: {
     flex: 1,
   },
@@ -377,14 +374,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     padding: 16,
     gap: 16,
-  },
-  hiddenVideoPrefetch: {
-    position: 'absolute',
-    width: 64,
-    height: 64,
-    opacity: 0,
-    overflow: 'hidden',
-    pointerEvents: 'none',
   },
   noticeHeaderBlock: {
     gap: 4,
