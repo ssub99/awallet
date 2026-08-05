@@ -241,6 +241,7 @@ export default function SettingsNoticeImageViewerScreen() {
                       seekTime={index === pageIndex ? seekTime : null}
                       seekSeq={index === pageIndex ? seekSeq : 0}
                       onProgressChange={handleVideoProgressChange}
+                      onZoomActiveChange={handleZoomActiveChange}
                     />
                   );
                 }

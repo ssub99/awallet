@@ -18,6 +18,7 @@ export const ROOT_STACK_ROUTE_NAMES = [
   'notification-setting',
   'settings-notice',
   'settings-notice-compose',
+  'settings-notice-edit',
   'settings-notice-image-viewer',
   'data-backup',
   'recurring-record-management',

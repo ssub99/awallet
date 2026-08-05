@@ -8,6 +8,11 @@ import {
   APP_STORE_WRITE_REVIEW_PROMPT_SHOWN_KEY,
 } from '@/constants/app-store';
 import { clearAllChallenges } from '@/utils/challenges';
+import {
+  backupDevPublishedNoticesForReset,
+  DEV_PUBLISHED_NOTICES_STORAGE_KEY,
+  restoreDevPublishedNoticesAfterReset,
+} from '@/utils/dev-app-notices';
 import { clearAllExpenses } from '@/utils/expenses';
 import { clearAllIncomes } from '@/utils/incomes';
 import {
@@ -54,15 +59,28 @@ const CONSUMPTION_REPORT_PREFIXES = ['consumptionReport_', 'consumptionReportCtx
 const CONSUMPTION_REPORT_RESET_AT_KEY = 'consumptionReportResetAt';
 const CONSUMPTION_REPORT_RESET_HANDLED_AT_KEY = 'consumptionReportResetHandledAt';
 
+/** __DEV__ 전체 초기화 시 유지할 AsyncStorage 키 (작성한 로컬 공지 등) */
+const DEV_PRESERVED_STORAGE_KEYS = new Set<string>([DEV_PUBLISHED_NOTICES_STORAGE_KEY]);
+
+function resolveKeysToRemove(): string[] {
+  if (!__DEV__) {
+    return KEYS_TO_REMOVE;
+  }
+  return KEYS_TO_REMOVE.filter((key) => !DEV_PRESERVED_STORAGE_KEYS.has(key));
+}
+
 /**
  * 전체 초기화를 수행합니다.
  * 소비·입금·챌린지 데이터와 카테고리/알림/캐시 등 설정을 모두 제거합니다.
+ * __DEV__에서는 작성·편집한 로컬 공지(`devPublishedAppNotices`)는 보존합니다.
  */
 export async function resetAppData(): Promise<void> {
+  const devPublishedNoticesSnapshot = await backupDevPublishedNoticesForReset();
+
   await clearAllExpenses();
   await clearAllIncomes();
   await clearAllChallenges();
-  await AsyncStorage.multiRemove(KEYS_TO_REMOVE);
+  await AsyncStorage.multiRemove(resolveKeysToRemove());
 
   // 소비 리포트 AI 캐시 제거 + 리포트 UI 리셋 신호(백업 복원 시 utils/backup.ts 와 동일 계약)
   try {
@@ -78,4 +96,6 @@ export async function resetAppData(): Promise<void> {
   } catch {
     // 캐시 제거 실패는 전체 초기화 실패로 간주하지 않음
   }
+
+  await restoreDevPublishedNoticesAfterReset(devPublishedNoticesSnapshot);
 }

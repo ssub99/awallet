@@ -2,12 +2,13 @@ import {
   NoticeVideoPlaybackOverlay,
   type NoticeVideoPlaybackOverlayMode,
 } from '@/components/ui/notice-video-playback-overlay';
+import { ZoomableView } from '@/components/ui/zoomable-view';
 import { themeColors } from '@/constants/theme-colors';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useEventListener } from 'expo';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 interface NoticeVideoSlideProps {
   uri: string;
@@ -18,6 +19,7 @@ interface NoticeVideoSlideProps {
   seekTime: number | null;
   seekSeq: number;
   onProgressChange: (currentTime: number, duration: number) => void;
+  onZoomActiveChange?: (active: boolean) => void;
 }
 
 export function NoticeVideoSlide({
@@ -29,6 +31,7 @@ export function NoticeVideoSlide({
   seekTime,
   seekSeq,
   onProgressChange,
+  onZoomActiveChange,
 }: NoticeVideoSlideProps) {
   const colorScheme = useColorScheme();
   const colors = themeColors[colorScheme ?? 'light'];
@@ -168,37 +171,40 @@ export function NoticeVideoSlide({
     }
   }, [isActive, onProgressChange, player, seekSeq, seekTime]);
 
-  const handleTogglePlayback = () => {
+  const handleTogglePlayback = useCallback(() => {
     if (player.playing) {
       player.pause();
       return;
     }
     void player.play();
-  };
+  }, [player]);
 
   return (
     <View style={[styles.container, { width, height, backgroundColor: colors.fill }]}>
-      <VideoView
-        style={styles.video}
-        player={player}
-        contentFit="contain"
-        nativeControls={false}
-        allowsFullscreen={false}
-        allowsPictureInPicture={false}
-      />
-      {overlayMode != null ? (
-        <NoticeVideoPlaybackOverlay
-          mode={overlayMode}
-          playAutoHide={playAutoHide}
-          onHidden={handleOverlayHidden}
+      <ZoomableView
+        width={width}
+        height={height}
+        isActive={isActive}
+        onZoomActiveChange={onZoomActiveChange}
+        onSingleTap={handleTogglePlayback}
+      >
+        <VideoView
+          style={styles.video}
+          player={player}
+          contentFit="contain"
+          nativeControls={false}
+          allowsFullscreen={false}
+          allowsPictureInPicture={false}
+          accessibilityLabel="확대 가능한 공지 영상"
         />
-      ) : null}
-      <Pressable
-        style={styles.tapOverlay}
-        onPress={handleTogglePlayback}
-        accessibilityRole="button"
-        accessibilityLabel={player.playing ? '영상 일시정지' : '영상 재생'}
-      />
+        {overlayMode != null ? (
+          <NoticeVideoPlaybackOverlay
+            mode={overlayMode}
+            playAutoHide={playAutoHide}
+            onHidden={handleOverlayHidden}
+          />
+        ) : null}
+      </ZoomableView>
     </View>
   );
 }
@@ -210,8 +216,5 @@ const styles = StyleSheet.create({
   video: {
     width: '100%',
     height: '100%',
-  },
-  tapOverlay: {
-    ...StyleSheet.absoluteFillObject,
   },
 });

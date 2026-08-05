@@ -15,7 +15,7 @@ import { typography } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
 import { useToast } from '@/contexts/toast-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { deleteDevAppNotice } from '@/utils/dev-app-notices';
+import { deleteDevAppNotice, loadDevAppNotices } from '@/utils/dev-app-notices';
 import { fetchAppNotices, type AppNotice } from '@/utils/fetch-app-notices';
 import { encodeNoticeMediaViewerParams } from '@/utils/notice-image-viewer-params';
 import { buildNoticeMediaItems } from '@/utils/notice-media';
@@ -35,20 +35,46 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 const NOTICE_EMPTY_MESSAGE = '등록된 공지사항이 없습니다.';
 
+function NoticeDevActionLink({
+  label,
+  accessibilityLabel,
+  onPress,
+  color,
+}: {
+  label: string;
+  accessibilityLabel: string;
+  onPress: () => void;
+  color: string;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+    >
+      <Text style={[styles.devActionLink, { color }]}>{label}</Text>
+    </Pressable>
+  );
+}
+
 function NoticeAccordionItem({
   notice,
   expanded,
   onToggle,
   colors,
   onMediaPress,
+  onEdit,
   onDelete,
+  canEditLocalNotice,
 }: {
   notice: AppNotice;
   expanded: boolean;
   onToggle: () => void;
   colors: typeof themeColors.light;
   onMediaPress: (index: number) => void;
+  onEdit: () => void;
   onDelete: () => void;
+  canEditLocalNotice: boolean;
 }) {
   const mediaItems = buildNoticeMediaItems(notice);
 
@@ -111,15 +137,22 @@ function NoticeAccordionItem({
             </View>
           ) : null}
           {__DEV__ ? (
-            <Pressable
-              onPress={onDelete}
-              accessibilityRole="button"
-              accessibilityLabel="공지 삭제"
-            >
-              <Text style={[styles.deleteLink, { color: colors.textAssistive }]}>
-                삭제
-              </Text>
-            </Pressable>
+            <View style={styles.actionRow}>
+              {canEditLocalNotice ? (
+                <NoticeDevActionLink
+                  label="편집"
+                  accessibilityLabel="공지 편집"
+                  onPress={onEdit}
+                  color={colors.textAssistive}
+                />
+              ) : null}
+              <NoticeDevActionLink
+                label="삭제"
+                accessibilityLabel="공지 삭제"
+                onPress={onDelete}
+                color={colors.textAssistive}
+              />
+            </View>
           ) : null}
         </View>
       ) : null}
@@ -138,14 +171,19 @@ export default function SettingsNoticeScreen() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [pendingDeleteNoticeId, setPendingDeleteNoticeId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [devNoticeIds, setDevNoticeIds] = useState<Set<string>>(() => new Set());
   const noticesRef = useRef<AppNotice[]>([]);
 
   const loadNotices = useCallback(async () => {
     try {
       setLoading(true);
-      const items = await fetchAppNotices();
+      const [items, devItems] = await Promise.all([
+        fetchAppNotices(),
+        __DEV__ ? loadDevAppNotices() : Promise.resolve([] as AppNotice[]),
+      ]);
       noticesRef.current = items;
       setNotices(items);
+      setDevNoticeIds(new Set(devItems.map((notice) => notice.id)));
     } finally {
       setLoading(false);
     }
@@ -179,6 +217,13 @@ export default function SettingsNoticeScreen() {
 
   const handleDeletePress = (noticeId: string) => {
     setPendingDeleteNoticeId(noticeId);
+  };
+
+  const handleEditPress = (noticeId: string) => {
+    router.push({
+      pathname: '/settings-notice-edit',
+      params: { noticeId },
+    });
   };
 
   const handleDeleteCancel = () => {
@@ -242,7 +287,9 @@ export default function SettingsNoticeScreen() {
                 expanded={expandedId === notice.id}
                 onToggle={() => handleToggle(notice.id)}
                 onMediaPress={(index) => handleNoticeMediaPress(notice, index)}
+                onEdit={() => handleEditPress(notice.id)}
                 onDelete={() => handleDeletePress(notice.id)}
+                canEditLocalNotice={devNoticeIds.has(notice.id)}
                 colors={colors}
               />
             ))}
@@ -336,7 +383,12 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  deleteLink: {
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  devActionLink: {
     ...typography.body02.regular,
     textDecorationLine: 'underline',
   },

@@ -80,6 +80,7 @@ export function useAndroidKeyboardBottomCtaHide() {
 
   return {
     inputRef,
+    blurInput,
     hideBottomCta: Platform.OS === 'android' && hideBottomCta,
     onInputPressIn,
     onInputFocus,
