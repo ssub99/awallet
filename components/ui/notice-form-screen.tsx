@@ -57,6 +57,8 @@ interface NoticeFormScreenProps {
   initialValues: NoticeFormInitialValues;
   isSubmitting: boolean;
   onSubmit: (values: NoticeFormSubmitValues) => void | Promise<void>;
+  /** __DEV__ 공지 static 업로드 — sync 서버 실행 안내 */
+  devUploadGuide?: string;
 }
 
 export function NoticeFormScreen({
@@ -66,6 +68,7 @@ export function NoticeFormScreen({
   initialValues,
   isSubmitting,
   onSubmit,
+  devUploadGuide,
 }: NoticeFormScreenProps) {
   const colorScheme = useColorScheme();
   const colors = themeColors[colorScheme ?? 'light'];
@@ -202,6 +205,18 @@ export function NoticeFormScreen({
             bounces={false}
             overScrollMode="never"
           >
+            {devUploadGuide != null && devUploadGuide.length > 0 ? (
+              <View
+                style={[styles.devUploadGuide, { backgroundColor: colors.background, borderColor: colors.border }]}
+                accessibilityRole="text"
+                accessibilityLabel={devUploadGuide}
+              >
+                <UiLineText style={[styles.devUploadGuideText, { color: colors.textNeutral }]}>
+                  {devUploadGuide}
+                </UiLineText>
+              </View>
+            ) : null}
+
             <View style={styles.fieldSection}>
               <UiLineText variant="body01Bold" style={[styles.label, { color: colors.text }]}>
                 제목
@@ -324,6 +339,15 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 16,
     gap: 24,
+  },
+  devUploadGuide: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  devUploadGuideText: {
+    ...typographyLayout.uiLineBody01Regular,
   },
   fieldSection: {
     gap: 8,

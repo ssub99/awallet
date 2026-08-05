@@ -99,7 +99,7 @@ export function parseAppNoticesPayload(data: unknown): AppNotice[] {
   return notices.sort((a, b) => b.publishedAt - a.publishedAt);
 }
 
-/** Vercel app-notices.json + 로컬 등록분(AsyncStorage). 실패·미배포 시 로컬만 또는 빈 목록. */
+/** Vercel app-notices.json + __DEV__ static sync(static/app-notices.json). */
 export async function fetchAppNotices(): Promise<AppNotice[]> {
   const devNotices = await loadDevAppNotices();
 

@@ -9,6 +9,7 @@ import { useLoading } from '@/contexts/loading-context';
 import { useToast } from '@/contexts/toast-context';
 import { getDevAppNoticeById, updateDevAppNotice } from '@/utils/dev-app-notices';
 import type { AppNotice } from '@/utils/fetch-app-notices';
+import { DEV_NOTICE_SYNC_FAILED_TOAST, DEV_NOTICE_UPLOAD_GUIDE } from '@/utils/dev-notices-sync';
 import { isLocalDevOnlyUIEnabled } from '@/utils/dev-only-ui';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
@@ -128,12 +129,12 @@ export default function SettingsNoticeEditScreen() {
         values.images,
         values.videos,
       );
-      const saved = await updateDevAppNotice(updated);
+      const { saved, synced } = await updateDevAppNotice(updated);
       if (!saved) {
         showToast('로컬에서 등록한 공지만 편집할 수 있습니다.');
         return;
       }
-      showToast('저장되었습니다.');
+      showToast(synced ? '저장되었습니다.' : DEV_NOTICE_SYNC_FAILED_TOAST);
       router.back();
     } finally {
       setIsSubmitting(false);
@@ -157,6 +158,7 @@ export default function SettingsNoticeEditScreen() {
       initialValues={initialValues}
       isSubmitting={isSubmitting}
       onSubmit={handleSubmit}
+      devUploadGuide={DEV_NOTICE_UPLOAD_GUIDE}
     />
   );
 }

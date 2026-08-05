@@ -18,7 +18,7 @@ import {
 } from '@/utils/notice-image-viewer-params';
 import type { NoticeMediaItem } from '@/utils/notice-media';
 import { clampNoticeVideoSeekTime } from '@/utils/notice-media';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
@@ -26,6 +26,7 @@ import {
   NativeScrollEvent,
   NativeSyntheticEvent,
   Pressable,
+  StatusBar,
   StyleSheet,
   Text,
   View,
@@ -161,10 +162,20 @@ export default function SettingsNoticeImageViewerScreen() {
     setPagerScrollEnabled(true);
   }, []);
 
+  useFocusEffect(
+    useCallback(() => {
+      StatusBar.setBarStyle('light-content');
+      return () => {
+        StatusBar.setBarStyle('dark-content');
+      };
+    }, []),
+  );
+
   if (media.length === 0) {
     return (
       <SafeAreaView style={[styles.container, styles.emptyContainer]} edges={['top', 'bottom']}>
         <Stack.Screen options={imageViewerStackScreenOptions} />
+        <StatusBar barStyle="light-content" backgroundColor={atomicColors.neutral[900]} />
         <Pressable onPress={handleClose} accessibilityRole="button" accessibilityLabel="닫기">
           <Icon name="close" variant="line" size={24} color={colors.staticWhite} />
         </Pressable>
@@ -176,6 +187,7 @@ export default function SettingsNoticeImageViewerScreen() {
 
   return (
     <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={atomicColors.neutral[900]} />
       <Stack.Screen
         options={{
           ...imageViewerStackScreenOptions,

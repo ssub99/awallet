@@ -6,6 +6,8 @@
     "start": "expo start",
     "start:ing": "bash ./scripts/start-with-env.sh",
     "start:prod": "bash ./scripts/start-with-env.sh",
+    "dev:notices-sync": "node scripts/dev-notices-sync-server.mjs",
+    "migrate:dev-notices": "node scripts/migrate-dev-notices-to-static.mjs",
     "reset-project": "node ./scripts/reset-project.js",
     "regenerate-android-splash": "node ./scripts/regenerate-android-splash.mjs",
     "android": "expo run:android",

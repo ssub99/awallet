@@ -11,4 +11,9 @@ set -a
 . ./.env
 set +a
 
+# 공지 작성·등록 시 static/app-notices.json sync (npm run dev:notices-sync 와 동일)
+node ./scripts/dev-notices-sync-server.mjs &
+DEV_NOTICES_SYNC_PID=$!
+trap 'kill "$DEV_NOTICES_SYNC_PID" 2>/dev/null || true' EXIT INT TERM
+
 npx expo start -c

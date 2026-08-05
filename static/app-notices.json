@@ -1,19 +1,33 @@
 {
   "notices": [
     {
-      "id": "notice-2026-07-29-feature",
-      "title": "공지사항 기능 업데이트",
-      "dateLabel": "2026.07.29",
-      "publishedAt": "2026-07-29T00:00:00.000Z",
-      "body": "설정 화면에서 공지사항을 확인할 수 있는 기능이 추가되었습니다.\n\n앱 업데이트 및 주요 안내를 공지사항에서 확인해 주세요.",
-      "images": []
+      "id": "notice-1785908752550",
+      "title": "계속 생성 기능 업데이트 안내",
+      "dateLabel": "2026.08.05",
+      "publishedAt": 1785908752550,
+      "body": "기록 생성 시 해당 화면을 벗어나지 않고 수입 또는 소비기록들을 생성할 수 있는 계속 생성 기능을 추가하였습니다.\n\n보다 더 쉬운 가계관리를 위해\n지속적인 개선토록 하겠습니다.\n\n감사합니다.\n에이월렛 드림",
+      "images": [],
+      "videos": [
+        "file:///var/mobile/Containers/Data/Application/75ABE67A-A1B3-4046-BFFC-9D36AEFEA4C8/Library/Caches/ExponentExperienceData/@songhyosub/awallet/ImagePicker/A430E13C-2439-47DC-B6B7-498ECED8C70D.mp4"
+      ]
     },
     {
-      "id": "notice-2026-08-01-quick-input",
+      "id": "notice-1785905430817",
       "title": "간편 입력 생성 편집 기능 업데이트",
-      "dateLabel": "2026.08.01",
-      "publishedAt": "2026-08-01T00:00:00.000Z",
-      "body": "간편 입력 기능을 통해 기록 생성 시 원하는 카테고리 및 메모 여부 확인이 되지 않는 부분을 확인할 수 있도록 업데이트 하였습니다.\n\n간편한 가계관리를 위해 해당 업데이트를 통하여 기록 생성 시 정확한 생성을 위해 업데이트를 진행하였습니다.",
+      "dateLabel": "2026.08.05",
+      "publishedAt": 1785905430817,
+      "body": "간편 입력 기능을 통해 기록 생성 시 원하는 카테고리 및 메모 여부 확인이 되지 않는 부분을 확인할 수 있도록 업데이트 하였습니다.\n\n간편한 가계관리를 위해 해당 업데이트를 통하여 기록 생성 시 정확한 생성을 위해 개선을 진행했습니다.\n\n에이월렛 드림",
+      "images": [
+        "file:///var/mobile/Containers/Data/Application/75ABE67A-A1B3-4046-BFFC-9D36AEFEA4C8/Library/Caches/ExponentExperienceData/@songhyosub/awallet/ImagePicker/A65145F3-A626-47FA-B393-82D0A9ABAFDB.png",
+        "file:///var/mobile/Containers/Data/Application/75ABE67A-A1B3-4046-BFFC-9D36AEFEA4C8/Library/Caches/ExponentExperienceData/@songhyosub/awallet/ImagePicker/D2D1C18C-E76B-48CD-A335-4D1DF86A9AC6.png"
+      ]
+    },
+    {
+      "id": "notice-1785895689412",
+      "title": "공지사항 기능 업데이트",
+      "dateLabel": "2026.08.05",
+      "publishedAt": 1785895689412,
+      "body": "기능 개선 및 신규 기능 출시에 변경 또는 출시된 내용을 안내드리기 위하여 공지사항 기능을 추가하였습니다.\n\n지속적인 업데이트로 보다 편리한 가계관리가 되실 수 있도록 운영할 것이며 문의사항이 있으시면 상시 대응토록 할 예정입니다.\n\n감사합니다.\n에이월렛 드림",
       "images": []
     }
   ]
