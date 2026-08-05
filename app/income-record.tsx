@@ -62,7 +62,6 @@ import {
     Platform,
     Pressable,
     ScrollView,
-    StatusBar,
     StyleSheet,
     Text,
     TextInputKeyPressEventData,
@@ -854,7 +853,6 @@ export default function IncomeRecordScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: palette.staticWhite }]} edges={['top']}>
-      <StatusBar barStyle="dark-content" />
       
       {isScreenFunnelCreation ? (
         <TopNavigation

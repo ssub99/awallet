@@ -10,7 +10,6 @@ import { ListEmptyPlaceholder } from '@/components/ui/list-empty-placeholder';
 import { ModalPopup } from '@/components/ui/modal-popup';
 import { UiLineText } from '@/components/ui/ui-line-text';
 import { atomicColors } from '@/constants/atomic-colors';
-import { SUB_STACK_SCREEN_OPTIONS } from '@/constants/sub-stack-screen-options';
 import { themeColors } from '@/constants/theme-colors';
 import { typography } from '@/constants/typography';
 import { useAppData } from '@/contexts/app-data-context';
@@ -25,7 +24,7 @@ import {
   listRecurringInstallmentGroups,
   type RecurringInstallmentGroupSummary,
 } from '@/utils/recurring-record-management';
-import { Stack, useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
@@ -318,7 +317,6 @@ export default function RecurringRecordManagementScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
-      <Stack.Screen options={SUB_STACK_SCREEN_OPTIONS} />
 
       <TopNavigation
         type="sub"

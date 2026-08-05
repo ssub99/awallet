@@ -18,7 +18,7 @@ import { getCustomMonthRange, isDateInCustomMonth } from '@/utils/custom-month';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface TimelineItem {
@@ -227,7 +227,6 @@ export default function ExpenseCategoryDetailScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: palette.staticWhite }]} edges={['top', 'bottom']}>
-      <StatusBar barStyle="dark-content" />
 
       {/* Top Navigation */}
       <TopNavigation

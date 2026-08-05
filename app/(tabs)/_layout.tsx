@@ -23,6 +23,7 @@ export default function TabLayout() {
         screenOptions={{
           tabBarActiveTintColor: palette.tint,
           headerShown: false,
+          statusBarStyle: 'dark',
           // Android: 키보드 시 탭바가 IME inset으로 같이 올라가는 것 방지 (edge-to-edge)
           ...(Platform.OS === 'android'
             ? {

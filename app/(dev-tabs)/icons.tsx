@@ -12,7 +12,7 @@ import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function IconDemoScreen() {
@@ -26,7 +26,6 @@ export default function IconDemoScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: '#fff' }]}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       
       <View style={[styles.innerContainer, { backgroundColor: palette.background }]}>
         {/* Top Navigation */}

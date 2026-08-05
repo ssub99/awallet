@@ -7,6 +7,7 @@ import {
   NOTICE_IMAGE_VIEWER_NAVIGATION_OPTIONS,
   NOTICE_IMAGE_VIEWER_ROUTE_NAME,
 } from '@/constants/notice-image-viewer-navigation-options';
+import { ROOT_STACK_SCREEN_OPTIONS } from '@/constants/sub-stack-screen-options';
 import { rootLayoutUnstableSettings } from '@/constants/root-layout-unstable-settings';
 import {
     ROOT_STACK_MODAL_ROUTE_NAME,
@@ -50,7 +51,7 @@ export default function RootLayout() {
             />
           </AndroidJsStack>
         ) : showApp ? (
-          <Stack screenOptions={{ headerShown: false }}>
+          <Stack screenOptions={ROOT_STACK_SCREEN_OPTIONS}>
             {ROOT_STACK_ROUTE_NAMES.map((name) => (
               <Stack.Screen
                 key={name}

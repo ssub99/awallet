@@ -3,7 +3,6 @@ import { Chip } from '@/components/ui/chip';
 import { Icon } from '@/components/ui/icon';
 import { UiLineText } from '@/components/ui/ui-line-text';
 import { Tag } from '@/components/ui/tag';
-import { SUB_STACK_SCREEN_OPTIONS } from '@/constants/sub-stack-screen-options';
 import { themeColors } from '@/constants/theme-colors';
 import { typography } from '@/constants/typography';
 import {
@@ -15,7 +14,7 @@ import {
     type PaymentSubtype,
 } from '@/utils/payment-types';
 import * as Haptics from 'expo-haptics';
-import { Stack, useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import DraggableFlatList, { RenderItemParams, ScaleDecorator } from 'react-native-draggable-flatlist';
@@ -365,7 +364,6 @@ export default function PaymentTypeSettingScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
-      <Stack.Screen options={SUB_STACK_SCREEN_OPTIONS} />
 
       <TopNavigation
         type="sub"

@@ -10,7 +10,6 @@ import { ListEmptyPlaceholder } from '@/components/ui/list-empty-placeholder';
 import { NoticeVideoThumbnail } from '@/components/ui/notice-video-thumbnail';
 import { ModalPopup } from '@/components/ui/modal-popup';
 import { UiLineText } from '@/components/ui/ui-line-text';
-import { SUB_STACK_SCREEN_GESTURE_OPTIONS } from '@/constants/sub-stack-screen-options';
 import { themeColors } from '@/constants/theme-colors';
 import { typography } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
@@ -24,7 +23,7 @@ import { buildNoticeMediaItems } from '@/utils/notice-media';
 import { markNoticesViewed } from '@/utils/notice-read-state';
 import { prefetchNoticesMedia } from '@/utils/prefetch-notice-media';
 import { Image } from 'expo-image';
-import { Stack, useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated,
@@ -294,7 +293,6 @@ export default function SettingsNoticeScreen() {
       style={[styles.container, { backgroundColor: colors.staticWhite }]}
       edges={['top', 'bottom']}
     >
-      <Stack.Screen options={SUB_STACK_SCREEN_GESTURE_OPTIONS} />
 
       <TopNavigation
         type="sub"

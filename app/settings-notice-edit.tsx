@@ -11,8 +11,7 @@ import { getDevAppNoticeById, updateDevAppNotice } from '@/utils/dev-app-notices
 import type { AppNotice } from '@/utils/fetch-app-notices';
 import { DEV_NOTICE_UPLOAD_GUIDE, getDevNoticeSyncFailureToast } from '@/utils/dev-notices-sync';
 import { isLocalDevOnlyUIEnabled } from '@/utils/dev-only-ui';
-import { SUB_STACK_SCREEN_GESTURE_OPTIONS } from '@/constants/sub-stack-screen-options';
-import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -143,9 +142,7 @@ export default function SettingsNoticeEditScreen() {
 
   if (!isLocalDevOnlyUIEnabled() || notice == null) {
     return (
-      <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
-        <Stack.Screen options={SUB_STACK_SCREEN_GESTURE_OPTIONS} />
-      </SafeAreaView>
+      <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']} />
     );
   }
 

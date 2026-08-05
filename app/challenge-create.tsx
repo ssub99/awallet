@@ -35,7 +35,7 @@ import { generateGroupId, generateRecordId } from '@/utils/id-generator';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Dimensions, Easing, Keyboard, Pressable, ScrollView, StatusBar, StyleSheet, Text, TouchableWithoutFeedback, useWindowDimensions, View } from 'react-native';
+import { Animated, Dimensions, Easing, Keyboard, Pressable, ScrollView, StyleSheet, Text, TouchableWithoutFeedback, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function ChallengeCreateScreen() {
@@ -483,7 +483,6 @@ export default function ChallengeCreateScreen() {
       }}
     >
       <SafeAreaView style={[styles.container, { backgroundColor: palette.staticWhite }]} edges={['top']}>
-        <StatusBar barStyle="dark-content" />
       
         <TopNavigation
           type="sub"

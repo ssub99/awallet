@@ -5,7 +5,6 @@ import { ModalPopup } from '@/components/ui/modal-popup';
 import { Radio } from '@/components/ui/radio';
 import { UiLineText } from '@/components/ui/ui-line-text';
 import { atomicColors } from '@/constants/atomic-colors';
-import { SUB_STACK_SCREEN_OPTIONS } from '@/constants/sub-stack-screen-options';
 import { colors, typography } from '@/constants/theme';
 import { useToast } from '@/contexts/toast-context';
 import { getAllExpenses } from '@/utils/expenses';
@@ -22,7 +21,7 @@ import {
   getDescriptionKeyboardScrollPaddingBottom,
   scrollScrollViewSectionAboveKeyboard,
 } from '@/utils/record-form-keyboard-scroll';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
@@ -397,7 +396,6 @@ export default function PaymentTypeEditScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]} edges={['top', 'bottom']}>
-      <Stack.Screen options={SUB_STACK_SCREEN_OPTIONS} />
 
       <TopNavigation type="sub" title="결제 유형 편집" showLeftIcon onLeftIconPress={handleBack} />
 

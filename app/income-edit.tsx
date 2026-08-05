@@ -40,7 +40,6 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  StatusBar,
   StyleSheet,
   Text,
   TextInputKeyPressEventData,
@@ -767,7 +766,6 @@ export default function IncomeEditScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: palette.staticWhite }]} edges={['top']}>
-      <StatusBar barStyle="dark-content" />
       
       <TopNavigation
         type="sub"

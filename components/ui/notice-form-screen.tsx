@@ -8,7 +8,6 @@ import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { NoticeVideoThumbnail } from '@/components/ui/notice-video-thumbnail';
 import { UiLineText } from '@/components/ui/ui-line-text';
-import { SUB_STACK_SCREEN_GESTURE_OPTIONS } from '@/constants/sub-stack-screen-options';
 import { themeColors } from '@/constants/theme-colors';
 import { typographyLayout } from '@/constants/typography';
 import { useToast } from '@/contexts/toast-context';
@@ -18,7 +17,7 @@ import { encodeNoticeMediaViewerParams } from '@/utils/notice-image-viewer-param
 import type { NoticeMediaItem } from '@/utils/notice-media';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import { Stack, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Keyboard,
@@ -185,7 +184,6 @@ export function NoticeFormScreen({
       style={[styles.container, { backgroundColor: colors.staticWhite }]}
       edges={['top', 'bottom']}
     >
-      <Stack.Screen options={SUB_STACK_SCREEN_GESTURE_OPTIONS} />
 
       <TopNavigation
         type="sub"

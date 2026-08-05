@@ -9,7 +9,6 @@ import { TopNavigation } from '@/components/navigation/top-navigation';
 import { SectionTitle } from '@/components/ui/section-title';
 import { Switch } from '@/components/ui/switch';
 import { UiLineText } from '@/components/ui/ui-line-text';
-import { SUB_STACK_SCREEN_OPTIONS } from '@/constants/sub-stack-screen-options';
 import { themeColors } from '@/constants/theme-colors';
 import { typography } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
@@ -26,8 +25,6 @@ import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-export const options = SUB_STACK_SCREEN_OPTIONS;
 
 export default function NotificationSettingScreen() {
   const colorScheme = useColorScheme();

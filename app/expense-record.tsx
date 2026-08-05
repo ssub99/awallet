@@ -106,7 +106,6 @@ import {
     Platform,
     Pressable,
     ScrollView,
-    StatusBar,
     StyleSheet,
     Text,
     TextInputKeyPressEventData,
@@ -5143,7 +5142,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: palette.staticWhite }]} edges={['top']}>
-      <StatusBar barStyle="dark-content" />
       
       {isScreenFunnelCreation ? (
         <TopNavigation

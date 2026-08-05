@@ -10,7 +10,6 @@ import { Icon } from '@/components/ui/icon';
 import { UiLineText } from '@/components/ui/ui-line-text';
 import { getCategoriesByType, type CategoryType } from '@/constants/categories';
 import { areCategoriesSame, loadCategories } from '@/utils/categories';
-import { SUB_STACK_SCREEN_OPTIONS } from '@/constants/sub-stack-screen-options';
 import { themeColors } from '@/constants/theme-colors';
 import { typography } from '@/constants/typography';
 import {
@@ -226,8 +225,6 @@ function CategoryItem({
     </ScaleDecorator>
   );
 }
-
-export const options = SUB_STACK_SCREEN_OPTIONS;
 
 export default function CategorySettingScreen() {
   const colors = themeColors.light;

@@ -19,7 +19,7 @@ import { getChallengeById, type ChallengeRecord } from '@/utils/challenges';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface TimelineItem {
@@ -238,8 +238,6 @@ export default function ChallengeDetailScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: palette.staticWhite }]} edges={['top', 'bottom']}>
-      <StatusBar barStyle="dark-content" />
-
       <TopNavigation
         type="sub"
         title="챌린지 상세 내역"

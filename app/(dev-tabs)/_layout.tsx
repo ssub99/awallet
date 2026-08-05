@@ -16,6 +16,7 @@ export default function DevTabLayout() {
       screenOptions={{
         tabBarActiveTintColor: colors[colorScheme ?? 'light'].tint,
         headerShown: false,
+        statusBarStyle: 'dark',
       }}>
       {/* Development/Test Screens */}
       <Tabs.Screen

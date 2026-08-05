@@ -11,6 +11,7 @@ import { themeColors } from '@/constants/theme-colors';
  */
 export const ANDROID_JS_STACK_SCREEN_OPTIONS: StackNavigationOptions = {
   headerShown: false,
+  statusBarStyle: 'dark',
   cardStyle: { backgroundColor: themeColors.light.background },
   gestureEnabled: true,
   gestureDirection: 'horizontal',

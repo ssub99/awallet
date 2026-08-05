@@ -30,7 +30,7 @@ import { getChallengeById, getChallengesByRecurringId, softDeleteChallengesByRec
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, Dimensions, Easing, Keyboard, Pressable, ScrollView, StatusBar, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Alert, Animated, Dimensions, Easing, Keyboard, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function ChallengeEditScreen() {
@@ -595,7 +595,6 @@ export default function ChallengeEditScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: palette.staticWhite }]} edges={['top']}>
-        <StatusBar barStyle="dark-content" />
       
         <TopNavigation
           type="sub"

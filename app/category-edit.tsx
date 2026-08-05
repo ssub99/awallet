@@ -13,7 +13,6 @@ import { ModalPopup } from '@/components/ui/modal-popup';
 import { CategoryEmojiText } from '@/components/ui/category-emoji-text';
 import { UiLineText } from '@/components/ui/ui-line-text';
 import { type CategoryType } from '@/constants/categories';
-import { SUB_STACK_SCREEN_OPTIONS } from '@/constants/sub-stack-screen-options';
 import { colors, typography } from '@/constants/theme';
 import { useToast } from '@/contexts/toast-context';
 import { useAndroidKeyboardBottomCtaHide } from '@/hooks/use-android-keyboard-bottom-cta-hide';
@@ -82,8 +81,6 @@ const CATEGORY_LABELS: Record<EmojiCategory, string> = {
   symbols: '기호',
   flags: '깃발',
 };
-
-export const options = SUB_STACK_SCREEN_OPTIONS;
 
 export default function CategoryEditScreen() {
   const palette = colors.light;
