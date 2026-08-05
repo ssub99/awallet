@@ -7,6 +7,7 @@
 
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Icon } from '@/components/ui/icon';
+import { NoticeUnreadBadge } from '@/components/ui/notice-unread-badge';
 import { Switch } from '@/components/ui/switch';
 import { UiLineText } from '@/components/ui/ui-line-text';
 import { getAppStoreWriteReviewUrl } from '@/constants/app-store';
@@ -14,6 +15,7 @@ import { themeColors } from '@/constants/theme-colors';
 import { typography } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useNoticeUnreadCount } from '@/hooks/use-notice-unread-count';
 import { monthStartEvent } from '@/hooks/use-month-start';
 import { weekStartEvent } from '@/hooks/use-week-start';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -30,6 +32,7 @@ export default function MyPageScreen() {
   const hasInitializedRef = useRef(false);   // 마이페이지 최초 진입 1회만 로드
   const [isContentReady, setIsContentReady] = useState(false);
   const contentOpacity = useRef(new Animated.Value(0)).current;
+  const noticeUnreadCount = useNoticeUnreadCount();
   
   // Settings state
   const [monthStartDay, setMonthStartDay] = useState('1일');
@@ -260,6 +263,30 @@ export default function MyPageScreen() {
             overScrollMode="never"
             showsVerticalScrollIndicator={false}
           >
+          {/* Notice */}
+          <View style={[styles.card, { backgroundColor: colors.background }]}>
+            <Pressable
+              style={styles.menuRowSingle}
+              onPress={() => {
+                router.push('/settings-notice');
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={
+                noticeUnreadCount > 0
+                  ? `공지사항, 읽지 않은 공지 ${noticeUnreadCount}개`
+                  : '공지사항'
+              }
+            >
+              <View style={styles.labelWithBadge}>
+                <UiLineText style={[styles.menuLabel, { color: colors.text }]}>
+                  공지사항
+                </UiLineText>
+                <NoticeUnreadBadge count={noticeUnreadCount} />
+              </View>
+              <Icon name="arrowRight" size={24} color={colors.text} />
+            </Pressable>
+          </View>
+
           {/* Settings Card */}
           <View style={[styles.card, { backgroundColor: colors.background }]}>
             {/* Month Start Day */}
@@ -437,6 +464,23 @@ export default function MyPageScreen() {
             </Pressable>
           </View>
 
+          {/* Notice compose (only in __DEV__) */}
+          {__DEV__ && (
+            <View style={[styles.card, { backgroundColor: colors.background }]}>
+              <Pressable
+                style={styles.menuRowSingle}
+                onPress={() => router.push('/settings-notice-compose')}
+                accessibilityRole="button"
+                accessibilityLabel="공지사항 작성하기"
+              >
+                <UiLineText style={[styles.menuLabel, { color: colors.text }]}>
+                  공지사항 작성하기
+                </UiLineText>
+                <Icon name="arrowRight" size={24} color={colors.text} />
+              </Pressable>
+            </View>
+          )}
+
           {/* Test Environment Card (only in __DEV__) */}
           {__DEV__ && (
             <View style={[styles.card, { backgroundColor: colors.background }]}>
@@ -537,5 +581,10 @@ const styles = StyleSheet.create({
   },
   menuLabel: {
     
+  },
+  labelWithBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
 });

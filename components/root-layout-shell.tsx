@@ -38,9 +38,9 @@ export function RootLayoutShell({
                   <ToastProvider>
                     {showApp ? (
                       <>
+                        <StatusBar style="dark" />
                         <AnalyticsRouteListener />
                         {navigation}
-                        <StatusBar style="dark" />
                         <GlobalProgressBar />
                       </>
                     ) : null}

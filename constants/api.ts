@@ -10,6 +10,8 @@ import * as Updates from 'expo-updates';
  * - 단, EXPO_PUBLIC_AWALLET_API_BASE_URL 이 프로덕션 기본과 다르면 그 호스트를 우선.
  * - 스토어 최소 버전 JSON: 기본은 `{VERCEL_API_BASE_URL}/app-version.json`.
  *   EXPO_PUBLIC_APP_VERSION_POLICY_URL 로 분리 URL 가능(빌드 시 박힘·비밀 아님). 신뢰하는 호스트만 사용.
+ * - 공지사항 JSON: `{VERCEL_API_BASE_URL}/app-notices.json` (Vercel static 배포분만 표시).
+ *   EXPO_PUBLIC_APP_NOTICES_URL 로 분리 URL 가능.
  * - 그 밖의 프로덕션 빌드: EXPO_PUBLIC 이 있으면 우선, 없으면 프로덕션 기본 도메인.
  */
 
@@ -71,6 +73,10 @@ export const VERCEL_API_BASE_URL = (() => {
 export const APP_VERSION_POLICY_URL =
   normalizeApiBaseUrl(process.env.EXPO_PUBLIC_APP_VERSION_POLICY_URL) ??
   `${VERCEL_API_BASE_URL}/app-version.json`;
+
+export const APP_NOTICES_URL =
+  normalizeApiBaseUrl(process.env.EXPO_PUBLIC_APP_NOTICES_URL) ??
+  `${VERCEL_API_BASE_URL}/app-notices.json`;
 
 export const PARSE_EXPENSE_API_URL = `${VERCEL_API_BASE_URL}/api/parse-expense`;
 

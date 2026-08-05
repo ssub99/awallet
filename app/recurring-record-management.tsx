@@ -6,6 +6,7 @@
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Icon } from '@/components/ui/icon';
+import { ListEmptyPlaceholder } from '@/components/ui/list-empty-placeholder';
 import { ModalPopup } from '@/components/ui/modal-popup';
 import { UiLineText } from '@/components/ui/ui-line-text';
 import { atomicColors } from '@/constants/atomic-colors';
@@ -377,18 +378,10 @@ export default function RecurringRecordManagementScreen() {
 
         <Animated.View style={[styles.bodyArea, { opacity: contentOpacity }]}>
           {showEmptyState ? (
-            <View
-              style={styles.globalEmptyContainer}
-              accessibilityRole="text"
-              accessibilityLabel={GLOBAL_EMPTY_MESSAGE}
-            >
-              <View style={styles.globalEmptyContent}>
-                <Icon name="info" variant="line" size={24} color={colors.textAssistive} />
-                <Text style={[styles.globalEmptyText, { color: colors.textAssistive }]}>
-                  {GLOBAL_EMPTY_MESSAGE}
-                </Text>
-              </View>
-            </View>
+            <ListEmptyPlaceholder
+              message={GLOBAL_EMPTY_MESSAGE}
+              verticalOffset={EMPTY_STATE_VERTICAL_OFFSET}
+            />
           ) : showYearList ? (
             <FlatList
               key={listKey}
@@ -542,21 +535,6 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     minWidth: 0,
     textAlign: 'right',
-  },
-  globalEmptyContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  globalEmptyContent: {
-    width: 242,
-    alignItems: 'center',
-    gap: 12,
-    transform: [{ translateY: EMPTY_STATE_VERTICAL_OFFSET }],
-  },
-  globalEmptyText: {
-    ...typography.body01.regular,
-    textAlign: 'center',
   },
   deleteConfirmText: {
     ...typography.body01.regular,

@@ -16,6 +16,9 @@ export const ROOT_STACK_ROUTE_NAMES = [
   'category-edit',
   'expense-category-detail',
   'notification-setting',
+  'settings-notice',
+  'settings-notice-compose',
+  'settings-notice-image-viewer',
   'data-backup',
   'recurring-record-management',
 ] as const;

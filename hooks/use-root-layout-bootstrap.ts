@@ -21,6 +21,7 @@ import {
   setupDailyReminder,
 } from '@/utils/notification-scheduler';
 import { initializePaymentSubtypes } from '@/utils/payment-types';
+import { ensureNoticeInstallBaseline } from '@/utils/notice-read-state';
 import { showStoreUpdateAlert } from '@/utils/show-store-update-alert';
 import {
   consumeWidgetTrampolineSplashOnAndroid,
@@ -96,6 +97,7 @@ export function useRootLayoutBootstrap() {
 
         await initAmplitude();
         await initializePaymentSubtypes();
+        await ensureNoticeInstallBaseline();
         await logEvent('app_started', {
           timestamp: Date.now(),
           platform: Platform.OS,
