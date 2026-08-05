@@ -8,7 +8,7 @@ import { NoticeFormScreen } from '@/components/ui/notice-form-screen';
 import { useToast } from '@/contexts/toast-context';
 import { publishDevAppNotice } from '@/utils/dev-app-notices';
 import type { AppNotice } from '@/utils/fetch-app-notices';
-import { DEV_NOTICE_SYNC_FAILED_TOAST, DEV_NOTICE_UPLOAD_GUIDE } from '@/utils/dev-notices-sync';
+import { DEV_NOTICE_UPLOAD_GUIDE, getDevNoticeSyncFailureToast } from '@/utils/dev-notices-sync';
 import { isLocalDevOnlyUIEnabled } from '@/utils/dev-only-ui';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
@@ -96,11 +96,11 @@ export default function SettingsNoticeComposeScreen() {
         values.images,
         values.videos,
       );
-      const { saved, synced } = await publishDevAppNotice(notice);
+      const { saved, synced, syncFailure } = await publishDevAppNotice(notice);
       if (!saved) {
         return;
       }
-      showToast(synced ? '공지가 등록되었습니다.' : DEV_NOTICE_SYNC_FAILED_TOAST);
+      showToast(synced ? '공지가 등록되었습니다.' : getDevNoticeSyncFailureToast(syncFailure));
       router.replace('/settings-notice');
     } finally {
       setIsSubmitting(false);

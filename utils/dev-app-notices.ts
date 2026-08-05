@@ -4,6 +4,7 @@ import {
   deleteDevNoticeFromStaticFile,
   fetchDevNoticesFromStaticFile,
   upsertDevNoticeToStaticFile,
+  type DevNoticeSyncFailureReason,
 } from '@/utils/dev-notices-sync';
 import {
   parseAppNoticesPayload,
@@ -55,6 +56,7 @@ async function persistDevAppNoticesToAsyncStorage(notices: AppNotice[]): Promise
 export type DevNoticeSaveResult = {
   saved: boolean;
   synced: boolean;
+  syncFailure?: DevNoticeSyncFailureReason;
 };
 
 /** __DEV__ 공지 등록 — static/app-notices.json sync 우선. */
@@ -63,7 +65,7 @@ export async function publishDevAppNotice(notice: AppNotice): Promise<DevNoticeS
     return { saved: false, synced: false };
   }
 
-  const synced = await upsertDevNoticeToStaticFile(notice);
+  const { synced, failure } = await upsertDevNoticeToStaticFile(notice);
   if (synced) {
     noticeUnreadEvent.emit();
     return { saved: true, synced: true };
@@ -73,7 +75,7 @@ export async function publishDevAppNotice(notice: AppNotice): Promise<DevNoticeS
   const merged = parseAppNoticesPayload({ notices: [notice, ...existing] });
   await persistDevAppNoticesToAsyncStorage(merged);
   noticeUnreadEvent.emit();
-  return { saved: true, synced: false };
+  return { saved: true, synced: false, syncFailure: failure };
 }
 
 export async function getDevAppNoticeById(noticeId: string): Promise<AppNotice | null> {
@@ -91,7 +93,7 @@ export async function updateDevAppNotice(updated: AppNotice): Promise<DevNoticeS
     return { saved: false, synced: false };
   }
 
-  const synced = await upsertDevNoticeToStaticFile(updated);
+  const { synced, failure } = await upsertDevNoticeToStaticFile(updated);
   if (synced) {
     noticeUnreadEvent.emit();
     return { saved: true, synced: true };
@@ -107,7 +109,7 @@ export async function updateDevAppNotice(updated: AppNotice): Promise<DevNoticeS
   next[index] = updated;
   await persistDevAppNoticesToAsyncStorage(parseAppNoticesPayload({ notices: next }));
   noticeUnreadEvent.emit();
-  return { saved: true, synced: false };
+  return { saved: true, synced: false, syncFailure: failure };
 }
 
 /** 삭제 — static에서 제거 성공 시 true. */

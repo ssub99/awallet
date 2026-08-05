@@ -23,7 +23,8 @@
         "NSUserNotificationsUsageDescription": "소비 기록 알림과 챌린지 리마인더를 받기 위해 알림 권한이 필요합니다.",
         "ITSAppUsesNonExemptEncryption": false,
         "CFBundleShortVersionString": "1.1.9",
-        "CFBundleVersion": "49"
+        "CFBundleVersion": "49",
+        "UIViewControllerBasedStatusBarAppearance": true
       },
       "runtimeVersion": "1.1.9"
     },

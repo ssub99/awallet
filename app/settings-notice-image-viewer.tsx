@@ -25,6 +25,7 @@ import {
   LayoutChangeEvent,
   NativeScrollEvent,
   NativeSyntheticEvent,
+  Platform,
   Pressable,
   StatusBar,
   StyleSheet,
@@ -39,6 +40,10 @@ export { encodeNoticeMediaViewerParams };
 const imageViewerStackScreenOptions = {
   headerShown: false,
   gestureEnabled: true,
+  // iOS: Stack statusBarStyle는 Expo Go·일부 바이너리에서 UIViewControllerBasedStatusBarAppearance 크래시 유발 → RN StatusBar만 사용
+  ...(Platform.OS === 'android'
+    ? { statusBarStyle: 'light' as const, statusBarBackgroundColor: atomicColors.neutral[900] }
+    : {}),
 } as const;
 
 function resolvePageIndex(offsetX: number, pageWidth: number, itemCount: number): number {
@@ -164,6 +169,9 @@ export default function SettingsNoticeImageViewerScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      if (Platform.OS !== 'ios') {
+        return undefined;
+      }
       StatusBar.setBarStyle('light-content');
       return () => {
         StatusBar.setBarStyle('dark-content');
@@ -175,7 +183,9 @@ export default function SettingsNoticeImageViewerScreen() {
     return (
       <SafeAreaView style={[styles.container, styles.emptyContainer]} edges={['top', 'bottom']}>
         <Stack.Screen options={imageViewerStackScreenOptions} />
-        <StatusBar barStyle="light-content" backgroundColor={atomicColors.neutral[900]} />
+        {Platform.OS === 'ios' ? (
+          <StatusBar barStyle="light-content" backgroundColor={atomicColors.neutral[900]} />
+        ) : null}
         <Pressable onPress={handleClose} accessibilityRole="button" accessibilityLabel="닫기">
           <Icon name="close" variant="line" size={24} color={colors.staticWhite} />
         </Pressable>
@@ -187,7 +197,9 @@ export default function SettingsNoticeImageViewerScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={atomicColors.neutral[900]} />
+      {Platform.OS === 'ios' ? (
+        <StatusBar barStyle="light-content" backgroundColor={atomicColors.neutral[900]} />
+      ) : null}
       <Stack.Screen
         options={{
           ...imageViewerStackScreenOptions,

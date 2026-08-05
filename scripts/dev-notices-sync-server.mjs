@@ -14,7 +14,12 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 const NOTICES_FILE = path.join(ROOT, 'static/app-notices.json');
+const NOTICES_MEDIA_DIR = path.join(ROOT, 'static/notices');
 const PORT = Number(process.env.DEV_NOTICES_SYNC_PORT ?? 8787);
+const PUBLIC_BASE_URL = (
+  process.env.DEV_NOTICES_PUBLIC_BASE_URL ??
+  'https://awallet-git-ing-awallet-vercel-api.vercel.app'
+).replace(/\/+$/, '');
 
 function cors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -26,6 +31,18 @@ function sendJson(res, status, body) {
   cors(res);
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
   res.end(JSON.stringify(body));
+}
+
+function sanitizeFilename(raw) {
+  const base = path.basename(String(raw ?? '').trim());
+  const safe = base.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '');
+  return safe.length > 0 ? safe : 'media.bin';
+}
+
+function buildNoticeMediaFilename(noticeId, kind, index, filename) {
+  const safeNoticeId = String(noticeId).replace(/[^a-zA-Z0-9_-]+/g, '-');
+  const safeKind = kind === 'video' ? 'video' : 'image';
+  return `${safeNoticeId}-${safeKind}-${index}-${sanitizeFilename(filename)}`;
 }
 
 async function readPayload() {
@@ -105,6 +122,30 @@ async function readBody(req) {
   return JSON.parse(raw);
 }
 
+async function saveNoticeMedia(body) {
+  if (body == null || typeof body !== 'object' || Array.isArray(body)) {
+    return null;
+  }
+  const noticeId = typeof body.noticeId === 'string' ? body.noticeId.trim() : '';
+  const kind = body.kind === 'video' ? 'video' : body.kind === 'image' ? 'image' : '';
+  const index = Number.isInteger(body.index) && body.index >= 0 ? body.index : null;
+  const filename = typeof body.filename === 'string' ? body.filename : '';
+  const dataBase64 = typeof body.dataBase64 === 'string' ? body.dataBase64.trim() : '';
+  if (!noticeId || !kind || index == null || dataBase64.length === 0) {
+    return null;
+  }
+
+  const storedName = buildNoticeMediaFilename(noticeId, kind, index, filename);
+  await fs.mkdir(NOTICES_MEDIA_DIR, { recursive: true });
+  const targetPath = path.join(NOTICES_MEDIA_DIR, storedName);
+  await fs.writeFile(targetPath, Buffer.from(dataBase64, 'base64'));
+
+  return {
+    filename: storedName,
+    url: `${PUBLIC_BASE_URL}/notices/${encodeURIComponent(storedName)}`,
+  };
+}
+
 const server = http.createServer(async (req, res) => {
   cors(res);
 
@@ -117,9 +158,25 @@ const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url ?? '/', `http://127.0.0.1:${PORT}`);
 
+    if (req.method === 'GET' && url.pathname === '/health') {
+      sendJson(res, 200, { ok: true, media: true });
+      return;
+    }
+
     if (req.method === 'GET' && (url.pathname === '/app-notices.json' || url.pathname === '/')) {
       const payload = await readPayload();
       sendJson(res, 200, payload);
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/notices/media') {
+      const body = await readBody(req);
+      const saved = await saveNoticeMedia(body);
+      if (saved == null) {
+        sendJson(res, 400, { error: 'invalid_media' });
+        return;
+      }
+      sendJson(res, 200, saved);
       return;
     }
 
@@ -163,4 +220,5 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`[dev-notices-sync] static/app-notices.json ← http://127.0.0.1:${PORT}/app-notices.json`);
+  console.log(`[dev-notices-sync] media → static/notices/ (public base: ${PUBLIC_BASE_URL})`);
 });
