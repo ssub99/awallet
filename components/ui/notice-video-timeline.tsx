@@ -2,10 +2,8 @@ import { themeColors } from '@/constants/theme-colors';
 import { typographyLayout } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
-  floorNoticeVideoDisplaySecond,
+  clampNoticeVideoSeekTime,
   formatNoticeVideoTime,
-  getNoticeVideoMaxSeekSecond,
-  snapNoticeVideoSeekSecond,
 } from '@/utils/notice-media';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { LayoutChangeEvent, StyleSheet, Text, View } from 'react-native';
@@ -41,22 +39,25 @@ export function NoticeVideoTimeline({
   const onScrubStartRef = useRef(onScrubStart);
   const onScrubEndRef = useRef(onScrubEnd);
   const [trackWidth, setTrackWidth] = useState(0);
+  const [scrubTime, setScrubTime] = useState<number | null>(null);
 
   durationRef.current = duration;
   onSeekRef.current = onSeek;
   onScrubStartRef.current = onScrubStart;
   onScrubEndRef.current = onScrubEnd;
 
-  const seekAtLocationX = useCallback((locationX: number) => {
+  const seekAtLocationX = useCallback((locationX: number, updateScrubState: boolean) => {
     const width = trackWidthRef.current;
     const currentDuration = durationRef.current;
     if (width <= 0 || currentDuration <= 0) {
       return;
     }
     const ratio = Math.min(1, Math.max(0, locationX / width));
-    const maxSecond = getNoticeVideoMaxSeekSecond(currentDuration);
-    const rawSecond = ratio * maxSecond;
-    onSeekRef.current(snapNoticeVideoSeekSecond(rawSecond, currentDuration));
+    const nextTime = clampNoticeVideoSeekTime(ratio * currentDuration, currentDuration);
+    if (updateScrubState) {
+      setScrubTime(nextTime);
+    }
+    onSeekRef.current(nextTime);
   }, []);
 
   const handleScrubStart = useCallback(() => {
@@ -64,6 +65,7 @@ export function NoticeVideoTimeline({
   }, []);
 
   const handleScrubEnd = useCallback(() => {
+    setScrubTime(null);
     onScrubEndRef.current?.();
   }, []);
 
@@ -73,10 +75,10 @@ export function NoticeVideoTimeline({
         .minDistance(0)
         .onBegin((event) => {
           runOnJS(handleScrubStart)();
-          runOnJS(seekAtLocationX)(event.x);
+          runOnJS(seekAtLocationX)(event.x, true);
         })
         .onUpdate((event) => {
-          runOnJS(seekAtLocationX)(event.x);
+          runOnJS(seekAtLocationX)(event.x, true);
         })
         .onFinalize(() => {
           runOnJS(handleScrubEnd)();
@@ -90,10 +92,9 @@ export function NoticeVideoTimeline({
     setTrackWidth(width);
   };
 
-  const displaySecond = floorNoticeVideoDisplaySecond(currentTime, duration);
-  const maxSeekSecond = getNoticeVideoMaxSeekSecond(duration);
+  const displayTime = scrubTime ?? currentTime;
   const progressRatio =
-    maxSeekSecond > 0 ? Math.min(1, Math.max(0, displaySecond / maxSeekSecond)) : 0;
+    duration > 0 ? Math.min(1, Math.max(0, displayTime / duration)) : 0;
   const handleLeft =
     trackWidth > 0
       ? Math.min(
@@ -108,14 +109,11 @@ export function NoticeVideoTimeline({
       accessibilityRole="adjustable"
       accessibilityLabel="영상 재생 위치"
       accessibilityValue={{
-        min: 0,
-        max: maxSeekSecond,
-        now: displaySecond,
-        text: `${formatNoticeVideoTime(displaySecond)} / ${formatNoticeVideoTime(duration)}`,
+        text: `${formatNoticeVideoTime(displayTime)} / ${formatNoticeVideoTime(duration)}`,
       }}
     >
       <Text style={[styles.timeLabel, { color: colors.staticWhite }]}>
-        {formatNoticeVideoTime(displaySecond)}
+        {formatNoticeVideoTime(displayTime)}
       </Text>
 
       <GestureDetector gesture={panGesture}>

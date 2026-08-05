@@ -17,19 +17,20 @@ import {
   parseNoticeMediaViewerParams,
 } from '@/utils/notice-image-viewer-params';
 import type { NoticeMediaItem } from '@/utils/notice-media';
-import { snapNoticeVideoSeekSecond } from '@/utils/notice-media';
+import { clampNoticeVideoSeekTime } from '@/utils/notice-media';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   LayoutChangeEvent,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   Pressable,
   StyleSheet,
   Text,
   View,
   useWindowDimensions,
-  type ViewToken,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -41,6 +42,14 @@ const imageViewerStackScreenOptions = {
   headerShown: false,
   gestureEnabled: true,
 } as const;
+
+function resolvePageIndex(offsetX: number, pageWidth: number, itemCount: number): number {
+  if (pageWidth <= 0 || itemCount <= 0) {
+    return 0;
+  }
+  const nextIndex = Math.round(offsetX / pageWidth);
+  return Math.max(0, Math.min(itemCount - 1, nextIndex));
+}
 
 export default function SettingsNoticeImageViewerScreen() {
   const router = useRouter();
@@ -58,16 +67,26 @@ export default function SettingsNoticeImageViewerScreen() {
     [params.images, params.initialIndex, params.media],
   );
 
+  const galleryHasVideo = useMemo(
+    () => media.some((item) => item.type === 'video'),
+    [media],
+  );
+
   const [pageIndex, setPageIndex] = useState(initialIndex);
   const [pagerScrollEnabled, setPagerScrollEnabled] = useState(true);
   const [viewerSize, setViewerSize] = useState({ width, height: 0 });
   const [videoProgress, setVideoProgress] = useState({ currentTime: 0, duration: 0 });
   const [seekTime, setSeekTime] = useState<number | null>(null);
+  const [seekSeq, setSeekSeq] = useState(0);
+  const [isVideoScrubbing, setIsVideoScrubbing] = useState(false);
+  const videoDurationRef = useRef(0);
   const zoomActiveRef = useRef(false);
   const listRef = useRef<FlatList<NoticeMediaItem>>(null);
 
   const currentItem = media[pageIndex];
-  const showVideoTimeline = currentItem?.type === 'video';
+  const showVideoTimeline = galleryHasVideo && currentItem?.type === 'video';
+
+  videoDurationRef.current = videoProgress.duration;
 
   const handleViewerLayout = (event: LayoutChangeEvent) => {
     const { width: layoutWidth, height: layoutHeight } = event.nativeEvent.layout;
@@ -83,14 +102,30 @@ export default function SettingsNoticeImageViewerScreen() {
     setPagerScrollEnabled(!active);
   }, []);
 
-  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
-    const nextIndex = viewableItems[0]?.index;
-    if (typeof nextIndex === 'number') {
-      setPageIndex(nextIndex);
-    }
-  }).current;
+  const commitPageIndex = useCallback(
+    (offsetX: number) => {
+      const nextIndex = resolvePageIndex(offsetX, viewerSize.width, media.length);
+      setPageIndex((current) => (current === nextIndex ? current : nextIndex));
+    },
+    [media.length, viewerSize.width],
+  );
 
-  const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 50 }).current;
+  const handleScrollEnd = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      commitPageIndex(event.nativeEvent.contentOffset.x);
+    },
+    [commitPageIndex],
+  );
+
+  const handleScrollEndDrag = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const velocityX = event.nativeEvent.velocity?.x ?? 0;
+      if (Math.abs(velocityX) <= 0.05) {
+        commitPageIndex(event.nativeEvent.contentOffset.x);
+      }
+    },
+    [commitPageIndex],
+  );
 
   useEffect(() => {
     if (viewerSize.height <= 0 || initialIndex <= 0) {
@@ -102,6 +137,10 @@ export default function SettingsNoticeImageViewerScreen() {
   useEffect(() => {
     setVideoProgress({ currentTime: 0, duration: 0 });
     setSeekTime(null);
+    setSeekSeq(0);
+    setIsVideoScrubbing(false);
+    setPagerScrollEnabled(true);
+    zoomActiveRef.current = false;
   }, [pageIndex]);
 
   const handleVideoProgressChange = useCallback((currentTime: number, duration: number) => {
@@ -109,19 +148,19 @@ export default function SettingsNoticeImageViewerScreen() {
   }, []);
 
   const handleVideoSeek = useCallback((timeSeconds: number) => {
-    let snappedSecond = 0;
-    setVideoProgress((current) => {
-      snappedSecond = snapNoticeVideoSeekSecond(timeSeconds, current.duration);
-      return { ...current, currentTime: snappedSecond };
-    });
-    setSeekTime(snappedSecond);
+    const clampedTime = clampNoticeVideoSeekTime(timeSeconds, videoDurationRef.current);
+    setVideoProgress((current) => ({ ...current, currentTime: clampedTime }));
+    setSeekTime(clampedTime);
+    setSeekSeq((seq) => seq + 1);
   }, []);
 
   const handleScrubStart = useCallback(() => {
+    setIsVideoScrubbing(true);
     setPagerScrollEnabled(false);
   }, []);
 
   const handleScrubEnd = useCallback(() => {
+    setIsVideoScrubbing(false);
     setPagerScrollEnabled(true);
   }, []);
 
@@ -188,8 +227,8 @@ export default function SettingsNoticeImageViewerScreen() {
                 offset: viewerSize.width * index,
                 index,
               })}
-              onViewableItemsChanged={onViewableItemsChanged}
-              viewabilityConfig={viewabilityConfig}
+              onMomentumScrollEnd={handleScrollEnd}
+              onScrollEndDrag={handleScrollEndDrag}
               renderItem={({ item, index }) => {
                 if (item.type === 'video') {
                   return (
@@ -198,7 +237,9 @@ export default function SettingsNoticeImageViewerScreen() {
                       width={viewerSize.width}
                       height={viewerSize.height}
                       isActive={index === pageIndex}
+                      isScrubbing={index === pageIndex && isVideoScrubbing}
                       seekTime={index === pageIndex ? seekTime : null}
+                      seekSeq={index === pageIndex ? seekSeq : 0}
                       onProgressChange={handleVideoProgressChange}
                     />
                   );
@@ -209,6 +250,7 @@ export default function SettingsNoticeImageViewerScreen() {
                     uri={item.uri}
                     width={viewerSize.width}
                     height={viewerSize.height}
+                    isActive={index === pageIndex}
                     onZoomActiveChange={handleZoomActiveChange}
                   />
                 );
@@ -217,14 +259,18 @@ export default function SettingsNoticeImageViewerScreen() {
           ) : null}
         </View>
 
-        {showVideoTimeline ? (
-          <NoticeVideoTimeline
-            currentTime={videoProgress.currentTime}
-            duration={videoProgress.duration}
-            onSeek={handleVideoSeek}
-            onScrubStart={handleScrubStart}
-            onScrubEnd={handleScrubEnd}
-          />
+        {galleryHasVideo ? (
+          <View style={styles.timelineSlot}>
+            {showVideoTimeline ? (
+              <NoticeVideoTimeline
+                currentTime={videoProgress.currentTime}
+                duration={videoProgress.duration}
+                onSeek={handleVideoSeek}
+                onScrubStart={handleScrubStart}
+                onScrubEnd={handleScrubEnd}
+              />
+            ) : null}
+          </View>
         ) : null}
       </View>
 
@@ -269,6 +315,10 @@ const styles = StyleSheet.create({
   viewerBody: {
     flex: 1,
     minHeight: 0,
+  },
+  timelineSlot: {
+    height: NOTICE_VIDEO_TIMELINE_HEIGHT,
+    backgroundColor: atomicColors.neutral[900],
   },
   bottomSafeArea: {
     backgroundColor: atomicColors.neutral[900],

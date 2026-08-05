@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -17,6 +17,7 @@ export interface ZoomableImageProps {
   uri: string;
   width: number;
   height: number;
+  isActive?: boolean;
   onZoomActiveChange?: (active: boolean) => void;
 }
 
@@ -24,6 +25,7 @@ export function ZoomableImage({
   uri,
   width,
   height,
+  isActive = true,
   onZoomActiveChange,
 }: ZoomableImageProps) {
   const scale = useSharedValue(MIN_SCALE);
@@ -50,6 +52,19 @@ export function ZoomableImage({
     savedTranslateY.value = 0;
     runOnJS(notifyZoom)(false);
   };
+
+  useEffect(() => {
+    if (isActive) {
+      return;
+    }
+    scale.value = withTiming(MIN_SCALE);
+    savedScale.value = MIN_SCALE;
+    translateX.value = withTiming(0);
+    translateY.value = withTiming(0);
+    savedTranslateX.value = 0;
+    savedTranslateY.value = 0;
+    notifyZoom(false);
+  }, [isActive, notifyZoom, savedScale, savedTranslateX, savedTranslateY, scale, translateX, translateY]);
 
   const pinch = Gesture.Pinch()
     .onUpdate((event) => {
