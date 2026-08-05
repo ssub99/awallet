@@ -8,13 +8,13 @@ export const NOTICE_IMAGE_VIEWER_ROUTE_NAME = 'settings-notice-image-viewer' as 
 export const NOTICE_IMAGE_VIEWER_NAVIGATION_OPTIONS = Platform.select({
   ios: {
     headerShown: false,
-    gestureEnabled: true,
+    gestureEnabled: false,
     animation: 'slide_from_bottom' as const,
     freezeOnBlur: false,
   },
   android: {
     headerShown: false,
-    gestureEnabled: true,
+    gestureEnabled: false,
     statusBarStyle: 'light' as const,
     statusBarBackgroundColor: atomicColors.neutral[900],
     cardStyle: { backgroundColor: atomicColors.neutral[900] },
@@ -23,6 +23,6 @@ export const NOTICE_IMAGE_VIEWER_NAVIGATION_OPTIONS = Platform.select({
   },
   default: {
     headerShown: false,
-    gestureEnabled: true,
+    gestureEnabled: false,
   },
 })!;

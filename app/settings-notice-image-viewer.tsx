@@ -23,8 +23,8 @@ import {
 import type { NoticeMediaItem } from '@/utils/notice-media';
 import { clampNoticeVideoSeekTime } from '@/utils/notice-media';
 import { prefetchNoticeMediaItems } from '@/utils/prefetch-notice-media';
-import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   LayoutChangeEvent,
@@ -52,7 +52,6 @@ function resolvePageIndex(offsetX: number, pageWidth: number, itemCount: number)
 
 export default function SettingsNoticeImageViewerScreen() {
   const router = useRouter();
-  const navigation = useNavigation();
   const params = useLocalSearchParams<{
     media?: string | string[];
     images?: string | string[];
@@ -181,10 +180,6 @@ export default function SettingsNoticeImageViewerScreen() {
     setIsVideoScrubbing(false);
     setPagerScrollEnabled(true);
   }, []);
-
-  useLayoutEffect(() => {
-    navigation.setOptions({ gestureEnabled: pagerScrollEnabled });
-  }, [navigation, pagerScrollEnabled]);
 
   useEffect(() => {
     let cancelled = false;
