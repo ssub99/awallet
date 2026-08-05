@@ -1,9 +1,15 @@
+import {
+  NoticeVideoPlaybackOverlay,
+  type NoticeVideoPlaybackOverlayMode,
+} from '@/components/ui/notice-video-playback-overlay';
 import { themeColors } from '@/constants/theme-colors';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useEventListener } from 'expo';
 import { VideoView, useVideoPlayer } from 'expo-video';
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+
+const PLAY_OVERLAY_VISIBLE_MS = 1000;
 
 interface NoticeVideoSlideProps {
   uri: string;
@@ -24,10 +30,29 @@ export function NoticeVideoSlide({
 }: NoticeVideoSlideProps) {
   const colorScheme = useColorScheme();
   const colors = themeColors[colorScheme ?? 'light'];
+  const [overlayMode, setOverlayMode] = useState<NoticeVideoPlaybackOverlayMode | null>(null);
+  const resumedFromPauseRef = useRef(false);
+  const playOverlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const player = useVideoPlayer(uri, (instance) => {
     instance.timeUpdateEventInterval = 0.25;
   });
+
+  const clearPlayOverlayTimer = () => {
+    if (playOverlayTimerRef.current != null) {
+      clearTimeout(playOverlayTimerRef.current);
+      playOverlayTimerRef.current = null;
+    }
+  };
+
+  const showPlayOverlayBriefly = () => {
+    clearPlayOverlayTimer();
+    setOverlayMode('play');
+    playOverlayTimerRef.current = setTimeout(() => {
+      setOverlayMode(null);
+      playOverlayTimerRef.current = null;
+    }, PLAY_OVERLAY_VISIBLE_MS);
+  };
 
   useEventListener(player, 'timeUpdate', ({ currentTime }) => {
     if (isActive) {
@@ -41,11 +66,37 @@ export function NoticeVideoSlide({
     }
   });
 
+  useEventListener(player, 'playingChange', ({ isPlaying }) => {
+    if (!isActive) {
+      return;
+    }
+
+    if (!isPlaying) {
+      clearPlayOverlayTimer();
+      setOverlayMode('pause');
+      resumedFromPauseRef.current = true;
+      return;
+    }
+
+    if (resumedFromPauseRef.current) {
+      showPlayOverlayBriefly();
+      resumedFromPauseRef.current = false;
+      return;
+    }
+
+    setOverlayMode(null);
+  });
+
   useEffect(() => {
     if (!isActive) {
       player.pause();
+      player.currentTime = 0;
+      clearPlayOverlayTimer();
+      setOverlayMode(null);
+      resumedFromPauseRef.current = false;
       return;
     }
+
     void player.play();
   }, [isActive, player]);
 
@@ -56,12 +107,18 @@ export function NoticeVideoSlide({
     player.currentTime = seekTime;
   }, [isActive, player, seekTime]);
 
+  useEffect(() => {
+    return () => {
+      clearPlayOverlayTimer();
+    };
+  }, []);
+
   const handleTogglePlayback = () => {
     if (player.playing) {
       player.pause();
-    } else {
-      player.play();
+      return;
     }
+    void player.play();
   };
 
   return (
@@ -74,6 +131,7 @@ export function NoticeVideoSlide({
         allowsFullscreen={false}
         allowsPictureInPicture={false}
       />
+      {overlayMode != null ? <NoticeVideoPlaybackOverlay mode={overlayMode} /> : null}
       <Pressable
         style={styles.tapOverlay}
         onPress={handleTogglePlayback}

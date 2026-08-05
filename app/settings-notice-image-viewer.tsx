@@ -17,8 +17,9 @@ import {
   parseNoticeMediaViewerParams,
 } from '@/utils/notice-image-viewer-params';
 import type { NoticeMediaItem } from '@/utils/notice-media';
-import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { setStatusBarStyle, StatusBar } from 'expo-status-bar';
+import { snapNoticeVideoSeekSecond } from '@/utils/notice-media';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
@@ -39,7 +40,6 @@ const IMAGE_VIEWER_STATUS_BAR_STYLE = 'light' as const;
 const imageViewerStackScreenOptions = {
   headerShown: false,
   gestureEnabled: true,
-  statusBarStyle: IMAGE_VIEWER_STATUS_BAR_STYLE,
 } as const;
 
 export default function SettingsNoticeImageViewerScreen() {
@@ -109,8 +109,12 @@ export default function SettingsNoticeImageViewerScreen() {
   }, []);
 
   const handleVideoSeek = useCallback((timeSeconds: number) => {
-    setSeekTime(timeSeconds);
-    setVideoProgress((current) => ({ ...current, currentTime: timeSeconds }));
+    let snappedSecond = 0;
+    setVideoProgress((current) => {
+      snappedSecond = snapNoticeVideoSeekSecond(timeSeconds, current.duration);
+      return { ...current, currentTime: snappedSecond };
+    });
+    setSeekTime(snappedSecond);
   }, []);
 
   const handleScrubStart = useCallback(() => {
@@ -120,15 +124,6 @@ export default function SettingsNoticeImageViewerScreen() {
   const handleScrubEnd = useCallback(() => {
     setPagerScrollEnabled(true);
   }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      setStatusBarStyle(IMAGE_VIEWER_STATUS_BAR_STYLE);
-      return () => {
-        setStatusBarStyle('dark');
-      };
-    }, []),
-  );
 
   if (media.length === 0) {
     return (

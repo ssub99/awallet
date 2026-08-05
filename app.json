@@ -137,7 +137,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "공지사항에 첨부할 사진을 선택하기 위해 사진첩 접근 권한이 필요합니다."
+          "photosPermission": "공지사항에 첨부할 사진·영상을 선택하기 위해 사진첩 접근 권한이 필요합니다."
         }
       ],
       "react-native-fbsdk-next",

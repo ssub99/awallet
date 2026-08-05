@@ -7,6 +7,7 @@
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Icon } from '@/components/ui/icon';
 import { ListEmptyPlaceholder } from '@/components/ui/list-empty-placeholder';
+import { NoticeVideoThumbnail } from '@/components/ui/notice-video-thumbnail';
 import { ModalPopup } from '@/components/ui/modal-popup';
 import { UiLineText } from '@/components/ui/ui-line-text';
 import { themeColors } from '@/constants/theme-colors';
@@ -103,9 +104,7 @@ function NoticeAccordionItem({
                       contentFit="cover"
                     />
                   ) : (
-                    <View style={[styles.videoThumbnail, { backgroundColor: colors.staticBlack }]}>
-                      <Icon name="arrowRight" variant="solid" size={20} color={colors.staticWhite} />
-                    </View>
+                    <NoticeVideoThumbnail uri={item.uri} />
                   )}
                 </Pressable>
               ))}
@@ -336,12 +335,6 @@ const styles = StyleSheet.create({
   thumbnail: {
     width: '100%',
     height: '100%',
-  },
-  videoThumbnail: {
-    width: '100%',
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   deleteLink: {
     ...typography.body02.regular,

@@ -7,6 +7,7 @@
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
+import { NoticeVideoThumbnail } from '@/components/ui/notice-video-thumbnail';
 import { Input } from '@/components/ui/input';
 import { UiLineText } from '@/components/ui/ui-line-text';
 import { themeColors } from '@/constants/theme-colors';
@@ -265,9 +266,7 @@ export default function SettingsNoticeComposeScreen() {
                             contentFit="cover"
                           />
                         ) : (
-                          <View style={[styles.videoThumbnail, { backgroundColor: colors.staticBlack }]}>
-                            <Icon name="arrowRight" variant="solid" size={20} color={colors.staticWhite} />
-                          </View>
+                          <NoticeVideoThumbnail uri={item.uri} />
                         )}
                       </Pressable>
                       <Pressable
@@ -359,12 +358,6 @@ const styles = StyleSheet.create({
   thumbnail: {
     width: '100%',
     height: '100%',
-  },
-  videoThumbnail: {
-    width: '100%',
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   removeImageButton: {
     position: 'absolute',

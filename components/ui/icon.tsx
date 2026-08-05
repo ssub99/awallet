@@ -60,6 +60,8 @@ import DeleteSolid from '@/assets/images/icons/solid/delete.svg';
 import HomeSolid from '@/assets/images/icons/solid/home.svg';
 import ChallengeSolid from '@/assets/images/icons/solid/challenge.svg';
 import MypageSolid from '@/assets/images/icons/solid/mypage.svg';
+import PauseSolid from '@/assets/images/icons/solid/pause.svg';
+import PlaySolid from '@/assets/images/icons/solid/play.svg';
 import SettingSolid from '@/assets/images/icons/solid/setting.svg';
 
 /**
@@ -153,6 +155,8 @@ const iconComponents = {
     delete: DeleteSolid,
     home: HomeSolid,
     mypage: MypageSolid,
+    pause: PauseSolid,
+    play: PlaySolid,
     setting: SettingSolid,
   },
 } as const;

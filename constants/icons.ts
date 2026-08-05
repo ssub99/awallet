@@ -126,6 +126,8 @@ export const IconDescriptions: Record<IconName, string> = {
   keypadDelete: 'Delete previous input',
   lock: 'Lock or secure',
   mypage: 'My page or profile',
+  pause: 'Pause',
+  play: 'Play',
   operationAddition: 'Addition operator',
   operationDivision: 'Division operator',
   operationMultiplication: 'Multiplication operator',
@@ -191,6 +193,8 @@ export function getIconMetadata(name: IconName): IconMetadata {
     'delete',
     'home',
     'mypage',
+    'pause',
+    'play',
     'setting',
   ];
   const hasSolid = solidIcons.includes(name);

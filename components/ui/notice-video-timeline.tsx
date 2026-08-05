@@ -1,15 +1,16 @@
 import { themeColors } from '@/constants/theme-colors';
 import { typographyLayout } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { formatNoticeVideoTime } from '@/utils/notice-media';
-import { useCallback, useRef, useState } from 'react';
 import {
-  LayoutChangeEvent,
-  PanResponder,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+  floorNoticeVideoDisplaySecond,
+  formatNoticeVideoTime,
+  getNoticeVideoMaxSeekSecond,
+  snapNoticeVideoSeekSecond,
+} from '@/utils/notice-media';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { LayoutChangeEvent, StyleSheet, Text, View } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { runOnJS } from 'react-native-reanimated';
 
 /** Figma Frame 284 — video viewer timeline bar. */
 export const NOTICE_VIDEO_TIMELINE_HEIGHT = 48;
@@ -35,39 +36,53 @@ export function NoticeVideoTimeline({
   const colorScheme = useColorScheme();
   const colors = themeColors[colorScheme ?? 'light'];
   const trackWidthRef = useRef(0);
+  const durationRef = useRef(duration);
+  const onSeekRef = useRef(onSeek);
+  const onScrubStartRef = useRef(onScrubStart);
+  const onScrubEndRef = useRef(onScrubEnd);
   const [trackWidth, setTrackWidth] = useState(0);
 
-  const seekAtLocationX = useCallback(
-    (locationX: number) => {
-      const trackWidth = trackWidthRef.current;
-      if (trackWidth <= 0 || duration <= 0) {
-        return;
-      }
-      const ratio = Math.min(1, Math.max(0, locationX / trackWidth));
-      onSeek(ratio * duration);
-    },
-    [duration, onSeek],
-  );
+  durationRef.current = duration;
+  onSeekRef.current = onSeek;
+  onScrubStartRef.current = onScrubStart;
+  onScrubEndRef.current = onScrubEnd;
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: (event) => {
-        onScrubStart?.();
-        seekAtLocationX(event.nativeEvent.locationX);
-      },
-      onPanResponderMove: (event) => {
-        seekAtLocationX(event.nativeEvent.locationX);
-      },
-      onPanResponderRelease: () => {
-        onScrubEnd?.();
-      },
-      onPanResponderTerminate: () => {
-        onScrubEnd?.();
-      },
-    }),
-  ).current;
+  const seekAtLocationX = useCallback((locationX: number) => {
+    const width = trackWidthRef.current;
+    const currentDuration = durationRef.current;
+    if (width <= 0 || currentDuration <= 0) {
+      return;
+    }
+    const ratio = Math.min(1, Math.max(0, locationX / width));
+    const maxSecond = getNoticeVideoMaxSeekSecond(currentDuration);
+    const rawSecond = ratio * maxSecond;
+    onSeekRef.current(snapNoticeVideoSeekSecond(rawSecond, currentDuration));
+  }, []);
+
+  const handleScrubStart = useCallback(() => {
+    onScrubStartRef.current?.();
+  }, []);
+
+  const handleScrubEnd = useCallback(() => {
+    onScrubEndRef.current?.();
+  }, []);
+
+  const panGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .minDistance(0)
+        .onBegin((event) => {
+          runOnJS(handleScrubStart)();
+          runOnJS(seekAtLocationX)(event.x);
+        })
+        .onUpdate((event) => {
+          runOnJS(seekAtLocationX)(event.x);
+        })
+        .onFinalize(() => {
+          runOnJS(handleScrubEnd)();
+        }),
+    [handleScrubEnd, handleScrubStart, seekAtLocationX],
+  );
 
   const handleTrackLayout = (event: LayoutChangeEvent) => {
     const width = event.nativeEvent.layout.width;
@@ -75,10 +90,17 @@ export function NoticeVideoTimeline({
     setTrackWidth(width);
   };
 
-  const progressRatio = duration > 0 ? Math.min(1, Math.max(0, currentTime / duration)) : 0;
-  const handleLeft = trackWidth > 0
-    ? progressRatio * trackWidth - HANDLE_SIZE / 2
-    : 0;
+  const displaySecond = floorNoticeVideoDisplaySecond(currentTime, duration);
+  const maxSeekSecond = getNoticeVideoMaxSeekSecond(duration);
+  const progressRatio =
+    maxSeekSecond > 0 ? Math.min(1, Math.max(0, displaySecond / maxSeekSecond)) : 0;
+  const handleLeft =
+    trackWidth > 0
+      ? Math.min(
+          Math.max(0, progressRatio * trackWidth - HANDLE_SIZE / 2),
+          Math.max(0, trackWidth - HANDLE_SIZE),
+        )
+      : 0;
 
   return (
     <View
@@ -87,42 +109,40 @@ export function NoticeVideoTimeline({
       accessibilityLabel="영상 재생 위치"
       accessibilityValue={{
         min: 0,
-        max: Math.max(duration, 0),
-        now: currentTime,
-        text: `${formatNoticeVideoTime(currentTime)} / ${formatNoticeVideoTime(duration)}`,
+        max: maxSeekSecond,
+        now: displaySecond,
+        text: `${formatNoticeVideoTime(displaySecond)} / ${formatNoticeVideoTime(duration)}`,
       }}
     >
       <Text style={[styles.timeLabel, { color: colors.staticWhite }]}>
-        {formatNoticeVideoTime(currentTime)}
+        {formatNoticeVideoTime(displaySecond)}
       </Text>
 
-      <View
-        style={styles.trackWrap}
-        onLayout={handleTrackLayout}
-        {...panResponder.panHandlers}
-      >
-        <View style={[styles.track, { backgroundColor: colors.fill }]}>
+      <GestureDetector gesture={panGesture}>
+        <View style={styles.trackWrap} onLayout={handleTrackLayout}>
+          <View style={[styles.track, { backgroundColor: colors.fill }]}>
+            <View
+              style={[
+                styles.trackProgress,
+                {
+                  backgroundColor: colors.primary,
+                  width: `${progressRatio * 100}%`,
+                },
+              ]}
+            />
+          </View>
           <View
             style={[
-              styles.trackProgress,
+              styles.handle,
               {
                 backgroundColor: colors.primary,
-                width: `${progressRatio * 100}%`,
+                left: handleLeft,
               },
             ]}
+            pointerEvents="none"
           />
         </View>
-        <View
-          style={[
-            styles.handle,
-            {
-              backgroundColor: colors.primary,
-              transform: [{ translateX: Math.max(0, handleLeft) }],
-            },
-          ]}
-          pointerEvents="none"
-        />
-      </View>
+      </GestureDetector>
 
       <Text style={[styles.timeLabel, styles.durationLabel, { color: colors.staticWhite }]}>
         {formatNoticeVideoTime(duration)}
@@ -163,10 +183,9 @@ const styles = StyleSheet.create({
   },
   handle: {
     position: 'absolute',
-    left: 0,
+    top: 0,
     width: HANDLE_SIZE,
     height: HANDLE_SIZE,
     borderRadius: HANDLE_SIZE / 2,
-    top: (HANDLE_SIZE - TRACK_HEIGHT) / 2,
   },
 });
