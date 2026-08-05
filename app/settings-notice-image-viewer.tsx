@@ -5,14 +5,17 @@
  */
 
 import { Icon } from '@/components/ui/icon';
+import { NoticeImageViewerStatusBarSync } from '@/components/navigation/notice-image-viewer-status-bar-sync';
 import { NoticeVideoSlide } from '@/components/ui/notice-video-slide';
 import { NOTICE_VIDEO_TIMELINE_HEIGHT, NoticeVideoTimeline } from '@/components/ui/notice-video-timeline';
 import { ZoomableImage } from '@/components/ui/zoomable-image';
 import { atomicColors } from '@/constants/atomic-colors';
+import {
+  NOTICE_IMAGE_VIEWER_NAVIGATION_OPTIONS,
+} from '@/constants/notice-image-viewer-navigation-options';
 import { themeColors } from '@/constants/theme-colors';
 import { typographyLayout } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useLoading } from '@/contexts/loading-context';
 import {
   encodeNoticeMediaViewerParams,
   parseNoticeMediaViewerParams,
@@ -20,17 +23,14 @@ import {
 import type { NoticeMediaItem } from '@/utils/notice-media';
 import { clampNoticeVideoSeekTime } from '@/utils/notice-media';
 import { prefetchNoticeMediaItems } from '@/utils/prefetch-notice-media';
-import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
-  Animated,
   FlatList,
   LayoutChangeEvent,
   NativeScrollEvent,
   NativeSyntheticEvent,
-  Platform,
   Pressable,
-  StatusBar,
   StyleSheet,
   Text,
   View,
@@ -40,16 +40,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 export { encodeNoticeMediaViewerParams };
 
-const imageViewerStackScreenOptions = {
-  headerShown: false,
-  gestureEnabled: true,
-  // iOS: Stack statusBarStyle는 Expo Go·일부 바이너리에서 UIViewControllerBasedStatusBarAppearance 크래시 유발 → RN StatusBar만 사용
-  ...(Platform.OS === 'android'
-    ? { statusBarStyle: 'light' as const, statusBarBackgroundColor: atomicColors.neutral[900] }
-    : {}),
-} as const;
-
-const VIEWER_CONTENT_FADE_IN_MS = 200;
+export const options = NOTICE_IMAGE_VIEWER_NAVIGATION_OPTIONS;
 
 function resolvePageIndex(offsetX: number, pageWidth: number, itemCount: number): number {
   if (pageWidth <= 0 || itemCount <= 0) {
@@ -61,6 +52,7 @@ function resolvePageIndex(offsetX: number, pageWidth: number, itemCount: number)
 
 export default function SettingsNoticeImageViewerScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const params = useLocalSearchParams<{
     media?: string | string[];
     images?: string | string[];
@@ -69,11 +61,10 @@ export default function SettingsNoticeImageViewerScreen() {
   const { width } = useWindowDimensions();
   const colorScheme = useColorScheme();
   const colors = themeColors[colorScheme ?? 'light'];
-  const { setLoading } = useLoading();
 
-  const { media, initialIndex } = useMemo(
-    () => parseNoticeMediaViewerParams(params.media, params.images, params.initialIndex),
-    [params.images, params.initialIndex, params.media],
+  // dismiss 중 route params가 비워져도 미디어·인덱스 유지 (재프리로드·로딩 분기 방지)
+  const [{ media, initialIndex }] = useState(() =>
+    parseNoticeMediaViewerParams(params.media, params.images, params.initialIndex),
   );
 
   const galleryHasVideo = useMemo(
@@ -84,15 +75,17 @@ export default function SettingsNoticeImageViewerScreen() {
   const [pageIndex, setPageIndex] = useState(initialIndex);
   const [pagerScrollEnabled, setPagerScrollEnabled] = useState(true);
   const [viewerSize, setViewerSize] = useState({ width, height: 0 });
+  const viewerSizeRef = useRef({ width, height: 0 });
   const [videoProgress, setVideoProgress] = useState({ currentTime: 0, duration: 0 });
   const [seekTime, setSeekTime] = useState<number | null>(null);
   const [seekSeq, setSeekSeq] = useState(0);
   const [isVideoScrubbing, setIsVideoScrubbing] = useState(false);
   const [isMediaReady, setIsMediaReady] = useState(false);
+  const [isDismissing, setIsDismissing] = useState(false);
+  const hasShownContentRef = useRef(false);
   const videoDurationRef = useRef(0);
   const zoomActiveRef = useRef(false);
   const listRef = useRef<FlatList<NoticeMediaItem>>(null);
-  const contentOpacity = useRef(new Animated.Value(0)).current;
 
   const currentItem = media[pageIndex];
   const showVideoTimeline = galleryHasVideo && currentItem?.type === 'video';
@@ -101,10 +94,18 @@ export default function SettingsNoticeImageViewerScreen() {
 
   const handleViewerLayout = (event: LayoutChangeEvent) => {
     const { width: layoutWidth, height: layoutHeight } = event.nativeEvent.layout;
+    if (layoutWidth <= 0 || layoutHeight <= 0) {
+      return;
+    }
+    viewerSizeRef.current = { width: layoutWidth, height: layoutHeight };
     setViewerSize({ width: layoutWidth, height: layoutHeight });
   };
 
+  const effectiveViewerSize =
+    viewerSize.height > 0 ? viewerSize : viewerSizeRef.current;
+
   const handleClose = () => {
+    setIsDismissing(true);
     router.back();
   };
 
@@ -181,44 +182,28 @@ export default function SettingsNoticeImageViewerScreen() {
     setPagerScrollEnabled(true);
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      if (Platform.OS !== 'ios') {
-        return undefined;
-      }
-      StatusBar.setBarStyle('light-content');
-      return () => {
-        StatusBar.setBarStyle('dark-content');
-      };
-    }, []),
-  );
+  useLayoutEffect(() => {
+    navigation.setOptions({ gestureEnabled: pagerScrollEnabled });
+  }, [navigation, pagerScrollEnabled]);
 
   useEffect(() => {
     let cancelled = false;
 
     const prepareMedia = async () => {
       if (media.length === 0) {
+        hasShownContentRef.current = true;
         setIsMediaReady(true);
-        contentOpacity.setValue(1);
         return;
       }
 
-      setIsMediaReady(false);
-      contentOpacity.setValue(0);
-      setLoading(true);
       try {
         await prefetchNoticeMediaItems(media);
       } finally {
         if (cancelled) {
           return;
         }
-        setLoading(false);
+        hasShownContentRef.current = true;
         setIsMediaReady(true);
-        Animated.timing(contentOpacity, {
-          toValue: 1,
-          duration: VIEWER_CONTENT_FADE_IN_MS,
-          useNativeDriver: true,
-        }).start();
       }
     };
 
@@ -226,50 +211,39 @@ export default function SettingsNoticeImageViewerScreen() {
 
     return () => {
       cancelled = true;
-      setLoading(false);
     };
-  }, [contentOpacity, media, setLoading]);
+  }, [media]);
 
   if (media.length === 0) {
     return (
-      <SafeAreaView style={[styles.container, styles.emptyContainer]} edges={['top', 'bottom']}>
-        <Stack.Screen options={imageViewerStackScreenOptions} />
-        {Platform.OS === 'ios' ? (
-          <StatusBar barStyle="light-content" backgroundColor={atomicColors.neutral[900]} />
-        ) : null}
+      <>
+        <NoticeImageViewerStatusBarSync />
+        <SafeAreaView style={[styles.container, styles.emptyContainer]} edges={['top', 'bottom']}>
         <Pressable onPress={handleClose} accessibilityRole="button" accessibilityLabel="닫기">
           <Icon name="close" variant="line" size={24} color={colors.staticWhite} />
         </Pressable>
       </SafeAreaView>
+      </>
     );
   }
 
   const pageLabel = `${pageIndex + 1}/${media.length}`;
 
-  if (!isMediaReady) {
+  if (!isMediaReady && !hasShownContentRef.current) {
     return (
-      <View style={styles.container}>
-        {Platform.OS === 'ios' ? (
-          <StatusBar barStyle="light-content" backgroundColor={atomicColors.neutral[900]} />
-        ) : null}
-        <Stack.Screen options={imageViewerStackScreenOptions} />
-      </View>
+      <>
+        <NoticeImageViewerStatusBarSync />
+        <View style={styles.container} />
+      </>
     );
   }
 
   return (
-    <View style={styles.container}>
-      {Platform.OS === 'ios' ? (
-        <StatusBar barStyle="light-content" backgroundColor={atomicColors.neutral[900]} />
-      ) : null}
-      <Stack.Screen
-        options={{
-          ...imageViewerStackScreenOptions,
-          gestureEnabled: !zoomActiveRef.current,
-        }}
-      />
+    <>
+      <NoticeImageViewerStatusBarSync />
+      <View style={styles.container}>
 
-      <Animated.View style={[styles.viewerContent, { opacity: contentOpacity }]}>
+      <View style={styles.viewerContent}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.header}>
           <Pressable
@@ -292,7 +266,7 @@ export default function SettingsNoticeImageViewerScreen() {
           style={[styles.viewerBody, { backgroundColor: colors.fill }]}
           onLayout={handleViewerLayout}
         >
-          {viewerSize.height > 0 ? (
+          {effectiveViewerSize.height > 0 ? (
             <FlatList
               ref={listRef}
               data={media}
@@ -305,8 +279,8 @@ export default function SettingsNoticeImageViewerScreen() {
               overScrollMode="never"
               initialScrollIndex={initialIndex}
               getItemLayout={(_, index) => ({
-                length: viewerSize.width,
-                offset: viewerSize.width * index,
+                length: effectiveViewerSize.width,
+                offset: effectiveViewerSize.width * index,
                 index,
               })}
               onMomentumScrollEnd={handleScrollEnd}
@@ -316,9 +290,10 @@ export default function SettingsNoticeImageViewerScreen() {
                   return (
                     <NoticeVideoSlide
                       uri={item.uri}
-                      width={viewerSize.width}
-                      height={viewerSize.height}
+                      width={effectiveViewerSize.width}
+                      height={effectiveViewerSize.height}
                       isActive={index === pageIndex}
+                      isDismissing={isDismissing && index === pageIndex}
                       isScrubbing={index === pageIndex && isVideoScrubbing}
                       seekTime={index === pageIndex ? seekTime : null}
                       seekSeq={index === pageIndex ? seekSeq : 0}
@@ -331,8 +306,8 @@ export default function SettingsNoticeImageViewerScreen() {
                 return (
                   <ZoomableImage
                     uri={item.uri}
-                    width={viewerSize.width}
-                    height={viewerSize.height}
+                    width={effectiveViewerSize.width}
+                    height={effectiveViewerSize.height}
                     isActive={index === pageIndex}
                     onZoomActiveChange={handleZoomActiveChange}
                   />
@@ -359,8 +334,9 @@ export default function SettingsNoticeImageViewerScreen() {
       </View>
 
       <SafeAreaView edges={['bottom']} style={styles.bottomSafeArea} />
-      </Animated.View>
+      </View>
     </View>
+    </>
   );
 }
 

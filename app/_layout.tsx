@@ -1,12 +1,16 @@
 import 'react-native-gesture-handler';
 
-import { RootLayoutShell } from '@/components/root-layout-shell';
 import { AndroidJsStack } from '@/components/navigation/android-js-stack';
+import { RootLayoutShell } from '@/components/root-layout-shell';
 import { ANDROID_JS_STACK_SCREEN_OPTIONS } from '@/constants/navigation-options';
+import {
+  NOTICE_IMAGE_VIEWER_NAVIGATION_OPTIONS,
+  NOTICE_IMAGE_VIEWER_ROUTE_NAME,
+} from '@/constants/notice-image-viewer-navigation-options';
 import { rootLayoutUnstableSettings } from '@/constants/root-layout-unstable-settings';
 import {
-  ROOT_STACK_MODAL_ROUTE_NAME,
-  ROOT_STACK_ROUTE_NAMES,
+    ROOT_STACK_MODAL_ROUTE_NAME,
+    ROOT_STACK_ROUTE_NAMES,
 } from '@/constants/root-stack-routes';
 import { useRootLayoutBootstrap } from '@/hooks/use-root-layout-bootstrap';
 import { configureForegroundNotificationHandler } from '@/utils/expo-notifications-client';
@@ -30,7 +34,15 @@ export default function RootLayout() {
         showApp && Platform.OS === 'android' ? (
           <AndroidJsStack screenOptions={ANDROID_JS_STACK_SCREEN_OPTIONS}>
             {ROOT_STACK_ROUTE_NAMES.map((name) => (
-              <AndroidJsStack.Screen key={name} name={name} />
+              <AndroidJsStack.Screen
+                key={name}
+                name={name}
+                options={
+                  name === NOTICE_IMAGE_VIEWER_ROUTE_NAME
+                    ? NOTICE_IMAGE_VIEWER_NAVIGATION_OPTIONS
+                    : undefined
+                }
+              />
             ))}
             <AndroidJsStack.Screen
               name={ROOT_STACK_MODAL_ROUTE_NAME}
@@ -40,7 +52,15 @@ export default function RootLayout() {
         ) : showApp ? (
           <Stack screenOptions={{ headerShown: false }}>
             {ROOT_STACK_ROUTE_NAMES.map((name) => (
-              <Stack.Screen key={name} name={name} />
+              <Stack.Screen
+                key={name}
+                name={name}
+                options={
+                  name === NOTICE_IMAGE_VIEWER_ROUTE_NAME
+                    ? NOTICE_IMAGE_VIEWER_NAVIGATION_OPTIONS
+                    : undefined
+                }
+              />
             ))}
             <Stack.Screen
               name={ROOT_STACK_MODAL_ROUTE_NAME}

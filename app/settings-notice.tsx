@@ -191,6 +191,7 @@ export default function SettingsNoticeScreen() {
   const [devNoticeIds, setDevNoticeIds] = useState<Set<string>>(() => new Set());
   const [isContentReady, setIsContentReady] = useState(false);
   const noticesRef = useRef<AppNotice[]>([]);
+  const skipNextFocusLoadRef = useRef(false);
   const contentOpacity = useRef(new Animated.Value(0)).current;
 
   const loadNotices = useCallback(async () => {
@@ -219,7 +220,11 @@ export default function SettingsNoticeScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      void loadNotices();
+      if (skipNextFocusLoadRef.current) {
+        skipNextFocusLoadRef.current = false;
+      } else {
+        void loadNotices();
+      }
 
       return () => {
         void markNoticesViewed(noticesRef.current);
@@ -236,6 +241,7 @@ export default function SettingsNoticeScreen() {
   };
 
   const handleNoticeMediaPress = (notice: AppNotice, index: number) => {
+    skipNextFocusLoadRef.current = true;
     const media = buildNoticeMediaItems(notice);
     router.push({
       pathname: '/settings-notice-image-viewer',

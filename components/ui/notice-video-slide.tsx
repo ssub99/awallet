@@ -5,8 +5,11 @@ import {
 import { ZoomableView } from '@/components/ui/zoomable-view';
 import { themeColors } from '@/constants/theme-colors';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useNoticeVideoThumbnail } from '@/hooks/use-notice-video-thumbnail';
 import { useEventListener } from 'expo';
+import { useNavigation } from 'expo-router';
 import { VideoView, useVideoPlayer } from 'expo-video';
+import { Image } from 'expo-image';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
@@ -15,6 +18,7 @@ interface NoticeVideoSlideProps {
   width: number;
   height: number;
   isActive: boolean;
+  isDismissing?: boolean;
   isScrubbing: boolean;
   seekTime: number | null;
   seekSeq: number;
@@ -27,21 +31,26 @@ export function NoticeVideoSlide({
   width,
   height,
   isActive,
+  isDismissing = false,
   isScrubbing,
   seekTime,
   seekSeq,
   onProgressChange,
   onZoomActiveChange,
 }: NoticeVideoSlideProps) {
+  const navigation = useNavigation();
   const colorScheme = useColorScheme();
   const colors = themeColors[colorScheme ?? 'light'];
+  const posterUri = useNoticeVideoThumbnail(uri);
   const [overlayMode, setOverlayMode] = useState<NoticeVideoPlaybackOverlayMode | null>(null);
+  const [isClosing, setIsClosing] = useState(false);
   const [playAutoHide, setPlayAutoHide] = useState(true);
   const resumedFromPauseRef = useRef(false);
   const endedNaturallyRef = useRef(false);
   const playAtEndRef = useRef(false);
   const isScrubbingRef = useRef(false);
   const wasPlayingBeforeScrubRef = useRef(false);
+  const isClosingRef = useRef(false);
 
   const player = useVideoPlayer(uri, (instance) => {
     instance.timeUpdateEventInterval = 0.03;
@@ -79,7 +88,7 @@ export function NoticeVideoSlide({
   });
 
   useEventListener(player, 'playingChange', ({ isPlaying }) => {
-    if (!isActive || isScrubbingRef.current) {
+    if (!isActive || isScrubbingRef.current || isClosingRef.current) {
       return;
     }
 
@@ -122,6 +131,40 @@ export function NoticeVideoSlide({
   });
 
   useEffect(() => {
+    if (!isDismissing) {
+      return;
+    }
+    isClosingRef.current = true;
+    setOverlayMode(null);
+    player.pause();
+  }, [isDismissing, player]);
+
+  useEffect(() => {
+    const onTransitionStart = navigation.addListener('transitionStart', (event) => {
+      if (event.data?.closing !== true) {
+        return;
+      }
+      isClosingRef.current = true;
+      setIsClosing(true);
+      setOverlayMode(null);
+      player.pause();
+    });
+
+    const onTransitionEnd = navigation.addListener('transitionEnd', (event) => {
+      if (event.data?.closing !== true) {
+        return;
+      }
+      isClosingRef.current = false;
+      setIsClosing(false);
+    });
+
+    return () => {
+      onTransitionStart();
+      onTransitionEnd();
+    };
+  }, [navigation, player]);
+
+  useEffect(() => {
     if (!isActive) {
       player.pause();
       player.currentTime = 0;
@@ -135,8 +178,13 @@ export function NoticeVideoSlide({
       return;
     }
 
+    if (isClosingRef.current || isDismissing) {
+      player.pause();
+      return;
+    }
+
     void player.play();
-  }, [isActive, player]);
+  }, [isActive, isDismissing, player]);
 
   useEffect(() => {
     if (isScrubbing) {
@@ -172,24 +220,29 @@ export function NoticeVideoSlide({
   }, [isActive, player, seekSeq, seekTime]);
 
   const handleTogglePlayback = useCallback(() => {
+    if (isClosingRef.current || isDismissing) {
+      return;
+    }
     if (player.playing) {
       player.pause();
       return;
     }
     void player.play();
-  }, [player]);
+  }, [isDismissing, player]);
+
+  const showDismissPoster = (isClosing || isDismissing) && posterUri != null;
 
   return (
     <View style={[styles.container, { width, height, backgroundColor: colors.fill }]}>
       <ZoomableView
         width={width}
         height={height}
-        isActive={isActive}
+        isActive={isActive && !isClosing && !isDismissing}
         onZoomActiveChange={onZoomActiveChange}
         onSingleTap={handleTogglePlayback}
       >
         <VideoView
-          style={styles.video}
+          style={[styles.video, showDismissPoster ? styles.videoHidden : null]}
           player={player}
           contentFit="contain"
           nativeControls={false}
@@ -197,7 +250,7 @@ export function NoticeVideoSlide({
           allowsPictureInPicture={false}
           accessibilityLabel="확대 가능한 공지 영상"
         />
-        {overlayMode != null ? (
+        {overlayMode != null && !showDismissPoster ? (
           <NoticeVideoPlaybackOverlay
             mode={overlayMode}
             playAutoHide={playAutoHide}
@@ -205,6 +258,17 @@ export function NoticeVideoSlide({
           />
         ) : null}
       </ZoomableView>
+      {showDismissPoster ? (
+        <Image
+          source={{ uri: posterUri }}
+          style={styles.dismissPoster}
+          contentFit="contain"
+          cachePolicy="memory-disk"
+          transition={0}
+          pointerEvents="none"
+          accessibilityLabel="공지 영상"
+        />
+      ) : null}
     </View>
   );
 }
@@ -216,5 +280,12 @@ const styles = StyleSheet.create({
   video: {
     width: '100%',
     height: '100%',
+  },
+  videoHidden: {
+    opacity: 0,
+  },
+  dismissPoster: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 2,
   },
 });
