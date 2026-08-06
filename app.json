@@ -2,7 +2,7 @@
   "expo": {
     "name": "awallet",
     "slug": "awallet",
-    "version": "1.1.7",
+    "version": "1.1.9",
     "description": "당신의 현명한 소비 기록 awallet",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",

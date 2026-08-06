@@ -3,7 +3,7 @@ import { useMetaFacebookAttSync } from '@/hooks/use-meta-facebook-att-sync';
 import { useFirstLaunchNotificationPermission } from '@/hooks/use-notifications';
 import { colors, type ColorPalette } from '@/constants/theme';
 import { initAmplitude, logEvent } from '@/utils/analytics';
-import { isAtLeastVersion } from '@/utils/app-version';
+import { getAppVersion, isAtLeastVersion } from '@/utils/app-version';
 import {
   checkActiveChallengesNotifications,
   checkEndedChallenges,
@@ -77,7 +77,7 @@ export function useRootLayoutBootstrap() {
         if (!__DEV__ && !isExpoGo) {
           const policy = await fetchAppVersionPolicy();
           if (policy != null) {
-            const currentVersion = Constants.expoConfig?.version;
+            const currentVersion = getAppVersion();
             const minRequired = getEffectiveMinVersion(policy);
             if (!isAtLeastVersion(currentVersion, minRequired)) {
               setStoreUpdateGate({
@@ -102,7 +102,7 @@ export function useRootLayoutBootstrap() {
           timestamp: Date.now(),
           platform: Platform.OS,
           environment: __DEV__ ? 'development' : 'production',
-          app_version: Constants.expoConfig?.version ?? 'unknown',
+          app_version: getAppVersion() ?? 'unknown',
         });
 
         setSplashFinished(true);
@@ -145,7 +145,7 @@ export function useRootLayoutBootstrap() {
 
       const policy = await fetchAppVersionPolicy();
       if (policy == null) return;
-      const currentVersion = Constants.expoConfig?.version;
+      const currentVersion = getAppVersion();
       const minRequired = getEffectiveMinVersion(policy);
       if (isAtLeastVersion(currentVersion, minRequired)) {
         setStoreUpdateGate(null);
