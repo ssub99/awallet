@@ -1,5 +1,5 @@
 diff --git a/node_modules/react-native-worklets/android/build.gradle b/node_modules/react-native-worklets/android/build.gradle
-index 0000000..1111111 100644
+index 021f5bc..dc76816 100644
 --- a/node_modules/react-native-worklets/android/build.gradle
 +++ b/node_modules/react-native-worklets/android/build.gradle
 @@ -12,6 +12,8 @@ def safeAppExtGet(prop, fallback) {
@@ -20,7 +20,7 @@ index 0000000..1111111 100644
          }.standardOutput.asText.get().trim()
      )
      if (reactNativePackage.exists()) {
-@@ -294,7 +296,7 @@
+@@ -294,7 +296,7 @@ android {
  
  def validateReactNativeVersionResult = providers.exec {
      workingDir(projectDir.path)

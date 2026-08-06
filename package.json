@@ -29,7 +29,7 @@
     "verify:reviews": "npx tsx scripts/verify-parse-expense-reviews.ts",
     "verify:recurring-month": "npx tsx scripts/verify-recurring-month-anchor.ts",
     "eas": "eas",
-    "postinstall": "patch-package"
+    "postinstall": "bash scripts/postinstall.sh"
   },
   "dependencies": {
     "@amplitude/analytics-react-native": "^1.5.52",
