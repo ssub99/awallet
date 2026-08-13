@@ -26,7 +26,7 @@ function getAndroidSplashPluginProps(exp) {
 
 const { exp } = getConfig(projectRoot);
 const androidSplash = getAndroidSplashPluginProps(exp);
-const imageWidth = androidSplash.imageWidth ?? 160;
+const imageWidth = androidSplash.imageWidth ?? 100;
 
 await setSplashImageDrawablesAsync(exp, androidSplash, projectRoot, imageWidth);
 console.log(`Android splash drawables regenerated (imageWidth=${imageWidth}dp).`);

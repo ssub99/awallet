@@ -2,7 +2,7 @@
   "expo": {
     "name": "awallet",
     "slug": "awallet",
-    "version": "1.1.9",
+    "version": "1.2.0",
     "description": "당신의 현명한 소비 기록 awallet",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -14,7 +14,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.ssong.awallet",
       "appStoreUrl": "https://apps.apple.com/kr/app/id6755246069",
-      "buildNumber": "49",
+      "buildNumber": "50",
       "userInterfaceStyle": "light",
       "googleServicesFile": "./ios/awallet/GoogleService-Info.plist",
       "infoPlist": {
@@ -22,11 +22,11 @@
         "CFBundleName": "에이월렛",
         "NSUserNotificationsUsageDescription": "소비 기록 알림과 챌린지 리마인더를 받기 위해 알림 권한이 필요합니다.",
         "ITSAppUsesNonExemptEncryption": false,
-        "CFBundleShortVersionString": "1.1.9",
-        "CFBundleVersion": "49",
+        "CFBundleShortVersionString": "1.2.0",
+        "CFBundleVersion": "50",
         "UIViewControllerBasedStatusBarAppearance": true
       },
-      "runtimeVersion": "1.1.9"
+      "runtimeVersion": "1.2.0"
     },
     "android": {
       "softwareKeyboardLayoutMode": "resize",
@@ -40,11 +40,11 @@
       "package": "com.ssong.awallet",
       "googleServicesFile": "./android-firebase/google-services.json",
       "playStoreUrl": "https://play.google.com/store/apps/details?id=com.ssong.awallet",
-      "versionCode": 49,
+      "versionCode": 50,
       "permissions": [
         "android.permission.POST_NOTIFICATIONS"
       ],
-      "runtimeVersion": "1.1.9"
+      "runtimeVersion": "1.2.0"
     },
     "web": {
       "output": "static",
@@ -77,7 +77,7 @@
           },
           "android": {
             "image": "./assets/images/splash-icon.png",
-            "imageWidth": 160,
+            "imageWidth": 100,
             "resizeMode": "contain",
             "backgroundColor": "#ffffff",
             "dark": {
@@ -152,7 +152,7 @@
       "url": "https://u.expo.dev/f33074c8-df40-4c61-bcfe-826b22dabd0a",
       "fallbackToCacheTimeout": 0,
       "checkAutomatically": "ON_LOAD",
-      "runtimeVersion": "1.1.9"
+      "runtimeVersion": "1.2.0"
     },
     "extra": {
       "supportEmail": "ssuby99@gmail.com",

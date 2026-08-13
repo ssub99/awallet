@@ -29,7 +29,7 @@ const ANDROID_PACKAGE_STAGE = 'com.ssong.awallet.stage';
 
 const SPLASH_IMAGE = './assets/images/splash-icon.png';
 /** Android 12+ 스플래시 아이콘 표시 너비(dp). 기본 96은 로고가 작게 보임. iOS는 96 유지. */
-const SPLASH_IMAGE_WIDTH_ANDROID = 160;
+const SPLASH_IMAGE_WIDTH_ANDROID = 100;
 const SPLASH_IMAGE_WIDTH_IOS = 96;
 
 const splashScreenPlugin: NonNullable<ExpoConfig['plugins']>[number] = [
