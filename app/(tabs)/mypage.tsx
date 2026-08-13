@@ -266,12 +266,12 @@ export default function MyPageScreen() {
 
       {/* Top Navigation (shared component) - Figma main type (no arrow) */}
       <Animated.View style={{ opacity: isContentReady ? contentOpacity : 0 }}>
-      <TopNavigation type="main" title="설정" />
+        {isContentReady ? <TopNavigation type="main" title="설정" /> : null}
       </Animated.View>
 
       <Animated.View style={{ flex: 1, opacity: isContentReady ? contentOpacity : 0 }}>
-        {/* Background */}
-        <View style={[styles.background, { backgroundColor: colors.fill }]}>
+        {isContentReady ? (
+          <View style={[styles.background, { backgroundColor: colors.fill }]}>
           <ScrollView
             style={styles.scrollView}
             contentContainerStyle={styles.scrollContent}
@@ -533,6 +533,7 @@ export default function MyPageScreen() {
           )}
           </ScrollView>
         </View>
+        ) : null}
       </Animated.View>
 
     </SafeAreaView>

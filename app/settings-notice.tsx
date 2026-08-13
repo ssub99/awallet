@@ -50,6 +50,16 @@ const NOTICE_EMPTY_MESSAGE = '등록된 공지사항이 없습니다.';
 const NOTICE_CONTENT_FADE_IN_MS = 200;
 const NOTICE_VIEWER_OFFSCREEN_EXTRA = 160;
 
+function applyAndroidNoticeViewerStatusBar(style: 'light' | 'dark') {
+  if (Platform.OS !== 'android') {
+    return;
+  }
+
+  ExpoStatusBar.setStatusBarTranslucent(true);
+  ExpoStatusBar.setStatusBarBackgroundColor('transparent', true);
+  ExpoStatusBar.setStatusBarStyle(style, true);
+}
+
 const NoticeImageThumbnail = memo(function NoticeImageThumbnail({
   uri,
   colors,
@@ -219,11 +229,27 @@ export default function SettingsNoticeScreen() {
   } | null>(null);
   const [isAndroidViewerVisible, setIsAndroidViewerVisible] = useState(false);
   const [isAndroidViewerDismissing, setIsAndroidViewerDismissing] = useState(false);
+  const [androidViewerStatusBarStyle, setAndroidViewerStatusBarStyleState] =
+    useState<'light' | 'dark'>('dark');
   const noticesRef = useRef<AppNotice[]>([]);
   const skipNextFocusLoadRef = useRef(false);
   const contentOpacity = useRef(new Animated.Value(0)).current;
   const androidViewerTranslateY = useRef(new Animated.Value(0)).current;
   const androidViewerSheetHeightRef = useRef(0);
+  const androidViewerStatusBarStyleRef = useRef<'light' | 'dark'>('dark');
+
+  const setAndroidNoticeViewerStatusBarStyle = useCallback(
+    (style: 'light' | 'dark') => {
+      if (androidViewerStatusBarStyleRef.current === style) {
+        return;
+      }
+      androidViewerStatusBarStyleRef.current = style;
+      setAndroidViewerStatusBarStyleState(style);
+      applyAndroidNoticeViewerStatusBar(style);
+      setAndroidStatusBarStyle(style);
+    },
+    [setAndroidStatusBarStyle],
+  );
 
   const getAndroidViewerHiddenOffset = useCallback(() => {
     return (
@@ -234,9 +260,9 @@ export default function SettingsNoticeScreen() {
 
   useEffect(() => {
     return () => {
-      setAndroidStatusBarStyle('dark');
+      setAndroidNoticeViewerStatusBarStyle('dark');
     };
-  }, [setAndroidStatusBarStyle]);
+  }, [setAndroidNoticeViewerStatusBarStyle]);
 
   const loadNotices = useCallback(async () => {
     try {
@@ -288,8 +314,10 @@ export default function SettingsNoticeScreen() {
     const media = buildNoticeMediaItems(notice);
     if (Platform.OS === 'android') {
       androidViewerTranslateY.stopAnimation();
-      androidViewerTranslateY.setValue(getAndroidViewerHiddenOffset());
+      const hiddenOffset = getAndroidViewerHiddenOffset();
+      androidViewerTranslateY.setValue(hiddenOffset);
       setIsAndroidViewerDismissing(false);
+      setAndroidNoticeViewerStatusBarStyle('light');
       setAndroidViewer({ media, initialIndex: index });
       setIsAndroidViewerVisible(true);
       requestAnimationFrame(() => {
@@ -298,11 +326,7 @@ export default function SettingsNoticeScreen() {
           duration: ANDROID_NOTICE_VIEWER_TRANSITION_MS,
           easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
-        }).start(({ finished }) => {
-          if (finished) {
-            setAndroidStatusBarStyle('light');
-          }
-        });
+        }).start();
       });
       return;
     }
@@ -316,21 +340,25 @@ export default function SettingsNoticeScreen() {
   const handleAndroidViewerClose = useCallback(() => {
     androidViewerTranslateY.stopAnimation();
     setIsAndroidViewerDismissing(true);
-    setAndroidStatusBarStyle('dark');
+    setAndroidNoticeViewerStatusBarStyle('dark');
+    const hiddenOffset = getAndroidViewerHiddenOffset();
     Animated.timing(androidViewerTranslateY, {
-      toValue: getAndroidViewerHiddenOffset(),
+      toValue: hiddenOffset,
       duration: ANDROID_NOTICE_VIEWER_TRANSITION_MS,
       easing: Easing.in(Easing.cubic),
       useNativeDriver: true,
     }).start(({ finished }) => {
-      if (!finished) {
-        return;
+      if (finished) {
+        setIsAndroidViewerVisible(false);
+        setAndroidViewer(null);
+        setIsAndroidViewerDismissing(false);
       }
-      setIsAndroidViewerVisible(false);
-      setAndroidViewer(null);
-      setIsAndroidViewerDismissing(false);
     });
-  }, [androidViewerTranslateY, getAndroidViewerHiddenOffset, setAndroidStatusBarStyle]);
+  }, [
+    androidViewerTranslateY,
+    getAndroidViewerHiddenOffset,
+    setAndroidNoticeViewerStatusBarStyle,
+  ]);
 
   const handleAndroidViewerSheetLayout = useCallback((event: LayoutChangeEvent) => {
     androidViewerSheetHeightRef.current = event.nativeEvent.layout.height;
@@ -444,9 +472,9 @@ export default function SettingsNoticeScreen() {
           statusBarTranslucent
           navigationBarTranslucent
           onRequestClose={handleAndroidViewerClose}
-        >
+          >
           <ExpoStatusBar.StatusBar
-            style={isAndroidViewerDismissing ? 'dark' : 'light'}
+            style={androidViewerStatusBarStyle}
             translucent
             backgroundColor="transparent"
           />
