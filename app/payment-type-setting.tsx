@@ -15,10 +15,14 @@ import {
 } from '@/utils/payment-types';
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View, unstable_batchedUpdates } from 'react-native';
-import DraggableFlatList, { RenderItemParams } from 'react-native-draggable-flatlist';
-import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View, unstable_batchedUpdates } from 'react-native';
+import Sortable, {
+  useItemContext,
+  type SortableGridDragEndParams,
+  type SortableGridRenderItem,
+} from 'react-native-sortables';
+import Animated, { useAnimatedRef, useAnimatedStyle } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 type PaymentMethodType = 'credit' | 'debit';
@@ -32,27 +36,12 @@ interface PaymentTypeItemData {
   isDefault: boolean;
 }
 
-const DRAG_AUTOSCROLL_THRESHOLD = 96;
-const DRAG_AUTOSCROLL_SPEED = 80;
-const DRAG_ACTIVATION_DISTANCE = 2;
 const DRAG_SHADOW_ANIMATION_MS = 200;
-const DRAG_PLACEHOLDER_OPACITY = 0.32;
-const DRAG_DROP_ANIMATION_CONFIG =
-  Platform.OS === 'android'
-    ? {
-        damping: 24,
-        stiffness: 260,
-        mass: 0.6,
-        overshootClamping: false,
-        restDisplacementThreshold: 0.5,
-        restSpeedThreshold: 0.5,
-      }
-    : {
-        damping: 50,
-        stiffness: 1000,
-        mass: 0.5,
-        overshootClamping: true,
-      };
+const SORTABLE_AUTOSCROLL_THRESHOLD = 96;
+const SORTABLE_AUTOSCROLL_MAX_VELOCITY = 900;
+const SORTABLE_AUTOSCROLL_INTERVAL = 16;
+const SORTABLE_DRAG_ACTIVATION_DELAY = 0;
+const SORTABLE_DRAG_ACTIVATION_FAIL_OFFSET = 12;
 
 function toSettingItem(item: PaymentSubtype, isDefault: boolean): PaymentTypeItemData {
   return {
@@ -100,63 +89,30 @@ const styles = StyleSheet.create({
 
 interface PaymentTypeItemProps {
   item: PaymentTypeItemData;
-  drag: () => void;
-  isActive: boolean;
   colors: typeof themeColors.light;
   showDivider: boolean;
   onPress: (item: PaymentTypeItemData) => void;
-  isDropShadowVisible: boolean;
 }
 
 function PaymentTypeItemBase({
   item,
-  drag,
-  isActive,
   colors,
   showDivider,
   onPress,
-  isDropShadowVisible,
 }: PaymentTypeItemProps) {
-  const [isShadowVisible, setIsShadowVisible] = useState(false);
-  const shadowOpacity = useSharedValue(0);
-  const elevation = useSharedValue(0);
-  const isIOS = Platform.OS === 'ios';
-  const isAndroid = Platform.OS === 'android';
-
-  useEffect(() => {
-    if (isActive && isDropShadowVisible) {
-      setIsShadowVisible(true);
-      shadowOpacity.value = 1;
-      elevation.value = 8;
-      shadowOpacity.value = withTiming(0, { duration: DRAG_SHADOW_ANIMATION_MS }, (finished) => {
-        if (finished) {
-          runOnJS(setIsShadowVisible)(false);
-        }
-      });
-      elevation.value = withTiming(0, { duration: DRAG_SHADOW_ANIMATION_MS });
-    } else if (isActive) {
-      setIsShadowVisible(true);
-      shadowOpacity.value = withTiming(1, { duration: DRAG_SHADOW_ANIMATION_MS });
-      elevation.value = withTiming(8, { duration: DRAG_SHADOW_ANIMATION_MS });
-    } else {
-      shadowOpacity.value = withTiming(0, { duration: DRAG_SHADOW_ANIMATION_MS }, (finished) => {
-        if (finished) {
-          runOnJS(setIsShadowVisible)(false);
-        }
-      });
-      elevation.value = withTiming(0, { duration: DRAG_SHADOW_ANIMATION_MS });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isActive, isDropShadowVisible]);
-
-  const animatedShadowStyleIOS = useAnimatedStyle(() => ({
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: shadowOpacity.value * 0.15,
-    shadowRadius: 8,
-  }));
-  const animatedShadowStyleAndroid = useAnimatedStyle(() => ({ elevation: elevation.value }));
-  const animatedShadowStyle = isIOS ? animatedShadowStyleIOS : isAndroid ? animatedShadowStyleAndroid : {};
+  const { activationAnimationProgress } = useItemContext();
+  const animatedShadowStyle = useAnimatedStyle(() => {
+    const activeProgress = Number.isFinite(activationAnimationProgress.value)
+      ? activationAnimationProgress.value
+      : 0;
+    return {
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: activeProgress * 0.15,
+      shadowRadius: 12,
+      elevation: activeProgress * 8,
+    };
+  });
 
   return (
     <>
@@ -165,18 +121,17 @@ function PaymentTypeItemBase({
           <Animated.View
             style={[
               { backgroundColor: colors.background, overflow: 'visible' },
-              isShadowVisible && styles.paymentTypeRowActive,
+              styles.paymentTypeRowActive,
               animatedShadowStyle,
             ]}
           >
             <Pressable
               style={styles.paymentTypeRow}
               onPress={() => {
-                if (!isActive) onPress(item);
+                onPress(item);
               }}
               accessibilityRole="button"
               accessibilityLabel={`${item.label} 결제 유형 편집`}
-              disabled={isActive}
             >
               <View style={styles.paymentTypeLeft}>
                 <View style={[styles.paymentTypeIndicator, { backgroundColor: item.color, borderColor: colors.border }]} />
@@ -193,16 +148,9 @@ function PaymentTypeItemBase({
               </View>
               <View style={styles.paymentTypeRight}>
                 {item.isDefault ? <Tag label="기본" status="normal" /> : null}
-                <Pressable
-                  onPressIn={() => {
-                    drag();
-                  }}
-                  style={styles.handleArea}
-                  accessibilityRole="button"
-                  accessibilityLabel="드래그 핸들"
-                >
+                <Sortable.Handle style={styles.handleArea}>
                   <Icon name="handle" variant="line" size={24} color={colors.textNeutral} />
-                </Pressable>
+                </Sortable.Handle>
               </View>
             </Pressable>
           </Animated.View>
@@ -217,11 +165,9 @@ const PaymentTypeItem = React.memo(
   PaymentTypeItemBase,
   (prev, next) =>
     prev.item === next.item &&
-    prev.isActive === next.isActive &&
     prev.colors === next.colors &&
     prev.showDivider === next.showDivider &&
-    prev.onPress === next.onPress &&
-    prev.isDropShadowVisible === next.isDropShadowVisible,
+    prev.onPress === next.onPress,
 );
 
 export default function PaymentTypeSettingScreen() {
@@ -231,7 +177,7 @@ export default function PaymentTypeSettingScreen() {
   const [selectedFilter, setSelectedFilter] = useState<PaymentMethodType>('credit');
   const [paymentSubtypes, setPaymentSubtypes] = useState<PaymentSubtype[]>(() => initialSubtypes);
   const [isListDataReady, setIsListDataReady] = useState(() => getPaymentSubtypesMemoryCache() != null);
-  const [dropShadowPaymentTypeId, setDropShadowPaymentTypeId] = useState<string | null>(null);
+  const scrollableRef = useAnimatedRef<ScrollView>();
   const paymentSubtypesRef = useRef(paymentSubtypes);
   const paymentTypesRef = useRef<PaymentTypeItemData[]>([]);
 
@@ -242,45 +188,9 @@ export default function PaymentTypeSettingScreen() {
   const isDraggingRef = useRef<boolean>(false);
   const lastDragEndTimeRef = useRef<number>(0);
   const scrollOffsetYRef = useRef(0);
-  const listRef = useRef<{
-    scrollToOffset: (params: { offset: number; animated?: boolean }) => void;
-  } | null>(null);
   const dragSessionIdRef = useRef(0);
   const activeDragSessionIdRef = useRef<number | null>(null);
   const dragPhaseRef = useRef<'idle' | 'dragging' | 'settling'>('idle');
-  const dropShadowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const clearDropShadowPaymentTypeId = useCallback(() => {
-    setDropShadowPaymentTypeId(null);
-    if (dropShadowTimerRef.current) {
-      clearTimeout(dropShadowTimerRef.current);
-      dropShadowTimerRef.current = null;
-    }
-  }, []);
-
-  const startDropShadowFadeOut = useCallback(
-    (id: string | null) => {
-      if (id == null) {
-        return;
-      }
-      if (dropShadowTimerRef.current) {
-        clearTimeout(dropShadowTimerRef.current);
-      }
-      setDropShadowPaymentTypeId(id);
-      dropShadowTimerRef.current = setTimeout(() => {
-        clearDropShadowPaymentTypeId();
-      }, DRAG_SHADOW_ANIMATION_MS);
-    },
-    [clearDropShadowPaymentTypeId],
-  );
-
-  useEffect(() => {
-    return () => {
-      if (dropShadowTimerRef.current) {
-        clearTimeout(dropShadowTimerRef.current);
-      }
-    };
-  }, []);
 
   const commitReorderedPaymentSubtypes = useCallback((nextSubtypes: PaymentSubtype[]) => {
     paymentSubtypesRef.current = nextSubtypes;
@@ -346,7 +256,7 @@ export default function PaymentTypeSettingScreen() {
     return true;
   }, []);
 
-  const handleDragStart = useCallback(({ index }: { index: number }) => {
+  const handleDragStart = useCallback(({ key, fromIndex }: { key: string; fromIndex: number }) => {
     if (dragPhaseRef.current !== 'idle') {
       if (!isDraggingRef.current) {
         dragPhaseRef.current = 'idle';
@@ -360,23 +270,22 @@ export default function PaymentTypeSettingScreen() {
     dragSessionIdRef.current += 1;
     activeDragSessionIdRef.current = dragSessionIdRef.current;
     isDraggingRef.current = true;
-    draggedPaymentTypeIdRef.current = paymentTypesRef.current[index]?.id ?? null;
-    clearDropShadowPaymentTypeId();
+    draggedPaymentTypeIdRef.current = key;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     hasTriggeredStartHapticRef.current = true;
-    dragStartIndexRef.current = index;
-    previousIndexRef.current = index;
-  }, [clearDropShadowPaymentTypeId]);
+    dragStartIndexRef.current = fromIndex;
+    previousIndexRef.current = fromIndex;
+  }, []);
 
-  const handlePlaceholderIndexChange = useCallback((index: number) => {
-    if (previousIndexRef.current !== null && previousIndexRef.current !== index) {
+  const handleOrderChange = useCallback(({ toIndex }: { toIndex: number }) => {
+    if (previousIndexRef.current !== null && previousIndexRef.current !== toIndex) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
-    previousIndexRef.current = index;
+    previousIndexRef.current = toIndex;
   }, []);
 
   const handleDragEnd = useCallback(
-    ({ data }: { data: PaymentTypeItemData[] }) => {
+    ({ data }: SortableGridDragEndParams<PaymentTypeItemData>) => {
       const activeSessionId = activeDragSessionIdRef.current;
       if (activeSessionId == null || dragStartIndexRef.current == null) {
         return;
@@ -409,9 +318,6 @@ export default function PaymentTypeSettingScreen() {
           } as PaymentSubtype;
         }),
       ];
-      if (Platform.OS === 'android') {
-        startDropShadowFadeOut(draggedPaymentTypeIdRef.current);
-      }
       draggedPaymentTypeIdRef.current = null;
       commitReorderedPaymentSubtypes(nextSubtypes);
       savePaymentSubtypes(nextSubtypes).catch((error) => {
@@ -422,19 +328,8 @@ export default function PaymentTypeSettingScreen() {
       arePaymentTypeItemsSame,
       commitReorderedPaymentSubtypes,
       selectedFilter,
-      startDropShadowFadeOut,
     ]
   );
-
-  const handleRelease = useCallback(() => {
-    if (activeDragSessionIdRef.current == null || dragStartIndexRef.current == null) {
-      return;
-    }
-    if (Platform.OS !== 'android') {
-      startDropShadowFadeOut(draggedPaymentTypeIdRef.current);
-    }
-    dragPhaseRef.current = 'settling';
-  }, [startDropShadowFadeOut]);
 
   const handlePaymentTypePress = useCallback(
     (item: PaymentTypeItemData) => {
@@ -453,54 +348,19 @@ export default function PaymentTypeSettingScreen() {
   );
 
   const renderItem = useCallback(
-    ({ item, drag, isActive, getIndex }: RenderItemParams<PaymentTypeItemData>) => {
-      const index = getIndex();
+    (({ item, index }) => {
       const listLength = paymentTypes.length;
       const isLast = typeof index === 'number' ? index >= listLength - 1 : false;
       return (
         <PaymentTypeItem
           item={item}
-          drag={drag}
-          isActive={isActive}
           colors={colors}
-          showDivider={!isLast && !isActive}
+          showDivider={!isLast}
           onPress={handlePaymentTypePress}
-          isDropShadowVisible={dropShadowPaymentTypeId === item.id}
         />
       );
-    },
-    [colors, dropShadowPaymentTypeId, handlePaymentTypePress, paymentTypes.length]
-  );
-
-  const renderPlaceholder = useCallback(
-    ({ item }: { item: PaymentTypeItemData }) => (
-      <View style={{ height: 57, minHeight: 57, maxHeight: 57, overflow: 'visible' }}>
-        <View style={{ backgroundColor: colors.background, opacity: DRAG_PLACEHOLDER_OPACITY }}>
-          <View style={styles.paymentTypeRow}>
-            <View style={styles.paymentTypeLeft}>
-              <View style={[styles.paymentTypeIndicator, { backgroundColor: item.color, borderColor: colors.border }]} />
-              <View style={[styles.paymentTypeTextBlock, !item.description.trim() && styles.paymentTypeTextBlockSingleLine]}>
-                <UiLineText style={[styles.paymentTypeTitle, { color: colors.text }]} numberOfLines={1}>
-                  {item.label}
-                </UiLineText>
-                {item.description.trim() ? (
-                  <Text style={[styles.paymentTypeSubtitle, { color: colors.textAssistive }]} numberOfLines={1}>
-                    {item.description}
-                  </Text>
-                ) : null}
-              </View>
-            </View>
-            <View style={styles.paymentTypeRight}>
-              {item.isDefault ? <Tag label="기본" status="normal" /> : null}
-              <View style={styles.handleArea}>
-                <Icon name="handle" variant="line" size={24} color={colors.textNeutral} />
-              </View>
-            </View>
-          </View>
-        </View>
-      </View>
-    ),
-    [colors]
+    }) satisfies SortableGridRenderItem<PaymentTypeItemData>,
+    [colors, handlePaymentTypePress, paymentTypes.length]
   );
 
   return (
@@ -545,30 +405,53 @@ export default function PaymentTypeSettingScreen() {
               </Text>
             </View>
           ) : (
-            <DraggableFlatList
-              ref={listRef as never}
-              data={paymentTypes}
-              onDragBegin={(index: number) => handleDragStart({ index })}
-              onPlaceholderIndexChange={handlePlaceholderIndexChange}
-              onRelease={handleRelease}
-              onDragEnd={handleDragEnd}
-              animationConfig={DRAG_DROP_ANIMATION_CONFIG}
-              keyExtractor={(item) => item.id}
-              renderItem={renderItem}
-              renderPlaceholder={renderPlaceholder}
-              contentContainerStyle={styles.scrollContent}
-              removeClippedSubviews={false}
-              dragItemOverflow
-              activationDistance={DRAG_ACTIVATION_DISTANCE}
-              autoscrollThreshold={DRAG_AUTOSCROLL_THRESHOLD}
-              autoscrollSpeed={DRAG_AUTOSCROLL_SPEED}
-              onScrollOffsetChange={(offset: number) => {
-                scrollOffsetYRef.current = offset;
-              }}
-              bounces={false}
-              overScrollMode="never"
-              showsVerticalScrollIndicator={false}
-            />
+            <Sortable.PortalProvider>
+              <Animated.ScrollView
+                ref={scrollableRef as never}
+                style={{ flex: 1 }}
+                contentContainerStyle={styles.scrollContent}
+                scrollEventThrottle={16}
+                showsVerticalScrollIndicator={false}
+                bounces={false}
+                overScrollMode="never"
+                onScroll={(event) => {
+                  scrollOffsetYRef.current = event.nativeEvent.contentOffset.y;
+                }}
+              >
+                <Sortable.Grid
+                  data={paymentTypes}
+                  renderItem={renderItem}
+                  keyExtractor={(item) => item.id}
+                  columns={1}
+                  customHandle
+                  scrollableRef={scrollableRef}
+                  autoScrollEnabled
+                  autoScrollActivationOffset={SORTABLE_AUTOSCROLL_THRESHOLD}
+                  autoScrollMaxVelocity={SORTABLE_AUTOSCROLL_MAX_VELOCITY}
+                  autoScrollInterval={SORTABLE_AUTOSCROLL_INTERVAL}
+                  animateScrollTo={false}
+                  dragActivationDelay={SORTABLE_DRAG_ACTIVATION_DELAY}
+                  dragActivationFailOffset={SORTABLE_DRAG_ACTIVATION_FAIL_OFFSET}
+                  enableActiveItemSnap={false}
+                  activationAnimationDuration={DRAG_SHADOW_ANIMATION_MS}
+                  dropAnimationDuration={DRAG_SHADOW_ANIMATION_MS}
+                  activeItemScale={1}
+                  activeItemOpacity={1}
+                  activeItemShadowOpacity={0}
+                  inactiveItemScale={1}
+                  inactiveItemOpacity={1}
+                  itemEntering={null}
+                  itemExiting={null}
+                  itemsLayoutTransitionMode="reorder"
+                  overDrag="vertical"
+                  overflow="visible"
+                  strategy="insert"
+                  onDragStart={handleDragStart}
+                  onOrderChange={handleOrderChange}
+                  onDragEnd={handleDragEnd}
+                />
+              </Animated.ScrollView>
+            </Sortable.PortalProvider>
           )}
         </View>
       </View>
