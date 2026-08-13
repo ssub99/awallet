@@ -23,7 +23,7 @@ import { buildTimelineItemsFromCalendarData, type TimelineListItem } from '@/uti
 import { logEvent } from '@/utils/analytics';
 import { getRouteParamNumber, getRouteParamString } from '@/utils/route-params';
 import { loadCategories } from '@/utils/categories';
-import { getCustomMonthRange, isDateInCustomMonth } from '@/utils/custom-month';
+import { getCustomMonthRange } from '@/utils/custom-month';
 import { initializePaymentSubtypes, type PaymentSubtype } from '@/utils/payment-types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GlassSurface } from '@/components/ui/glass-surface';
@@ -74,15 +74,6 @@ const useCategoryEmojiMap = () => {
 
 type TimelineItem = TimelineListItem;
 
-interface ChallengeData {
-  id: string;
-  category: string;
-  startDate: string; // YYYY.MM.DD
-  endDate: string; // YYYY.MM.DD
-  targetAmount: number;
-  createdAt: number;
-  recurringId: string; // 반복 챌린지의 그룹 ID
-}
 
 const TIMELINE_PAYMENT_FILTER_STORAGE_KEY = 'monthlyTimelinePaymentFilter';
 const STANDARD_PAYMENT_FILTER_KEYS = ['cash', 'income'] as const;
@@ -107,7 +98,7 @@ export default function MonthlyExpenseTimelineScreen() {
   const colorScheme = useColorScheme();
   const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   const categoryEmojiMap = useCategoryEmojiMap();
-  const { calendarData, monthStartDay, isReady, dataVersion } = useAppData();
+  const { calendarData, monthStartDay, isReady } = useAppData();
   /** 월 전환 전용(화면 내부). GlobalProgressBar Modal은 홈 복귀 시 들썩임 유발 */
   const [isMonthTransitionLoading, setIsMonthTransitionLoading] = useState(false);
   const router = useRouter();
@@ -665,7 +656,7 @@ export default function MonthlyExpenseTimelineScreen() {
 
   const timelineItems = useMemo(
     () => buildTimelineItemsFromCalendarData(calendarData, year, month, monthStartDay),
-    [calendarData, dataVersion, month, monthStartDay, year],
+    [calendarData, month, monthStartDay, year],
   );
   const timelineItemsRef = useRef(timelineItems);
   timelineItemsRef.current = timelineItems;
@@ -828,7 +819,7 @@ export default function MonthlyExpenseTimelineScreen() {
       duration: 200,
       useNativeDriver: true,
     }).start();
-  }, [contentOpacity, isReady, timelineItems]);
+  }, [contentOpacity, isReady, monthTransitionActive, timelineItems]);
 
   const defaultCreditSubtypeId = useMemo(
     () => creditSubtypes[0]?.id,

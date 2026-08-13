@@ -15,7 +15,6 @@ import { RecordDatePickerHost } from '@/components/ui/record-date-picker-sheet';
 import { SectionTitle } from '@/components/ui/section-title';
 import { UiLineText } from '@/components/ui/ui-line-text';
 import { ModalPopup } from '@/components/ui/modal-popup';
-import { atomicColors } from '@/constants/atomic-colors';
 import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useLoading } from '@/contexts/loading-context';
 import { useAndroidKeypadBackDismiss } from '@/hooks/use-android-keypad-back-dismiss';
@@ -37,7 +36,6 @@ import {
   InteractionManager,
   Keyboard,
   NativeSyntheticEvent,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -208,6 +206,7 @@ export default function IncomeEditScreen() {
   // Section position tracking
   const [amountSectionY, setAmountSectionY] = useState(0);
   const [memoSectionY, setMemoSectionY] = useState(0);
+  void memoSectionY;
   const memoSectionYRef = useRef(0);
   const memoSectionHeightRef = useRef(0);
 
@@ -229,6 +228,9 @@ export default function IncomeEditScreen() {
     windowHeight,
     safeAreaBottom: insets.bottom,
   });
+
+  void focusMemoInput;
+  void onMemoScroll;
 
   const isScrollingRef = useRef(false);
   const dismissTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -277,7 +279,7 @@ export default function IncomeEditScreen() {
         });
       }
     }, 0);
-  }, [amountSectionY, isKeypadVisible]);
+  }, [amountSectionY, blurMemoInput, isKeypadVisible]);
 
   // 금액 입력 시 처리하는 함수 (Input 컴포넌트에서 이미 포맷팅됨)
   const handleAmountChange = (text: string) => {
@@ -410,7 +412,7 @@ export default function IncomeEditScreen() {
         }
       });
     }
-  }, [isKeypadMounted, isKeypadVisible, keypadBackdropOpacity, keypadTranslateY]);
+  }, [KEYPAD_HEIGHT, isKeypadMounted, isKeypadVisible, keypadBackdropOpacity, keypadTranslateY]);
 
   const handleDatePress = () => {
     void logEvent('ui', {

@@ -12,17 +12,20 @@ import { Switch } from '@/components/ui/switch';
 import { UiLineText } from '@/components/ui/ui-line-text';
 import { getAppStoreWriteReviewUrl } from '@/constants/app-store';
 import { themeColors } from '@/constants/theme-colors';
-import { typography } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useNoticeUnreadCount } from '@/hooks/use-notice-unread-count';
 import { isLocalDevOnlyUIEnabled } from '@/utils/dev-only-ui';
+import {
+  loadKeypadHapticsEnabled,
+  saveKeypadHapticsEnabled,
+} from '@/hooks/use-keypad-haptics';
 import { monthStartEvent } from '@/hooks/use-month-start';
 import { weekStartEvent } from '@/hooks/use-week-start';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Animated, BackHandler, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Animated, BackHandler, Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function MyPageScreen() {
@@ -38,6 +41,7 @@ export default function MyPageScreen() {
   // Settings state
   const [monthStartDay, setMonthStartDay] = useState('1일');
   const [weekStartsSunday, setWeekStartsSunday] = useState(true);
+  const [keypadHapticsEnabled, setKeypadHapticsEnabled] = useState(false);
 
   // Load settings from AsyncStorage on screen focus
   useFocusEffect(
@@ -60,14 +64,16 @@ export default function MyPageScreen() {
             // 이미 초기화된 경우, 바로 컨텐츠 표시 유지
             setIsContentReady(true);
           }
-          const [startDay, weekStart] = await Promise.all([
+          const [startDay, weekStart, keypadHaptics] = await Promise.all([
             AsyncStorage.getItem('monthStartDay'),
             AsyncStorage.getItem('weekStartsSunday'),
+            loadKeypadHapticsEnabled(),
           ]);
 
           if (startDay) setMonthStartDay(startDay);
           else setMonthStartDay('1일');
           if (weekStart !== null) setWeekStartsSunday(JSON.parse(weekStart));
+          setKeypadHapticsEnabled(keypadHaptics);
         } catch (error) {
           console.error('설정 로드 중 오류:', error);
         } finally {
@@ -119,6 +125,15 @@ export default function MyPageScreen() {
     } catch (error) {
       console.error('설정 저장 중 오류:', error);
 
+    }
+  };
+
+  const handleKeypadHapticsChange = async (value: boolean) => {
+    setKeypadHapticsEnabled(value);
+    try {
+      await saveKeypadHapticsEnabled(value);
+    } catch (error) {
+      console.error('설정 저장 중 오류:', error);
     }
   };
 
@@ -317,6 +332,21 @@ export default function MyPageScreen() {
                 <Switch 
                   value={weekStartsSunday}
                   onValueChange={handleWeekStartChange}
+                />
+              </View>
+            </View>
+
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+            {/* Keypad Haptics */}
+            <View style={[styles.settingRow, { height: 56 }]}>
+              <UiLineText style={[styles.settingLabel, { color: colors.text }]}>
+                숫자 키패드 진동
+              </UiLineText>
+              <View style={styles.settingValue}>
+                <Switch
+                  value={keypadHapticsEnabled}
+                  onValueChange={handleKeypadHapticsChange}
                 />
               </View>
             </View>

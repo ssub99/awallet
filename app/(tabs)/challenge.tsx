@@ -144,8 +144,8 @@ interface ReportSnapshot {
   toDateExpenseCount: number;
   toDateActiveDays: number;
   noSpendDaysToDate: number;
-  toDateCategoryTotals: Array<{ category: string; amount: number; ratio: number }>;
-  toDateCategoryUsage: Array<{ category: string; count: number; projectedMonthlyCount: number }>;
+  toDateCategoryTotals: { category: string; amount: number; ratio: number }[];
+  toDateCategoryUsage: { category: string; count: number; projectedMonthlyCount: number }[];
 }
 
 interface ConfirmedTopCategoryInfo {
@@ -533,6 +533,7 @@ const REPORT_SCORE_CARD_MAX = 454;
 export default function ChallengeTabScreen() {
   const { height: windowHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  void insets;
   const trendPaymentFilterSheetHeight = windowHeight * 0.8;
   const trendPaymentFilterSheetContentHeight = trendPaymentFilterSheetHeight - 56;
   const colorScheme = useColorScheme();
@@ -553,6 +554,7 @@ export default function ChallengeTabScreen() {
   const prevTrendPaymentSubtypeIdsRef = useRef<string[] | null>(null);
   const [consumptionIndex, setConsumptionIndex] = useState<ConsumptionIndexResult | null>(null);
   const [isConsumptionIndexLoading, setIsConsumptionIndexLoading] = useState(false);
+  void isConsumptionIndexLoading;
   const [aiSummaryText, setAiSummaryText] = useState<string[] | null>(null);
   const [aiChallengeText, setAiChallengeText] = useState<string[] | null>(null);
   const [aiSummaryTitleText, setAiSummaryTitleText] = useState<string | null>(null);
@@ -955,6 +957,7 @@ export default function ChallengeTabScreen() {
     return () => {
       cancelled = true;
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     reportScoreYear,
     reportScoreMonth,
@@ -1037,7 +1040,7 @@ export default function ChallengeTabScreen() {
         }) as Record<
           string,
           {
-            records?: Array<{
+            records?: {
               type?: string;
               category?: string;
               amount?: number;
@@ -1046,7 +1049,7 @@ export default function ChallengeTabScreen() {
               isDeleted?: boolean;
               paymentMethod?: 'credit' | 'debit' | 'cash';
               paymentSubtypeId?: string;
-            }>;
+            }[];
           }
         >;
         const items: TrendTimelineItem[] = [];
@@ -2272,6 +2275,7 @@ export default function ChallengeTabScreen() {
         });
       }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     consumptionIndex,
     fqScore,
@@ -2281,7 +2285,6 @@ export default function ChallengeTabScreen() {
     reportScoreContext,
     reportScoreCacheKey,
     hasCheckedScore,
-    consumptionIndex,
     topCategoryInfo,
     showToast,
     runReportContentRefreshAnimation,

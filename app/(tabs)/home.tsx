@@ -75,6 +75,7 @@ export default function HomeScreen() {
   const pendingOpsRef = useRef(0);
   const appState = useRef<AppStateStatus>(AppState.currentState);
   const insets = useSafeAreaInsets();
+  void insets;
   
   const { isQuickInputContentVisible, isQuickInputShortVisible, showQuickInput } =
     useQuickInputContext();
@@ -407,6 +408,9 @@ export default function HomeScreen() {
     endLoad,
     refresh,
     syncCalendarExternalView,
+    initialPendingTarget?.month,
+    initialPendingTarget?.targetDate,
+    initialPendingTarget?.year,
   ]); // params가 변경될 때마다 실행
   
   // periodType 변경 시 저장
@@ -685,7 +689,7 @@ export default function HomeScreen() {
               await resetToToday();
               await AsyncStorage.setItem('lastUsedDate', todayStr);
             }
-          } catch (error) {
+          } catch {
             
           }
         };

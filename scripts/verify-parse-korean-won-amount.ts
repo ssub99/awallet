@@ -8,7 +8,7 @@ import {
 } from '../utils/parse-korean-won-amount';
 import { collectAmountsFromMessage, extractParseExpenseSlots } from '../utils/parse-expense-slots';
 
-const EXPR_CASES: Array<[string, number]> = [
+const EXPR_CASES: [string, number][] = [
   ['오천', 5_000],
   ['오만', 50_000],
   ['일만1천', 11_000],
@@ -21,7 +21,7 @@ const EXPR_CASES: Array<[string, number]> = [
   ['억', 100_000_000],
 ];
 
-const MESSAGE_CASES: Array<[string, number]> = [
+const MESSAGE_CASES: [string, number][] = [
   ['오늘 맥주 사마셨어. 오만원 메모도 넣어.', 50_000],
   ['오천원 썼어', 5_000],
   ['일만1천원 결제', 11_000],

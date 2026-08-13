@@ -347,8 +347,7 @@ export default function PaymentTypeSettingScreen() {
     [router]
   );
 
-  const renderItem = useCallback(
-    (({ item, index }) => {
+  const renderItem = useCallback<SortableGridRenderItem<PaymentTypeItemData>>(({ item, index }) => {
       const listLength = paymentTypes.length;
       const isLast = typeof index === 'number' ? index >= listLength - 1 : false;
       return (
@@ -359,9 +358,7 @@ export default function PaymentTypeSettingScreen() {
           onPress={handlePaymentTypePress}
         />
       );
-    }) satisfies SortableGridRenderItem<PaymentTypeItemData>,
-    [colors, handlePaymentTypePress, paymentTypes.length]
-  );
+  }, [colors, handlePaymentTypePress, paymentTypes.length]);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>

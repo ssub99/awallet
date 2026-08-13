@@ -101,7 +101,7 @@ export async function refineMemoWithGemini(
   }
 
   const data = (await res.json()) as {
-    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+    candidates?: { content?: { parts?: { text?: string }[] } }[];
   };
   const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
   return parseRefineMemoJson(responseText);

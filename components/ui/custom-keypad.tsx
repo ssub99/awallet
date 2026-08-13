@@ -5,6 +5,8 @@ import { atomicColors } from '@/constants/atomic-colors';
 import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { typographyLayout } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useKeypadHapticsEnabled } from '@/hooks/use-keypad-haptics';
+import * as Haptics from 'expo-haptics';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
@@ -208,6 +210,7 @@ export function CustomKeypad({
   const colorScheme = useColorScheme();
   const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   const { width: windowWidth } = useWindowDimensions();
+  const keypadHapticsEnabled = useKeypadHapticsEnabled();
   const [containerWidth, setContainerWidth] = useState(windowWidth);
 
   const { buttonWidth, buttonHeight } = getKeypadDimensions(containerWidth);
@@ -324,8 +327,17 @@ export function CustomKeypad({
     emitState([], null);
   }, [emitState]);
 
+  const triggerKeypadHaptic = useCallback(() => {
+    if (!keypadHapticsEnabled) {
+      return;
+    }
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, [keypadHapticsEnabled]);
+
   const handleDelete = useCallback(() => {
+    triggerKeypadHaptic();
     if (tokens.length === 0) return;
+
     const lastToken = tokens[tokens.length - 1];
     if (lastToken.type === 'operator') {
       emitState(tokens.slice(0, -1), null);
@@ -340,10 +352,11 @@ export function CustomKeypad({
 
     const nextTokens = [...tokens.slice(0, -1), createNumberToken(nextValue)];
     emitState(nextTokens, operatorSelection);
-  }, [emitState, operatorSelection, tokens]);
+  }, [emitState, operatorSelection, tokens, triggerKeypadHaptic]);
 
   const handleDeleteWithRefs = useCallback(() => {
     const currentTokens = tokensRef.current;
+    triggerKeypadHaptic();
     if (currentTokens.length === 0) return;
 
     const lastToken = currentTokens[currentTokens.length - 1];
@@ -360,7 +373,7 @@ export function CustomKeypad({
 
     const nextTokens = [...currentTokens.slice(0, -1), createNumberToken(nextValue)];
     emitState(nextTokens, operatorSelectionRef.current);
-  }, [emitState]);
+  }, [emitState, triggerKeypadHaptic]);
 
   const handleEqual = useCallback(() => {
     const isComplete =
@@ -483,7 +496,14 @@ export function CustomKeypad({
                     pressed && (isDigit ? styles.keyButtonDigitPressed : styles.keyButtonPressed),
                   ]}
                   onPress={key.type === 'delete' ? handleDelete : () => handleKeyPress(key)}
-                  onPressIn={key.type === 'delete' ? handleDeletePressIn : undefined}
+                  onPressIn={() => {
+                    if (key.type !== 'delete') {
+                      triggerKeypadHaptic();
+                    }
+                    if (key.type === 'delete') {
+                      handleDeletePressIn();
+                    }
+                  }}
                   onPressOut={key.type === 'delete' ? handleDeletePressOut : undefined}
                   onTouchCancel={key.type === 'delete' ? handleDeletePressOut : undefined}
                   onTouchEnd={key.type === 'delete' ? handleDeletePressOut : undefined}

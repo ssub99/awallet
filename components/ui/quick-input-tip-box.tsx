@@ -46,7 +46,6 @@ const BOX_HEIGHT = 48;
 const BOX_RADIUS = 12;
 /** Figma Frame 262 — 좌우 패딩 12px (펼침/접힘 공통) */
 const HORIZONTAL_PADDING = 12;
-const COLLAPSED_HORIZONTAL_PADDING = HORIZONTAL_PADDING;
 /** TIP 태그 ↔ 문장 간격 */
 const BADGE_GAP = 8;
 const BADGE_RADIUS = 5;
@@ -77,8 +76,6 @@ const MARQUEE_START_DELAY_MS = 1500;
 const MARQUEE_END_HOLD_MS = 1500;
 const VERTICAL_TRANSITION_MS = 280;
 const AUTO_RESUME_AFTER_USER_MS = 500;
-const SWIPE_VELOCITY_THRESHOLD = 0.25;
-const SWIPE_DISTANCE_THRESHOLD = 20;
 const VERTICAL_SWIPE_DISTANCE_THRESHOLD = 32;
 const VERTICAL_SWIPE_VELOCITY_THRESHOLD = 0.35;
 /** 측정용 호스트 — 부모 flex 제약 없이 텍스트 intrinsic width 확보 */
@@ -268,7 +265,7 @@ function TipFlowingSentence({
         startDelayRef.current = null;
       }
     };
-  }, [runMarquee, scheduleFlowComplete, stopAuto, travelRange.maxX, translateX]);
+  }, [runMarquee, scheduleFlowComplete, stopAuto, travelRange.maxX, travelRange.minX, translateX]);
 
   useEffect(() => {
     translateX.setValue(travelRange.maxX);

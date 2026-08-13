@@ -10,12 +10,12 @@ import type * as ExpoNotifications from 'expo-notifications';
 
 import { getExpoNotifications } from '@/utils/expo-notifications-client';
 
-type NotificationRequest = ExpoNotifications.NotificationRequest;
-type NotificationContentData = ExpoNotifications.NotificationContent['data'];
-
 import { parseCalendarDataFromJson } from '@/utils/calendar-data-parse';
 import type { CalendarData, CalendarDayData, CalendarRecord } from '@/utils/consumption-index';
 import { getAllExpenses } from '@/utils/expenses';
+
+type NotificationRequest = ExpoNotifications.NotificationRequest;
+type NotificationContentData = ExpoNotifications.NotificationContent['data'];
 
 type CalendarDayBucket = CalendarDayData & { totalExpense?: number };
 

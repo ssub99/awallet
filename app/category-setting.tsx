@@ -222,7 +222,7 @@ export default function CategorySettingScreen() {
   const categoryType = (params.type as CategoryType) || 'expense';
   
   const initialCategories = getOrderedCategoriesFromCache(categoryType);
-  const [categories, setCategories] = useState<Array<{ emoji: string; label: string; type: CategoryType }>>(
+  const [categories, setCategories] = useState<{ emoji: string; label: string; type: CategoryType }[]>(
     () => initialCategories ?? [],
   );
   const [isListDataReady, setIsListDataReady] = useState(() => initialCategories != null);
@@ -243,7 +243,7 @@ export default function CategorySettingScreen() {
   const lastDragEndTimeRef = useRef<number>(0);
 
   const commitReorderedCategories = useCallback(
-    (nextCategories: Array<{ emoji: string; label: string; type: CategoryType }>) => {
+    (nextCategories: { emoji: string; label: string; type: CategoryType }[]) => {
       categoriesRef.current = nextCategories;
       unstable_batchedUpdates(() => {
         setCategories((current) =>
@@ -268,7 +268,7 @@ export default function CategorySettingScreen() {
   }, [contentOpacity]);
 
   const applyLoadedCategories = useCallback(
-    (finalCategories: Array<{ emoji: string; label: string; type: CategoryType }>) => {
+    (finalCategories: { emoji: string; label: string; type: CategoryType }[]) => {
       categoriesRef.current = finalCategories;
       unstable_batchedUpdates(() => {
         setCategories((current) =>
@@ -348,16 +348,16 @@ export default function CategorySettingScreen() {
     });
   };
 
-  const handleCategoryPress = (category: { emoji: string; label: string }) => {
+  const handleCategoryPress = useCallback((category: { emoji: string; label: string }) => {
     router.push({
       pathname: '/category-edit' as any,
-      params: { 
+      params: {
         type: categoryType,
         emoji: category.emoji,
         label: category.label,
       },
     });
-  };
+  }, [categoryType, router]);
 
   // 드래그 시작 핸들러
   const handleDragStart = useCallback(({ key, fromIndex }: { key: string; fromIndex: number }) => {

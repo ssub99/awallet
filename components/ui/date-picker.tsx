@@ -141,7 +141,7 @@ export function DatePicker({
   const applyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const androidNativeOpenedRef = useRef(false);
   const prevVisibleRef = useRef(false);
-  const androidScreenMinHeight = useMemo(() => Dimensions.get('screen').height, [visible]);
+  const androidScreenMinHeight = useMemo(() => Dimensions.get('screen').height, []);
 
   const androidYearMonthFrameStyle = useMemo(
     () => ({

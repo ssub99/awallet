@@ -9,7 +9,6 @@ import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Icon } from '@/components/ui/icon';
 import { UiLineText } from '@/components/ui/ui-line-text';
 import { themeColors } from '@/constants/theme-colors';
-import { typography } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { monthStartEvent } from '@/hooks/use-month-start';
 import {
@@ -29,7 +28,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const MONTH_START_DAY_UPDATED_AT_KEY = 'monthStartDayUpdatedAt';

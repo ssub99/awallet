@@ -16,6 +16,7 @@ import {
 import { isLocalDevOnlyUIEnabled } from '@/utils/dev-only-ui';
 import { clearAllExpenses } from '@/utils/expenses';
 import { clearAllIncomes } from '@/utils/incomes';
+import { KEYPAD_HAPTICS_ENABLED_KEY } from '@/hooks/use-keypad-haptics';
 import {
   GENERAL_NOTIFICATIONS_ENABLED_KEY,
   CHALLENGE_NOTIFICATIONS_ENABLED_KEY,
@@ -41,6 +42,7 @@ const KEYS_TO_REMOVE = [
   'selectedCategory',
   'weekStartsSunday',
   'monthStartDay',
+  KEYPAD_HAPTICS_ENABLED_KEY,
   APP_STORE_WRITE_REVIEW_PROMPT_SHOWN_KEY,
   APP_STORE_REVIEW_LIFETIME_RECORD_COUNT_KEY,
   QUICK_INPUT_TIP_BOX_EXPANDED_KEY,

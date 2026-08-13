@@ -177,7 +177,7 @@ for (const c of CASES) {
   }
 
   const r = parsed.records[0];
-  const checks: Array<[string, unknown, unknown]> = [
+  const checks: [string, unknown, unknown][] = [
     ['category', r.category, c.category],
     ['amount', r.amount, c.amount],
     ['date', r.date, c.date],
@@ -199,7 +199,7 @@ for (const c of CASES) {
 }
 
 // 슬롯 추출: 코어 3개 어순 몇 가지
-const ORDER_CASES: Array<{ message: string; category: string; amount: number }> = [
+const ORDER_CASES: { message: string; category: string; amount: number }[] = [
   { message: '식비 8000원', category: '식비', amount: 8000 },
   { message: '8000원 식비', category: '식비', amount: 8000 },
   { message: '식비 어제 8000원', category: '식비', amount: 8000 },

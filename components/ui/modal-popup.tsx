@@ -306,7 +306,11 @@ export function ModalPopup({
       </View>
 
       {/* Extra overlay area (e.g., embedded bottomsheet) */}
-      {extraOverlay}
+      {extraOverlay ? (
+        <View style={styles.extraOverlay} pointerEvents="box-none">
+          {extraOverlay}
+        </View>
+      ) : null}
     </Modal>
   );
 }
@@ -322,6 +326,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     zIndex: 100000,
+  },
+  extraOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 100001,
   },
   modal: {
     width: 343,
@@ -363,4 +371,3 @@ const styles = StyleSheet.create({
     ...typographyLayout.uiLineBody01Medium,
   },
 });
-

@@ -180,9 +180,9 @@ class StorageCache {
   /**
    * 특정 recurringId를 가진 모든 기록을 찾습니다
    */
-  public async findRecordsByRecurringId(recurringId: string): Promise<Array<{dateKey: string, record: any, index: number}>> {
+  public async findRecordsByRecurringId(recurringId: string): Promise<{dateKey: string, record: any, index: number}[]> {
     const calendarData = await this.getCalendarData();
-    const results: Array<{dateKey: string, record: any, index: number}> = [];
+    const results: {dateKey: string, record: any, index: number}[] = [];
     
     Object.entries(calendarData).forEach(([dateKey, data]: [string, any]) => {
       if (data.records && Array.isArray(data.records)) {

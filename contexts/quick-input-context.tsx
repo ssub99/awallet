@@ -62,18 +62,18 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
-import type { TextInput } from 'react-native';
 import {
-    AppState,
-    BackHandler,
-    Keyboard,
-    Platform,
-    Pressable,
-    Animated as RNAnimated,
-    StyleSheet,
-    View,
-    type AppStateStatus,
-    type KeyboardEvent,
+  AppState,
+  BackHandler,
+  Keyboard,
+  Platform,
+  Pressable,
+  Animated as RNAnimated,
+  StyleSheet,
+  View,
+  type AppStateStatus,
+  type KeyboardEvent,
+  type TextInput,
 } from 'react-native';
 import {
     AndroidSoftInputModes,
@@ -620,8 +620,8 @@ function getRepeatOption3(record: PendingParseRecord): string {
 async function buildConfirmCardFromPending(
   pending: PendingParseRecord,
   deps: {
-    getExpenseCategoriesCached: () => Promise<Array<{ label: string; emoji: string }>>;
-    getIncomeCategoriesCached: () => Promise<Array<{ label: string; emoji: string }>>;
+    getExpenseCategoriesCached: () => Promise<{ label: string; emoji: string }[]>;
+    getIncomeCategoriesCached: () => Promise<{ label: string; emoji: string }[]>;
     getPaymentSubtypesCached: () => Promise<PaymentSubtype[]>;
   },
 ): Promise<QuickInputConfirmCardData> {
@@ -706,8 +706,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
 
   const quickInputRef = useRef<TextInput>(null);
   const paymentSubtypesCacheRef = useRef<PaymentSubtype[]>([]);
-  const expenseCategoriesCacheRef = useRef<Array<{ label: string; emoji: string }>>([]);
-  const incomeCategoriesCacheRef = useRef<Array<{ label: string; emoji: string }>>([]);
+  const expenseCategoriesCacheRef = useRef<{ label: string; emoji: string }[]>([]);
+  const incomeCategoriesCacheRef = useRef<{ label: string; emoji: string }[]>([]);
   const quickInputBackdropOpacity = useRef(new RNAnimated.Value(0)).current;
   /** 롱·팁: React 커밋 전에도 즉시 숨김 (딤 페이드와 분리) */
   const quickInputLongOpacity = useRef(new RNAnimated.Value(1)).current;

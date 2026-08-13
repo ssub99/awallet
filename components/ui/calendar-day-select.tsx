@@ -37,7 +37,6 @@ import {
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const DAY_CELL_WIDTH = Math.floor(SCREEN_WIDTH / 7);
-const DAY_CELL_HEIGHT = 48;
 const NAV_BAR_HEIGHT = 50;
 const DAY_HEADER_HEIGHT = 40;
 const DAY_CELLS_AREA_HEIGHT = 288; // 6주 기준 고정 (48px × 6)

@@ -15,7 +15,6 @@ import { ModalPopup } from '@/components/ui/modal-popup';
 import { SectionTitle } from '@/components/ui/section-title';
 import { Switch } from '@/components/ui/switch';
 import { UiLineText } from '@/components/ui/ui-line-text';
-import { atomicColors } from '@/constants/atomic-colors';
 import { type Category } from '@/constants/categories';
 import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useLoading } from '@/contexts/loading-context';
@@ -64,9 +63,7 @@ export default function ChallengeEditScreen() {
   const [monthStartDay, setMonthStartDay] = useState<number>(1);
   const [amountSectionY, setAmountSectionY] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
-  const isScrollingRef = useRef(false);
   const dismissTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const ignoreNextTouchEndRef = useRef(false);
 
   // Delete confirmation modal state
   const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
@@ -76,9 +73,9 @@ export default function ChallengeEditScreen() {
   const contentOpacity = useRef(new Animated.Value(0)).current;
   
   // 토스트 표시 함수
-  const showDisabledToast = () => {
+  const showDisabledToast = useCallback(() => {
     showToast('변경할 수 없습니다. 새로 생성해 주세요.');
-  };
+  }, [showToast]);
 
   const logChallengeEditEvent = useCallback(
     (eventType: 'btn' | 'ui' | 'modal', target: string) => {
@@ -93,12 +90,12 @@ export default function ChallengeEditScreen() {
   const handleCalendarPress = useCallback(() => {
     logChallengeEditEvent('ui', 'calendar');
     showDisabledToast();
-  }, [logChallengeEditEvent]);
+  }, [logChallengeEditEvent, showDisabledToast]);
 
   const handleRecurringTogglePress = useCallback(() => {
     logChallengeEditEvent('ui', 'recurring-toggle');
     showDisabledToast();
-  }, [logChallengeEditEvent]);
+  }, [logChallengeEditEvent, showDisabledToast]);
 
   // Load challenge data
   useEffect(() => {
@@ -321,7 +318,7 @@ export default function ChallengeEditScreen() {
         }
       });
     }
-  }, [isKeypadMounted, isKeypadVisible, keypadBackdropOpacity, keypadTranslateY]);
+  }, [KEYPAD_HEIGHT, isKeypadMounted, isKeypadVisible, keypadBackdropOpacity, keypadTranslateY]);
 
   const clearDismissTimeout = useCallback(() => {
     if (dismissTimeoutRef.current) {

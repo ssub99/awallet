@@ -18,7 +18,6 @@ import { RecordDatePickerHost } from '@/components/ui/record-date-picker-sheet';
 import { SectionTitle } from '@/components/ui/section-title';
 import { UiLineText } from '@/components/ui/ui-line-text';
 import { ModalPopup } from '@/components/ui/modal-popup';
-import { atomicColors } from '@/constants/atomic-colors';
 import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useLoading } from '@/contexts/loading-context';
 import { useToast } from '@/contexts/toast-context';
@@ -56,10 +55,8 @@ import {
     Animated,
     Dimensions,
     Easing,
-    InteractionManager,
     Keyboard,
     NativeSyntheticEvent,
-    Platform,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -304,7 +301,7 @@ export default function IncomeRecordScreen() {
         }
       });
     }
-  }, [isKeypadMounted, isKeypadVisible, keypadBackdropOpacity, keypadTranslateY]);
+  }, [KEYPAD_HEIGHT, isKeypadMounted, isKeypadVisible, keypadBackdropOpacity, keypadTranslateY]);
   const [date, setDate] = useState<string>(getInitialDate());
   const [memo, setMemo] = useState<string>('');
   const handleMemoChange = useCallback((text: string) => {
@@ -386,6 +383,7 @@ export default function IncomeRecordScreen() {
   // Section position tracking
   const [amountSectionY, setAmountSectionY] = useState(0);
   const [memoSectionY, setMemoSectionY] = useState(0);
+  void memoSectionY;
   const memoSectionYRef = useRef(0);
   const memoSectionHeightRef = useRef(0);
 
@@ -407,6 +405,9 @@ export default function IncomeRecordScreen() {
     windowHeight,
     safeAreaBottom: insets.bottom,
   });
+
+  void focusMemoInput;
+  void onMemoScroll;
 
   const isScrollingRef = useRef(false);
   const dismissTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -451,7 +452,7 @@ export default function IncomeRecordScreen() {
         });
       }
     }, 0);
-  }, [amountSectionY, isKeypadVisible]);
+  }, [amountSectionY, blurMemoInput, isKeypadVisible]);
 
 
   const handleDatePress = () => {
@@ -562,7 +563,7 @@ export default function IncomeRecordScreen() {
             nextCategory = params.category;
           }
         }
-
+        void nextCategory;
       };
 
       syncCategory();
@@ -768,9 +769,9 @@ export default function IncomeRecordScreen() {
     }
   };
 
-  const handleBack = () => {
+  const handleBack = useCallback(() => {
     router.back();
-  };
+  }, [router]);
 
   const handleTopNavHomePress = useCallback(async () => {
     void logEvent('btn', {

@@ -16,7 +16,6 @@ import { ModalPopup } from '@/components/ui/modal-popup';
 import { SectionTitle } from '@/components/ui/section-title';
 import { Switch } from '@/components/ui/switch';
 import { UiLineText } from '@/components/ui/ui-line-text';
-import { atomicColors } from '@/constants/atomic-colors';
 import { type Category } from '@/constants/categories';
 import {
     buildChallengeRecurringMonthPickerOptions,
@@ -299,7 +298,7 @@ export default function ChallengeCreateScreen() {
         }
       });
     }
-  }, [isKeypadMounted, isKeypadVisible, keypadBackdropOpacity, keypadTranslateY]);
+  }, [KEYPAD_HEIGHT, isKeypadMounted, isKeypadVisible, keypadBackdropOpacity, keypadTranslateY]);
 
   const clearDismissTimeout = useCallback(() => {
     if (dismissTimeoutRef.current) {

@@ -6,7 +6,7 @@
  */
 
 import { Icon } from '@/components/ui/icon';
-import { colors, typography, type ColorPalette } from '@/constants/theme';
+import { colors, type ColorPalette } from '@/constants/theme';
 import { typographyLayout } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { logEvent } from '@/utils/analytics';

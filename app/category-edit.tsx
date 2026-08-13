@@ -56,19 +56,6 @@ const EMOJI_CATEGORIES: Record<EmojiCategory, string[]> = {
   flags: ['🏳️', '🏴', '🏁', '🚩', '🏳️‍🌈', '🏳️‍⚧️', '🇦🇨', '🇦🇩', '🇦🇪', '🇦🇫', '🇦🇬', '🇦🇮', '🇦🇱', '🇦🇲', '🇦🇴', '🇦🇶', '🇦🇷', '🇦🇸', '🇦🇹', '🇦🇺', '🇦🇼', '🇦🇽', '🇦🇿', '🇧🇦', '🇧🇧', '🇧🇩', '🇧🇪', '🇧🇫', '🇧🇬', '🇧🇭', '🇧🇮', '🇧🇯', '🇧🇱', '🇧🇲', '🇧🇳', '🇧🇴', '🇧🇶', '🇧🇷', '🇧🇸', '🇧🇹', '🇧🇻', '🇧🇼', '🇧🇾', '🇧🇿', '🇨🇦', '🇨🇨', '🇨🇩', '🇨🇫', '🇨🇬', '🇨🇭', '🇨🇮', '🇨🇰', '🇨🇱', '🇨🇲', '🇨🇳', '🇨🇴', '🇨🇵', '🇨🇷', '🇨🇺', '🇨🇻', '🇨🇼', '🇨🇽', '🇨🇾', '🇨🇿', '🇩🇪', '🇩🇬', '🇩🇯', '🇩🇰', '🇩🇲', '🇩🇴', '🇩🇿', '🇪🇦', '🇪🇨', '🇪🇪', '🇪🇬', '🇪🇭', '🇪🇷', '🇪🇸', '🇪🇹', '🇪🇺', '🇫🇮', '🇫🇯', '🇫🇰', '🇫🇲', '🇫🇴', '🇫🇷', '🇬🇦', '🇬🇧', '🇬🇩', '🇬🇪', '🇬🇫', '🇬🇬', '🇬🇭', '🇬🇮', '🇬🇱', '🇬🇲', '🇬🇳', '🇬🇵', '🇬🇶', '🇬🇷', '🇬🇸', '🇬🇹', '🇬🇺', '🇬🇼', '🇬🇾', '🇭🇰', '🇭🇲', '🇭🇳', '🇭🇷', '🇭🇹', '🇭🇺', '🇮🇩', '🇮🇪', '🇮🇱', '🇮🇲', '🇮🇳', '🇮🇴', '🇮🇶', '🇮🇷', '🇮🇸', '🇮🇹', '🇯🇪', '🇯🇲', '🇯🇴', '🇯🇵', '🇰🇪', '🇰🇬', '🇰🇭', '🇰🇮', '🇰🇲', '🇰🇳', '🇰🇵', '🇰🇷', '🇰🇼', '🇰🇾', '🇰🇿', '🇱🇦', '🇱🇧', '🇱🇨', '🇱🇮', '🇱🇰', '🇱🇷', '🇱🇸', '🇱🇹', '🇱🇺', '🇱🇻', '🇱🇾', '🇲🇦', '🇲🇨', '🇲🇩', '🇲🇪', '🇲🇫', '🇲🇬', '🇲🇭', '🇲🇰', '🇲🇱', '🇲🇲', '🇲🇳', '🇲🇴', '🇲🇵', '🇲🇶', '🇲🇷', '🇲🇸', '🇲🇹', '🇲🇺', '🇲🇻', '🇲🇼', '🇲🇽', '🇲🇾', '🇲🇿', '🇳🇦', '🇳🇨', '🇳🇪', '🇳🇫', '🇳🇬', '🇳🇮', '🇳🇱', '🇳🇴', '🇳🇵', '🇳🇷', '🇳🇺', '🇳🇿', '🇴🇲', '🇵🇦', '🇵🇪', '🇵🇫', '🇵🇬', '🇵🇭', '🇵🇰', '🇵🇱', '🇵🇲', '🇵🇳', '🇵🇷', '🇵🇸', '🇵🇹', '🇵🇼', '🇵🇾', '🇶🇦', '🇷🇪', '🇷🇴', '🇷🇸', '🇷🇺', '🇷🇼', '🇸🇦', '🇸🇧', '🇸🇨', '🇸🇩', '🇸🇪', '🇸🇬', '🇸🇭', '🇸🇮', '🇸🇯', '🇸🇰', '🇸🇱', '🇸🇲', '🇸🇳', '🇸🇴', '🇸🇷', '🇸🇸', '🇸🇹', '🇸🇻', '🇸🇽', '🇸🇾', '🇸🇿', '🇹🇦', '🇹🇨', '🇹🇩', '🇹🇫', '🇹🇬', '🇹🇭', '🇹🇯', '🇹🇰', '🇹🇱', '🇹🇲', '🇹🇳', '🇹🇴', '🇹🇷', '🇹🇹', '🇹🇻', '🇹🇼', '🇹🇿', '🇺🇦', '🇺🇬', '🇺🇲', '🇺🇸', '🇺🇾', '🇺🇿', '🇻🇦', '🇻🇨', '🇻🇪', '🇻🇬', '🇻🇮', '🇻🇳', '🇻🇺', '🇼🇫', '🇼🇸', '🇽🇰', '🇾🇪', '🇾🇹', '🇿🇦', '🇿🇲', '🇿🇼', '🏴‍☠️'],
 };
 
-// 카테고리 아이콘
-const CATEGORY_ICONS: Record<EmojiCategory, string> = {
-  recent: '⏰',
-  people: '😊',
-  animals: '🐻',
-  food: '🍔',
-  activity: '⚽️',
-  travel: '🏙️',
-  objects: '💡',
-  symbols: '🎶',
-  flags: '🚩',
-};
-
 // 카테고리 라벨
 const CATEGORY_LABELS: Record<EmojiCategory, string> = {
   recent: '최근',
@@ -83,7 +70,6 @@ const CATEGORY_LABELS: Record<EmojiCategory, string> = {
 };
 
 export default function CategoryEditScreen() {
-  const palette = colors.light;
   const router = useRouter();
   const { showToast } = useToast();
   const params = useLocalSearchParams<{ type?: string; emoji?: string; label?: string }>();
@@ -197,16 +183,12 @@ export default function CategoryEditScreen() {
       });
     }
   };
-  
-  const getCurrentEmojis = () => {
-    return EMOJI_CATEGORIES[selectedCategory];
-  };
-  
+    
   // 모든 카테고리의 이모지를 열 단위로 나누기
   const allEmojiCategories = useMemo(() => {
+    void emojiVersion;
     const rowsPerColumn = Math.ceil(264 / 48); // 264px 높이에 맞는 행 수 (48px = EMOJI_ITEM_SIZE)
-    const columnGap = 8; // 열 간 여백
-    const categories: Array<{ category: EmojiCategory; columns: string[][] }> = [];
+    const categories: { category: EmojiCategory; columns: string[][] }[] = [];
     const categoryKeys = Object.keys(EMOJI_CATEGORIES) as EmojiCategory[];
     
     categoryKeys.forEach((category) => {
@@ -252,7 +234,7 @@ export default function CategoryEditScreen() {
 
   // 카테고리 폭/오프셋 캐시 (고정 폭 힌트)
   const categoryLayouts = useMemo(() => {
-    const layouts: Array<{ size: number; offset: number }> = [];
+    const layouts: { size: number; offset: number }[] = [];
     let offset = 0;
     visibleEmojiCategories.forEach((item, index) => {
       const columns = item.columns.length;
@@ -307,11 +289,6 @@ export default function CategoryEditScreen() {
         return;
       }
       
-      const oldCategory = {
-        emoji: originalEmoji,
-        label: originalLabel,
-        type: categoryType,
-      };
       
       const newCategory = {
         emoji: selectedEmoji,
@@ -328,7 +305,7 @@ export default function CategoryEditScreen() {
       // 카테고리명 변경 시 참조 데이터 동기화
       const labelChanged = originalLabel !== newCategory.label;
       if (labelChanged) {
-        const tasks: Array<Promise<void>> = [
+        const tasks: Promise<void>[] = [
           renameChallengeCategory(originalLabel, newCategory.label),
           updateCalendarDataCategory(originalLabel, newCategory.label),
           updateCategoryOrderLabel(categoryType, originalLabel, newCategory.label),
@@ -358,7 +335,7 @@ export default function CategoryEditScreen() {
   const handleDeleteConfirm = async () => {
     try {
       // 1) 참조 데이터 하드 삭제
-      const deleteTasks: Array<Promise<void>> = [
+      const deleteTasks: Promise<void>[] = [
         deleteChallengesByCategory(originalLabel),
         removeCalendarDataByCategory(originalLabel),
         removeCategoryFromOrder(categoryType, originalLabel),

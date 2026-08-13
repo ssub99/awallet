@@ -12,7 +12,7 @@ const MONTH_START_DAY_KEY = 'monthStartDay';
  * Event emitter for month start day changes
  */
 class MonthStartEventEmitter {
-  private listeners: Array<(day: number) => void> = [];
+  private listeners: ((day: number) => void)[] = [];
 
   subscribe(listener: (day: number) => void): () => void {
     this.listeners.push(listener);

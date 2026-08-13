@@ -5,12 +5,13 @@
 import {
   CALENDAR_DAY_CELL_WIDTH,
   CalendarDayCell,
-  type CalendarDayCellAmountFontSizes,
   type CalendarDayGridType,
 } from '@/components/ui/calendar-day-cell';
 import { computeUnifiedSingleLineFontSize } from '@/components/ui/auto-shrink-single-line-text';
 import { typographyLayout } from '@/constants/typography';
 import type { CalendarGridCell, CalendarMonthSlot } from '@/utils/calendar-month-grid-cache';
+import { memo, useMemo } from 'react';
+import { StyleSheet, View } from 'react-native';
 
 export interface DayData {
   totalIncome?: number;
@@ -23,8 +24,6 @@ export interface DayData {
     timestamp: number;
   }[];
 }
-import { memo, useMemo } from 'react';
-import { StyleSheet, View } from 'react-native';
 
 export type CalendarDayCellDescriptor = {
   date: string;
@@ -244,7 +243,7 @@ function CalendarMainMonthPageComponent({
       },
       cellDescriptors: descriptors,
     };
-  }, [showAmounts, showSettlePlaceholder, monthDayDataSignature, monthData, dayData, selectedDate]);
+  }, [showAmounts, showSettlePlaceholder, monthData, dayData, selectedDate]);
 
   if (showSettlePlaceholder) {
     return (

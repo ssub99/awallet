@@ -36,7 +36,7 @@ const WEEKDAYS_MONDAY_START = ['월', '화', '수', '목', '금', '토', '일'];
  * Event emitter for week start preference changes
  */
 class WeekStartEventEmitter {
-  private listeners: Array<(startsSunday: boolean) => void> = [];
+  private listeners: ((startsSunday: boolean) => void)[] = [];
 
   subscribe(listener: (startsSunday: boolean) => void): () => void {
     this.listeners.push(listener);

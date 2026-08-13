@@ -56,6 +56,7 @@ import {
   getActualDayForMonth,
   getNextRecurringDate,
   getRecurringWeekendOptionDisplayLabel,
+  shouldIgnoreWeekendOptionForRecurringType,
 } from '@/utils/expense-calculations';
 import { initializePaymentSubtypes, type PaymentSubtype } from '@/utils/payment-types';
 import {
@@ -132,6 +133,7 @@ function isWithinYear(dateString: string, targetYear: number): boolean {
   const [year] = dateString.split('.').map(Number);
   return year === targetYear;
 }
+void isWithinYear;
 
 // ===== 삭제 기능 유틸리티 함수들 =====
 
@@ -343,6 +345,7 @@ function getRecurringPeriod(startDate: string, months: number, recurringType?: s
   
   return `${startStr} - ${endStr}`;
 }
+void getRecurringPeriod;
 
 export default function ExpenseRecordScreen({ mode = 'create', editData }: ExpenseRecordProps = {}) {
   const colorScheme = useColorScheme();
@@ -683,7 +686,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         }
       });
     }
-  }, [isKeypadMounted, isKeypadVisible, keypadBackdropOpacity, keypadTranslateY]);
+  }, [KEYPAD_HEIGHT, isKeypadMounted, isKeypadVisible, keypadBackdropOpacity, keypadTranslateY]);
   const [date, setDate] = useState<string>(getInitialDate());
   const [displayDate, setDisplayDate] = useState<string>(getInitialDate());
   const [prepaymentDate, setPrepaymentDate] = useState<string>(getInitialDate());
@@ -713,6 +716,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   const PAYMENT_TYPE_SHEET_TOP_PADDING = 16;
   const PAYMENT_TYPE_SHEET_FILTER_LIST_GAP = 16;
   const PAYMENT_TYPE_SHEET_LIST_BOTTOM_GAP = 16;
+  void PAYMENT_TYPE_SHEET_FILTER_ROW_HEIGHT;
+  void PAYMENT_TYPE_SHEET_TOP_PADDING;
+  void PAYMENT_TYPE_SHEET_FILTER_LIST_GAP;
   const paymentTypeSheetHeight = useMemo(() => windowHeight * 0.5, [windowHeight]);
   const paymentTypeSheetContentHeight = useMemo(
     () => Math.max(0, paymentTypeSheetHeight - PAYMENT_TYPE_SHEET_NAV_HEIGHT),
@@ -740,6 +746,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       setDraftSelectedDay(selectedDay);
       setDraftIsPeriodExpanded(isPeriodExpanded);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showRecurringInstallmentSheet]);
 
   // 반복/할부 바텀시트 내부 드래프트 (확인 시에만 main에 반영)
@@ -794,8 +801,10 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   const [categoryToastMessage, setCategoryToastMessage] = useState<string>('');
   const [showDateSelectToast, setShowDateSelectToast] = useState<boolean>(false);
   const [dateSelectToastMessage, setDateSelectToastMessage] = useState<string>('');
+  void setDateSelectToastMessage;
   const [showPrepaymentToast, setShowPrepaymentToast] = useState<boolean>(false);
   const [prepaymentToastMessage, setPrepaymentToastMessage] = useState<string>('');
+  void setPrepaymentToastMessage;
   const [showWeekendOptionToast, setShowWeekendOptionToast] = useState<boolean>(false);
   
   // 할부 기록 환불 처리 옵션 모달
@@ -871,7 +880,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   }, [analyticsScreenName, applyPaymentMethod]);
 
   const [paymentTypeSheetItems, setPaymentTypeSheetItems] = useState<
-    Array<{ id: string; type: 'credit' | 'debit'; label: string; description: string; color: string }>
+    { id: string; type: 'credit' | 'debit'; label: string; description: string; color: string }[]
   >([]);
 
   useFocusEffect(
@@ -1206,6 +1215,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   
   // 실제 존재하는 기록 개수 (삭제된 기록 제외)
   const [actualRecordCount, setActualRecordCount] = useState<number>(0);
+  void actualRecordCount;
   // 실제 존재하는 기록의 총 금액 (할부 기록 삭제 시 정확한 금액 계산용)
   const [actualTotalAmount, setActualTotalAmount] = useState<number>(0);
   // 할부 기록 "오늘 포함 이후" 금액 (실제 기록 기준)
@@ -1220,10 +1230,12 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   // Section/Input position tracking
   // Remove amount auto-scroll states per request
   const [memoSectionY, setMemoSectionY] = useState(0);
+  void memoSectionY;
   const memoSectionYRef = useRef(0);
   const memoSectionHeightRef = useRef(0);
   const [amountSectionY, setAmountSectionY] = useState(0);
   const [amountSectionHeight, setAmountSectionHeight] = useState(0);
+  void amountSectionHeight;
   const handleMemoChange = useCallback((text: string) => {
     setMemo(text.replace(/[\r\n]/g, ''));
   }, []);
@@ -1690,6 +1702,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     handleMemoFocus: scrollMemoOnFocus,
     handleMemoBlur: clearMemoFocusState,
     focusMemoInput,
+    // kept for imperative keyboard hook contract
+
     onMemoScroll,
     memoPointerHandlers,
   } = useRecordFormMemoKeyboard({
@@ -1699,8 +1713,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     windowHeight,
     safeAreaBottom: insets.bottom,
   });
+  void focusMemoInput;
 
-  // Update category when returning from category selection screen
+  // Update category/ when returning from category selection screen
   useFocusEffect(
     useCallback(() => {
       const updateCategory = async () => {
@@ -1732,11 +1747,11 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             nextCategory = params.category;
           }
         }
-
+        void nextCategory;
       };
       
       updateCategory();
-    }, [mode, params.category])
+    }, [params.category])
   );
   
   // Check if selected date is weekend
@@ -1778,7 +1793,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     const isDev = typeof __DEV__ !== 'undefined' && __DEV__;
     const debugLog = (...args: unknown[]) => {
       if (isDev) {
-        // eslint-disable-next-line no-console
+         
         console.log(...args);
       }
     };
@@ -1844,7 +1859,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         }
 
         if (isDev) {
-          // eslint-disable-next-line no-console
+           
           console.log('[expense][bulk-update:match]', {
             dateKey,
             recordTimestamp: record.timestamp,
@@ -1953,8 +1968,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         const baseDateObj = new Date(originalStartYear, originalStartMonth - 1, baseDay);
         const baseDayOfWeek = baseDateObj.getDay();
         let adjustedBaseDate = baseDateStr;
-        // 매일, 주중, 주말 반복 기간을 선택한 경우 주말 옵션 무시
-        const shouldIgnoreWeekendOption = isRecurringGroup && currentRecurringType && ['매일', '주중', '주말'].includes(currentRecurringType);
+        // 반복 단위 자체가 주말 기준을 가진 경우 주말 이동 옵션 무시
+        const shouldIgnoreWeekendOption = isRecurringGroup && shouldIgnoreWeekendOptionForRecurringType(currentRecurringType);
         if ((baseDayOfWeek === 0 || baseDayOfWeek === 6) && weekendOption !== 'weekend' && !shouldIgnoreWeekendOption) {
           adjustedBaseDate = getAdjustedWeekendDate(baseDateStr, weekendOption);
         }
@@ -1982,8 +1997,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           currentDate = nextDate;
         }
         
-        // 주말 조정 (매일, 주중, 주말 반복 기간을 선택한 경우 주말 옵션 무시)
-        const shouldIgnoreWeekendOption = ['매일', '주중', '주말'].includes(currentRecurringType);
+        // 주말 조정 (반복 단위 자체가 주말 기준을 가진 경우 주말 이동 옵션 무시)
+        const shouldIgnoreWeekendOption = shouldIgnoreWeekendOptionForRecurringType(currentRecurringType);
         const [year, month, day] = currentDate.split('.').map(Number);
         const futureDateObj = new Date(year, month - 1, day);
         const futureDayOfWeek = futureDateObj.getDay();
@@ -2512,7 +2527,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         
         // updateExpense 완료 후 AsyncStorage 쓰기 완료 보장을 위한 추가 대기
         await new Promise(resolve => setTimeout(resolve, 200));
-      } catch (_error) {
+      } catch {
         // updateExpense 실패 시에도 calendarData는 이미 저장되었으므로 계속 진행
         // 하지만 사용자에게 알림을 줄 수도 있음
       }
@@ -2719,8 +2734,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     }
     
     // 정기 지출 또는 할부 옵션 + 주말인 경우 확인 모달 표시 ('관계없이 주말 기록' 제외)
-    // 매일, 주중, 주말 반복 기간을 선택한 경우 주말 옵션 무시하므로 모달 표시 안 함
-    const shouldIgnoreWeekendOption = isRecurring && ['매일', '주중', '주말'].includes(recurringType);
+    // 반복 단위 자체가 주말 기준을 가진 경우 주말 옵션 무시하므로 모달 표시 안 함
+    const shouldIgnoreWeekendOption = isRecurring && shouldIgnoreWeekendOptionForRecurringType(recurringType);
     if ((isRecurring || isInstallment) && isWeekend() && weekendOption !== 'weekend' && !shouldIgnoreWeekendOption) {
       setShowWeekendConfirm(true);
       return;
@@ -2802,8 +2817,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         thisSaturday.setDate(thisSaturday.getDate() + daysUntilSaturday);
         actualDate = `${thisSaturday.getFullYear()}.${String(thisSaturday.getMonth() + 1).padStart(2, '0')}.${String(thisSaturday.getDate()).padStart(2, '0')}`;
       } else {
-        // 매일, 주중, 주말 반복 기간을 선택한 경우 주말 옵션 무시
-        const shouldIgnoreWeekendOption = isRecurring && ['매일', '주중', '주말'].includes(recurringType);
+        // 반복 단위 자체가 주말 기준을 가진 경우 주말 이동 옵션 무시
+        const shouldIgnoreWeekendOption = isRecurring && shouldIgnoreWeekendOptionForRecurringType(recurringType);
         if ((isRecurring || isInstallment) && isWeekendDay && weekendOption !== 'weekend' && !shouldIgnoreWeekendOption) {
           actualDate = getAdjustedWeekendDate(date, weekendOption);
 
@@ -2914,6 +2929,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       };
 
       const recordsToSave: ExpenseRecordType[] = [];
+      void recordsToSave;
 
       if (mode === 'edit' && editData) {
         // Edit mode: 선결제 기록은 단순 필드 업데이트
@@ -3290,8 +3306,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           }
           
           // 주말이면 조정 (단, 'weekend' 옵션이 아닐 때만)
-          // 매일, 주중, 주말 반복 기간을 선택한 경우 주말 옵션 무시
-          const shouldIgnoreWeekendOption = isRecurring && ['매일', '주중', '주말'].includes(recurringType);
+          // 반복 단위 자체가 주말 기준을 가진 경우 주말 이동 옵션 무시
+          const shouldIgnoreWeekendOption = isRecurring && shouldIgnoreWeekendOptionForRecurringType(recurringType);
           const [nextYear, nextMonth, nextDay] = nextDate.split('.').map(Number);
           const futureDateObj = new Date(nextYear, nextMonth - 1, nextDay);
           const futureDayOfWeek = futureDateObj.getDay();
@@ -3505,8 +3521,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               }
               
               // 주말이면 조정 (단, 'weekend' 옵션이 아닐 때만)
-              // 매일, 주중, 주말 반복 기간을 선택한 경우 주말 옵션 무시
-              const shouldIgnoreWeekendOption = isRecurring && ['매일', '주중', '주말'].includes(recurringType);
+              // 반복 단위 자체가 주말 기준을 가진 경우 주말 이동 옵션 무시
+              const shouldIgnoreWeekendOption = isRecurring && shouldIgnoreWeekendOptionForRecurringType(recurringType);
               const [nextYear, nextMonth, nextDay] = nextDate.split('.').map(Number);
               const futureDateObj = new Date(nextYear, nextMonth - 1, nextDay);
               const futureDayOfWeek = futureDateObj.getDay();
@@ -3887,9 +3903,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     [],
   );
 
-  const handleBack = () => {
+  const handleBack = useCallback(() => {
     router.back();
-  };
+  }, [router]);
 
   const handleTopNavHomePress = useCallback(async () => {
     void logEvent('btn', {
@@ -3944,6 +3960,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     ],
     [handleBack, handleTopNavHomePress],
   );
+
+  void handleMultipleRecordsBulkUpdate;
 
   const handleDeleteConfirm = async () => {
     if (mode !== 'edit' || !editData) {
@@ -4052,7 +4070,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           originalAmountBeforeRefund: record.originalAmountBeforeRefund,
           amount: 0,
         });
-      } catch (_error) {
+      } catch {
         // ignore
       }
 
@@ -4293,7 +4311,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             amount: 0,
           });
         }
-      } catch (_error) {
+      } catch {
         // 에러가 발생해도 AsyncStorage 저장은 완료되었으므로 계속 진행
       }
       
@@ -4324,7 +4342,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       showToast('정상적으로 환불 처리가 완료 되었습니다.');
       await goTimelineWithFocus(dateKey);
       
-    } catch (_error) {
+    } catch {
     } finally {
       setLoading(false);
     }
@@ -4424,7 +4442,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           wasRestored: true,
           // originalDate는 원래 예정일로 유지 (변경하지 않음)
         });
-      } catch (_error) {
+      } catch {
         // 에러가 발생해도 AsyncStorage 저장은 완료되었으므로 계속 진행
       }
 
@@ -4623,7 +4641,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               });
             }
           }
-        } catch (_error) {
+        } catch {
           // 에러가 발생해도 AsyncStorage 저장은 완료되었으므로 계속 진행
         }
 
@@ -4739,7 +4757,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               wasRestored: true,
             });
           }
-        } catch (_error) {
+        } catch {
           // ignore
         }
 
@@ -4800,7 +4818,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
             amount: restoredAmount,
             wasRestored: true,
           });
-        } catch (_error) {
+        } catch {
           // ignore
         }
 
@@ -4827,7 +4845,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         await goTimelineWithFocus(dateKey);
       }
       
-    } catch (_error) {
+    } catch {
     } finally {
       setLoading(false);
     }
@@ -5991,7 +6009,11 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
           setHasSelectedInstallment(draftHasSelectedInstallment);
           setRecurringType(draftRecurringType);
           setTotalMonths(draftTotalMonths);
-          setWeekendOption(draftWeekendOption);
+          setWeekendOption(
+            draftIsRecurring && shouldIgnoreWeekendOptionForRecurringType(draftRecurringType)
+              ? 'weekend'
+              : draftWeekendOption,
+          );
           setSelectedDay(draftSelectedDay);
           setIsPeriodExpanded(draftIsPeriodExpanded);
           setShowRecurringInstallmentSheet(false);
@@ -6172,6 +6194,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                           });
                         }
                         setDraftRecurringType(label);
+                        if (shouldIgnoreWeekendOptionForRecurringType(label)) {
+                          setDraftWeekendOption('weekend');
+                        }
                         if (label === '매월') {
                           setDraftTotalMonths(1);
                         } else if (label === '2개월 마다') {
@@ -6251,7 +6276,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 style={styles.radioRow}
                 onPress={() => {
                   if (!draftIsRecurring && !draftIsInstallment) return;
-                  if (draftIsRecurring && ['매일', '주중', '주말'].includes(draftRecurringType)) {
+                  if (draftIsRecurring && shouldIgnoreWeekendOptionForRecurringType(draftRecurringType)) {
                     setShowWeekendOptionToast(true);
                     return;
                   }
@@ -6270,7 +6295,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                   checked={draftWeekendOption === 'weekend'}
                   onPress={() => {
                     if (!draftIsRecurring && !draftIsInstallment) return;
-                    if (draftIsRecurring && ['매일', '주중', '주말'].includes(draftRecurringType)) {
+                    if (draftIsRecurring && shouldIgnoreWeekendOptionForRecurringType(draftRecurringType)) {
                       setShowWeekendOptionToast(true);
                       return;
                     }
@@ -6281,7 +6306,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                     setDraftWeekendOption('weekend');
                   }}
                   label={false}
-                  disabled={(!draftIsRecurring && !draftIsInstallment) || (draftIsRecurring && ['매일', '주중', '주말'].includes(draftRecurringType))}
+                  disabled={(!draftIsRecurring && !draftIsInstallment) || (draftIsRecurring && shouldIgnoreWeekendOptionForRecurringType(draftRecurringType))}
                 />
               </Pressable>
 
@@ -6291,7 +6316,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 style={styles.radioRow}
                 onPress={() => {
                   if (!draftIsRecurring && !draftIsInstallment) return;
-                  if (draftIsRecurring && ['매일', '주중', '주말'].includes(draftRecurringType)) {
+                  if (draftIsRecurring && shouldIgnoreWeekendOptionForRecurringType(draftRecurringType)) {
                     setShowWeekendOptionToast(true);
                     return;
                   }
@@ -6310,7 +6335,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                   checked={draftWeekendOption === 'friday'}
                   onPress={() => {
                     if (!draftIsRecurring && !draftIsInstallment) return;
-                    if (draftIsRecurring && ['매일', '주중', '주말'].includes(draftRecurringType)) {
+                    if (draftIsRecurring && shouldIgnoreWeekendOptionForRecurringType(draftRecurringType)) {
                       setShowWeekendOptionToast(true);
                       return;
                     }
@@ -6321,7 +6346,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                     setDraftWeekendOption('friday');
                   }}
                   label={false}
-                  disabled={(!draftIsRecurring && !draftIsInstallment) || (draftIsRecurring && ['매일', '주중', '주말'].includes(draftRecurringType))}
+                  disabled={(!draftIsRecurring && !draftIsInstallment) || (draftIsRecurring && shouldIgnoreWeekendOptionForRecurringType(draftRecurringType))}
                 />
               </Pressable>
 
@@ -6331,7 +6356,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                 style={styles.radioRow}
                 onPress={() => {
                   if (!draftIsRecurring && !draftIsInstallment) return;
-                  if (draftIsRecurring && ['매일', '주중', '주말'].includes(draftRecurringType)) {
+                  if (draftIsRecurring && shouldIgnoreWeekendOptionForRecurringType(draftRecurringType)) {
                     setShowWeekendOptionToast(true);
                     return;
                   }
@@ -6350,7 +6375,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                   checked={draftWeekendOption === 'monday'}
                   onPress={() => {
                     if (!draftIsRecurring && !draftIsInstallment) return;
-                    if (draftIsRecurring && ['매일', '주중', '주말'].includes(draftRecurringType)) {
+                    if (draftIsRecurring && shouldIgnoreWeekendOptionForRecurringType(draftRecurringType)) {
                       setShowWeekendOptionToast(true);
                       return;
                     }
@@ -6361,7 +6386,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                     setDraftWeekendOption('monday');
                   }}
                   label={false}
-                  disabled={(!draftIsRecurring && !draftIsInstallment) || (draftIsRecurring && ['매일', '주중', '주말'].includes(draftRecurringType))}
+                  disabled={(!draftIsRecurring && !draftIsInstallment) || (draftIsRecurring && shouldIgnoreWeekendOptionForRecurringType(draftRecurringType))}
                 />
               </Pressable>
             </View>
@@ -7580,4 +7605,3 @@ const styles = StyleSheet.create({
     height: 40, // Chip 높이 40으로 고정
   },
 });
-

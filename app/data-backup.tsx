@@ -17,14 +17,14 @@ import { logEvent } from '@/utils/analytics';
 import { refreshWidgetWithCurrentMonth } from '@/utils/widget-data-sync';
 import { resetAppData } from '@/utils/reset-app-data';
 import { useRouter } from 'expo-router';
-
-/** 확장자 검사용 (백업 모듈은 버튼 탭 시 동적 로드하여 OTA 진입 크래시 방지) */
-const BACKUP_FILE_EXTENSION = '.awbak';
-const XLSX_FILE_EXTENSION = '.xlsx';
 import { useCallback, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ModalPopup } from '@/components/ui/modal-popup';
+
+/** 확장자 검사용 (백업 모듈은 버튼 탭 시 동적 로드하여 OTA 진입 크래시 방지) */
+const BACKUP_FILE_EXTENSION = '.awbak';
+const XLSX_FILE_EXTENSION = '.xlsx';
 
 const EMAIL_SUBJECT_BACKUP = '[AWallet] 데이터 백업';
 const EMAIL_BODY_BACKUP = 'AWallet 데이터 백업 파일이 첨부되어 있습니다.';

@@ -130,6 +130,14 @@ if (isEligibleDriver(user)) {
 
 ## 🧪 TESTING STRATEGY
 
+### Required Verification After Feature Work:
+- Do not run lint after every small edit. Run verification at the point where a feature implementation is complete.
+- Before reporting a feature as complete, ask the user for approval to run `npm run lint`.
+- If the feature touches TypeScript code, also ask for approval to run `npx tsc --noEmit` whenever feasible.
+- If the user does not approve verification or tries to move on without it, keep reminding them that final verification is still pending and ask again until they explicitly approve it or explicitly defer it.
+- Treat lint errors and warnings from the touched area as part of the task; resolve them before handoff unless the user explicitly asks to defer.
+- If verification cannot be run, clearly state why and list the exact command(s) that still need to be run.
+
 ### Test Structure (AAA Pattern):
 ```typescript
 // ✅ Arrange, Act, Assert

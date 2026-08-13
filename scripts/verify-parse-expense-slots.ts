@@ -18,7 +18,7 @@ type Expect = {
   rejectReason?: string | null;
 };
 
-const CASES: Array<{ label: string; message: string; expect: Expect }> = [
+const CASES: { label: string; message: string; expect: Expect }[] = [
   {
     label: 'min: type+category+amount',
     message: '식비 9000원',
@@ -77,7 +77,7 @@ for (const c of CASES) {
   const slots = extractParseExpenseSlots(c.message, TODAY, CATEGORIES);
   const e = c.expect;
 
-  const checks: Array<[string, unknown, unknown]> = [
+  const checks: [string, unknown, unknown][] = [
     ['rejectReason', slots.rejectReason ?? null, e.rejectReason === undefined ? null : e.rejectReason],
     ['category', slots.category, e.category],
     ['amount', slots.amount, e.amount],

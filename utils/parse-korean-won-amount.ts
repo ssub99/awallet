@@ -17,7 +17,7 @@ const SMALL_DIGIT: Record<string, number> = {
   구: 9,
 };
 
-const SPOKEN_DIGITS: Array<[string, number]> = [
+const SPOKEN_DIGITS: [string, number][] = [
   ['다섯', 5],
   ['여섯', 6],
   ['일곱', 7],
