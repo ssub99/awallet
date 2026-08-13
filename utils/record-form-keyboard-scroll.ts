@@ -166,7 +166,11 @@ export function scrollScrollViewSectionAboveKeyboard({
       return;
     }
 
-    scrollView.measureInWindow((_x, scrollViewTop) => {
+    const measurableScrollView = scrollView as unknown as {
+      measureInWindow: (callback: (x: number, y: number) => void) => void;
+    };
+
+    measurableScrollView.measureInWindow((_x: number, scrollViewTop: number) => {
       const sectionBottomInWindow =
         scrollViewTop + sectionY + sectionHeight - scrollYBefore;
       const overflow = sectionBottomInWindow - targetBorderBottom;

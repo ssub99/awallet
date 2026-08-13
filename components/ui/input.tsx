@@ -181,7 +181,6 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
   ...textInputProps
 }, ref) {
   const {
-    style: textInputStyle,
     onFocus: onFocusProp,
     onBlur: onBlurProp,
     onPressIn: onPressInProp,
@@ -308,7 +307,6 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
                 : styles.inputLine,
           { color: textColor },
           shouldUseCompactEmojiGap && styles.inputEmojiGapCompact,
-          textInputStyle,
         ]}
         onPressIn={(event) => {
           if (!useKeypadTouchable && disabled && onPress) {
@@ -648,4 +646,3 @@ const styles = StyleSheet.create({
   },
   sortationEmoji: typographyLayout.uiLineBody01Regular,
 });
-

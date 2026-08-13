@@ -12,9 +12,11 @@ import { ModalPopup } from '@/components/ui/modal-popup';
 import { UiLineText } from '@/components/ui/ui-line-text';
 import { SettingsNoticeImageViewerContent } from '@/app/settings-notice-image-viewer';
 import { atomicColors } from '@/constants/atomic-colors';
+import { ANDROID_NOTICE_VIEWER_TRANSITION_MS } from '@/constants/notice-image-viewer-navigation-options';
 import { themeColors } from '@/constants/theme-colors';
 import { typography } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
+import { useAppStatusBar } from '@/contexts/status-bar-context';
 import { useToast } from '@/contexts/toast-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { deleteDevAppNotice, loadDevAppNotices } from '@/utils/dev-app-notices';
@@ -26,6 +28,7 @@ import { markNoticesViewed } from '@/utils/notice-read-state';
 import { prefetchNoticesMedia } from '@/utils/prefetch-notice-media';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
+import * as ExpoStatusBar from 'expo-status-bar';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
@@ -45,8 +48,7 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 const NOTICE_EMPTY_MESSAGE = '등록된 공지사항이 없습니다.';
 const NOTICE_CONTENT_FADE_IN_MS = 200;
-const NOTICE_VIEWER_SLIDE_MS = 260;
-const NOTICE_VIEWER_OFFSCREEN_EXTRA = 48;
+const NOTICE_VIEWER_OFFSCREEN_EXTRA = 160;
 
 const NoticeImageThumbnail = memo(function NoticeImageThumbnail({
   uri,
@@ -202,6 +204,7 @@ export default function SettingsNoticeScreen() {
   const router = useRouter();
   const { height: windowHeight } = useWindowDimensions();
   const { setLoading } = useLoading();
+  const { setAndroidStatusBarStyle } = useAppStatusBar();
   const { showToast } = useToast();
 
   const [notices, setNotices] = useState<AppNotice[]>([]);
@@ -215,6 +218,7 @@ export default function SettingsNoticeScreen() {
     initialIndex: number;
   } | null>(null);
   const [isAndroidViewerVisible, setIsAndroidViewerVisible] = useState(false);
+  const [isAndroidViewerDismissing, setIsAndroidViewerDismissing] = useState(false);
   const noticesRef = useRef<AppNotice[]>([]);
   const skipNextFocusLoadRef = useRef(false);
   const contentOpacity = useRef(new Animated.Value(0)).current;
@@ -227,6 +231,12 @@ export default function SettingsNoticeScreen() {
       NOTICE_VIEWER_OFFSCREEN_EXTRA
     );
   }, [windowHeight]);
+
+  useEffect(() => {
+    return () => {
+      setAndroidStatusBarStyle('dark');
+    };
+  }, [setAndroidStatusBarStyle]);
 
   const loadNotices = useCallback(async () => {
     try {
@@ -279,15 +289,20 @@ export default function SettingsNoticeScreen() {
     if (Platform.OS === 'android') {
       androidViewerTranslateY.stopAnimation();
       androidViewerTranslateY.setValue(getAndroidViewerHiddenOffset());
+      setIsAndroidViewerDismissing(false);
       setAndroidViewer({ media, initialIndex: index });
       setIsAndroidViewerVisible(true);
       requestAnimationFrame(() => {
         Animated.timing(androidViewerTranslateY, {
           toValue: 0,
-          duration: NOTICE_VIEWER_SLIDE_MS,
+          duration: ANDROID_NOTICE_VIEWER_TRANSITION_MS,
           easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
-        }).start();
+        }).start(({ finished }) => {
+          if (finished) {
+            setAndroidStatusBarStyle('light');
+          }
+        });
       });
       return;
     }
@@ -300,9 +315,11 @@ export default function SettingsNoticeScreen() {
 
   const handleAndroidViewerClose = useCallback(() => {
     androidViewerTranslateY.stopAnimation();
+    setIsAndroidViewerDismissing(true);
+    setAndroidStatusBarStyle('dark');
     Animated.timing(androidViewerTranslateY, {
       toValue: getAndroidViewerHiddenOffset(),
-      duration: NOTICE_VIEWER_SLIDE_MS,
+      duration: ANDROID_NOTICE_VIEWER_TRANSITION_MS,
       easing: Easing.in(Easing.cubic),
       useNativeDriver: true,
     }).start(({ finished }) => {
@@ -311,8 +328,9 @@ export default function SettingsNoticeScreen() {
       }
       setIsAndroidViewerVisible(false);
       setAndroidViewer(null);
+      setIsAndroidViewerDismissing(false);
     });
-  }, [androidViewerTranslateY, getAndroidViewerHiddenOffset]);
+  }, [androidViewerTranslateY, getAndroidViewerHiddenOffset, setAndroidStatusBarStyle]);
 
   const handleAndroidViewerSheetLayout = useCallback((event: LayoutChangeEvent) => {
     androidViewerSheetHeightRef.current = event.nativeEvent.layout.height;
@@ -362,7 +380,6 @@ export default function SettingsNoticeScreen() {
       style={[styles.container, { backgroundColor: colors.staticWhite }]}
       edges={['top', 'bottom']}
     >
-
       <TopNavigation
         type="sub"
         title="공지사항"
@@ -424,11 +441,15 @@ export default function SettingsNoticeScreen() {
           visible={isAndroidViewerVisible}
           animationType="none"
           transparent
-          presentationStyle="fullScreen"
           statusBarTranslucent
           navigationBarTranslucent
           onRequestClose={handleAndroidViewerClose}
         >
+          <ExpoStatusBar.StatusBar
+            style={isAndroidViewerDismissing ? 'dark' : 'light'}
+            translucent
+            backgroundColor="transparent"
+          />
           <SafeAreaProvider style={styles.androidViewerSafeAreaProvider}>
             <GestureHandlerRootView style={styles.androidViewerGestureRoot}>
               <Animated.View
@@ -443,6 +464,7 @@ export default function SettingsNoticeScreen() {
                     media={androidViewer.media}
                     initialIndex={androidViewer.initialIndex}
                     onClose={handleAndroidViewerClose}
+                    forceDismissing={isAndroidViewerDismissing}
                   />
                 ) : null}
               </Animated.View>

@@ -533,7 +533,8 @@ export default function PaymentTypeEditScreen() {
         backdropInteractive
       >
         <Text style={[styles.modalText, { color: palette.textNeutral }]}>
-          '{currentSubtype?.label ?? ''}'의{'\n'}
+          {`'${currentSubtype?.label ?? ''}'의`}
+          {'\n'}
           결제 유형을 삭제하시겠어요?
         </Text>
       </ModalPopup>
@@ -621,4 +622,3 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
-

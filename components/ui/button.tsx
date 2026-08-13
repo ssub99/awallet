@@ -97,12 +97,12 @@ export function Button({
     <Pressable
       onPress={handlePress}
       disabled={isPressDisabled}
-      style={({ pressed }) => [
+      style={(state) => [
         styles.base,
         buttonStyle.container,
         size === 'large' ? styles.large : styles.small,
-        typeof style === 'function' ? style({ pressed }) : style,
-        pressed && !isPressDisabled && styles.pressed,
+        typeof style === 'function' ? style(state) : style,
+        state.pressed && !isPressDisabled && styles.pressed,
       ]}
       accessibilityRole="button"
       accessibilityState={{ disabled: isPressDisabled }}
@@ -334,4 +334,3 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
 });
-

@@ -23,6 +23,7 @@ import * as Haptics from 'expo-haptics';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useRef, useState } from 'react';
 import {
+  Animated as RNAnimated,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -35,7 +36,7 @@ import Sortable, {
   type SortableGridDragEndParams,
   type SortableGridRenderItem,
 } from 'react-native-sortables';
-import Animated, { useAnimatedRef, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Reanimated, { useAnimatedRef, useAnimatedStyle } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const logCategorySettingDebug = (event: string, payload?: Record<string, unknown>) => {
@@ -165,7 +166,7 @@ function CategoryItemBase({
             overflow: 'visible',
           }}
         >
-          <Animated.View
+          <Reanimated.View
             style={[
               { backgroundColor: colors.background, overflow: 'visible' },
               styles.categoryRowActive,
@@ -190,7 +191,7 @@ function CategoryItemBase({
                 <Icon name="handle" variant="line" size={24} color={colors.textNeutral} />
               </Sortable.Handle>
             </Pressable>
-          </Animated.View>
+          </Reanimated.View>
         </View>
         
         {/* Divider (마지막 항목 제외, 드래그 중이 아닐 때만 표시) */}
@@ -225,7 +226,7 @@ export default function CategorySettingScreen() {
     () => initialCategories ?? [],
   );
   const [isListDataReady, setIsListDataReady] = useState(() => initialCategories != null);
-  const contentOpacity = useSharedValue(initialCategories != null ? 1 : 0);
+  const contentOpacity = useRef(new RNAnimated.Value(initialCategories != null ? 1 : 0)).current;
   const scrollableRef = useAnimatedRef<ScrollView>();
   const scrollOffsetYRef = useRef(0);
   const categoriesRef = useRef(categories);
@@ -253,6 +254,19 @@ export default function CategorySettingScreen() {
     [],
   );
 
+  const resetContentFade = useCallback(() => {
+    contentOpacity.stopAnimation();
+    contentOpacity.setValue(0);
+  }, [contentOpacity]);
+
+  const startContentFadeIn = useCallback(() => {
+    RNAnimated.timing(contentOpacity, {
+      toValue: 1,
+      duration: CATEGORY_CONTENT_FADE_IN_MS,
+      useNativeDriver: true,
+    }).start();
+  }, [contentOpacity]);
+
   const applyLoadedCategories = useCallback(
     (finalCategories: Array<{ emoji: string; label: string; type: CategoryType }>) => {
       categoriesRef.current = finalCategories;
@@ -262,12 +276,12 @@ export default function CategorySettingScreen() {
         );
         setIsListDataReady(true);
       });
-      contentOpacity.value = withTiming(1, { duration: CATEGORY_CONTENT_FADE_IN_MS });
+      requestAnimationFrame(startContentFadeIn);
       previousIndexRef.current = null;
       hasTriggeredStartHapticRef.current = false;
       dragStartIndexRef.current = null;
     },
-    [],
+    [startContentFadeIn],
   );
 
   useFocusEffect(
@@ -287,12 +301,12 @@ export default function CategorySettingScreen() {
 
         const cached = getOrderedCategoriesFromCache(categoryType);
         if (cached) {
-          contentOpacity.value = 0;
+          resetContentFade();
           applyLoadedCategories(cached);
           return;
         }
 
-        contentOpacity.value = 0;
+        resetContentFade();
         setIsListDataReady(false);
         setLoading(true);
 
@@ -317,12 +331,8 @@ export default function CategorySettingScreen() {
       };
 
       void loadCategoriesData();
-    }, [applyLoadedCategories, categoryType, contentOpacity, setLoading]),
+    }, [applyLoadedCategories, categoryType, resetContentFade, setLoading]),
   );
-
-  const contentAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: contentOpacity.value,
-  }));
 
   // 카테고리 타입에 따라 타이틀 설정
   const title = categoryType === 'expense' ? '지출 카테고리 설정' : '수입 카테고리 설정';
@@ -482,7 +492,7 @@ export default function CategorySettingScreen() {
           {!isListDataReady ? (
             <View style={{ flex: 1 }} />
           ) : (
-            <Animated.View style={[{ flex: 1 }, contentAnimatedStyle]}>
+            <RNAnimated.View style={[{ flex: 1, opacity: contentOpacity }]}>
               {categories.length === 0 ? (
                 <View style={styles.emptyContainer}>
                   <Text style={[styles.emptyText, { color: colors.textNeutral }]}>
@@ -491,7 +501,7 @@ export default function CategorySettingScreen() {
                 </View>
               ) : (
                 <Sortable.PortalProvider>
-                  <Animated.ScrollView
+                  <Reanimated.ScrollView
                     ref={scrollableRef as never}
                     style={{ flex: 1 }}
                     contentContainerStyle={styles.scrollContent}
@@ -535,10 +545,10 @@ export default function CategorySettingScreen() {
                       onOrderChange={handleOrderChange}
                       onDragEnd={handleDragEnd}
                     />
-                  </Animated.ScrollView>
+                  </Reanimated.ScrollView>
                 </Sortable.PortalProvider>
               )}
-            </Animated.View>
+            </RNAnimated.View>
           )}
         </View>
       </View>

@@ -25,6 +25,8 @@ import {
 import { QuickInputStar } from '@/components/ui/quick-input-star';
 
 export interface QuickInputFieldProps extends Omit<TextInputProps, 'style'> {
+  style?: TextInputProps['style'];
+
   /**
    * 입력값
    */

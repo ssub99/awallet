@@ -38,7 +38,7 @@ export function NoticeVideoSlide({
   onProgressChange,
   onZoomActiveChange,
 }: NoticeVideoSlideProps) {
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
   const colorScheme = useColorScheme();
   const colors = themeColors[colorScheme ?? 'light'];
   const posterUri = useNoticeVideoThumbnail(uri);
@@ -140,7 +140,7 @@ export function NoticeVideoSlide({
   }, [isDismissing, player]);
 
   useEffect(() => {
-    const onTransitionStart = navigation.addListener('transitionStart', (event) => {
+    const onTransitionStart = navigation.addListener('transitionStart', (event: any) => {
       if (event.data?.closing !== true) {
         return;
       }
@@ -150,7 +150,7 @@ export function NoticeVideoSlide({
       player.pause();
     });
 
-    const onTransitionEnd = navigation.addListener('transitionEnd', (event) => {
+    const onTransitionEnd = navigation.addListener('transitionEnd', (event: any) => {
       if (event.data?.closing !== true) {
         return;
       }

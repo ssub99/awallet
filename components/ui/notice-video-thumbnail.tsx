@@ -1,4 +1,5 @@
 import { Icon } from '@/components/ui/icon';
+import { atomicColors } from '@/constants/atomic-colors';
 import { themeColors } from '@/constants/theme-colors';
 import { useNoticeVideoThumbnail } from '@/hooks/use-notice-video-thumbnail';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -32,7 +33,13 @@ export const NoticeVideoThumbnail = memo(function NoticeVideoThumbnail({
         />
       ) : null}
       {posterUri == null ? (
-        <Icon name="play" variant="solid" size={20} color={colors.textAssistive} accessibilityLabel="영상" />
+        <Icon
+          name="image"
+          variant="solid"
+          size={20}
+          color={atomicColors.neutral[300]}
+          accessibilityLabel="썸네일"
+        />
       ) : (
         <View style={[styles.playBadge, { backgroundColor: colors.staticBlack }]}>
           <Icon name="play" variant="solid" size={14} color={colors.staticWhite} accessibilityLabel="영상" />

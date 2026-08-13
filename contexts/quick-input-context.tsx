@@ -1039,7 +1039,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       setIsQuickInputContentVisible(false);
       finishHideQuickInput();
       if (Platform.OS === 'android') {
-        void KeyboardController.dismiss({ animated: false });
+        void KeyboardController.dismiss();
       } else {
         Keyboard.dismiss();
       }
@@ -1878,7 +1878,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                 pointerEvents="auto"
                 style={[styles.backdrop, { opacity: quickInputBackdropOpacity }]}
               >
-                <Pressable style={StyleSheet.absoluteFill} onPress={hideQuickInput} />
+                <Pressable style={StyleSheet.absoluteFill} onPress={() => hideQuickInput()} />
               </RNAnimated.View>
               {isQuickInputContentVisible && (
                 <RNAnimated.View

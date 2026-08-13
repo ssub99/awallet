@@ -14,7 +14,7 @@ import {
   NOTICE_IMAGE_VIEWER_NAVIGATION_OPTIONS,
 } from '@/constants/notice-image-viewer-navigation-options';
 import { themeColors } from '@/constants/theme-colors';
-import { typographyLayout } from '@/constants/typography';
+import { typography } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
   encodeNoticeMediaViewerParams,
@@ -79,10 +79,12 @@ export function SettingsNoticeImageViewerContent({
   media,
   initialIndex,
   onClose,
+  forceDismissing = false,
 }: {
   media: NoticeMediaItem[];
   initialIndex: number;
   onClose: () => void;
+  forceDismissing?: boolean;
 }) {
   const { width } = useWindowDimensions();
   const colorScheme = useColorScheme();
@@ -102,6 +104,7 @@ export function SettingsNoticeImageViewerContent({
   const [seekSeq, setSeekSeq] = useState(0);
   const [isVideoScrubbing, setIsVideoScrubbing] = useState(false);
   const [isDismissing, setIsDismissing] = useState(false);
+  const effectiveIsDismissing = isDismissing || forceDismissing;
   const videoDurationRef = useRef(0);
   const zoomActiveRef = useRef(false);
   const listRef = useRef<FlatList<NoticeMediaItem>>(null);
@@ -208,7 +211,7 @@ export function SettingsNoticeImageViewerContent({
   if (media.length === 0) {
     return (
       <>
-        <NoticeImageViewerStatusBarSync />
+        <NoticeImageViewerStatusBarSync isDismissing={effectiveIsDismissing} />
         <SafeAreaView style={[styles.container, styles.emptyContainer]} edges={['top', 'bottom']}>
           <Pressable onPress={handleClose} accessibilityRole="button" accessibilityLabel="닫기">
             <Icon name="close" variant="line" size={24} color={colors.staticWhite} />
@@ -222,102 +225,101 @@ export function SettingsNoticeImageViewerContent({
 
   return (
     <>
-      <NoticeImageViewerStatusBarSync />
+      <NoticeImageViewerStatusBarSync isDismissing={effectiveIsDismissing} />
       <View style={styles.container}>
+        <View style={styles.viewerContent}>
+          <SafeAreaView style={styles.safeArea} edges={['top']}>
+            <View style={styles.header}>
+              <Pressable
+                onPress={handleClose}
+                style={styles.headerIconButton}
+                accessibilityRole="button"
+                accessibilityLabel="닫기"
+              >
+                <Icon name="close" variant="line" size={24} color={colors.staticWhite} />
+              </Pressable>
 
-      <View style={styles.viewerContent}>
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <View style={styles.header}>
-          <Pressable
-            onPress={handleClose}
-            style={styles.headerIconButton}
-            accessibilityRole="button"
-            accessibilityLabel="닫기"
-          >
-            <Icon name="close" variant="line" size={24} color={colors.staticWhite} />
-          </Pressable>
+              <Text style={[styles.headerTitle, { color: colors.staticWhite }]}>{pageLabel}</Text>
 
-          <Text style={[styles.headerTitle, { color: colors.staticWhite }]}>{pageLabel}</Text>
+              <View style={styles.headerIconButton} />
+            </View>
+          </SafeAreaView>
 
-          <View style={styles.headerIconButton} />
-        </View>
-      </SafeAreaView>
+          <View style={styles.contentColumn}>
+            <View
+              style={[styles.viewerBody, { backgroundColor: colors.fill }]}
+              onLayout={handleViewerLayout}
+            >
+              {effectiveViewerSize.height > 0 ? (
+                <FlatList
+                  ref={listRef}
+                  data={media}
+                  keyExtractor={(item, index) => `${item.type}-${item.uri}-${index}`}
+                  horizontal
+                  pagingEnabled
+                  scrollEnabled={pagerScrollEnabled}
+                  showsHorizontalScrollIndicator={false}
+                  bounces={false}
+                  overScrollMode="never"
+                  initialScrollIndex={initialIndex}
+                  getItemLayout={(_, index) => ({
+                    length: effectiveViewerSize.width,
+                    offset: effectiveViewerSize.width * index,
+                    index,
+                  })}
+                  onMomentumScrollEnd={handleScrollEnd}
+                  onScrollEndDrag={handleScrollEndDrag}
+                  renderItem={({ item, index }) => {
+                    if (item.type === 'video') {
+                      return (
+                        <NoticeVideoSlide
+                          uri={item.uri}
+                          width={effectiveViewerSize.width}
+                          height={effectiveViewerSize.height}
+                          isActive={index === pageIndex}
+                          isDismissing={effectiveIsDismissing && index === pageIndex}
+                          isScrubbing={index === pageIndex && isVideoScrubbing}
+                          seekTime={index === pageIndex ? seekTime : null}
+                          seekSeq={index === pageIndex ? seekSeq : 0}
+                          onProgressChange={handleVideoProgressChange}
+                          onZoomActiveChange={handleZoomActiveChange}
+                        />
+                      );
+                    }
 
-      <View style={styles.contentColumn}>
-        <View
-          style={[styles.viewerBody, { backgroundColor: colors.fill }]}
-          onLayout={handleViewerLayout}
-        >
-          {effectiveViewerSize.height > 0 ? (
-            <FlatList
-              ref={listRef}
-              data={media}
-              keyExtractor={(item, index) => `${item.type}-${item.uri}-${index}`}
-              horizontal
-              pagingEnabled
-              scrollEnabled={pagerScrollEnabled}
-              showsHorizontalScrollIndicator={false}
-              bounces={false}
-              overScrollMode="never"
-              initialScrollIndex={initialIndex}
-              getItemLayout={(_, index) => ({
-                length: effectiveViewerSize.width,
-                offset: effectiveViewerSize.width * index,
-                index,
-              })}
-              onMomentumScrollEnd={handleScrollEnd}
-              onScrollEndDrag={handleScrollEndDrag}
-              renderItem={({ item, index }) => {
-                if (item.type === 'video') {
-                  return (
-                    <NoticeVideoSlide
-                      uri={item.uri}
-                      width={effectiveViewerSize.width}
-                      height={effectiveViewerSize.height}
-                      isActive={index === pageIndex}
-                      isDismissing={isDismissing && index === pageIndex}
-                      isScrubbing={index === pageIndex && isVideoScrubbing}
-                      seekTime={index === pageIndex ? seekTime : null}
-                      seekSeq={index === pageIndex ? seekSeq : 0}
-                      onProgressChange={handleVideoProgressChange}
-                      onZoomActiveChange={handleZoomActiveChange}
-                    />
-                  );
-                }
+                    return (
+                      <ZoomableImage
+                        uri={item.uri}
+                        width={effectiveViewerSize.width}
+                        height={effectiveViewerSize.height}
+                        isActive={index === pageIndex}
+                        onZoomActiveChange={handleZoomActiveChange}
+                      />
+                    );
+                  }}
+                />
+              ) : null}
+            </View>
 
-                return (
-                  <ZoomableImage
-                    uri={item.uri}
-                    width={effectiveViewerSize.width}
-                    height={effectiveViewerSize.height}
-                    isActive={index === pageIndex}
-                    onZoomActiveChange={handleZoomActiveChange}
+            {galleryHasVideo ? (
+              <View style={styles.timelineSlot}>
+                {showVideoTimeline ? (
+                  <NoticeVideoTimeline
+                    currentTime={videoProgress.currentTime}
+                    duration={videoProgress.duration}
+                    onSeek={handleVideoSeekCommit}
+                    onScrubPreview={handleVideoSeekPreview}
+                    onScrubStart={handleScrubStart}
+                    onScrubEnd={handleScrubEnd}
                   />
-                );
-              }}
-            />
-          ) : null}
-        </View>
-
-        {galleryHasVideo ? (
-          <View style={styles.timelineSlot}>
-            {showVideoTimeline ? (
-              <NoticeVideoTimeline
-                currentTime={videoProgress.currentTime}
-                duration={videoProgress.duration}
-                onSeek={handleVideoSeekCommit}
-                onScrubPreview={handleVideoSeekPreview}
-                onScrubStart={handleScrubStart}
-                onScrubEnd={handleScrubEnd}
-              />
+                ) : null}
+              </View>
             ) : null}
           </View>
-        ) : null}
-      </View>
 
-      <SafeAreaView edges={['bottom']} style={styles.bottomSafeArea} />
+          <SafeAreaView edges={['bottom']} style={styles.bottomSafeArea} />
+        </View>
       </View>
-    </View>
     </>
   );
 }
@@ -352,7 +354,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     flex: 1,
     textAlign: 'center',
-    ...typographyLayout.uiLineBody01Bold,
+    ...typography.body01.bold,
   },
   contentColumn: {
     flex: 1,
