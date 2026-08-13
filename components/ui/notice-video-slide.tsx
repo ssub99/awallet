@@ -246,7 +246,7 @@ export function NoticeVideoSlide({
           player={player}
           contentFit="contain"
           nativeControls={false}
-          allowsFullscreen={false}
+          fullscreenOptions={{ enable: false }}
           allowsPictureInPicture={false}
           accessibilityLabel="확대 가능한 공지 영상"
         />

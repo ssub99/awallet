@@ -57,14 +57,36 @@ export default function SettingsNoticeImageViewerScreen() {
     images?: string | string[];
     initialIndex?: string | string[];
   }>();
-  const { width } = useWindowDimensions();
-  const colorScheme = useColorScheme();
-  const colors = themeColors[colorScheme ?? 'light'];
-
   // dismiss 중 route params가 비워져도 미디어·인덱스 유지 (재프리로드·로딩 분기 방지)
   const [{ media, initialIndex }] = useState(() =>
     parseNoticeMediaViewerParams(params.media, params.images, params.initialIndex),
   );
+
+  const handleClose = useCallback(() => {
+    router.back();
+  }, [router]);
+
+  return (
+    <SettingsNoticeImageViewerContent
+      media={media}
+      initialIndex={initialIndex}
+      onClose={handleClose}
+    />
+  );
+}
+
+export function SettingsNoticeImageViewerContent({
+  media,
+  initialIndex,
+  onClose,
+}: {
+  media: NoticeMediaItem[];
+  initialIndex: number;
+  onClose: () => void;
+}) {
+  const { width } = useWindowDimensions();
+  const colorScheme = useColorScheme();
+  const colors = themeColors[colorScheme ?? 'light'];
 
   const galleryHasVideo = useMemo(
     () => media.some((item) => item.type === 'video'),
@@ -79,9 +101,7 @@ export default function SettingsNoticeImageViewerScreen() {
   const [seekTime, setSeekTime] = useState<number | null>(null);
   const [seekSeq, setSeekSeq] = useState(0);
   const [isVideoScrubbing, setIsVideoScrubbing] = useState(false);
-  const [isMediaReady, setIsMediaReady] = useState(false);
   const [isDismissing, setIsDismissing] = useState(false);
-  const hasShownContentRef = useRef(false);
   const videoDurationRef = useRef(0);
   const zoomActiveRef = useRef(false);
   const listRef = useRef<FlatList<NoticeMediaItem>>(null);
@@ -103,10 +123,10 @@ export default function SettingsNoticeImageViewerScreen() {
   const effectiveViewerSize =
     viewerSize.height > 0 ? viewerSize : viewerSizeRef.current;
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     setIsDismissing(true);
-    router.back();
-  };
+    onClose();
+  }, [onClose]);
 
   const handleZoomActiveChange = useCallback((active: boolean) => {
     zoomActiveRef.current = active;
@@ -182,31 +202,7 @@ export default function SettingsNoticeImageViewerScreen() {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-
-    const prepareMedia = async () => {
-      if (media.length === 0) {
-        hasShownContentRef.current = true;
-        setIsMediaReady(true);
-        return;
-      }
-
-      try {
-        await prefetchNoticeMediaItems(media);
-      } finally {
-        if (cancelled) {
-          return;
-        }
-        hasShownContentRef.current = true;
-        setIsMediaReady(true);
-      }
-    };
-
-    void prepareMedia();
-
-    return () => {
-      cancelled = true;
-    };
+    void prefetchNoticeMediaItems(media);
   }, [media]);
 
   if (media.length === 0) {
@@ -214,24 +210,15 @@ export default function SettingsNoticeImageViewerScreen() {
       <>
         <NoticeImageViewerStatusBarSync />
         <SafeAreaView style={[styles.container, styles.emptyContainer]} edges={['top', 'bottom']}>
-        <Pressable onPress={handleClose} accessibilityRole="button" accessibilityLabel="닫기">
-          <Icon name="close" variant="line" size={24} color={colors.staticWhite} />
-        </Pressable>
-      </SafeAreaView>
+          <Pressable onPress={handleClose} accessibilityRole="button" accessibilityLabel="닫기">
+            <Icon name="close" variant="line" size={24} color={colors.staticWhite} />
+          </Pressable>
+        </SafeAreaView>
       </>
     );
   }
 
   const pageLabel = `${pageIndex + 1}/${media.length}`;
-
-  if (!isMediaReady && !hasShownContentRef.current) {
-    return (
-      <>
-        <NoticeImageViewerStatusBarSync />
-        <View style={styles.container} />
-      </>
-    );
-  }
 
   return (
     <>

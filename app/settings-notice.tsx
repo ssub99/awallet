@@ -10,6 +10,8 @@ import { ListEmptyPlaceholder } from '@/components/ui/list-empty-placeholder';
 import { NoticeVideoThumbnail } from '@/components/ui/notice-video-thumbnail';
 import { ModalPopup } from '@/components/ui/modal-popup';
 import { UiLineText } from '@/components/ui/ui-line-text';
+import { SettingsNoticeImageViewerContent } from '@/app/settings-notice-image-viewer';
+import { atomicColors } from '@/constants/atomic-colors';
 import { themeColors } from '@/constants/theme-colors';
 import { typography } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
@@ -19,24 +21,54 @@ import { deleteDevAppNotice, loadDevAppNotices } from '@/utils/dev-app-notices';
 import { isLocalDevOnlyUIEnabled } from '@/utils/dev-only-ui';
 import { fetchAppNotices, type AppNotice } from '@/utils/fetch-app-notices';
 import { encodeNoticeMediaViewerParams } from '@/utils/notice-image-viewer-params';
-import { buildNoticeMediaItems } from '@/utils/notice-media';
+import { buildNoticeMediaItems, type NoticeMediaItem } from '@/utils/notice-media';
 import { markNoticesViewed } from '@/utils/notice-read-state';
 import { prefetchNoticesMedia } from '@/utils/prefetch-notice-media';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
+  Easing,
+  LayoutChangeEvent,
+  Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 const NOTICE_EMPTY_MESSAGE = '등록된 공지사항이 없습니다.';
 const NOTICE_CONTENT_FADE_IN_MS = 200;
+const NOTICE_VIEWER_SLIDE_MS = 260;
+const NOTICE_VIEWER_OFFSCREEN_EXTRA = 48;
+
+const NoticeImageThumbnail = memo(function NoticeImageThumbnail({
+  uri,
+  colors,
+}: {
+  uri: string;
+  colors: typeof themeColors.light;
+}) {
+  return (
+    <View style={[styles.thumbnailPlaceholder, { backgroundColor: colors.fill }]}>
+      <Icon name="image" variant="solid" size={20} color={atomicColors.neutral[300]} />
+      <Image
+        source={uri}
+        style={styles.thumbnailImage}
+        contentFit="cover"
+        cachePolicy="memory-disk"
+        transition={120}
+        priority="high"
+      />
+    </View>
+  );
+});
 
 function NoticeDevActionLink({
   label,
@@ -79,16 +111,7 @@ function NoticeAccordionItem({
   onDelete: () => void;
   canEditLocalNotice: boolean;
 }) {
-  const mediaItems = buildNoticeMediaItems(notice);
-  const [hasExpandedOnce, setHasExpandedOnce] = useState(false);
-
-  useEffect(() => {
-    if (expanded) {
-      setHasExpandedOnce(true);
-    }
-  }, [expanded]);
-
-  const showExpandedBody = expanded || hasExpandedOnce;
+  const mediaItems = useMemo(() => buildNoticeMediaItems(notice), [notice]);
 
   return (
     <View style={[styles.noticeCard, { backgroundColor: colors.staticWhite }]}>
@@ -119,12 +142,12 @@ function NoticeAccordionItem({
         </Text>
       </Pressable>
 
-      {showExpandedBody ? (
+      {expanded ? (
         <View
-          style={[styles.noticeExpandedBody, !expanded && styles.noticeExpandedBodyHidden]}
-          pointerEvents={expanded ? 'auto' : 'none'}
-          accessibilityElementsHidden={!expanded}
-          importantForAccessibility={expanded ? 'auto' : 'no-hide-descendants'}
+          style={styles.noticeExpandedBody}
+          pointerEvents="auto"
+          accessibilityElementsHidden={false}
+          importantForAccessibility="auto"
         >
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
           <Text style={[styles.noticeContent, { color: colors.textNeutral }]}>
@@ -141,11 +164,7 @@ function NoticeAccordionItem({
                   accessibilityLabel={`${notice.title} 첨부 ${item.type === 'video' ? '영상' : '이미지'} ${index + 1} 크게 보기`}
                 >
                   {item.type === 'image' ? (
-                    <Image
-                      source={{ uri: item.uri }}
-                      style={styles.thumbnail}
-                      contentFit="cover"
-                    />
+                    <NoticeImageThumbnail uri={item.uri} colors={colors} />
                   ) : (
                     <NoticeVideoThumbnail uri={item.uri} />
                   )}
@@ -181,6 +200,7 @@ export default function SettingsNoticeScreen() {
   const colorScheme = useColorScheme();
   const colors = themeColors[colorScheme ?? 'light'];
   const router = useRouter();
+  const { height: windowHeight } = useWindowDimensions();
   const { setLoading } = useLoading();
   const { showToast } = useToast();
 
@@ -190,9 +210,23 @@ export default function SettingsNoticeScreen() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [devNoticeIds, setDevNoticeIds] = useState<Set<string>>(() => new Set());
   const [isContentReady, setIsContentReady] = useState(false);
+  const [androidViewer, setAndroidViewer] = useState<{
+    media: NoticeMediaItem[];
+    initialIndex: number;
+  } | null>(null);
+  const [isAndroidViewerVisible, setIsAndroidViewerVisible] = useState(false);
   const noticesRef = useRef<AppNotice[]>([]);
   const skipNextFocusLoadRef = useRef(false);
   const contentOpacity = useRef(new Animated.Value(0)).current;
+  const androidViewerTranslateY = useRef(new Animated.Value(0)).current;
+  const androidViewerSheetHeightRef = useRef(0);
+
+  const getAndroidViewerHiddenOffset = useCallback(() => {
+    return (
+      Math.max(windowHeight, androidViewerSheetHeightRef.current) +
+      NOTICE_VIEWER_OFFSCREEN_EXTRA
+    );
+  }, [windowHeight]);
 
   const loadNotices = useCallback(async () => {
     try {
@@ -203,10 +237,10 @@ export default function SettingsNoticeScreen() {
         fetchAppNotices(),
         loadDevAppNotices(),
       ]);
-      await prefetchNoticesMedia(items);
       noticesRef.current = items;
       setNotices(items);
       setDevNoticeIds(new Set(devItems.map((notice) => notice.id)));
+      void prefetchNoticesMedia(items);
     } finally {
       setLoading(false);
       setIsContentReady(true);
@@ -241,13 +275,48 @@ export default function SettingsNoticeScreen() {
   };
 
   const handleNoticeMediaPress = (notice: AppNotice, index: number) => {
-    skipNextFocusLoadRef.current = true;
     const media = buildNoticeMediaItems(notice);
+    if (Platform.OS === 'android') {
+      androidViewerTranslateY.stopAnimation();
+      androidViewerTranslateY.setValue(getAndroidViewerHiddenOffset());
+      setAndroidViewer({ media, initialIndex: index });
+      setIsAndroidViewerVisible(true);
+      requestAnimationFrame(() => {
+        Animated.timing(androidViewerTranslateY, {
+          toValue: 0,
+          duration: NOTICE_VIEWER_SLIDE_MS,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }).start();
+      });
+      return;
+    }
+    skipNextFocusLoadRef.current = true;
     router.push({
       pathname: '/settings-notice-image-viewer',
       params: encodeNoticeMediaViewerParams(media, index),
     });
   };
+
+  const handleAndroidViewerClose = useCallback(() => {
+    androidViewerTranslateY.stopAnimation();
+    Animated.timing(androidViewerTranslateY, {
+      toValue: getAndroidViewerHiddenOffset(),
+      duration: NOTICE_VIEWER_SLIDE_MS,
+      easing: Easing.in(Easing.cubic),
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (!finished) {
+        return;
+      }
+      setIsAndroidViewerVisible(false);
+      setAndroidViewer(null);
+    });
+  }, [androidViewerTranslateY, getAndroidViewerHiddenOffset]);
+
+  const handleAndroidViewerSheetLayout = useCallback((event: LayoutChangeEvent) => {
+    androidViewerSheetHeightRef.current = event.nativeEvent.layout.height;
+  }, []);
 
   const handleDeletePress = (noticeId: string) => {
     setPendingDeleteNoticeId(noticeId);
@@ -349,6 +418,38 @@ export default function SettingsNoticeScreen() {
           </Text>
         </ModalPopup>
       ) : null}
+
+      {Platform.OS === 'android' ? (
+        <Modal
+          visible={isAndroidViewerVisible}
+          animationType="none"
+          transparent
+          presentationStyle="fullScreen"
+          statusBarTranslucent
+          navigationBarTranslucent
+          onRequestClose={handleAndroidViewerClose}
+        >
+          <SafeAreaProvider style={styles.androidViewerSafeAreaProvider}>
+            <GestureHandlerRootView style={styles.androidViewerGestureRoot}>
+              <Animated.View
+                onLayout={handleAndroidViewerSheetLayout}
+                style={[
+                  styles.androidViewerSheet,
+                  { transform: [{ translateY: androidViewerTranslateY }] },
+                ]}
+              >
+                {androidViewer ? (
+                  <SettingsNoticeImageViewerContent
+                    media={androidViewer.media}
+                    initialIndex={androidViewer.initialIndex}
+                    onClose={handleAndroidViewerClose}
+                  />
+                ) : null}
+              </Animated.View>
+            </GestureHandlerRootView>
+          </SafeAreaProvider>
+        </Modal>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -356,6 +457,16 @@ export default function SettingsNoticeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  androidViewerSafeAreaProvider: {
+    flex: 1,
+  },
+  androidViewerGestureRoot: {
+    flex: 1,
+  },
+  androidViewerSheet: {
+    flex: 1,
+    backgroundColor: atomicColors.neutral[900],
   },
   body: {
     flex: 1,
@@ -395,9 +506,6 @@ const styles = StyleSheet.create({
   noticeExpandedBody: {
     gap: 16,
   },
-  noticeExpandedBodyHidden: {
-    display: 'none',
-  },
   noticeDate: {
     ...typography.body02.regular,
   },
@@ -423,6 +531,15 @@ const styles = StyleSheet.create({
   thumbnail: {
     width: '100%',
     height: '100%',
+  },
+  thumbnailPlaceholder: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  thumbnailImage: {
+    ...StyleSheet.absoluteFillObject,
   },
   actionRow: {
     flexDirection: 'row',

@@ -5,7 +5,7 @@ import { Image } from 'expo-image';
 
 async function prefetchNoticeImage(uri: string): Promise<void> {
   try {
-    await Image.prefetch(uri);
+    await Image.prefetch(uri, 'memory-disk');
   } catch {
     // ponytail: 한 항목 실패해도 전체 목록 표시는 진행
   }

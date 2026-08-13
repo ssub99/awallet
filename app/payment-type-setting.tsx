@@ -16,9 +16,9 @@ import {
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import DraggableFlatList, { RenderItemParams, ScaleDecorator } from 'react-native-draggable-flatlist';
-import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { Platform, Pressable, StyleSheet, Text, View, unstable_batchedUpdates } from 'react-native';
+import DraggableFlatList, { RenderItemParams } from 'react-native-draggable-flatlist';
+import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 type PaymentMethodType = 'credit' | 'debit';
@@ -31,6 +31,27 @@ interface PaymentTypeItemData {
   color: string;
   isDefault: boolean;
 }
+
+const DRAG_AUTOSCROLL_THRESHOLD = 96;
+const DRAG_AUTOSCROLL_SPEED = 80;
+const DRAG_ACTIVATION_DISTANCE = 2;
+const DRAG_SHADOW_ANIMATION_MS = 200;
+const DRAG_DROP_ANIMATION_CONFIG =
+  Platform.OS === 'android'
+    ? {
+        damping: 24,
+        stiffness: 260,
+        mass: 0.6,
+        overshootClamping: false,
+        restDisplacementThreshold: 0.5,
+        restSpeedThreshold: 0.5,
+      }
+    : {
+        damping: 50,
+        stiffness: 1000,
+        mass: 0.5,
+        overshootClamping: true,
+      };
 
 function toSettingItem(item: PaymentSubtype, isDefault: boolean): PaymentTypeItemData {
   return {
@@ -83,6 +104,7 @@ function PaymentTypeItem({
   colors,
   showDivider,
   onPress,
+  isDropShadowVisible,
 }: {
   item: PaymentTypeItemData;
   drag: () => void;
@@ -90,7 +112,9 @@ function PaymentTypeItem({
   colors: typeof themeColors.light;
   showDivider: boolean;
   onPress: (item: PaymentTypeItemData) => void;
+  isDropShadowVisible: boolean;
 }) {
+  const [isShadowVisible, setIsShadowVisible] = useState(false);
   const shadowOpacity = useSharedValue(0);
   const elevation = useSharedValue(0);
   const isIOS = Platform.OS === 'ios';
@@ -98,14 +122,29 @@ function PaymentTypeItem({
 
   useEffect(() => {
     if (isActive) {
-      shadowOpacity.value = withTiming(1, { duration: 200 });
-      elevation.value = withTiming(8, { duration: 200 });
+      setIsShadowVisible(true);
+      shadowOpacity.value = withTiming(1, { duration: DRAG_SHADOW_ANIMATION_MS });
+      elevation.value = withTiming(8, { duration: DRAG_SHADOW_ANIMATION_MS });
+    } else if (isDropShadowVisible) {
+      setIsShadowVisible(true);
+      shadowOpacity.value = 1;
+      elevation.value = 8;
+      shadowOpacity.value = withTiming(0, { duration: DRAG_SHADOW_ANIMATION_MS }, (finished) => {
+        if (finished) {
+          runOnJS(setIsShadowVisible)(false);
+        }
+      });
+      elevation.value = withTiming(0, { duration: DRAG_SHADOW_ANIMATION_MS });
     } else {
-      shadowOpacity.value = withTiming(0, { duration: 200 });
-      elevation.value = withTiming(0, { duration: 200 });
+      shadowOpacity.value = withTiming(0, { duration: DRAG_SHADOW_ANIMATION_MS }, (finished) => {
+        if (finished) {
+          runOnJS(setIsShadowVisible)(false);
+        }
+      });
+      elevation.value = withTiming(0, { duration: DRAG_SHADOW_ANIMATION_MS });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isActive]);
+  }, [isActive, isDropShadowVisible]);
 
   const animatedShadowStyleIOS = useAnimatedStyle(() => ({
     shadowColor: '#000',
@@ -117,13 +156,13 @@ function PaymentTypeItem({
   const animatedShadowStyle = isIOS ? animatedShadowStyleIOS : isAndroid ? animatedShadowStyleAndroid : {};
 
   return (
-    <ScaleDecorator activeScale={1.0}>
+    <>
       <View style={styles.rowWrap}>
         <View style={styles.rowInnerWrap}>
           <Animated.View
             style={[
               { backgroundColor: colors.background, overflow: 'visible' },
-              isActive && styles.paymentTypeRowActive,
+              isShadowVisible && styles.paymentTypeRowActive,
               animatedShadowStyle,
             ]}
           >
@@ -167,7 +206,7 @@ function PaymentTypeItem({
         </View>
         {showDivider ? <View style={[styles.divider, { backgroundColor: colors.border }]} /> : null}
       </View>
-    </ScaleDecorator>
+    </>
   );
 }
 
@@ -178,21 +217,72 @@ export default function PaymentTypeSettingScreen() {
   const [selectedFilter, setSelectedFilter] = useState<PaymentMethodType>('credit');
   const [paymentSubtypes, setPaymentSubtypes] = useState<PaymentSubtype[]>(() => initialSubtypes);
   const [isListDataReady, setIsListDataReady] = useState(() => getPaymentSubtypesMemoryCache() != null);
-  const [isDragAutoscrollEnabled, setIsDragAutoscrollEnabled] = useState(false);
+  const [dropShadowPaymentTypeId, setDropShadowPaymentTypeId] = useState<string | null>(null);
+  const paymentSubtypesRef = useRef(paymentSubtypes);
+  const paymentTypesRef = useRef<PaymentTypeItemData[]>([]);
 
   const previousIndexRef = useRef<number | null>(null);
   const hasTriggeredStartHapticRef = useRef<boolean>(false);
   const dragStartIndexRef = useRef<number | null>(null);
+  const draggedPaymentTypeIdRef = useRef<string | null>(null);
   const isDraggingRef = useRef<boolean>(false);
   const lastDragEndTimeRef = useRef<number>(0);
   const scrollOffsetYRef = useRef(0);
+  const listRef = useRef<{
+    scrollToOffset: (params: { offset: number; animated?: boolean }) => void;
+  } | null>(null);
   const dragSessionIdRef = useRef(0);
   const activeDragSessionIdRef = useRef<number | null>(null);
   const dragPhaseRef = useRef<'idle' | 'dragging' | 'settling'>('idle');
+  const dropShadowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearDropShadowPaymentTypeId = useCallback(() => {
+    setDropShadowPaymentTypeId(null);
+    if (dropShadowTimerRef.current) {
+      clearTimeout(dropShadowTimerRef.current);
+      dropShadowTimerRef.current = null;
+    }
+  }, []);
+
+  const startDropShadowFadeOut = useCallback(
+    (id: string | null) => {
+      if (id == null) {
+        return;
+      }
+      if (dropShadowTimerRef.current) {
+        clearTimeout(dropShadowTimerRef.current);
+      }
+      setDropShadowPaymentTypeId(id);
+      dropShadowTimerRef.current = setTimeout(() => {
+        clearDropShadowPaymentTypeId();
+      }, DRAG_SHADOW_ANIMATION_MS);
+    },
+    [clearDropShadowPaymentTypeId],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (dropShadowTimerRef.current) {
+        clearTimeout(dropShadowTimerRef.current);
+      }
+    };
+  }, []);
+
+  const commitReorderedPaymentSubtypes = useCallback((nextSubtypes: PaymentSubtype[]) => {
+    paymentSubtypesRef.current = nextSubtypes;
+    unstable_batchedUpdates(() => {
+      setPaymentSubtypes((current) =>
+        arePaymentSubtypesSame(current, nextSubtypes) ? current : nextSubtypes,
+      );
+    });
+  }, []);
 
   const applyLoadedSubtypes = useCallback((loaded: PaymentSubtype[]) => {
-    setPaymentSubtypes((current) => (arePaymentSubtypesSame(current, loaded) ? current : loaded));
-    setIsListDataReady(true);
+    paymentSubtypesRef.current = loaded;
+    unstable_batchedUpdates(() => {
+      setPaymentSubtypes((current) => (arePaymentSubtypesSame(current, loaded) ? current : loaded));
+      setIsListDataReady(true);
+    });
     previousIndexRef.current = null;
     hasTriggeredStartHapticRef.current = false;
     dragStartIndexRef.current = null;
@@ -232,6 +322,8 @@ export default function PaymentTypeSettingScreen() {
     return filtered.map((item, index) => toSettingItem(item, index === 0));
   }, [paymentSubtypes, selectedFilter]);
 
+  paymentTypesRef.current = paymentTypes;
+
   const arePaymentTypeItemsSame = useCallback((a: PaymentTypeItemData[], b: PaymentTypeItemData[]) => {
     if (a.length !== b.length) return false;
     for (let i = 0; i < a.length; i += 1) {
@@ -254,12 +346,13 @@ export default function PaymentTypeSettingScreen() {
     dragSessionIdRef.current += 1;
     activeDragSessionIdRef.current = dragSessionIdRef.current;
     isDraggingRef.current = true;
-    setIsDragAutoscrollEnabled(true);
+    draggedPaymentTypeIdRef.current = paymentTypesRef.current[index]?.id ?? null;
+    clearDropShadowPaymentTypeId();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     hasTriggeredStartHapticRef.current = true;
     dragStartIndexRef.current = index;
     previousIndexRef.current = index;
-  }, []);
+  }, [clearDropShadowPaymentTypeId]);
 
   const handlePlaceholderIndexChange = useCallback((index: number) => {
     if (previousIndexRef.current !== null && previousIndexRef.current !== index) {
@@ -275,10 +368,9 @@ export default function PaymentTypeSettingScreen() {
         return;
       }
       dragPhaseRef.current = 'settling';
-      const isSameOrder = arePaymentTypeItemsSame(paymentTypes, data);
+      const isSameOrder = arePaymentTypeItemsSame(paymentTypesRef.current, data);
       lastDragEndTimeRef.current = Date.now();
       isDraggingRef.current = false;
-      setIsDragAutoscrollEnabled(false);
       activeDragSessionIdRef.current = null;
       previousIndexRef.current = null;
       hasTriggeredStartHapticRef.current = false;
@@ -286,13 +378,14 @@ export default function PaymentTypeSettingScreen() {
       dragPhaseRef.current = 'idle';
 
       if (isSameOrder) {
+        draggedPaymentTypeIdRef.current = null;
         return;
       }
 
       const nextSubtypes = [
-        ...paymentSubtypes.filter((item) => item.type !== selectedFilter),
+        ...paymentSubtypesRef.current.filter((item) => item.type !== selectedFilter),
         ...data.map((item) => {
-          const source = paymentSubtypes.find((origin) => origin.id === item.id);
+          const source = paymentSubtypesRef.current.find((origin) => origin.id === item.id);
           return {
             id: item.id,
             type: item.type,
@@ -302,19 +395,20 @@ export default function PaymentTypeSettingScreen() {
           } as PaymentSubtype;
         }),
       ];
-      setPaymentSubtypes(nextSubtypes);
+      startDropShadowFadeOut(draggedPaymentTypeIdRef.current);
+      draggedPaymentTypeIdRef.current = null;
+      commitReorderedPaymentSubtypes(nextSubtypes);
       savePaymentSubtypes(nextSubtypes).catch((error) => {
         console.error('결제 유형 순서 저장 중 오류:', error);
       });
     },
-    [arePaymentTypeItemsSame, paymentSubtypes, paymentTypes, selectedFilter]
+    [arePaymentTypeItemsSame, commitReorderedPaymentSubtypes, selectedFilter, startDropShadowFadeOut]
   );
 
   const handleRelease = useCallback(() => {
     if (activeDragSessionIdRef.current == null || dragStartIndexRef.current == null) {
       return;
     }
-    setIsDragAutoscrollEnabled(false);
     dragPhaseRef.current = 'settling';
   }, []);
 
@@ -347,10 +441,11 @@ export default function PaymentTypeSettingScreen() {
           colors={colors}
           showDivider={!isLast && !isActive}
           onPress={handlePaymentTypePress}
+          isDropShadowVisible={dropShadowPaymentTypeId === item.id}
         />
       );
     },
-    [colors, handlePaymentTypePress, paymentTypes.length]
+    [colors, dropShadowPaymentTypeId, handlePaymentTypePress, paymentTypes.length]
   );
 
   const renderPlaceholder = useCallback(
@@ -405,24 +500,22 @@ export default function PaymentTypeSettingScreen() {
             </View>
           ) : (
             <DraggableFlatList
+              ref={listRef as never}
               data={paymentTypes}
               onDragBegin={(index: number) => handleDragStart({ index })}
               onPlaceholderIndexChange={handlePlaceholderIndexChange}
               onRelease={handleRelease}
               onDragEnd={handleDragEnd}
-              animationConfig={{ damping: 50, stiffness: 1000, mass: 0.5, overshootClamping: true }}
+              animationConfig={DRAG_DROP_ANIMATION_CONFIG}
               keyExtractor={(item) => item.id}
               renderItem={renderItem}
               renderPlaceholder={renderPlaceholder}
               contentContainerStyle={styles.scrollContent}
-              getItemLayout={(data, index) => ({
-                length: 57,
-                offset: 57 * index,
-                index,
-              })}
               removeClippedSubviews={false}
-              autoscrollThreshold={isDragAutoscrollEnabled ? 56 : 0}
-              autoscrollSpeed={isDragAutoscrollEnabled ? 48 : 0}
+              dragItemOverflow
+              activationDistance={DRAG_ACTIVATION_DISTANCE}
+              autoscrollThreshold={DRAG_AUTOSCROLL_THRESHOLD}
+              autoscrollSpeed={DRAG_AUTOSCROLL_SPEED}
               onScrollOffsetChange={(offset: number) => {
                 scrollOffsetYRef.current = offset;
               }}

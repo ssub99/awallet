@@ -58,6 +58,7 @@ import ArrowUpSolid from '@/assets/images/icons/solid/arrowUp.svg';
 import CancelSolid from '@/assets/images/icons/solid/cancel.svg';
 import DeleteSolid from '@/assets/images/icons/solid/delete.svg';
 import HomeSolid from '@/assets/images/icons/solid/home.svg';
+import ImageSolid from '@/assets/images/icons/solid/image.svg';
 import ChallengeSolid from '@/assets/images/icons/solid/challenge.svg';
 import MypageSolid from '@/assets/images/icons/solid/mypage.svg';
 import PauseSolid from '@/assets/images/icons/solid/pause.svg';
@@ -154,6 +155,7 @@ const iconComponents = {
     challenge: ChallengeSolid,
     delete: DeleteSolid,
     home: HomeSolid,
+    image: ImageSolid,
     mypage: MypageSolid,
     pause: PauseSolid,
     play: PlaySolid,

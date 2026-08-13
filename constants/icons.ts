@@ -60,7 +60,7 @@ export const IconCategories = {
   /**
    * Etc (star, etc.)
    */
-  etc: ['star'] as const,
+  etc: ['image', 'memo', 'star'] as const,
   
   /**
    * User and profile icons
@@ -122,9 +122,11 @@ export const IconDescriptions: Record<IconName, string> = {
   filter: 'Filter',
   handle: 'Drag handle',
   home: 'Home or main screen',
+  image: 'Image or photo',
   info: 'Information',
   keypadDelete: 'Delete previous input',
   lock: 'Lock or secure',
+  memo: 'Memo or note',
   mypage: 'My page or profile',
   pause: 'Pause',
   play: 'Play',
@@ -192,6 +194,7 @@ export function getIconMetadata(name: IconName): IconMetadata {
     'challenge',
     'delete',
     'home',
+    'image',
     'mypage',
     'pause',
     'play',
@@ -214,4 +217,3 @@ export const AllIcons = {
   ...IconCategories,
   all: Object.keys(IconDescriptions) as IconName[],
 } as const;
-

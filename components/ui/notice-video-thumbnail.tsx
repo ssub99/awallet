@@ -20,19 +20,24 @@ export const NoticeVideoThumbnail = memo(function NoticeVideoThumbnail({
   const posterUri = useNoticeVideoThumbnail(uri);
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.staticBlack }, style]}>
+    <View style={[styles.container, { backgroundColor: colors.fill }, style]}>
       {posterUri != null ? (
         <Image
-          source={{ uri: posterUri }}
+          source={posterUri}
           style={styles.image}
           contentFit="cover"
           cachePolicy="memory-disk"
-          transition={0}
+          transition={120}
+          priority="high"
         />
       ) : null}
-      <View style={styles.playBadge}>
-        <Icon name="play" variant="solid" size={16} color={colors.staticWhite} accessibilityLabel="영상" />
-      </View>
+      {posterUri == null ? (
+        <Icon name="play" variant="solid" size={20} color={colors.textAssistive} accessibilityLabel="영상" />
+      ) : (
+        <View style={[styles.playBadge, { backgroundColor: colors.staticBlack }]}>
+          <Icon name="play" variant="solid" size={14} color={colors.staticWhite} accessibilityLabel="영상" />
+        </View>
+      )}
     </View>
   );
 });
@@ -52,5 +57,10 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 6,
     bottom: 6,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

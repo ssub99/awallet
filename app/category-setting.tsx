@@ -12,6 +12,7 @@ import { getCategoriesByType, type CategoryType } from '@/constants/categories';
 import { areCategoriesSame, loadCategories } from '@/utils/categories';
 import { themeColors } from '@/constants/theme-colors';
 import { typography } from '@/constants/typography';
+import { useLoading } from '@/contexts/loading-context';
 import {
   applySavedOrder,
   getOrderedCategoriesFromCache,
@@ -21,9 +22,17 @@ import {
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
-import DraggableFlatList, { RenderItemParams, ScaleDecorator } from 'react-native-draggable-flatlist';
-import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import {
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  unstable_batchedUpdates,
+  type LayoutChangeEvent,
+} from 'react-native';
+import DraggableFlatList, { RenderItemParams } from 'react-native-draggable-flatlist';
+import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const logCategorySettingDebug = (event: string, payload?: Record<string, unknown>) => {
@@ -33,6 +42,28 @@ const logCategorySettingDebug = (event: string, payload?: Record<string, unknown
     ...payload,
   });
 };
+
+const DRAG_AUTOSCROLL_THRESHOLD = 96;
+const DRAG_AUTOSCROLL_SPEED = 80;
+const DRAG_ACTIVATION_DISTANCE = 2;
+const DRAG_SHADOW_ANIMATION_MS = 200;
+const CATEGORY_CONTENT_FADE_IN_MS = 200;
+const DRAG_DROP_ANIMATION_CONFIG =
+  Platform.OS === 'android'
+    ? {
+        damping: 24,
+        stiffness: 260,
+        mass: 0.6,
+        overshootClamping: false,
+        restDisplacementThreshold: 0.5,
+        restSpeedThreshold: 0.5,
+      }
+    : {
+        damping: 50,
+        stiffness: 1000,
+        mass: 0.5,
+        overshootClamping: true,
+      };
 
 // 스타일 정의 (컴포넌트 함수 밖에서 정의하여 CategoryItem에서 접근 가능하도록)
 const styles = StyleSheet.create({
@@ -114,6 +145,7 @@ function CategoryItem({
   onRowLayout,
   onActiveStateChange,
   showDivider,
+  isDropShadowVisible,
 }: {
   item: { emoji: string; label: string; type: CategoryType };
   drag: () => void;
@@ -125,8 +157,10 @@ function CategoryItem({
   onRowLayout: (event: LayoutChangeEvent, params: { key: string; index: number | undefined; label: string }) => void;
   onActiveStateChange: (params: { key: string; index: number | undefined; label: string; isActive: boolean }) => void;
   showDivider: boolean;
+  isDropShadowVisible: boolean;
 }) {
   // 그림자 애니메이션을 위한 shared value (항상 0으로 시작)
+  const [isShadowVisible, setIsShadowVisible] = useState(false);
   const shadowOpacity = useSharedValue(0);
   const elevation = useSharedValue(0);
   
@@ -138,14 +172,29 @@ function CategoryItem({
   useEffect(() => {
     onActiveStateChange({ key: rowKey, index, label: item.label, isActive });
     if (isActive) {
-      shadowOpacity.value = withTiming(1, { duration: 200 });
-      elevation.value = withTiming(8, { duration: 200 });
+      setIsShadowVisible(true);
+      shadowOpacity.value = withTiming(1, { duration: DRAG_SHADOW_ANIMATION_MS });
+      elevation.value = withTiming(8, { duration: DRAG_SHADOW_ANIMATION_MS });
+    } else if (isDropShadowVisible) {
+      setIsShadowVisible(true);
+      shadowOpacity.value = 1;
+      elevation.value = 8;
+      shadowOpacity.value = withTiming(0, { duration: DRAG_SHADOW_ANIMATION_MS }, (finished) => {
+        if (finished) {
+          runOnJS(setIsShadowVisible)(false);
+        }
+      });
+      elevation.value = withTiming(0, { duration: DRAG_SHADOW_ANIMATION_MS });
     } else {
-      shadowOpacity.value = withTiming(0, { duration: 200 });
-      elevation.value = withTiming(0, { duration: 200 });
+      shadowOpacity.value = withTiming(0, { duration: DRAG_SHADOW_ANIMATION_MS }, (finished) => {
+        if (finished) {
+          runOnJS(setIsShadowVisible)(false);
+        }
+      });
+      elevation.value = withTiming(0, { duration: DRAG_SHADOW_ANIMATION_MS });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isActive]);
+  }, [isActive, isDropShadowVisible]);
   
   // 애니메이션된 스타일 (플랫폼별로 분리)
   // worklet 내부에서는 Platform.OS에 직접 접근할 수 없으므로, 외부에서 확인한 값을 사용
@@ -167,7 +216,7 @@ function CategoryItem({
   const animatedShadowStyle = isIOS ? animatedShadowStyleIOS : (isAndroid ? animatedShadowStyleAndroid : {});
   
   return (
-    <ScaleDecorator activeScale={1.0}>
+    <>
       <View
         style={{ height: 57, minHeight: 57, maxHeight: 57, overflow: 'visible' }}
         onLayout={(event) => {
@@ -186,7 +235,7 @@ function CategoryItem({
           <Animated.View
             style={[
               { backgroundColor: colors.background, overflow: 'visible' },
-              isActive && styles.categoryRowActive,
+              isShadowVisible && styles.categoryRowActive,
               animatedShadowStyle,
             ]}
           >
@@ -222,7 +271,7 @@ function CategoryItem({
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
         )}
       </View>
-    </ScaleDecorator>
+    </>
   );
 }
 
@@ -231,14 +280,19 @@ export default function CategorySettingScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ type?: string }>();
+  const { setLoading } = useLoading();
   
   const categoryType = (params.type as CategoryType) || 'expense';
   
-  const [categories, setCategories] = useState<Array<{ emoji: string; label: string; type: CategoryType }>>(() => {
-    return getOrderedCategoriesFromCache(categoryType) ?? getCategoriesByType(categoryType);
-  });
-  const [isDragAutoscrollEnabled, setIsDragAutoscrollEnabled] = useState(false);
+  const initialCategories = getOrderedCategoriesFromCache(categoryType);
+  const [categories, setCategories] = useState<Array<{ emoji: string; label: string; type: CategoryType }>>(
+    () => initialCategories ?? [],
+  );
+  const [isListDataReady, setIsListDataReady] = useState(() => initialCategories != null);
+  const [dropShadowRowKey, setDropShadowRowKey] = useState<string | null>(null);
+  const contentOpacity = useSharedValue(initialCategories != null ? 1 : 0);
   const scrollOffsetYRef = useRef(0);
+  const categoriesRef = useRef(categories);
   const previousScrollOffsetYRef = useRef(0);
   const lastScrollEventTsRef = useRef(0);
   const dragSessionIdRef = useRef(0);
@@ -252,6 +306,7 @@ export default function CategorySettingScreen() {
   const previousIndexRef = useRef<number | null>(null);
   const hasTriggeredStartHapticRef = useRef<boolean>(false);
   const dragStartIndexRef = useRef<number | null>(null);
+  const draggedCategoryRowKeyRef = useRef<string | null>(null);
   const isDraggingRef = useRef<boolean>(false);
   const lastDragEndTimeRef = useRef<number>(0);
   const listRef = useRef<{
@@ -261,12 +316,54 @@ export default function CategorySettingScreen() {
   const sameOrderDropRef = useRef(false);
   const postDropLockOffsetRef = useRef<number | null>(null);
   const postDropTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dropShadowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearDropShadowRowKey = useCallback(() => {
+    setDropShadowRowKey(null);
+    if (dropShadowTimerRef.current) {
+      clearTimeout(dropShadowTimerRef.current);
+      dropShadowTimerRef.current = null;
+    }
+  }, []);
+
+  const startDropShadowFadeOut = useCallback(
+    (rowKey: string | null) => {
+      if (rowKey == null) {
+        return;
+      }
+      if (dropShadowTimerRef.current) {
+        clearTimeout(dropShadowTimerRef.current);
+      }
+      setDropShadowRowKey(rowKey);
+      dropShadowTimerRef.current = setTimeout(() => {
+        clearDropShadowRowKey();
+      }, DRAG_SHADOW_ANIMATION_MS);
+    },
+    [clearDropShadowRowKey],
+  );
+
+  const commitReorderedCategories = useCallback(
+    (nextCategories: Array<{ emoji: string; label: string; type: CategoryType }>) => {
+      categoriesRef.current = nextCategories;
+      unstable_batchedUpdates(() => {
+        setCategories((current) =>
+          areCategoriesSame(current, nextCategories) ? current : nextCategories,
+        );
+      });
+    },
+    [],
+  );
 
   const applyLoadedCategories = useCallback(
     (finalCategories: Array<{ emoji: string; label: string; type: CategoryType }>) => {
-      setCategories((current) =>
-        areCategoriesSame(current, finalCategories) ? current : finalCategories,
-      );
+      categoriesRef.current = finalCategories;
+      unstable_batchedUpdates(() => {
+        setCategories((current) =>
+          areCategoriesSame(current, finalCategories) ? current : finalCategories,
+        );
+        setIsListDataReady(true);
+      });
+      contentOpacity.value = withTiming(1, { duration: CATEGORY_CONTENT_FADE_IN_MS });
       previousIndexRef.current = null;
       hasTriggeredStartHapticRef.current = false;
       dragStartIndexRef.current = null;
@@ -302,6 +399,9 @@ export default function CategorySettingScreen() {
       if (postDropTimerRef.current) {
         clearTimeout(postDropTimerRef.current);
       }
+      if (dropShadowTimerRef.current) {
+        clearTimeout(dropShadowTimerRef.current);
+      }
     };
   }, []);
 
@@ -322,9 +422,14 @@ export default function CategorySettingScreen() {
 
         const cached = getOrderedCategoriesFromCache(categoryType);
         if (cached) {
+          contentOpacity.value = 0;
           applyLoadedCategories(cached);
           return;
         }
+
+        contentOpacity.value = 0;
+        setIsListDataReady(false);
+        setLoading(true);
 
         try {
           const [loadedCategories, savedOrder] = await Promise.all([
@@ -341,12 +446,18 @@ export default function CategorySettingScreen() {
         } catch (error) {
           console.error('카테고리 설정 로드 실패:', error);
           applyLoadedCategories(getCategoriesByType(categoryType));
+        } finally {
+          setLoading(false);
         }
       };
 
       void loadCategoriesData();
-    }, [applyLoadedCategories, categoryType]),
+    }, [applyLoadedCategories, categoryType, contentOpacity, setLoading]),
   );
+
+  const contentAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: contentOpacity.value,
+  }));
 
   // 카테고리 타입에 따라 타이틀 설정
   const title = categoryType === 'expense' ? '지출 카테고리 설정' : '수입 카테고리 설정';
@@ -400,12 +511,16 @@ export default function CategorySettingScreen() {
     dragSessionIdRef.current += 1;
     activeDragSessionIdRef.current = dragSessionIdRef.current;
     isDraggingRef.current = true;
-    setIsDragAutoscrollEnabled(true);
+    const draggedCategory = categoriesRef.current[index];
+    draggedCategoryRowKeyRef.current = draggedCategory
+      ? `${draggedCategory.type}:${draggedCategory.label}`
+      : null;
+    clearDropShadowRowKey();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     hasTriggeredStartHapticRef.current = true;
     dragStartIndexRef.current = index;
     previousIndexRef.current = index;
-  }, []);
+  }, [clearDropShadowRowKey]);
 
   // 플레이스홀더 인덱스 변경 감지 (순서 변경 시)
   const handlePlaceholderIndexChange = useCallback((index: number) => {
@@ -428,7 +543,7 @@ export default function CategorySettingScreen() {
       return;
     }
     dragPhaseRef.current = 'settling';
-    const isSameOrder = areCategoriesSame(categories, data);
+    const isSameOrder = areCategoriesSame(categoriesRef.current, data);
     logCategorySettingDebug('drag:end', {
       sessionId: activeSessionId,
       isSameOrder,
@@ -442,7 +557,6 @@ export default function CategorySettingScreen() {
     
     // 드래그 상태 리셋
     isDraggingRef.current = false;
-    setIsDragAutoscrollEnabled(false);
     activeDragSessionIdRef.current = null;
     previousIndexRef.current = null;
     hasTriggeredStartHapticRef.current = false;
@@ -463,10 +577,13 @@ export default function CategorySettingScreen() {
       requestAnimationFrame(() => {
         listRef.current?.scrollToOffset({ offset: lockOffset, animated: false });
       });
+      draggedCategoryRowKeyRef.current = null;
       return;
     }
 
-    setCategories(data);
+    startDropShadowFadeOut(draggedCategoryRowKeyRef.current);
+    draggedCategoryRowKeyRef.current = null;
+    commitReorderedCategories(data);
 
     // AsyncStorage에 순서 저장 (비동기로 실행하되 await하지 않음)
     saveCategoryOrder(categoryType, data)
@@ -476,7 +593,7 @@ export default function CategorySettingScreen() {
       .catch((error) => {
         console.error('카테고리 순서 저장 중 오류:', error);
       });
-  }, [categories, categoryType, saveCategoryOrder, startPostDropSettling]);
+  }, [categoryType, commitReorderedCategories, startDropShadowFadeOut, startPostDropSettling]);
   
   // 드래그 릴리스 핸들러 (드롭 시 즉시 호출)
   const handleRelease = useCallback(() => {
@@ -490,7 +607,6 @@ export default function CategorySettingScreen() {
       dragStartIndex: dragStartIndexRef.current,
       placeholderIndex: previousIndexRef.current,
     });
-    setIsDragAutoscrollEnabled(false);
     dragPhaseRef.current = 'settling';
   }, []);
 
@@ -570,22 +686,24 @@ export default function CategorySettingScreen() {
     const index = getIndex();
     const categoriesLength = categories?.length ?? 0;
     const isLast = typeof index === 'number' ? index >= categoriesLength - 1 : false;
-    
+    const rowKey = `${item.type}:${item.label}`;
+
     return (
       <CategoryItem
         item={item}
         drag={drag}
         isActive={isActive}
         index={index}
-        rowKey={`${item.type}:${item.label}`}
+        rowKey={rowKey}
         colors={colors}
         onCategoryPress={handleCategoryPress}
         onRowLayout={handleRowLayout}
         onActiveStateChange={handleRowActiveStateChange}
         showDivider={!isLast && !isActive}
+        isDropShadowVisible={dropShadowRowKey === rowKey}
       />
     );
-  }, [colors, handleCategoryPress, handleRowLayout, handleRowActiveStateChange, categories?.length]);
+  }, [colors, handleCategoryPress, handleRowLayout, handleRowActiveStateChange, categories?.length, dropShadowRowKey]);
 
   // Placeholder 렌더링 (드래그 중 원래 위치에 표시)
   const renderPlaceholder = useCallback(({ item }: { item: { emoji: string; label: string; type: CategoryType } }) => {
@@ -623,127 +741,121 @@ export default function CategorySettingScreen() {
       {/* Category List */}
       <View style={[styles.content, { backgroundColor: colors.fill }]}>
         <View style={[styles.card, { backgroundColor: colors.background }]}>
-          {categories.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Text style={[styles.emptyText, { color: colors.textNeutral }]}>
-                카테고리가 없습니다.
-              </Text>
-            </View>
+          {!isListDataReady ? (
+            <View style={{ flex: 1 }} />
           ) : (
-            <DraggableFlatList
-              ref={(instance) => {
-                listRef.current = instance as unknown as {
-                  scrollToOffset: (params: { offset: number; animated?: boolean }) => void;
-                } | null;
-              }}
-              data={categories}
-              initialNumToRender={categories.length}
-              maxToRenderPerBatch={categories.length}
-              updateCellsBatchingPeriod={0}
-              windowSize={Math.max(5, categories.length)}
-              onDragBegin={(index: number) => {
-                handleDragStart({ index });
-              }}
-              onPlaceholderIndexChange={handlePlaceholderIndexChange}
-              onRelease={handleRelease}
-              onDragEnd={handleDragEnd}
-              animationConfig={{
-                damping: 50,
-                stiffness: 1000,
-                mass: 0.5,
-                overshootClamping: true,
-              }}
-              keyExtractor={(item) => item.label}
-              renderItem={renderItem}
-              renderPlaceholder={renderPlaceholder}
-              contentContainerStyle={styles.scrollContent}
-              getItemLayout={(data, index) => ({
-                length: 57, // 56 (row) + 1 (divider)
-                offset: 57 * index,
-                index,
-              })}
-              removeClippedSubviews={false}
-              autoscrollThreshold={56}
-              autoscrollSpeed={48}
-              onScrollOffsetChange={(offset: number) => {
-                scrollOffsetYRef.current = offset;
-              }}
-              onScroll={(event) => {
-                const nextY = event.nativeEvent.contentOffset.y;
-                if (
-                  postDropSettlingRef.current &&
-                  sameOrderDropRef.current &&
-                  postDropLockOffsetRef.current != null &&
-                  !isDraggingRef.current
-                ) {
-                  const lockOffset = postDropLockOffsetRef.current;
-                  if (Math.abs(nextY - lockOffset) > 1) {
-                    listRef.current?.scrollToOffset({ offset: lockOffset, animated: false });
-                    return;
-                  }
-                }
-                const now = Date.now();
-                const prevY = previousScrollOffsetYRef.current;
-                const deltaY = nextY - prevY;
-                const dt = lastScrollEventTsRef.current === 0 ? 0 : now - lastScrollEventTsRef.current;
-                scrollOffsetYRef.current = nextY;
-                previousScrollOffsetYRef.current = nextY;
-                lastScrollEventTsRef.current = now;
+            <Animated.View style={[{ flex: 1 }, contentAnimatedStyle]}>
+              {categories.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                  <Text style={[styles.emptyText, { color: colors.textNeutral }]}>
+                    카테고리가 없습니다.
+                  </Text>
+                </View>
+              ) : (
+                <DraggableFlatList
+                  ref={listRef as never}
+                  data={categories}
+                  initialNumToRender={categories.length}
+                  maxToRenderPerBatch={categories.length}
+                  updateCellsBatchingPeriod={0}
+                  windowSize={Math.max(5, categories.length)}
+                  onDragBegin={(index: number) => {
+                    handleDragStart({ index });
+                  }}
+                  onPlaceholderIndexChange={handlePlaceholderIndexChange}
+                  onRelease={handleRelease}
+                  onDragEnd={handleDragEnd}
+                  animationConfig={DRAG_DROP_ANIMATION_CONFIG}
+                  keyExtractor={(item) => item.label}
+                  renderItem={renderItem}
+                  renderPlaceholder={renderPlaceholder}
+                  contentContainerStyle={styles.scrollContent}
+                  removeClippedSubviews={false}
+                  dragItemOverflow
+                  activationDistance={DRAG_ACTIVATION_DISTANCE}
+                  autoscrollThreshold={DRAG_AUTOSCROLL_THRESHOLD}
+                  autoscrollSpeed={DRAG_AUTOSCROLL_SPEED}
+                  onScrollOffsetChange={(offset: number) => {
+                    scrollOffsetYRef.current = offset;
+                  }}
+                  onScroll={(event) => {
+                    const nextY = event.nativeEvent.contentOffset.y;
+                    if (
+                      postDropSettlingRef.current &&
+                      sameOrderDropRef.current &&
+                      postDropLockOffsetRef.current != null &&
+                      !isDraggingRef.current
+                    ) {
+                      const lockOffset = postDropLockOffsetRef.current;
+                      if (Math.abs(nextY - lockOffset) > 1) {
+                        listRef.current?.scrollToOffset({ offset: lockOffset, animated: false });
+                        return;
+                      }
+                    }
+                    const now = Date.now();
+                    const prevY = previousScrollOffsetYRef.current;
+                    const deltaY = nextY - prevY;
+                    const dt = lastScrollEventTsRef.current === 0 ? 0 : now - lastScrollEventTsRef.current;
+                    scrollOffsetYRef.current = nextY;
+                    previousScrollOffsetYRef.current = nextY;
+                    lastScrollEventTsRef.current = now;
 
-                // 자동 스크롤 의심 구간(드래그 중이 아닌데 오프셋이 이동하는 경우) 추적
-                if (Math.abs(deltaY) >= 1 && dragPhaseRef.current !== 'dragging') {
-                  logCategorySettingDebug('list:scroll(auto suspect)', {
-                    y: nextY,
-                    prevY,
-                    deltaY,
-                    dt,
-                    phase: dragPhaseRef.current,
-                    isDragging: isDraggingRef.current,
-                  });
-                }
-              }}
-              onScrollBeginDrag={() => {
-                if (postDropSettlingRef.current) {
-                  clearPostDropSettling();
-                }
-                logCategorySettingDebug('list:scrollBeginDrag', {
-                  scrollY: scrollOffsetYRef.current,
-                  phase: dragPhaseRef.current,
-                  isDragging: isDraggingRef.current,
-                });
-              }}
-              onScrollEndDrag={() => {
-                logCategorySettingDebug('list:scrollEndDrag', {
-                  scrollY: scrollOffsetYRef.current,
-                  isDragging: isDraggingRef.current,
-                  phase: dragPhaseRef.current,
-                });
-              }}
-              onMomentumScrollBegin={() => {
-                logCategorySettingDebug('list:momentumScrollBegin', {
-                  scrollY: scrollOffsetYRef.current,
-                  phase: dragPhaseRef.current,
-                  isDragging: isDraggingRef.current,
-                });
-              }}
-              onMomentumScrollEnd={() => {
-                if (dragPhaseRef.current === 'idle' && Math.abs(scrollOffsetYRef.current) < 0.5) {
-                  return;
-                }
-                logCategorySettingDebug('list:momentumScrollEnd', {
-                  scrollY: scrollOffsetYRef.current,
-                  isDragging: isDraggingRef.current,
-                  phase: dragPhaseRef.current,
-                });
-                if (postDropSettlingRef.current) {
-                  clearPostDropSettling();
-                }
-              }}
-              scrollEventThrottle={16}
-              showsVerticalScrollIndicator={false}
-              bounces={false}
-              overScrollMode="never"
-            />
+                    // 자동 스크롤 의심 구간(드래그 중이 아닌데 오프셋이 이동하는 경우) 추적
+                    if (Math.abs(deltaY) >= 1 && dragPhaseRef.current !== 'dragging') {
+                      logCategorySettingDebug('list:scroll(auto suspect)', {
+                        y: nextY,
+                        prevY,
+                        deltaY,
+                        dt,
+                        phase: dragPhaseRef.current,
+                        isDragging: isDraggingRef.current,
+                      });
+                    }
+                  }}
+                  onScrollBeginDrag={() => {
+                    if (postDropSettlingRef.current) {
+                      clearPostDropSettling();
+                    }
+                    logCategorySettingDebug('list:scrollBeginDrag', {
+                      scrollY: scrollOffsetYRef.current,
+                      phase: dragPhaseRef.current,
+                      isDragging: isDraggingRef.current,
+                    });
+                  }}
+                  onScrollEndDrag={() => {
+                    logCategorySettingDebug('list:scrollEndDrag', {
+                      scrollY: scrollOffsetYRef.current,
+                      isDragging: isDraggingRef.current,
+                      phase: dragPhaseRef.current,
+                    });
+                  }}
+                  onMomentumScrollBegin={() => {
+                    logCategorySettingDebug('list:momentumScrollBegin', {
+                      scrollY: scrollOffsetYRef.current,
+                      phase: dragPhaseRef.current,
+                      isDragging: isDraggingRef.current,
+                    });
+                  }}
+                  onMomentumScrollEnd={() => {
+                    if (dragPhaseRef.current === 'idle' && Math.abs(scrollOffsetYRef.current) < 0.5) {
+                      return;
+                    }
+                    logCategorySettingDebug('list:momentumScrollEnd', {
+                      scrollY: scrollOffsetYRef.current,
+                      isDragging: isDraggingRef.current,
+                      phase: dragPhaseRef.current,
+                    });
+                    if (postDropSettlingRef.current) {
+                      clearPostDropSettling();
+                    }
+                  }}
+                  scrollEventThrottle={16}
+                  showsVerticalScrollIndicator={false}
+                  bounces={false}
+                  overScrollMode="never"
+                />
+              )}
+            </Animated.View>
           )}
         </View>
       </View>
