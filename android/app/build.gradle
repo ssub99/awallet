@@ -129,11 +129,13 @@ android {
             dimension "environment"
             applicationId 'com.ssong.awallet'
             resValue "string", "app_name", "에이월렛"
+            resValue "string", "expo_updates_request_headers", '{"expo-channel-name":"production"}'
         }
         stage {
             dimension "environment"
             applicationId 'com.ssong.awallet.stage'
             resValue "string", "app_name", "[Stage]에이월렛"
+            resValue "string", "expo_updates_request_headers", '{"expo-channel-name":"stage"}'
         }
     }
     buildTypes {
