@@ -47,6 +47,7 @@ const DRAG_AUTOSCROLL_THRESHOLD = 96;
 const DRAG_AUTOSCROLL_SPEED = 80;
 const DRAG_ACTIVATION_DISTANCE = 2;
 const DRAG_SHADOW_ANIMATION_MS = 200;
+const DRAG_PLACEHOLDER_OPACITY = 0.32;
 const CATEGORY_CONTENT_FADE_IN_MS = 200;
 const DRAG_DROP_ANIMATION_CONFIG =
   Platform.OS === 'android'
@@ -133,20 +134,7 @@ const styles = StyleSheet.create({
   },
 });
 
-// 드래그 아이템 컴포넌트 (애니메이션을 위한 별도 컴포넌트)
-function CategoryItem({ 
-  item, 
-  drag, 
-  isActive, 
-  index,
-  rowKey,
-  colors,
-  onCategoryPress,
-  onRowLayout,
-  onActiveStateChange,
-  showDivider,
-  isDropShadowVisible,
-}: {
+interface CategoryItemProps {
   item: { emoji: string; label: string; type: CategoryType };
   drag: () => void;
   isActive: boolean;
@@ -158,7 +146,22 @@ function CategoryItem({
   onActiveStateChange: (params: { key: string; index: number | undefined; label: string; isActive: boolean }) => void;
   showDivider: boolean;
   isDropShadowVisible: boolean;
-}) {
+}
+
+// 드래그 아이템 컴포넌트 (애니메이션을 위한 별도 컴포넌트)
+function CategoryItemBase({
+  item, 
+  drag, 
+  isActive, 
+  index,
+  rowKey,
+  colors,
+  onCategoryPress,
+  onRowLayout,
+  onActiveStateChange,
+  showDivider,
+  isDropShadowVisible,
+}: CategoryItemProps) {
   // 그림자 애니메이션을 위한 shared value (항상 0으로 시작)
   const [isShadowVisible, setIsShadowVisible] = useState(false);
   const shadowOpacity = useSharedValue(0);
@@ -171,11 +174,7 @@ function CategoryItem({
   // isActive 변경 시 애니메이션 트리거
   useEffect(() => {
     onActiveStateChange({ key: rowKey, index, label: item.label, isActive });
-    if (isActive) {
-      setIsShadowVisible(true);
-      shadowOpacity.value = withTiming(1, { duration: DRAG_SHADOW_ANIMATION_MS });
-      elevation.value = withTiming(8, { duration: DRAG_SHADOW_ANIMATION_MS });
-    } else if (isDropShadowVisible) {
+    if (isActive && isDropShadowVisible) {
       setIsShadowVisible(true);
       shadowOpacity.value = 1;
       elevation.value = 8;
@@ -185,6 +184,10 @@ function CategoryItem({
         }
       });
       elevation.value = withTiming(0, { duration: DRAG_SHADOW_ANIMATION_MS });
+    } else if (isActive) {
+      setIsShadowVisible(true);
+      shadowOpacity.value = withTiming(1, { duration: DRAG_SHADOW_ANIMATION_MS });
+      elevation.value = withTiming(8, { duration: DRAG_SHADOW_ANIMATION_MS });
     } else {
       shadowOpacity.value = withTiming(0, { duration: DRAG_SHADOW_ANIMATION_MS }, (finished) => {
         if (finished) {
@@ -274,6 +277,21 @@ function CategoryItem({
     </>
   );
 }
+
+const CategoryItem = React.memo(
+  CategoryItemBase,
+  (prev, next) =>
+    prev.item === next.item &&
+    prev.isActive === next.isActive &&
+    prev.index === next.index &&
+    prev.rowKey === next.rowKey &&
+    prev.colors === next.colors &&
+    prev.onCategoryPress === next.onCategoryPress &&
+    prev.onRowLayout === next.onRowLayout &&
+    prev.onActiveStateChange === next.onActiveStateChange &&
+    prev.showDivider === next.showDivider &&
+    prev.isDropShadowVisible === next.isDropShadowVisible,
+);
 
 export default function CategorySettingScreen() {
   const colors = themeColors.light;
@@ -581,18 +599,14 @@ export default function CategorySettingScreen() {
       return;
     }
 
-    startDropShadowFadeOut(draggedCategoryRowKeyRef.current);
+    if (Platform.OS === 'android') {
+      startDropShadowFadeOut(draggedCategoryRowKeyRef.current);
+    }
     draggedCategoryRowKeyRef.current = null;
     commitReorderedCategories(data);
-
-    // AsyncStorage에 순서 저장 (비동기로 실행하되 await하지 않음)
-    saveCategoryOrder(categoryType, data)
-      .then(() => {
-        console.log(`[카테고리 순서 저장] ${categoryType} 타입 순서 저장 완료:`, data.map(cat => cat.label));
-      })
-      .catch((error) => {
-        console.error('카테고리 순서 저장 중 오류:', error);
-      });
+    saveCategoryOrder(categoryType, data).catch((error) => {
+      console.error('카테고리 순서 저장 중 오류:', error);
+    });
   }, [categoryType, commitReorderedCategories, startDropShadowFadeOut, startPostDropSettling]);
   
   // 드래그 릴리스 핸들러 (드롭 시 즉시 호출)
@@ -607,8 +621,11 @@ export default function CategorySettingScreen() {
       dragStartIndex: dragStartIndexRef.current,
       placeholderIndex: previousIndexRef.current,
     });
+    if (Platform.OS !== 'android') {
+      startDropShadowFadeOut(draggedCategoryRowKeyRef.current);
+    }
     dragPhaseRef.current = 'settling';
-  }, []);
+  }, [startDropShadowFadeOut]);
 
   const handleRowLayout = useCallback(
     (
@@ -709,12 +726,19 @@ export default function CategorySettingScreen() {
   const renderPlaceholder = useCallback(({ item }: { item: { emoji: string; label: string; type: CategoryType } }) => {
     return (
       <View style={{ height: 57, minHeight: 57, maxHeight: 57, overflow: 'visible' }}>
-        <View style={{ 
-          height: 56, 
-          minHeight: 56, 
-          maxHeight: 56,
-          backgroundColor: colors.background,
-        }} />
+        <View style={{ backgroundColor: colors.background, opacity: DRAG_PLACEHOLDER_OPACITY }}>
+          <View style={styles.categoryRow}>
+            <View style={styles.categoryLeft}>
+              <Text style={styles.categoryEmoji}>{item.emoji}</Text>
+              <UiLineText style={[styles.categoryLabel, { color: colors.text }]}>
+                {item.label}
+              </UiLineText>
+            </View>
+            <View style={styles.handleArea}>
+              <Icon name="handle" variant="line" size={24} color={colors.textNeutral} />
+            </View>
+          </View>
+        </View>
       </View>
     );
   }, [colors]);

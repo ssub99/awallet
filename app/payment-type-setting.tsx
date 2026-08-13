@@ -36,6 +36,7 @@ const DRAG_AUTOSCROLL_THRESHOLD = 96;
 const DRAG_AUTOSCROLL_SPEED = 80;
 const DRAG_ACTIVATION_DISTANCE = 2;
 const DRAG_SHADOW_ANIMATION_MS = 200;
+const DRAG_PLACEHOLDER_OPACITY = 0.32;
 const DRAG_DROP_ANIMATION_CONFIG =
   Platform.OS === 'android'
     ? {
@@ -97,15 +98,7 @@ const styles = StyleSheet.create({
   divider: { height: 1, marginLeft: 16, marginRight: 16 },
 });
 
-function PaymentTypeItem({
-  item,
-  drag,
-  isActive,
-  colors,
-  showDivider,
-  onPress,
-  isDropShadowVisible,
-}: {
+interface PaymentTypeItemProps {
   item: PaymentTypeItemData;
   drag: () => void;
   isActive: boolean;
@@ -113,7 +106,17 @@ function PaymentTypeItem({
   showDivider: boolean;
   onPress: (item: PaymentTypeItemData) => void;
   isDropShadowVisible: boolean;
-}) {
+}
+
+function PaymentTypeItemBase({
+  item,
+  drag,
+  isActive,
+  colors,
+  showDivider,
+  onPress,
+  isDropShadowVisible,
+}: PaymentTypeItemProps) {
   const [isShadowVisible, setIsShadowVisible] = useState(false);
   const shadowOpacity = useSharedValue(0);
   const elevation = useSharedValue(0);
@@ -121,11 +124,7 @@ function PaymentTypeItem({
   const isAndroid = Platform.OS === 'android';
 
   useEffect(() => {
-    if (isActive) {
-      setIsShadowVisible(true);
-      shadowOpacity.value = withTiming(1, { duration: DRAG_SHADOW_ANIMATION_MS });
-      elevation.value = withTiming(8, { duration: DRAG_SHADOW_ANIMATION_MS });
-    } else if (isDropShadowVisible) {
+    if (isActive && isDropShadowVisible) {
       setIsShadowVisible(true);
       shadowOpacity.value = 1;
       elevation.value = 8;
@@ -135,6 +134,10 @@ function PaymentTypeItem({
         }
       });
       elevation.value = withTiming(0, { duration: DRAG_SHADOW_ANIMATION_MS });
+    } else if (isActive) {
+      setIsShadowVisible(true);
+      shadowOpacity.value = withTiming(1, { duration: DRAG_SHADOW_ANIMATION_MS });
+      elevation.value = withTiming(8, { duration: DRAG_SHADOW_ANIMATION_MS });
     } else {
       shadowOpacity.value = withTiming(0, { duration: DRAG_SHADOW_ANIMATION_MS }, (finished) => {
         if (finished) {
@@ -209,6 +212,17 @@ function PaymentTypeItem({
     </>
   );
 }
+
+const PaymentTypeItem = React.memo(
+  PaymentTypeItemBase,
+  (prev, next) =>
+    prev.item === next.item &&
+    prev.isActive === next.isActive &&
+    prev.colors === next.colors &&
+    prev.showDivider === next.showDivider &&
+    prev.onPress === next.onPress &&
+    prev.isDropShadowVisible === next.isDropShadowVisible,
+);
 
 export default function PaymentTypeSettingScreen() {
   const colors = themeColors.light;
@@ -395,22 +409,32 @@ export default function PaymentTypeSettingScreen() {
           } as PaymentSubtype;
         }),
       ];
-      startDropShadowFadeOut(draggedPaymentTypeIdRef.current);
+      if (Platform.OS === 'android') {
+        startDropShadowFadeOut(draggedPaymentTypeIdRef.current);
+      }
       draggedPaymentTypeIdRef.current = null;
       commitReorderedPaymentSubtypes(nextSubtypes);
       savePaymentSubtypes(nextSubtypes).catch((error) => {
         console.error('결제 유형 순서 저장 중 오류:', error);
       });
     },
-    [arePaymentTypeItemsSame, commitReorderedPaymentSubtypes, selectedFilter, startDropShadowFadeOut]
+    [
+      arePaymentTypeItemsSame,
+      commitReorderedPaymentSubtypes,
+      selectedFilter,
+      startDropShadowFadeOut,
+    ]
   );
 
   const handleRelease = useCallback(() => {
     if (activeDragSessionIdRef.current == null || dragStartIndexRef.current == null) {
       return;
     }
+    if (Platform.OS !== 'android') {
+      startDropShadowFadeOut(draggedPaymentTypeIdRef.current);
+    }
     dragPhaseRef.current = 'settling';
-  }, []);
+  }, [startDropShadowFadeOut]);
 
   const handlePaymentTypePress = useCallback(
     (item: PaymentTypeItemData) => {
@@ -449,9 +473,31 @@ export default function PaymentTypeSettingScreen() {
   );
 
   const renderPlaceholder = useCallback(
-    () => (
+    ({ item }: { item: PaymentTypeItemData }) => (
       <View style={{ height: 57, minHeight: 57, maxHeight: 57, overflow: 'visible' }}>
-        <View style={{ height: 56, minHeight: 56, maxHeight: 56, backgroundColor: colors.background }} />
+        <View style={{ backgroundColor: colors.background, opacity: DRAG_PLACEHOLDER_OPACITY }}>
+          <View style={styles.paymentTypeRow}>
+            <View style={styles.paymentTypeLeft}>
+              <View style={[styles.paymentTypeIndicator, { backgroundColor: item.color, borderColor: colors.border }]} />
+              <View style={[styles.paymentTypeTextBlock, !item.description.trim() && styles.paymentTypeTextBlockSingleLine]}>
+                <UiLineText style={[styles.paymentTypeTitle, { color: colors.text }]} numberOfLines={1}>
+                  {item.label}
+                </UiLineText>
+                {item.description.trim() ? (
+                  <Text style={[styles.paymentTypeSubtitle, { color: colors.textAssistive }]} numberOfLines={1}>
+                    {item.description}
+                  </Text>
+                ) : null}
+              </View>
+            </View>
+            <View style={styles.paymentTypeRight}>
+              {item.isDefault ? <Tag label="기본" status="normal" /> : null}
+              <View style={styles.handleArea}>
+                <Icon name="handle" variant="line" size={24} color={colors.textNeutral} />
+              </View>
+            </View>
+          </View>
+        </View>
       </View>
     ),
     [colors]
