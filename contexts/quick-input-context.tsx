@@ -78,8 +78,8 @@ import { getDefaultSubtypeIdByMethod, loadPaymentSubtypes, type PaymentSubtype }
 import {
     keyboardMetricsToEndCoordinates,
     QUICK_INPUT_KEYBOARD_GAP,
+    resolveBottomFromKeyboardScreenY,
     resolveIosQuickInputBottomAboveAnchor,
-    resolveQuickInputBottomAboveKeyboard,
 } from '@/utils/quick-input-keyboard-position';
 import type { QuickInputPendingRecord } from '@/utils/quick-input-pending-record';
 import { refreshWidgetWithCurrentMonth } from '@/utils/widget-data-sync';
@@ -95,7 +95,6 @@ import {
   AppState,
   ActivityIndicator,
   BackHandler,
-  Dimensions,
   Easing,
   Keyboard,
   Platform,
@@ -139,9 +138,15 @@ const CALCULATOR_BAR_HEIGHT = 64;
 const CALCULATOR_PANEL_GAP = 12;
 const CALCULATOR_ANIMATION_DURATION = 360;
 const CALCULATOR_ANIMATION_EASING = Easing.inOut(Easing.cubic);
-const CALCULATOR_PANEL_HEIGHT =
-  CALCULATOR_BAR_HEIGHT + CALCULATOR_PANEL_GAP + getKeypadHeight(Dimensions.get('window').width);
-const EDIT_AMOUNT_KEYPAD_HEIGHT = getKeypadHeight(Dimensions.get('window').width);
+
+function getCalculatorPanelHeight(windowWidth: number, androidSafeBottom = 0): number {
+  return (
+    CALCULATOR_BAR_HEIGHT +
+    CALCULATOR_PANEL_GAP +
+    getKeypadHeight(windowWidth, androidSafeBottom)
+  );
+}
+
 const QUICK_INPUT_EDIT_SHEET_ANIMATION_DURATION = 300;
 const QUICK_INPUT_EMBEDDED_SHEET_UNMOUNT_DELAY = QUICK_INPUT_EDIT_SHEET_ANIMATION_DURATION + 20;
 const QUICK_INPUT_EDIT_RESTORE_DELAY = 120;
@@ -149,16 +154,16 @@ const QUICK_INPUT_CONFIRM_CARD_REVEAL_DELAY = 120;
 const QUICK_INPUT_EDIT_OPENING_ANIMATION_DURATION = 180;
 const QUICK_INPUT_EDIT_VIEW_TRANSITION_DURATION = 350;
 const QUICK_INPUT_EDIT_VIEW_TRANSITION_EASING = Easing.bezier(0.42, 0, 0.58, 1);
-/** Android: TextInput remount 직후 focus — 짧게 유지 (시트 닫힘 체감) */
-const ANDROID_QUICK_INPUT_REFOCUS_DELAY_MS = 48;
-/** Android: DidShow에서 앵커→IME 높이로 부드럽게 올릴 때 */
+/** Android: TextInput remount 직후 focus — 시트/계산기 닫힌 뒤 IME가 먹히려면 여유 필요 */
+const ANDROID_QUICK_INPUT_REFOCUS_DELAY_MS = 160;
+/** Android: DidShow → 최종 IME 높이 withTiming */
 const ANDROID_KEYBOARD_SETTLE_DURATION_MS = 250;
-/** Android: settling 동안 onMove 차단 유지 (withTiming duration보다 약간 길게) */
 const ANDROID_KEYBOARD_SETTLE_HOLD_MS = 280;
-/** onMove가 최종 높이를 한 번에 주면 점프 → 이 이상이면 DidShow withTiming에 맡김 */
-const ANDROID_KEYBOARD_LARGE_RAISE_PX = 64;
-/** 카테고리 시트 닫힘 중 키패드 재포커스 — 시트 애니 끝나기 전에 시작 */
-const ANDROID_CATEGORY_SHEET_REFOCUS_DELAY_MS = 120;
+/** Android: remount 레이스 시 focus 재시도 */
+const ANDROID_QUICK_INPUT_REFOCUS_RETRY_MS = 50;
+const ANDROID_QUICK_INPUT_REFOCUS_MAX_ATTEMPTS = 6;
+/** 삼성 툴바 등 screenY가 height보다 조금 클 때만 허용 */
+const ANDROID_KEYBOARD_TOOLBAR_MAX_EXTRA_PX = 56;
 const PAYMENT_SHEET_LIST_BOTTOM_GAP = 16;
 const CATEGORY_SETTING_SHEET_HEIGHT_RATIO = 0.85;
 const CATEGORY_SETTING_DRAG_SHADOW_ANIMATION_MS = 200;
@@ -278,33 +283,22 @@ function applyIosQuickInputKeyboardFollow(
 
 /**
  * Android: keyboard-controller IME height → bottom.
- * 열림 애니 중 height 333→14→333 스파이크 시 UI가 내려가지 않도록 단조 상승만 허용.
- */
-/**
- * Android controller 높이 → bottom.
- * @returns 적용했으면 true. 앵커에서 큰 점프면 false (DidShow withTiming에 맡김).
+ * 열림 중 스파이크(큰→작→큰)에 UI가 꺼지지 않도록 단조 상승만.
  */
 function applyAndroidQuickInputControllerBottom(
   animatedBottom: { value: number },
   keyboardHeight: number,
   gap: number,
-  shortBottom: number,
-): boolean {
+): void {
   'worklet';
   const height = Number.isFinite(keyboardHeight) ? Math.abs(keyboardHeight) : 0;
   if (height <= 0) {
-    return false;
+    return;
   }
   const next = height + gap;
-  if (next <= animatedBottom.value) {
-    return false;
+  if (next > animatedBottom.value) {
+    animatedBottom.value = next;
   }
-  const parkedNearShort = animatedBottom.value <= shortBottom + 24;
-  if (parkedNearShort && next - animatedBottom.value > ANDROID_KEYBOARD_LARGE_RAISE_PX) {
-    return false;
-  }
-  animatedBottom.value = next;
-  return true;
 }
 
 function readAndroidControllerKeyboardHeight(raw: number): number {
@@ -843,7 +837,14 @@ async function buildConfirmCardFromPending(
 
 export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const insets = useSafeAreaInsets();
-  const { height: windowHeight } = useWindowDimensions();
+  const { height: windowHeight, width: windowWidth } = useWindowDimensions();
+  const androidKeypadSafeBottom = Platform.OS === 'android' ? insets.bottom : 0;
+  const calculatorPanelHeight = getCalculatorPanelHeight(windowWidth, androidKeypadSafeBottom);
+  const calculatorPanelHeightRef = useRef(calculatorPanelHeight);
+  calculatorPanelHeightRef.current = calculatorPanelHeight;
+  const editAmountKeypadHeight = getKeypadHeight(windowWidth, androidKeypadSafeBottom);
+  const editAmountKeypadHeightRef = useRef(editAmountKeypadHeight);
+  editAmountKeypadHeightRef.current = editAmountKeypadHeight;
   const router = useRouter();
   const { showToast } = useToast();
   const { refresh } = useAppData();
@@ -956,9 +957,9 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const editSheetOpenCardOpacity = useRef(new RNAnimated.Value(1)).current;
   const editSheetOpenInputTranslateY = useRef(new RNAnimated.Value(0)).current;
   const editSheetOpenInputOpacity = useRef(new RNAnimated.Value(1)).current;
-  const calculatorTranslateYRef = useRef(new RNAnimated.Value(CALCULATOR_PANEL_HEIGHT));
+  const calculatorTranslateYRef = useRef(new RNAnimated.Value(calculatorPanelHeight));
   const calculatorAnimationRef = useRef<RNAnimated.CompositeAnimation | null>(null);
-  const amountKeypadTranslateYRef = useRef(new RNAnimated.Value(EDIT_AMOUNT_KEYPAD_HEIGHT));
+  const amountKeypadTranslateYRef = useRef(new RNAnimated.Value(editAmountKeypadHeight));
   const amountKeypadAnimationRef = useRef<RNAnimated.CompositeAnimation | null>(null);
   const androidKeyboardSyncRafRef = useRef<number | null>(null);
   /** Android: controller만으로 bottom이 내려가며 깜빡이는 것 방지 */
@@ -1032,6 +1033,11 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     lastAndroidBottomRef.current = Math.max(lastAndroidBottomRef.current, bottom);
   }, []);
 
+  /**
+   * Android 최종 bottom.
+   * 기준: max(controller, event, metrics) height + gap.
+   * screenY는 툴바 수준(+56)만 허용 — 여백 과다·반쯤 가림 둘 다 막기.
+   */
   const applyAndroidKeyboardGeometry = useCallback(
     (endCoordinates: KeyboardEvent['endCoordinates'], animated = false) => {
       if (androidKeyboardSettlingRef.current && !animated) {
@@ -1041,36 +1047,29 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       const nativeHeight = readAndroidControllerKeyboardHeight(keyboardReanimated.height.value);
       const fromController =
         nativeHeight > 0 ? nativeHeight + QUICK_INPUT_KEYBOARD_GAP : 0;
+      const fromEvent =
+        endCoordinates.height > 0 ? endCoordinates.height + QUICK_INPUT_KEYBOARD_GAP : 0;
 
-      let target = resolveQuickInputBottomAboveKeyboard(
-        endCoordinates,
-        navigationInsetBottomRef.current,
-        nativeHeight,
-      );
+      let target = Math.max(fromController, fromEvent);
 
       const metrics = Keyboard.metrics();
       if (metrics && metrics.height > 0) {
-        const fromMetrics = resolveQuickInputBottomAboveKeyboard(
-          keyboardMetricsToEndCoordinates(metrics),
-          navigationInsetBottomRef.current,
-          nativeHeight,
-        );
-        target = Math.max(target, fromMetrics);
+        target = Math.max(target, metrics.height + QUICK_INPUT_KEYBOARD_GAP);
       }
-      target = Math.max(target, fromController, animatedBottom.value);
 
-      const previousBottom = lastAndroidBottomRef.current;
-      const parkedBelowPeak = animatedBottom.value < previousBottom - 8;
+      const fromScreenY = resolveBottomFromKeyboardScreenY(endCoordinates.screenY);
       if (
-        target <= previousBottom + 1 &&
-        previousBottom > 0 &&
-        !parkedBelowPeak &&
-        !androidKeyboardSettlingRef.current
+        fromScreenY > target &&
+        fromScreenY <= target + ANDROID_KEYBOARD_TOOLBAR_MAX_EXTRA_PX
       ) {
+        target = fromScreenY;
+      }
+
+      if (target <= KEYBOARD_GAP) {
         return;
       }
 
-      lastAndroidBottomRef.current = Math.max(parkedBelowPeak ? 0 : previousBottom, target);
+      lastAndroidBottomRef.current = target;
       if (animated) {
         animatedBottom.value = withTiming(target, {
           duration: ANDROID_KEYBOARD_SETTLE_DURATION_MS,
@@ -1083,7 +1082,6 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     [animatedBottom, keyboardReanimated]
   );
 
-  /** 삼성 툴바/추천 on·off: controller height + Keyboard.metrics screenY 동기화 */
   const cancelAndroidKeyboardSync = useCallback(() => {
     if (androidKeyboardSyncRafRef.current != null) {
       cancelAnimationFrame(androidKeyboardSyncRafRef.current);
@@ -1091,7 +1089,6 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     }
   }, []);
 
-  /** 계산기/시트 등으로 IME를 의도적으로 내린 뒤 다시 follow할 때 stale peak 제거 */
   const setAndroidKeyboardSettling = useCallback(
     (settling: boolean) => {
       androidKeyboardSettlingRef.current = settling;
@@ -1138,41 +1135,18 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     });
   }, [applyAndroidKeyboardGeometry]);
 
-  /** 앵커에서 최종 높이로 한 번에 올 때 — 점프 대신 withTiming */
-  const beginAndroidKeyboardSettle = useCallback(
-    (keyboardHeight: number) => {
-      if (
-        Platform.OS !== 'android' ||
-        !shouldFollowKeyboardRef.current ||
-        androidKeyboardSettlingRef.current ||
-        isClosingRef.current
-      ) {
+  /** DidShow: 항상 최종 높이로 settle — 중간에 멈추는 반쯤 가림 방지 */
+  const settleAndroidKeyboardFromDidShow = useCallback(
+    (endCoordinates: KeyboardEvent['endCoordinates']) => {
+      if (!shouldFollowKeyboardRef.current || isClosingRef.current) {
         return;
       }
-      const height = Number.isFinite(keyboardHeight) ? Math.abs(keyboardHeight) : 0;
-      if (height <= 0) {
-        return;
-      }
-      if (animatedBottom.value > lastShortBottomRef.current + 24) {
-        return;
-      }
-      // onMove가 연속으로 settle를 요청해도 한 번만
-      setAndroidKeyboardSettling(true);
       if (androidKeyboardSettleTimeoutRef.current) {
         clearTimeout(androidKeyboardSettleTimeoutRef.current);
         androidKeyboardSettleTimeoutRef.current = null;
       }
-      const metrics = Keyboard.metrics();
-      if (metrics && metrics.height > 0) {
-        applyAndroidKeyboardGeometry(keyboardMetricsToEndCoordinates(metrics), true);
-      } else {
-        const target = height + KEYBOARD_GAP;
-        lastAndroidBottomRef.current = Math.max(lastAndroidBottomRef.current, target);
-        animatedBottom.value = withTiming(target, {
-          duration: ANDROID_KEYBOARD_SETTLE_DURATION_MS,
-          easing: ReanimatedEasing.out(ReanimatedEasing.cubic),
-        });
-      }
+      setAndroidKeyboardSettling(true);
+      applyAndroidKeyboardGeometry(endCoordinates, true);
       androidKeyboardSettleTimeoutRef.current = setTimeout(() => {
         androidKeyboardSettleTimeoutRef.current = null;
         setAndroidKeyboardSettling(false);
@@ -1180,7 +1154,6 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       }, ANDROID_KEYBOARD_SETTLE_HOLD_MS);
     },
     [
-      animatedBottom,
       applyAndroidKeyboardGeometry,
       scheduleAndroidKeyboardSync,
       setAndroidKeyboardSettling,
@@ -1243,17 +1216,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
             return;
           }
           const height = Math.abs(keyboardHeight);
-          const applied = applyAndroidQuickInputControllerBottom(
-            animatedBottom,
-            height,
-            KEYBOARD_GAP,
-            shortBottomFromScreen.value,
-          );
-          if (applied) {
-            runOnJS(syncAndroidHandlerBottom)(height + KEYBOARD_GAP);
-          } else {
-            runOnJS(beginAndroidKeyboardSettle)(height);
-          }
+          applyAndroidQuickInputControllerBottom(animatedBottom, height, KEYBOARD_GAP);
+          runOnJS(syncAndroidHandlerBottom)(height + KEYBOARD_GAP);
           runOnJS(markAndroidKeyboardVisible)();
           return;
         }
@@ -1278,18 +1242,9 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
           if (keyboardHeight !== 0) {
             if (!androidKeyboardSettling.value) {
               const height = Math.abs(keyboardHeight);
-              const applied = applyAndroidQuickInputControllerBottom(
-                animatedBottom,
-                height,
-                KEYBOARD_GAP,
-                shortBottomFromScreen.value,
-              );
-              if (applied) {
-                runOnJS(syncAndroidHandlerBottom)(height + KEYBOARD_GAP);
-                runOnJS(scheduleAndroidKeyboardSync)();
-              } else {
-                runOnJS(beginAndroidKeyboardSettle)(height);
-              }
+              applyAndroidQuickInputControllerBottom(animatedBottom, height, KEYBOARD_GAP);
+              runOnJS(syncAndroidHandlerBottom)(height + KEYBOARD_GAP);
+              runOnJS(scheduleAndroidKeyboardSync)();
             }
             runOnJS(markAndroidKeyboardVisible)();
           } else {
@@ -1373,7 +1328,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       applyAndroidQuickInputKeyboardMode();
       setQuickInputPlaceholder(getRandomQuickInputPlaceholder());
       calculatorAnimationRef.current?.stop();
-      calculatorTranslateYRef.current.setValue(CALCULATOR_PANEL_HEIGHT);
+      calculatorTranslateYRef.current.setValue(calculatorPanelHeightRef.current);
       setIsQuickInputCalculatorVisible(false);
       setIsQuickInputCalculatorMounted(false);
       setQuickInputCalculatorAmount('');
@@ -1390,29 +1345,42 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     setShouldFollowKeyboard(true);
   }, [setShouldFollowKeyboard]);
 
-  /** 계산기/시트 닫힌 뒤 TextInput remount 직후 focus — Android는 delay 필요 */
+  /** 계산기/시트 닫힌 뒤 TextInput remount 직후 focus — Android는 delay·재시도 필요 */
   const focusQuickInputField = useCallback(() => {
     if (quickInputRefocusTimeoutRef.current) {
       clearTimeout(quickInputRefocusTimeoutRef.current);
       quickInputRefocusTimeoutRef.current = null;
     }
-    const run = () => {
+    const run = (attempt: number) => {
       quickInputRefocusTimeoutRef.current = null;
       if (!isQuickInputVisibleRef.current || isClosingRef.current) {
         return;
       }
-      quickInputRef.current?.focus();
+      if (quickInputRef.current) {
+        quickInputRef.current.focus();
+        return;
+      }
+      // 시트/계산기 언마운트 직후 필드가 아직 없으면 짧게 재시도
+      if (attempt + 1 < ANDROID_QUICK_INPUT_REFOCUS_MAX_ATTEMPTS) {
+        quickInputRefocusTimeoutRef.current = setTimeout(
+          () => run(attempt + 1),
+          ANDROID_QUICK_INPUT_REFOCUS_RETRY_MS,
+        );
+      }
     };
     if (Platform.OS === 'android') {
-      quickInputRefocusTimeoutRef.current = setTimeout(run, ANDROID_QUICK_INPUT_REFOCUS_DELAY_MS);
+      quickInputRefocusTimeoutRef.current = setTimeout(
+        () => run(0),
+        ANDROID_QUICK_INPUT_REFOCUS_DELAY_MS,
+      );
       return;
     }
-    requestAnimationFrame(run);
+    requestAnimationFrame(() => run(0));
   }, []);
 
   const handleQuickInputCalculatorPress = useCallback(() => {
     calculatorAnimationRef.current?.stop();
-    calculatorTranslateYRef.current.setValue(CALCULATOR_PANEL_HEIGHT);
+    calculatorTranslateYRef.current.setValue(calculatorPanelHeightRef.current);
     setIsQuickInputCalculatorMounted(true);
     setIsQuickInputCalculatorVisible(true);
     setShouldFollowKeyboard(false);
@@ -1474,7 +1442,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const closeQuickInputCalculator = useCallback(() => {
     calculatorAnimationRef.current?.stop();
     calculatorAnimationRef.current = RNAnimated.timing(calculatorTranslateYRef.current, {
-      toValue: CALCULATOR_PANEL_HEIGHT,
+      toValue: calculatorPanelHeightRef.current,
       duration: CALCULATOR_ANIMATION_DURATION,
       easing: CALCULATOR_ANIMATION_EASING,
       useNativeDriver: true,
@@ -1546,7 +1514,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     setIsQuickInputContentVisible(false);
     setIsQuickInputShortVisible(false);
     calculatorAnimationRef.current?.stop();
-    calculatorTranslateYRef.current.setValue(CALCULATOR_PANEL_HEIGHT);
+    calculatorTranslateYRef.current.setValue(calculatorPanelHeightRef.current);
     setIsQuickInputCalculatorVisible(false);
     setIsQuickInputCalculatorMounted(false);
     setQuickInputCalculatorAmount('');
@@ -1589,7 +1557,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     setQuickInputPaymentSheetMounted(false);
     setQuickInputPaymentSheetVisible(false);
     amountKeypadAnimationRef.current?.stop();
-    amountKeypadTranslateYRef.current.setValue(EDIT_AMOUNT_KEYPAD_HEIGHT);
+    amountKeypadTranslateYRef.current.setValue(editAmountKeypadHeightRef.current);
     setQuickInputAmountKeypadMounted(false);
     setQuickInputAmountKeypadVisible(false);
     setQuickInputEditAmountExpression([]);
@@ -2043,7 +2011,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     editSheetOpenInputTranslateY.setValue(0);
     editSheetOpenInputOpacity.setValue(1);
     calculatorAnimationRef.current?.stop();
-    calculatorTranslateYRef.current.setValue(CALCULATOR_PANEL_HEIGHT);
+    calculatorTranslateYRef.current.setValue(calculatorPanelHeightRef.current);
     setIsQuickInputCalculatorMounted(false);
     setIsQuickInputCalculatorVisible(false);
     setQuickInputCalculatorAmount('');
@@ -2135,18 +2103,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       clearTimeout(categorySettingSheetRefocusTimeoutRef.current);
       categorySettingSheetRefocusTimeoutRef.current = null;
     }
-    // 시트 애니 중 먼저 키패드 복귀 — 언마운트 대기(320ms)보다 빠르게
-    categorySettingSheetRefocusTimeoutRef.current = setTimeout(() => {
-      categorySettingSheetRefocusTimeoutRef.current = null;
-      if (!isQuickInputVisibleRef.current || isClosingRef.current) {
-        return;
-      }
-      shortBottomFromScreen.value = lastShortBottomRef.current;
-      animatedBottom.value = lastShortBottomRef.current;
-      resetAndroidKeyboardFollowPeak();
-      setShouldFollowKeyboard(true);
-      focusQuickInputField();
-    }, ANDROID_CATEGORY_SHEET_REFOCUS_DELAY_MS);
+    // 카테고리 시트가 마운트된 동안 QuickInputField는 언마운트됨 → 언마운트 후 포커스
     categorySettingSheetUnmountTimeoutRef.current = setTimeout(() => {
       categorySettingSheetUnmountTimeoutRef.current = null;
       editSheetOpenCardTranslateY.setValue(0);
@@ -2155,6 +2112,14 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       editSheetOpenInputOpacity.setValue(1);
       setQuickInputCategorySettingSheetMounted(false);
       setIsQuickInputCategorySettingClosing(false);
+      if (!isQuickInputVisibleRef.current || isClosingRef.current) {
+        return;
+      }
+      shortBottomFromScreen.value = lastShortBottomRef.current;
+      animatedBottom.value = lastShortBottomRef.current;
+      resetAndroidKeyboardFollowPeak();
+      setShouldFollowKeyboard(true);
+      focusQuickInputField();
     }, QUICK_INPUT_EMBEDDED_SHEET_UNMOUNT_DELAY);
   }, [
     animatedBottom,
@@ -3008,7 +2973,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     quickInputRef.current?.blur();
     Keyboard.dismiss();
     calculatorAnimationRef.current?.stop();
-    calculatorTranslateYRef.current.setValue(CALCULATOR_PANEL_HEIGHT);
+    calculatorTranslateYRef.current.setValue(calculatorPanelHeightRef.current);
     setIsQuickInputCalculatorVisible(false);
     setIsQuickInputCalculatorMounted(false);
     setQuickInputCalculatorAmount('');
@@ -3117,13 +3082,13 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     setQuickInputEditAmountExpression([]);
 
     if (options?.immediate) {
-      amountKeypadTranslateYRef.current.setValue(EDIT_AMOUNT_KEYPAD_HEIGHT);
+      amountKeypadTranslateYRef.current.setValue(editAmountKeypadHeightRef.current);
       setQuickInputAmountKeypadMounted(false);
       return;
     }
 
     amountKeypadAnimationRef.current = RNAnimated.timing(amountKeypadTranslateYRef.current, {
-      toValue: EDIT_AMOUNT_KEYPAD_HEIGHT,
+      toValue: editAmountKeypadHeightRef.current,
       duration: CALCULATOR_ANIMATION_DURATION,
       easing: CALCULATOR_ANIMATION_EASING,
       useNativeDriver: true,
@@ -3263,7 +3228,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     closeQuickInputDateSheet();
     closeQuickInputPaymentSheet();
     amountKeypadAnimationRef.current?.stop();
-    amountKeypadTranslateYRef.current.setValue(EDIT_AMOUNT_KEYPAD_HEIGHT);
+    amountKeypadTranslateYRef.current.setValue(editAmountKeypadHeightRef.current);
     setQuickInputAmountKeypadMounted(true);
     setQuickInputAmountKeypadVisible(true);
     amountKeypadAnimationRef.current = RNAnimated.timing(amountKeypadTranslateYRef.current, {
@@ -3564,7 +3529,6 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       if (!shouldFollowKeyboardRef.current || androidKeyboardSettlingRef.current) {
         return;
       }
-      // 열림 중 metrics 스냅 방지 — 이미 올라온 뒤(툴바 등)만 보조
       if (lastAndroidBottomRef.current <= KEYBOARD_GAP + 8) {
         return;
       }
@@ -3579,30 +3543,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         return;
       }
       androidKeyboardWasVisibleRef.current = true;
-
-      if (androidKeyboardSettlingRef.current) {
-        return;
-      }
-
-      const alreadyFollowing =
-        lastAndroidBottomRef.current > KEYBOARD_GAP + 8 ||
-        animatedBottom.value > lastShortBottomRef.current + 24;
-
-      if (alreadyFollowing) {
-        // onMove로 이미 따라온 경우 — 툴바 보정만
-        applyAndroidKeyboardGeometry(event.endCoordinates, false);
-        scheduleAndroidKeyboardSync();
-        return;
-      }
-
-      clearSettleTimeout();
-      setAndroidKeyboardSettling(true);
-      applyAndroidKeyboardGeometry(event.endCoordinates, true);
-      androidKeyboardSettleTimeoutRef.current = setTimeout(() => {
-        androidKeyboardSettleTimeoutRef.current = null;
-        setAndroidKeyboardSettling(false);
-        scheduleAndroidKeyboardSync();
-      }, ANDROID_KEYBOARD_SETTLE_HOLD_MS);
+      // 항상 최종 높이로 settle — 부분 onMove 후 가드 스킵하면 반쯤 가려짐
+      settleAndroidKeyboardFromDidShow(event.endCoordinates);
     });
 
     const onFrame = Keyboard.addListener('keyboardDidChangeFrame', (event) => {
@@ -3613,7 +3555,6 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       ) {
         return;
       }
-      // 툴바·추천행 등 열린 뒤 IME 높이 변화만 보조
       if (lastAndroidBottomRef.current > KEYBOARD_GAP + 8) {
         applyAndroidKeyboardGeometry(event.endCoordinates, false);
       }
@@ -3658,8 +3599,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     handleAndroidKeyboardDismissed,
     insets.bottom,
     isQuickInputVisible,
-    scheduleAndroidKeyboardSync,
-    setAndroidKeyboardSettling,
+    settleAndroidKeyboardFromDidShow,
     shortBottomFromScreen,
   ]);
 

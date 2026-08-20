@@ -9,34 +9,39 @@ import { useKeypadHapticsEnabled } from '@/hooks/use-keypad-haptics';
 import * as Haptics from 'expo-haptics';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const PADDING_H = 8;
 const GAP = 8;
 const COLS = 4;
 const ROWS = 4;
 const PADDING_TOP = 16;
-/** Figma customKeypad: 8px below last key row, then Home indicator (iOS only) */
+/** Figma customKeypad: 8px below last key row, then Home indicator / Android nav inset */
 const BOTTOM_PADDING = PADDING_H;
 const HOME_INDICATOR_HEIGHT = 34;
 const BUTTON_ASPECT = 48 / 84;
 
-function getKeypadFooterHeight(): number {
-  return BOTTOM_PADDING + (Platform.OS === 'ios' ? HOME_INDICATOR_HEIGHT : 0);
+function getKeypadFooterHeight(safeAreaBottom = 0): number {
+  if (Platform.OS === 'ios') {
+    return BOTTOM_PADDING + HOME_INDICATOR_HEIGHT;
+  }
+  // Android: 시스템 내비/제스처 바 — 빼먹으면 키가 홈 영역에 붙음
+  return BOTTOM_PADDING + Math.max(0, safeAreaBottom);
 }
 
 /** 컨테이너 너비로 버튼 너비·높이·키패드 전체 높이 계산 (Figma customKeypad 기준) */
-function getKeypadDimensions(containerWidth: number) {
+function getKeypadDimensions(containerWidth: number, safeAreaBottom = 0) {
   const contentWidth = Math.max(0, containerWidth - PADDING_H * 2 - GAP * (COLS - 1));
   const buttonWidth = contentWidth / COLS;
   const buttonHeight = buttonWidth * BUTTON_ASPECT;
   const keysHeight = PADDING_TOP + ROWS * buttonHeight + GAP * (ROWS - 1);
-  const totalHeight = keysHeight + getKeypadFooterHeight();
-  return { buttonWidth, buttonHeight, totalHeight };
+  const totalHeight = keysHeight + getKeypadFooterHeight(safeAreaBottom);
+  return { buttonWidth, buttonHeight, totalHeight, footerHeight: getKeypadFooterHeight(safeAreaBottom) };
 }
 
 /** 화면/컨테이너 너비로 키패드 전체 높이만 필요할 때 (애니메이션·패딩용) */
-export function getKeypadHeight(width: number): number {
-  return getKeypadDimensions(width).totalHeight;
+export function getKeypadHeight(width: number, safeAreaBottom = 0): number {
+  return getKeypadDimensions(width, safeAreaBottom).totalHeight;
 }
 
 export type CustomKeypadOperator = 'add' | 'sub' | 'mul' | 'div';
@@ -210,10 +215,15 @@ export function CustomKeypad({
   const colorScheme = useColorScheme();
   const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   const { width: windowWidth } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const keypadHapticsEnabled = useKeypadHapticsEnabled();
   const [containerWidth, setContainerWidth] = useState(windowWidth);
+  const androidSafeBottom = Platform.OS === 'android' ? insets.bottom : 0;
 
-  const { buttonWidth, buttonHeight } = getKeypadDimensions(containerWidth);
+  const { buttonWidth, buttonHeight, footerHeight } = getKeypadDimensions(
+    containerWidth,
+    androidSafeBottom,
+  );
   const onContainerLayout = useCallback((e: { nativeEvent: { layout: { width: number } } }) => {
     const w = e.nativeEvent.layout.width;
     setContainerWidth(w);
@@ -522,7 +532,7 @@ export function CustomKeypad({
           <View style={styles.homeIndicatorLine} />
         </View>
       ) : (
-        <View style={styles.androidBottomPadding} />
+        <View style={[styles.androidBottomPadding, { height: footerHeight }]} />
       )}
       </View>
     </GlassSurface>
@@ -583,6 +593,7 @@ const styles = StyleSheet.create({
     backgroundColor: atomicColors.neutral[100],
   },
   androidBottomPadding: {
+    // height는 insets.bottom 포함해 런타임에 덮어씀
     height: BOTTOM_PADDING,
   },
 });
