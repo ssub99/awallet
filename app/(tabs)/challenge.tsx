@@ -535,7 +535,6 @@ export default function ChallengeTabScreen() {
   const insets = useSafeAreaInsets();
   void insets;
   const trendPaymentFilterSheetHeight = windowHeight * 0.8;
-  const trendPaymentFilterSheetContentHeight = trendPaymentFilterSheetHeight - 56;
   const colorScheme = useColorScheme();
   const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   const iconWhite = useThemeColor({}, 'staticWhite');
@@ -2914,7 +2913,7 @@ export default function ChallengeTabScreen() {
             <View
               style={[
                 styles.trendPaymentFilterSheetBody,
-                { backgroundColor: palette.fill, minHeight: trendPaymentFilterSheetContentHeight },
+                { backgroundColor: palette.fill },
               ]}
             >
               <View style={[styles.trendPaymentFilterListCard, { backgroundColor: palette.staticWhite }]}>
@@ -3427,6 +3426,8 @@ const styles = StyleSheet.create({
     padding: 0,
   },
   trendPaymentFilterSheetBody: {
+    flex: 1,
+    minHeight: 0,
     paddingTop: 16,
     paddingHorizontal: 16,
     flexDirection: 'column',

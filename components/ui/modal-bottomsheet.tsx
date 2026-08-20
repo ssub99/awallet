@@ -13,18 +13,21 @@
  */
 
 import { colors, type ColorPalette } from '@/constants/theme';
+import { atomicColors } from '@/constants/atomic-colors';
 import { typographyLayout } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
   getAndroidNavigationBarInset,
   getIosSystemBottomInset,
 } from '@/components/ui/custom-keypad-overlay';
-import { ReactNode, useEffect, useRef, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   BackHandler,
   Dimensions,
+  LayoutChangeEvent,
   Modal,
+  PanResponder,
   Platform,
   Pressable,
   StyleSheet,
@@ -37,6 +40,10 @@ import { ToastHost } from '@/contexts/toast-context';
 import { Icon } from './icon';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
+const SHEET_MAX_HEIGHT = SCREEN_HEIGHT * 0.8;
+const SHEET_DISMISS_HEIGHT = SCREEN_HEIGHT * 0.5;
+const SHEET_NAV_HEIGHT = 56;
+const SHEET_HEIGHT_ANIMATION_DURATION = 180;
 
 export interface ModalBottomsheetProps {
   visible: boolean;
@@ -48,6 +55,15 @@ export interface ModalBottomsheetProps {
   closeOnBackdrop?: boolean;
   style?: ViewStyle;
   contentStyle?: ViewStyle;
+  /**
+   * content: ModalBottomsheet owns height, measuring content and animating to fit each depth.
+   * fixed: keep caller-provided height/maxHeight or natural wrap-content behavior.
+   */
+  sizing?: 'content' | 'fixed';
+  /** Show the visual grabber without changing sheet sizing behavior. */
+  showHandle?: boolean | 'auto';
+  /** Allow the grabber to resize the sheet between 31% and 80%; below 30% dismisses. */
+  resizable?: boolean;
   /**
    * Skip shell bottom inset. Use when children handle iOS home indicator / Android nav (see category emoji picker).
    */
@@ -76,6 +92,9 @@ function ModalBottomsheetContent({
   closeOnBackdrop = true,
   style,
   contentStyle,
+  sizing,
+  showHandle = 'auto',
+  resizable = false,
   noPaddingBottom = false,
   embedded = false,
 }: ModalBottomsheetProps) {
@@ -87,18 +106,127 @@ function ModalBottomsheetContent({
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [currentContent, setCurrentContent] = useState<ReactNode>(null);
   const [currentTitle, setCurrentTitle] = useState(title);
+  const [measuredSheetHeight, setMeasuredSheetHeight] = useState<number | null>(null);
 
   const dimOpacity = useRef(new Animated.Value(0)).current;
   const sheetTranslateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const sheetHeight = useRef(new Animated.Value(0)).current;
+  const sheetHeightValueRef = useRef(0);
+  const dragStartHeightRef = useRef(0);
+  const visibleRef = useRef(visible);
+
+  const flattenedStyle = StyleSheet.flatten(style);
+  const numericStyleHeight = typeof flattenedStyle?.height === 'number' ? flattenedStyle.height : undefined;
+  const numericStyleMaxHeight = typeof flattenedStyle?.maxHeight === 'number' ? flattenedStyle.maxHeight : undefined;
+  const resolvedSizing = sizing ?? 'fixed';
+  const usesMeasuredHeight = resolvedSizing === 'content';
+  const usesControlledHeight = resizable || usesMeasuredHeight;
+  const usesFlexibleContent =
+    typeof numericStyleHeight === 'number' || (usesMeasuredHeight && measuredSheetHeight !== null);
+  const hasHandle =
+    showHandle === true ||
+    (showHandle === 'auto' &&
+      (usesMeasuredHeight ||
+        (typeof numericStyleHeight === 'number' && numericStyleHeight >= SHEET_MAX_HEIGHT - 1) ||
+        (typeof numericStyleMaxHeight === 'number' && numericStyleMaxHeight >= SHEET_MAX_HEIGHT - 1)));
+  const initialSheetHeight = Math.min(numericStyleHeight ?? numericStyleMaxHeight ?? SHEET_MAX_HEIGHT, SHEET_MAX_HEIGHT);
+  const sheetStyle = usesControlledHeight ? { ...style, height: undefined, maxHeight: undefined } : style;
 
   useEffect(() => {
+    const id = sheetHeight.addListener(({ value }) => {
+      sheetHeightValueRef.current = value;
+    });
+    return () => sheetHeight.removeListener(id);
+  }, [sheetHeight]);
+
+  const animateSheetHeight = useCallback((toValue: number, duration = SHEET_HEIGHT_ANIMATION_DURATION) => {
+    Animated.timing(sheetHeight, {
+      toValue,
+      duration,
+      useNativeDriver: false,
+    }).start();
+  }, [sheetHeight]);
+
+  const handleMeasuredSheetLayout = useCallback((event: LayoutChangeEvent) => {
+    if (!usesMeasuredHeight || !visible) {
+      return;
+    }
+
+    const nextHeight = Math.min(event.nativeEvent.layout.height, SHEET_MAX_HEIGHT);
+    if (nextHeight <= 0) {
+      return;
+    }
+
+    setMeasuredSheetHeight((prevHeight) => {
+      if (prevHeight === null) {
+        sheetHeight.setValue(nextHeight);
+        return nextHeight;
+      }
+
+      if (Math.abs(prevHeight - nextHeight) < 1) {
+        return prevHeight;
+      }
+
+      animateSheetHeight(nextHeight);
+      return nextHeight;
+    });
+  }, [animateSheetHeight, sheetHeight, usesMeasuredHeight, visible]);
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => resizable,
+        onMoveShouldSetPanResponder: (_, gestureState) =>
+          resizable &&
+          Math.abs(gestureState.dy) > 4 &&
+          Math.abs(gestureState.dy) > Math.abs(gestureState.dx),
+        onPanResponderGrant: () => {
+          sheetHeight.stopAnimation((value) => {
+            const nextValue = typeof value === 'number' && value > 0 ? value : initialSheetHeight;
+            sheetHeightValueRef.current = nextValue;
+            dragStartHeightRef.current = nextValue;
+          });
+        },
+        onPanResponderMove: (_, gestureState) => {
+          const dragStartHeight = dragStartHeightRef.current || sheetHeightValueRef.current || initialSheetHeight;
+          const nextHeight = Math.max(0, Math.min(SHEET_MAX_HEIGHT, dragStartHeight - gestureState.dy));
+          sheetHeightValueRef.current = nextHeight;
+          sheetHeight.setValue(nextHeight);
+        },
+        onPanResponderRelease: (_, gestureState) => {
+          const currentHeight = sheetHeightValueRef.current;
+          if (gestureState.dy > 0 && currentHeight <= SHEET_DISMISS_HEIGHT) {
+            onClose();
+            return;
+          }
+          animateSheetHeight(initialSheetHeight);
+        },
+        onPanResponderTerminate: () => {
+          animateSheetHeight(initialSheetHeight);
+        },
+      }),
+    [animateSheetHeight, initialSheetHeight, onClose, resizable, sheetHeight]
+  );
+
+  useEffect(() => {
+    visibleRef.current = visible;
+
     if (visible) {
       if (!embedded) {
         setIsModalVisible(true);
       }
 
+      dimOpacity.stopAnimation();
+      sheetTranslateY.stopAnimation();
+      sheetHeight.stopAnimation();
       dimOpacity.setValue(0);
       sheetTranslateY.setValue(SCREEN_HEIGHT);
+      if (usesMeasuredHeight) {
+        setMeasuredSheetHeight(null);
+      }
+      if (resizable) {
+        sheetHeight.setValue(initialSheetHeight);
+      }
 
       requestAnimationFrame(() => {
         Animated.sequence([
@@ -115,6 +243,9 @@ function ModalBottomsheetContent({
         ]).start();
       });
     } else {
+      dimOpacity.stopAnimation();
+      sheetTranslateY.stopAnimation();
+      sheetHeight.stopAnimation();
       Animated.sequence([
         Animated.timing(sheetTranslateY, {
           toValue: SCREEN_HEIGHT,
@@ -127,12 +258,21 @@ function ModalBottomsheetContent({
           useNativeDriver: true,
         }),
       ]).start(() => {
-        if (!embedded) {
+        if (!embedded && !visibleRef.current) {
           setIsModalVisible(false);
         }
       });
     }
-  }, [visible, embedded, dimOpacity, sheetTranslateY]);
+  }, [
+    visible,
+    embedded,
+    dimOpacity,
+    initialSheetHeight,
+    resizable,
+    sheetHeight,
+    sheetTranslateY,
+    usesMeasuredHeight,
+  ]);
 
   useEffect(() => {
     if (!visible) {
@@ -173,9 +313,22 @@ function ModalBottomsheetContent({
     return () => subscription.remove();
   }, [embedded, visible, onClose]);
 
-  const sheetBody = (
-    <View style={[styles.sheet, style]}>
+  const sheetBodyContent = (
+    <View
+      style={[styles.sheet, usesControlledHeight ? styles.controlledSheet : null, sheetStyle]}
+      onLayout={handleMeasuredSheetLayout}
+    >
       <View style={styles.navigation}>
+        {hasHandle ? (
+          <View
+            style={styles.grabberTouchArea}
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            {...(resizable ? panResponder.panHandlers : null)}
+          >
+            <View style={styles.grabber} />
+          </View>
+        ) : null}
         <View style={styles.navContent}>
           <View style={styles.navLeft}>
             <Pressable
@@ -209,8 +362,25 @@ function ModalBottomsheetContent({
         </View>
         <View style={[styles.divider, { backgroundColor: palette.border }]} />
       </View>
-      <View style={[styles.content, contentStyle]}>{currentContent}</View>
+      <View
+        style={[
+          styles.content,
+          usesFlexibleContent ? styles.flexibleContent : null,
+          usesMeasuredHeight ? styles.measuredContent : null,
+          contentStyle,
+        ]}
+      >
+        {currentContent}
+      </View>
     </View>
+  );
+
+  const sheetBody = resizable ? (
+    <Animated.View style={{ height: sheetHeight }}>{sheetBodyContent}</Animated.View>
+  ) : usesMeasuredHeight && measuredSheetHeight !== null ? (
+    <Animated.View style={{ height: sheetHeight }}>{sheetBodyContent}</Animated.View>
+  ) : (
+    sheetBodyContent
   );
 
   const sheetChrome = (
@@ -332,14 +502,31 @@ const styles = StyleSheet.create({
   sheet: {
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
-    maxHeight: SCREEN_HEIGHT * 0.8,
+    maxHeight: SHEET_MAX_HEIGHT,
+  },
+  grabberTouchArea: {
+    position: 'absolute',
+    top: 4,
+    left: 0,
+    right: 0,
+    height: 44,
+    paddingTop: 4,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    zIndex: 1,
+  },
+  grabber: {
+    width: 48,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: atomicColors.neutral[300],
   },
   navigation: {},
   navContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    height: 56,
+    height: SHEET_NAV_HEIGHT,
     paddingHorizontal: 16,
   },
   navLeft: {
@@ -384,5 +571,17 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 16,
+  },
+  controlledSheet: {
+    flex: 1,
+    minHeight: 0,
+    overflow: 'hidden',
+  },
+  flexibleContent: {
+    flex: 1,
+    minHeight: 0,
+  },
+  measuredContent: {
+    maxHeight: SHEET_MAX_HEIGHT - SHEET_NAV_HEIGHT,
   },
 });

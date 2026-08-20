@@ -711,7 +711,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   const [showRecurringInstallmentSheet, setShowRecurringInstallmentSheet] = useState<boolean>(false);
   const [showPaymentTypeSheet, setShowPaymentTypeSheet] = useState<boolean>(false);
   const [paymentTypeSheetFilter, setPaymentTypeSheetFilter] = useState<'credit' | 'debit'>('credit');
-  const PAYMENT_TYPE_SHEET_NAV_HEIGHT = 56;
   const PAYMENT_TYPE_SHEET_FILTER_ROW_HEIGHT = 37;
   const PAYMENT_TYPE_SHEET_TOP_PADDING = 16;
   const PAYMENT_TYPE_SHEET_FILTER_LIST_GAP = 16;
@@ -720,10 +719,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   void PAYMENT_TYPE_SHEET_TOP_PADDING;
   void PAYMENT_TYPE_SHEET_FILTER_LIST_GAP;
   const paymentTypeSheetHeight = useMemo(() => windowHeight * 0.5, [windowHeight]);
-  const paymentTypeSheetContentHeight = useMemo(
-    () => Math.max(0, paymentTypeSheetHeight - PAYMENT_TYPE_SHEET_NAV_HEIGHT),
-    [paymentTypeSheetHeight]
-  );
 
   // date state 변경 감지
   useEffect(() => {
@@ -5903,7 +5898,6 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
               styles.paymentTypeSheetBody,
               {
                 backgroundColor: palette.fill,
-                height: paymentTypeSheetContentHeight,
               },
             ]}
           >
@@ -6020,16 +6014,16 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         }}
         confirmText="확인"
         closeOnBackdrop={true}
-        style={{ maxHeight: Dimensions.get('window').height * 0.8 }}
+        style={{ height: Dimensions.get('window').height * 0.8 }}
         contentStyle={{ padding: 0 }}
         noPaddingBottom={true}
+        resizable
       >
         <ScrollView 
           style={[
             styles.recurringInstallmentSheetInner, 
             { 
               backgroundColor: palette.fill,
-              height: Dimensions.get('window').height * 0.8 - 56 - insets.bottom, // 바텀시트 높이 80% - 네비게이션 56 - 홈 인디케이터
             }
           ]}
           contentContainerStyle={styles.recurringInstallmentSheetScrollContent}
@@ -7218,6 +7212,8 @@ const styles = StyleSheet.create({
     padding: 0,
   },
   paymentTypeSheetBody: {
+    flex: 1,
+    minHeight: 0,
     paddingTop: 16,
     paddingHorizontal: 16,
     flexDirection: 'column',
@@ -7582,6 +7578,8 @@ const styles = StyleSheet.create({
   },
   // 반복/할부 설정 바텀시트 스타일
   recurringInstallmentSheetInner: {
+    flex: 1,
+    minHeight: 0,
     backgroundColor: 'transparent',
   },
   recurringInstallmentSheetScrollContent: {

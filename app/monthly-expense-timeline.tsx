@@ -662,7 +662,6 @@ export default function MonthlyExpenseTimelineScreen() {
   timelineItemsRef.current = timelineItems;
 
   const paymentFilterSheetHeight = useMemo(() => windowHeight * 0.8, [windowHeight]);
-  const paymentFilterSheetContentHeight = useMemo(() => paymentFilterSheetHeight - 56, [paymentFilterSheetHeight]);
 
   // 월 전환 중이 아닐 때만 표시 데이터 동기화
   useEffect(() => {
@@ -1576,7 +1575,7 @@ export default function MonthlyExpenseTimelineScreen() {
           <View
             style={[
               styles.paymentFilterSheetBody,
-              { backgroundColor: palette.fill, height: paymentFilterSheetContentHeight },
+              { backgroundColor: palette.fill },
             ]}
           >
             <View style={[styles.paymentFilterListCard, { backgroundColor: palette.staticWhite }]}>
@@ -1975,6 +1974,8 @@ const styles = StyleSheet.create({
     padding: 0,
   },
   paymentFilterSheetBody: {
+    flex: 1,
+    minHeight: 0,
     paddingTop: 16,
     paddingHorizontal: 16,
     flexDirection: 'column',
@@ -2059,4 +2060,3 @@ const styles = StyleSheet.create({
     ...typography.body02.medium,
   },
 });
-
