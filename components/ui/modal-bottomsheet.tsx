@@ -426,6 +426,15 @@ function ModalBottomsheetContent({
       >
         {visible ? children : currentContent ?? latestVisibleContentRef.current}
       </View>
+      {hideNavigation && hasHandle && resizable ? (
+        <View
+          style={styles.grabberGestureOverlay}
+          pointerEvents="box-only"
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          {...panResponder.panHandlers}
+        />
+      ) : null}
     </View>
   );
 
@@ -583,6 +592,15 @@ const styles = StyleSheet.create({
     paddingTop: 4,
     alignItems: 'center',
     justifyContent: 'flex-start',
+  },
+  grabberGestureOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: '50%',
+    width: 96,
+    height: 52,
+    marginLeft: -48,
+    zIndex: 20,
   },
   grabber: {
     width: 48,
