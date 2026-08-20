@@ -118,6 +118,7 @@ const EDIT_AMOUNT_KEYPAD_HEIGHT = getKeypadHeight(Dimensions.get('window').width
 const QUICK_INPUT_EDIT_SHEET_ANIMATION_DURATION = 300;
 const QUICK_INPUT_EMBEDDED_SHEET_UNMOUNT_DELAY = QUICK_INPUT_EDIT_SHEET_ANIMATION_DURATION + 80;
 const QUICK_INPUT_EDIT_RESTORE_DELAY = 180;
+const QUICK_INPUT_CONFIRM_CARD_REVEAL_DELAY = 120;
 const QUICK_INPUT_EDIT_OPENING_ANIMATION_DURATION = 180;
 const QUICK_INPUT_EDIT_VIEW_TRANSITION_DURATION = 350;
 const QUICK_INPUT_EDIT_VIEW_TRANSITION_EASING = Easing.bezier(0.42, 0, 0.58, 1);
@@ -746,6 +747,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const [quickInputCalculatorAmount, setQuickInputCalculatorAmount] = useState('');
   const [quickInputCalculatorExpression, setQuickInputCalculatorExpression] = useState<ExpressionToken[]>([]);
   const [confirmCardData, setConfirmCardData] = useState<QuickInputConfirmCardData | null>(null);
+  const [isQuickInputConfirmCardRevealPaused, setIsQuickInputConfirmCardRevealPaused] = useState(false);
   const [quickInputEditSheetVisible, setQuickInputEditSheetVisible] = useState(false);
   const [isQuickInputEditOpening, setIsQuickInputEditOpening] = useState(false);
   const [isQuickInputEditSheetClosing, setIsQuickInputEditSheetClosing] = useState(false);
@@ -800,6 +802,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const hideFinishTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const editSheetCloseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const editSheetRestoreTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const confirmCardRevealTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dateSheetUnmountTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const paymentSheetUnmountTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const editSheetOpenAnimationRef = useRef<RNAnimated.CompositeAnimation | null>(null);
@@ -1257,6 +1260,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     setQuickInputCalculatorExpression([]);
     setQuickInputText('');
     setConfirmCardData(null);
+    setIsQuickInputConfirmCardRevealPaused(false);
     setQuickInputEditSheetVisible(false);
     setIsQuickInputEditOpening(false);
     setIsQuickInputEditSheetClosing(false);
@@ -1285,6 +1289,10 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     if (editSheetRestoreTimeoutRef.current) {
       clearTimeout(editSheetRestoreTimeoutRef.current);
       editSheetRestoreTimeoutRef.current = null;
+    }
+    if (confirmCardRevealTimeoutRef.current) {
+      clearTimeout(confirmCardRevealTimeoutRef.current);
+      confirmCardRevealTimeoutRef.current = null;
     }
     if (dateSheetUnmountTimeoutRef.current) {
       clearTimeout(dateSheetUnmountTimeoutRef.current);
@@ -1584,6 +1592,9 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         repeatOption1: normalizedFirst.recordType === 'income' ? undefined : getRepeatOption1(normalizedFirst),
         repeatOption2: normalizedFirst.recordType === 'income' ? undefined : getRepeatOption2(normalizedFirst),
         repeatOption3: normalizedFirst.recordType === 'income' ? undefined : getRepeatOption3(normalizedFirst),
+      });
+      requestAnimationFrame(() => {
+        quickInputRef.current?.focus();
       });
     } catch {
       showToast('요청에 실패했습니다. 다시 시도해 주세요.');
@@ -1891,6 +1902,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     });
     pendingRecordRef.current = null;
     setConfirmCardData(null);
+    setIsQuickInputConfirmCardRevealPaused(false);
   }, []);
 
   const handleConfirmCardChange = useCallback(() => {
@@ -1910,6 +1922,10 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     if (editSheetRestoreTimeoutRef.current) {
       clearTimeout(editSheetRestoreTimeoutRef.current);
       editSheetRestoreTimeoutRef.current = null;
+    }
+    if (confirmCardRevealTimeoutRef.current) {
+      clearTimeout(confirmCardRevealTimeoutRef.current);
+      confirmCardRevealTimeoutRef.current = null;
     }
     editSheetOpenAnimationRef.current?.stop();
     editSheetOpenCardTranslateY.setValue(0);
@@ -2270,6 +2286,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     if (isQuickInputEditOpening || isQuickInputEditSheetClosing) {
       return;
     }
+    setIsQuickInputConfirmCardRevealPaused(true);
     setIsQuickInputEditSheetClosing(true);
     setQuickInputEditSheetVisible(false);
     setQuickInputEditView('form');
@@ -2282,6 +2299,10 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     if (editSheetRestoreTimeoutRef.current) {
       clearTimeout(editSheetRestoreTimeoutRef.current);
       editSheetRestoreTimeoutRef.current = null;
+    }
+    if (confirmCardRevealTimeoutRef.current) {
+      clearTimeout(confirmCardRevealTimeoutRef.current);
+      confirmCardRevealTimeoutRef.current = null;
     }
     editSheetCloseTimeoutRef.current = setTimeout(() => {
       editSheetCloseTimeoutRef.current = null;
@@ -2299,6 +2320,10 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         requestAnimationFrame(() => {
           quickInputRef.current?.focus();
         });
+        confirmCardRevealTimeoutRef.current = setTimeout(() => {
+          confirmCardRevealTimeoutRef.current = null;
+          setIsQuickInputConfirmCardRevealPaused(false);
+        }, QUICK_INPUT_CONFIRM_CARD_REVEAL_DELAY);
       }, QUICK_INPUT_EDIT_RESTORE_DELAY);
     }, QUICK_INPUT_EDIT_SHEET_ANIMATION_DURATION);
   }, [
@@ -2554,6 +2579,10 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         clearTimeout(editSheetRestoreTimeoutRef.current);
         editSheetRestoreTimeoutRef.current = null;
       }
+      if (confirmCardRevealTimeoutRef.current) {
+        clearTimeout(confirmCardRevealTimeoutRef.current);
+        confirmCardRevealTimeoutRef.current = null;
+      }
       starRefs.current = null;
       overlayStarScale.stopAnimation();
       overlayStarRotate.stopAnimation();
@@ -2666,7 +2695,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                   pointerEvents="box-none"
                   style={[styles.longContentLayer, { opacity: quickInputLongOpacity }]}
                 >
-                  {confirmCardData != null && !quickInputEditSheetVisible && !isQuickInputEditSheetClosing && (
+                  {confirmCardData != null && !isQuickInputConfirmCardRevealPaused && !quickInputEditSheetVisible && !isQuickInputEditSheetClosing && (
                     <RNAnimated.View
                       style={[
                         styles.confirmCardContainer,
@@ -2686,18 +2715,15 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                       />
                     </RNAnimated.View>
                   )}
-                  <Animated.View
-                    pointerEvents={confirmCardData != null ? 'none' : 'auto'}
-                    style={[styles.container, containerAnimatedStyle]}
-                  >
+                  <Animated.View style={[styles.container, containerAnimatedStyle]}>
                     {!quickInputEditSheetVisible && !isQuickInputEditSheetClosing && !isQuickInputCalculatorVisible && (
                       <RNAnimated.View
                         style={[
                           styles.normalInputStack,
-                          {
+                          isQuickInputEditOpening ? {
                             opacity: editSheetOpenInputOpacity,
                             transform: [{ translateY: editSheetOpenInputTranslateY }],
-                          },
+                          } : null,
                         ]}
                       >
                         <View style={styles.edgeContent}>
@@ -2937,6 +2963,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                           key: 'category',
                           title: '카테고리 선택',
                           left: 'back',
+                          backKey: 'form',
                           onLeftPress: handleQuickInputCategorySheetClose,
                           right: { label: '확인', onPress: handleQuickInputCategorySheetConfirm },
                           swipeBackEnabled: true,
@@ -2980,6 +3007,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                           key: 'recurring',
                           title: '반복/할부 설정',
                           left: 'back',
+                          backKey: 'form',
                           onLeftPress: handleQuickInputRecurringSheetClose,
                           right: { label: '확인', onPress: handleQuickInputRecurringConfirm },
                           swipeBackEnabled: true,

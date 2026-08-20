@@ -138,10 +138,6 @@ void isWithinYear;
 // ===== 삭제 기능 유틸리티 함수들 =====
 
 /**
- * 개발 환경 로그 유틸은 현재 사용되지 않음 (정리)
- */
-
-/**
  * 날짜 형식 변환 유틸리티
  */
 const formatDateKey = (date: string): string => date.replace(/\./g, '-');
@@ -785,6 +781,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   const [showWeekendConfirm, setShowWeekendConfirm] = useState<boolean>(false);
   // showPeriodNativePicker는 더 이상 사용하지 않음 (Selectbox로 대체)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<boolean>(false);
+  const [isDeleteConfirming, setIsDeleteConfirming] = useState<boolean>(false);
   const [showNoChangesModal, setShowNoChangesModal] = useState<boolean>(false);
   const [showEditConfirmModal, setShowEditConfirmModal] = useState<boolean>(false);
   const [editConfirmMessage, setEditConfirmMessage] = useState<string>('');
@@ -819,6 +816,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   const [showPrepaymentModal, setShowPrepaymentModal] = useState<boolean>(false);
   // 결산 처리 안내 모달
   const [showSettlementConfirmModal, setShowSettlementConfirmModal] = useState<boolean>(false);
+  const deleteInFlightRef = useRef(false);
 
   useEffect(() => {
     if (!showNoChangesModal) {
@@ -3962,7 +3960,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     if (mode !== 'edit' || !editData) {
       return;
     }
+    if (deleteInFlightRef.current) {
+      return;
+    }
 
+    deleteInFlightRef.current = true;
+    setIsDeleteConfirming(true);
+    setShowDeleteConfirm(false);
     setLoading(true);
     try {
       if (editData.isInstallment && editData.installmentId) {
@@ -3991,16 +3995,16 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       // 챌린지 알림 재계산 (삭제 후 소비율 변경 반영 — trigger 내부에서도 store 기준 재구성)
       if (editData.category) {
         const recordDateObj = parseRecordDate(editData.date || date, new Date());
-        await triggerChallengeNotifications(editData.category, recordDateObj).catch(error => {
-          console.error('[expense-record] Failed to trigger challenge notifications after delete:', error);
-        });
+        setTimeout(() => {
+          triggerChallengeNotifications(editData.category, recordDateObj)
+            .catch(error => {
+              console.error('[expense-record] Failed to trigger challenge notifications after delete:', error);
+            });
+        }, 0);
       }
       
       // 소비 기록 삭제 시 당일 알림 재스케줄링 (오후 8시 전이면)
       rescheduleDailyReminderIfNeeded().catch((_error) => {});
-
-      setShowDeleteConfirm(false);
-
       const recordDateKey = formatDateKey(editData.date || date);
       const [targetYear, targetMonth] = recordDateKey.split('-').map(Number);
 
@@ -4013,6 +4017,8 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     } catch (error) {
       console.error('[DELETE] Failed to delete records:', error);
     } finally {
+      deleteInFlightRef.current = false;
+      setIsDeleteConfirming(false);
       setLoading(false);
     }
   };
@@ -5236,10 +5242,15 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
                   <SectionTitle style={[styles.sectionTitle, { color: palette.staticBlack }]}>
                     {editData?.isPrepaid ? '소비 내역' : '소비 정보'}
                   </SectionTitle>
-                  <Pressable onPress={() => {
-                    // 통합 삭제 모달만 사용 (유형과 무관하게 동일 플로우)
-                    setShowDeleteConfirm(true);
-                  }}>
+                  <Pressable
+                    onPress={() => {
+                      if (isDeleteConfirming) return;
+                      // 통합 삭제 모달만 사용 (유형과 무관하게 동일 플로우)
+                      setShowDeleteConfirm(true);
+                    }}
+                    disabled={isDeleteConfirming}
+                    accessibilityState={{ disabled: isDeleteConfirming }}
+                  >
                     <UiLineText style={[styles.deleteText, { color: palette.statusNegative }]}>
                       삭제
                     </UiLineText>
@@ -6431,6 +6442,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         onCancel={() => setShowDeleteConfirm(false)}
         confirmText="확인"
         cancelText="취소"
+        confirmDisabled={isDeleteConfirming}
       >
         <Text style={[styles.deleteConfirmText, { color: palette.textNeutral }]}>
           이 소비내역을 삭제하시겠어요?{'\n'}

@@ -76,6 +76,7 @@ export interface ExpenseRecord {
 
 const EXPENSE_STORAGE_KEY = 'expenseData';
 const DATE_TOKEN_REGEX = /\./g;
+const DELETE_ANALYTICS_CHUNK_SIZE = 20;
 
 function coerceTimestamp(record: ExpenseRecord): number {
   const raw = record.timestamp;
@@ -696,34 +697,51 @@ export async function deleteExpensesByGroup(params: {
   }
 
   await persistExpenses(filtered);
+  scheduleExpenseGroupDeleteAnalytics(toRemove);
+}
 
-  // record_deleted: 건별 발행
-  for (const r of toRemove) {
+function scheduleExpenseGroupDeleteAnalytics(toRemove: ExpenseRecord[]): void {
+  const records = [...toRemove];
+  const repeatCountOverride = records.length;
+
+  const runChunk = (startIndex: number) => {
+    const endIndex = Math.min(startIndex + DELETE_ANALYTICS_CHUNK_SIZE, records.length);
+
+    // record_deleted: 건별 발행
+    for (let index = startIndex; index < endIndex; index += 1) {
+      const r = records[index];
+      try {
+        logExpenseDelete(
+          expenseCreationVariantFromRecord(r),
+          buildExpenseLifecycleAnalyticsPayload(r),
+          buildExpenseCreationCompletionPayload(r, {
+            repeatCountOverride,
+          }),
+        );
+      } catch (error) {
+        console.warn('[expenses] deleteExpensesByGroup record_deleted analytics skipped:', error);
+      }
+    }
+
+    if (endIndex < records.length) {
+      setTimeout(() => runChunk(endIndex), 0);
+      return;
+    }
+
+    // deleted_complete: 완료 1회
+    const anchor = records[0];
     try {
-      logExpenseDelete(
-        expenseCreationVariantFromRecord(r),
-        buildExpenseLifecycleAnalyticsPayload(r),
-        buildExpenseCreationCompletionPayload(r, {
-          repeatCountOverride: toRemove.length,
+      logExpenseDeleteComplete(
+        expenseCreationVariantFromRecord(anchor),
+        buildExpenseLifecycleAnalyticsPayload(anchor),
+        buildExpenseCreationCompletionPayload(anchor, {
+          repeatCountOverride,
         }),
       );
     } catch (error) {
-      console.warn('[expenses] deleteExpensesByGroup record_deleted analytics skipped:', error);
+      console.warn('[expenses] deleteExpensesByGroup deleted_complete analytics skipped:', error);
     }
-  }
+  };
 
-  // deleted_complete: 완료 1회
-  const anchor = toRemove[0];
-  try {
-    logExpenseDeleteComplete(
-      expenseCreationVariantFromRecord(anchor),
-      buildExpenseLifecycleAnalyticsPayload(anchor),
-      buildExpenseCreationCompletionPayload(anchor, {
-        repeatCountOverride: toRemove.length,
-      }),
-    );
-  } catch (error) {
-    console.warn('[expenses] deleteExpensesByGroup deleted_complete analytics skipped:', error);
-  }
+  setTimeout(() => runChunk(0), 0);
 }
-

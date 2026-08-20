@@ -18,6 +18,7 @@ export type BottomSheetFlowScreen = {
   key: string;
   title: string;
   left: 'close' | 'back';
+  backKey?: string;
   onLeftPress: () => void;
   right?: {
     label: string;
@@ -59,7 +60,11 @@ export function BottomSheetFlow({
 
   const activeIndex = screens.findIndex((screen) => screen.key === activeKey);
   const activeScreen = activeIndex >= 0 ? screens[activeIndex] : screens[0];
-  const previousScreen = activeIndex > 0 ? screens[activeIndex - 1] : undefined;
+  const previousScreen = activeScreen?.backKey
+    ? screens.find((screen) => screen.key === activeScreen.backKey)
+    : activeIndex > 0
+      ? screens[activeIndex - 1]
+      : undefined;
 
   useEffect(() => {
     const previousKey = previousActiveKeyRef.current;
@@ -79,6 +84,13 @@ export function BottomSheetFlow({
     }
 
     animationRef.current?.stop();
+
+    screens.forEach((screen, index) => {
+      if (screen.key === previousKey || screen.key === activeKey) {
+        return;
+      }
+      translateXMapRef.current[screen.key]?.setValue(index > nextIndex ? width : -width);
+    });
 
     if (suppressNextAnimationRef.current) {
       suppressNextAnimationRef.current = false;
@@ -186,13 +198,20 @@ export function BottomSheetFlow({
       {screens.map((screen) => {
         const translateX = translateXMapRef.current[screen.key];
         const isActive = screen.key === activeKey;
+        const isPrevious = screen.key === previousScreen?.key;
 
         return (
           <Animated.View
             key={screen.key}
             pointerEvents={isActive ? 'auto' : 'none'}
             {...(isActive ? panResponder.panHandlers : null)}
-            style={[styles.screen, { transform: [{ translateX }] }]}
+            style={[
+              styles.screen,
+              {
+                zIndex: isActive ? 2 : isPrevious ? 1 : 0,
+                transform: [{ translateX }],
+              },
+            ]}
           >
             <View style={styles.navigation}>
               {screen.showHandle ? (

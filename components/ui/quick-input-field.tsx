@@ -8,6 +8,7 @@
 import { Icon } from '@/components/ui/icon';
 import { colors, type ColorPalette } from '@/constants/theme';
 import { typography, typographyLayout } from '@/constants/typography';
+import { pretendardTextStyle } from '@/constants/fonts';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { logEvent } from '@/utils/analytics';
 import { forwardRef, useImperativeHandle, useRef } from 'react';
@@ -152,9 +153,14 @@ export const QuickInputField = forwardRef<TextInput, QuickInputFieldProps>(
           {hasValue && (
             <Pressable
               style={styles.cancelButton}
-              onPress={onCancel}
+              onPress={() => {
+                if (sendDisabled || sendLoading) return;
+                onCancel?.();
+              }}
+              disabled={sendDisabled || sendLoading}
               accessibilityRole="button"
               accessibilityLabel="취소"
+              accessibilityState={{ disabled: sendDisabled || sendLoading }}
             >
               <View style={[styles.cancelIconBg, { backgroundColor: palette.fillStrong }]}>
                 <Icon name="cancel" variant="solid" size={24} />
@@ -234,7 +240,7 @@ const styles = StyleSheet.create({
     flex: 1,
     position: 'relative',
     justifyContent: 'center',
-    minHeight: 28,
+    height: 28,
   },
   placeholderWrap: {
     ...StyleSheet.absoluteFillObject,
@@ -245,9 +251,15 @@ const styles = StyleSheet.create({
     ...typography.body02.medium,
   },
   input: {
-    ...typographyLayout.fieldInputLine,
-    ...typography.body02.medium,
-    lineHeight: Platform.OS === 'android' ? 21 : 20,
+    ...pretendardTextStyle('500'),
+    flex: 1,
+    alignSelf: 'stretch',
+    padding: 0,
+    margin: 0,
+    fontSize: 14,
+    height: 28,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   cancelButton: {
     width: 24,

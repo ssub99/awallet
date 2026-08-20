@@ -464,7 +464,7 @@ function ModalBottomsheetContent({
       >
         {sheetBody}
       </Animated.View>
-      <ToastHost />
+      {visible ? <ToastHost /> : null}
     </>
   );
 

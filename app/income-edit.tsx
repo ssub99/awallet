@@ -178,7 +178,9 @@ export default function IncomeEditScreen() {
   // Alert states
   const [showAmountAlert, setShowAmountAlert] = useState<boolean>(false);
   const [showDeleteAlert, setShowDeleteAlert] = useState<boolean>(false);
+  const [isDeleteConfirming, setIsDeleteConfirming] = useState<boolean>(false);
   const [showNoChangesModal, setShowNoChangesModal] = useState<boolean>(false);
+  const deleteInFlightRef = useRef(false);
 
   useEffect(() => {
     if (!showDeleteAlert) {
@@ -659,6 +661,13 @@ export default function IncomeEditScreen() {
   };
 
   const handleDelete = async () => {
+    if (deleteInFlightRef.current) {
+      return;
+    }
+
+    deleteInFlightRef.current = true;
+    setIsDeleteConfirming(true);
+    setShowDeleteAlert(false);
     setLoading(true);
     try {
       const storedData = await AsyncStorage.getItem('calendarData');
@@ -722,6 +731,8 @@ export default function IncomeEditScreen() {
     } catch (error) {
       console.error('[수입 삭제] error:', error);
     } finally {
+      deleteInFlightRef.current = false;
+      setIsDeleteConfirming(false);
       setLoading(false);
     }
   };
@@ -735,6 +746,9 @@ export default function IncomeEditScreen() {
   };
 
   const handleDeleteButtonPress = () => {
+    if (isDeleteConfirming) {
+      return;
+    }
     void logEvent('btn', {
       screen_name: '/income-edit',
       target: 'delete',
@@ -751,6 +765,9 @@ export default function IncomeEditScreen() {
   };
 
   const handleDeleteModalConfirm = () => {
+    if (isDeleteConfirming) {
+      return;
+    }
     void logEvent('btn', {
       screen_name: '/income-edit',
       target: 'delete-confirm',
@@ -852,7 +869,11 @@ export default function IncomeEditScreen() {
               <SectionTitle style={[styles.sectionTitle, { color: palette.staticBlack }]}>
                 날짜 <Text style={{ color: palette.statusNegative }}>*</Text>
               </SectionTitle>
-              <Pressable onPress={handleDeleteButtonPress}>
+              <Pressable
+                onPress={handleDeleteButtonPress}
+                disabled={isDeleteConfirming}
+                accessibilityState={{ disabled: isDeleteConfirming }}
+              >
                 <UiLineText style={[styles.deleteButton, { color: palette.statusNegative }]}>
                   삭제
                 </UiLineText>
@@ -1020,6 +1041,7 @@ export default function IncomeEditScreen() {
         onCancel={handleDeleteModalCancel}
         confirmText="확인"
         cancelText="취소"
+        confirmDisabled={isDeleteConfirming}
       >
         <Text style={[styles.alertText, { color: palette.text }]}>
           수입 내역을 삭제하시겠습니까?
