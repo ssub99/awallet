@@ -7,7 +7,7 @@
 
 import { Icon } from '@/components/ui/icon';
 import { colors, type ColorPalette } from '@/constants/theme';
-import { typographyLayout } from '@/constants/typography';
+import { typography, typographyLayout } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { logEvent } from '@/utils/analytics';
 import { forwardRef, useImperativeHandle, useRef } from 'react';
@@ -122,8 +122,6 @@ export const QuickInputField = forwardRef<TextInput, QuickInputFieldProps>(
                 onChangeText={onChangeText}
                 placeholder=""
                 placeholderTextColor={palette.textAssistive}
-                selectionColor={palette.primary}
-                cursorColor={palette.primary}
                 keyboardType="default"
                 returnKeyType="send"
                 // 쿼티 키패드 전송 버튼도 컴포넌트 내 보내기 버튼과 동일하게 처리
@@ -133,6 +131,8 @@ export const QuickInputField = forwardRef<TextInput, QuickInputFieldProps>(
                 }}
                 textAlignVertical="center"
                 {...restTextInputProps}
+                selectionColor={palette.primary}
+                cursorColor={palette.primary}
               />
               {!hasValue && (
                 <View style={styles.placeholderWrap} pointerEvents="none">
@@ -240,8 +240,15 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
   },
-  placeholder: typographyLayout.fieldInputPlaceholder,
-  input: typographyLayout.fieldInputLine,
+  placeholder: {
+    ...typographyLayout.fieldInputPlaceholder,
+    ...typography.body02.medium,
+  },
+  input: {
+    ...typographyLayout.fieldInputLine,
+    ...typography.body02.medium,
+    lineHeight: Platform.OS === 'android' ? 21 : 20,
+  },
   cancelButton: {
     width: 24,
     height: 24,

@@ -55,8 +55,11 @@ import ArrowDownSolid from '@/assets/images/icons/solid/arrowDown.svg';
 import ArrowLeftSolid from '@/assets/images/icons/solid/arrowLeft.svg';
 import ArrowRightSolid from '@/assets/images/icons/solid/arrowRight.svg';
 import ArrowUpSolid from '@/assets/images/icons/solid/arrowUp.svg';
+import CalculatorSolid from '@/assets/images/icons/solid/calculator.svg';
 import CancelSolid from '@/assets/images/icons/solid/cancel.svg';
+import CategorySettingSolid from '@/assets/images/icons/solid/categorysetting.svg';
 import DeleteSolid from '@/assets/images/icons/solid/delete.svg';
+import CopyLine from '@/assets/images/icons/line/copy.svg';
 import HomeSolid from '@/assets/images/icons/solid/home.svg';
 import ImageSolid from '@/assets/images/icons/solid/image.svg';
 import ChallengeSolid from '@/assets/images/icons/solid/challenge.svg';
@@ -124,6 +127,7 @@ const iconComponents = {
     check: CheckLine,
     checkboxIcon: CheckboxIconLine,
     close: CloseLine,
+    copy: CopyLine,
     delete: DeleteLine,
     filter: FilterLine,
     handle: HandleLine,
@@ -151,7 +155,9 @@ const iconComponents = {
     arrowLeft: ArrowLeftSolid,
     arrowRight: ArrowRightSolid,
     arrowUp: ArrowUpSolid,
+    calculator: CalculatorSolid,
     cancel: CancelSolid,
+    categorySetting: CategorySettingSolid,
     challenge: ChallengeSolid,
     delete: DeleteSolid,
     home: HomeSolid,

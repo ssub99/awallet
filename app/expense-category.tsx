@@ -366,7 +366,6 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-    marginLeft: 16,
+    marginHorizontal: 16,
   },
 });
-

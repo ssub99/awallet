@@ -44,6 +44,7 @@ const SHEET_MAX_HEIGHT = SCREEN_HEIGHT * 0.8;
 const SHEET_DISMISS_HEIGHT = SCREEN_HEIGHT * 0.5;
 const SHEET_NAV_HEIGHT = 56;
 const SHEET_HEIGHT_ANIMATION_DURATION = 180;
+const SHEET_PRESENTATION_ANIMATION_DURATION = 300;
 
 export interface ModalBottomsheetProps {
   visible: boolean;
@@ -64,12 +65,22 @@ export interface ModalBottomsheetProps {
   showHandle?: boolean | 'auto';
   /** Allow the grabber to resize the sheet between 31% and 80%; below 30% dismisses. */
   resizable?: boolean;
+  /** sheet: drag the whole sheet down. resize: resize the sheet height. */
+  dragBehavior?: 'resize' | 'sheet';
   /**
    * Skip shell bottom inset. Use when children handle iOS home indicator / Android nav (see category emoji picker).
    */
   noPaddingBottom?: boolean;
   /** Render inside parent Modal (ModalPopup extraOverlay). */
   embedded?: boolean;
+  /** zIndex for embedded sheet host. Use higher values for nested sheets. */
+  embeddedZIndex?: number;
+  /** Hide the sheet backdrop when the parent layer already owns dimming. */
+  showBackdrop?: boolean;
+  /** Use a back arrow in the navigation left slot instead of the close icon. */
+  navigationLeftIcon?: 'close' | 'back';
+  /** Hide built-in navigation so callers can animate their own screen-level navigation. */
+  hideNavigation?: boolean;
 }
 
 function getSheetContainerBottomPadding(
@@ -95,8 +106,12 @@ function ModalBottomsheetContent({
   sizing,
   showHandle = 'auto',
   resizable = false,
+  dragBehavior = 'resize',
   noPaddingBottom = false,
   embedded = false,
+  showBackdrop = true,
+  navigationLeftIcon = 'close',
+  hideNavigation = false,
 }: ModalBottomsheetProps) {
   const colorScheme = useColorScheme();
   const palette = colors[colorScheme ?? 'light'] as ColorPalette;
@@ -114,6 +129,8 @@ function ModalBottomsheetContent({
   const sheetHeightValueRef = useRef(0);
   const dragStartHeightRef = useRef(0);
   const visibleRef = useRef(visible);
+  const wasVisibleForContentRef = useRef(visible);
+  const latestVisibleContentRef = useRef<ReactNode>(children);
 
   const flattenedStyle = StyleSheet.flatten(style);
   const numericStyleHeight = typeof flattenedStyle?.height === 'number' ? flattenedStyle.height : undefined;
@@ -121,6 +138,7 @@ function ModalBottomsheetContent({
   const resolvedSizing = sizing ?? 'fixed';
   const usesMeasuredHeight = resolvedSizing === 'content';
   const usesControlledHeight = resizable || usesMeasuredHeight;
+  const usesSheetDrag = resizable && dragBehavior === 'sheet';
   const usesFlexibleContent =
     typeof numericStyleHeight === 'number' || (usesMeasuredHeight && measuredSheetHeight !== null);
   const hasHandle =
@@ -131,6 +149,10 @@ function ModalBottomsheetContent({
         (typeof numericStyleMaxHeight === 'number' && numericStyleMaxHeight >= SHEET_MAX_HEIGHT - 1)));
   const initialSheetHeight = Math.min(numericStyleHeight ?? numericStyleMaxHeight ?? SHEET_MAX_HEIGHT, SHEET_MAX_HEIGHT);
   const sheetStyle = usesControlledHeight ? { ...style, height: undefined, maxHeight: undefined } : style;
+
+  if (visible) {
+    latestVisibleContentRef.current = children;
+  }
 
   useEffect(() => {
     const id = sheetHeight.addListener(({ value }) => {
@@ -181,6 +203,10 @@ function ModalBottomsheetContent({
           Math.abs(gestureState.dy) > 4 &&
           Math.abs(gestureState.dy) > Math.abs(gestureState.dx),
         onPanResponderGrant: () => {
+          if (usesSheetDrag) {
+            sheetTranslateY.stopAnimation();
+            return;
+          }
           sheetHeight.stopAnimation((value) => {
             const nextValue = typeof value === 'number' && value > 0 ? value : initialSheetHeight;
             sheetHeightValueRef.current = nextValue;
@@ -188,12 +214,28 @@ function ModalBottomsheetContent({
           });
         },
         onPanResponderMove: (_, gestureState) => {
+          if (usesSheetDrag) {
+            sheetTranslateY.setValue(Math.max(0, gestureState.dy));
+            return;
+          }
           const dragStartHeight = dragStartHeightRef.current || sheetHeightValueRef.current || initialSheetHeight;
           const nextHeight = Math.max(0, Math.min(SHEET_MAX_HEIGHT, dragStartHeight - gestureState.dy));
           sheetHeightValueRef.current = nextHeight;
           sheetHeight.setValue(nextHeight);
         },
         onPanResponderRelease: (_, gestureState) => {
+          if (usesSheetDrag) {
+            if (gestureState.dy >= initialSheetHeight * 0.5 || gestureState.vy > 1.2) {
+              onClose();
+              return;
+            }
+            Animated.timing(sheetTranslateY, {
+              toValue: 0,
+              duration: SHEET_HEIGHT_ANIMATION_DURATION,
+              useNativeDriver: true,
+            }).start();
+            return;
+          }
           const currentHeight = sheetHeightValueRef.current;
           if (gestureState.dy > 0 && currentHeight <= SHEET_DISMISS_HEIGHT) {
             onClose();
@@ -202,10 +244,18 @@ function ModalBottomsheetContent({
           animateSheetHeight(initialSheetHeight);
         },
         onPanResponderTerminate: () => {
+          if (usesSheetDrag) {
+            Animated.timing(sheetTranslateY, {
+              toValue: 0,
+              duration: SHEET_HEIGHT_ANIMATION_DURATION,
+              useNativeDriver: true,
+            }).start();
+            return;
+          }
           animateSheetHeight(initialSheetHeight);
         },
       }),
-    [animateSheetHeight, initialSheetHeight, onClose, resizable, sheetHeight]
+    [animateSheetHeight, initialSheetHeight, onClose, resizable, sheetHeight, sheetTranslateY, usesSheetDrag]
   );
 
   useEffect(() => {
@@ -229,15 +279,15 @@ function ModalBottomsheetContent({
       }
 
       requestAnimationFrame(() => {
-        Animated.sequence([
+        Animated.parallel([
           Animated.timing(dimOpacity, {
             toValue: 1,
-            duration: 100,
+            duration: SHEET_PRESENTATION_ANIMATION_DURATION,
             useNativeDriver: true,
           }),
           Animated.timing(sheetTranslateY, {
             toValue: 0,
-            duration: 150,
+            duration: SHEET_PRESENTATION_ANIMATION_DURATION,
             useNativeDriver: true,
           }),
         ]).start();
@@ -246,20 +296,23 @@ function ModalBottomsheetContent({
       dimOpacity.stopAnimation();
       sheetTranslateY.stopAnimation();
       sheetHeight.stopAnimation();
-      Animated.sequence([
+      Animated.parallel([
         Animated.timing(sheetTranslateY, {
           toValue: SCREEN_HEIGHT,
-          duration: 150,
+          duration: SHEET_PRESENTATION_ANIMATION_DURATION,
           useNativeDriver: true,
         }),
         Animated.timing(dimOpacity, {
           toValue: 0,
-          duration: 150,
+          duration: SHEET_PRESENTATION_ANIMATION_DURATION,
           useNativeDriver: true,
         }),
       ]).start(() => {
         if (!embedded && !visibleRef.current) {
           setIsModalVisible(false);
+        }
+        if (!visibleRef.current) {
+          setCurrentContent(null);
         }
       });
     }
@@ -278,21 +331,15 @@ function ModalBottomsheetContent({
     if (!visible) {
       return;
     }
-    setCurrentContent(children);
-  }, [children, visible]);
-
-  useEffect(() => {
-    if (!visible) {
-      return;
-    }
     setCurrentTitle(title);
   }, [title, visible]);
 
   useEffect(() => {
-    if (visible) {
-      setCurrentContent(children);
+    if (wasVisibleForContentRef.current && !visible) {
+      setCurrentContent(latestVisibleContentRef.current);
     }
-  }, [children, visible]);
+    wasVisibleForContentRef.current = visible;
+  }, [visible]);
 
   const handleBackdropPress = () => {
     if (closeOnBackdrop) {
@@ -318,50 +365,57 @@ function ModalBottomsheetContent({
       style={[styles.sheet, usesControlledHeight ? styles.controlledSheet : null, sheetStyle]}
       onLayout={handleMeasuredSheetLayout}
     >
-      <View style={styles.navigation}>
-        {hasHandle ? (
-          <View
-            style={styles.grabberTouchArea}
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-            {...(resizable ? panResponder.panHandlers : null)}
-          >
-            <View style={styles.grabber} />
-          </View>
-        ) : null}
-        <View style={styles.navContent}>
-          <View style={styles.navLeft}>
-            <Pressable
-              onPress={onClose}
-              style={styles.closeButton}
-              accessibilityRole="button"
-              accessibilityLabel="닫기"
+      {!hideNavigation ? (
+        <View style={styles.navigation}>
+          {hasHandle ? (
+            <View
+              style={styles.grabberTouchArea}
+              pointerEvents="box-none"
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
             >
-              <Icon name="close" size={24} color={palette.text} />
-            </Pressable>
-          </View>
-          <View style={styles.titleContainer}>
-            <Text style={[styles.title, { color: palette.text }]}>{currentTitle}</Text>
-          </View>
-          <View style={styles.navRight}>
-            {onConfirm ? (
-              <Pressable
-                onPress={onConfirm}
-                style={[styles.confirmButton, { backgroundColor: palette.primary }]}
-                accessibilityRole="button"
-                accessibilityLabel={confirmText}
+              <View
+                style={styles.grabberTouchTarget}
+                {...(resizable ? panResponder.panHandlers : null)}
               >
-                <Text style={[styles.confirmText, { color: palette.staticWhite }]}>
-                  {confirmText}
-                </Text>
+                <View style={styles.grabber} />
+              </View>
+            </View>
+          ) : null}
+          <View style={styles.navContent}>
+            <View style={styles.navLeft}>
+              <Pressable
+                onPress={onClose}
+                style={styles.closeButton}
+                accessibilityRole="button"
+                accessibilityLabel={navigationLeftIcon === 'back' ? '이전' : '닫기'}
+              >
+                <Icon name={navigationLeftIcon === 'back' ? 'arrowLeft' : 'close'} size={24} color={palette.text} />
               </Pressable>
-            ) : (
-              <View style={styles.emptySpace} />
-            )}
+            </View>
+            <View style={styles.titleContainer}>
+              <Text style={[styles.title, { color: palette.text }]}>{currentTitle}</Text>
+            </View>
+            <View style={styles.navRight}>
+              {onConfirm ? (
+                <Pressable
+                  onPress={onConfirm}
+                  style={[styles.confirmButton, { backgroundColor: palette.primary }]}
+                  accessibilityRole="button"
+                  accessibilityLabel={confirmText}
+                >
+                  <Text style={[styles.confirmText, { color: palette.staticWhite }]}>
+                    {confirmText}
+                  </Text>
+                </Pressable>
+              ) : (
+                <View style={styles.emptySpace} />
+              )}
+            </View>
           </View>
+          <View style={[styles.divider, { backgroundColor: palette.border }]} />
         </View>
-        <View style={[styles.divider, { backgroundColor: palette.border }]} />
-      </View>
+      ) : null}
       <View
         style={[
           styles.content,
@@ -370,7 +424,7 @@ function ModalBottomsheetContent({
           contentStyle,
         ]}
       >
-        {currentContent}
+        {visible ? children : currentContent ?? latestVisibleContentRef.current}
       </View>
     </View>
   );
@@ -388,10 +442,10 @@ function ModalBottomsheetContent({
       <Animated.View
         style={[
           styles.backdrop,
-          { backgroundColor: palette.overlayDim },
-          embedded ? { opacity: dimOpacity, zIndex: 100001 } : { opacity: dimOpacity },
+          showBackdrop ? { backgroundColor: palette.overlayDim, opacity: dimOpacity } : styles.transparentBackdrop,
+          embedded ? { zIndex: 100001 } : null,
         ]}
-        pointerEvents={embedded ? (visible ? 'auto' : 'none') : undefined}
+        pointerEvents={visible ? 'auto' : 'none'}
       >
         <Pressable style={StyleSheet.absoluteFill} onPress={handleBackdropPress} />
       </Animated.View>
@@ -438,7 +492,13 @@ function ModalBottomsheetContent({
 export function ModalBottomsheet(props: ModalBottomsheetProps) {
   if (props.embedded) {
     return (
-      <SafeAreaProvider style={styles.insetProviderOverlay}>
+      <SafeAreaProvider
+        style={[
+          styles.insetProviderOverlay,
+          { zIndex: props.embeddedZIndex ?? 100000, elevation: props.embeddedZIndex ?? 100000 },
+        ]}
+        pointerEvents={props.visible ? 'box-none' : 'none'}
+      >
         <ModalBottomsheetContent {...props} embedded />
       </SafeAreaProvider>
     );
@@ -489,6 +549,9 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     zIndex: 1000,
   },
+  transparentBackdrop: {
+    backgroundColor: 'transparent',
+  },
   sheetContainer: {
     position: 'absolute',
     bottom: 0,
@@ -510,10 +573,16 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 44,
-    paddingTop: 4,
     alignItems: 'center',
     justifyContent: 'flex-start',
     zIndex: 1,
+  },
+  grabberTouchTarget: {
+    width: 96,
+    height: 44,
+    paddingTop: 4,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
   },
   grabber: {
     width: 48,

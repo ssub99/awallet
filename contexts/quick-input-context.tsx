@@ -9,17 +9,36 @@
  */
 
 import { QuickInputConfirmCard, type QuickInputConfirmCardData } from '@/components/ui/quick-input-confirm-card';
+import { Accordion } from '@/components/ui/accordion';
+import { CustomKeypad, getKeypadHeight, type CustomKeypadOperator, type ExpressionToken } from '@/components/ui/custom-keypad';
+import { CustomKeypadOverlay } from '@/components/ui/custom-keypad-overlay';
+import { FieldInputText } from '@/components/ui/field-input-text';
+import { Button } from '@/components/ui/button';
+import { BottomSheetFlow, type BottomSheetFlowScreen } from '@/components/ui/bottom-sheet-flow';
+import { Chip } from '@/components/ui/chip';
+import { Input } from '@/components/ui/input';
+import { ModalBottomsheet, ModalBottomsheetBottomInset } from '@/components/ui/modal-bottomsheet';
 import { QuickInputField } from '@/components/ui/quick-input-field';
-import { QuickInputTipBox } from '@/components/ui/quick-input-tip-box';
+import { Icon } from '@/components/ui/icon';
+import { Radio } from '@/components/ui/radio';
+import { SectionTitle } from '@/components/ui/section-title';
+import { RecordDatePickerSheet } from '@/components/ui/record-date-picker-sheet';
+import { Switch } from '@/components/ui/switch';
+import { UiLineText } from '@/components/ui/ui-line-text';
 import { PARSE_EXPENSE_API_URL } from '@/constants/api';
+import { atomicColors } from '@/constants/atomic-colors';
+import { colors } from '@/constants/theme';
+import { getCategoriesByType, type Category } from '@/constants/categories';
 import { getRandomQuickInputPlaceholder } from '@/constants/quick-input-placeholders';
 import { useAppData } from '@/contexts/app-data-context';
 import { useToast } from '@/contexts/toast-context';
 import { calendarRefreshEvent, publishCalendarTarget } from '@/hooks/calendar-events';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
+import { useRecordFormMemoKeyboard } from '@/hooks/use-record-form-memo-keyboard';
 import { logEvent } from '@/utils/analytics';
 import { getApiSecurityHeaders } from '@/utils/api-security-headers';
 import { isAtLeastVersion, QUICK_INPUT_MIN_VERSION } from '@/utils/app-version';
+import { applySavedOrder, loadCategoryOrder } from '@/utils/category-order';
 import { loadCategories } from '@/utils/categories';
 import { triggerChallengeNotifications } from '@/utils/challenge-utils';
 import { getCustomMonthInfo } from '@/utils/custom-month';
@@ -27,10 +46,12 @@ import {
     addCalendarMonths,
     adjustWeekendDate,
     calculateRecurringIterations,
+    formatRecurringSummaryLabel,
     getActualDayForMonth,
     getDayOfWeekLabel,
     getNextRecurringDate,
     getRecurringWeekendOptionDisplayLabel,
+    shouldIgnoreWeekendOptionForRecurringType,
 } from '@/utils/expense-calculations';
 import { createExpensesBatch, type ExpenseRecord, type PaymentMethod } from '@/utils/expenses';
 import { generateGroupId, generateRecordId } from '@/utils/id-generator';
@@ -50,26 +71,26 @@ import {
     resolveIosQuickInputBottomAboveAnchor,
     resolveQuickInputBottomAboveKeyboard,
 } from '@/utils/quick-input-keyboard-position';
-import {
-  beginQuickInputRecordEdit,
-} from '@/utils/quick-input-expense-draft-bridge';
-import {
-  EXPENSE_RECORD_QUICK_INPUT_DRAFT_ROUTE_PARAMS,
-} from '@/utils/expense-record-creation-mode';
 import type { QuickInputPendingRecord } from '@/utils/quick-input-pending-record';
 import { refreshWidgetWithCurrentMonth } from '@/utils/widget-data-sync';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
+import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
 import {
   AppState,
   BackHandler,
+  Dimensions,
+  Easing,
   Keyboard,
   Platform,
   Pressable,
+  ScrollView,
   Animated as RNAnimated,
   StyleSheet,
+  Text,
+  useWindowDimensions,
   View,
   type AppStateStatus,
   type KeyboardEvent,
@@ -87,6 +108,20 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 type AnimatedValue = RNAnimated.Value;
 
 const FAB_OFFSET_ABOVE_TABS = 16;
+const CALCULATOR_BAR_HEIGHT = 64;
+const CALCULATOR_PANEL_GAP = 12;
+const CALCULATOR_ANIMATION_DURATION = 360;
+const CALCULATOR_ANIMATION_EASING = Easing.inOut(Easing.cubic);
+const CALCULATOR_PANEL_HEIGHT =
+  CALCULATOR_BAR_HEIGHT + CALCULATOR_PANEL_GAP + getKeypadHeight(Dimensions.get('window').width);
+const EDIT_AMOUNT_KEYPAD_HEIGHT = getKeypadHeight(Dimensions.get('window').width);
+const QUICK_INPUT_EDIT_SHEET_ANIMATION_DURATION = 300;
+const QUICK_INPUT_EMBEDDED_SHEET_UNMOUNT_DELAY = QUICK_INPUT_EDIT_SHEET_ANIMATION_DURATION + 80;
+const QUICK_INPUT_EDIT_RESTORE_DELAY = 180;
+const QUICK_INPUT_EDIT_OPENING_ANIMATION_DURATION = 180;
+const QUICK_INPUT_EDIT_VIEW_TRANSITION_DURATION = 350;
+const QUICK_INPUT_EDIT_VIEW_TRANSITION_EASING = Easing.bezier(0.42, 0, 0.58, 1);
+const PAYMENT_SHEET_LIST_BOTTOM_GAP = 16;
 
 export type ShowQuickInputOptions = {
   /** 기본 true. false면 롱 입력·키패드 자동 오픈 없음 */
@@ -189,9 +224,30 @@ const RATE_LIMIT_MAX_REQUESTS = 5;
 /** 토큰 비용 절감: 비기록 연속 N회 시 API 호출 잠금 */
 const NON_RECORD_LOCK_THRESHOLD = 3;
 const NON_RECORD_LOCK_MS = 30_000;
+const QUICK_INPUT_RECURRING_PERIOD_OPTIONS = ['매일', '매주', '매월', '2주', '3주', '4주', '2개월 마다', '3개월 마다', '4개월 마다', '5개월 마다', '6개월 마다', '주중', '주말'];
+const QUICK_INPUT_INSTALLMENT_MONTH_OPTIONS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+const QUICK_INPUT_WEEKEND_OPTIONS: Array<{ value: 'weekend' | 'friday' | 'monday'; label: string }> = [
+  { value: 'weekend', label: '관계없이 주말 기록' },
+  { value: 'friday', label: '금주 금요일 기록' },
+  { value: 'monday', label: '차주 월요일 기록' },
+];
 
 /** parse-expense API가 반환하는 기록 한 건 (확인 카드·기록 생성용) */
 type PendingParseRecord = QuickInputPendingRecord;
+
+type QuickInputEditDraft = {
+  category: string;
+  date: string;
+  amount: string;
+  memo: string;
+  paymentSubtypeLabel: string;
+  paymentMethod: 'credit' | 'debit' | 'cash';
+  isRecurring: boolean;
+  isInstallment: boolean;
+  recurringType: string;
+  totalMonths: number;
+  weekendOption: 'weekend' | 'friday' | 'monday';
+};
 
 function toPendingParseRecord(value: unknown): PendingParseRecord | null {
   if (!value || typeof value !== 'object') {
@@ -257,7 +313,7 @@ function normalizeApiRecords(records: unknown): PendingParseRecord[] {
 }
 
 function parsePendingDate(date: string): { year: number; month: number; day: number } | null {
-  const matched = date.match(/^(\d{4})\.(\d{2})\.(\d{2})$/);
+  const matched = date.trim().match(/^(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})$/);
   if (!matched) {
     return null;
   }
@@ -580,6 +636,19 @@ function isValidPendingDate(date: unknown): date is string {
   return typeof date === 'string' && parsePendingDate(date) != null;
 }
 
+function displayDateToIsoDate(date: string): string | null {
+  const normalized = date.trim().replace(/\./g, '-');
+  const parsed = parsePendingDate(normalized);
+  if (!parsed) {
+    return null;
+  }
+  return `${parsed.year}-${String(parsed.month).padStart(2, '0')}-${String(parsed.day).padStart(2, '0')}`;
+}
+
+function isoDateToQuickInputDisplayDate(isoDate: string): string {
+  return isoDate.replace(/-/g, '.');
+}
+
 /**
  * API 응답 1건에 규칙 보정 SSOT 적용 (타입·시리즈·날짜·메모 규칙 fallback).
  * 서버가 이미 적용했어도 idempotent. Simple 경로는 서버 리뷰를 건너뛰므로 클라이언트에서도 동일 유틸 사용.
@@ -662,6 +731,7 @@ async function buildConfirmCardFromPending(
 
 export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const router = useRouter();
   const { showToast } = useToast();
   const { refresh } = useAppData();
@@ -671,7 +741,38 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const [isQuickInputShortVisible, setIsQuickInputShortVisible] = useState(false);
   const [quickInputText, setQuickInputText] = useState('');
   const [quickInputPlaceholder, setQuickInputPlaceholder] = useState(getRandomQuickInputPlaceholder);
+  const [isQuickInputCalculatorVisible, setIsQuickInputCalculatorVisible] = useState(false);
+  const [isQuickInputCalculatorMounted, setIsQuickInputCalculatorMounted] = useState(false);
+  const [quickInputCalculatorAmount, setQuickInputCalculatorAmount] = useState('');
+  const [quickInputCalculatorExpression, setQuickInputCalculatorExpression] = useState<ExpressionToken[]>([]);
   const [confirmCardData, setConfirmCardData] = useState<QuickInputConfirmCardData | null>(null);
+  const [quickInputEditSheetVisible, setQuickInputEditSheetVisible] = useState(false);
+  const [isQuickInputEditOpening, setIsQuickInputEditOpening] = useState(false);
+  const [isQuickInputEditSheetClosing, setIsQuickInputEditSheetClosing] = useState(false);
+  const [quickInputEditDraft, setQuickInputEditDraft] = useState<QuickInputEditDraft | null>(null);
+  const [quickInputEditView, setQuickInputEditView] = useState<'form' | 'category' | 'recurring'>('form');
+  const [quickInputCategorySheetCategories, setQuickInputCategorySheetCategories] = useState<Category[]>(() =>
+    getCategoriesByType('expense')
+  );
+  const [quickInputCategorySheetSelected, setQuickInputCategorySheetSelected] = useState('');
+  const [quickInputDateSheetMounted, setQuickInputDateSheetMounted] = useState(false);
+  const [quickInputDateSheetVisible, setQuickInputDateSheetVisible] = useState(false);
+  const [quickInputDateSheetSelected, setQuickInputDateSheetSelected] = useState<string | null>(null);
+  const [quickInputDateSheetMonthStartDay, setQuickInputDateSheetMonthStartDay] = useState(1);
+  const [quickInputPaymentSheetMounted, setQuickInputPaymentSheetMounted] = useState(false);
+  const [quickInputPaymentSheetVisible, setQuickInputPaymentSheetVisible] = useState(false);
+  const [quickInputPaymentSheetFilter, setQuickInputPaymentSheetFilter] = useState<'credit' | 'debit'>('credit');
+  const [quickInputPaymentSheetItems, setQuickInputPaymentSheetItems] = useState<PaymentSubtype[]>([]);
+  const [quickInputAmountKeypadMounted, setQuickInputAmountKeypadMounted] = useState(false);
+  const [quickInputAmountKeypadVisible, setQuickInputAmountKeypadVisible] = useState(false);
+  const [quickInputEditAmountExpression, setQuickInputEditAmountExpression] = useState<ExpressionToken[]>([]);
+  const [quickInputRecurringDraftIsRecurring, setQuickInputRecurringDraftIsRecurring] = useState(false);
+  const [quickInputRecurringDraftIsInstallment, setQuickInputRecurringDraftIsInstallment] = useState(false);
+  const [quickInputRecurringDraftHasSelectedInstallment, setQuickInputRecurringDraftHasSelectedInstallment] = useState(false);
+  const [quickInputRecurringDraftType, setQuickInputRecurringDraftType] = useState('매월');
+  const [quickInputRecurringDraftTotalMonths, setQuickInputRecurringDraftTotalMonths] = useState(2);
+  const [quickInputRecurringDraftWeekendOption, setQuickInputRecurringDraftWeekendOption] = useState<'weekend' | 'friday' | 'monday'>('weekend');
+  const [quickInputRecurringDraftIsPeriodExpanded, setQuickInputRecurringDraftIsPeriodExpanded] = useState(false);
   const [isQuickInputSendLoading, setIsQuickInputSendLoading] = useState(false);
   const [isQuickInputConfirmAdding, setIsQuickInputConfirmAdding] = useState(false);
   /** 소비 기록 생성(변경) 화면 진입 중 오버레이 숨김 */
@@ -697,6 +798,19 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   /** 닫기 중: UI를 키보드와 함께 내린 뒤 언마운트 */
   const isClosingRef = useRef(false);
   const hideFinishTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const editSheetCloseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const editSheetRestoreTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dateSheetUnmountTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const paymentSheetUnmountTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const editSheetOpenAnimationRef = useRef<RNAnimated.CompositeAnimation | null>(null);
+  const editSheetOpenCardTranslateY = useRef(new RNAnimated.Value(0)).current;
+  const editSheetOpenCardOpacity = useRef(new RNAnimated.Value(1)).current;
+  const editSheetOpenInputTranslateY = useRef(new RNAnimated.Value(0)).current;
+  const editSheetOpenInputOpacity = useRef(new RNAnimated.Value(1)).current;
+  const calculatorTranslateYRef = useRef(new RNAnimated.Value(CALCULATOR_PANEL_HEIGHT));
+  const calculatorAnimationRef = useRef<RNAnimated.CompositeAnimation | null>(null);
+  const amountKeypadTranslateYRef = useRef(new RNAnimated.Value(EDIT_AMOUNT_KEYPAD_HEIGHT));
+  const amountKeypadAnimationRef = useRef<RNAnimated.CompositeAnimation | null>(null);
   const androidKeyboardSyncRafRef = useRef<number | null>(null);
   /** Android: controller만으로 bottom이 내려가며 깜빡이는 것 방지 */
   const lastAndroidBottomRef = useRef(0);
@@ -705,6 +819,9 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const hideQuickInputRef = useRef<(options?: HideQuickInputOptions) => void>(() => {});
 
   const quickInputRef = useRef<TextInput>(null);
+  const editSheetScrollRef = useRef<ScrollView>(null);
+  const editSheetMemoSectionYRef = useRef(0);
+  const editSheetMemoSectionHeightRef = useRef(0);
   const paymentSubtypesCacheRef = useRef<PaymentSubtype[]>([]);
   const expenseCategoriesCacheRef = useRef<{ label: string; emoji: string }[]>([]);
   const incomeCategoriesCacheRef = useRef<{ label: string; emoji: string }[]>([]);
@@ -717,6 +834,22 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const overlayStarRotate = useRef(new RNAnimated.Value(0)).current;
   const { reanimated: keyboardReanimated } = useKeyboardContext();
   const navigationInsetBottomRef = useRef(insets.bottom);
+
+  const {
+    memoInputRef: quickInputEditMemoInputRef,
+    keyboardPaddingBottom: quickInputEditMemoKeyboardPaddingBottom,
+    isMemoSystemKeyboardOpen: isQuickInputEditMemoKeyboardOpen,
+    handleMemoFocus: handleQuickInputEditMemoKeyboardFocus,
+    handleMemoBlur: handleQuickInputEditMemoKeyboardBlur,
+    onMemoScroll: onQuickInputEditMemoScroll,
+    memoPointerHandlers: quickInputEditMemoPointerHandlers,
+  } = useRecordFormMemoKeyboard({
+    scrollViewRef: editSheetScrollRef,
+    memoSectionYRef: editSheetMemoSectionYRef,
+    memoSectionHeightRef: editSheetMemoSectionHeightRef,
+    windowHeight,
+    safeAreaBottom: insets.bottom,
+  });
 
   useEffect(() => {
     navigationInsetBottomRef.current = insets.bottom;
@@ -969,6 +1102,12 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       animatedBottom.value = bottom;
       applyAndroidQuickInputKeyboardMode();
       setQuickInputPlaceholder(getRandomQuickInputPlaceholder());
+      calculatorAnimationRef.current?.stop();
+      calculatorTranslateYRef.current.setValue(CALCULATOR_PANEL_HEIGHT);
+      setIsQuickInputCalculatorVisible(false);
+      setIsQuickInputCalculatorMounted(false);
+      setQuickInputCalculatorAmount('');
+      setQuickInputCalculatorExpression([]);
       quickInputLongOpacity.setValue(1);
       setIsQuickInputShortVisible(false);
       setIsQuickInputContentVisible(true);
@@ -980,6 +1119,108 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const handleQuickInputFieldFocus = useCallback(() => {
     setShouldFollowKeyboard(true);
   }, [setShouldFollowKeyboard]);
+
+  const handleQuickInputCalculatorPress = useCallback(() => {
+    calculatorAnimationRef.current?.stop();
+    calculatorTranslateYRef.current.setValue(CALCULATOR_PANEL_HEIGHT);
+    setIsQuickInputCalculatorMounted(true);
+    setIsQuickInputCalculatorVisible(true);
+    setShouldFollowKeyboard(false);
+    shortBottomFromScreen.value = 0;
+    animatedBottom.value = 0;
+    quickInputRef.current?.blur();
+    Keyboard.dismiss();
+    requestAnimationFrame(() => {
+      calculatorAnimationRef.current = RNAnimated.timing(calculatorTranslateYRef.current, {
+        toValue: 0,
+        duration: CALCULATOR_ANIMATION_DURATION,
+        easing: CALCULATOR_ANIMATION_EASING,
+        useNativeDriver: true,
+      });
+      calculatorAnimationRef.current.start();
+    });
+  }, [animatedBottom, setShouldFollowKeyboard, shortBottomFromScreen]);
+
+  const formatQuickInputCalculatorAmount = useCallback((raw: string) => {
+    if (!raw) return '0';
+    const numeric = Number(raw.replace(/,/g, ''));
+    if (!Number.isFinite(numeric)) return raw;
+    return numeric.toLocaleString();
+  }, []);
+
+  const getQuickInputCalculatorOperatorSymbol = useCallback((operator: CustomKeypadOperator) => {
+    switch (operator) {
+      case 'add':
+        return '+';
+      case 'sub':
+        return '-';
+      case 'mul':
+        return '×';
+      case 'div':
+        return '÷';
+      default:
+        return '';
+    }
+  }, []);
+
+  const appendQuickInputCalculatorAmount = useCallback(
+    (amountValue?: string) => {
+      const normalizedAmount = (amountValue ?? quickInputCalculatorAmount).trim();
+      if (!normalizedAmount) {
+        return false;
+      }
+      const amountText = `${normalizedAmount}원`;
+      setQuickInputText((current) => {
+        const trimmed = current.trimEnd();
+        const next = trimmed ? `${trimmed} ${amountText}` : amountText;
+        return next.slice(0, MAX_MESSAGE_LENGTH);
+      });
+      return true;
+    },
+    [quickInputCalculatorAmount]
+  );
+
+  const closeQuickInputCalculator = useCallback(() => {
+    calculatorAnimationRef.current?.stop();
+    calculatorAnimationRef.current = RNAnimated.timing(calculatorTranslateYRef.current, {
+      toValue: CALCULATOR_PANEL_HEIGHT,
+      duration: CALCULATOR_ANIMATION_DURATION,
+      easing: CALCULATOR_ANIMATION_EASING,
+      useNativeDriver: true,
+    });
+    calculatorAnimationRef.current.start(({ finished }) => {
+      if (!finished) return;
+      setIsQuickInputCalculatorMounted(false);
+      setIsQuickInputCalculatorVisible(false);
+      setQuickInputCalculatorAmount('');
+      setQuickInputCalculatorExpression([]);
+      shortBottomFromScreen.value = lastShortBottomRef.current;
+      animatedBottom.value = lastShortBottomRef.current;
+      setShouldFollowKeyboard(true);
+      requestAnimationFrame(() => {
+        quickInputRef.current?.focus();
+      });
+    });
+  }, [animatedBottom, setShouldFollowKeyboard, shortBottomFromScreen]);
+
+  const handleQuickInputCalculatorCopy = useCallback(() => {
+    const amountText = `${quickInputCalculatorAmount.trim() || '0'}원`;
+    void Clipboard.setStringAsync(amountText)
+      .then(() => {
+        showToast('정상적으로 복사 되었습니다.');
+      })
+      .catch(() => {
+        showToast('복사에 실패했습니다.');
+      });
+  }, [quickInputCalculatorAmount, showToast]);
+
+  const handleQuickInputCalculatorConfirm = useCallback(
+    (amountValue: string) => {
+      appendQuickInputCalculatorAmount(amountValue);
+      closeQuickInputCalculator();
+    },
+    [appendQuickInputCalculatorAmount, closeQuickInputCalculator]
+  );
 
   const setQuickInputTextTruncated = useCallback((text: string) => {
     setQuickInputText(text.slice(0, MAX_MESSAGE_LENGTH));
@@ -1008,8 +1249,51 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     setIsQuickInputVisible(false);
     setIsQuickInputContentVisible(false);
     setIsQuickInputShortVisible(false);
+    calculatorAnimationRef.current?.stop();
+    calculatorTranslateYRef.current.setValue(CALCULATOR_PANEL_HEIGHT);
+    setIsQuickInputCalculatorVisible(false);
+    setIsQuickInputCalculatorMounted(false);
+    setQuickInputCalculatorAmount('');
+    setQuickInputCalculatorExpression([]);
     setQuickInputText('');
     setConfirmCardData(null);
+    setQuickInputEditSheetVisible(false);
+    setIsQuickInputEditOpening(false);
+    setIsQuickInputEditSheetClosing(false);
+    setQuickInputEditDraft(null);
+    setQuickInputEditView('form');
+    setQuickInputCategorySheetSelected('');
+    setQuickInputDateSheetMounted(false);
+    setQuickInputDateSheetVisible(false);
+    setQuickInputDateSheetSelected(null);
+    setQuickInputPaymentSheetMounted(false);
+    setQuickInputPaymentSheetVisible(false);
+    amountKeypadAnimationRef.current?.stop();
+    amountKeypadTranslateYRef.current.setValue(EDIT_AMOUNT_KEYPAD_HEIGHT);
+    setQuickInputAmountKeypadMounted(false);
+    setQuickInputAmountKeypadVisible(false);
+    setQuickInputEditAmountExpression([]);
+    editSheetOpenAnimationRef.current?.stop();
+    editSheetOpenCardTranslateY.setValue(0);
+    editSheetOpenCardOpacity.setValue(1);
+    editSheetOpenInputTranslateY.setValue(0);
+    editSheetOpenInputOpacity.setValue(1);
+    if (editSheetCloseTimeoutRef.current) {
+      clearTimeout(editSheetCloseTimeoutRef.current);
+      editSheetCloseTimeoutRef.current = null;
+    }
+    if (editSheetRestoreTimeoutRef.current) {
+      clearTimeout(editSheetRestoreTimeoutRef.current);
+      editSheetRestoreTimeoutRef.current = null;
+    }
+    if (dateSheetUnmountTimeoutRef.current) {
+      clearTimeout(dateSheetUnmountTimeoutRef.current);
+      dateSheetUnmountTimeoutRef.current = null;
+    }
+    if (paymentSheetUnmountTimeoutRef.current) {
+      clearTimeout(paymentSheetUnmountTimeoutRef.current);
+      paymentSheetUnmountTimeoutRef.current = null;
+    }
     pendingRecordRef.current = null;
     setIsQuickInputSendLoading(false);
     setIsQuickInputConfirmAdding(false);
@@ -1091,6 +1375,11 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   ]);
 
   hideQuickInputRef.current = hideQuickInput;
+
+  const handleQuickInputCategorySettingPress = useCallback(() => {
+    hideQuickInput({ simultaneous: true });
+    router.push('/category-setting?type=expense');
+  }, [hideQuickInput, router]);
 
   const getPaymentSubtypesCached = useCallback(async (): Promise<PaymentSubtype[]> => {
     if (paymentSubtypesCacheRef.current.length > 0) {
@@ -1330,13 +1619,13 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     setIsQuickInputConfirmAdding(true);
 
     try {
-      const dateStr = pending.date;
-      const parsedDate = parsePendingDate(dateStr);
+      const parsedDate = parsePendingDate(pending.date);
       if (!parsedDate) {
         showToast('올바른 날짜를 기입해 주세요.');
         return;
       }
       const { year, month, day } = parsedDate;
+      const dateStr = `${year}.${String(month).padStart(2, '0')}.${String(day).padStart(2, '0')}`;
 
       const dateObj = new Date(year, month - 1, day);
       const dayOfWeek = dateObj.getDay();
@@ -1614,43 +1903,459 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       return;
     }
 
-    const isIncome = pending.recordType === 'income';
+    if (editSheetCloseTimeoutRef.current) {
+      clearTimeout(editSheetCloseTimeoutRef.current);
+      editSheetCloseTimeoutRef.current = null;
+    }
+    if (editSheetRestoreTimeoutRef.current) {
+      clearTimeout(editSheetRestoreTimeoutRef.current);
+      editSheetRestoreTimeoutRef.current = null;
+    }
+    editSheetOpenAnimationRef.current?.stop();
+    editSheetOpenCardTranslateY.setValue(0);
+    editSheetOpenCardOpacity.setValue(1);
+    editSheetOpenInputTranslateY.setValue(0);
+    editSheetOpenInputOpacity.setValue(1);
+    setIsQuickInputEditOpening(true);
+    setIsQuickInputEditSheetClosing(false);
+    setShouldFollowKeyboard(false);
+    quickInputRef.current?.blur();
     Keyboard.dismiss();
-    beginQuickInputRecordEdit(pending, {
-      onComplete: (updated) => {
-        pendingRecordRef.current = updated;
-        void buildConfirmCardFromPending(updated, {
-          getExpenseCategoriesCached,
-          getIncomeCategoriesCached,
-          getPaymentSubtypesCached,
-        })
-          .then((card) => {
-            setConfirmCardData(card);
-            setIsQuickInputOverlaySuppressed(false);
-            setIsQuickInputContentVisible(true);
-          })
-          .catch(() => {
-            setIsQuickInputOverlaySuppressed(false);
-            setIsQuickInputContentVisible(true);
-          });
-      },
-      onCancel: () => {
-        setIsQuickInputOverlaySuppressed(false);
-        setIsQuickInputContentVisible(true);
-      },
+    calculatorAnimationRef.current?.stop();
+    calculatorTranslateYRef.current.setValue(CALCULATOR_PANEL_HEIGHT);
+    setIsQuickInputCalculatorVisible(false);
+    setIsQuickInputCalculatorMounted(false);
+    setQuickInputCalculatorAmount('');
+    setQuickInputCalculatorExpression([]);
+    setQuickInputEditDraft({
+      category: pending.category ?? '',
+      date: pending.date.replace(/-/g, '.'),
+      amount: Number.isFinite(pending.amount) ? pending.amount.toLocaleString('ko-KR') : '',
+      memo: pending.memo ?? '',
+      paymentMethod: pending.paymentMethod ?? 'credit',
+      paymentSubtypeLabel: pending.paymentSubtypeLabel ?? paymentMethodToLabel(pending.paymentMethod),
+      isRecurring: pending.isRecurring === true,
+      isInstallment: pending.isInstallment === true,
+      recurringType: pending.recurringType ?? '매월',
+      totalMonths: Math.max(2, Math.min(12, pending.totalMonths ?? 2)),
+      weekendOption: pending.weekendOption === 'friday' || pending.weekendOption === 'monday' ? pending.weekendOption : 'weekend',
     });
-    setIsQuickInputOverlaySuppressed(true);
-    router.push({
-      pathname: isIncome ? '/income-record' : '/expense-record',
-      params: isIncome
-        ? { quickInputDraft: '1' }
-        : EXPENSE_RECORD_QUICK_INPUT_DRAFT_ROUTE_PARAMS,
+    editSheetOpenAnimationRef.current = RNAnimated.parallel([
+      RNAnimated.timing(editSheetOpenCardTranslateY, {
+        toValue: -16,
+        duration: QUICK_INPUT_EDIT_OPENING_ANIMATION_DURATION,
+        easing: CALCULATOR_ANIMATION_EASING,
+        useNativeDriver: true,
+      }),
+      RNAnimated.timing(editSheetOpenCardOpacity, {
+        toValue: 0,
+        duration: QUICK_INPUT_EDIT_OPENING_ANIMATION_DURATION,
+        easing: CALCULATOR_ANIMATION_EASING,
+        useNativeDriver: true,
+      }),
+      RNAnimated.timing(editSheetOpenInputTranslateY, {
+        toValue: 120,
+        duration: QUICK_INPUT_EDIT_OPENING_ANIMATION_DURATION,
+        easing: CALCULATOR_ANIMATION_EASING,
+        useNativeDriver: true,
+      }),
+      RNAnimated.timing(editSheetOpenInputOpacity, {
+        toValue: 0,
+        duration: QUICK_INPUT_EDIT_OPENING_ANIMATION_DURATION,
+        easing: CALCULATOR_ANIMATION_EASING,
+        useNativeDriver: true,
+      }),
+    ]);
+    editSheetOpenAnimationRef.current.start(({ finished }) => {
+      if (!finished) {
+        return;
+      }
+      setQuickInputEditSheetVisible(true);
+      setIsQuickInputEditOpening(false);
     });
+  }, [
+    editSheetOpenCardOpacity,
+    editSheetOpenCardTranslateY,
+    editSheetOpenInputOpacity,
+    editSheetOpenInputTranslateY,
+    setShouldFollowKeyboard,
+  ]);
+
+  const updateQuickInputEditDraft = useCallback((patch: Partial<QuickInputEditDraft>) => {
+    setQuickInputEditDraft((current) => (current ? { ...current, ...patch } : current));
+  }, []);
+
+  const quickInputEditCategoryEmoji = useMemo(() => {
+    const categoryLabel = quickInputEditDraft?.category;
+    if (!categoryLabel) {
+      return undefined;
+    }
+    const categoryType = pendingRecordRef.current?.recordType === 'income' ? 'income' : 'expense';
+    return getCategoriesByType(categoryType).find((category) => category.label === categoryLabel)?.emoji;
+  }, [quickInputEditDraft?.category]);
+
+  const quickInputEditRepeatLabel = useMemo(() => {
+    if (!quickInputEditDraft) {
+      return '반복/할부 설정';
+    }
+    const weekendText = getRecurringWeekendOptionDisplayLabel(
+      quickInputEditDraft.isRecurring ? quickInputEditDraft.recurringType : undefined,
+      quickInputEditDraft.weekendOption,
+      { isRecurring: quickInputEditDraft.isRecurring },
+    );
+    if (quickInputEditDraft.isInstallment) {
+      return formatRecurringSummaryLabel('할부', `${quickInputEditDraft.totalMonths}개월`, weekendText);
+    }
+    if (quickInputEditDraft.isRecurring) {
+      return formatRecurringSummaryLabel('정기지출', quickInputEditDraft.recurringType, weekendText);
+    }
+    return '반복/할부 설정';
+  }, [quickInputEditDraft]);
+
+  const handleQuickInputEditAmountChange = useCallback((text: string) => {
+    const digits = text.replace(/\D/g, '');
+    if (!digits) {
+      updateQuickInputEditDraft({ amount: '' });
+      return;
+    }
+    const normalized = Number(digits);
+    updateQuickInputEditDraft({
+      amount: Number.isFinite(normalized) ? normalized.toLocaleString('ko-KR') : '',
+    });
+  }, [updateQuickInputEditDraft]);
+
+  const closeQuickInputEditAmountKeypad = useCallback((options?: { immediate?: boolean }) => {
+    amountKeypadAnimationRef.current?.stop();
+    setQuickInputAmountKeypadVisible(false);
+    setQuickInputEditAmountExpression([]);
+
+    if (options?.immediate) {
+      amountKeypadTranslateYRef.current.setValue(EDIT_AMOUNT_KEYPAD_HEIGHT);
+      setQuickInputAmountKeypadMounted(false);
+      return;
+    }
+
+    amountKeypadAnimationRef.current = RNAnimated.timing(amountKeypadTranslateYRef.current, {
+      toValue: EDIT_AMOUNT_KEYPAD_HEIGHT,
+      duration: CALCULATOR_ANIMATION_DURATION,
+      easing: CALCULATOR_ANIMATION_EASING,
+      useNativeDriver: true,
+    });
+    amountKeypadAnimationRef.current.start(({ finished }) => {
+      if (finished) {
+        setQuickInputAmountKeypadMounted(false);
+      }
+    });
+  }, []);
+
+  const closeQuickInputDateSheet = useCallback(() => {
+    if (!quickInputDateSheetVisible) {
+      return;
+    }
+    setQuickInputDateSheetVisible(false);
+    if (dateSheetUnmountTimeoutRef.current) {
+      clearTimeout(dateSheetUnmountTimeoutRef.current);
+    }
+    dateSheetUnmountTimeoutRef.current = setTimeout(() => {
+      setQuickInputDateSheetMounted(false);
+      dateSheetUnmountTimeoutRef.current = null;
+    }, QUICK_INPUT_EMBEDDED_SHEET_UNMOUNT_DELAY);
+  }, [quickInputDateSheetVisible]);
+
+  const closeQuickInputPaymentSheet = useCallback(() => {
+    if (!quickInputPaymentSheetVisible) {
+      return;
+    }
+    setQuickInputPaymentSheetVisible(false);
+    if (paymentSheetUnmountTimeoutRef.current) {
+      clearTimeout(paymentSheetUnmountTimeoutRef.current);
+    }
+    paymentSheetUnmountTimeoutRef.current = setTimeout(() => {
+      setQuickInputPaymentSheetMounted(false);
+      paymentSheetUnmountTimeoutRef.current = null;
+    }, QUICK_INPUT_EMBEDDED_SHEET_UNMOUNT_DELAY);
+  }, [quickInputPaymentSheetVisible]);
+
+  const handleQuickInputEditCategoryPress = useCallback(() => {
+    const categoryType = pendingRecordRef.current?.recordType === 'income' ? 'income' : 'expense';
+    closeQuickInputEditAmountKeypad({ immediate: true });
+    setQuickInputCategorySheetSelected(quickInputEditDraft?.category ?? '');
+    setQuickInputCategorySheetCategories(getCategoriesByType(categoryType));
+    setQuickInputEditView('category');
+
+    void Promise.all([
+      loadCategories(categoryType),
+      loadCategoryOrder(categoryType),
+    ])
+      .then(([loadedCategories, savedOrder]) => {
+        setQuickInputCategorySheetCategories(
+          savedOrder && savedOrder.length > 0
+            ? applySavedOrder(loadedCategories, savedOrder)
+            : loadedCategories
+        );
+      })
+      .catch(() => {});
+  }, [closeQuickInputEditAmountKeypad, quickInputEditDraft?.category]);
+
+  const handleQuickInputCategorySheetClose = useCallback(() => {
+    setQuickInputEditView('form');
+  }, []);
+
+  const handleQuickInputCategorySheetConfirm = useCallback(() => {
+    if (!quickInputCategorySheetSelected) {
+      showToast('카테고리를 선택해 주세요.');
+      return;
+    }
+    updateQuickInputEditDraft({ category: quickInputCategorySheetSelected });
+    setQuickInputEditView('form');
+  }, [quickInputCategorySheetSelected, showToast, updateQuickInputEditDraft]);
+
+  const handleQuickInputEditDatePress = useCallback(() => {
+    closeQuickInputEditAmountKeypad({ immediate: true });
+    setQuickInputDateSheetSelected(displayDateToIsoDate(quickInputEditDraft?.date ?? '') ?? new Date().toISOString().slice(0, 10));
+    if (dateSheetUnmountTimeoutRef.current) {
+      clearTimeout(dateSheetUnmountTimeoutRef.current);
+      dateSheetUnmountTimeoutRef.current = null;
+    }
+    setQuickInputDateSheetMounted(true);
+    setQuickInputDateSheetVisible(true);
+    void loadMonthStartDay()
+      .then(setQuickInputDateSheetMonthStartDay)
+      .catch(() => {});
+  }, [closeQuickInputEditAmountKeypad, quickInputEditDraft?.date]);
+
+  const handleQuickInputDateSheetClose = useCallback(() => {
+    closeQuickInputDateSheet();
+  }, [closeQuickInputDateSheet]);
+
+  const handleQuickInputDateSheetConfirm = useCallback((isoDate: string) => {
+    updateQuickInputEditDraft({ date: isoDateToQuickInputDisplayDate(isoDate) });
+    closeQuickInputDateSheet();
+  }, [closeQuickInputDateSheet, updateQuickInputEditDraft]);
+
+  const handleQuickInputEditPaymentPress = useCallback(() => {
+    const method = quickInputEditDraft?.paymentMethod === 'debit' ? 'debit' : 'credit';
+    closeQuickInputEditAmountKeypad({ immediate: true });
+    setQuickInputPaymentSheetFilter(method);
+    setQuickInputPaymentSheetItems(paymentSubtypesCacheRef.current);
+    if (paymentSheetUnmountTimeoutRef.current) {
+      clearTimeout(paymentSheetUnmountTimeoutRef.current);
+      paymentSheetUnmountTimeoutRef.current = null;
+    }
+    setQuickInputPaymentSheetMounted(true);
+    setQuickInputPaymentSheetVisible(true);
+    void getPaymentSubtypesCached()
+      .then(setQuickInputPaymentSheetItems)
+      .catch(() => {});
+  }, [closeQuickInputEditAmountKeypad, getPaymentSubtypesCached, quickInputEditDraft?.paymentMethod]);
+
+  const handleQuickInputPaymentSheetClose = useCallback(() => {
+    closeQuickInputPaymentSheet();
+  }, [closeQuickInputPaymentSheet]);
+
+  const handleQuickInputPaymentSelect = useCallback((method: 'credit' | 'debit' | 'cash', subtype?: PaymentSubtype) => {
+    updateQuickInputEditDraft({
+      paymentMethod: method,
+      paymentSubtypeLabel: method === 'cash' ? '현금' : subtype?.label ?? paymentMethodToLabel(method),
+    });
+    if (pendingRecordRef.current) {
+      pendingRecordRef.current = {
+        ...pendingRecordRef.current,
+        paymentMethod: method,
+        paymentSubtypeId: method === 'cash' ? undefined : subtype?.id,
+        paymentSubtypeColor: method === 'cash' ? undefined : subtype?.color,
+        paymentSubtypeLabel: method === 'cash' ? undefined : subtype?.label,
+      };
+    }
+    closeQuickInputPaymentSheet();
+  }, [closeQuickInputPaymentSheet, updateQuickInputEditDraft]);
+
+  const handleQuickInputEditAmountPress = useCallback(() => {
+    Keyboard.dismiss();
+    setQuickInputEditView('form');
+    closeQuickInputDateSheet();
+    closeQuickInputPaymentSheet();
+    amountKeypadAnimationRef.current?.stop();
+    amountKeypadTranslateYRef.current.setValue(EDIT_AMOUNT_KEYPAD_HEIGHT);
+    setQuickInputAmountKeypadMounted(true);
+    setQuickInputAmountKeypadVisible(true);
+    amountKeypadAnimationRef.current = RNAnimated.timing(amountKeypadTranslateYRef.current, {
+      toValue: 0,
+      duration: CALCULATOR_ANIMATION_DURATION,
+      easing: CALCULATOR_ANIMATION_EASING,
+      useNativeDriver: true,
+    });
+    amountKeypadAnimationRef.current.start();
+  }, [closeQuickInputDateSheet, closeQuickInputPaymentSheet]);
+
+  const handleQuickInputAmountKeypadClose = useCallback(() => {
+    closeQuickInputEditAmountKeypad();
+  }, [closeQuickInputEditAmountKeypad]);
+
+  const handleQuickInputAmountKeypadConfirm = useCallback((amountValue: string) => {
+    handleQuickInputEditAmountChange(amountValue);
+    closeQuickInputEditAmountKeypad();
+  }, [closeQuickInputEditAmountKeypad, handleQuickInputEditAmountChange]);
+
+  const handleQuickInputEditMemoFocus = useCallback(() => {
+    closeQuickInputEditAmountKeypad({ immediate: true });
+    handleQuickInputEditMemoKeyboardFocus();
+  }, [closeQuickInputEditAmountKeypad, handleQuickInputEditMemoKeyboardFocus]);
+
+  const handleQuickInputEditMemoBlur = useCallback(() => {
+    handleQuickInputEditMemoKeyboardBlur();
+  }, [handleQuickInputEditMemoKeyboardBlur]);
+
+  const handleQuickInputEditRecurringPress = useCallback(() => {
+    closeQuickInputEditAmountKeypad({ immediate: true });
+    const source = quickInputEditDraft;
+    setQuickInputRecurringDraftIsRecurring(source?.isRecurring ?? false);
+    setQuickInputRecurringDraftIsInstallment(source?.isInstallment ?? false);
+    setQuickInputRecurringDraftHasSelectedInstallment(source?.isInstallment ?? false);
+    setQuickInputRecurringDraftType(source?.recurringType ?? '매월');
+    setQuickInputRecurringDraftTotalMonths(source?.totalMonths ?? 2);
+    setQuickInputRecurringDraftWeekendOption(source?.weekendOption ?? 'weekend');
+    setQuickInputRecurringDraftIsPeriodExpanded(false);
+    setQuickInputEditView('recurring');
+  }, [closeQuickInputEditAmountKeypad, quickInputEditDraft]);
+
+  const handleQuickInputRecurringSheetClose = useCallback(() => {
+    setQuickInputEditView('form');
+  }, []);
+
+  const handleQuickInputRecurringConfirm = useCallback(() => {
+    updateQuickInputEditDraft({
+      isRecurring: quickInputRecurringDraftIsRecurring,
+      isInstallment: quickInputRecurringDraftIsInstallment,
+      recurringType: quickInputRecurringDraftType,
+      totalMonths: quickInputRecurringDraftTotalMonths,
+      weekendOption:
+        quickInputRecurringDraftIsRecurring && shouldIgnoreWeekendOptionForRecurringType(quickInputRecurringDraftType)
+          ? 'weekend'
+          : quickInputRecurringDraftWeekendOption,
+    });
+    setQuickInputEditView('form');
+  }, [
+    quickInputRecurringDraftIsInstallment,
+    quickInputRecurringDraftIsRecurring,
+    quickInputRecurringDraftTotalMonths,
+    quickInputRecurringDraftType,
+    quickInputRecurringDraftWeekendOption,
+    updateQuickInputEditDraft,
+  ]);
+
+  const handleQuickInputRecurringToggle = useCallback((value: boolean) => {
+    setQuickInputRecurringDraftIsRecurring(value);
+    if (!value) {
+      setQuickInputRecurringDraftTotalMonths(2);
+      if (!quickInputRecurringDraftHasSelectedInstallment) {
+        setQuickInputRecurringDraftType('매월');
+      }
+      return;
+    }
+    setQuickInputRecurringDraftIsInstallment(false);
+    setQuickInputRecurringDraftHasSelectedInstallment(false);
+    setQuickInputRecurringDraftType('매일');
+  }, [quickInputRecurringDraftHasSelectedInstallment]);
+
+  const handleQuickInputInstallmentToggle = useCallback((value: boolean) => {
+    setQuickInputRecurringDraftIsInstallment(value);
+    if (value) {
+      setQuickInputRecurringDraftIsRecurring(false);
+      setQuickInputRecurringDraftHasSelectedInstallment(true);
+    }
+  }, []);
+
+  const handleQuickInputEditSheetClose = useCallback(() => {
+    if (isQuickInputEditOpening || isQuickInputEditSheetClosing) {
+      return;
+    }
+    setIsQuickInputEditSheetClosing(true);
+    setQuickInputEditSheetVisible(false);
+    setQuickInputEditView('form');
+    setQuickInputDateSheetVisible(false);
+    setQuickInputPaymentSheetVisible(false);
+    setQuickInputAmountKeypadVisible(false);
+    if (editSheetCloseTimeoutRef.current) {
+      clearTimeout(editSheetCloseTimeoutRef.current);
+    }
+    if (editSheetRestoreTimeoutRef.current) {
+      clearTimeout(editSheetRestoreTimeoutRef.current);
+      editSheetRestoreTimeoutRef.current = null;
+    }
+    editSheetCloseTimeoutRef.current = setTimeout(() => {
+      editSheetCloseTimeoutRef.current = null;
+      setQuickInputEditDraft(null);
+      editSheetRestoreTimeoutRef.current = setTimeout(() => {
+        editSheetRestoreTimeoutRef.current = null;
+        shortBottomFromScreen.value = lastShortBottomRef.current;
+        animatedBottom.value = lastShortBottomRef.current;
+        setShouldFollowKeyboard(true);
+        editSheetOpenCardTranslateY.setValue(0);
+        editSheetOpenCardOpacity.setValue(1);
+        editSheetOpenInputTranslateY.setValue(0);
+        editSheetOpenInputOpacity.setValue(1);
+        setIsQuickInputEditSheetClosing(false);
+        requestAnimationFrame(() => {
+          quickInputRef.current?.focus();
+        });
+      }, QUICK_INPUT_EDIT_RESTORE_DELAY);
+    }, QUICK_INPUT_EDIT_SHEET_ANIMATION_DURATION);
+  }, [
+    animatedBottom,
+    editSheetOpenCardOpacity,
+    editSheetOpenCardTranslateY,
+    editSheetOpenInputOpacity,
+    editSheetOpenInputTranslateY,
+    isQuickInputEditOpening,
+    isQuickInputEditSheetClosing,
+    setShouldFollowKeyboard,
+    shortBottomFromScreen,
+  ]);
+
+  const handleQuickInputEditSheetConfirm = useCallback(() => {
+    const draft = quickInputEditDraft;
+    const current = pendingRecordRef.current;
+    if (!draft || !current) {
+      handleQuickInputEditSheetClose();
+      return;
+    }
+
+    const amountNumber = Number(draft.amount.replace(/,/g, ''));
+    if (!draft.category.trim() || !draft.date.trim() || !Number.isFinite(amountNumber) || amountNumber <= 0) {
+      showToast('필수 항목을 입력해 주세요.');
+      return;
+    }
+
+    const updated: PendingParseRecord = {
+      ...current,
+      category: draft.category.trim(),
+      date: draft.date.trim().replace(/-/g, '.'),
+      amount: amountNumber,
+      memo: draft.memo.trim() ? draft.memo.trim() : undefined,
+      paymentMethod: draft.paymentMethod,
+      paymentSubtypeLabel: draft.paymentSubtypeLabel.trim() || undefined,
+      isRecurring: draft.isRecurring || undefined,
+      isInstallment: draft.isInstallment || undefined,
+      recurringType: draft.isRecurring ? draft.recurringType : undefined,
+      totalMonths: draft.isRecurring || draft.isInstallment ? draft.totalMonths : undefined,
+      weekendOption: draft.isRecurring || draft.isInstallment ? draft.weekendOption : undefined,
+    };
+
+    pendingRecordRef.current = updated;
+    handleQuickInputEditSheetClose();
+    void buildConfirmCardFromPending(updated, {
+      getExpenseCategoriesCached,
+      getIncomeCategoriesCached,
+      getPaymentSubtypesCached,
+    }).then(setConfirmCardData).catch(() => {});
   }, [
     getExpenseCategoriesCached,
     getIncomeCategoriesCached,
     getPaymentSubtypesCached,
-    router,
+    handleQuickInputEditSheetClose,
+    quickInputEditDraft,
+    showToast,
   ]);
 
   useEffect(() => {
@@ -1841,6 +2546,14 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   useEffect(() => {
     return () => {
       restoreAndroidQuickInputKeyboardMode();
+      if (editSheetCloseTimeoutRef.current) {
+        clearTimeout(editSheetCloseTimeoutRef.current);
+        editSheetCloseTimeoutRef.current = null;
+      }
+      if (editSheetRestoreTimeoutRef.current) {
+        clearTimeout(editSheetRestoreTimeoutRef.current);
+        editSheetRestoreTimeoutRef.current = null;
+      }
       starRefs.current = null;
       overlayStarScale.stopAnimation();
       overlayStarRotate.stopAnimation();
@@ -1868,6 +2581,67 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     ]
   );
 
+  const quickInputCalculatorExpressionView = useMemo(() => {
+    const isPlaceholderAmount =
+      quickInputCalculatorExpression.length === 0 && quickInputCalculatorAmount.length === 0;
+    const tokensToRender =
+      quickInputCalculatorExpression.length > 0
+        ? quickInputCalculatorExpression
+        : [{ type: 'number' as const, value: quickInputCalculatorAmount.replace(/,/g, '') || '0' }];
+
+    return (
+      <ScrollView
+        horizontal
+        scrollEnabled={false}
+        pointerEvents="none"
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.calculatorExpressionContent}
+      >
+        {tokensToRender.map((token, index) => {
+          const textColor = isPlaceholderAmount ? atomicColors.neutral[500] : atomicColors.common[100];
+          if (token.type === 'number') {
+            return (
+              <FieldInputText
+                variant="number"
+                key={`num-${index}`}
+                style={[styles.calculatorAmountText, { color: textColor }]}
+              >
+                {formatQuickInputCalculatorAmount(token.value)}
+              </FieldInputText>
+            );
+          }
+
+          const symbol = getQuickInputCalculatorOperatorSymbol(token.value as CustomKeypadOperator);
+          if (!symbol) return null;
+
+          return (
+            <FieldInputText
+              variant="number"
+              key={`op-${index}`}
+              style={styles.calculatorOperatorText}
+              accessibilityLabel="연산자"
+            >
+              {symbol}
+            </FieldInputText>
+          );
+        })}
+        <Text
+          style={[
+            styles.calculatorUnitText,
+            { color: isPlaceholderAmount ? atomicColors.neutral[500] : atomicColors.common[100] },
+          ]}
+        >
+          원
+        </Text>
+      </ScrollView>
+    );
+  }, [
+    formatQuickInputCalculatorAmount,
+    getQuickInputCalculatorOperatorSymbol,
+    quickInputCalculatorAmount,
+    quickInputCalculatorExpression,
+  ]);
+
   return (
     <QuickInputContext.Provider value={value}>
       <View style={styles.root}>
@@ -1878,15 +2652,31 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                 pointerEvents="auto"
                 style={[styles.backdrop, { opacity: quickInputBackdropOpacity }]}
               >
-                <Pressable style={StyleSheet.absoluteFill} onPress={() => hideQuickInput()} />
+                <Pressable
+                  style={StyleSheet.absoluteFill}
+                  onPress={
+                    quickInputEditSheetVisible || isQuickInputEditSheetClosing || isQuickInputEditOpening
+                      ? handleQuickInputEditSheetClose
+                      : () => hideQuickInput()
+                  }
+                />
               </RNAnimated.View>
               {isQuickInputContentVisible && (
                 <RNAnimated.View
                   pointerEvents="box-none"
                   style={[styles.longContentLayer, { opacity: quickInputLongOpacity }]}
                 >
-                  {confirmCardData != null && (
-                    <View style={[styles.confirmCardContainer, { top: insets.top + 8 }]}>
+                  {confirmCardData != null && !quickInputEditSheetVisible && !isQuickInputEditSheetClosing && (
+                    <RNAnimated.View
+                      style={[
+                        styles.confirmCardContainer,
+                        {
+                          top: insets.top + 8,
+                          opacity: editSheetOpenCardOpacity,
+                          transform: [{ translateY: editSheetOpenCardTranslateY }],
+                        },
+                      ]}
+                    >
                       <QuickInputConfirmCard
                         data={confirmCardData}
                         onConfirm={handleConfirmCardAdd}
@@ -1894,26 +2684,586 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                         onChange={handleConfirmCardChange}
                         addLoading={isQuickInputConfirmAdding}
                       />
-                    </View>
+                    </RNAnimated.View>
                   )}
-                  <Animated.View style={[styles.container, containerAnimatedStyle]}>
-                    <QuickInputTipBox />
-                    <QuickInputField
-                      ref={quickInputRef}
-                      value={quickInputText}
-                      onChangeText={setQuickInputTextTruncated}
-                      placeholder={quickInputPlaceholder}
-                      starScale={overlayStarScale}
-                      starRotate={overlayStarRotate}
-                      onFocus={handleQuickInputFieldFocus}
-                      onSend={handleSend}
-                      onCancel={handleCancel}
-                      sendLoading={isQuickInputSendLoading}
-                      sendDisabled={confirmCardData != null}
-                    />
+                  <Animated.View
+                    pointerEvents={confirmCardData != null ? 'none' : 'auto'}
+                    style={[styles.container, containerAnimatedStyle]}
+                  >
+                    {!quickInputEditSheetVisible && !isQuickInputEditSheetClosing && !isQuickInputCalculatorVisible && (
+                      <RNAnimated.View
+                        style={[
+                          styles.normalInputStack,
+                          {
+                            opacity: editSheetOpenInputOpacity,
+                            transform: [{ translateY: editSheetOpenInputTranslateY }],
+                          },
+                        ]}
+                      >
+                        <View style={styles.edgeContent}>
+                          <View style={styles.actionRow}>
+                            <Pressable
+                              style={styles.actionChip}
+                              onPress={handleQuickInputCalculatorPress}
+                              accessibilityRole="button"
+                              accessibilityLabel="계산기"
+                            >
+                              <View style={styles.actionIconBox}>
+                                <Icon name="calculator" variant="solid" size={24} />
+                              </View>
+                              <Text style={styles.actionLabel}>계산기</Text>
+                            </Pressable>
+                            <Pressable
+                              style={styles.actionChip}
+                              onPress={handleQuickInputCategorySettingPress}
+                              accessibilityRole="button"
+                              accessibilityLabel="카테고리 설정"
+                            >
+                              <View style={styles.actionIconBox}>
+                                <Icon name="categorySetting" variant="solid" size={24} />
+                              </View>
+                              <Text style={styles.actionLabel}>카테고리 설정</Text>
+                            </Pressable>
+                          </View>
+                        </View>
+                        <View style={styles.edgeContent}>
+                          <QuickInputField
+                            ref={quickInputRef}
+                            value={quickInputText}
+                            onChangeText={setQuickInputTextTruncated}
+                            placeholder={quickInputPlaceholder}
+                            starScale={overlayStarScale}
+                            starRotate={overlayStarRotate}
+                            onFocus={handleQuickInputFieldFocus}
+                            onSend={handleSend}
+                            onCancel={handleCancel}
+                            sendLoading={isQuickInputSendLoading}
+                            sendDisabled={confirmCardData != null}
+                          />
+                        </View>
+                      </RNAnimated.View>
+                    )}
+                    {!quickInputEditSheetVisible && !isQuickInputEditSheetClosing && isQuickInputCalculatorMounted && (
+                      <RNAnimated.View
+                        style={[
+                          styles.calculatorPanel,
+                          { transform: [{ translateY: calculatorTranslateYRef.current }] },
+                        ]}
+                      >
+                        <View style={styles.edgeContent}>
+                          <View style={styles.calculatorBar}>
+                            <View style={styles.calculatorInput}>{quickInputCalculatorExpressionView}</View>
+                            <Pressable
+                              style={styles.calculatorActionButton}
+                              onPress={handleQuickInputCalculatorCopy}
+                              accessibilityRole="button"
+                              accessibilityLabel="계산 금액 입력"
+                            >
+                              <Icon name="copy" variant="line" size={24} color={atomicColors.common[100]} />
+                            </Pressable>
+                            <Pressable
+                              style={styles.calculatorActionButton}
+                              onPress={closeQuickInputCalculator}
+                              accessibilityRole="button"
+                              accessibilityLabel="계산기 닫기"
+                            >
+                              <Icon name="close" variant="line" size={24} color={atomicColors.neutral[800]} />
+                            </Pressable>
+                          </View>
+                        </View>
+                        <CustomKeypad
+                          value={quickInputCalculatorAmount}
+                          onValueChange={setQuickInputCalculatorAmount}
+                          onExpressionChange={setQuickInputCalculatorExpression}
+                          onConfirm={handleQuickInputCalculatorConfirm}
+                        />
+                      </RNAnimated.View>
+                    )}
                   </Animated.View>
                 </RNAnimated.View>
               )}
+              <ModalBottomsheet
+                visible={quickInputEditSheetVisible}
+                title="소비 기록"
+                onClose={handleQuickInputEditSheetClose}
+                closeOnBackdrop={quickInputEditView === 'form'}
+                embedded
+                showBackdrop={false}
+                showHandle={false}
+                hideNavigation
+                style={StyleSheet.flatten([styles.editSheet, { height: windowHeight * 0.8 }])}
+                contentStyle={styles.editSheetContent}
+                noPaddingBottom
+              >
+                {quickInputEditDraft != null && (
+                  <View style={styles.editSheetBody}>
+                    <BottomSheetFlow
+                      activeKey={quickInputEditView}
+                      duration={QUICK_INPUT_EDIT_VIEW_TRANSITION_DURATION}
+                      easing={QUICK_INPUT_EDIT_VIEW_TRANSITION_EASING}
+                      screens={[
+                        {
+                          key: 'form',
+                          title: '소비 기록',
+                          left: 'close',
+                          onLeftPress: handleQuickInputEditSheetClose,
+                          showHandle: true,
+                          content: (
+                            <ScrollView
+                              ref={editSheetScrollRef}
+                              style={styles.editSheetScroll}
+                              contentContainerStyle={[
+                                styles.editSheetForm,
+                                isQuickInputEditMemoKeyboardOpen
+                                  ? { paddingBottom: quickInputEditMemoKeyboardPaddingBottom }
+                                  : null,
+                              ]}
+                              showsVerticalScrollIndicator={false}
+                              bounces={false}
+                              overScrollMode="never"
+                              keyboardShouldPersistTaps="handled"
+                              onScroll={onQuickInputEditMemoScroll}
+                              scrollEventThrottle={16}
+                            >
+                              <View style={styles.editSection}>
+                                <SectionTitle style={styles.editSectionTitle}>
+                                  카테고리 <Text style={styles.requiredMark}>*</Text>
+                                </SectionTitle>
+                                <Input
+                                  value={quickInputEditDraft.category}
+                                  placeholder="카테고리 선택"
+                                  buttonMode
+                                  sortationEmoji={quickInputEditCategoryEmoji}
+                                  showSortationDot={false}
+                                  showRightArrow
+                                  onPress={handleQuickInputEditCategoryPress}
+                                />
+                              </View>
+                              <View style={styles.editSection}>
+                                <View style={styles.editSectionHeaderRow}>
+                                  <SectionTitle style={styles.editSectionTitle}>
+                                    날짜 <Text style={styles.requiredMark}>*</Text>
+                                  </SectionTitle>
+                                  <Pressable
+                                    onPress={handleQuickInputEditRecurringPress}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="반복/할부 설정"
+                                  >
+                                    <Text style={styles.editRecurringButtonText}>{quickInputEditRepeatLabel}</Text>
+                                  </Pressable>
+                                </View>
+                                <Input
+                                  icon="calendarMonth"
+                                  value={quickInputEditDraft.date}
+                                  placeholder="날짜 선택"
+                                  buttonMode
+                                  onPress={handleQuickInputEditDatePress}
+                                />
+                              </View>
+                              <View style={styles.editSection}>
+                                <SectionTitle style={styles.editSectionTitle}>
+                                  금액 <Text style={styles.requiredMark}>*</Text>
+                                </SectionTitle>
+                                <Input
+                                  inputType="number"
+                                  unit="원"
+                                  value={quickInputEditDraft.amount || '0'}
+                                  placeholder="0"
+                                  textAlign="right"
+                                  editable={false}
+                                  caretHidden
+                                  valueRenderer={
+                                    <View style={styles.editAmountValueWrap}>
+                                      <Text style={styles.editAmountValueText}>{quickInputEditDraft.amount || '0'}</Text>
+                                    </View>
+                                  }
+                                  onPress={handleQuickInputEditAmountPress}
+                                />
+                              </View>
+                              <View
+                                style={styles.editSection}
+                                onLayout={(event) => {
+                                  const layout = event.nativeEvent.layout;
+                                  editSheetMemoSectionYRef.current = layout.y;
+                                  editSheetMemoSectionHeightRef.current = layout.height;
+                                }}
+                              >
+                                <SectionTitle style={styles.editSectionTitle}>메모</SectionTitle>
+                                <Input
+                                  ref={quickInputEditMemoInputRef}
+                                  variant="area"
+                                  value={quickInputEditDraft.memo}
+                                  onChangeText={(memo) => updateQuickInputEditDraft({ memo: memo.slice(0, 20) })}
+                                  onPressIn={() => {
+                                    quickInputEditMemoPointerHandlers.onPressIn();
+                                    closeQuickInputEditAmountKeypad({ immediate: true });
+                                  }}
+                                  onPressOut={quickInputEditMemoPointerHandlers.onPressOut}
+                                  onFocus={handleQuickInputEditMemoFocus}
+                                  onBlur={handleQuickInputEditMemoBlur}
+                                  placeholder="메모를 입력해 주세요.(최대 20자)"
+                                  maxLength={20}
+                                  multiline
+                                />
+                              </View>
+                            </ScrollView>
+                          ),
+                          footer: (
+                            <>
+                              <View style={styles.editPaymentSticky}>
+                                <Text style={styles.editPaymentLabel}>결제 유형</Text>
+                                <View style={styles.editPaymentControl}>
+                                  <Input
+                                    value={quickInputEditDraft.paymentSubtypeLabel || paymentMethodToLabel(quickInputEditDraft.paymentMethod)}
+                                    shortver
+                                    sortation
+                                    showSortationDot={quickInputEditDraft.paymentMethod !== 'cash'}
+                                    sortationColor={pendingRecordRef.current?.paymentSubtypeColor}
+                                    sortationEmoji={quickInputEditDraft.paymentMethod === 'cash' ? '💰' : undefined}
+                                    rightIcon="arrowDown"
+                                    showRightArrow
+                                    buttonMode
+                                    onPress={handleQuickInputEditPaymentPress}
+                                  />
+                                </View>
+                              </View>
+                              <View style={[styles.editSheetCta, { paddingBottom: 16 + insets.bottom }]}>
+                                <Button onPress={handleQuickInputEditSheetConfirm}>확인</Button>
+                              </View>
+                            </>
+                          ),
+                        },
+                        {
+                          key: 'category',
+                          title: '카테고리 선택',
+                          left: 'back',
+                          onLeftPress: handleQuickInputCategorySheetClose,
+                          right: { label: '확인', onPress: handleQuickInputCategorySheetConfirm },
+                          swipeBackEnabled: true,
+                          content: (
+                            <View style={styles.categorySheetBody}>
+                              <View style={styles.categorySheetCard}>
+                                <ScrollView
+                                  style={styles.categorySheetScroll}
+                                  contentContainerStyle={styles.categorySheetScrollContent}
+                                  showsVerticalScrollIndicator={false}
+                                  bounces={false}
+                                  overScrollMode="never"
+                                >
+                                  {quickInputCategorySheetCategories.map((category, index) => (
+                                    <View key={`${category.type}-${category.label}`}>
+                                      <Pressable
+                                        style={styles.categorySheetItem}
+                                        onPress={() => setQuickInputCategorySheetSelected(category.label)}
+                                        accessibilityRole="button"
+                                        accessibilityLabel={`${category.label} 선택`}
+                                      >
+                                        <View style={styles.categorySheetItemContent}>
+                                          <Text style={styles.categorySheetEmoji}>{category.emoji}</Text>
+                                          <Text style={styles.categorySheetLabel}>{category.label}</Text>
+                                        </View>
+                                        {quickInputCategorySheetSelected === category.label ? (
+                                          <Icon name="check" variant="line" size={24} color={atomicColors.blue[600]} />
+                                        ) : null}
+                                      </Pressable>
+                                      {index < quickInputCategorySheetCategories.length - 1 ? (
+                                        <View style={styles.categorySheetDivider} />
+                                      ) : null}
+                                    </View>
+                                  ))}
+                                </ScrollView>
+                              </View>
+                            </View>
+                          ),
+                        },
+                        {
+                          key: 'recurring',
+                          title: '반복/할부 설정',
+                          left: 'back',
+                          onLeftPress: handleQuickInputRecurringSheetClose,
+                          right: { label: '확인', onPress: handleQuickInputRecurringConfirm },
+                          swipeBackEnabled: true,
+                          content: (
+                            <ScrollView
+                              style={styles.recurringSheetScroll}
+                              contentContainerStyle={styles.recurringSheetScrollContent}
+                              showsVerticalScrollIndicator
+                              bounces={false}
+                              overScrollMode="never"
+                            >
+                              <View style={styles.sheetSection}>
+                                <SectionTitle style={styles.editSectionTitle}>
+                                  소비 형태
+                                </SectionTitle>
+                                <View style={styles.recurringCard}>
+                                  <View style={styles.recurringSection}>
+                                    <View style={styles.recurringTitleRow}>
+                                      <UiLineText style={styles.recurringSwitchLabel}>
+                                        정기 지출 여부
+                                      </UiLineText>
+                                      <Switch value={quickInputRecurringDraftIsRecurring} onValueChange={handleQuickInputRecurringToggle} />
+                                    </View>
+                                    <Text style={styles.recurringCaption}>
+                                      현재 월 기준 매달 같은 날에 자동 기록합니다.
+                                    </Text>
+                                  </View>
+                                  <View style={styles.recurringDivider} />
+                                  <View style={styles.recurringSection}>
+                                    <View style={styles.recurringTitleRow}>
+                                      <UiLineText style={styles.recurringSwitchLabel}>
+                                        할부 여부
+                                      </UiLineText>
+                                      <Switch value={quickInputRecurringDraftIsInstallment} onValueChange={handleQuickInputInstallmentToggle} />
+                                    </View>
+                                    <Text style={styles.recurringCaption}>
+                                      할부 기간동안 해당 소비금액을 자동 기록합니다.
+                                    </Text>
+                                  </View>
+                                </View>
+                              </View>
+
+                              <View style={styles.sheetSection}>
+                                <SectionTitle style={styles.editSectionTitle}>
+                                  {quickInputRecurringDraftIsInstallment ? '할부 기간' : '반복 기간'}
+                                </SectionTitle>
+                                <View style={styles.chipContainer}>
+                                  {quickInputRecurringDraftIsRecurring || (!quickInputRecurringDraftIsRecurring && !quickInputRecurringDraftIsInstallment && !quickInputRecurringDraftHasSelectedInstallment) ? (
+                                    <>
+                                      {(quickInputRecurringDraftIsPeriodExpanded ? QUICK_INPUT_RECURRING_PERIOD_OPTIONS : QUICK_INPUT_RECURRING_PERIOD_OPTIONS.slice(0, 6)).map((label) => (
+                                        <Chip
+                                          key={label}
+                                          type="option"
+                                          label={label}
+                                          active={quickInputRecurringDraftType === label}
+                                          disabled={!quickInputRecurringDraftIsRecurring && !quickInputRecurringDraftIsInstallment}
+                                          onPress={() => {
+                                            if (!quickInputRecurringDraftIsRecurring && !quickInputRecurringDraftIsInstallment) return;
+                                            setQuickInputRecurringDraftType(label);
+                                            if (shouldIgnoreWeekendOptionForRecurringType(label)) {
+                                              setQuickInputRecurringDraftWeekendOption('weekend');
+                                            }
+                                            if (label === '매월') {
+                                              setQuickInputRecurringDraftTotalMonths(1);
+                                            } else if (label === '2개월 마다') {
+                                              setQuickInputRecurringDraftTotalMonths(2);
+                                            } else if (label === '3개월 마다') {
+                                              setQuickInputRecurringDraftTotalMonths(3);
+                                            } else if (label === '4개월 마다') {
+                                              setQuickInputRecurringDraftTotalMonths(4);
+                                            } else if (label === '5개월 마다') {
+                                              setQuickInputRecurringDraftTotalMonths(5);
+                                            } else if (label === '6개월 마다') {
+                                              setQuickInputRecurringDraftTotalMonths(6);
+                                            }
+                                          }}
+                                          style={styles.periodChip}
+                                        />
+                                      ))}
+                                    </>
+                                  ) : (
+                                    <>
+                                      {(quickInputRecurringDraftIsPeriodExpanded ? QUICK_INPUT_INSTALLMENT_MONTH_OPTIONS : QUICK_INPUT_INSTALLMENT_MONTH_OPTIONS.slice(0, 6)).map((months) => (
+                                        <Chip
+                                          key={months}
+                                          type="option"
+                                          label={`${months}개월`}
+                                          active={quickInputRecurringDraftTotalMonths === months}
+                                          disabled={!quickInputRecurringDraftIsRecurring && !quickInputRecurringDraftIsInstallment}
+                                          onPress={() => {
+                                            if (!quickInputRecurringDraftIsRecurring && !quickInputRecurringDraftIsInstallment) return;
+                                            setQuickInputRecurringDraftTotalMonths(months);
+                                          }}
+                                          style={styles.periodChip}
+                                        />
+                                      ))}
+                                    </>
+                                  )}
+                                </View>
+                                <Accordion
+                                  expanded={quickInputRecurringDraftIsPeriodExpanded}
+                                  onToggle={setQuickInputRecurringDraftIsPeriodExpanded}
+                                  disabled={!quickInputRecurringDraftIsRecurring && !quickInputRecurringDraftIsInstallment}
+                                />
+                              </View>
+
+                              <View style={styles.sheetSection}>
+                                <SectionTitle style={styles.editSectionTitle}>기록일이 주말인 경우</SectionTitle>
+                                <View style={styles.recurringCard}>
+                                  {QUICK_INPUT_WEEKEND_OPTIONS.map((option, index) => {
+                                    const disabled =
+                                      (!quickInputRecurringDraftIsRecurring && !quickInputRecurringDraftIsInstallment) ||
+                                      (quickInputRecurringDraftIsRecurring && shouldIgnoreWeekendOptionForRecurringType(quickInputRecurringDraftType));
+                                    const active = quickInputRecurringDraftWeekendOption === option.value;
+                                    return (
+                                      <View key={option.value}>
+                                        <Pressable
+                                          style={styles.recurringRadioRow}
+                                          onPress={() => {
+                                            if (!quickInputRecurringDraftIsRecurring && !quickInputRecurringDraftIsInstallment) return;
+                                            if (quickInputRecurringDraftIsRecurring && shouldIgnoreWeekendOptionForRecurringType(quickInputRecurringDraftType)) {
+                                              showToast('해당 단위는 주말 옵션을 적용할 수 없습니다.');
+                                              return;
+                                            }
+                                            setQuickInputRecurringDraftWeekendOption(option.value);
+                                          }}
+                                          disabled={!quickInputRecurringDraftIsRecurring && !quickInputRecurringDraftIsInstallment}
+                                          accessibilityRole="radio"
+                                          accessibilityState={{ selected: active, disabled }}
+                                        >
+                                          <UiLineText style={styles.weekendOptionText}>
+                                            {option.label}
+                                          </UiLineText>
+                                          <Radio
+                                            checked={active}
+                                            onPress={() => {
+                                              if (!quickInputRecurringDraftIsRecurring && !quickInputRecurringDraftIsInstallment) return;
+                                              if (quickInputRecurringDraftIsRecurring && shouldIgnoreWeekendOptionForRecurringType(quickInputRecurringDraftType)) {
+                                                showToast('해당 단위는 주말 옵션을 적용할 수 없습니다.');
+                                                return;
+                                              }
+                                              setQuickInputRecurringDraftWeekendOption(option.value);
+                                            }}
+                                            label={false}
+                                            disabled={disabled}
+                                          />
+                                        </Pressable>
+                                        {index < QUICK_INPUT_WEEKEND_OPTIONS.length - 1 ? <View style={styles.recurringDivider} /> : null}
+                                      </View>
+                                    );
+                                  })}
+                                </View>
+                              </View>
+                            </ScrollView>
+                          ),
+                        },
+                      ] satisfies BottomSheetFlowScreen[]}
+                    />
+                  </View>
+                )}
+              </ModalBottomsheet>
+              {quickInputDateSheetMounted ? (
+                <RecordDatePickerSheet
+                  visible={quickInputDateSheetVisible}
+                  embedded
+                  title="소비 기록일 선택"
+                  selectedDate={quickInputDateSheetSelected}
+                  onSelectedDateChange={setQuickInputDateSheetSelected}
+                  onClose={handleQuickInputDateSheetClose}
+                  onConfirm={handleQuickInputDateSheetConfirm}
+                  monthStartDay={quickInputDateSheetMonthStartDay}
+                  embeddedZIndex={100010}
+                  navigationLeftIcon="close"
+                />
+              ) : null}
+              {quickInputPaymentSheetMounted ? (
+                <ModalBottomsheet
+                  visible={quickInputPaymentSheetVisible}
+                  title="결제 유형 선택"
+                  onClose={handleQuickInputPaymentSheetClose}
+                  closeOnBackdrop
+                  embedded
+                  embeddedZIndex={100010}
+                  navigationLeftIcon="close"
+                  style={{ height: windowHeight * 0.5 }}
+                  contentStyle={styles.paymentSheetContent}
+                  noPaddingBottom
+                >
+                <View style={styles.paymentSheetBody}>
+                  <View style={styles.paymentSheetFilterRow}>
+                    <Pressable
+                      style={[
+                        styles.paymentSheetChip,
+                        quickInputPaymentSheetFilter === 'credit' && styles.paymentSheetChipActive,
+                      ]}
+                      onPress={() => setQuickInputPaymentSheetFilter('credit')}
+                    >
+                      <Text style={[
+                        styles.paymentSheetChipText,
+                        quickInputPaymentSheetFilter === 'credit' && styles.paymentSheetChipTextActive,
+                      ]}>신용카드</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[
+                        styles.paymentSheetChip,
+                        quickInputPaymentSheetFilter === 'debit' && styles.paymentSheetChipActive,
+                      ]}
+                      onPress={() => setQuickInputPaymentSheetFilter('debit')}
+                    >
+                      <Text style={[
+                        styles.paymentSheetChipText,
+                        quickInputPaymentSheetFilter === 'debit' && styles.paymentSheetChipTextActive,
+                      ]}>체크카드</Text>
+                    </Pressable>
+                    <Pressable
+                      style={styles.paymentSheetCashButton}
+                      onPress={() => handleQuickInputPaymentSelect('cash')}
+                    >
+                      <Text style={styles.paymentSheetCashEmoji}>💰</Text>
+                      <Text style={styles.paymentSheetCashText}>현금 선택</Text>
+                    </Pressable>
+                  </View>
+                  <View style={styles.paymentSheetListCard}>
+                    <ScrollView
+                      style={styles.paymentSheetScroll}
+                      contentContainerStyle={styles.paymentSheetScrollContent}
+                      showsVerticalScrollIndicator={false}
+                      bounces={false}
+                      overScrollMode="never"
+                    >
+                      {quickInputPaymentSheetItems
+                        .filter((item) => item.type === quickInputPaymentSheetFilter)
+                        .map((item, index, arr) => (
+                          <View key={item.id}>
+                            <Pressable
+                              style={styles.paymentSheetItem}
+                              onPress={() => handleQuickInputPaymentSelect(item.type, item)}
+                            >
+                              <View style={styles.paymentSheetItemLeft}>
+                                <View style={[styles.paymentSheetDot, { backgroundColor: item.color }]} />
+                                <View style={styles.paymentSheetItemTextBlock}>
+                                  <Text style={styles.paymentSheetItemLabel} numberOfLines={1}>{item.label}</Text>
+                                  {item.description.trim() ? (
+                                    <Text style={styles.paymentSheetItemDescription} numberOfLines={1}>
+                                      {item.description}
+                                    </Text>
+                                  ) : null}
+                                </View>
+                              </View>
+                              {quickInputEditDraft?.paymentSubtypeLabel === item.label ? (
+                                <Icon name="check" variant="line" size={24} color={atomicColors.blue[600]} />
+                              ) : null}
+                            </Pressable>
+                            {index < arr.length - 1 ? <View style={styles.paymentSheetDivider} /> : null}
+                          </View>
+                        ))}
+                    </ScrollView>
+                  </View>
+                  <View style={{ height: PAYMENT_SHEET_LIST_BOTTOM_GAP }} />
+                  <ModalBottomsheetBottomInset backgroundColor={atomicColors.common[0]} />
+                </View>
+                </ModalBottomsheet>
+              ) : null}
+              {quickInputAmountKeypadMounted ? (
+                <CustomKeypadOverlay style={styles.editAmountKeypadOverlay}>
+                  <Pressable
+                    style={StyleSheet.absoluteFill}
+                    onPress={handleQuickInputAmountKeypadClose}
+                    accessibilityRole="button"
+                    accessibilityLabel="금액 키패드 닫기"
+                  />
+                  <RNAnimated.View
+                    style={{ transform: [{ translateY: amountKeypadTranslateYRef.current }] }}
+                    pointerEvents={quickInputAmountKeypadVisible ? 'auto' : 'none'}
+                  >
+                    <CustomKeypad
+                      value={quickInputEditDraft?.amount?.replace(/,/g, '') ?? ''}
+                      onValueChange={handleQuickInputEditAmountChange}
+                      onExpressionChange={setQuickInputEditAmountExpression}
+                      onConfirm={handleQuickInputAmountKeypadConfirm}
+                    />
+                  </RNAnimated.View>
+                </CustomKeypadOverlay>
+              ) : null}
             </View>
         )}
       </View>
@@ -1957,10 +3307,447 @@ const styles = StyleSheet.create({
   },
   container: {
     position: 'absolute',
-    left: 16,
-    right: 16,
+    left: 0,
+    right: 0,
     bottom: 0,
-    /** TIP 박스 ↔ 롱버전 입력창 간격 */
+  },
+  normalInputStack: {
     gap: 12,
+  },
+  calculatorPanel: {
+    gap: CALCULATOR_PANEL_GAP,
+  },
+  edgeContent: {
+    marginHorizontal: 16,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  actionChip: {
+    height: 40,
+    borderRadius: 24,
+    backgroundColor: atomicColors.neutral[100],
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  actionIconBox: {
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionLabel: {
+    color: atomicColors.common[100],
+    fontFamily: 'Pretendard-Medium',
+    fontSize: 14,
+    lineHeight: 21,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  calculatorBar: {
+    height: 64,
+    borderRadius: 16,
+    backgroundColor: atomicColors.neutral[100],
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  calculatorInput: {
+    flex: 1,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: atomicColors.common[0],
+    paddingHorizontal: 12,
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  calculatorExpressionContent: {
+    flexGrow: 1,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 4,
+  },
+  calculatorAmountText: {
+  },
+  calculatorOperatorText: {
+    color: atomicColors.neutral[700],
+  },
+  calculatorUnitText: {
+    fontFamily: 'Pretendard-Medium',
+    fontSize: 16,
+    lineHeight: 24,
+    includeFontPadding: false,
+  },
+  calculatorActionButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: atomicColors.neutral[300],
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  editSheet: {
+    backgroundColor: atomicColors.common[0],
+  },
+  editSheetContent: {
+    flex: 1,
+    minHeight: 0,
+    padding: 0,
+  },
+  editSheetBody: {
+    flex: 1,
+    minHeight: 0,
+    backgroundColor: atomicColors.neutral[100],
+  },
+  editSheetScroll: {
+    flex: 1,
+    minHeight: 0,
+  },
+  editSheetForm: {
+    paddingHorizontal: 0,
+    paddingTop: 0,
+    paddingBottom: 24,
+    gap: 0,
+  },
+  editSection: {
+    paddingHorizontal: 16,
+    paddingTop: 24,
+    gap: 8,
+  },
+  editSectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  editSectionTitle: {
+    color: atomicColors.common[100],
+  },
+  editRecurringButtonText: {
+    color: colors.light.textAssistive,
+    fontFamily: 'Pretendard-Regular',
+    fontSize: 16,
+    lineHeight: 24,
+    includeFontPadding: false,
+    textDecorationLine: 'underline',
+  },
+  editAmountValueWrap: {
+    flex: 1,
+    minHeight: 24,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
+  editAmountValueText: {
+    color: atomicColors.common[100],
+    fontFamily: 'Pretendard-Bold',
+    fontSize: 16,
+    lineHeight: 24,
+    includeFontPadding: false,
+    textAlign: 'right',
+  },
+  requiredMark: {
+    color: atomicColors.red[600],
+  },
+  editPaymentSticky: {
+    height: 56,
+    borderTopWidth: 1,
+    borderTopColor: colors.light.border,
+    backgroundColor: atomicColors.neutral[100],
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    justifyContent: 'space-between',
+  },
+  editPaymentLabel: {
+    color: atomicColors.neutral[900],
+    fontFamily: 'Pretendard-Bold',
+    fontSize: 16,
+    lineHeight: 24,
+    includeFontPadding: false,
+  },
+  editPaymentControl: {
+    width: 200,
+  },
+  editSheetCta: {
+    backgroundColor: atomicColors.common[0],
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 16,
+  },
+  categorySheet: {
+    backgroundColor: atomicColors.common[0],
+  },
+  categorySheetContent: {
+    flex: 1,
+    minHeight: 0,
+    padding: 0,
+  },
+  categorySheetBody: {
+    flex: 1,
+    minHeight: 0,
+    backgroundColor: atomicColors.neutral[100],
+    padding: 16,
+  },
+  categorySheetCard: {
+    flex: 1,
+    minHeight: 0,
+    borderRadius: 16,
+    backgroundColor: atomicColors.common[0],
+    overflow: 'hidden',
+  },
+  categorySheetScroll: {
+    flex: 1,
+  },
+  categorySheetScrollContent: {
+    paddingBottom: 0,
+  },
+  categorySheetItem: {
+    height: 56,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  categorySheetItemContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+    minWidth: 0,
+  },
+  categorySheetEmoji: {
+    width: 24,
+    color: atomicColors.common[100],
+    fontFamily: 'Pretendard-Bold',
+    fontSize: 20,
+    lineHeight: 30,
+    includeFontPadding: false,
+    textAlign: 'center',
+  },
+  categorySheetLabel: {
+    flex: 1,
+    color: atomicColors.common[100],
+    fontFamily: 'Pretendard-Regular',
+    fontSize: 16,
+    lineHeight: 24,
+    includeFontPadding: false,
+  },
+  categorySheetDivider: {
+    height: 1,
+    marginHorizontal: 16,
+    backgroundColor: colors.light.border,
+  },
+  paymentSheetContent: {
+    flex: 1,
+    minHeight: 0,
+    padding: 0,
+  },
+  paymentSheetBody: {
+    flex: 1,
+    minHeight: 0,
+    paddingTop: 16,
+    paddingHorizontal: 16,
+    paddingBottom: 0,
+    flexDirection: 'column',
+    backgroundColor: atomicColors.neutral[100],
+  },
+  paymentSheetFilterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  paymentSheetChip: {
+    height: 37,
+    borderRadius: 24,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: atomicColors.common[0],
+    marginRight: 8,
+  },
+  paymentSheetChipActive: {
+    backgroundColor: atomicColors.blue[600],
+  },
+  paymentSheetChipText: {
+    color: atomicColors.neutral[600],
+    fontFamily: 'Pretendard-Medium',
+    fontSize: 14,
+    lineHeight: 21,
+    includeFontPadding: false,
+  },
+  paymentSheetChipTextActive: {
+    color: atomicColors.common[0],
+    fontFamily: 'Pretendard-Bold',
+  },
+  paymentSheetCashButton: {
+    marginLeft: 'auto',
+    height: 32,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  paymentSheetCashEmoji: {
+    color: atomicColors.common[100],
+    fontFamily: 'Pretendard-Bold',
+    fontSize: 21,
+    lineHeight: 32,
+    includeFontPadding: false,
+  },
+  paymentSheetCashText: {
+    color: atomicColors.common[100],
+    fontFamily: 'Pretendard-Regular',
+    fontSize: 16,
+    lineHeight: 24,
+    includeFontPadding: false,
+    textDecorationLine: 'underline',
+  },
+  paymentSheetListCard: {
+    flex: 1,
+    minHeight: 0,
+    borderRadius: 16,
+    backgroundColor: atomicColors.common[0],
+    overflow: 'hidden',
+  },
+  paymentSheetScroll: {
+    flex: 1,
+    minHeight: 0,
+  },
+  paymentSheetScrollContent: {
+    flexGrow: 1,
+    paddingBottom: 0,
+  },
+  paymentSheetItem: {
+    minHeight: 56,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  paymentSheetItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+    minWidth: 0,
+  },
+  paymentSheetDot: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: atomicColors.neutral[300],
+  },
+  paymentSheetItemTextBlock: {
+    flex: 1,
+    minWidth: 0,
+    gap: 0,
+  },
+  paymentSheetItemLabel: {
+    color: atomicColors.common[100],
+    fontFamily: 'Pretendard-Regular',
+    fontSize: 16,
+    lineHeight: 24,
+    includeFontPadding: false,
+  },
+  paymentSheetItemDescription: {
+    color: atomicColors.neutral[600],
+    fontFamily: 'Pretendard-Regular',
+    fontSize: 14,
+    lineHeight: 21,
+    includeFontPadding: false,
+  },
+  paymentSheetDivider: {
+    height: 1,
+    marginHorizontal: 16,
+    backgroundColor: atomicColors.neutral[300],
+  },
+  editAmountKeypadOverlay: {
+    zIndex: 100020,
+    elevation: 100020,
+  },
+  recurringSheetScroll: {
+    flex: 1,
+    minHeight: 0,
+    backgroundColor: atomicColors.neutral[100],
+  },
+  recurringSheetScrollContent: {
+    paddingHorizontal: 16,
+    paddingTop: 24,
+    paddingBottom: 32,
+    gap: 24,
+  },
+  sheetSection: {
+    gap: 8,
+  },
+  recurringCard: {
+    borderRadius: 16,
+    backgroundColor: atomicColors.common[0],
+    overflow: 'hidden',
+  },
+  recurringSection: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    justifyContent: 'center',
+  },
+  recurringTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 0,
+  },
+  recurringSwitchLabel: {
+    color: atomicColors.common[100],
+    fontFamily: 'Pretendard-Regular',
+    fontSize: 16,
+    lineHeight: 24,
+    includeFontPadding: false,
+  },
+  recurringCaption: {
+    color: atomicColors.neutral[600],
+    fontFamily: 'Pretendard-Regular',
+    fontSize: 14,
+    lineHeight: 21,
+    includeFontPadding: false,
+    marginTop: 0,
+  },
+  recurringDivider: {
+    height: 1,
+    alignSelf: 'stretch',
+    marginHorizontal: 16,
+    backgroundColor: atomicColors.neutral[300],
+  },
+  chipContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    width: '100%',
+  },
+  periodChip: {
+    marginBottom: 0,
+    width: '31.5%',
+    height: 48,
+  },
+  recurringRadioRow: {
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  weekendOptionText: {
+    color: atomicColors.common[100],
+    fontFamily: 'Pretendard-Regular',
+    fontSize: 16,
+    lineHeight: 24,
+    includeFontPadding: false,
   },
 });

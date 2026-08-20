@@ -16,6 +16,9 @@ export type RecordDatePickerSheetProps = {
   onConfirm: (isoDate: string) => void;
   monthStartDay: number;
   embedded?: boolean;
+  embeddedZIndex?: number;
+  showBackdrop?: boolean;
+  navigationLeftIcon?: 'close' | 'back';
 };
 
 function RecordDatePickerSheetComponent({
@@ -27,6 +30,9 @@ function RecordDatePickerSheetComponent({
   onConfirm,
   monthStartDay,
   embedded = false,
+  embeddedZIndex,
+  showBackdrop,
+  navigationLeftIcon,
 }: RecordDatePickerSheetProps) {
   const colorScheme = useColorScheme();
   const palette = colors[colorScheme ?? 'light'] as ColorPalette;
@@ -44,6 +50,9 @@ function RecordDatePickerSheetComponent({
       onClose={onClose}
       closeOnBackdrop
       embedded={embedded}
+      embeddedZIndex={embeddedZIndex}
+      showBackdrop={showBackdrop}
+      navigationLeftIcon={navigationLeftIcon}
       contentStyle={styles.sheetContent}
     >
       <BasicCalendarDaySelect
@@ -75,6 +84,9 @@ function recordDatePickerSheetPropsAreEqual(
     prev.selectedDate === next.selectedDate &&
     prev.monthStartDay === next.monthStartDay &&
     prev.embedded === next.embedded &&
+    prev.embeddedZIndex === next.embeddedZIndex &&
+    prev.showBackdrop === next.showBackdrop &&
+    prev.navigationLeftIcon === next.navigationLeftIcon &&
     prev.onSelectedDateChange === next.onSelectedDateChange &&
     prev.onClose === next.onClose &&
     prev.onConfirm === next.onConfirm

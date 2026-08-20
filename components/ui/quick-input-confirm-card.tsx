@@ -108,8 +108,8 @@ function PaymentTypeRow({
   );
 }
 
-const CARD_SLIDE_OFFSET = 400;
-const CARD_ANIMATION_DURATION = 500;
+const CARD_SLIDE_OFFSET = 16;
+const CARD_ANIMATION_DURATION = 180;
 
 export function QuickInputConfirmCard({
   data,
@@ -121,6 +121,7 @@ export function QuickInputConfirmCard({
   const colorScheme = useColorScheme();
   const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   const translateY = useSharedValue(-CARD_SLIDE_OFFSET);
+  const opacity = useSharedValue(0);
   const cardRef = useRef<View>(null);
   const memoButtonWrapRef = useRef<View>(null);
   const [isExiting, setIsExiting] = useState(false);
@@ -136,7 +137,11 @@ export function QuickInputConfirmCard({
       duration: CARD_ANIMATION_DURATION,
       easing: Easing.inOut(Easing.cubic),
     });
-  }, [translateY]);
+    opacity.value = withTiming(1, {
+      duration: CARD_ANIMATION_DURATION,
+      easing: Easing.inOut(Easing.cubic),
+    });
+  }, [opacity, translateY]);
 
   useEffect(() => {
     setMemoTooltipVisible(false);
@@ -180,7 +185,11 @@ export function QuickInputConfirmCard({
         }
       }
     );
-  }, [isExiting, addLoading, onCancel, translateY]);
+    opacity.value = withTiming(0, {
+      duration: CARD_ANIMATION_DURATION,
+      easing: Easing.inOut(Easing.cubic),
+    });
+  }, [isExiting, addLoading, onCancel, opacity, translateY]);
 
   const handleChangePress = useCallback(() => {
     if (buttonsDisabled || !onChange) return;
@@ -199,6 +208,7 @@ export function QuickInputConfirmCard({
   }, [buttonsDisabled, dismissMemoTooltip, handleMemoButtonWrapLayout, memoTooltipVisible]);
 
   const animatedStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
     transform: [{ translateY: translateY.value }],
   }));
 
