@@ -35,7 +35,12 @@ import {
   View,
   ViewStyle,
 } from 'react-native';
-import { EdgeInsets, SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  EdgeInsets,
+  initialWindowMetrics,
+  SafeAreaProvider,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 import { ToastHost } from '@/contexts/toast-context';
 import { Icon } from './icon';
 
@@ -497,19 +502,34 @@ function ModalBottomsheetContent({
 
 /**
  * Modal Bottomsheet — embedded overlays get SafeAreaProvider at the root (parent Modal window).
+ *
+ * Android: elevation on an absoluteFill host steals touches even when `pointerEvents="none"`
+ * (notably RNCSafeAreaProvider). Keep elevation only while visible, and gate hits on a plain View.
  */
 export function ModalBottomsheet(props: ModalBottomsheetProps) {
   if (props.embedded) {
+    const embeddedZIndex = props.embeddedZIndex ?? 100000;
+    const hostPointerEvents = props.visible ? 'box-none' : 'none';
+
     return (
-      <SafeAreaProvider
+      <View
+        collapsable={false}
+        pointerEvents={hostPointerEvents}
         style={[
           styles.insetProviderOverlay,
-          { zIndex: props.embeddedZIndex ?? 100000, elevation: props.embeddedZIndex ?? 100000 },
+          props.visible
+            ? { zIndex: embeddedZIndex, elevation: embeddedZIndex }
+            : styles.insetProviderOverlayHidden,
         ]}
-        pointerEvents={props.visible ? 'box-none' : 'none'}
       >
-        <ModalBottomsheetContent {...props} embedded />
-      </SafeAreaProvider>
+        <SafeAreaProvider
+          initialMetrics={initialWindowMetrics}
+          style={styles.insetProviderModal}
+          pointerEvents={hostPointerEvents}
+        >
+          <ModalBottomsheetContent {...props} embedded />
+        </SafeAreaProvider>
+      </View>
     );
   }
 
@@ -528,9 +548,12 @@ export function ModalBottomsheetBottomInset({
   backgroundColor,
 }: ModalBottomsheetBottomInsetProps) {
   const insets = useSafeAreaInsets();
+  // Nested SafeAreaProvider can report bottom=0 on Android; fall back to window metrics.
+  const bottom =
+    insets.bottom > 0 ? insets.bottom : (initialWindowMetrics?.insets.bottom ?? 0);
   const height =
-    getAndroidNavigationBarInset(insets) +
-    (Platform.OS === 'ios' ? Math.max(insets.bottom, 34) : 0);
+    getAndroidNavigationBarInset({ bottom }) +
+    (Platform.OS === 'ios' ? Math.max(bottom, 34) : 0);
 
   if (height <= 0) {
     return null;
@@ -553,6 +576,11 @@ const styles = StyleSheet.create({
   },
   insetProviderOverlay: {
     ...StyleSheet.absoluteFillObject,
+  },
+  /** Hidden embedded host: stay mounted for close animation, but do not stack/steal Android touches. */
+  insetProviderOverlayHidden: {
+    zIndex: 0,
+    elevation: 0,
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,

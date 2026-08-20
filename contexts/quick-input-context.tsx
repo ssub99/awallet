@@ -117,7 +117,14 @@ import {
     useGenericKeyboardHandler,
     useKeyboardContext,
 } from 'react-native-keyboard-controller';
-import Animated, { runOnJS, useAnimatedRef, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
+import Animated, {
+  Easing as ReanimatedEasing,
+  runOnJS,
+  useAnimatedRef,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Sortable, {
   useItemContext,
@@ -136,12 +143,22 @@ const CALCULATOR_PANEL_HEIGHT =
   CALCULATOR_BAR_HEIGHT + CALCULATOR_PANEL_GAP + getKeypadHeight(Dimensions.get('window').width);
 const EDIT_AMOUNT_KEYPAD_HEIGHT = getKeypadHeight(Dimensions.get('window').width);
 const QUICK_INPUT_EDIT_SHEET_ANIMATION_DURATION = 300;
-const QUICK_INPUT_EMBEDDED_SHEET_UNMOUNT_DELAY = QUICK_INPUT_EDIT_SHEET_ANIMATION_DURATION + 80;
-const QUICK_INPUT_EDIT_RESTORE_DELAY = 180;
+const QUICK_INPUT_EMBEDDED_SHEET_UNMOUNT_DELAY = QUICK_INPUT_EDIT_SHEET_ANIMATION_DURATION + 20;
+const QUICK_INPUT_EDIT_RESTORE_DELAY = 120;
 const QUICK_INPUT_CONFIRM_CARD_REVEAL_DELAY = 120;
 const QUICK_INPUT_EDIT_OPENING_ANIMATION_DURATION = 180;
 const QUICK_INPUT_EDIT_VIEW_TRANSITION_DURATION = 350;
 const QUICK_INPUT_EDIT_VIEW_TRANSITION_EASING = Easing.bezier(0.42, 0, 0.58, 1);
+/** Android: TextInput remount 직후 focus — 짧게 유지 (시트 닫힘 체감) */
+const ANDROID_QUICK_INPUT_REFOCUS_DELAY_MS = 48;
+/** Android: DidShow에서 앵커→IME 높이로 부드럽게 올릴 때 */
+const ANDROID_KEYBOARD_SETTLE_DURATION_MS = 250;
+/** Android: settling 동안 onMove 차단 유지 (withTiming duration보다 약간 길게) */
+const ANDROID_KEYBOARD_SETTLE_HOLD_MS = 280;
+/** onMove가 최종 높이를 한 번에 주면 점프 → 이 이상이면 DidShow withTiming에 맡김 */
+const ANDROID_KEYBOARD_LARGE_RAISE_PX = 64;
+/** 카테고리 시트 닫힘 중 키패드 재포커스 — 시트 애니 끝나기 전에 시작 */
+const ANDROID_CATEGORY_SHEET_REFOCUS_DELAY_MS = 120;
 const PAYMENT_SHEET_LIST_BOTTOM_GAP = 16;
 const CATEGORY_SETTING_SHEET_HEIGHT_RATIO = 0.85;
 const CATEGORY_SETTING_DRAG_SHADOW_ANIMATION_MS = 200;
@@ -191,6 +208,7 @@ function QuickInputCategorySettingListItem({
             accessibilityLabel={`${item.label} 카테고리 편집`}
           >
             <View style={styles.categorySettingRowLeft}>
+              {/* Pretendard 금지 — Android에서 커스텀 폰트면 이모지가 ✅ 등으로 깨짐 */}
               <Text style={styles.categorySettingEmoji}>{item.emoji}</Text>
               <UiLineText style={styles.categorySettingLabel}>{item.label}</UiLineText>
             </View>
@@ -262,19 +280,31 @@ function applyIosQuickInputKeyboardFollow(
  * Android: keyboard-controller IME height → bottom.
  * 열림 애니 중 height 333→14→333 스파이크 시 UI가 내려가지 않도록 단조 상승만 허용.
  */
+/**
+ * Android controller 높이 → bottom.
+ * @returns 적용했으면 true. 앵커에서 큰 점프면 false (DidShow withTiming에 맡김).
+ */
 function applyAndroidQuickInputControllerBottom(
   animatedBottom: { value: number },
   keyboardHeight: number,
   gap: number,
-): void {
+  shortBottom: number,
+): boolean {
   'worklet';
-  if (!Number.isFinite(keyboardHeight) || keyboardHeight <= 0) {
-    return;
+  const height = Number.isFinite(keyboardHeight) ? Math.abs(keyboardHeight) : 0;
+  if (height <= 0) {
+    return false;
   }
-  const next = keyboardHeight + gap;
-  if (next > animatedBottom.value) {
-    animatedBottom.value = next;
+  const next = height + gap;
+  if (next <= animatedBottom.value) {
+    return false;
   }
+  const parkedNearShort = animatedBottom.value <= shortBottom + 24;
+  if (parkedNearShort && next - animatedBottom.value > ANDROID_KEYBOARD_LARGE_RAISE_PX) {
+    return false;
+  }
+  animatedBottom.value = next;
+  return true;
 }
 
 function readAndroidControllerKeyboardHeight(raw: number): number {
@@ -910,6 +940,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const dateSheetUnmountTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const paymentSheetUnmountTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const categorySettingSheetUnmountTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const categorySettingSheetRefocusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const quickInputRefocusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const quickInputCategorySettingScrollRef = useAnimatedRef<ScrollView>();
   const quickInputCategorySettingCategoriesRef = useRef<QuickInputCategorySettingItem[]>(quickInputCategorySettingCategories);
   const quickInputCategorySettingScrollOffsetYRef = useRef(0);
@@ -931,6 +963,10 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const androidKeyboardSyncRafRef = useRef<number | null>(null);
   /** Android: controller만으로 bottom이 내려가며 깜빡이는 것 방지 */
   const lastAndroidBottomRef = useRef(0);
+  /** Android: DidShow withTiming 중 worklet·metrics 동기화 차단 */
+  const androidKeyboardSettlingRef = useRef(false);
+  const androidKeyboardSettling = useSharedValue(false);
+  const androidKeyboardSettleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isQuickInputVisibleRef = useRef(false);
   const androidKeyboardWasVisibleRef = useRef(false);
   const hideQuickInputRef = useRef<(options?: HideQuickInputOptions) => void>(() => {});
@@ -997,7 +1033,11 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }, []);
 
   const applyAndroidKeyboardGeometry = useCallback(
-    (endCoordinates: KeyboardEvent['endCoordinates']) => {
+    (endCoordinates: KeyboardEvent['endCoordinates'], animated = false) => {
+      if (androidKeyboardSettlingRef.current && !animated) {
+        return;
+      }
+
       const nativeHeight = readAndroidControllerKeyboardHeight(keyboardReanimated.height.value);
       const fromController =
         nativeHeight > 0 ? nativeHeight + QUICK_INPUT_KEYBOARD_GAP : 0;
@@ -1020,11 +1060,24 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       target = Math.max(target, fromController, animatedBottom.value);
 
       const previousBottom = lastAndroidBottomRef.current;
-      if (target <= previousBottom + 1 && previousBottom > 0) {
+      const parkedBelowPeak = animatedBottom.value < previousBottom - 8;
+      if (
+        target <= previousBottom + 1 &&
+        previousBottom > 0 &&
+        !parkedBelowPeak &&
+        !androidKeyboardSettlingRef.current
+      ) {
         return;
       }
 
-      lastAndroidBottomRef.current = Math.max(previousBottom, target);
+      lastAndroidBottomRef.current = Math.max(parkedBelowPeak ? 0 : previousBottom, target);
+      if (animated) {
+        animatedBottom.value = withTiming(target, {
+          duration: ANDROID_KEYBOARD_SETTLE_DURATION_MS,
+          easing: ReanimatedEasing.out(ReanimatedEasing.cubic),
+        });
+        return;
+      }
       animatedBottom.value = target;
     },
     [animatedBottom, keyboardReanimated]
@@ -1038,8 +1091,34 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     }
   }, []);
 
+  /** 계산기/시트 등으로 IME를 의도적으로 내린 뒤 다시 follow할 때 stale peak 제거 */
+  const setAndroidKeyboardSettling = useCallback(
+    (settling: boolean) => {
+      androidKeyboardSettlingRef.current = settling;
+      androidKeyboardSettling.value = settling;
+    },
+    [androidKeyboardSettling],
+  );
+
+  const resetAndroidKeyboardFollowPeak = useCallback(() => {
+    if (Platform.OS !== 'android') {
+      return;
+    }
+    cancelAndroidKeyboardSync();
+    if (androidKeyboardSettleTimeoutRef.current) {
+      clearTimeout(androidKeyboardSettleTimeoutRef.current);
+      androidKeyboardSettleTimeoutRef.current = null;
+    }
+    setAndroidKeyboardSettling(false);
+    lastAndroidBottomRef.current = 0;
+  }, [cancelAndroidKeyboardSync, setAndroidKeyboardSettling]);
+
   const scheduleAndroidKeyboardSync = useCallback(() => {
-    if (Platform.OS !== 'android' || !shouldFollowKeyboardRef.current) {
+    if (
+      Platform.OS !== 'android' ||
+      !shouldFollowKeyboardRef.current ||
+      androidKeyboardSettlingRef.current
+    ) {
       return;
     }
     if (androidKeyboardSyncRafRef.current != null) {
@@ -1048,16 +1127,65 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     androidKeyboardSyncRafRef.current = requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         androidKeyboardSyncRafRef.current = null;
-        if (!shouldFollowKeyboardRef.current) {
+        if (!shouldFollowKeyboardRef.current || androidKeyboardSettlingRef.current) {
           return;
         }
         const metrics = Keyboard.metrics();
         if (metrics && metrics.height > 0) {
-          applyAndroidKeyboardGeometry(keyboardMetricsToEndCoordinates(metrics));
+          applyAndroidKeyboardGeometry(keyboardMetricsToEndCoordinates(metrics), false);
         }
       });
     });
   }, [applyAndroidKeyboardGeometry]);
+
+  /** 앵커에서 최종 높이로 한 번에 올 때 — 점프 대신 withTiming */
+  const beginAndroidKeyboardSettle = useCallback(
+    (keyboardHeight: number) => {
+      if (
+        Platform.OS !== 'android' ||
+        !shouldFollowKeyboardRef.current ||
+        androidKeyboardSettlingRef.current ||
+        isClosingRef.current
+      ) {
+        return;
+      }
+      const height = Number.isFinite(keyboardHeight) ? Math.abs(keyboardHeight) : 0;
+      if (height <= 0) {
+        return;
+      }
+      if (animatedBottom.value > lastShortBottomRef.current + 24) {
+        return;
+      }
+      // onMove가 연속으로 settle를 요청해도 한 번만
+      setAndroidKeyboardSettling(true);
+      if (androidKeyboardSettleTimeoutRef.current) {
+        clearTimeout(androidKeyboardSettleTimeoutRef.current);
+        androidKeyboardSettleTimeoutRef.current = null;
+      }
+      const metrics = Keyboard.metrics();
+      if (metrics && metrics.height > 0) {
+        applyAndroidKeyboardGeometry(keyboardMetricsToEndCoordinates(metrics), true);
+      } else {
+        const target = height + KEYBOARD_GAP;
+        lastAndroidBottomRef.current = Math.max(lastAndroidBottomRef.current, target);
+        animatedBottom.value = withTiming(target, {
+          duration: ANDROID_KEYBOARD_SETTLE_DURATION_MS,
+          easing: ReanimatedEasing.out(ReanimatedEasing.cubic),
+        });
+      }
+      androidKeyboardSettleTimeoutRef.current = setTimeout(() => {
+        androidKeyboardSettleTimeoutRef.current = null;
+        setAndroidKeyboardSettling(false);
+        scheduleAndroidKeyboardSync();
+      }, ANDROID_KEYBOARD_SETTLE_HOLD_MS);
+    },
+    [
+      animatedBottom,
+      applyAndroidKeyboardGeometry,
+      scheduleAndroidKeyboardSync,
+      setAndroidKeyboardSettling,
+    ],
+  );
 
   const setShouldFollowKeyboard = useCallback(
     (follow: boolean) => {
@@ -1077,7 +1205,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         }
         const keyboardHeight = Number.isFinite(event.height) ? event.height : 0;
         if (Platform.OS === 'android') {
-          if (keyboardHeight > 0) {
+          if (keyboardHeight !== 0) {
             // onStart는 종종 최종 IME 높이를 먼저 줌 → UI만 먼저 올라감. 위치는 onMove/onEnd만.
             runOnJS(markAndroidKeyboardVisible)();
           } else {
@@ -1111,8 +1239,21 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         }
 
         if (Platform.OS === 'android') {
-          applyAndroidQuickInputControllerBottom(animatedBottom, keyboardHeight, KEYBOARD_GAP);
-          runOnJS(syncAndroidHandlerBottom)(keyboardHeight + KEYBOARD_GAP);
+          if (androidKeyboardSettling.value) {
+            return;
+          }
+          const height = Math.abs(keyboardHeight);
+          const applied = applyAndroidQuickInputControllerBottom(
+            animatedBottom,
+            height,
+            KEYBOARD_GAP,
+            shortBottomFromScreen.value,
+          );
+          if (applied) {
+            runOnJS(syncAndroidHandlerBottom)(height + KEYBOARD_GAP);
+          } else {
+            runOnJS(beginAndroidKeyboardSettle)(height);
+          }
           runOnJS(markAndroidKeyboardVisible)();
           return;
         }
@@ -1134,10 +1275,22 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         const keyboardHeight = Number.isFinite(event.height) ? event.height : 0;
 
         if (Platform.OS === 'android') {
-          if (keyboardHeight > 0) {
-            applyAndroidQuickInputControllerBottom(animatedBottom, keyboardHeight, KEYBOARD_GAP);
-            runOnJS(syncAndroidHandlerBottom)(keyboardHeight + KEYBOARD_GAP);
-            runOnJS(scheduleAndroidKeyboardSync)();
+          if (keyboardHeight !== 0) {
+            if (!androidKeyboardSettling.value) {
+              const height = Math.abs(keyboardHeight);
+              const applied = applyAndroidQuickInputControllerBottom(
+                animatedBottom,
+                height,
+                KEYBOARD_GAP,
+                shortBottomFromScreen.value,
+              );
+              if (applied) {
+                runOnJS(syncAndroidHandlerBottom)(height + KEYBOARD_GAP);
+                runOnJS(scheduleAndroidKeyboardSync)();
+              } else {
+                runOnJS(beginAndroidKeyboardSettle)(height);
+              }
+            }
             runOnJS(markAndroidKeyboardVisible)();
           } else {
             animatedBottom.value = shortBottomFromScreen.value;
@@ -1237,12 +1390,33 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     setShouldFollowKeyboard(true);
   }, [setShouldFollowKeyboard]);
 
+  /** 계산기/시트 닫힌 뒤 TextInput remount 직후 focus — Android는 delay 필요 */
+  const focusQuickInputField = useCallback(() => {
+    if (quickInputRefocusTimeoutRef.current) {
+      clearTimeout(quickInputRefocusTimeoutRef.current);
+      quickInputRefocusTimeoutRef.current = null;
+    }
+    const run = () => {
+      quickInputRefocusTimeoutRef.current = null;
+      if (!isQuickInputVisibleRef.current || isClosingRef.current) {
+        return;
+      }
+      quickInputRef.current?.focus();
+    };
+    if (Platform.OS === 'android') {
+      quickInputRefocusTimeoutRef.current = setTimeout(run, ANDROID_QUICK_INPUT_REFOCUS_DELAY_MS);
+      return;
+    }
+    requestAnimationFrame(run);
+  }, []);
+
   const handleQuickInputCalculatorPress = useCallback(() => {
     calculatorAnimationRef.current?.stop();
     calculatorTranslateYRef.current.setValue(CALCULATOR_PANEL_HEIGHT);
     setIsQuickInputCalculatorMounted(true);
     setIsQuickInputCalculatorVisible(true);
     setShouldFollowKeyboard(false);
+    resetAndroidKeyboardFollowPeak();
     shortBottomFromScreen.value = 0;
     animatedBottom.value = 0;
     quickInputRef.current?.blur();
@@ -1256,7 +1430,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       });
       calculatorAnimationRef.current.start();
     });
-  }, [animatedBottom, setShouldFollowKeyboard, shortBottomFromScreen]);
+  }, [animatedBottom, resetAndroidKeyboardFollowPeak, setShouldFollowKeyboard, shortBottomFromScreen]);
 
   const formatQuickInputCalculatorAmount = useCallback((raw: string) => {
     if (!raw) return '0';
@@ -1313,12 +1487,17 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       setQuickInputCalculatorExpression([]);
       shortBottomFromScreen.value = lastShortBottomRef.current;
       animatedBottom.value = lastShortBottomRef.current;
+      resetAndroidKeyboardFollowPeak();
       setShouldFollowKeyboard(true);
-      requestAnimationFrame(() => {
-        quickInputRef.current?.focus();
-      });
+      focusQuickInputField();
     });
-  }, [animatedBottom, setShouldFollowKeyboard, shortBottomFromScreen]);
+  }, [
+    animatedBottom,
+    focusQuickInputField,
+    resetAndroidKeyboardFollowPeak,
+    setShouldFollowKeyboard,
+    shortBottomFromScreen,
+  ]);
 
   const handleQuickInputCalculatorCopy = useCallback(() => {
     const amountText = `${quickInputCalculatorAmount.trim() || '0'}원`;
@@ -1442,6 +1621,10 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     if (categorySettingSheetUnmountTimeoutRef.current) {
       clearTimeout(categorySettingSheetUnmountTimeoutRef.current);
       categorySettingSheetUnmountTimeoutRef.current = null;
+    }
+    if (categorySettingSheetRefocusTimeoutRef.current) {
+      clearTimeout(categorySettingSheetRefocusTimeoutRef.current);
+      categorySettingSheetRefocusTimeoutRef.current = null;
     }
     pendingRecordRef.current = null;
     setIsQuickInputSendLoading(false);
@@ -1875,6 +2058,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     setIsQuickInputCategorySettingOpening(true);
     setIsQuickInputCategorySettingClosing(false);
     setShouldFollowKeyboard(false);
+    resetAndroidKeyboardFollowPeak();
     shortBottomFromScreen.value = 0;
     animatedBottom.value = 0;
     quickInputRef.current?.blur();
@@ -1926,6 +2110,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     isQuickInputEditOpening,
     isQuickInputEditSheetClosing,
     quickInputCategorySettingSheetMounted,
+    resetAndroidKeyboardFollowPeak,
     setShouldFollowKeyboard,
     shortBottomFromScreen,
   ]);
@@ -1946,6 +2131,22 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     if (categorySettingSheetUnmountTimeoutRef.current) {
       clearTimeout(categorySettingSheetUnmountTimeoutRef.current);
     }
+    if (categorySettingSheetRefocusTimeoutRef.current) {
+      clearTimeout(categorySettingSheetRefocusTimeoutRef.current);
+      categorySettingSheetRefocusTimeoutRef.current = null;
+    }
+    // 시트 애니 중 먼저 키패드 복귀 — 언마운트 대기(320ms)보다 빠르게
+    categorySettingSheetRefocusTimeoutRef.current = setTimeout(() => {
+      categorySettingSheetRefocusTimeoutRef.current = null;
+      if (!isQuickInputVisibleRef.current || isClosingRef.current) {
+        return;
+      }
+      shortBottomFromScreen.value = lastShortBottomRef.current;
+      animatedBottom.value = lastShortBottomRef.current;
+      resetAndroidKeyboardFollowPeak();
+      setShouldFollowKeyboard(true);
+      focusQuickInputField();
+    }, ANDROID_CATEGORY_SHEET_REFOCUS_DELAY_MS);
     categorySettingSheetUnmountTimeoutRef.current = setTimeout(() => {
       categorySettingSheetUnmountTimeoutRef.current = null;
       editSheetOpenCardTranslateY.setValue(0);
@@ -1954,15 +2155,6 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       editSheetOpenInputOpacity.setValue(1);
       setQuickInputCategorySettingSheetMounted(false);
       setIsQuickInputCategorySettingClosing(false);
-      if (!isQuickInputVisibleRef.current || isClosingRef.current) {
-        return;
-      }
-      shortBottomFromScreen.value = lastShortBottomRef.current;
-      animatedBottom.value = lastShortBottomRef.current;
-      setShouldFollowKeyboard(true);
-      requestAnimationFrame(() => {
-        quickInputRef.current?.focus();
-      });
     }, QUICK_INPUT_EMBEDDED_SHEET_UNMOUNT_DELAY);
   }, [
     animatedBottom,
@@ -1970,9 +2162,11 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     editSheetOpenCardTranslateY,
     editSheetOpenInputOpacity,
     editSheetOpenInputTranslateY,
+    focusQuickInputField,
     isQuickInputCategorySettingClosing,
     isQuickInputCategorySettingOpening,
     quickInputCategorySettingSheetMounted,
+    resetAndroidKeyboardFollowPeak,
     setShouldFollowKeyboard,
     shortBottomFromScreen,
   ]);
@@ -2058,6 +2252,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
 
   const handleQuickInputCategoryCreateSubmit = useCallback(async () => {
     const trimmedName = quickInputCategoryDraftName.trim();
+    const emojiToSave = quickInputCategoryDraftEmoji;
     if (!trimmedName) {
       showToast('카테고리 이름을 입력해주세요.');
       return;
@@ -2078,7 +2273,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       await saveCategories(quickInputCategorySettingType, [
         ...allCategories,
         {
-          emoji: quickInputCategoryDraftEmoji,
+          emoji: emojiToSave,
           label: trimmedName,
           type: quickInputCategorySettingType,
         },
@@ -2110,6 +2305,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     }
 
     const trimmedName = quickInputCategoryDraftName.trim();
+    const emojiToSave = quickInputCategoryDraftEmoji;
     if (!trimmedName) {
       showToast('카테고리 이름을 입력해주세요.');
       return;
@@ -2128,7 +2324,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       }
 
       const newCategory: Category = {
-        emoji: quickInputCategoryDraftEmoji,
+        emoji: emojiToSave,
         label: trimmedName,
         type: original.type,
       };
@@ -2808,6 +3004,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     setIsQuickInputEditOpening(true);
     setIsQuickInputEditSheetClosing(false);
     setShouldFollowKeyboard(false);
+    resetAndroidKeyboardFollowPeak();
     quickInputRef.current?.blur();
     Keyboard.dismiss();
     calculatorAnimationRef.current?.stop();
@@ -2867,6 +3064,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     editSheetOpenCardTranslateY,
     editSheetOpenInputOpacity,
     editSheetOpenInputTranslateY,
+    resetAndroidKeyboardFollowPeak,
     setShouldFollowKeyboard,
   ]);
 
@@ -3184,15 +3382,14 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         editSheetRestoreTimeoutRef.current = null;
         shortBottomFromScreen.value = lastShortBottomRef.current;
         animatedBottom.value = lastShortBottomRef.current;
+        resetAndroidKeyboardFollowPeak();
         setShouldFollowKeyboard(true);
         editSheetOpenCardTranslateY.setValue(0);
         editSheetOpenCardOpacity.setValue(1);
         editSheetOpenInputTranslateY.setValue(0);
         editSheetOpenInputOpacity.setValue(1);
         setIsQuickInputEditSheetClosing(false);
-        requestAnimationFrame(() => {
-          quickInputRef.current?.focus();
-        });
+        focusQuickInputField();
         confirmCardRevealTimeoutRef.current = setTimeout(() => {
           confirmCardRevealTimeoutRef.current = null;
           setIsQuickInputConfirmCardRevealPaused(false);
@@ -3205,8 +3402,10 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     editSheetOpenCardTranslateY,
     editSheetOpenInputOpacity,
     editSheetOpenInputTranslateY,
+    focusQuickInputField,
     isQuickInputEditOpening,
     isQuickInputEditSheetClosing,
+    resetAndroidKeyboardFollowPeak,
     setShouldFollowKeyboard,
     shortBottomFromScreen,
   ]);
@@ -3285,6 +3484,31 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     setQuickInputText('');
   }, []);
 
+  const handleQuickInputBackdropPress = useCallback(() => {
+    if (quickInputEditSheetVisible || isQuickInputEditSheetClosing || isQuickInputEditOpening) {
+      handleQuickInputEditSheetClose();
+      return;
+    }
+    if (quickInputCategorySettingSheetMounted || isQuickInputCategorySettingOpening) {
+      handleQuickInputCategorySettingSheetClose();
+      return;
+    }
+    quickInputRef.current?.blur();
+    if (Platform.OS === 'android') {
+      Keyboard.dismiss();
+    }
+    hideQuickInput();
+  }, [
+    handleQuickInputCategorySettingSheetClose,
+    handleQuickInputEditSheetClose,
+    hideQuickInput,
+    isQuickInputCategorySettingOpening,
+    isQuickInputEditOpening,
+    isQuickInputEditSheetClosing,
+    quickInputCategorySettingSheetMounted,
+    quickInputEditSheetVisible,
+  ]);
+
   // 백드롭 딤 애니메이션 (닫기 중에는 hideQuickInput에서 페이드 처리)
   useEffect(() => {
     if (isClosingRef.current) {
@@ -3322,47 +3546,81 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
 
   /**
    * Android ADJUST_NOTHING: generic handler·resize 없이도 IME 추적.
-   * 1) keyboard-controller reanimated.height (useAnimatedStyle)
-   * 2) RN Keyboard didShow / didChangeFrame (JS fallback)
+   * onMove는 중간 높이만 따라가고, 앵커→최종 큰 점프는 DidShow withTiming.
    */
   useEffect(() => {
     if (Platform.OS !== 'android' || !isQuickInputVisible) {
       return;
     }
 
+    const clearSettleTimeout = () => {
+      if (androidKeyboardSettleTimeoutRef.current) {
+        clearTimeout(androidKeyboardSettleTimeoutRef.current);
+        androidKeyboardSettleTimeoutRef.current = null;
+      }
+    };
+
     const syncFromMetrics = () => {
-      if (!shouldFollowKeyboardRef.current) {
+      if (!shouldFollowKeyboardRef.current || androidKeyboardSettlingRef.current) {
         return;
       }
-      // 열림 중 metrics 스냅 방지 — onMove로 이미 올라온 뒤(툴바 등)만 보조
+      // 열림 중 metrics 스냅 방지 — 이미 올라온 뒤(툴바 등)만 보조
       if (lastAndroidBottomRef.current <= KEYBOARD_GAP + 8) {
         return;
       }
       const metrics = Keyboard.metrics();
       if (metrics && metrics.height > 0) {
-        applyAndroidKeyboardGeometry(keyboardMetricsToEndCoordinates(metrics));
+        applyAndroidKeyboardGeometry(keyboardMetricsToEndCoordinates(metrics), false);
       }
     };
 
-    const onShow = Keyboard.addListener('keyboardDidShow', () => {
+    const onShow = Keyboard.addListener('keyboardDidShow', (event) => {
       if (!shouldFollowKeyboardRef.current) {
         return;
       }
       androidKeyboardWasVisibleRef.current = true;
-      // RN metrics는 종종 최종 높이를 즉시 반환 → 열림 중 위치는 controller onMove만 사용
+
+      if (androidKeyboardSettlingRef.current) {
+        return;
+      }
+
+      const alreadyFollowing =
+        lastAndroidBottomRef.current > KEYBOARD_GAP + 8 ||
+        animatedBottom.value > lastShortBottomRef.current + 24;
+
+      if (alreadyFollowing) {
+        // onMove로 이미 따라온 경우 — 툴바 보정만
+        applyAndroidKeyboardGeometry(event.endCoordinates, false);
+        scheduleAndroidKeyboardSync();
+        return;
+      }
+
+      clearSettleTimeout();
+      setAndroidKeyboardSettling(true);
+      applyAndroidKeyboardGeometry(event.endCoordinates, true);
+      androidKeyboardSettleTimeoutRef.current = setTimeout(() => {
+        androidKeyboardSettleTimeoutRef.current = null;
+        setAndroidKeyboardSettling(false);
+        scheduleAndroidKeyboardSync();
+      }, ANDROID_KEYBOARD_SETTLE_HOLD_MS);
     });
 
     const onFrame = Keyboard.addListener('keyboardDidChangeFrame', (event) => {
-      if (!shouldFollowKeyboardRef.current || event.endCoordinates.height <= 0) {
+      if (
+        !shouldFollowKeyboardRef.current ||
+        event.endCoordinates.height <= 0 ||
+        androidKeyboardSettlingRef.current
+      ) {
         return;
       }
-      // 툴바·추천행 등 열린 뒤 IME 높이 변화만 보조 (이미 올라온 뒤)
+      // 툴바·추천행 등 열린 뒤 IME 높이 변화만 보조
       if (lastAndroidBottomRef.current > KEYBOARD_GAP + 8) {
-        applyAndroidKeyboardGeometry(event.endCoordinates);
+        applyAndroidKeyboardGeometry(event.endCoordinates, false);
       }
     });
 
     const onHide = Keyboard.addListener('keyboardDidHide', () => {
+      clearSettleTimeout();
       if (isClosingRef.current) {
         finishHideQuickInput();
         return;
@@ -3387,6 +3645,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     const appStateSub = AppState.addEventListener('change', onAppStateChange);
 
     return () => {
+      clearSettleTimeout();
       onShow.remove();
       onFrame.remove();
       onHide.remove();
@@ -3400,6 +3659,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     insets.bottom,
     isQuickInputVisible,
     scheduleAndroidKeyboardSync,
+    setAndroidKeyboardSettling,
     shortBottomFromScreen,
   ]);
 
@@ -3455,6 +3715,10 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       if (confirmCardRevealTimeoutRef.current) {
         clearTimeout(confirmCardRevealTimeoutRef.current);
         confirmCardRevealTimeoutRef.current = null;
+      }
+      if (quickInputRefocusTimeoutRef.current) {
+        clearTimeout(quickInputRefocusTimeoutRef.current);
+        quickInputRefocusTimeoutRef.current = null;
       }
       starRefs.current = null;
       overlayStarScale.stopAnimation();
@@ -3551,25 +3815,28 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         {isQuickInputVisible && !isQuickInputOverlaySuppressed && (
           <View style={styles.overlay} pointerEvents="box-none">
               <RNAnimated.View
-                pointerEvents="auto"
+                pointerEvents="none"
                 style={[styles.backdrop, { opacity: quickInputBackdropOpacity }]}
-              >
-                <Pressable
-                  style={StyleSheet.absoluteFill}
-                  onPress={
-                    quickInputEditSheetVisible || isQuickInputEditSheetClosing || isQuickInputEditOpening
-                      ? handleQuickInputEditSheetClose
-                      : quickInputCategorySettingSheetMounted || isQuickInputCategorySettingOpening
-                      ? handleQuickInputCategorySettingSheetClose
-                      : () => hideQuickInput()
-                  }
-                />
-              </RNAnimated.View>
+              />
               {isQuickInputContentVisible && (
                 <RNAnimated.View
                   pointerEvents="box-none"
                   style={[styles.longContentLayer, { opacity: quickInputLongOpacity }]}
                 >
+                  <Pressable
+                    style={styles.backdropTouchArea}
+                    onPressIn={
+                      Platform.OS === 'android' &&
+                      !quickInputEditSheetVisible &&
+                      !isQuickInputEditSheetClosing &&
+                      !isQuickInputEditOpening &&
+                      !quickInputCategorySettingSheetMounted &&
+                      !isQuickInputCategorySettingOpening
+                        ? handleQuickInputBackdropPress
+                        : undefined
+                    }
+                    onPress={handleQuickInputBackdropPress}
+                  />
                   {confirmCardData != null && !isQuickInputConfirmCardRevealPaused && !quickInputEditSheetVisible && !isQuickInputEditSheetClosing && (!quickInputCategorySettingSheetMounted || isQuickInputCategorySettingOpening) && (
                     <RNAnimated.View
                       style={[
@@ -3683,6 +3950,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                   </Animated.View>
                 </RNAnimated.View>
               )}
+              {(quickInputEditSheetVisible || isQuickInputEditSheetClosing) ? (
               <ModalBottomsheet
                 visible={quickInputEditSheetVisible}
                 title="소비 기록"
@@ -4046,6 +4314,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                   </View>
                 )}
               </ModalBottomsheet>
+              ) : null}
               {quickInputCategorySettingSheetMounted ? (
                 <ModalBottomsheet
                   visible={quickInputCategorySettingSheetVisible}
@@ -4113,7 +4382,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                                     <Sortable.Grid
                                       data={quickInputCategorySettingCategories}
                                       renderItem={renderQuickInputCategorySettingItem}
-                                      keyExtractor={(item) => `${item.type}:${item.label}`}
+                                      keyExtractor={(item) => `${item.type}:${item.label}:${item.emoji}`}
                                       columns={1}
                                       customHandle
                                       scrollableRef={quickInputCategorySettingScrollRef}
@@ -4522,15 +4791,19 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
+  backdropTouchArea: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 0,
+  },
   confirmCardContainer: {
     position: 'absolute',
     left: 16,
     right: 16,
-    zIndex: 102,
+    zIndex: 2,
   },
   longContentLayer: {
     ...StyleSheet.absoluteFillObject,
-    zIndex: 101,
+    zIndex: 1,
     justifyContent: 'flex-end',
   },
   container: {
@@ -4538,6 +4811,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+    zIndex: 1,
   },
   normalInputStack: {
     gap: 12,
@@ -4839,11 +5113,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   categorySettingEmoji: {
-    width: 21,
-    color: atomicColors.common[100],
-    fontFamily: 'Pretendard-Bold',
+    width: 24,
     fontSize: 20,
-    lineHeight: 30,
+    lineHeight: 24,
     includeFontPadding: false,
     textAlign: 'center',
   },
