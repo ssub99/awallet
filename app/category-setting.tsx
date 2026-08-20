@@ -6,6 +6,7 @@
  */
 
 import { TopNavigation } from '@/components/navigation/top-navigation';
+import { Chip } from '@/components/ui/chip';
 import { Icon } from '@/components/ui/icon';
 import { UiLineText } from '@/components/ui/ui-line-text';
 import { getCategoriesByType, type CategoryType } from '@/constants/categories';
@@ -70,6 +71,11 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     minHeight: 0,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16,
   },
   scrollContent: {
     paddingTop: 4,
@@ -219,9 +225,13 @@ export default function CategorySettingScreen() {
   const params = useLocalSearchParams<{ type?: string }>();
   const { setLoading } = useLoading();
   
-  const categoryType = (params.type as CategoryType) || 'expense';
+  const requestedCategoryType = params.type === 'income' || params.type === 'expense'
+    ? params.type
+    : undefined;
+  const initialCategoryType: CategoryType = requestedCategoryType ?? 'expense';
   
-  const initialCategories = getOrderedCategoriesFromCache(categoryType);
+  const initialCategories = getOrderedCategoriesFromCache(initialCategoryType);
+  const [categoryType, setCategoryType] = useState<CategoryType>(initialCategoryType);
   const [categories, setCategories] = useState<{ emoji: string; label: string; type: CategoryType }[]>(
     () => initialCategories ?? [],
   );
@@ -241,6 +251,8 @@ export default function CategorySettingScreen() {
   const draggedCategoryRowKeyRef = useRef<string | null>(null);
   const isDraggingRef = useRef<boolean>(false);
   const lastDragEndTimeRef = useRef<number>(0);
+  const categoryTypeSwitchRef = useRef<boolean>(false);
+  const skipNextCategoryTypeFocusLoadRef = useRef<CategoryType | null>(null);
 
   const commitReorderedCategories = useCallback(
     (nextCategories: { emoji: string; label: string; type: CategoryType }[]) => {
@@ -287,8 +299,10 @@ export default function CategorySettingScreen() {
   useFocusEffect(
     useCallback(() => {
       const loadCategoriesData = async () => {
+        const isCategoryTypeSwitch = categoryTypeSwitchRef.current;
+        let shouldClearLoading = false;
         const timeSinceLastDrag = Date.now() - lastDragEndTimeRef.current;
-        if (timeSinceLastDrag < 3000) {
+        if (timeSinceLastDrag < 3000 && !isCategoryTypeSwitch) {
           previousIndexRef.current = null;
           hasTriggeredStartHapticRef.current = false;
           dragStartIndexRef.current = null;
@@ -299,16 +313,31 @@ export default function CategorySettingScreen() {
           return;
         }
 
+        if (skipNextCategoryTypeFocusLoadRef.current === categoryType) {
+          skipNextCategoryTypeFocusLoadRef.current = null;
+          categoryTypeSwitchRef.current = false;
+          setLoading(false);
+          return;
+        }
+
         const cached = getOrderedCategoriesFromCache(categoryType);
         if (cached) {
-          resetContentFade();
-          applyLoadedCategories(cached);
+          try {
+            resetContentFade();
+            applyLoadedCategories(cached);
+          } finally {
+            if (isCategoryTypeSwitch) {
+              categoryTypeSwitchRef.current = false;
+              setLoading(false);
+            }
+          }
           return;
         }
 
         resetContentFade();
         setIsListDataReady(false);
         setLoading(true);
+        shouldClearLoading = true;
 
         try {
           const [loadedCategories, savedOrder] = await Promise.all([
@@ -326,7 +355,10 @@ export default function CategorySettingScreen() {
           console.error('카테고리 설정 로드 실패:', error);
           applyLoadedCategories(getCategoriesByType(categoryType));
         } finally {
-          setLoading(false);
+          categoryTypeSwitchRef.current = false;
+          if (shouldClearLoading || isCategoryTypeSwitch) {
+            setLoading(false);
+          }
         }
       };
 
@@ -334,12 +366,38 @@ export default function CategorySettingScreen() {
     }, [applyLoadedCategories, categoryType, resetContentFade, setLoading]),
   );
 
-  // 카테고리 타입에 따라 타이틀 설정
-  const title = categoryType === 'expense' ? '지출 카테고리 설정' : '수입 카테고리 설정';
-
   const handleBack = () => {
     router.back();
   };
+
+  const handleCategoryTypePress = useCallback((nextType: CategoryType) => {
+    if (categoryType === nextType || isDraggingRef.current) {
+      return;
+    }
+
+    previousIndexRef.current = null;
+    hasTriggeredStartHapticRef.current = false;
+    dragStartIndexRef.current = null;
+    draggedCategoryRowKeyRef.current = null;
+    scrollOffsetYRef.current = 0;
+
+    const cached = getOrderedCategoriesFromCache(nextType);
+    if (cached) {
+      categoryTypeSwitchRef.current = false;
+      skipNextCategoryTypeFocusLoadRef.current = nextType;
+      contentOpacity.stopAnimation();
+      contentOpacity.setValue(1);
+      applyLoadedCategories(cached);
+      setCategoryType(nextType);
+      return;
+    }
+
+    resetContentFade();
+    categoryTypeSwitchRef.current = true;
+    setLoading(true);
+    setIsListDataReady(false);
+    setCategoryType(nextType);
+  }, [applyLoadedCategories, categoryType, contentOpacity, resetContentFade, setLoading]);
 
   const handleCreate = () => {
     router.push({
@@ -478,7 +536,7 @@ export default function CategorySettingScreen() {
       {/* Top Navigation */}
       <TopNavigation
         type="sub"
-        title={title}
+        title="카테고리 설정"
         showLeftIcon
         onLeftIconPress={handleBack}
         showRightButton
@@ -488,6 +546,19 @@ export default function CategorySettingScreen() {
 
       {/* Category List */}
       <View style={[styles.content, { backgroundColor: colors.fill }]}>
+        <View style={styles.chipRow}>
+          <Chip
+            label="지출"
+            active={categoryType === 'expense'}
+            onPress={() => handleCategoryTypePress('expense')}
+          />
+          <Chip
+            label="수입"
+            active={categoryType === 'income'}
+            onPress={() => handleCategoryTypePress('income')}
+          />
+        </View>
+
         <View style={[styles.card, { backgroundColor: colors.background }]}>
           {!isListDataReady ? (
             <View style={{ flex: 1 }} />

@@ -371,31 +371,16 @@ export default function MyPageScreen() {
 
           {/* Category Settings Card */}
           <View style={[styles.card, { backgroundColor: colors.background }]}>
-            {/* Income Category Settings */}
+            {/* Category Settings */}
             <Pressable 
               style={styles.menuRow}
               onPress={() => {
-                router.push('/category-setting?type=income');
+                router.push('/category-setting');
               }}
               accessibilityRole="button"
-              accessibilityLabel="수입 카테고리 설정"
+              accessibilityLabel="카테고리 설정"
             >
-              <UiLineText style={[styles.menuLabel, { color: colors.text }]}>수입 카테고리 설정</UiLineText>
-              <Icon name="arrowRight" size={24} color={colors.text} />
-            </Pressable>
-
-            <View style={[styles.divider, { backgroundColor: colors.border }]} />
-
-            {/* Expense Category Settings */}
-            <Pressable 
-              style={styles.menuRow}
-              onPress={() => {
-                router.push('/category-setting?type=expense');
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="지출 카테고리 설정"
-            >
-              <UiLineText style={[styles.menuLabel, { color: colors.text }]}>지출 카테고리 설정</UiLineText>
+              <UiLineText style={[styles.menuLabel, { color: colors.text }]}>카테고리 설정</UiLineText>
               <Icon name="arrowRight" size={24} color={colors.text} />
             </Pressable>
 
