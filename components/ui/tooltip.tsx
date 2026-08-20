@@ -24,6 +24,8 @@ export interface TooltipProps {
 
 const ARROW_WIDTH = 8;
 const ARROW_HEIGHT = 6;
+/** SVG 폴리곤 ↔ body 사이 hairline seam (안티앨리어싱) 상쇄 */
+const ARROW_BODY_OVERLAP = 1;
 const BODY_RADIUS = 10;
 /** Figma body max width — text wraps at word boundaries inside. */
 export const TOOLTIP_BODY_MAX_WIDTH = 200;
@@ -72,7 +74,7 @@ export function Tooltip({
     >
       <View style={styles.frame}>
         {placement === 'top' ? (
-          <View style={styles.arrowRow}>
+          <View style={styles.arrowRowTop}>
             <TooltipArrow color={backgroundColor} pointing={arrowPointing} />
           </View>
         ) : null}
@@ -80,7 +82,7 @@ export function Tooltip({
           <Text style={[styles.text, { color: textColor }]}>{text}</Text>
         </View>
         {placement === 'bottom' ? (
-          <View style={styles.arrowRow}>
+          <View style={styles.arrowRowBottom}>
             <TooltipArrow color={backgroundColor} pointing={arrowPointing} />
           </View>
         ) : null}
@@ -97,14 +99,22 @@ const styles = StyleSheet.create({
     maxWidth: BODY_MAX_WIDTH,
     alignItems: 'center',
   },
-  arrowRow: {
+  arrowRowTop: {
     alignItems: 'center',
+    marginBottom: -ARROW_BODY_OVERLAP,
+    zIndex: 1,
+  },
+  arrowRowBottom: {
+    alignItems: 'center',
+    marginTop: -ARROW_BODY_OVERLAP,
+    zIndex: 1,
   },
   body: {
     borderRadius: BODY_RADIUS,
     paddingHorizontal: spacing[300],
     paddingVertical: spacing[200],
     maxWidth: BODY_MAX_WIDTH,
+    zIndex: 0,
   },
   text: {
     ...typographyLayout.uiLineBody02Regular,
