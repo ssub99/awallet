@@ -44,7 +44,10 @@ import { useRecordFormMemoKeyboard } from '@/hooks/use-record-form-memo-keyboard
 import { logEvent } from '@/utils/analytics';
 import { getApiSecurityHeaders } from '@/utils/api-security-headers';
 import { isAtLeastVersion, QUICK_INPUT_MIN_VERSION } from '@/utils/app-version';
-import { EXPENSE_RECORD_SHEET_ANALYTICS_SCREEN_NAME } from '@/utils/expense-record-creation-mode';
+import {
+  EXPENSE_RECORD_SHEET_ANALYTICS_SCREEN_NAME,
+  INCOME_RECORD_SHEET_ANALYTICS_SCREEN_NAME,
+} from '@/utils/expense-record-creation-mode';
 import {
     applySavedOrder,
     getOrderedCategoriesFromCache,
@@ -139,7 +142,8 @@ function getCalculatorPanelHeight(windowWidth: number, androidSafeBottom = 0): n
   return (
     CALCULATOR_BAR_HEIGHT +
     CALCULATOR_PANEL_GAP +
-    getKeypadHeight(windowWidth, androidSafeBottom)
+    getKeypadHeight(windowWidth) +
+    androidSafeBottom
   );
 }
 
@@ -333,25 +337,48 @@ const QUICK_INPUT_WEEKEND_ANALYTICS_TARGET: Record<'weekend' | 'friday' | 'monda
   monday: 'on-next-monday',
 };
 
-/** 소비 기록 바텀시트 analytics (수입 드래프트 제외) */
+/** 간편입력 수입 기록 바텀시트 analytics target (Amplitude 설계 151~161행) */
+const INCOME_RECORD_SHEET_ANALYTICS_TARGETS = new Set([
+  'cta',
+  'category',
+  'category-option',
+  'category-option-confirm',
+  'category-option-prev',
+  'calendar',
+  'calendar-confirm',
+  'calendar-close',
+  'amount',
+  'memo',
+]);
+
+/** 간편입력 기록 변경 바텀시트 analytics — 소비/수입 screen_name 분기 */
 function logExpenseRecordSheetEvent(
   recordType: 'income' | 'expense' | undefined,
   eventName: string,
   target: string,
   extra?: Record<string, unknown>,
 ): void {
-  if (recordType === 'income') {
+  const screenName =
+    recordType === 'income'
+      ? INCOME_RECORD_SHEET_ANALYTICS_SCREEN_NAME
+      : recordType === 'expense'
+        ? EXPENSE_RECORD_SHEET_ANALYTICS_SCREEN_NAME
+        : null;
+  if (!screenName) {
+    return;
+  }
+  if (recordType === 'income' && !INCOME_RECORD_SHEET_ANALYTICS_TARGETS.has(target)) {
     return;
   }
   if (__DEV__) {
     console.log(`[Analytics] ${eventName}`, {
-      screen_name: EXPENSE_RECORD_SHEET_ANALYTICS_SCREEN_NAME,
+      screen_name: screenName,
       target,
       ...(extra ?? {}),
     });
   }
   void logEvent(eventName, {
-    screen_name: EXPENSE_RECORD_SHEET_ANALYTICS_SCREEN_NAME,
+    screen_name: screenName,
     target,
     ...(extra ?? {}),
   });
@@ -368,6 +395,7 @@ type PendingParseRecord = QuickInputPendingRecord;
 
 type QuickInputEditDraft = {
   category: string;
+  categoryEmoji?: string;
   date: string;
   amount: string;
   memo: string;
@@ -867,7 +895,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const calculatorPanelHeight = getCalculatorPanelHeight(windowWidth, androidKeypadSafeBottom);
   const calculatorPanelHeightRef = useRef(calculatorPanelHeight);
   calculatorPanelHeightRef.current = calculatorPanelHeight;
-  const editAmountKeypadHeight = getKeypadHeight(windowWidth, androidKeypadSafeBottom);
+  const editAmountKeypadHeight = getKeypadHeight(windowWidth);
   const editAmountKeypadHeightRef = useRef(editAmountKeypadHeight);
   editAmountKeypadHeightRef.current = editAmountKeypadHeight;
   const router = useRouter();
@@ -890,6 +918,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const [isQuickInputEditOpening, setIsQuickInputEditOpening] = useState(false);
   const [isQuickInputEditSheetClosing, setIsQuickInputEditSheetClosing] = useState(false);
   const [quickInputEditDraft, setQuickInputEditDraft] = useState<QuickInputEditDraft | null>(null);
+  const [quickInputEditRecordType, setQuickInputEditRecordType] = useState<'expense' | 'income'>('expense');
   const [quickInputEditView, setQuickInputEditView] = useState<'form' | 'category' | 'recurring'>('form');
   const [quickInputCategorySheetCategories, setQuickInputCategorySheetCategories] = useState<Category[]>(() =>
     getCategoriesByType('expense')
@@ -2864,8 +2893,19 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     setIsQuickInputCalculatorMounted(false);
     setQuickInputCalculatorAmount('');
     setQuickInputCalculatorExpression([]);
+    setQuickInputEditRecordType(pending.recordType === 'income' ? 'income' : 'expense');
+    const editCategoryType = pending.recordType === 'income' ? 'income' : 'expense';
+    const editCategoryLabel = pending.category ?? '';
+    const editCategoryEmoji =
+      confirmCardData?.categoryEmoji ??
+      (editCategoryType === 'income'
+        ? incomeCategoriesCacheRef.current
+        : expenseCategoriesCacheRef.current
+      ).find((category) => category.label === editCategoryLabel)?.emoji ??
+      getCategoriesByType(editCategoryType).find((category) => category.label === editCategoryLabel)?.emoji;
     setQuickInputEditDraft({
-      category: pending.category ?? '',
+      category: editCategoryLabel,
+      categoryEmoji: editCategoryEmoji,
       date: pending.date.replace(/-/g, '.'),
       amount: Number.isFinite(pending.amount) ? pending.amount.toLocaleString('ko-KR') : '',
       memo: pending.memo ?? '',
@@ -2911,6 +2951,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       setIsQuickInputEditOpening(false);
     });
   }, [
+    confirmCardData?.categoryEmoji,
     editSheetOpenCardOpacity,
     editSheetOpenCardTranslateY,
     editSheetOpenInputOpacity,
@@ -2924,13 +2965,28 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }, []);
 
   const quickInputEditCategoryEmoji = useMemo(() => {
+    if (quickInputEditDraft?.categoryEmoji) {
+      return quickInputEditDraft.categoryEmoji;
+    }
     const categoryLabel = quickInputEditDraft?.category;
     if (!categoryLabel) {
       return undefined;
     }
-    const categoryType = pendingRecordRef.current?.recordType === 'income' ? 'income' : 'expense';
-    return getCategoriesByType(categoryType).find((category) => category.label === categoryLabel)?.emoji;
-  }, [quickInputEditDraft?.category]);
+    const cachedList =
+      quickInputEditRecordType === 'income'
+        ? incomeCategoriesCacheRef.current
+        : expenseCategoriesCacheRef.current;
+    return (
+      cachedList.find((category) => category.label === categoryLabel)?.emoji ??
+      quickInputCategorySheetCategories.find((category) => category.label === categoryLabel)?.emoji ??
+      getCategoriesByType(quickInputEditRecordType).find((category) => category.label === categoryLabel)?.emoji
+    );
+  }, [
+    quickInputEditDraft?.category,
+    quickInputEditDraft?.categoryEmoji,
+    quickInputEditRecordType,
+    quickInputCategorySheetCategories,
+  ]);
 
   const quickInputEditRepeatLabel = useMemo(() => {
     if (!quickInputEditDraft) {
@@ -2949,6 +3005,12 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     }
     return '반복/할부 설정';
   }, [quickInputEditDraft]);
+
+  const quickInputEditSheetTitle =
+    quickInputEditRecordType === 'income' ? '수입 기록' : '소비 기록';
+  const quickInputEditDateSheetTitle =
+    quickInputEditRecordType === 'income' ? '수입 기록일 선택' : '소비 기록일 선택';
+  const isQuickInputEditIncome = quickInputEditRecordType === 'income';
 
   const handleQuickInputEditAmountChange = useCallback((text: string) => {
     const digits = text.replace(/\D/g, '');
@@ -3049,9 +3111,15 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'btn', 'category-option-confirm', {
       category: quickInputCategorySheetSelected,
     });
-    updateQuickInputEditDraft({ category: quickInputCategorySheetSelected });
+    const selectedCategory = quickInputCategorySheetCategories.find(
+      (category) => category.label === quickInputCategorySheetSelected,
+    );
+    updateQuickInputEditDraft({
+      category: quickInputCategorySheetSelected,
+      categoryEmoji: selectedCategory?.emoji,
+    });
     setQuickInputEditView('form');
-  }, [quickInputCategorySheetSelected, showToast, updateQuickInputEditDraft]);
+  }, [quickInputCategorySheetCategories, quickInputCategorySheetSelected, showToast, updateQuickInputEditDraft]);
 
   const handleQuickInputEditDatePress = useCallback(() => {
     logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'ui', 'calendar');
@@ -3081,6 +3149,9 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }, [closeQuickInputDateSheet, updateQuickInputEditDraft]);
 
   const handleQuickInputEditPaymentPress = useCallback(() => {
+    if (pendingRecordRef.current?.recordType === 'income') {
+      return;
+    }
     logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'ui', 'payment');
     const method = quickInputEditDraft?.paymentMethod === 'debit' ? 'debit' : 'credit';
     closeQuickInputEditAmountKeypad({ immediate: true });
@@ -3164,6 +3235,9 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }, [handleQuickInputEditMemoKeyboardBlur]);
 
   const handleQuickInputEditRecurringPress = useCallback(() => {
+    if (pendingRecordRef.current?.recordType === 'income') {
+      return;
+    }
     logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'btn', 'option');
     closeQuickInputEditAmountKeypad({ immediate: true });
     const source = quickInputEditDraft;
@@ -3254,6 +3328,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     editSheetCloseTimeoutRef.current = setTimeout(() => {
       editSheetCloseTimeoutRef.current = null;
       setQuickInputEditDraft(null);
+      setQuickInputEditRecordType('expense');
       editSheetRestoreTimeoutRef.current = setTimeout(() => {
         editSheetRestoreTimeoutRef.current = null;
         shortBottomFromScreen.value = lastShortBottomRef.current;
@@ -3302,20 +3377,29 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
 
     logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'btn', 'cta');
 
-    const updated: PendingParseRecord = {
-      ...current,
-      category: draft.category.trim(),
-      date: draft.date.trim().replace(/-/g, '.'),
-      amount: amountNumber,
-      memo: draft.memo.trim() ? draft.memo.trim() : undefined,
-      paymentMethod: draft.paymentMethod,
-      paymentSubtypeLabel: draft.paymentSubtypeLabel.trim() || undefined,
-      isRecurring: draft.isRecurring || undefined,
-      isInstallment: draft.isInstallment || undefined,
-      recurringType: draft.isRecurring ? draft.recurringType : undefined,
-      totalMonths: draft.isRecurring || draft.isInstallment ? draft.totalMonths : undefined,
-      weekendOption: draft.isRecurring || draft.isInstallment ? draft.weekendOption : undefined,
-    };
+    const isIncomeEdit = current.recordType === 'income';
+    const updated: PendingParseRecord = isIncomeEdit
+      ? {
+          ...current,
+          category: draft.category.trim(),
+          date: draft.date.trim().replace(/-/g, '.'),
+          amount: amountNumber,
+          memo: draft.memo.trim() ? draft.memo.trim() : undefined,
+        }
+      : {
+          ...current,
+          category: draft.category.trim(),
+          date: draft.date.trim().replace(/-/g, '.'),
+          amount: amountNumber,
+          memo: draft.memo.trim() ? draft.memo.trim() : undefined,
+          paymentMethod: draft.paymentMethod,
+          paymentSubtypeLabel: draft.paymentSubtypeLabel.trim() || undefined,
+          isRecurring: draft.isRecurring || undefined,
+          isInstallment: draft.isInstallment || undefined,
+          recurringType: draft.isRecurring ? draft.recurringType : undefined,
+          totalMonths: draft.isRecurring || draft.isInstallment ? draft.totalMonths : undefined,
+          weekendOption: draft.isRecurring || draft.isInstallment ? draft.weekendOption : undefined,
+        };
 
     pendingRecordRef.current = updated;
     handleQuickInputEditSheetClose();
@@ -3692,7 +3776,10 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                       <RNAnimated.View
                         style={[
                           styles.calculatorPanel,
-                          { transform: [{ translateY: calculatorTranslateYRef.current }] },
+                          {
+                            paddingBottom: androidKeypadSafeBottom,
+                            transform: [{ translateY: calculatorTranslateYRef.current }],
+                          },
                         ]}
                       >
                         <View style={styles.edgeContent}>
@@ -3730,7 +3817,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
               {(quickInputEditSheetVisible || isQuickInputEditSheetClosing) ? (
               <ModalBottomsheet
                 visible={quickInputEditSheetVisible}
-                title="소비 기록"
+                title={quickInputEditSheetTitle}
                 onClose={handleQuickInputEditSheetClose}
                 closeOnBackdrop={quickInputEditView === 'form'}
                 embedded
@@ -3752,7 +3839,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                       screens={[
                         {
                           key: 'form',
-                          title: '소비 기록',
+                          title: quickInputEditSheetTitle,
                           left: 'close',
                           onLeftPress: handleQuickInputEditSheetClose,
                           showHandle: true,
@@ -3792,13 +3879,15 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                                   <SectionTitle style={styles.editSectionTitle}>
                                     날짜 <Text style={styles.requiredMark}>*</Text>
                                   </SectionTitle>
-                                  <Pressable
-                                    onPress={handleQuickInputEditRecurringPress}
-                                    accessibilityRole="button"
-                                    accessibilityLabel="반복/할부 설정"
-                                  >
-                                    <Text style={styles.editRecurringButtonText}>{quickInputEditRepeatLabel}</Text>
-                                  </Pressable>
+                                  {!isQuickInputEditIncome ? (
+                                    <Pressable
+                                      onPress={handleQuickInputEditRecurringPress}
+                                      accessibilityRole="button"
+                                      accessibilityLabel="반복/할부 설정"
+                                    >
+                                      <Text style={styles.editRecurringButtonText}>{quickInputEditRepeatLabel}</Text>
+                                    </Pressable>
+                                  ) : null}
                                 </View>
                                 <Input
                                   icon="calendarMonth"
@@ -3856,7 +3945,11 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                               </View>
                             </ScrollView>
                           ),
-                          footer: (
+                          footer: isQuickInputEditIncome ? (
+                            <View style={[styles.editSheetCta, { paddingBottom: 16 + insets.bottom }]}>
+                              <Button onPress={handleQuickInputEditSheetConfirm}>확인</Button>
+                            </View>
+                          ) : (
                             <>
                               <View style={styles.editPaymentSticky}>
                                 <Text style={styles.editPaymentLabel}>결제 유형</Text>
@@ -4442,7 +4535,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                 <RecordDatePickerSheet
                   visible={quickInputDateSheetVisible}
                   embedded
-                  title="소비 기록일 선택"
+                  title={quickInputEditDateSheetTitle}
                   selectedDate={quickInputDateSheetSelected}
                   onSelectedDateChange={setQuickInputDateSheetSelected}
                   onClose={handleQuickInputDateSheetClose}

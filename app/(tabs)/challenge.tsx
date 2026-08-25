@@ -2898,9 +2898,8 @@ export default function ChallengeTabScreen() {
           )}
         </Animated.View>
 
-        {showTrendPaymentFilterSheet ? (
-          <ModalBottomsheet
-            visible={true}
+        <ModalBottomsheet
+            visible={showTrendPaymentFilterSheet}
             title="필터"
             onClose={handleTrendPaymentFilterSheetClose}
             onConfirm={handleTrendPaymentFilterConfirm}
@@ -2909,6 +2908,7 @@ export default function ChallengeTabScreen() {
             style={{ height: trendPaymentFilterSheetHeight }}
             contentStyle={styles.trendPaymentFilterSheetContent}
             noPaddingBottom={true}
+            resizable
           >
             <View
               style={[
@@ -2979,7 +2979,6 @@ export default function ChallengeTabScreen() {
               <ModalBottomsheetBottomInset backgroundColor={palette.staticWhite} />
             </View>
           </ModalBottomsheet>
-        ) : null}
 
         {/* 년/월 피커 (타임라인 탑 네비와 100% 동일한 DatePicker) */}
         <DatePicker

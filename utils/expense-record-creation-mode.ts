@@ -26,6 +26,7 @@ export const EXPENSE_RECORD_QUICK_INPUT_DRAFT_ROUTE_PARAMS = {
 /** Amplitude `screen_name` — 일반 소비 기록 / 간편 바텀시트 / 카테고리 기본 */
 export const EXPENSE_RECORD_ANALYTICS_SCREEN_NAME = '/expense-record';
 export const EXPENSE_RECORD_SHEET_ANALYTICS_SCREEN_NAME = '/expense-record-sheet';
+export const INCOME_RECORD_SHEET_ANALYTICS_SCREEN_NAME = '/income-record-sheet';
 export const EXPENSE_CATEGORY_ANALYTICS_SCREEN_NAME = '/expense-category';
 export const EXPENSE_EDIT_ANALYTICS_SCREEN_NAME = '/expense-edit';
 
@@ -144,5 +145,9 @@ if (__DEV__) {
     resolveExpenseCategoryAnalyticsScreenName({}) ===
       EXPENSE_CATEGORY_ANALYTICS_SCREEN_NAME,
     'category default → expense-category',
+  );
+  console.assert(
+    INCOME_RECORD_SHEET_ANALYTICS_SCREEN_NAME === '/income-record-sheet',
+    'income-record-sheet screen_name',
   );
 }

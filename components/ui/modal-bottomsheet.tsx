@@ -136,6 +136,12 @@ function ModalBottomsheetContent({
   const visibleRef = useRef(visible);
   const wasVisibleForContentRef = useRef(visible);
   const latestVisibleContentRef = useRef<ReactNode>(children);
+  /** True while exit animation runs before parent `onClose` / `visible={false}`. */
+  const isDismissingRef = useRef(false);
+  const onCloseRef = useRef(onClose);
+  const onConfirmRef = useRef(onConfirm);
+  onCloseRef.current = onClose;
+  onConfirmRef.current = onConfirm;
 
   const flattenedStyle = StyleSheet.flatten(style);
   const numericStyleHeight = typeof flattenedStyle?.height === 'number' ? flattenedStyle.height : undefined;
@@ -174,6 +180,58 @@ function ModalBottomsheetContent({
     }).start();
   }, [sheetHeight]);
 
+  const runCloseAnimation = useCallback(
+    (after?: () => void) => {
+      if (isDismissingRef.current) {
+        return;
+      }
+      isDismissingRef.current = true;
+
+      dimOpacity.stopAnimation();
+      sheetTranslateY.stopAnimation();
+      sheetHeight.stopAnimation();
+
+      Animated.parallel([
+        Animated.timing(sheetTranslateY, {
+          toValue: SCREEN_HEIGHT,
+          duration: SHEET_PRESENTATION_ANIMATION_DURATION,
+          useNativeDriver: true,
+        }),
+        Animated.timing(dimOpacity, {
+          toValue: 0,
+          duration: SHEET_PRESENTATION_ANIMATION_DURATION,
+          useNativeDriver: true,
+        }),
+      ]).start(({ finished }) => {
+        if (!finished) {
+          isDismissingRef.current = false;
+          return;
+        }
+        if (!embedded) {
+          setIsModalVisible(false);
+        }
+        setCurrentContent(null);
+        after?.();
+      });
+    },
+    [dimOpacity, embedded, sheetHeight, sheetTranslateY],
+  );
+
+  const requestClose = useCallback(() => {
+    runCloseAnimation(() => {
+      onCloseRef.current();
+    });
+  }, [runCloseAnimation]);
+
+  const requestConfirm = useCallback(() => {
+    if (!onConfirmRef.current) {
+      return;
+    }
+    runCloseAnimation(() => {
+      onConfirmRef.current?.();
+    });
+  }, [runCloseAnimation]);
+
   const handleMeasuredSheetLayout = useCallback((event: LayoutChangeEvent) => {
     if (!usesMeasuredHeight || !visible) {
       return;
@@ -202,9 +260,10 @@ function ModalBottomsheetContent({
   const panResponder = useMemo(
     () =>
       PanResponder.create({
-        onStartShouldSetPanResponder: () => resizable,
+        onStartShouldSetPanResponder: () => resizable && !isDismissingRef.current,
         onMoveShouldSetPanResponder: (_, gestureState) =>
           resizable &&
+          !isDismissingRef.current &&
           Math.abs(gestureState.dy) > 4 &&
           Math.abs(gestureState.dy) > Math.abs(gestureState.dx),
         onPanResponderGrant: () => {
@@ -231,7 +290,7 @@ function ModalBottomsheetContent({
         onPanResponderRelease: (_, gestureState) => {
           if (usesSheetDrag) {
             if (gestureState.dy >= initialSheetHeight * 0.5 || gestureState.vy > 1.2) {
-              onClose();
+              requestClose();
               return;
             }
             Animated.timing(sheetTranslateY, {
@@ -243,7 +302,7 @@ function ModalBottomsheetContent({
           }
           const currentHeight = sheetHeightValueRef.current;
           if (gestureState.dy > 0 && currentHeight <= SHEET_DISMISS_HEIGHT) {
-            onClose();
+            requestClose();
             return;
           }
           animateSheetHeight(initialSheetHeight);
@@ -260,13 +319,14 @@ function ModalBottomsheetContent({
           animateSheetHeight(initialSheetHeight);
         },
       }),
-    [animateSheetHeight, initialSheetHeight, onClose, resizable, sheetHeight, sheetTranslateY, usesSheetDrag]
+    [animateSheetHeight, initialSheetHeight, requestClose, resizable, sheetHeight, sheetTranslateY, usesSheetDrag]
   );
 
   useEffect(() => {
     visibleRef.current = visible;
 
     if (visible) {
+      isDismissingRef.current = false;
       if (!embedded) {
         setIsModalVisible(true);
       }
@@ -297,6 +357,13 @@ function ModalBottomsheetContent({
           }),
         ]).start();
       });
+    } else if (isDismissingRef.current) {
+      // Exit animation already ran via requestClose / requestConfirm.
+      isDismissingRef.current = false;
+      if (!embedded) {
+        setIsModalVisible(false);
+      }
+      setCurrentContent(null);
     } else {
       dimOpacity.stopAnimation();
       sheetTranslateY.stopAnimation();
@@ -348,7 +415,7 @@ function ModalBottomsheetContent({
 
   const handleBackdropPress = () => {
     if (closeOnBackdrop) {
-      onClose();
+      requestClose();
     }
   };
 
@@ -358,12 +425,12 @@ function ModalBottomsheetContent({
     }
 
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      onClose();
+      requestClose();
       return true;
     });
 
     return () => subscription.remove();
-  }, [embedded, visible, onClose]);
+  }, [embedded, visible, requestClose]);
 
   const sheetBodyContent = (
     <View
@@ -390,7 +457,7 @@ function ModalBottomsheetContent({
           <View style={styles.navContent}>
             <View style={styles.navLeft}>
               <Pressable
-                onPress={onClose}
+                onPress={requestClose}
                 style={styles.closeButton}
                 accessibilityRole="button"
                 accessibilityLabel={navigationLeftIcon === 'back' ? '이전' : '닫기'}
@@ -404,7 +471,7 @@ function ModalBottomsheetContent({
             <View style={styles.navRight}>
               {onConfirm ? (
                 <Pressable
-                  onPress={onConfirm}
+                  onPress={requestConfirm}
                   style={[styles.confirmButton, { backgroundColor: palette.primary }]}
                   accessibilityRole="button"
                   accessibilityLabel={confirmText}
@@ -491,7 +558,7 @@ function ModalBottomsheetContent({
       visible={isModalVisible}
       transparent
       animationType="none"
-      onRequestClose={onClose}
+      onRequestClose={requestClose}
       presentationStyle="overFullScreen"
       statusBarTranslucent
     >

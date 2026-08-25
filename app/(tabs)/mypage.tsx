@@ -10,7 +10,11 @@ import { Icon } from '@/components/ui/icon';
 import { NoticeUnreadBadge } from '@/components/ui/notice-unread-badge';
 import { Switch } from '@/components/ui/switch';
 import { UiLineText } from '@/components/ui/ui-line-text';
-import { getAppStoreWriteReviewUrl } from '@/constants/app-store';
+import {
+  getAppStoreWriteReviewUrl,
+  getPlayStoreWriteReviewHttpsUrl,
+  getPlayStoreWriteReviewIntentUrl,
+} from '@/constants/app-store';
 import { themeColors } from '@/constants/theme-colors';
 import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -180,49 +184,54 @@ export default function MyPageScreen() {
   const handleReviewPress = async () => {
 
     try {
-      let url = '';
-      
       if (Platform.OS === 'ios') {
-        url = getAppStoreWriteReviewUrl();
-      } else if (Platform.OS === 'android') {
-        // Android Play Store review URL - Always use AWallet package name
-        const PACKAGE_NAME = 'com.ssong.awallet';
-        url = `market://details?id=${PACKAGE_NAME}`;
-        
-        const canOpen = await Linking.canOpenURL(url);
-        if (!canOpen) {
-          url = `https://play.google.com/store/apps/details?id=${PACKAGE_NAME}`;
+        const url = getAppStoreWriteReviewUrl();
+        const supported = await Linking.canOpenURL(url);
+        if (!supported) {
+          Alert.alert(
+            '앱 스토어 열기 실패',
+            '앱 스토어를 열 수 없습니다. 나중에 다시 시도해주세요.',
+            [{ text: '확인' }],
+          );
+          return;
         }
-      } else {
-        // Web or other platforms
-        Alert.alert(
-          '리뷰 작성',
-          '앱 스토어에서 AWallet을 검색하여 리뷰를 남겨주세요!',
-          [{ text: '확인' }]
-        );
+        await Linking.openURL(url);
         return;
       }
-      
-      const supported = await Linking.canOpenURL(url);
-      
-      if (supported) {
-        await Linking.openURL(url);
 
-      } else {
-        Alert.alert(
-          '앱 스토어 열기 실패',
-          '앱 스토어를 열 수 없습니다. 나중에 다시 시도해주세요.',
-          [{ text: '확인' }]
-        );
-
+      if (Platform.OS === 'android') {
+        // market:// 는 원스토어·갤럭시 스토어 선택창 → Play(com.android.vending)만 Intent로 지정
+        try {
+          await Linking.openURL(getPlayStoreWriteReviewIntentUrl());
+          return;
+        } catch {
+          const httpsUrl = getPlayStoreWriteReviewHttpsUrl();
+          const supported = await Linking.canOpenURL(httpsUrl);
+          if (!supported) {
+            Alert.alert(
+              '앱 스토어 열기 실패',
+              '앱 스토어를 열 수 없습니다. 나중에 다시 시도해주세요.',
+              [{ text: '확인' }],
+            );
+            return;
+          }
+          await Linking.openURL(httpsUrl);
+          return;
+        }
       }
+
+      Alert.alert(
+        '리뷰 작성',
+        '앱 스토어에서 AWallet을 검색하여 리뷰를 남겨주세요!',
+        [{ text: '확인' }],
+      );
     } catch (error) {
       console.error('설정 저장 중 오류:', error);
 
       Alert.alert(
         '오류',
         '앱 스토어를 여는 중 문제가 발생했습니다.',
-        [{ text: '확인' }]
+        [{ text: '확인' }],
       );
     }
   };

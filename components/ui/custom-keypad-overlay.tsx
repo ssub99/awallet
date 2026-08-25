@@ -24,7 +24,7 @@ export function getIosSystemBottomInset(insets: Pick<EdgeInsets, 'bottom'>): num
 
 /**
  * Full-screen overlay that slides the custom keypad from the bottom.
- * Android: sit above system navigation bar (Figma has no home-indicator zone).
+ * Android: 시스템 내비/제스처 바 inset은 여기서만 적용 (키패드 내부와 중복하지 않음).
  * iOS: flush to screen bottom; CustomKeypad includes home-indicator area internally.
  */
 export function CustomKeypadOverlay({ children, style }: CustomKeypadOverlayProps) {
@@ -41,7 +41,11 @@ export function CustomKeypadOverlay({ children, style }: CustomKeypadOverlayProp
   );
 }
 
-/** ScrollView paddingBottom when custom keypad is open */
+/**
+ * ScrollView paddingBottom when custom keypad is open.
+ * Android: keypadHeight(inset 미포함) + gap + 시스템 바 inset.
+ * iOS: keypadHeight에 홈 인디케이터가 이미 포함되므로 safeArea를 빼 맞춤.
+ */
 export function getCustomKeypadScrollPaddingBottom(
   keypadHeight: number,
   safeAreaBottom: number

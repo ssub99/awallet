@@ -1546,9 +1546,8 @@ export default function MonthlyExpenseTimelineScreen() {
       </View>
       </View>
 
-      {showPaymentFilterSheet ? (
-        <ModalBottomsheet
-          visible={true}
+      <ModalBottomsheet
+          visible={showPaymentFilterSheet}
           title="필터"
           onClose={() => {
             void logEvent('btn', {
@@ -1571,6 +1570,7 @@ export default function MonthlyExpenseTimelineScreen() {
           style={{ height: paymentFilterSheetHeight }}
           contentStyle={styles.paymentFilterSheetContent}
           noPaddingBottom={true}
+          resizable
         >
           <View
             style={[
@@ -1642,7 +1642,6 @@ export default function MonthlyExpenseTimelineScreen() {
             <ModalBottomsheetBottomInset backgroundColor={palette.staticWhite} />
           </View>
         </ModalBottomsheet>
-      ) : null}
       {isMonthTransitionLoading ? (
         <View style={styles.monthTransitionSpinnerOverlay} pointerEvents="none">
           <ActivityIndicator size="large" />
