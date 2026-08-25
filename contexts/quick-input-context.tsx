@@ -44,6 +44,7 @@ import { useRecordFormMemoKeyboard } from '@/hooks/use-record-form-memo-keyboard
 import { logEvent } from '@/utils/analytics';
 import { getApiSecurityHeaders } from '@/utils/api-security-headers';
 import { isAtLeastVersion, QUICK_INPUT_MIN_VERSION } from '@/utils/app-version';
+import { EXPENSE_RECORD_SHEET_ANALYTICS_SCREEN_NAME } from '@/utils/expense-record-creation-mode';
 import {
     applySavedOrder,
     getOrderedCategoriesFromCache,
@@ -297,6 +298,65 @@ const NON_RECORD_LOCK_THRESHOLD = 3;
 const NON_RECORD_LOCK_MS = 30_000;
 const QUICK_INPUT_RECURRING_PERIOD_OPTIONS = ['매일', '매주', '매월', '2주', '3주', '4주', '2개월 마다', '3개월 마다', '4개월 마다', '5개월 마다', '6개월 마다', '주중', '주말'];
 const QUICK_INPUT_INSTALLMENT_MONTH_OPTIONS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+/** expense-record와 동일 target (코드 SSOT) */
+const QUICK_INPUT_RECURRING_ANALYTICS_TARGET: Record<string, string> = {
+  매일: 'recurring-daily',
+  매주: 'recurring-weekly',
+  매월: 'recurring-monthly',
+  '2주': 'recurring-2weeks',
+  '3주': 'recurring-3weeks',
+  '4주': 'recurring-4weeks',
+  '2개월 마다': 'recurring-2months',
+  '3개월 마다': 'recurring-3months',
+  '4개월 마다': 'recurring-4months',
+  '5개월 마다': 'recurring-5months',
+  '6개월 마다': 'recurring-6months',
+  주중: 'recurring-weekdays',
+  주말: 'recurring-weekends',
+};
+const QUICK_INPUT_INSTALLMENT_ANALYTICS_TARGET: Record<number, string> = {
+  2: 'installment-2months',
+  3: 'installment-3months',
+  4: 'installment-4months',
+  5: 'installment-5months',
+  6: 'installment-6months',
+  7: 'installment-7months',
+  8: 'installment-8months',
+  9: 'installment-9months',
+  10: 'installment-10months',
+  11: 'installment-11months',
+  12: 'installment-12months',
+};
+const QUICK_INPUT_WEEKEND_ANALYTICS_TARGET: Record<'weekend' | 'friday' | 'monday', string> = {
+  weekend: 'on-weekend',
+  friday: 'on-this-friday',
+  monday: 'on-next-monday',
+};
+
+/** 소비 기록 바텀시트 analytics (수입 드래프트 제외) */
+function logExpenseRecordSheetEvent(
+  recordType: 'income' | 'expense' | undefined,
+  eventName: string,
+  target: string,
+  extra?: Record<string, unknown>,
+): void {
+  if (recordType === 'income') {
+    return;
+  }
+  if (__DEV__) {
+    console.log(`[Analytics] ${eventName}`, {
+      screen_name: EXPENSE_RECORD_SHEET_ANALYTICS_SCREEN_NAME,
+      target,
+      ...(extra ?? {}),
+    });
+  }
+  void logEvent(eventName, {
+    screen_name: EXPENSE_RECORD_SHEET_ANALYTICS_SCREEN_NAME,
+    target,
+    ...(extra ?? {}),
+  });
+}
+
 const QUICK_INPUT_WEEKEND_OPTIONS: Array<{ value: 'weekend' | 'friday' | 'monday'; label: string }> = [
   { value: 'weekend', label: '관계없이 주말 기록' },
   { value: 'friday', label: '금주 금요일 기록' },
@@ -2955,6 +3015,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }, [quickInputPaymentSheetVisible]);
 
   const handleQuickInputEditCategoryPress = useCallback(() => {
+    logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'ui', 'category');
     const categoryType = pendingRecordRef.current?.recordType === 'income' ? 'income' : 'expense';
     closeQuickInputEditAmountKeypad({ immediate: true });
     setQuickInputCategorySheetSelected(quickInputEditDraft?.category ?? '');
@@ -2976,6 +3037,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }, [closeQuickInputEditAmountKeypad, quickInputEditDraft?.category]);
 
   const handleQuickInputCategorySheetClose = useCallback(() => {
+    logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'btn', 'category-option-prev');
     setQuickInputEditView('form');
   }, []);
 
@@ -2984,11 +3046,15 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       showToast('카테고리를 선택해 주세요.');
       return;
     }
+    logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'btn', 'category-option-confirm', {
+      category: quickInputCategorySheetSelected,
+    });
     updateQuickInputEditDraft({ category: quickInputCategorySheetSelected });
     setQuickInputEditView('form');
   }, [quickInputCategorySheetSelected, showToast, updateQuickInputEditDraft]);
 
   const handleQuickInputEditDatePress = useCallback(() => {
+    logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'ui', 'calendar');
     closeQuickInputEditAmountKeypad({ immediate: true });
     setQuickInputDateSheetSelected(displayDateToIsoDate(quickInputEditDraft?.date ?? '') ?? new Date().toISOString().slice(0, 10));
     if (dateSheetUnmountTimeoutRef.current) {
@@ -2997,21 +3063,25 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     }
     setQuickInputDateSheetMounted(true);
     setQuickInputDateSheetVisible(true);
+    logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'sheet_view', 'calendar');
     void loadMonthStartDay()
       .then(setQuickInputDateSheetMonthStartDay)
       .catch(() => {});
   }, [closeQuickInputEditAmountKeypad, quickInputEditDraft?.date]);
 
   const handleQuickInputDateSheetClose = useCallback(() => {
+    logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'btn', 'calendar-close');
     closeQuickInputDateSheet();
   }, [closeQuickInputDateSheet]);
 
   const handleQuickInputDateSheetConfirm = useCallback((isoDate: string) => {
+    logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'btn', 'calendar-confirm');
     updateQuickInputEditDraft({ date: isoDateToQuickInputDisplayDate(isoDate) });
     closeQuickInputDateSheet();
   }, [closeQuickInputDateSheet, updateQuickInputEditDraft]);
 
   const handleQuickInputEditPaymentPress = useCallback(() => {
+    logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'ui', 'payment');
     const method = quickInputEditDraft?.paymentMethod === 'debit' ? 'debit' : 'credit';
     closeQuickInputEditAmountKeypad({ immediate: true });
     setQuickInputPaymentSheetFilter(method);
@@ -3022,16 +3092,23 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     }
     setQuickInputPaymentSheetMounted(true);
     setQuickInputPaymentSheetVisible(true);
+    logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'sheet_view', 'payment');
     void getPaymentSubtypesCached()
       .then(setQuickInputPaymentSheetItems)
       .catch(() => {});
   }, [closeQuickInputEditAmountKeypad, getPaymentSubtypesCached, quickInputEditDraft?.paymentMethod]);
 
   const handleQuickInputPaymentSheetClose = useCallback(() => {
+    logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'btn', 'payment-close');
     closeQuickInputPaymentSheet();
   }, [closeQuickInputPaymentSheet]);
 
   const handleQuickInputPaymentSelect = useCallback((method: 'credit' | 'debit' | 'cash', subtype?: PaymentSubtype) => {
+    if (method === 'cash') {
+      logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'btn', 'payment-cash');
+    } else {
+      logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'list', method === 'credit' ? 'payment-credit' : 'payment-debit');
+    }
     updateQuickInputEditDraft({
       paymentMethod: method,
       paymentSubtypeLabel: method === 'cash' ? '현금' : subtype?.label ?? paymentMethodToLabel(method),
@@ -3049,6 +3126,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }, [closeQuickInputPaymentSheet, updateQuickInputEditDraft]);
 
   const handleQuickInputEditAmountPress = useCallback(() => {
+    logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'ui', 'amount');
     Keyboard.dismiss();
     setQuickInputEditView('form');
     closeQuickInputDateSheet();
@@ -3076,6 +3154,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }, [closeQuickInputEditAmountKeypad, handleQuickInputEditAmountChange]);
 
   const handleQuickInputEditMemoFocus = useCallback(() => {
+    logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'ui', 'memo');
     closeQuickInputEditAmountKeypad({ immediate: true });
     handleQuickInputEditMemoKeyboardFocus();
   }, [closeQuickInputEditAmountKeypad, handleQuickInputEditMemoKeyboardFocus]);
@@ -3085,6 +3164,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }, [handleQuickInputEditMemoKeyboardBlur]);
 
   const handleQuickInputEditRecurringPress = useCallback(() => {
+    logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'btn', 'option');
     closeQuickInputEditAmountKeypad({ immediate: true });
     const source = quickInputEditDraft;
     setQuickInputRecurringDraftIsRecurring(source?.isRecurring ?? false);
@@ -3095,13 +3175,16 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     setQuickInputRecurringDraftWeekendOption(source?.weekendOption ?? 'weekend');
     setQuickInputRecurringDraftIsPeriodExpanded(false);
     setQuickInputEditView('recurring');
+    logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'sheet_view', 'recurring-installment-sheet');
   }, [closeQuickInputEditAmountKeypad, quickInputEditDraft]);
 
   const handleQuickInputRecurringSheetClose = useCallback(() => {
+    logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'btn', 'recurring-installment-sheet-close');
     setQuickInputEditView('form');
   }, []);
 
   const handleQuickInputRecurringConfirm = useCallback(() => {
+    logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'btn', 'recurring-installment-sheet-confirm');
     updateQuickInputEditDraft({
       isRecurring: quickInputRecurringDraftIsRecurring,
       isInstallment: quickInputRecurringDraftIsInstallment,
@@ -3114,7 +3197,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     });
     setQuickInputEditView('form');
   }, [
-    quickInputRecurringDraftIsInstallment,
+        quickInputRecurringDraftIsInstallment,
     quickInputRecurringDraftIsRecurring,
     quickInputRecurringDraftTotalMonths,
     quickInputRecurringDraftType,
@@ -3123,6 +3206,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   ]);
 
   const handleQuickInputRecurringToggle = useCallback((value: boolean) => {
+    logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'ui', 'recurring-toggle');
     setQuickInputRecurringDraftIsRecurring(value);
     if (!value) {
       setQuickInputRecurringDraftTotalMonths(2);
@@ -3137,6 +3221,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }, [quickInputRecurringDraftHasSelectedInstallment]);
 
   const handleQuickInputInstallmentToggle = useCallback((value: boolean) => {
+    logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'ui', 'installment-toggle');
     setQuickInputRecurringDraftIsInstallment(value);
     if (value) {
       setQuickInputRecurringDraftIsRecurring(false);
@@ -3215,6 +3300,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       return;
     }
 
+    logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'btn', 'cta');
+
     const updated: PendingParseRecord = {
       ...current,
       category: draft.category.trim(),
@@ -3242,7 +3329,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     getIncomeCategoriesCached,
     getPaymentSubtypesCached,
     handleQuickInputEditSheetClose,
-    quickInputEditDraft,
+        quickInputEditDraft,
     showToast,
   ]);
 
@@ -3816,7 +3903,12 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                                     <View key={`${category.type}-${category.label}`}>
                                       <Pressable
                                         style={styles.categorySheetItem}
-                                        onPress={() => setQuickInputCategorySheetSelected(category.label)}
+                                        onPress={() => {
+                                          logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'list', 'category-option', {
+                                            category: category.label,
+                                          });
+                                          setQuickInputCategorySheetSelected(category.label);
+                                        }}
                                         accessibilityRole="button"
                                         accessibilityLabel={`${category.label} 선택`}
                                       >
@@ -3904,6 +3996,10 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                                           disabled={!quickInputRecurringDraftIsRecurring && !quickInputRecurringDraftIsInstallment}
                                           onPress={() => {
                                             if (!quickInputRecurringDraftIsRecurring && !quickInputRecurringDraftIsInstallment) return;
+                                            const recurringTarget = QUICK_INPUT_RECURRING_ANALYTICS_TARGET[label];
+                                            if (recurringTarget) {
+                                              logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'ui', recurringTarget);
+                                            }
                                             setQuickInputRecurringDraftType(label);
                                             if (shouldIgnoreWeekendOptionForRecurringType(label)) {
                                               setQuickInputRecurringDraftWeekendOption('weekend');
@@ -3937,6 +4033,10 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                                           disabled={!quickInputRecurringDraftIsRecurring && !quickInputRecurringDraftIsInstallment}
                                           onPress={() => {
                                             if (!quickInputRecurringDraftIsRecurring && !quickInputRecurringDraftIsInstallment) return;
+                                            const installmentTarget = QUICK_INPUT_INSTALLMENT_ANALYTICS_TARGET[months];
+                                            if (installmentTarget) {
+                                              logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'ui', installmentTarget);
+                                            }
                                             setQuickInputRecurringDraftTotalMonths(months);
                                           }}
                                           style={styles.periodChip}
@@ -3970,6 +4070,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                                               showToast('해당 단위는 주말 옵션을 적용할 수 없습니다.');
                                               return;
                                             }
+                                            logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'ui', QUICK_INPUT_WEEKEND_ANALYTICS_TARGET[option.value]);
                                             setQuickInputRecurringDraftWeekendOption(option.value);
                                           }}
                                           disabled={!quickInputRecurringDraftIsRecurring && !quickInputRecurringDraftIsInstallment}
@@ -3987,6 +4088,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                                                 showToast('해당 단위는 주말 옵션을 적용할 수 없습니다.');
                                                 return;
                                               }
+                                              logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'ui', QUICK_INPUT_WEEKEND_ANALYTICS_TARGET[option.value]);
                                               setQuickInputRecurringDraftWeekendOption(option.value);
                                             }}
                                             label={false}

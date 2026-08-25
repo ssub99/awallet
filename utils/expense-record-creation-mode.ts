@@ -23,6 +23,12 @@ export const EXPENSE_RECORD_QUICK_INPUT_DRAFT_ROUTE_PARAMS = {
   [EXPENSE_RECORD_CREATION_FUNNEL_PARAM]: 'quickInputDraft',
 } as const;
 
+/** Amplitude `screen_name` — 일반 소비 기록 / 간편 바텀시트 / 카테고리 기본 */
+export const EXPENSE_RECORD_ANALYTICS_SCREEN_NAME = '/expense-record';
+export const EXPENSE_RECORD_SHEET_ANALYTICS_SCREEN_NAME = '/expense-record-sheet';
+export const EXPENSE_CATEGORY_ANALYTICS_SCREEN_NAME = '/expense-category';
+export const EXPENSE_EDIT_ANALYTICS_SCREEN_NAME = '/expense-edit';
+
 export function resolveExpenseRecordCreationContext(params: {
   mode?: ExpenseRecordScreenMode;
   quickInputDraft?: string;
@@ -40,6 +46,36 @@ export function resolveExpenseRecordCreationContext(params: {
   }
 
   return { kind: 'create', funnel: 'screen' };
+}
+
+/** 소비 기록 화면 analytics screen_name (간편 드래프트 → sheet) */
+export function resolveExpenseRecordAnalyticsScreenName(
+  context: ExpenseRecordCreationContext,
+): string {
+  if (context.kind === 'edit') {
+    return EXPENSE_EDIT_ANALYTICS_SCREEN_NAME;
+  }
+  if (context.funnel === 'quickInputDraft') {
+    return EXPENSE_RECORD_SHEET_ANALYTICS_SCREEN_NAME;
+  }
+  return EXPENSE_RECORD_ANALYTICS_SCREEN_NAME;
+}
+
+/**
+ * 카테고리 목록 화면 analytics screen_name.
+ * UI는 공용, 간편 바텀시트에서 들어온 경우만 expense-record-sheet로 귀속.
+ */
+export function resolveExpenseCategoryAnalyticsScreenName(params: {
+  quickInputDraft?: string;
+  creationFunnel?: string;
+}): string {
+  if (
+    params.quickInputDraft === '1' ||
+    params.creationFunnel === 'quickInputDraft'
+  ) {
+    return EXPENSE_RECORD_SHEET_ANALYTICS_SCREEN_NAME;
+  }
+  return EXPENSE_CATEGORY_ANALYTICS_SCREEN_NAME;
 }
 
 export function isQuickInputDraftCreationContext(
@@ -87,5 +123,26 @@ if (__DEV__) {
   console.assert(
     formatScreenFunnelContinueCreateToast(3) === '3건의 기록이 생성되었습니다.',
     'continue-create toast copy',
+  );
+
+  console.assert(
+    resolveExpenseRecordAnalyticsScreenName(draft) ===
+      EXPENSE_RECORD_SHEET_ANALYTICS_SCREEN_NAME,
+    'draft funnel → expense-record-sheet screen_name',
+  );
+  console.assert(
+    resolveExpenseRecordAnalyticsScreenName(screen) ===
+      EXPENSE_RECORD_ANALYTICS_SCREEN_NAME,
+    'screen funnel → expense-record screen_name',
+  );
+  console.assert(
+    resolveExpenseCategoryAnalyticsScreenName({ quickInputDraft: '1' }) ===
+      EXPENSE_RECORD_SHEET_ANALYTICS_SCREEN_NAME,
+    'category from draft → expense-record-sheet',
+  );
+  console.assert(
+    resolveExpenseCategoryAnalyticsScreenName({}) ===
+      EXPENSE_CATEGORY_ANALYTICS_SCREEN_NAME,
+    'category default → expense-category',
   );
 }

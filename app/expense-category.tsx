@@ -14,6 +14,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { logEvent } from '@/utils/analytics';
 import {
   EXPENSE_RECORD_SCREEN_FUNNEL_ROUTE_PARAMS,
+  resolveExpenseCategoryAnalyticsScreenName,
 } from '@/utils/expense-record-creation-mode';
 import { getAllChallenges, type ChallengeRecord } from '@/utils/challenges';
 import { applySavedOrder, loadCategoryOrder } from '@/utils/category-order';
@@ -39,9 +40,15 @@ export default function ExpenseCategoryScreen() {
     calendarYear?: string;
     calendarMonth?: string;
     type?: string;
+    quickInputDraft?: string;
+    creationFunnel?: string;
   }>();
 
   const categoryType = (params.type === 'income' ? 'income' : 'expense') as 'income' | 'expense';
+  const analyticsScreenName = resolveExpenseCategoryAnalyticsScreenName({
+    quickInputDraft: params.quickInputDraft,
+    creationFunnel: params.creationFunnel,
+  });
   
   const [selectedCategory, setSelectedCategory] = useState<string>(
     params.selectedCategory || ''
@@ -111,7 +118,7 @@ export default function ExpenseCategoryScreen() {
 
   const handleConfirm = async () => {
     void logEvent('btn', {
-      screen_name: '/expense-category',
+      screen_name: analyticsScreenName,
       target: 'category-option-confirm',
       mode: flowMode,
       category_type: categoryType,
@@ -150,7 +157,7 @@ export default function ExpenseCategoryScreen() {
 
   const handleBack = () => {
     void logEvent('btn', {
-      screen_name: '/expense-category',
+      screen_name: analyticsScreenName,
       target: 'category-option-prev',
       mode: flowMode,
       category_type: categoryType,
@@ -188,7 +195,7 @@ export default function ExpenseCategoryScreen() {
                   style={styles.categoryItem}
                   onPress={async () => {
                     void logEvent('list', {
-                      screen_name: '/expense-category',
+                      screen_name: analyticsScreenName,
                       target: 'category-option',
                       mode: flowMode,
                       category_type: categoryType,

@@ -84,9 +84,11 @@ import {
 } from '@/utils/quick-input-expense-draft-bridge';
 import { expenseFormToQuickInputPending } from '@/utils/quick-input-pending-record';
 import {
+  EXPENSE_RECORD_QUICK_INPUT_DRAFT_ROUTE_PARAMS,
   isQuickInputDraftCreationContext,
   isScreenFunnelCreationContext,
   formatScreenFunnelContinueCreateToast,
+  resolveExpenseRecordAnalyticsScreenName,
   resolveExpenseRecordCreationContext,
   resolveScreenFunnelSaveIntent,
   type ScreenFunnelSaveIntent,
@@ -378,7 +380,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   /** 일반 퍼널 저장 후: complete(홈) | continue(계속 생성) */
   const screenFunnelSaveIntentRef = useRef<ScreenFunnelSaveIntent>('complete');
   const screenFunnelSavedCountRef = useRef(0);
-  const analyticsScreenName = mode === 'edit' ? '/expense-edit' : '/expense-record';
+  const analyticsScreenName = resolveExpenseRecordAnalyticsScreenName(creationContext);
   const scrollViewRef = useRef<ScrollView>(null);
 
   // Form state
@@ -2318,11 +2320,13 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     Keyboard.dismiss();
     
     // 카테고리 선택 화면으로 이동 (현재 선택된 카테고리 전달)
+    // 간편 바텀시트 퍼널이면 analytics screen_name 분기용 파라미터 전달
     router.push({
       pathname: '/expense-category',
-      params: { 
+      params: {
         selectedCategory: category,
         fromEdit: 'true',
+        ...(isQuickInputDraftCreation ? EXPENSE_RECORD_QUICK_INPUT_DRAFT_ROUTE_PARAMS : {}),
       },
     });
   };
