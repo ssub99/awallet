@@ -38,7 +38,7 @@ import { getRandomQuickInputPlaceholder } from '@/constants/quick-input-placehol
 import { useAppData } from '@/contexts/app-data-context';
 import { useLoading } from '@/contexts/loading-context';
 import { useToast } from '@/contexts/toast-context';
-import { calendarRefreshEvent, publishCalendarTarget } from '@/hooks/calendar-events';
+import { publishCalendarTarget } from '@/hooks/calendar-events';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { useRecordFormMemoKeyboard } from '@/hooks/use-record-form-memo-keyboard';
 import { logEvent } from '@/utils/analytics';
@@ -2660,7 +2660,6 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         hideQuickInput();
         showToast('기록 생성이 완료되었습니다.');
         await refresh();
-        calendarRefreshEvent.emit();
         rescheduleDailyReminderIfNeeded().catch(() => {});
         return;
       }
@@ -2828,7 +2827,6 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       showToast('기록 생성이 완료되었습니다.');
 
       await refresh();
-      calendarRefreshEvent.emit();
       if (challengeCategory) {
         const recordDateObj = new Date(actualDateKey);
         await triggerChallengeNotifications(challengeCategory, recordDateObj).catch((error) => {
