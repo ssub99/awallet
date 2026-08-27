@@ -19,6 +19,7 @@ import com.ssong.awallet.widget.WidgetDebugLog
 import com.ssong.awallet.widget.WidgetLaunchExtras
 import com.ssong.awallet.widget.WidgetLaunchPrefs
 import com.ssong.awallet.widget.WidgetMainSplashOverlay
+import com.swmansion.rnscreens.fragment.restoration.RNScreensFragmentFactory
 import expo.modules.ReactActivityDelegateWrapper
 
 class MainActivity : ReactActivity() {
@@ -41,7 +42,9 @@ class MainActivity : ReactActivity() {
     // @generated begin expo-splashscreen - expo prebuild (DO NOT MODIFY) sync-f3ff59a738c56c9a6119210cb55f0b613eb8b6af
     SplashScreenManager.registerOnActivity(this)
     // @generated end expo-splashscreen
-    super.onCreate(savedInstanceState)
+    // react-native-screens: process death 시 ScreenFragment 복원 크래시 방지
+    supportFragmentManager.fragmentFactory = RNScreensFragmentFactory()
+    super.onCreate(null)
     MainActivityHolder.attach(this)
     if (!shouldShowWidgetColdSplash(intent)) {
       WidgetLaunchPrefs.clearTrampolineSplashPending(applicationContext)

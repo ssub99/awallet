@@ -108,8 +108,16 @@ export async function initAmplitude(): Promise<void> {
   }
 
   // Session Replay는 네이티브 링크 필요. Expo Go·링크 누락 시에도 이벤트(track)는 쓰도록 분리.
+  // sampleRate 1 = 100% 녹화. enableRemoteConfig true면 콘솔 샘플 설정이 있을 때 그쪽이 우선될 수 있음.
   try {
-    await add(new SessionReplayPlugin()).promise;
+    await add(
+      new SessionReplayPlugin({
+        enableRemoteConfig: true,
+        sampleRate: 1,
+        autoStart: true,
+        privacyConfig: { maskLevel: 'medium' },
+      }),
+    ).promise;
     if (__DEV__) {
       console.log('[Analytics] Session Replay 등록 완료');
     }
