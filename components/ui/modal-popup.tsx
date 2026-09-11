@@ -317,7 +317,7 @@ export function ModalPopup({
 
 const styles = StyleSheet.create({
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 99999,
   },
   container: {
@@ -328,7 +328,7 @@ const styles = StyleSheet.create({
     zIndex: 100000,
   },
   extraOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 100001,
   },
   modal: {

@@ -45,6 +45,7 @@ export const IconCategories = {
     'send',
     'calculator',
     'categorySetting',
+    'message',
   ] as const,
   
   /**
@@ -133,6 +134,7 @@ export const IconDescriptions: Record<IconName, string> = {
   keypadDelete: 'Delete previous input',
   lock: 'Lock or secure',
   memo: 'Memo or note',
+  message: 'SMS inbox or message',
   mypage: 'My page or profile',
   pause: 'Pause',
   play: 'Play',

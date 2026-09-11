@@ -1,5 +1,4 @@
-import type { ParamListBase } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { NavigationProp, ParamListBase } from "expo-router/react-navigation";
 import Constants from 'expo-constants';
 import { useNavigation } from 'expo-router';
 import { useEffect, useRef } from 'react';
@@ -16,7 +15,9 @@ function computeStatusBarCoverageThreshold(windowHeight: number, statusBarInset:
   return 1 - statusBarInset / windowHeight;
 }
 
-type NoticeImageViewerNavigation = NativeStackNavigationProp<ParamListBase>;
+type NoticeImageViewerNavigation = NavigationProp<ParamListBase> & {
+  setOptions: (options: { statusBarStyle?: 'light' | 'dark' }) => void;
+};
 
 function applyStatusBarForViewerCoverage(
   navigation: NoticeImageViewerNavigation,
@@ -54,7 +55,14 @@ function NoticeImageViewerStatusBarSyncIos() {
       syncFromProgress(value);
     });
 
-    const transitionEndSubscription = navigation.addListener('transitionEnd', (event) => {
+    const transitionEndSubscription = (
+      navigation as NoticeImageViewerNavigation & {
+        addListener: (
+          event: 'transitionEnd',
+          callback: (e: { data?: { closing?: boolean } }) => void,
+        ) => () => void;
+      }
+    ).addListener('transitionEnd', (event) => {
       const closing = event.data?.closing === true;
       coversStatusBarRef.current = !closing;
       applyStatusBarForViewerCoverage(navigation, !closing);

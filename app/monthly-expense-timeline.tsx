@@ -1656,7 +1656,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   monthTransitionSpinnerOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2045,7 +2045,7 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   floatingFilterBlur: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   floatingFilterContent: {
     flex: 1,

@@ -45,7 +45,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation } from "expo-router/react-navigation";
 
 /**
  * 요일 계산 함수

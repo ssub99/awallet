@@ -399,7 +399,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   colorPickerBackdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 40,
   },
   colorPickerPopover: {

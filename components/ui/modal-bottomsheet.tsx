@@ -642,7 +642,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   insetProviderOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   /** Hidden embedded host: stay mounted for close animation, but do not stack/steal Android touches. */
   insetProviderOverlayHidden: {
@@ -650,7 +650,7 @@ const styles = StyleSheet.create({
     elevation: 0,
   },
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 1000,
   },
   transparentBackdrop: {

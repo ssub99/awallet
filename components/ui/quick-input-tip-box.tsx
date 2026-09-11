@@ -969,7 +969,7 @@ const styles = StyleSheet.create({
     height: COLLAPSE_BUTTON_SIZE,
   },
   collapseIcon: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
   },

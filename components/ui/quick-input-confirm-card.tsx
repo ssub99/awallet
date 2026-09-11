@@ -38,6 +38,12 @@ export interface QuickInputConfirmCardProps {
   onChange?: () => void;
   /** 추가 버튼 로딩 여부. true면 추가 버튼에 인디케이터, 취소 버튼 비활성화 */
   addLoading?: boolean;
+  /** false면 등장 슬라이드/페이드 생략 (문자 수신함 스택 등) */
+  animateEntrance?: boolean;
+  /** 하단 추가/취소 버튼 높이. 시안 기본 40, 문자 수신함 카드는 48 */
+  actionButtonHeight?: number;
+  /** true면 카드 내 콘텐츠를 숨기고 로딩 인디케이터만 표기 */
+  contentLoading?: boolean;
 }
 
 const ROW_LABELS = {
@@ -117,11 +123,14 @@ export function QuickInputConfirmCard({
   onCancel,
   onChange,
   addLoading = false,
+  animateEntrance = true,
+  actionButtonHeight = 40,
+  contentLoading = false,
 }: QuickInputConfirmCardProps) {
   const colorScheme = useColorScheme();
   const palette = colors[colorScheme ?? 'light'] as ColorPalette;
-  const translateY = useSharedValue(-CARD_SLIDE_OFFSET);
-  const opacity = useSharedValue(0);
+  const translateY = useSharedValue(animateEntrance ? -CARD_SLIDE_OFFSET : 0);
+  const opacity = useSharedValue(animateEntrance ? 0 : 1);
   const cardRef = useRef<View>(null);
   const memoButtonWrapRef = useRef<View>(null);
   const [isExiting, setIsExiting] = useState(false);
@@ -133,6 +142,11 @@ export function QuickInputConfirmCard({
   const memoTooltipText = hasMemo ? memoText : MEMO_EMPTY_TOOLTIP_TEXT;
 
   useEffect(() => {
+    if (!animateEntrance) {
+      translateY.value = 0;
+      opacity.value = 1;
+      return;
+    }
     translateY.value = withTiming(0, {
       duration: CARD_ANIMATION_DURATION,
       easing: Easing.inOut(Easing.cubic),
@@ -141,11 +155,17 @@ export function QuickInputConfirmCard({
       duration: CARD_ANIMATION_DURATION,
       easing: Easing.inOut(Easing.cubic),
     });
-  }, [opacity, translateY]);
+  }, [animateEntrance, opacity, translateY]);
 
   useEffect(() => {
     setMemoTooltipVisible(false);
   }, [data.memo, data.category, data.amount, data.date]);
+
+  useEffect(() => {
+    if (contentLoading) {
+      setMemoTooltipVisible(false);
+    }
+  }, [contentLoading]);
 
   const handleMemoButtonWrapLayout = useCallback(() => {
     const card = cardRef.current;
@@ -163,7 +183,7 @@ export function QuickInputConfirmCard({
     );
   }, []);
 
-  const buttonsDisabled = isExiting || addLoading;
+  const buttonsDisabled = isExiting || addLoading || contentLoading;
 
   const dismissMemoTooltip = useCallback(() => {
     setMemoTooltipVisible(false);
@@ -231,133 +251,154 @@ export function QuickInputConfirmCard({
       style={[styles.card, { backgroundColor: palette.staticWhite }, animatedStyle]}
       onLayout={handleMemoButtonWrapLayout}
     >
-      <View style={styles.titleRow}>
-        <View style={styles.titleLeading}>
-          <Pressable
-            onPress={dismissMemoTooltip}
-            disabled={!memoTooltipVisible}
-            style={styles.titlePressable}
-          >
-            <Text style={[styles.title, { color: palette.textNeutral }]} numberOfLines={1}>
-              {title}
-            </Text>
-          </Pressable>
-          <View ref={memoButtonWrapRef} style={styles.memoButtonWrap} onLayout={handleMemoButtonWrapLayout}>
+      <View
+        style={contentLoading ? styles.contentHidden : undefined}
+        pointerEvents={contentLoading ? 'none' : 'auto'}
+        importantForAccessibility={contentLoading ? 'no-hide-descendants' : 'auto'}
+      >
+        <View style={styles.titleRow}>
+          <View style={styles.titleLeading}>
             <Pressable
-              style={[styles.memoButton, { backgroundColor: palette.fill }]}
-              onPress={handleMemoPress}
-              disabled={buttonsDisabled}
-              accessibilityRole="button"
-              accessibilityLabel={hasMemo ? '메모 보기' : '메모 없음'}
-              accessibilityState={{ disabled: buttonsDisabled, expanded: memoTooltipVisible }}
+              onPress={dismissMemoTooltip}
+              disabled={!memoTooltipVisible}
+              style={styles.titlePressable}
             >
-              <Icon
-                name="memo"
-                variant="line"
-                size={MEMO_ICON_SIZE}
+              <Text style={[styles.title, { color: palette.textNeutral }]} numberOfLines={1}>
+                {title}
+              </Text>
+            </Pressable>
+            <View ref={memoButtonWrapRef} style={styles.memoButtonWrap} onLayout={handleMemoButtonWrapLayout}>
+              <Pressable
+                style={[styles.memoButton, { backgroundColor: palette.fill }]}
+                onPress={handleMemoPress}
+                disabled={buttonsDisabled}
+                accessibilityRole="button"
+                accessibilityLabel={hasMemo ? '메모 보기' : '메모 없음'}
+                accessibilityState={{ disabled: buttonsDisabled, expanded: memoTooltipVisible }}
+              >
+                <Icon
+                  name="memo"
+                  variant="line"
+                  size={MEMO_ICON_SIZE}
+                  color={palette.textNeutral}
+                />
+              </Pressable>
+            </View>
+          </View>
+          <Pressable
+            onPress={handleChangePress}
+            disabled={buttonsDisabled || !onChange}
+            accessibilityRole="button"
+            accessibilityLabel="변경"
+            accessibilityState={{ disabled: buttonsDisabled || !onChange }}
+            hitSlop={8}
+          >
+            <Text style={[styles.changeText, { color: palette.textAssistive }]}>변경</Text>
+          </Pressable>
+        </View>
+        {memoTooltipVisible && memoButtonRect ? (
+          <View
+            style={[
+              styles.memoTooltipAnchor,
+              {
+                top: memoButtonRect.y + memoButtonRect.height + spacing[100],
+                left: memoButtonRect.x + memoButtonRect.width / 2 - TOOLTIP_BODY_MAX_WIDTH / 2,
+              },
+            ]}
+            pointerEvents="none"
+          >
+            <Tooltip text={memoTooltipText} placement="top" />
+          </View>
+        ) : null}
+        <Pressable onPress={dismissMemoTooltip} disabled={!memoTooltipVisible}>
+          <View style={[styles.divider, { backgroundColor: palette.border }]} />
+        </Pressable>
+        <View style={styles.content}>
+          {memoTooltipVisible ? (
+            <Pressable
+              style={styles.contentDismissOverlay}
+              onPress={dismissMemoTooltip}
+              accessibilityRole="button"
+              accessibilityLabel="메모 툴팁 닫기"
+            />
+          ) : null}
+          <ConfirmRow label={ROW_LABELS.category} value={categoryDisplay} colors={palette} />
+          <ConfirmRow label={ROW_LABELS.date} value={data.date} colors={palette} />
+          <ConfirmRow label={ROW_LABELS.amount} value={data.amount} colors={palette} />
+          {data.recordType !== 'income' ? (
+            <>
+              <PaymentTypeRow
+                label={ROW_LABELS.paymentType}
+                value={data.paymentType ?? ''}
+                color={data.paymentTypeColor}
+                emoji={data.paymentTypeEmoji}
+                colors={palette}
+              />
+              <ConfirmRow
+                label={ROW_LABELS.repeatOption1}
+                value={[data.repeatOption1, data.repeatOption2, data.repeatOption3]
+                  .filter(Boolean)
+                  .join(' · ')}
+                colors={palette}
+              />
+            </>
+          ) : null}
+        </View>
+        <View style={styles.buttonRow}>
+          <Pressable
+            style={[styles.button, { height: actionButtonHeight, backgroundColor: palette.fillStrong }]}
+            onPress={() => {
+              dismissMemoTooltip();
+              onConfirm();
+            }}
+            disabled={buttonsDisabled}
+            accessibilityRole="button"
+            accessibilityLabel={addLoading ? '추가 중' : '추가'}
+            accessibilityState={{ disabled: buttonsDisabled }}
+          >
+            {addLoading ? (
+              <ActivityIndicator
+                size={Platform.OS === 'android' ? 20 : 'small'}
                 color={palette.textNeutral}
               />
-            </Pressable>
-          </View>
+            ) : (
+              <Text style={[styles.buttonText, { color: palette.textNeutral }]}>추가</Text>
+            )}
+          </Pressable>
+          <Pressable
+            style={[
+              styles.button,
+              {
+                height: actionButtonHeight,
+                backgroundColor: buttonsDisabled ? palette.fillDisabled : palette.fillStrong,
+              },
+            ]}
+            onPress={handleCancel}
+            disabled={buttonsDisabled}
+            accessibilityRole="button"
+            accessibilityLabel="취소"
+            accessibilityState={{ disabled: buttonsDisabled }}
+          >
+            <Text
+              style={[styles.buttonText, { color: buttonsDisabled ? palette.textDisabled : palette.textNeutral }]}
+            >
+              취소
+            </Text>
+          </Pressable>
         </View>
-        <Pressable
-          onPress={handleChangePress}
-          disabled={buttonsDisabled || !onChange}
-          accessibilityRole="button"
-          accessibilityLabel="변경"
-          accessibilityState={{ disabled: buttonsDisabled || !onChange }}
-          hitSlop={8}
-        >
-          <Text style={[styles.changeText, { color: palette.textAssistive }]}>변경</Text>
-        </Pressable>
       </View>
-      {memoTooltipVisible && memoButtonRect ? (
+      {contentLoading ? (
         <View
-          style={[
-            styles.memoTooltipAnchor,
-            {
-              top: memoButtonRect.y + memoButtonRect.height + spacing[100],
-              left: memoButtonRect.x + memoButtonRect.width / 2 - TOOLTIP_BODY_MAX_WIDTH / 2,
-            },
-          ]}
+          style={styles.contentLoadingOverlay}
+          accessibilityLabel="기록 불러오는 중"
           pointerEvents="none"
         >
-          <Tooltip text={memoTooltipText} placement="top" />
+          <ActivityIndicator
+            size={Platform.OS === 'android' ? 20 : 'small'}
+            color={palette.textNeutral}
+          />
         </View>
       ) : null}
-      <Pressable onPress={dismissMemoTooltip} disabled={!memoTooltipVisible}>
-        <View style={[styles.divider, { backgroundColor: palette.border }]} />
-      </Pressable>
-      <View style={styles.content}>
-        {memoTooltipVisible ? (
-          <Pressable
-            style={styles.contentDismissOverlay}
-            onPress={dismissMemoTooltip}
-            accessibilityRole="button"
-            accessibilityLabel="메모 툴팁 닫기"
-          />
-        ) : null}
-        <ConfirmRow label={ROW_LABELS.category} value={categoryDisplay} colors={palette} />
-        <ConfirmRow label={ROW_LABELS.date} value={data.date} colors={palette} />
-        <ConfirmRow label={ROW_LABELS.amount} value={data.amount} colors={palette} />
-        {data.recordType !== 'income' ? (
-          <>
-            <PaymentTypeRow
-              label={ROW_LABELS.paymentType}
-              value={data.paymentType ?? ''}
-              color={data.paymentTypeColor}
-              emoji={data.paymentTypeEmoji}
-              colors={palette}
-            />
-            <ConfirmRow
-              label={ROW_LABELS.repeatOption1}
-              value={[data.repeatOption1, data.repeatOption2, data.repeatOption3]
-                .filter(Boolean)
-                .join(' · ')}
-              colors={palette}
-            />
-          </>
-        ) : null}
-      </View>
-      <View style={styles.buttonRow}>
-        <Pressable
-          style={[styles.button, { backgroundColor: palette.fillStrong }]}
-          onPress={() => {
-            dismissMemoTooltip();
-            onConfirm();
-          }}
-          disabled={buttonsDisabled}
-          accessibilityRole="button"
-          accessibilityLabel={addLoading ? '추가 중' : '추가'}
-          accessibilityState={{ disabled: buttonsDisabled }}
-        >
-          {addLoading ? (
-            <ActivityIndicator
-              size={Platform.OS === 'android' ? 20 : 'small'}
-              color={palette.textNeutral}
-            />
-          ) : (
-            <Text style={[styles.buttonText, { color: palette.textNeutral }]}>추가</Text>
-          )}
-        </Pressable>
-        <Pressable
-          style={[
-            styles.button,
-            { backgroundColor: buttonsDisabled ? palette.fillDisabled : palette.fillStrong },
-          ]}
-          onPress={handleCancel}
-          disabled={buttonsDisabled}
-          accessibilityRole="button"
-          accessibilityLabel="취소"
-          accessibilityState={{ disabled: buttonsDisabled }}
-        >
-          <Text
-            style={[styles.buttonText, { color: buttonsDisabled ? palette.textDisabled : palette.textNeutral }]}
-          >
-            취소
-          </Text>
-        </Pressable>
-      </View>
     </Animated.View>
   );
 }
@@ -370,6 +411,14 @@ const styles = StyleSheet.create({
     paddingVertical: spacing[500],
     overflow: 'visible',
     position: 'relative',
+  },
+  contentHidden: {
+    opacity: 0,
+  },
+  contentLoadingOverlay: {
+    ...StyleSheet.absoluteFill,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   titleRow: {
     flexDirection: 'row',
@@ -408,7 +457,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   contentDismissOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 1,
   },
   memoTooltipAnchor: {

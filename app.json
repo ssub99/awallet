@@ -35,7 +35,6 @@
         "foregroundImage": "./assets/images/android-icon-foreground.png"
       },
       "userInterfaceStyle": "light",
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.ssong.awallet",
       "googleServicesFile": "./android-firebase/google-services.json",
@@ -142,7 +141,11 @@
         }
       ],
       "react-native-fbsdk-next",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "expo-image",
+      "expo-sharing",
+      "expo-status-bar",
+      "expo-tracking-transparency"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -1,5 +1,5 @@
 import { atomicColors } from '@/constants/atomic-colors';
-import { TransitionPresets } from '@react-navigation/stack';
+import { TransitionPresets } from "expo-router/js-stack";
 import { Platform } from 'react-native';
 
 export const NOTICE_IMAGE_VIEWER_ROUTE_NAME = 'settings-notice-image-viewer' as const;

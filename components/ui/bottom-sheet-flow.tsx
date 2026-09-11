@@ -267,7 +267,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   screen: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     flex: 1,
     minHeight: 0,
   },

@@ -1,9 +1,9 @@
-import type { ParamListBase, StackNavigationState } from '@react-navigation/native';
+import type { ParamListBase, StackNavigationState } from "expo-router/react-navigation";
 import {
   createStackNavigator,
   type StackNavigationEventMap,
   type StackNavigationOptions,
-} from '@react-navigation/stack';
+} from "expo-router/js-stack";
 import { withLayoutContext } from 'expo-router';
 
 const { Navigator } = createStackNavigator();

@@ -4,7 +4,7 @@ import { AppDataProvider } from '@/contexts/app-data-context';
 import { LoadingProvider } from '@/contexts/loading-context';
 import { AppStatusBarProvider } from '@/contexts/status-bar-context';
 import { ToastProvider } from '@/contexts/toast-context';
-import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { DefaultTheme, ThemeProvider } from "expo-router/react-navigation";
 import type { ReactNode } from 'react';
 import { View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';

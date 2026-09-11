@@ -1,7 +1,7 @@
 import {
   CardStyleInterpolators,
   type StackNavigationOptions,
-} from '@react-navigation/stack';
+} from "expo-router/js-stack";
 
 import { themeColors } from '@/constants/theme-colors';
 

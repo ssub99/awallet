@@ -8,15 +8,18 @@
 import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { createSheetEvent } from '@/utils/create-sheet-event';
-import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { useRef } from 'react';
+import { Tabs } from 'expo-router';
+import { useRef, type ComponentProps } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+/** expo-router Tabs tabBar props (avoids duplicate @react-navigation/bottom-tabs type identity mismatch). */
+type TabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>['tabBar']>>[0];
 
 /**
  * Tab Bar matching Figma design
  */
-export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+export function TabBar({ state, descriptors, navigation }: TabBarProps) {
   const colorScheme = useColorScheme();
   const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   const insets = useSafeAreaInsets();

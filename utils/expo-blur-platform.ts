@@ -10,11 +10,11 @@ import type { PlatformBlurIntensity, PlatformBlurOverlay } from '@/constants/blu
  */
 export const EXPO_BLUR_ANDROID_PROPS: Pick<
   BlurViewProps,
-  'experimentalBlurMethod' | 'blurReductionFactor'
+  'blurMethod' | 'blurReductionFactor'
 > =
   Platform.OS === 'android'
     ? {
-        experimentalBlurMethod: 'dimezisBlurView',
+        blurMethod: 'dimezisBlurView',
         blurReductionFactor: 1,
       }
     : {};
@@ -55,7 +55,7 @@ export function clampAndroidBlurRadius(intensity: number): number {
 
 export type AndroidBlurProps = {
   intensity: number;
-  experimentalBlurMethod?: BlurViewProps['experimentalBlurMethod'];
+  blurMethod?: BlurViewProps['blurMethod'];
   blurReductionFactor?: BlurViewProps['blurReductionFactor'];
 };
 

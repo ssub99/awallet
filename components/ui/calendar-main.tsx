@@ -952,7 +952,7 @@ const styles = StyleSheet.create({
     opacity: 0,
   },
   swipeSettleOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     width: SCREEN_WIDTH,
   },
 });

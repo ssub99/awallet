@@ -326,7 +326,7 @@ const styles = StyleSheet.create({
   },
   // iOS Modal
   modalOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   modalContent: {

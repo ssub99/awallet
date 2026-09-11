@@ -48,7 +48,7 @@ import {
   type ScreenFunnelSaveIntent,
 } from '@/utils/expense-record-creation-mode';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation } from "expo-router/react-navigation";
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {

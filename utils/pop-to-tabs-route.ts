@@ -1,4 +1,4 @@
-import { StackActions } from '@react-navigation/native';
+import { StackActions } from "expo-router/react-navigation";
 
 type NavigationWithStackState = {
   getState: () => { routes: { name: string }[] } | undefined;

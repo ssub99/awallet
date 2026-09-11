@@ -647,7 +647,7 @@ export function DatePicker({
 
 const styles = StyleSheet.create({
   modalOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   backdrop: {
@@ -706,7 +706,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   androidYearMonthDim: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   androidYearMonthDialog: {

@@ -602,7 +602,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   inputPlaceholderWrap: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: 'center',
   },
   inputFieldWrapArea: {

@@ -63,6 +63,7 @@ import CopyLine from '@/assets/images/icons/line/copy.svg';
 import HomeSolid from '@/assets/images/icons/solid/home.svg';
 import ImageSolid from '@/assets/images/icons/solid/image.svg';
 import ChallengeSolid from '@/assets/images/icons/solid/challenge.svg';
+import MessageSolid from '@/assets/images/icons/solid/message.svg';
 import MypageSolid from '@/assets/images/icons/solid/mypage.svg';
 import PauseSolid from '@/assets/images/icons/solid/pause.svg';
 import PlaySolid from '@/assets/images/icons/solid/play.svg';
@@ -162,6 +163,7 @@ const iconComponents = {
     delete: DeleteSolid,
     home: HomeSolid,
     image: ImageSolid,
+    message: MessageSolid,
     mypage: MypageSolid,
     pause: PauseSolid,
     play: PlaySolid,

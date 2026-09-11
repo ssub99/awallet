@@ -38,6 +38,7 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   View,
@@ -55,8 +56,9 @@ function applyAndroidNoticeViewerStatusBar(style: 'light' | 'dark') {
     return;
   }
 
-  ExpoStatusBar.setStatusBarTranslucent(true);
-  ExpoStatusBar.setStatusBarBackgroundColor('transparent', true);
+  // SDK 57+: translucent/backgroundColor moved off expo-status-bar; use RN StatusBar.
+  StatusBar.setTranslucent(true);
+  StatusBar.setBackgroundColor('transparent', true);
   ExpoStatusBar.setStatusBarStyle(style, true);
 }
 
@@ -473,11 +475,7 @@ export default function SettingsNoticeScreen() {
           navigationBarTranslucent
           onRequestClose={handleAndroidViewerClose}
           >
-          <ExpoStatusBar.StatusBar
-            style={androidViewerStatusBarStyle}
-            translucent
-            backgroundColor="transparent"
-          />
+          <ExpoStatusBar.StatusBar style={androidViewerStatusBarStyle} />
           <SafeAreaProvider style={styles.androidViewerSafeAreaProvider}>
             <GestureHandlerRootView style={styles.androidViewerGestureRoot}>
               <Animated.View
@@ -589,7 +587,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   thumbnailImage: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   actionRow: {
     flexDirection: 'row',

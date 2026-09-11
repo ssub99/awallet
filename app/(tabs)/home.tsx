@@ -1088,7 +1088,7 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   quickInputAnchor: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'flex-end',
     zIndex: 10,

@@ -572,7 +572,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   colorPickerBackdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 40,
   },
   // 시안 반영: 240x304 고정 오버레이 패널

@@ -24,11 +24,7 @@ export function AppStatusBarProvider({ children }: { children: ReactNode }) {
   return (
     <AppStatusBarContext.Provider value={value}>
       {Platform.OS === 'android' ? (
-        <ExpoStatusBar
-          style={androidStatusBarStyle}
-          translucent
-          backgroundColor="transparent"
-        />
+        <ExpoStatusBar style={androidStatusBarStyle} />
       ) : null}
       {children}
     </AppStatusBarContext.Provider>

@@ -22,14 +22,18 @@ export default function DevTabLayout() {
         name="components"
         options={{
           title: 'Components',
-          tabBarIcon: ({ color }) => <Icon name="search" variant="line" size={28} color={color} />,
+          tabBarIcon: ({ color }) => (
+            <Icon name="search" variant="line" size={28} color={typeof color === 'string' ? color : undefined} />
+          ),
         }}
       />
       <Tabs.Screen
         name="icons"
         options={{
           title: 'Icons',
-          tabBarIcon: ({ color }) => <Icon name="info" variant="line" size={28} color={color} />,
+          tabBarIcon: ({ color }) => (
+            <Icon name="info" variant="line" size={28} color={typeof color === 'string' ? color : undefined} />
+          ),
         }}
       />
     </Tabs>

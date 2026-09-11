@@ -1,5 +1,5 @@
 ---
-description: Fluid 바이브 디자인 — Figma compose/patch 시 채팅 실시간·사후 회고 가시성
+description: Fluid 바이브 디자인 — Figma compose/patch 시 채팅 핸드오프·사후 요약 가시성
 ---
 
 # 바이브 디자인 채팅 가시성
@@ -10,14 +10,24 @@ Fluid MCP로 Figma 시안을 만들거나 수정할 때 적용한다.
 ## 필수 순서
 
 ```
-Baseline → Intent → Recipe → (채팅 출력 후) Execute → Verify → Done
+(내부 Baseline → Intent → Recipe) → 핸드오프 4줄(채팅) → Execute → Verify(all) → Done(내부) → 결과 요약(채팅)
 ```
 
 ## 실시간 (Execute 전)
 
-- `## Vibe · Baseline`, `## Vibe · Intent`, `## Vibe · Recipe`를 **채팅에 먼저** 출력한 뒤 `fluid_compose_screen` / `fluid_patch_screen` 호출
-- 3블록 없이 Figma 반영 도구 호출 금지
+채팅에 **핸드오프 4줄**을 남긴 뒤에만 `fluid_compose_screen` / `fluid_patch_screen` 호출:
+
+```markdown
+mode: improve | create | patch
+baselineId: <nodeId> | 없음
+delta: <keep/remove/add 한 줄>
+composeIntent: prototype | reproduce
+```
+
+- `improve` / `create` 기본 `composeIntent: prototype`. `reproduce`는 학습 재현·align **명시** 시에만
+- `## Vibe · Baseline` / `Intent` / `Recipe` 장문 블록은 **채팅에 붙이지 않음** (에이전트 내부)
 - Execute가 여러 번이면 매번 직전에 `executePlan` 한 줄 이상 채팅에 남김
+- “해봐 / 빨리 / 일단”만으로 Phase·핸드오프 생략 금지 (`Phase 생략` 문구 명시 시에만 축약, 핸드오프 최소 유지)
 
 ## 실시간 실행 모드 (필수)
 
@@ -26,22 +36,30 @@ Baseline → Intent → Recipe → (채팅 출력 후) Execute → Verify → Do
 - 각 이벤트마다 플러그인 로그에 `progress`(event/step/node/op/path)가 기록되어야 함
 - 채팅에는 이벤트 묶음 요약만 남기고, 실제 실시간성은 플러그인 로그 스트림으로 보장
 
+## Execute 우회 금지
+
+시안 조립은 `fluid_compose_screen` / `fluid_patch_screen`만.
+
+금지: relay/`sendRelayCommand`·TalkToFigma·Shell 스크립트의 `clone_node` / `delete_node` / 임의 노드 생성·이동으로 baseline 복제·콜라주.  
+compose 실패·Retry 2회 후에도 저수준 목업으로 대체 금지 → 막힘 보고.
+
 ## 사후 (Execute 후)
 
-- 내부 검증(Verify/Done)은 수행하되, 사용자 채팅에는 **결과 요약 포맷**으로만 보고
-- 결과 요약 포맷:
-  - 결과 한 줄
-  - 변경점 3개
-  - 기대 효과
+- Verify: Deliver 전 **`sections: all`** (layout + DS + intent)
+- 내부 Verify/Done 수행 후, 사용자 채팅에는 **결과 요약**만:
+  - 결과 한 줄 (`frameId` · pattern · verify PASS|FAIL)
+  - 변경점 (있을 때만, 1~3줄)
+  - 기대 효과 (선택)
   - 아직 안 바꾼 것(있으면)
-  - 다음 선택지(1~2개, 선택사항)
-- `Vibe · Baseline/Intent/Recipe/Verify/Done` 제목은 사용자 채팅에 직접 노출하지 않음
+  - 다음 선택지(1~2개, 선택)
+- `## Vibe · …` 제목 블록은 사용자 채팅에 붙이지 않음
 
 ## 금지
 
 - repo에 Vibe 회고용 `.md` 파일 작성
 - 작업마다 scratch JSON 파일 생성·삭제 (Recipe는 MCP 인자만)
 - 화면 1건 작업마다 `awallet.json` / `component-contracts.json` 수정 (DS 등록 시에만)
+- placement `x`/`y` 수동 지정 (catalog 기본: selection 우측 +32px). 예외 시 Recipe에 사유
 
 ## Compose 배치
 

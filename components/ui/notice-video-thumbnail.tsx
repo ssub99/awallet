@@ -58,7 +58,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   image: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   playBadge: {
     position: 'absolute',

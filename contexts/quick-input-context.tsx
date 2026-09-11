@@ -11,6 +11,7 @@
  */
 
 import { QuickInputConfirmCard, type QuickInputConfirmCardData } from '@/components/ui/quick-input-confirm-card';
+import { QuickInputSmsInbox } from '@/components/ui/quick-input-sms-inbox';
 import { Accordion } from '@/components/ui/accordion';
 import { CustomKeypad, getKeypadHeight, type CustomKeypadOperator, type ExpressionToken } from '@/components/ui/custom-keypad';
 import { CustomKeypadOverlay } from '@/components/ui/custom-keypad-overlay';
@@ -44,6 +45,7 @@ import { useRecordFormMemoKeyboard } from '@/hooks/use-record-form-memo-keyboard
 import { logEvent } from '@/utils/analytics';
 import { getApiSecurityHeaders } from '@/utils/api-security-headers';
 import { isAtLeastVersion, QUICK_INPUT_MIN_VERSION } from '@/utils/app-version';
+import { createSmsInboxMockItems, type SmsInboxItem } from '@/utils/sms-inbox-mock';
 import {
   EXPENSE_RECORD_SHEET_ANALYTICS_SCREEN_NAME,
   INCOME_RECORD_SHEET_ANALYTICS_SCREEN_NAME,
@@ -912,6 +914,9 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const [isQuickInputCalculatorMounted, setIsQuickInputCalculatorMounted] = useState(false);
   const [quickInputCalculatorAmount, setQuickInputCalculatorAmount] = useState('');
   const [quickInputCalculatorExpression, setQuickInputCalculatorExpression] = useState<ExpressionToken[]>([]);
+  const [isQuickInputSmsInboxVisible, setIsQuickInputSmsInboxVisible] = useState(false);
+  const [smsInboxItems, setSmsInboxItems] = useState<SmsInboxItem[]>(() => createSmsInboxMockItems());
+  const [smsInboxIndex, setSmsInboxIndex] = useState(0);
   const [confirmCardData, setConfirmCardData] = useState<QuickInputConfirmCardData | null>(null);
   const [isQuickInputConfirmCardRevealPaused, setIsQuickInputConfirmCardRevealPaused] = useState(false);
   const [quickInputEditSheetVisible, setQuickInputEditSheetVisible] = useState(false);
@@ -1248,6 +1253,10 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       setIsQuickInputCalculatorMounted(false);
       setQuickInputCalculatorAmount('');
       setQuickInputCalculatorExpression([]);
+      setIsQuickInputSmsInboxVisible(false);
+      // ponytail: unread SMS mock until native ingest lands.
+      setSmsInboxItems((prev) => (prev.length > 0 ? prev : createSmsInboxMockItems()));
+      setSmsInboxIndex(0);
       quickInputLongOpacity.setValue(1);
       setIsQuickInputShortVisible(false);
       setIsQuickInputContentVisible(true);
@@ -1294,6 +1303,9 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }, []);
 
   const handleQuickInputCalculatorPress = useCallback(() => {
+    if (isQuickInputSmsInboxVisible) {
+      setIsQuickInputSmsInboxVisible(false);
+    }
     calculatorAnimationRef.current?.stop();
     calculatorTranslateYRef.current.setValue(calculatorPanelHeightRef.current);
     setIsQuickInputCalculatorMounted(true);
@@ -1313,7 +1325,110 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       });
       calculatorAnimationRef.current.start();
     });
-  }, [animatedBottom, resetAndroidKeyboardFollowPeak, setShouldFollowKeyboard, shortBottomFromScreen]);
+  }, [
+    animatedBottom,
+    isQuickInputSmsInboxVisible,
+    resetAndroidKeyboardFollowPeak,
+    setShouldFollowKeyboard,
+    shortBottomFromScreen,
+  ]);
+
+  const closeQuickInputSmsInbox = useCallback(() => {
+    setIsQuickInputSmsInboxVisible(false);
+    shortBottomFromScreen.value = lastShortBottomRef.current;
+    animatedBottom.value = lastShortBottomRef.current;
+    resetAndroidKeyboardFollowPeak();
+    setShouldFollowKeyboard(true);
+    focusQuickInputField();
+  }, [
+    animatedBottom,
+    focusQuickInputField,
+    resetAndroidKeyboardFollowPeak,
+    setShouldFollowKeyboard,
+    shortBottomFromScreen,
+  ]);
+
+  const handleQuickInputSmsInboxPress = useCallback(() => {
+    if (isQuickInputSmsInboxVisible) {
+      closeQuickInputSmsInbox();
+      return;
+    }
+    if (isQuickInputCalculatorMounted || isQuickInputCalculatorVisible) {
+      calculatorAnimationRef.current?.stop();
+      calculatorTranslateYRef.current.setValue(calculatorPanelHeightRef.current);
+      setIsQuickInputCalculatorMounted(false);
+      setIsQuickInputCalculatorVisible(false);
+      setQuickInputCalculatorAmount('');
+      setQuickInputCalculatorExpression([]);
+    }
+    setShouldFollowKeyboard(false);
+    resetAndroidKeyboardFollowPeak();
+    shortBottomFromScreen.value = 0;
+    animatedBottom.value = 0;
+    quickInputRef.current?.blur();
+    Keyboard.dismiss();
+    // ponytail: mock until Shortcuts / NotificationListener persist unread SMS.
+    setSmsInboxIndex(0);
+    setIsQuickInputSmsInboxVisible(true);
+  }, [
+    animatedBottom,
+    closeQuickInputSmsInbox,
+    isQuickInputCalculatorMounted,
+    isQuickInputCalculatorVisible,
+    isQuickInputSmsInboxVisible,
+    resetAndroidKeyboardFollowPeak,
+    setShouldFollowKeyboard,
+    shortBottomFromScreen,
+  ]);
+
+  const handleSmsInboxIndexChange = useCallback((nextIndex: number) => {
+    setSmsInboxIndex(nextIndex);
+  }, []);
+
+  const removeSmsInboxItem = useCallback(
+    (itemId: string) => {
+      setSmsInboxItems((prev) => {
+        const removeAt = prev.findIndex((item) => item.id === itemId);
+        if (removeAt < 0) {
+          return prev;
+        }
+        const next = prev.filter((item) => item.id !== itemId);
+        setSmsInboxIndex((currentIndex) => {
+          if (next.length === 0) {
+            return 0;
+          }
+          if (currentIndex > removeAt) {
+            return Math.min(currentIndex - 1, next.length - 1);
+          }
+          return Math.min(currentIndex, next.length - 1);
+        });
+        if (next.length === 0) {
+          setIsQuickInputSmsInboxVisible(false);
+          setShouldFollowKeyboard(true);
+          requestAnimationFrame(() => {
+            quickInputRef.current?.focus();
+          });
+        }
+        return next;
+      });
+    },
+    [setShouldFollowKeyboard],
+  );
+
+  const handleSmsInboxConfirm = useCallback(
+    (item: SmsInboxItem) => {
+      // 프론트 단계: 기록 저장은 후속. UI 큐만 소진.
+      removeSmsInboxItem(item.id);
+    },
+    [removeSmsInboxItem],
+  );
+
+  const handleSmsInboxCancel = useCallback(
+    (item: SmsInboxItem) => {
+      removeSmsInboxItem(item.id);
+    },
+    [removeSmsInboxItem],
+  );
 
   const formatQuickInputCalculatorAmount = useCallback((raw: string) => {
     if (!raw) return '0';
@@ -1432,6 +1547,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     setIsQuickInputCalculatorMounted(false);
     setQuickInputCalculatorAmount('');
     setQuickInputCalculatorExpression([]);
+    setIsQuickInputSmsInboxVisible(false);
+    setSmsInboxIndex(0);
     setQuickInputText('');
     setConfirmCardData(null);
     setIsQuickInputConfirmCardRevealPaused(false);
@@ -3453,18 +3570,31 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       handleQuickInputCategorySettingSheetClose();
       return;
     }
+    if (isQuickInputSmsInboxVisible) {
+      closeQuickInputSmsInbox();
+      return;
+    }
+    if (isQuickInputCalculatorVisible || isQuickInputCalculatorMounted) {
+      closeQuickInputCalculator();
+      return;
+    }
     quickInputRef.current?.blur();
     if (Platform.OS === 'android') {
       Keyboard.dismiss();
     }
     hideQuickInput();
   }, [
+    closeQuickInputCalculator,
+    closeQuickInputSmsInbox,
     handleQuickInputCategorySettingSheetClose,
     handleQuickInputEditSheetClose,
     hideQuickInput,
+    isQuickInputCalculatorMounted,
+    isQuickInputCalculatorVisible,
     isQuickInputCategorySettingOpening,
     isQuickInputEditOpening,
     isQuickInputEditSheetClosing,
+    isQuickInputSmsInboxVisible,
     quickInputCategorySettingSheetMounted,
     quickInputEditSheetVisible,
   ]);
@@ -3696,7 +3826,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                     }
                     onPress={handleQuickInputBackdropPress}
                   />
-                  {confirmCardData != null && !isQuickInputConfirmCardRevealPaused && !quickInputEditSheetVisible && !isQuickInputEditSheetClosing && (!quickInputCategorySettingSheetMounted || isQuickInputCategorySettingOpening) && (
+                  {confirmCardData != null && !isQuickInputConfirmCardRevealPaused && !quickInputEditSheetVisible && !isQuickInputEditSheetClosing && !isQuickInputSmsInboxVisible && (!quickInputCategorySettingSheetMounted || isQuickInputCategorySettingOpening) && (
                     <RNAnimated.View
                       style={[
                         styles.confirmCardContainer,
@@ -3716,8 +3846,18 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                       />
                     </RNAnimated.View>
                   )}
+                  {isQuickInputSmsInboxVisible ? (
+                    <QuickInputSmsInbox
+                      items={smsInboxItems}
+                      index={smsInboxIndex}
+                      onIndexChange={handleSmsInboxIndexChange}
+                      onConfirm={handleSmsInboxConfirm}
+                      onCancel={handleSmsInboxCancel}
+                      onDismiss={closeQuickInputSmsInbox}
+                    />
+                  ) : null}
                   <Animated.View style={[styles.container, containerAnimatedStyle]}>
-                    {!quickInputEditSheetVisible && !isQuickInputEditSheetClosing && !isQuickInputCalculatorVisible && (!quickInputCategorySettingSheetMounted || isQuickInputCategorySettingOpening) && (
+                    {!quickInputEditSheetVisible && !isQuickInputEditSheetClosing && !isQuickInputCalculatorVisible && !isQuickInputSmsInboxVisible && (!quickInputCategorySettingSheetMounted || isQuickInputCategorySettingOpening) && (
                       <RNAnimated.View
                         style={[
                           styles.normalInputStack,
@@ -3728,7 +3868,34 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                         ]}
                       >
                         <View style={styles.edgeContent}>
-                          <View style={styles.actionRow}>
+                          <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={styles.actionRow}
+                            keyboardShouldPersistTaps="handled"
+                          >
+                            <Pressable
+                              style={styles.actionChip}
+                              onPress={handleQuickInputSmsInboxPress}
+                              accessibilityRole="button"
+                              accessibilityLabel={
+                                smsInboxItems.length > 0
+                                  ? `문자 수신함, 미처리 ${smsInboxItems.length}건`
+                                  : '문자 수신함'
+                              }
+                            >
+                              <View style={styles.actionIconBox}>
+                                <Icon name="message" variant="solid" size={24} />
+                              </View>
+                              <Text style={styles.actionLabel}>문자 수신함</Text>
+                              {smsInboxItems.length > 0 ? (
+                                <View style={styles.actionBadge}>
+                                  <Text style={styles.actionBadgeLabel}>
+                                    {smsInboxItems.length > 99 ? '99+' : String(smsInboxItems.length)}
+                                  </Text>
+                                </View>
+                              ) : null}
+                            </Pressable>
                             <Pressable
                               style={styles.actionChip}
                               onPress={handleQuickInputCalculatorPress}
@@ -3751,7 +3918,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                               </View>
                               <Text style={styles.actionLabel}>카테고리 설정</Text>
                             </Pressable>
-                          </View>
+                          </ScrollView>
                         </View>
                         <View style={styles.edgeContent}>
                           <QuickInputField
@@ -4674,16 +4841,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 100,
     elevation: 100,
   },
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   backdropTouchArea: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 0,
   },
   confirmCardContainer: {
@@ -4693,7 +4860,7 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   longContentLayer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 1,
     justifyContent: 'flex-end',
   },
@@ -4740,6 +4907,24 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 21,
     includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  actionBadge: {
+    minHeight: 18,
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+    backgroundColor: atomicColors.red[500],
+  },
+  actionBadgeLabel: {
+    color: atomicColors.common[0],
+    fontFamily: 'Pretendard-Bold',
+    fontSize: 12,
+    lineHeight: 18,
+    includeFontPadding: false,
+    textAlign: 'center',
     textAlignVertical: 'center',
   },
   calculatorBar: {

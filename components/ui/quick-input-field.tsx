@@ -243,7 +243,7 @@ const styles = StyleSheet.create({
     height: 28,
   },
   placeholderWrap: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: 'center',
   },
   placeholder: {

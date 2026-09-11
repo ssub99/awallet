@@ -25,7 +25,7 @@ import { rebuildCalendarDataFromStores } from '@/utils/rebuild-calendar-data';
 import { cancelChallengeProgressNotifications, cancelChallengeSuccessNotification, notifyChallengeFailure, notifyChallengeProgress, notifyChallengeSuccess } from '@/utils/notification-scheduler';
 import { refreshWidgetWithCurrentMonth } from '@/utils/widget-data-sync';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation } from "expo-router/react-navigation";
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';

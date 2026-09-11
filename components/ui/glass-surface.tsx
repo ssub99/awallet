@@ -59,7 +59,7 @@ function GlassSurfaceInner({
     overlayColor != null ? (
       <View
         pointerEvents="none"
-        style={[StyleSheet.absoluteFillObject, { backgroundColor: overlayColor }]}
+        style={[StyleSheet.absoluteFill, { backgroundColor: overlayColor }]}
       />
     ) : null;
 
@@ -83,7 +83,7 @@ function GlassSurfaceInner({
       <BlurView
         intensity={androidBlur.intensity}
         tint={resolvedTint}
-        experimentalBlurMethod={androidBlur.experimentalBlurMethod}
+        blurMethod={androidBlur.blurMethod}
         blurReductionFactor={androidBlur.blurReductionFactor}
         style={containerStyle}
       >

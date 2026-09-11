@@ -285,7 +285,7 @@ const styles = StyleSheet.create({
     opacity: 0,
   },
   dismissPoster: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 2,
   },
 });
