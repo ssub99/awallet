@@ -11,7 +11,7 @@
  */
 
 import { QuickInputConfirmCard, type QuickInputConfirmCardData } from '@/components/ui/quick-input-confirm-card';
-import { QuickInputSmsInbox } from '@/components/ui/quick-input-sms-inbox';
+import { QuickInputSmsInbox, type SmsInboxConfirmResult } from '@/components/ui/quick-input-sms-inbox';
 import { Accordion } from '@/components/ui/accordion';
 import { CustomKeypad, getKeypadHeight, type CustomKeypadOperator, type ExpressionToken } from '@/components/ui/custom-keypad';
 import { CustomKeypadOverlay } from '@/components/ui/custom-keypad-overlay';
@@ -243,6 +243,8 @@ interface QuickInputContextValue {
   isQuickInputContentVisible: boolean;
   /** 롱 닫힘과 동시에 숏 표시 여부 (홈 z-index는 앵커 기본값 = 키패드 뒤) */
   isQuickInputShortVisible: boolean;
+  /** 문자 수신함 미처리 건수 (숏/칩 뱃지) */
+  smsInboxUnreadCount: number;
   showQuickInput: (
     starScale: AnimatedValue,
     starRotate: AnimatedValue,
@@ -1353,6 +1355,10 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       closeQuickInputSmsInbox();
       return;
     }
+    if (smsInboxItems.length === 0) {
+      showToast('수신된 기록이 존재하지 않습니다.');
+      return;
+    }
     if (isQuickInputCalculatorMounted || isQuickInputCalculatorVisible) {
       calculatorAnimationRef.current?.stop();
       calculatorTranslateYRef.current.setValue(calculatorPanelHeightRef.current);
@@ -1379,6 +1385,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     resetAndroidKeyboardFollowPeak,
     setShouldFollowKeyboard,
     shortBottomFromScreen,
+    showToast,
+    smsInboxItems.length,
   ]);
 
   const handleSmsInboxIndexChange = useCallback((nextIndex: number) => {
@@ -1386,13 +1394,15 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }, []);
 
   const removeSmsInboxItem = useCallback(
-    (itemId: string) => {
+    (itemId: string): boolean => {
+      let emptied = false;
       setSmsInboxItems((prev) => {
         const removeAt = prev.findIndex((item) => item.id === itemId);
         if (removeAt < 0) {
           return prev;
         }
         const next = prev.filter((item) => item.id !== itemId);
+        emptied = next.length === 0;
         setSmsInboxIndex((currentIndex) => {
           if (next.length === 0) {
             return 0;
@@ -1402,25 +1412,37 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
           }
           return Math.min(currentIndex, next.length - 1);
         });
-        if (next.length === 0) {
-          setIsQuickInputSmsInboxVisible(false);
-          setShouldFollowKeyboard(true);
-          requestAnimationFrame(() => {
-            quickInputRef.current?.focus();
-          });
-        }
         return next;
       });
+      if (emptied) {
+        closeQuickInputSmsInbox();
+      }
+      return emptied;
     },
-    [setShouldFollowKeyboard],
+    [closeQuickInputSmsInbox],
   );
 
   const handleSmsInboxConfirm = useCallback(
-    (item: SmsInboxItem) => {
-      // 프론트 단계: 기록 저장은 후속. UI 큐만 소진.
-      removeSmsInboxItem(item.id);
+    async (item: SmsInboxItem): Promise<SmsInboxConfirmResult> => {
+      // ponytail: 실데이터 저장(createExpensesBatch 등) 연동 전 UI 순서만 맞춤.
+      // 완료 토스트는 모션 종료 후(잔여: consume 후 onConfirmConsumed / 마지막: 메인 복귀 직후).
+      const remaining = smsInboxItems.filter((entry) => entry.id !== item.id).length;
+      if (remaining === 0) {
+        removeSmsInboxItem(item.id);
+        showToast('기록 생성이 완료되었습니다.');
+        return 'last';
+      }
+      return 'continue';
     },
-    [removeSmsInboxItem],
+    [removeSmsInboxItem, showToast, smsInboxItems],
+  );
+
+  const handleSmsInboxConfirmConsumed = useCallback(
+    (item: SmsInboxItem) => {
+      removeSmsInboxItem(item.id);
+      showToast('기록 생성이 완료되었습니다.');
+    },
+    [removeSmsInboxItem, showToast],
   );
 
   const handleSmsInboxCancel = useCallback(
@@ -3720,6 +3742,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       isQuickInputVisible,
       isQuickInputContentVisible,
       isQuickInputShortVisible,
+      smsInboxUnreadCount: smsInboxItems.length,
       showQuickInput,
       hideQuickInput,
       quickInputText,
@@ -3733,6 +3756,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       hideQuickInput,
       quickInputText,
       setQuickInputTextTruncated,
+      smsInboxItems.length,
     ]
   );
 
@@ -3852,6 +3876,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                       index={smsInboxIndex}
                       onIndexChange={handleSmsInboxIndexChange}
                       onConfirm={handleSmsInboxConfirm}
+                      onConfirmConsumed={handleSmsInboxConfirmConsumed}
                       onCancel={handleSmsInboxCancel}
                       onDismiss={closeQuickInputSmsInbox}
                     />

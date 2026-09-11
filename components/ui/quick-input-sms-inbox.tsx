@@ -20,7 +20,7 @@ import { colors, typography } from '@/constants/theme';
 import { atomicColors } from '@/constants/atomic-colors';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import type { SmsInboxItem } from '@/utils/sms-inbox-mock';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import {
   ActivityIndicator,
@@ -52,6 +52,9 @@ const FIGMA_STATUS_BAR = 44;
 const SLOT_INSETS = [16, 24, 32] as const;
 const SLOT_FIGMA_TOPS = [60, 72, 84] as const;
 const SLOT_Z = [3, 2, 1] as const;
+/** consume 시 맨 뒤로 들어오는 카드 시작 포즈 (bottom보다 더 작고 아래) */
+const SLOT_INCOMING_INSET = 40;
+const SLOT_INCOMING_EXTRA_Y = 16;
 
 const FIGMA_ORIGINAL = { left: 16, top: 536, width: 343, height: 176 } as const;
 const FIGMA_PAGER = { left: 16, top: 724, width: 343, height: 56 } as const;
@@ -82,11 +85,21 @@ const CARD_SHADOW = Platform.select({
   default: {},
 });
 
+export type SmsInboxConfirmResult = 'last' | 'continue' | 'abort';
+
 export type QuickInputSmsInboxProps = {
   items: SmsInboxItem[];
   index: number;
   onIndexChange: (nextIndex: number) => void;
-  onConfirm: (item: SmsInboxItem) => void;
+  /**
+   * 모션 중/후 저장 훅. 토스트 타이밍은 아래 참고.
+   * - last: 수신함 닫힘 + 완료 토스트
+   * - continue: 제거·토스트는 onConfirmConsumed
+   * - abort: 카드 복구
+   */
+  onConfirm: (item: SmsInboxItem) => Promise<SmsInboxConfirmResult>;
+  /** 잔여 건 consume(퇴장+롤업) 종료 후 큐 제거 + 완료 토스트 */
+  onConfirmConsumed: (item: SmsInboxItem) => void;
   onCancel: (item: SmsInboxItem) => void;
   onChange?: (item: SmsInboxItem) => void;
   /** 딤 영역 탭 → 간편입력 롱뷰로 복귀 */
@@ -105,11 +118,12 @@ function toCardData(item: SmsInboxItem): QuickInputConfirmCardData {
 }
 
 /**
- * role 0/1/2 = 윈도우 top/mid/bottom.
- * animKind: 0 idle(pan scrub 포함), 1 next(0→1), 2 prevEnter(커밋 후 0→1)
- * progress: idle에서 + next / - prev scrub, next·prevEnter에서는 0→1
+ * role 0/1/2 = 윈도우 top/mid/bottom · role 3 = consume 시 뒤에서 들어오는 다음 카드
+ * animKind: 0 idle · 1 next · 2 prevEnter · 3 consume(퇴장+롤업+유입) · 4 lastExit
+ * progress: idle scrub / 그 외 0→1
  *
- * prev는 커밋 후 prevEnter로 뒤→앞 모션 (끝나며 mid로 튕기는 settle 레이스 제거)
+ * 추가/취소(잔여): 로딩 + top퇴장 · mid→top · bottom→mid · next→bottom
+ * 추가/취소(마지막): 퇴장만 → 메인 복귀 (추가만 토스트)
  */
 function slotTopY(topOffset: number, slotIndex: 0 | 1 | 2): number {
   'worklet';
@@ -127,7 +141,7 @@ function leftForWidth(centerX: number, width: number): number {
 }
 
 function useSlotAnimatedStyle(
-  role: 0 | 1 | 2,
+  role: 0 | 1 | 2 | 3,
   progress: SharedValue<number>,
   animKind: SharedValue<number>,
   topOffset: number,
@@ -144,13 +158,61 @@ function useSlotAnimatedStyle(
     const topW = slotWidth(screenWidth, 0);
     const midW = slotWidth(screenWidth, 1);
     const botW = slotWidth(screenWidth, 2);
+    const incomingW = screenWidth - SLOT_INCOMING_INSET * 2;
+    const incomingY = botY + SLOT_INCOMING_EXTRA_Y;
 
-    let top = slotTopY(topOffset, role);
-    let width = slotWidth(screenWidth, role);
-    let zIndex = SLOT_Z[role];
+    let top = role <= 2 ? slotTopY(topOffset, role as 0 | 1 | 2) : botY;
+    let width = role <= 2 ? slotWidth(screenWidth, role as 0 | 1 | 2) : botW;
+    let zIndex = role <= 2 ? SLOT_Z[role as 0 | 1 | 2] : 0;
     let liftY = 0;
+    let opacity = 1;
 
-    if (kind === 2) {
+    if (kind === 3 || kind === 4) {
+      const t = Math.min(Math.max(p, 0), 1);
+      const exitOnly = kind === 4;
+      if (role === 3) {
+        if (exitOnly) {
+          opacity = 0;
+          zIndex = 0;
+        } else {
+          // 맨 뒤에서 bottom 슬롯으로 쌓임
+          width = interpolate(t, [0, 1], [incomingW, botW], Extrapolation.CLAMP);
+          top = interpolate(t, [0, 1], [incomingY, botY], Extrapolation.CLAMP);
+          opacity = interpolate(t, [0, 0.25, 1], [0, 0.85, 1], Extrapolation.CLAMP);
+          liftY = interpolate(t, [0, 0.5, 1], [8, 2, 0], Extrapolation.CLAMP);
+          zIndex = 0;
+        }
+      } else if (role === 0) {
+        width = topW;
+        top = topY;
+        liftY = interpolate(t, [0, 1], [0, -ROLL_LIFT_PX * 1.25], Extrapolation.CLAMP);
+        opacity = interpolate(t, [0, 0.55, 1], [1, 0.35, 0], Extrapolation.CLAMP);
+        zIndex = 6;
+      } else if (role === 1) {
+        if (exitOnly) {
+          width = midW;
+          top = midY;
+          zIndex = 2;
+        } else {
+          width = interpolate(t, [0, 1], [midW, topW], Extrapolation.CLAMP);
+          top = interpolate(t, [0, 1], [midY, topY], Extrapolation.CLAMP);
+          liftY = interpolate(t, [0, 0.45, 1], [0, -10, 0], Extrapolation.CLAMP);
+          zIndex = t < 0.35 ? 2 : 4;
+        }
+      } else if (exitOnly) {
+        width = botW;
+        top = botY;
+        zIndex = 1;
+      } else {
+        width = interpolate(t, [0, 1], [botW, midW], Extrapolation.CLAMP);
+        top = interpolate(t, [0, 1], [botY, midY], Extrapolation.CLAMP);
+        liftY = interpolate(t, [0, 0.5, 1], [0, -6, 0], Extrapolation.CLAMP);
+        zIndex = 2;
+      }
+    } else if (role === 3) {
+      opacity = 0;
+      zIndex = 0;
+    } else if (kind === 2) {
       // prevEnter: 이미 새 rest 윈도우. role0(이전 카드)이 뒤→앞으로.
       const t = Math.min(Math.max(p, 0), 1);
       if (role === 0) {
@@ -215,6 +277,7 @@ function useSlotAnimatedStyle(
       top,
       width,
       zIndex,
+      opacity,
       transform: [{ translateY: liftY }],
     };
   });
@@ -252,6 +315,7 @@ function StackCard({
         onChange={onChange ? () => onChange(item) : undefined}
         addLoading={interactive ? addLoading : false}
         contentLoading={contentLoading}
+        deferExitAnimation={interactive}
         animateEntrance={false}
         actionButtonHeight={48}
       />
@@ -264,6 +328,7 @@ export function QuickInputSmsInbox({
   index,
   onIndexChange,
   onConfirm,
+  onConfirmConsumed,
   onCancel,
   onChange,
   onDismiss,
@@ -279,7 +344,7 @@ export function QuickInputSmsInbox({
   const canGoNext = safeIndex < items.length - 1;
 
   const progress = useSharedValue(0);
-  /** 0 idle · 1 next · 2 prevEnter(커밋 후) */
+  /** 0 idle · 1 next · 2 prevEnter · 3 consume(퇴장+롤업) · 4 confirmLastExit */
   const animKind = useSharedValue(0);
   const isRolling = useSharedValue(false);
   const canGoNextSV = useSharedValue(canGoNext);
@@ -294,7 +359,12 @@ export function QuickInputSmsInbox({
   const [renderMode, setRenderMode] = useState<'rest' | 'prev'>('rest');
   const [stackEpoch, setStackEpoch] = useState(0);
   const [originalLoading, setOriginalLoading] = useState(false);
+  const [isConsuming, setIsConsuming] = useState(false);
   const [frozenPagerIndex, setFrozenPagerIndex] = useState<number | null>(null);
+  const pendingConsumeRef = useRef<{
+    item: SmsInboxItem;
+    action: 'confirm' | 'cancel';
+  } | null>(null);
 
   const startOriginalLoading = useCallback(() => {
     setFrozenPagerIndex(safeIndex);
@@ -376,7 +446,30 @@ export function QuickInputSmsInbox({
     ];
   }, [items, restWindow, safeIndex]);
 
-  const windowItems = renderMode === 'prev' ? prevWindow : restWindow;
+  /**
+   * consume(잔여): top/mid/bottom + 뒤에서 들어올 다음 카드(role3)
+   * 제거 전 큐 기준 items[i+3]가 새 bottom이 된다.
+   */
+  const consumeWindow = useMemo((): [
+    SmsInboxItem | null,
+    SmsInboxItem | null,
+    SmsInboxItem | null,
+    SmsInboxItem | null,
+  ] => {
+    return [
+      items[safeIndex] ?? null,
+      items[safeIndex + 1] ?? null,
+      items[safeIndex + 2] ?? null,
+      items[safeIndex + 3] ?? null,
+    ];
+  }, [items, safeIndex]);
+
+  const windowItems: Array<SmsInboxItem | null> =
+    isConsuming && items.length > 1
+      ? consumeWindow
+      : renderMode === 'prev'
+        ? prevWindow
+        : restWindow;
 
   const commitNext = useCallback(() => {
     if (safeIndex >= items.length - 1) return;
@@ -422,6 +515,160 @@ export function QuickInputSmsInbox({
     stackOpacity.value = 1;
     stopOriginalLoading();
   }, [animKind, commitPrev, isRolling, progress, stackOpacity, stopOriginalLoading]);
+
+  const resetConsumeMotion = useCallback(() => {
+    animKind.value = 0;
+    progress.value = 0;
+    isRolling.value = false;
+    setIsConsuming(false);
+    setRenderMode('rest');
+  }, [animKind, isRolling, progress]);
+
+  /** 잔여 추가: consume(퇴장+롤업) 종료 → 저장 훅 → 제거+토스트 */
+  const finishConfirmConsume = useCallback(() => {
+    const pending = pendingConsumeRef.current;
+    if (!pending || pending.action !== 'confirm') {
+      return;
+    }
+    void (async () => {
+      let result: SmsInboxConfirmResult = 'abort';
+      try {
+        result = await onConfirm(pending.item);
+      } catch {
+        result = 'abort';
+      }
+
+      if (result === 'abort') {
+        pendingConsumeRef.current = null;
+        stopOriginalLoading();
+        resetConsumeMotion();
+        setStackEpoch((epoch) => epoch + 1);
+        return;
+      }
+
+      pendingConsumeRef.current = null;
+      flushSync(() => {
+        if (result === 'continue') {
+          onConfirmConsumed(pending.item);
+        }
+        setIsConsuming(false);
+        setRenderMode('rest');
+        setStackEpoch((epoch) => epoch + 1);
+        setOriginalLoading(false);
+        setFrozenPagerIndex(null);
+      });
+      animKind.value = 0;
+      progress.value = 0;
+      isRolling.value = false;
+    })();
+  }, [
+    animKind,
+    isRolling,
+    onConfirm,
+    onConfirmConsumed,
+    progress,
+    resetConsumeMotion,
+    stopOriginalLoading,
+  ]);
+
+  /** 마지막 건: 퇴장만 → 메인 복귀 + 토스트 */
+  const finishConfirmLastExit = useCallback(() => {
+    const pending = pendingConsumeRef.current;
+    if (!pending || pending.action !== 'confirm') {
+      return;
+    }
+    void (async () => {
+      try {
+        await onConfirm(pending.item);
+      } catch {
+        pendingConsumeRef.current = null;
+        resetConsumeMotion();
+        setStackEpoch((epoch) => epoch + 1);
+        return;
+      }
+      pendingConsumeRef.current = null;
+      resetConsumeMotion();
+    })();
+  }, [onConfirm, resetConsumeMotion]);
+
+  /** 취소(잔여): consume 종료 → 큐 소진(토스트 없음) */
+  const finishCancelConsume = useCallback(() => {
+    const pending = pendingConsumeRef.current;
+    pendingConsumeRef.current = null;
+    flushSync(() => {
+      if (pending?.action === 'cancel') {
+        onCancel(pending.item);
+      }
+      setIsConsuming(false);
+      setRenderMode('rest');
+      setStackEpoch((epoch) => epoch + 1);
+      setOriginalLoading(false);
+      setFrozenPagerIndex(null);
+    });
+    animKind.value = 0;
+    progress.value = 0;
+    isRolling.value = false;
+  }, [animKind, isRolling, onCancel, progress]);
+
+  /** 취소(마지막): 퇴장만 → 메인 복귀 */
+  const finishCancelLastExit = useCallback(() => {
+    const pending = pendingConsumeRef.current;
+    pendingConsumeRef.current = null;
+    if (pending?.action === 'cancel') {
+      onCancel(pending.item);
+    }
+    resetConsumeMotion();
+  }, [onCancel, resetConsumeMotion]);
+
+  const requestConsume = useCallback(
+    (item: SmsInboxItem, action: 'confirm' | 'cancel') => {
+      if (isRolling.value || isConsuming) {
+        return;
+      }
+      pendingConsumeRef.current = { item, action };
+      setIsConsuming(true);
+      setRenderMode('rest');
+      isRolling.value = true;
+      progress.value = 0;
+
+      const isLast = items.length <= 1;
+      const onFinished = isLast
+        ? action === 'confirm'
+          ? finishConfirmLastExit
+          : finishCancelLastExit
+        : action === 'confirm'
+          ? finishConfirmConsume
+          : finishCancelConsume;
+
+      if (!isLast) {
+        setFrozenPagerIndex(safeIndex);
+        setOriginalLoading(true);
+      }
+
+      animKind.value = isLast ? 4 : 3;
+      progress.value = withTiming(
+        1,
+        { duration: ROLL_DURATION_MS, easing: ROLL_EASING },
+        (finished) => {
+          if (finished) {
+            runOnJS(onFinished)();
+          }
+        },
+      );
+    },
+    [
+      animKind,
+      finishCancelConsume,
+      finishCancelLastExit,
+      finishConfirmConsume,
+      finishConfirmLastExit,
+      isConsuming,
+      isRolling,
+      items.length,
+      progress,
+      safeIndex,
+    ],
+  );
 
   const handlePrev = useCallback(() => {
     if (!canGoPrev || isRolling.value) return;
@@ -553,7 +800,8 @@ export function QuickInputSmsInbox({
   const style0 = useSlotAnimatedStyle(0, progress, animKind, topOffset, windowWidth);
   const style1 = useSlotAnimatedStyle(1, progress, animKind, topOffset, windowWidth);
   const style2 = useSlotAnimatedStyle(2, progress, animKind, topOffset, windowWidth);
-  const slotStyles = [style0, style1, style2] as const;
+  const style3 = useSlotAnimatedStyle(3, progress, animKind, topOffset, windowWidth);
+  const slotStyles = [style0, style1, style2, style3] as const;
 
   const pagerBottom = Math.max(
     insets.bottom,
@@ -586,20 +834,28 @@ export function QuickInputSmsInbox({
             pointerEvents="box-none"
           >
             {windowItems.map((item, role) => {
-              if (role > 2 || item == null) return null;
+              if (role > 3 || item == null) return null;
               const isTopInteractive =
-                role === 0 && renderMode === 'rest' && !originalLoading;
+                role === 0 && renderMode === 'rest' && !originalLoading && !isConsuming;
               return (
                 <StackCard
                   key={item.id}
                   item={item}
                   interactive={isTopInteractive}
-                  onConfirm={isTopInteractive ? onConfirm : undefined}
-                  onCancel={isTopInteractive ? onCancel : undefined}
+                  onConfirm={
+                    isTopInteractive
+                      ? (target) => requestConsume(target, 'confirm')
+                      : undefined
+                  }
+                  onCancel={
+                    isTopInteractive
+                      ? (target) => requestConsume(target, 'cancel')
+                      : undefined
+                  }
                   onChange={isTopInteractive ? onChange : undefined}
                   addLoading={isTopInteractive ? addLoading : false}
                   contentLoading={originalLoading}
-                  style={slotStyles[role as 0 | 1 | 2]}
+                  style={slotStyles[role as 0 | 1 | 2 | 3]}
                 />
               );
             })}

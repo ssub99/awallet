@@ -1,8 +1,10 @@
 import { BlurRuntime } from '@/constants/blur-runtime';
+import { atomicColors } from '@/constants/atomic-colors';
 import { colors, type ColorPalette } from '@/constants/theme';
 import { typographyLayout } from '@/constants/typography';
 import { Icon } from '@/components/ui/icon';
 import { GlassSurface } from '@/components/ui/glass-surface';
+import { useQuickInputContext } from '@/contexts/quick-input-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { shouldApplyReactBlurOverlay } from '@/utils/expo-blur-platform';
 import { logEvent } from '@/utils/analytics';
@@ -60,6 +62,7 @@ export function QuickInputShort({
 }: QuickInputShortProps) {
   const colorScheme = useColorScheme();
   const palette = colors[colorScheme ?? 'light'] as ColorPalette;
+  const { smsInboxUnreadCount } = useQuickInputContext();
   const containerRef = useRef<ComponentRef<typeof Pressable>>(null);
   const lastShortBottomRef = useRef<number | null>(null);
 
@@ -94,6 +97,8 @@ export function QuickInputShort({
   }, [onPress, bottom]);
 
   const fillOverlay = shouldApplyReactBlurOverlay() ? palette.fill : undefined;
+  const badgeLabel =
+    smsInboxUnreadCount > 99 ? '99+' : String(smsInboxUnreadCount);
 
   return (
     <Pressable
@@ -109,7 +114,11 @@ export function QuickInputShort({
         handlePress();
       }}
       accessibilityRole="button"
-      accessibilityLabel="기록 간편입력"
+      accessibilityLabel={
+        smsInboxUnreadCount > 0
+          ? `기록 간편입력, 미처리 문자 ${smsInboxUnreadCount}건`
+          : '기록 간편입력'
+      }
     >
       <GlassSurface
         intensity={BlurRuntime.quickInputShortIntensity}
@@ -123,6 +132,11 @@ export function QuickInputShort({
           <View style={styles.quickInputLeft}>
             <QuickInputStar size={20} starScale={starScale} starRotate={starRotate} />
             <Text style={[styles.quickInputText, { color: palette.textNeutral }]}>기록 간편입력</Text>
+            {smsInboxUnreadCount > 0 ? (
+              <View style={styles.actionBadge} accessibilityElementsHidden>
+                <Text style={styles.actionBadgeLabel}>{badgeLabel}</Text>
+              </View>
+            ) : null}
           </View>
           <View style={styles.quickInputArrow}>
             <Icon name="arrowRight" variant="line" size={16} color={palette.textAssistive} />
@@ -164,6 +178,25 @@ const styles = StyleSheet.create({
   },
   quickInputText: {
     ...typographyLayout.uiLineBody02Medium,
+  },
+  /** 문자 수신함 칩 actionBadge와 동일 */
+  actionBadge: {
+    minHeight: 18,
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+    backgroundColor: atomicColors.red[500],
+  },
+  actionBadgeLabel: {
+    color: atomicColors.common[0],
+    fontFamily: 'Pretendard-Bold',
+    fontSize: 12,
+    lineHeight: 18,
+    includeFontPadding: false,
+    textAlign: 'center',
+    textAlignVertical: 'center',
   },
   quickInputArrow: {
     width: 16,

@@ -44,6 +44,11 @@ export interface QuickInputConfirmCardProps {
   actionButtonHeight?: number;
   /** true면 카드 내 콘텐츠를 숨기고 로딩 인디케이터만 표기 */
   contentLoading?: boolean;
+  /**
+   * true면 추가/취소 탭 시 카드 자체 퇴장 모션 없이 콜백만 호출.
+   * 문자 수신함처럼 부모 스택이 퇴장+롤업을 담당할 때 사용.
+   */
+  deferExitAnimation?: boolean;
 }
 
 const ROW_LABELS = {
@@ -126,6 +131,7 @@ export function QuickInputConfirmCard({
   animateEntrance = true,
   actionButtonHeight = 40,
   contentLoading = false,
+  deferExitAnimation = false,
 }: QuickInputConfirmCardProps) {
   const colorScheme = useColorScheme();
   const palette = colors[colorScheme ?? 'light'] as ColorPalette;
@@ -189,27 +195,48 @@ export function QuickInputConfirmCard({
     setMemoTooltipVisible(false);
   }, []);
 
-  const handleCancel = useCallback(() => {
-    if (isExiting || addLoading) return;
-    setIsExiting(true);
-    setMemoTooltipVisible(false);
-    translateY.value = withTiming(
-      -CARD_SLIDE_OFFSET,
-      {
+  const playExitThen = useCallback(
+    (then: () => void) => {
+      if (isExiting || addLoading || contentLoading) return;
+      setIsExiting(true);
+      setMemoTooltipVisible(false);
+      translateY.value = withTiming(
+        -CARD_SLIDE_OFFSET,
+        {
+          duration: CARD_ANIMATION_DURATION,
+          easing: Easing.inOut(Easing.cubic),
+        },
+        (finished) => {
+          if (finished) {
+            runOnJS(then)();
+          }
+        },
+      );
+      opacity.value = withTiming(0, {
         duration: CARD_ANIMATION_DURATION,
         easing: Easing.inOut(Easing.cubic),
-      },
-      (finished) => {
-        if (finished) {
-          runOnJS(onCancel)();
-        }
-      }
-    );
-    opacity.value = withTiming(0, {
-      duration: CARD_ANIMATION_DURATION,
-      easing: Easing.inOut(Easing.cubic),
-    });
-  }, [isExiting, addLoading, onCancel, opacity, translateY]);
+      });
+    },
+    [addLoading, contentLoading, isExiting, opacity, translateY],
+  );
+
+  const handleCancel = useCallback(() => {
+    if (deferExitAnimation) {
+      dismissMemoTooltip();
+      onCancel();
+      return;
+    }
+    playExitThen(onCancel);
+  }, [deferExitAnimation, dismissMemoTooltip, onCancel, playExitThen]);
+
+  const handleConfirmPress = useCallback(() => {
+    dismissMemoTooltip();
+    if (deferExitAnimation) {
+      onConfirm();
+      return;
+    }
+    onConfirm();
+  }, [dismissMemoTooltip, deferExitAnimation, onConfirm]);
 
   const handleChangePress = useCallback(() => {
     if (buttonsDisabled || !onChange) return;
@@ -347,10 +374,7 @@ export function QuickInputConfirmCard({
         <View style={styles.buttonRow}>
           <Pressable
             style={[styles.button, { height: actionButtonHeight, backgroundColor: palette.fillStrong }]}
-            onPress={() => {
-              dismissMemoTooltip();
-              onConfirm();
-            }}
+            onPress={handleConfirmPress}
             disabled={buttonsDisabled}
             accessibilityRole="button"
             accessibilityLabel={addLoading ? '추가 중' : '추가'}
