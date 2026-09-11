@@ -655,6 +655,70 @@ function formatAmount(amount: number): string {
   return `${amount.toLocaleString('ko-KR')}원`;
 }
 
+/** 확인 카드 표시 날짜 → pending `YYYY.MM.DD` */
+function confirmCardDateToPendingDate(date: string): string | null {
+  const trimmed = date.trim();
+  const korean = trimmed.match(/^(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일/);
+  if (korean) {
+    const year = korean[1];
+    const month = String(parseInt(korean[2], 10)).padStart(2, '0');
+    const day = String(parseInt(korean[3], 10)).padStart(2, '0');
+    return `${year}.${month}.${day}`;
+  }
+  const parsed = parsePendingDate(trimmed.replace(/-/g, '.'));
+  if (!parsed) {
+    return null;
+  }
+  return `${parsed.year}.${String(parsed.month).padStart(2, '0')}.${String(parsed.day).padStart(2, '0')}`;
+}
+
+function confirmCardAmountToNumber(amount: string): number | null {
+  const parsed = Number(amount.replace(/[^\d]/g, ''));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+/** 문자 수신함 기록 카드 → 수정 시트 pending */
+function confirmCardDataToPending(card: QuickInputConfirmCardData): PendingParseRecord | null {
+  const amount = confirmCardAmountToNumber(card.amount);
+  const date = confirmCardDateToPendingDate(card.date);
+  if (amount == null || date == null) {
+    return null;
+  }
+
+  const categoryTrimmed = card.category.trim();
+  const isCategoryUnset = categoryTrimmed.length === 0 || categoryTrimmed === '미정';
+  const paymentType = card.paymentType?.trim() ?? '';
+  const isCash = paymentType === '현금' || card.paymentTypeEmoji === '💰';
+  const paymentMethod: PendingParseRecord['paymentMethod'] =
+    card.recordType === 'income'
+      ? undefined
+      : isCash
+        ? 'cash'
+        : (inferPaymentMethodFromLabel(paymentType) ?? 'credit');
+  const isRecurring = card.repeatOption1 === '정기 기록';
+  const isInstallment = card.repeatOption1 === '할부 기록';
+  const monthsMatch = isInstallment ? card.repeatOption2?.match(/(\d+)/) : null;
+  const totalMonths = monthsMatch
+    ? Math.max(2, Math.min(12, parseInt(monthsMatch[1], 10)))
+    : undefined;
+
+  return {
+    recordType: card.recordType === 'income' ? 'income' : 'expense',
+    category: isCategoryUnset ? null : categoryTrimmed,
+    date,
+    amount,
+    paymentMethod,
+    paymentSubtypeLabel: isCash ? undefined : paymentType || undefined,
+    paymentSubtypeColor: card.paymentTypeColor,
+    memo: card.memo?.trim() ? card.memo.trim() : undefined,
+    isRecurring: isRecurring || undefined,
+    isInstallment: isInstallment || undefined,
+    recurringType: isRecurring ? card.repeatOption2 || '매월' : undefined,
+    totalMonths: isRecurring || isInstallment ? totalMonths ?? 2 : undefined,
+    weekendOption: isRecurring || isInstallment ? 'weekend' : undefined,
+  };
+}
+
 function normalizePaymentSubtypeText(value: string): string {
   return value.replace(/\s+/g, '').toLowerCase();
 }
@@ -986,6 +1050,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const lastShortBottomRef = useRef<number>(KEYBOARD_GAP);
   const pendingAutoFocusRef = useRef(false);
   const pendingRecordRef = useRef<PendingParseRecord | null>(null);
+  /** 문자 수신함 카드 「변경」으로 수정 시트 연 경우 — 확인 시 해당 아이템 갱신 */
+  const smsInboxEditingItemIdRef = useRef<string | null>(null);
   /** 토큰 비용 절감: 최근 요청 시각 목록 (rate limit용) */
   const rateLimitTimestampsRef = useRef<number[]>([]);
   /** 토큰 비용 절감: 비기록 연속 횟수, 잠금 해제 시각 */
@@ -1336,6 +1402,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   ]);
 
   const closeQuickInputSmsInbox = useCallback(() => {
+    smsInboxEditingItemIdRef.current = null;
     setIsQuickInputSmsInboxVisible(false);
     shortBottomFromScreen.value = lastShortBottomRef.current;
     animatedBottom.value = lastShortBottomRef.current;
@@ -1426,6 +1493,11 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     async (item: SmsInboxItem): Promise<SmsInboxConfirmResult> => {
       // ponytail: 실데이터 저장(createExpensesBatch 등) 연동 전 UI 순서만 맞춤.
       // 완료 토스트는 모션 종료 후(잔여: consume 후 onConfirmConsumed / 마지막: 메인 복귀 직후).
+      const category = item.card.category.trim();
+      if (!category || category === '미정') {
+        showToast('카테고리를 선택해 주세요.');
+        return 'abort';
+      }
       const remaining = smsInboxItems.filter((entry) => entry.id !== item.id).length;
       if (remaining === 0) {
         removeSmsInboxItem(item.id);
@@ -1435,6 +1507,18 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       return 'continue';
     },
     [removeSmsInboxItem, showToast, smsInboxItems],
+  );
+
+  const handleSmsInboxBeforeConfirm = useCallback(
+    (item: SmsInboxItem) => {
+      const category = item.card.category.trim();
+      if (!category || category === '미정') {
+        showToast('카테고리를 선택해 주세요.');
+        return false;
+      }
+      return true;
+    },
+    [showToast],
   );
 
   const handleSmsInboxConfirmConsumed = useCallback(
@@ -1450,6 +1534,128 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       removeSmsInboxItem(item.id);
     },
     [removeSmsInboxItem],
+  );
+
+  const handleSmsInboxChange = useCallback(
+    (item: SmsInboxItem) => {
+      void logEvent('btn', {
+        screen_name: '/home',
+        target: 'sms-inbox-card-modify',
+      });
+      const pending = confirmCardDataToPending(item.card);
+      if (!pending) {
+        showToast('기록 정보를 확인할 수 없습니다.');
+        return;
+      }
+
+      if (editSheetCloseTimeoutRef.current) {
+        clearTimeout(editSheetCloseTimeoutRef.current);
+        editSheetCloseTimeoutRef.current = null;
+      }
+      if (editSheetRestoreTimeoutRef.current) {
+        clearTimeout(editSheetRestoreTimeoutRef.current);
+        editSheetRestoreTimeoutRef.current = null;
+      }
+      if (confirmCardRevealTimeoutRef.current) {
+        clearTimeout(confirmCardRevealTimeoutRef.current);
+        confirmCardRevealTimeoutRef.current = null;
+      }
+      editSheetOpenAnimationRef.current?.stop();
+      editSheetOpenCardTranslateY.setValue(0);
+      editSheetOpenCardOpacity.setValue(1);
+      editSheetOpenInputTranslateY.setValue(0);
+      editSheetOpenInputOpacity.setValue(1);
+
+      smsInboxEditingItemIdRef.current = item.id;
+      pendingRecordRef.current = pending;
+      setIsQuickInputEditOpening(true);
+      setIsQuickInputEditSheetClosing(false);
+      setShouldFollowKeyboard(false);
+      resetAndroidKeyboardFollowPeak();
+      quickInputRef.current?.blur();
+      Keyboard.dismiss();
+      calculatorAnimationRef.current?.stop();
+      calculatorTranslateYRef.current.setValue(calculatorPanelHeightRef.current);
+      setIsQuickInputCalculatorVisible(false);
+      setIsQuickInputCalculatorMounted(false);
+      setQuickInputCalculatorAmount('');
+      setQuickInputCalculatorExpression([]);
+      setQuickInputEditRecordType(pending.recordType === 'income' ? 'income' : 'expense');
+      setQuickInputEditView('form');
+
+      const editCategoryType = pending.recordType === 'income' ? 'income' : 'expense';
+      const editCategoryLabel = pending.category ?? '';
+      const editCategoryEmoji =
+        item.card.categoryEmoji ??
+        (editCategoryType === 'income'
+          ? incomeCategoriesCacheRef.current
+          : expenseCategoriesCacheRef.current
+        ).find((category) => category.label === editCategoryLabel)?.emoji ??
+        getCategoriesByType(editCategoryType).find((category) => category.label === editCategoryLabel)
+          ?.emoji;
+
+      setQuickInputEditDraft({
+        category: editCategoryLabel,
+        categoryEmoji: editCategoryEmoji,
+        date: pending.date.replace(/-/g, '.'),
+        amount: Number.isFinite(pending.amount) ? pending.amount.toLocaleString('ko-KR') : '',
+        memo: pending.memo ?? '',
+        paymentMethod: pending.paymentMethod ?? 'credit',
+        paymentSubtypeLabel: pending.paymentSubtypeLabel ?? paymentMethodToLabel(pending.paymentMethod),
+        isRecurring: pending.isRecurring === true,
+        isInstallment: pending.isInstallment === true,
+        recurringType: pending.recurringType ?? '매월',
+        totalMonths: Math.max(2, Math.min(12, pending.totalMonths ?? 2)),
+        weekendOption:
+          pending.weekendOption === 'friday' || pending.weekendOption === 'monday'
+            ? pending.weekendOption
+            : 'weekend',
+      });
+
+      // 간편생성 확인 카드 「변경」과 동일 — 수신함 개체 퇴장 후 시트
+      editSheetOpenAnimationRef.current = RNAnimated.parallel([
+        RNAnimated.timing(editSheetOpenCardTranslateY, {
+          toValue: -16,
+          duration: QUICK_INPUT_EDIT_OPENING_ANIMATION_DURATION,
+          easing: CALCULATOR_ANIMATION_EASING,
+          useNativeDriver: true,
+        }),
+        RNAnimated.timing(editSheetOpenCardOpacity, {
+          toValue: 0,
+          duration: QUICK_INPUT_EDIT_OPENING_ANIMATION_DURATION,
+          easing: CALCULATOR_ANIMATION_EASING,
+          useNativeDriver: true,
+        }),
+        RNAnimated.timing(editSheetOpenInputTranslateY, {
+          toValue: 120,
+          duration: QUICK_INPUT_EDIT_OPENING_ANIMATION_DURATION,
+          easing: CALCULATOR_ANIMATION_EASING,
+          useNativeDriver: true,
+        }),
+        RNAnimated.timing(editSheetOpenInputOpacity, {
+          toValue: 0,
+          duration: QUICK_INPUT_EDIT_OPENING_ANIMATION_DURATION,
+          easing: CALCULATOR_ANIMATION_EASING,
+          useNativeDriver: true,
+        }),
+      ]);
+      editSheetOpenAnimationRef.current.start(({ finished }) => {
+        if (!finished) {
+          return;
+        }
+        setQuickInputEditSheetVisible(true);
+        setIsQuickInputEditOpening(false);
+      });
+    },
+    [
+      editSheetOpenCardOpacity,
+      editSheetOpenCardTranslateY,
+      editSheetOpenInputOpacity,
+      editSheetOpenInputTranslateY,
+      resetAndroidKeyboardFollowPeak,
+      setShouldFollowKeyboard,
+      showToast,
+    ],
   );
 
   const formatQuickInputCalculatorAmount = useCallback((raw: string) => {
@@ -3000,6 +3206,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     if (!pending) {
       return;
     }
+    smsInboxEditingItemIdRef.current = null;
 
     if (editSheetCloseTimeoutRef.current) {
       clearTimeout(editSheetCloseTimeoutRef.current);
@@ -3444,6 +3651,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     if (isQuickInputEditOpening || isQuickInputEditSheetClosing) {
       return;
     }
+    const isSmsInboxEdit = smsInboxEditingItemIdRef.current != null;
     setIsQuickInputConfirmCardRevealPaused(true);
     setIsQuickInputEditSheetClosing(true);
     setQuickInputEditSheetVisible(false);
@@ -3468,6 +3676,16 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       setQuickInputEditRecordType('expense');
       editSheetRestoreTimeoutRef.current = setTimeout(() => {
         editSheetRestoreTimeoutRef.current = null;
+        if (isSmsInboxEdit) {
+          smsInboxEditingItemIdRef.current = null;
+          editSheetOpenCardTranslateY.setValue(0);
+          editSheetOpenCardOpacity.setValue(1);
+          editSheetOpenInputTranslateY.setValue(0);
+          editSheetOpenInputOpacity.setValue(1);
+          setIsQuickInputEditSheetClosing(false);
+          setIsQuickInputConfirmCardRevealPaused(false);
+          return;
+        }
         shortBottomFromScreen.value = lastShortBottomRef.current;
         animatedBottom.value = lastShortBottomRef.current;
         resetAndroidKeyboardFollowPeak();
@@ -3538,19 +3756,30 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
           weekendOption: draft.isRecurring || draft.isInstallment ? draft.weekendOption : undefined,
         };
 
+    const smsItemId = smsInboxEditingItemIdRef.current;
     pendingRecordRef.current = updated;
     handleQuickInputEditSheetClose();
     void buildConfirmCardFromPending(updated, {
       getExpenseCategoriesCached,
       getIncomeCategoriesCached,
       getPaymentSubtypesCached,
-    }).then(setConfirmCardData).catch(() => {});
+    })
+      .then((card) => {
+        if (smsItemId) {
+          setSmsInboxItems((prev) =>
+            prev.map((item) => (item.id === smsItemId ? { ...item, card } : item)),
+          );
+          return;
+        }
+        setConfirmCardData(card);
+      })
+      .catch(() => {});
   }, [
     getExpenseCategoriesCached,
     getIncomeCategoriesCached,
     getPaymentSubtypesCached,
     handleQuickInputEditSheetClose,
-        quickInputEditDraft,
+    quickInputEditDraft,
     showToast,
   ]);
 
@@ -3870,16 +4099,31 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                       />
                     </RNAnimated.View>
                   )}
-                  {isQuickInputSmsInboxVisible ? (
-                    <QuickInputSmsInbox
-                      items={smsInboxItems}
-                      index={smsInboxIndex}
-                      onIndexChange={handleSmsInboxIndexChange}
-                      onConfirm={handleSmsInboxConfirm}
-                      onConfirmConsumed={handleSmsInboxConfirmConsumed}
-                      onCancel={handleSmsInboxCancel}
-                      onDismiss={closeQuickInputSmsInbox}
-                    />
+                  {isQuickInputSmsInboxVisible &&
+                  !quickInputEditSheetVisible &&
+                  !isQuickInputEditSheetClosing ? (
+                    <RNAnimated.View
+                      style={[
+                        styles.smsInboxExitLayer,
+                        {
+                          opacity: editSheetOpenCardOpacity,
+                          transform: [{ translateY: editSheetOpenCardTranslateY }],
+                        },
+                      ]}
+                      pointerEvents={isQuickInputEditOpening ? 'none' : 'box-none'}
+                    >
+                      <QuickInputSmsInbox
+                        items={smsInboxItems}
+                        index={smsInboxIndex}
+                        onIndexChange={handleSmsInboxIndexChange}
+                        onConfirm={handleSmsInboxConfirm}
+                        onConfirmConsumed={handleSmsInboxConfirmConsumed}
+                        onCancel={handleSmsInboxCancel}
+                        onChange={handleSmsInboxChange}
+                        onBeforeConfirm={handleSmsInboxBeforeConfirm}
+                        onDismiss={closeQuickInputSmsInbox}
+                      />
+                    </RNAnimated.View>
                   ) : null}
                   <Animated.View style={[styles.container, containerAnimatedStyle]}>
                     {!quickInputEditSheetVisible && !isQuickInputEditSheetClosing && !isQuickInputCalculatorVisible && !isQuickInputSmsInboxVisible && (!quickInputCategorySettingSheetMounted || isQuickInputCategorySettingOpening) && (
@@ -3892,13 +4136,13 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                           } : null,
                         ]}
                       >
-                        <View style={styles.edgeContent}>
-                          <ScrollView
-                            horizontal
-                            showsHorizontalScrollIndicator={false}
-                            contentContainerStyle={styles.actionRow}
-                            keyboardShouldPersistTaps="handled"
-                          >
+                        <ScrollView
+                          horizontal
+                          showsHorizontalScrollIndicator={false}
+                          style={styles.actionRowScroll}
+                          contentContainerStyle={styles.actionRow}
+                          keyboardShouldPersistTaps="handled"
+                        >
                             <Pressable
                               style={styles.actionChip}
                               onPress={handleQuickInputSmsInboxPress}
@@ -3943,8 +4187,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                               </View>
                               <Text style={styles.actionLabel}>카테고리 설정</Text>
                             </Pressable>
-                          </ScrollView>
-                        </View>
+                        </ScrollView>
                         <View style={styles.edgeContent}>
                           <QuickInputField
                             ref={quickInputRef}
@@ -4056,7 +4299,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                                 </SectionTitle>
                                 <Input
                                   value={quickInputEditDraft.category}
-                                  placeholder="카테고리 선택"
+                                  placeholder="카테고리를 선택해 주세요."
                                   buttonMode
                                   sortationEmoji={quickInputEditCategoryEmoji}
                                   showSortationDot={false}
@@ -4884,6 +5127,10 @@ const styles = StyleSheet.create({
     right: 16,
     zIndex: 2,
   },
+  smsInboxExitLayer: {
+    ...StyleSheet.absoluteFill,
+    zIndex: 2,
+  },
   longContentLayer: {
     ...StyleSheet.absoluteFill,
     zIndex: 1,
@@ -4905,10 +5152,15 @@ const styles = StyleSheet.create({
   edgeContent: {
     marginHorizontal: 16,
   },
+  /** 칩 행은 화면 풀폭 — 좌우 16은 content padding만 (margin으로 뷰포트가 줄어 잘리지 않게) */
+  actionRowScroll: {
+    flexGrow: 0,
+  },
   actionRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    paddingHorizontal: 16,
   },
   actionChip: {
     height: 40,

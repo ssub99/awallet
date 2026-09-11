@@ -7,13 +7,21 @@
 
 import { Icon } from '@/components/ui/icon';
 import { Tooltip, TOOLTIP_BODY_MAX_WIDTH } from '@/components/ui/tooltip';
+import { atomicColors } from '@/constants/atomic-colors';
 import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { spacing } from '@/constants/spacing';
 import { typographyLayout } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, {
+  Easing,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated';
 
 export interface QuickInputConfirmCardData {
   recordType?: 'expense' | 'income';
@@ -42,7 +50,7 @@ export interface QuickInputConfirmCardProps {
   animateEntrance?: boolean;
   /** 하단 추가/취소 버튼 높이. 시안 기본 40, 문자 수신함 카드는 48 */
   actionButtonHeight?: number;
-  /** true면 카드 내 콘텐츠를 숨기고 로딩 인디케이터만 표기 */
+  /** true면 카드 콘텐츠 대신 스켈레톤 표기 */
   contentLoading?: boolean;
   /**
    * true면 추가/취소 탭 시 카드 자체 퇴장 모션 없이 콜백만 호출.
@@ -63,19 +71,30 @@ const MEMO_BUTTON_SIZE = 32;
 const MEMO_ICON_SIZE = 24;
 const MEMO_EMPTY_TOOLTIP_TEXT = '메모 없음';
 
+const CATEGORY_EMPTY_PLACEHOLDER = '선택해 주세요.';
+
+/** 빈 값 · 예전 플레이스홀더('미정') → 미선택 */
+function isCategoryUnset(category: string): boolean {
+  const trimmed = category.trim();
+  return trimmed.length === 0 || trimmed === '미정';
+}
+
 function ConfirmRow({
   label,
   value,
   colors,
+  valueColor,
 }: {
   label: string;
   value: string;
   colors: ColorPalette;
+  /** 미지정 시 Semantic/Label/Normal(`colors.text`) */
+  valueColor?: string;
 }) {
   return (
     <View style={styles.row}>
       <Text style={[styles.label, { color: colors.textAssistive }]}>{label}</Text>
-      <Text style={[styles.value, { color: colors.text }]} numberOfLines={1}>
+      <Text style={[styles.value, { color: valueColor ?? colors.text }]} numberOfLines={1}>
         {value}
       </Text>
     </View>
@@ -114,6 +133,75 @@ function PaymentTypeRow({
 
 const CARD_SLIDE_OFFSET = 16;
 const CARD_ANIMATION_DURATION = 180;
+/** 원문 스켈레톤과 동일 — 왕복 0.7초 */
+const SKELETON_PULSE_HALF_MS = 350;
+
+/** 기록 카드 로딩 — Figma Frame 172 (2241:31518) */
+function ConfirmCardSkeleton({
+  boneColor,
+  lineColor,
+  actionButtonHeight,
+}: {
+  boneColor: string;
+  lineColor: string;
+  actionButtonHeight: number;
+}) {
+  const pulse = useSharedValue(0.45);
+
+  useEffect(() => {
+    pulse.value = withRepeat(
+      withTiming(1, {
+        duration: SKELETON_PULSE_HALF_MS,
+        easing: Easing.inOut(Easing.ease),
+      }),
+      -1,
+      true,
+    );
+  }, [pulse]);
+
+  const bonePulseStyle = useAnimatedStyle(() => ({
+    opacity: pulse.value,
+  }));
+
+  return (
+    <View style={styles.skeleton} accessibilityLabel="기록 불러오는 중">
+      <View style={styles.skeletonTitleRow}>
+        <Animated.View
+          style={[styles.skeletonTitleBone, { backgroundColor: boneColor }, bonePulseStyle]}
+        />
+      </View>
+      <View style={[styles.skeletonDivider, { backgroundColor: lineColor }]} />
+      <View style={styles.skeletonRows}>
+        {[0, 1, 2, 3, 4].map((row) => (
+          <View key={row} style={styles.skeletonRow}>
+            <Animated.View
+              style={[styles.skeletonLabelBone, { backgroundColor: boneColor }, bonePulseStyle]}
+            />
+            <Animated.View
+              style={[styles.skeletonValueBone, { backgroundColor: boneColor }, bonePulseStyle]}
+            />
+          </View>
+        ))}
+      </View>
+      <View style={styles.skeletonButtonRow}>
+        <Animated.View
+          style={[
+            styles.skeletonButtonBone,
+            { height: actionButtonHeight, backgroundColor: boneColor },
+            bonePulseStyle,
+          ]}
+        />
+        <Animated.View
+          style={[
+            styles.skeletonButtonBone,
+            { height: actionButtonHeight, backgroundColor: boneColor },
+            bonePulseStyle,
+          ]}
+        />
+      </View>
+    </View>
+  );
+}
 
 export function QuickInputConfirmCard({
   data,
@@ -232,9 +320,12 @@ export function QuickInputConfirmCard({
     transform: [{ translateY: translateY.value }],
   }));
 
-  const categoryDisplay = data.categoryEmoji
-    ? `${data.categoryEmoji} ${data.category}`
-    : data.category;
+  const isCategoryEmpty = isCategoryUnset(data.category);
+  const categoryDisplay = isCategoryEmpty
+    ? CATEGORY_EMPTY_PLACEHOLDER
+    : data.categoryEmoji
+      ? `${data.categoryEmoji} ${data.category}`
+      : data.category;
 
   const title =
     data.recordType === 'income'
@@ -249,11 +340,14 @@ export function QuickInputConfirmCard({
     <Animated.View
       style={[styles.card, { backgroundColor: palette.staticWhite }, animatedStyle]}
     >
-      <View
-        style={contentLoading ? styles.contentHidden : undefined}
-        pointerEvents={contentLoading ? 'none' : 'auto'}
-        importantForAccessibility={contentLoading ? 'no-hide-descendants' : 'auto'}
-      >
+      {contentLoading ? (
+        <ConfirmCardSkeleton
+          boneColor={atomicColors.neutral[200]}
+          lineColor={palette.border}
+          actionButtonHeight={actionButtonHeight}
+        />
+      ) : (
+      <View>
         <View style={styles.titleRow}>
           <View style={styles.titleLeading}>
             <Pressable
@@ -311,7 +405,12 @@ export function QuickInputConfirmCard({
               accessibilityLabel="메모 툴팁 닫기"
             />
           ) : null}
-          <ConfirmRow label={ROW_LABELS.category} value={categoryDisplay} colors={palette} />
+          <ConfirmRow
+            label={ROW_LABELS.category}
+            value={categoryDisplay}
+            colors={palette}
+            valueColor={isCategoryEmpty ? palette.textAssistive : undefined}
+          />
           <ConfirmRow label={ROW_LABELS.date} value={data.date} colors={palette} />
           <ConfirmRow label={ROW_LABELS.amount} value={data.amount} colors={palette} />
           {data.recordType !== 'income' ? (
@@ -373,18 +472,7 @@ export function QuickInputConfirmCard({
           </Pressable>
         </View>
       </View>
-      {contentLoading ? (
-        <View
-          style={styles.contentLoadingOverlay}
-          accessibilityLabel="기록 불러오는 중"
-          pointerEvents="none"
-        >
-          <ActivityIndicator
-            size={Platform.OS === 'android' ? 20 : 'small'}
-            color={palette.textNeutral}
-          />
-        </View>
-      ) : null}
+      )}
     </Animated.View>
   );
 }
@@ -398,13 +486,48 @@ const styles = StyleSheet.create({
     overflow: 'visible',
     position: 'relative',
   },
-  contentHidden: {
-    opacity: 0,
+  skeleton: {
+    gap: spacing[300],
   },
-  contentLoadingOverlay: {
-    ...StyleSheet.absoluteFill,
-    alignItems: 'center',
+  skeletonTitleRow: {
+    height: 32,
     justifyContent: 'center',
+  },
+  skeletonTitleBone: {
+    width: 215,
+    height: 24,
+    borderRadius: 8,
+  },
+  skeletonDivider: {
+    height: 1,
+    width: '100%',
+  },
+  skeletonRows: {
+    gap: spacing[200],
+  },
+  skeletonRow: {
+    height: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[400],
+  },
+  skeletonLabelBone: {
+    width: 64,
+    height: 24,
+    borderRadius: 8,
+  },
+  skeletonValueBone: {
+    width: 215,
+    height: 24,
+    borderRadius: 8,
+  },
+  skeletonButtonRow: {
+    flexDirection: 'row',
+    gap: spacing[200],
+  },
+  skeletonButtonBone: {
+    flex: 1,
+    borderRadius: 12,
   },
   titleRow: {
     flexDirection: 'row',

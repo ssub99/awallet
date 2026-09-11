@@ -105,6 +105,11 @@ export type QuickInputSmsInboxProps = {
   onConfirmConsumed: (item: SmsInboxItem) => void;
   onCancel: (item: SmsInboxItem) => void;
   onChange?: (item: SmsInboxItem) => void;
+  /**
+   * 추가 직전 동기 검증. false면 퇴장 모션 없이 중단.
+   * 토스트 등은 호출측에서 처리.
+   */
+  onBeforeConfirm?: (item: SmsInboxItem) => boolean;
   /** 딤 영역 탭 → 간편입력 롱뷰로 복귀 */
   onDismiss?: () => void;
   addLoading?: boolean;
@@ -117,7 +122,9 @@ function formatPagerLabel(index: number, total: number): string {
 }
 
 function toCardData(item: SmsInboxItem): QuickInputConfirmCardData {
-  return { ...item.card, category: item.card.category || '미정' };
+  const trimmed = item.card.category.trim();
+  // 예전 목업/가기록 플레이스홀더 '미정' → 빈 값 (카드에서 '선택해 주세요.' 표시)
+  return { ...item.card, category: trimmed === '미정' ? '' : trimmed };
 }
 
 /** 원문 로딩 — Figma Frame 296 스켈레톤 (2241:31037 / 2250:31703) */
@@ -127,7 +134,8 @@ function OriginalMessageSkeleton({ boneColor, lineColor }: { boneColor: string; 
   useEffect(() => {
     pulse.value = withRepeat(
       withTiming(1, {
-        duration: 150,
+        // 왕복 0.7초 (반주기)
+        duration: 350,
         easing: Easing.inOut(Easing.ease),
       }),
       -1,
@@ -415,6 +423,7 @@ export function QuickInputSmsInbox({
   onConfirmConsumed,
   onCancel,
   onChange,
+  onBeforeConfirm,
   onDismiss,
   addLoading = false,
 }: QuickInputSmsInboxProps) {
@@ -762,6 +771,9 @@ export function QuickInputSmsInbox({
       if (isRolling.value || isConsuming) {
         return;
       }
+      if (action === 'confirm' && onBeforeConfirm && !onBeforeConfirm(item)) {
+        return;
+      }
       pendingConsumeRef.current = { item, action };
       setIsConsuming(true);
       setRenderMode('rest');
@@ -802,6 +814,7 @@ export function QuickInputSmsInbox({
       isConsuming,
       isRolling,
       items.length,
+      onBeforeConfirm,
       progress,
       safeIndex,
     ],
@@ -1128,7 +1141,6 @@ export function QuickInputSmsInbox({
             backgroundColor: palette.background,
           },
         ]}
-        pointerEvents="box-none"
       >
         <Pressable
           onPress={handlePrev}
