@@ -124,6 +124,7 @@ function toCardData(item: SmsInboxItem): QuickInputConfirmCardData {
  *
  * 추가/취소(잔여): 로딩 + top퇴장 · mid→top · bottom→mid · next→bottom
  * 추가/취소(마지막): 퇴장만 → 메인 복귀 (추가만 토스트)
+ * next(마지막 직전→마지막): top 퇴장 + mid→top (bottom 쌓임 없음)
  */
 function slotTopY(topOffset: number, slotIndex: 0 | 1 | 2): number {
   'worklet';
@@ -144,6 +145,7 @@ function useSlotAnimatedStyle(
   role: 0 | 1 | 2 | 3,
   progress: SharedValue<number>,
   animKind: SharedValue<number>,
+  nextToLastSV: SharedValue<boolean>,
   topOffset: number,
   screenWidth: number,
 ) {
@@ -231,14 +233,23 @@ function useSlotAnimatedStyle(
         zIndex = 1;
       }
     } else if (kind === 1 || p > 0) {
-      // next
+      // next · 마지막 직전→마지막은 top이 bottom에 쌓이지 않고 퇴장만
       const t = Math.min(p, 1);
       if (t > 0) {
+        const toLast = nextToLastSV.value;
         if (role === 0) {
-          width = interpolate(t, [0, 1], [topW, botW], Extrapolation.CLAMP);
-          top = interpolate(t, [0, 1], [topY, botY], Extrapolation.CLAMP);
-          liftY = interpolate(t, [0, 0.35, 1], [0, -ROLL_LIFT_PX, 0], Extrapolation.CLAMP);
-          zIndex = t < 0.42 ? 5 : 1;
+          if (toLast) {
+            width = topW;
+            top = topY;
+            liftY = interpolate(t, [0, 1], [0, -ROLL_LIFT_PX * 1.25], Extrapolation.CLAMP);
+            opacity = interpolate(t, [0, 0.55, 1], [1, 0.35, 0], Extrapolation.CLAMP);
+            zIndex = 6;
+          } else {
+            width = interpolate(t, [0, 1], [topW, botW], Extrapolation.CLAMP);
+            top = interpolate(t, [0, 1], [topY, botY], Extrapolation.CLAMP);
+            liftY = interpolate(t, [0, 0.35, 1], [0, -ROLL_LIFT_PX, 0], Extrapolation.CLAMP);
+            zIndex = t < 0.42 ? 5 : 1;
+          }
         } else if (role === 1) {
           width = interpolate(t, [0, 1], [midW, topW], Extrapolation.CLAMP);
           top = interpolate(t, [0, 1], [midY, topY], Extrapolation.CLAMP);
@@ -342,6 +353,8 @@ export function QuickInputSmsInbox({
   const safeIndex = items.length === 0 ? 0 : Math.min(Math.max(index, 0), items.length - 1);
   const canGoPrev = safeIndex > 0;
   const canGoNext = safeIndex < items.length - 1;
+  /** next로 마지막 카드에 도착하는 전환 (9→10 등) — bottom 쌓임 생략 */
+  const isNextToLast = canGoNext && safeIndex === items.length - 2;
 
   const progress = useSharedValue(0);
   /** 0 idle · 1 next · 2 prevEnter · 3 consume(퇴장+롤업) · 4 confirmLastExit */
@@ -349,6 +362,7 @@ export function QuickInputSmsInbox({
   const isRolling = useSharedValue(false);
   const canGoNextSV = useSharedValue(canGoNext);
   const canGoPrevSV = useSharedValue(canGoPrev);
+  const nextToLastSV = useSharedValue(isNextToLast);
   const stackOpacity = useSharedValue(1);
   /** 기록 카드: 위에서 아래로 */
   const cardEnterTranslateY = useSharedValue(-ENTER_SLIDE_OFFSET);
@@ -379,7 +393,8 @@ export function QuickInputSmsInbox({
   useEffect(() => {
     canGoNextSV.value = canGoNext;
     canGoPrevSV.value = canGoPrev;
-  }, [canGoNext, canGoPrev, canGoNextSV, canGoPrevSV]);
+    nextToLastSV.value = isNextToLast;
+  }, [canGoNext, canGoPrev, canGoNextSV, canGoPrevSV, isNextToLast, nextToLastSV]);
 
   useEffect(() => {
     cardEnterTranslateY.value = -ENTER_SLIDE_OFFSET;
@@ -486,20 +501,20 @@ export function QuickInputSmsInbox({
     stopOriginalLoading();
   }, [isRolling, stopOriginalLoading]);
 
-  /** next: 모션 후 커밋. progress=1에서 role 재배치 레이스를 피하려고 epoch remount + opacity 가림 */
+  /**
+   * next: 모션 종료 포즈 ≈ 커밋 후 rest이므로 epoch remount/opacity 토글 없이
+   * idle 리셋 후 인덱스만 커밋 (prev 버튼은 commit-first라 원래 깜빡임 없음)
+   */
   const finishNextRoll = useCallback(() => {
-    stackOpacity.value = 0;
+    animKind.value = 0;
+    progress.value = 0;
     flushSync(() => {
       setRenderMode('rest');
       commitNext();
-      setStackEpoch((epoch) => epoch + 1);
     });
-    animKind.value = 0;
-    progress.value = 0;
     isRolling.value = false;
-    stackOpacity.value = 1;
     stopOriginalLoading();
-  }, [animKind, commitNext, isRolling, progress, stackOpacity, stopOriginalLoading]);
+  }, [animKind, commitNext, isRolling, progress, stopOriginalLoading]);
 
   /** 제스처 prev: 이미 -1 끝 프레임. remount 전에 숨겨 mid 깜빡임 제거 */
   const finishPrevScrub = useCallback(() => {
@@ -797,10 +812,10 @@ export function QuickInputSmsInbox({
   );
 
   const topOffset = insets.top;
-  const style0 = useSlotAnimatedStyle(0, progress, animKind, topOffset, windowWidth);
-  const style1 = useSlotAnimatedStyle(1, progress, animKind, topOffset, windowWidth);
-  const style2 = useSlotAnimatedStyle(2, progress, animKind, topOffset, windowWidth);
-  const style3 = useSlotAnimatedStyle(3, progress, animKind, topOffset, windowWidth);
+  const style0 = useSlotAnimatedStyle(0, progress, animKind, nextToLastSV, topOffset, windowWidth);
+  const style1 = useSlotAnimatedStyle(1, progress, animKind, nextToLastSV, topOffset, windowWidth);
+  const style2 = useSlotAnimatedStyle(2, progress, animKind, nextToLastSV, topOffset, windowWidth);
+  const style3 = useSlotAnimatedStyle(3, progress, animKind, nextToLastSV, topOffset, windowWidth);
   const slotStyles = [style0, style1, style2, style3] as const;
 
   const pagerBottom = Math.max(

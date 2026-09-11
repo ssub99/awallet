@@ -138,9 +138,11 @@ export function QuickInputShort({
               </View>
             ) : null}
           </View>
-          <View style={styles.quickInputArrow}>
-            <Icon name="arrowRight" variant="line" size={16} color={palette.textAssistive} />
-          </View>
+          {smsInboxUnreadCount === 0 ? (
+            <View style={styles.quickInputArrow}>
+              <Icon name="arrowRight" variant="line" size={16} color={palette.textAssistive} />
+            </View>
+          ) : null}
         </View>
       </GlassSurface>
     </Pressable>
