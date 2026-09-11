@@ -3,7 +3,8 @@
  * Figma baseline: home.month.quickInputSmsInbox ([Awallet]Home_month 2233:22555)
  *
  * 레이아웃 (원문↔기록카드 스왑, 페이저 고정):
- * - 원문   @(16, 60) h176
+ * - 닫기   @(16, 48) 48×48 · Frame 301 / smsInboxClose
+ * - 원문   @(16, 112) h176 · 닫기 하단과 gap 16
  * - 스택   top/mid/bottom 간격 12 · 카드 h308 · 세로 스와이프
  * - 페이저 @(16, 724) h56 · 뒤 카드 최하단과 gap 16
  *
@@ -59,8 +60,10 @@ const STACK_PAGER_GAP = 16;
 const SLOT_INCOMING_INSET = 40;
 const SLOT_INCOMING_EXTRA_Y = 16;
 
-/** 원문 — 시안 Frame 296. 페이저는 Frame 293 유지 */
-const FIGMA_ORIGINAL = { left: 16, top: 60, width: 343, height: 176 } as const;
+/** 원문 — 시안 Frame 296. 페이저는 Frame 293 유지. 닫기는 Frame 301 */
+const FIGMA_CLOSE = { left: 16, top: 48, width: 48, height: 48 } as const;
+/** baseline 2233:20949 — Frame 301 추가 후 원문 top 60→112 */
+const FIGMA_ORIGINAL = { left: 16, top: 112, width: 343, height: 176 } as const;
 const FIGMA_PAGER = { left: 16, top: 724, width: 343, height: 56 } as const;
 const FIGMA_SCREEN_HEIGHT = 812;
 
@@ -1004,6 +1007,35 @@ export function QuickInputSmsInbox({
         />
       ) : null}
 
+      {onDismiss ? (
+        <Animated.View
+          style={[
+            styles.closeButton,
+            {
+              top: topOffset + (FIGMA_CLOSE.top - FIGMA_STATUS_BAR),
+              left: FIGMA_CLOSE.left,
+              backgroundColor: palette.staticWhite,
+            },
+            originalEnterStyle,
+          ]}
+        >
+          <Pressable
+            onPress={onDismiss}
+            accessibilityRole="button"
+            accessibilityLabel="이전"
+            hitSlop={8}
+            style={styles.closeButtonPress}
+          >
+            <Icon
+              name="arrowLeft"
+              variant="line"
+              size={24}
+              color={palette.staticBlack}
+            />
+          </Pressable>
+        </Animated.View>
+      ) : null}
+
       <Animated.View
         style={[
           styles.originalBlock,
@@ -1188,6 +1220,18 @@ const styles = StyleSheet.create({
   dismissHitArea: {
     ...StyleSheet.absoluteFill,
     zIndex: 0,
+  },
+  closeButton: {
+    position: 'absolute',
+    width: FIGMA_CLOSE.width,
+    height: FIGMA_CLOSE.height,
+    borderRadius: FIGMA_CLOSE.width / 2,
+    zIndex: 4,
+  },
+  closeButtonPress: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   stackLayer: {
     ...StyleSheet.absoluteFill,
