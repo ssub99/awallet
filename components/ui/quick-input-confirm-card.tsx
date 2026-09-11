@@ -11,7 +11,7 @@ import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { spacing } from '@/constants/spacing';
 import { typographyLayout } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
@@ -62,13 +62,6 @@ const ROW_LABELS = {
 const MEMO_BUTTON_SIZE = 32;
 const MEMO_ICON_SIZE = 24;
 const MEMO_EMPTY_TOOLTIP_TEXT = '메모 없음';
-
-type MemoButtonRect = {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-};
 
 function ConfirmRow({
   label,
@@ -137,11 +130,8 @@ export function QuickInputConfirmCard({
   const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   const translateY = useSharedValue(animateEntrance ? -CARD_SLIDE_OFFSET : 0);
   const opacity = useSharedValue(animateEntrance ? 0 : 1);
-  const cardRef = useRef<View>(null);
-  const memoButtonWrapRef = useRef<View>(null);
   const [isExiting, setIsExiting] = useState(false);
   const [memoTooltipVisible, setMemoTooltipVisible] = useState(false);
-  const [memoButtonRect, setMemoButtonRect] = useState<MemoButtonRect | null>(null);
 
   const memoText = typeof data.memo === 'string' ? data.memo.trim() : '';
   const hasMemo = memoText.length > 0;
@@ -172,22 +162,6 @@ export function QuickInputConfirmCard({
       setMemoTooltipVisible(false);
     }
   }, [contentLoading]);
-
-  const handleMemoButtonWrapLayout = useCallback(() => {
-    const card = cardRef.current;
-    const memoWrap = memoButtonWrapRef.current;
-    if (!card || !memoWrap) return;
-
-    memoWrap.measureLayout(
-      card,
-      (x, y, width, height) => {
-        setMemoButtonRect({ x, y, width, height });
-      },
-      () => {
-        setMemoButtonRect(null);
-      },
-    );
-  }, []);
 
   const buttonsDisabled = isExiting || addLoading || contentLoading;
 
@@ -250,9 +224,8 @@ export function QuickInputConfirmCard({
       dismissMemoTooltip();
       return;
     }
-    handleMemoButtonWrapLayout();
     setMemoTooltipVisible(true);
-  }, [buttonsDisabled, dismissMemoTooltip, handleMemoButtonWrapLayout, memoTooltipVisible]);
+  }, [buttonsDisabled, dismissMemoTooltip, memoTooltipVisible]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     opacity: opacity.value,
@@ -274,9 +247,7 @@ export function QuickInputConfirmCard({
 
   return (
     <Animated.View
-      ref={cardRef}
       style={[styles.card, { backgroundColor: palette.staticWhite }, animatedStyle]}
-      onLayout={handleMemoButtonWrapLayout}
     >
       <View
         style={contentLoading ? styles.contentHidden : undefined}
@@ -294,7 +265,7 @@ export function QuickInputConfirmCard({
                 {title}
               </Text>
             </Pressable>
-            <View ref={memoButtonWrapRef} style={styles.memoButtonWrap} onLayout={handleMemoButtonWrapLayout}>
+            <View style={styles.memoButtonWrap}>
               <Pressable
                 style={[styles.memoButton, { backgroundColor: palette.fill }]}
                 onPress={handleMemoPress}
@@ -310,6 +281,11 @@ export function QuickInputConfirmCard({
                   color={palette.textNeutral}
                 />
               </Pressable>
+              {memoTooltipVisible ? (
+                <View style={styles.memoTooltipAnchor} pointerEvents="none">
+                  <Tooltip text={memoTooltipText} placement="top" />
+                </View>
+              ) : null}
             </View>
           </View>
           <Pressable
@@ -323,20 +299,6 @@ export function QuickInputConfirmCard({
             <Text style={[styles.changeText, { color: palette.textAssistive }]}>변경</Text>
           </Pressable>
         </View>
-        {memoTooltipVisible && memoButtonRect ? (
-          <View
-            style={[
-              styles.memoTooltipAnchor,
-              {
-                top: memoButtonRect.y + memoButtonRect.height + spacing[100],
-                left: memoButtonRect.x + memoButtonRect.width / 2 - TOOLTIP_BODY_MAX_WIDTH / 2,
-              },
-            ]}
-            pointerEvents="none"
-          >
-            <Tooltip text={memoTooltipText} placement="top" />
-          </View>
-        ) : null}
         <Pressable onPress={dismissMemoTooltip} disabled={!memoTooltipVisible}>
           <View style={[styles.divider, { backgroundColor: palette.border }]} />
         </Pressable>
@@ -451,6 +413,7 @@ const styles = StyleSheet.create({
     minHeight: 32,
     gap: spacing[200],
     overflow: 'visible',
+    zIndex: 2,
   },
   titleLeading: {
     flex: 1,
@@ -486,6 +449,8 @@ const styles = StyleSheet.create({
   },
   memoTooltipAnchor: {
     position: 'absolute',
+    top: MEMO_BUTTON_SIZE + spacing[100],
+    left: MEMO_BUTTON_SIZE / 2 - TOOLTIP_BODY_MAX_WIDTH / 2,
     width: TOOLTIP_BODY_MAX_WIDTH,
     alignItems: 'center',
     zIndex: 20,

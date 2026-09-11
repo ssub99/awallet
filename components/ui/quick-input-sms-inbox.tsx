@@ -1,11 +1,11 @@
 /**
  * 간편입력 · 문자 수신함 오버레이
- * Figma baseline: home.month.quickInputSmsInbox (2233:20949)
+ * Figma baseline: home.month.quickInputSmsInbox ([Awallet]Home_month 2233:22555)
  *
- * 스택 (큰 카드가 맨 위):
- * - top    343 @(16, 60)  ← 현재 · 세로 스와이프
- * - mid    327 @(24, 72)
- * - bottom 311 @(32, 84)
+ * 레이아웃 (원문↔기록카드 스왑, 페이저 고정):
+ * - 원문   @(16, 60) h176
+ * - 스택   top/mid/bottom 간격 12 · 카드 h308 · 세로 스와이프
+ * - 페이저 @(16, 724) h56 · 뒤 카드 최하단과 gap 16
  *
  * 스와이프 위 → 뒷번호(next), 아래 → 윗번호(prev)
  * 잔여 ≥3이면 항상 3장 · 롤링으로 슬롯 이동
@@ -16,8 +16,8 @@ import {
   QuickInputConfirmCard,
   type QuickInputConfirmCardData,
 } from '@/components/ui/quick-input-confirm-card';
-import { colors, typography } from '@/constants/theme';
 import { atomicColors } from '@/constants/atomic-colors';
+import { colors, typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import type { SmsInboxItem } from '@/utils/sms-inbox-mock';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -50,15 +50,18 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 const FIGMA_STATUS_BAR = 44;
 /** Figma 375 기준 inset — 실기기에서는 screenWidth - inset*2 로 폭 계산 */
 const SLOT_INSETS = [16, 24, 32] as const;
-const SLOT_FIGMA_TOPS = [60, 72, 84] as const;
+const SLOT_TOP_OFFSETS = [0, 12, 24] as const;
 const SLOT_Z = [3, 2, 1] as const;
+const RECORD_CARD_HEIGHT = 308;
+/** 뒤 카드 최하단부터 페이저 상단까지의 시각 여백 */
+const STACK_PAGER_GAP = 16;
 /** consume 시 맨 뒤로 들어오는 카드 시작 포즈 (bottom보다 더 작고 아래) */
 const SLOT_INCOMING_INSET = 40;
 const SLOT_INCOMING_EXTRA_Y = 16;
 
-const FIGMA_ORIGINAL = { left: 16, top: 536, width: 343, height: 176 } as const;
+/** 원문 — 시안 Frame 296. 페이저는 Frame 293 유지 */
+const FIGMA_ORIGINAL = { left: 16, top: 60, width: 343, height: 176 } as const;
 const FIGMA_PAGER = { left: 16, top: 724, width: 343, height: 56 } as const;
-const FIGMA_ORIGINAL_PAGER_GAP = 12;
 const FIGMA_SCREEN_HEIGHT = 812;
 
 const SWIPE_COMMIT_VELOCITY = 800;
@@ -126,9 +129,9 @@ function toCardData(item: SmsInboxItem): QuickInputConfirmCardData {
  * 추가/취소(마지막): 퇴장만 → 메인 복귀 (추가만 토스트)
  * next(마지막 직전→마지막): top 퇴장 + mid→top (bottom 쌓임 없음)
  */
-function slotTopY(topOffset: number, slotIndex: 0 | 1 | 2): number {
+function slotTopY(stackTop: number, slotIndex: 0 | 1 | 2): number {
   'worklet';
-  return topOffset + (SLOT_FIGMA_TOPS[slotIndex] - FIGMA_STATUS_BAR);
+  return stackTop + SLOT_TOP_OFFSETS[slotIndex];
 }
 
 function slotWidth(screenWidth: number, slotIndex: 0 | 1 | 2): number {
@@ -141,12 +144,27 @@ function leftForWidth(centerX: number, width: number): number {
   return centerX - width / 2;
 }
 
+function settledSlotStyle(
+  stackTop: number,
+  screenWidth: number,
+  role: 0 | 1 | 2,
+): ViewStyle {
+  const width = slotWidth(screenWidth, role);
+  return {
+    position: 'absolute',
+    left: leftForWidth(screenWidth / 2, width),
+    top: slotTopY(stackTop, role),
+    width,
+    zIndex: SLOT_Z[role],
+  };
+}
+
 function useSlotAnimatedStyle(
   role: 0 | 1 | 2 | 3,
   progress: SharedValue<number>,
   animKind: SharedValue<number>,
   nextToLastSV: SharedValue<boolean>,
-  topOffset: number,
+  stackTop: number,
   screenWidth: number,
 ) {
   return useAnimatedStyle(() => {
@@ -154,16 +172,16 @@ function useSlotAnimatedStyle(
     const p = progress.value;
     const centerX = screenWidth / 2;
 
-    const topY = slotTopY(topOffset, 0);
-    const midY = slotTopY(topOffset, 1);
-    const botY = slotTopY(topOffset, 2);
+    const topY = slotTopY(stackTop, 0);
+    const midY = slotTopY(stackTop, 1);
+    const botY = slotTopY(stackTop, 2);
     const topW = slotWidth(screenWidth, 0);
     const midW = slotWidth(screenWidth, 1);
     const botW = slotWidth(screenWidth, 2);
     const incomingW = screenWidth - SLOT_INCOMING_INSET * 2;
     const incomingY = botY + SLOT_INCOMING_EXTRA_Y;
 
-    let top = role <= 2 ? slotTopY(topOffset, role as 0 | 1 | 2) : botY;
+    let top = role <= 2 ? slotTopY(stackTop, role as 0 | 1 | 2) : botY;
     let width = role <= 2 ? slotWidth(screenWidth, role as 0 | 1 | 2) : botW;
     let zIndex = role <= 2 ? SLOT_Z[role as 0 | 1 | 2] : 0;
     let liftY = 0;
@@ -348,7 +366,7 @@ export function QuickInputSmsInbox({
   const colorScheme = useColorScheme();
   const palette = colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
 
   const safeIndex = items.length === 0 ? 0 : Math.min(Math.max(index, 0), items.length - 1);
   const canGoPrev = safeIndex > 0;
@@ -364,6 +382,9 @@ export function QuickInputSmsInbox({
   const canGoPrevSV = useSharedValue(canGoPrev);
   const nextToLastSV = useSharedValue(isNextToLast);
   const stackOpacity = useSharedValue(1);
+  /** next/prev 완료 시 현재 스택과 교대할 도착 순서의 정착 포즈 */
+  const nextSettledOpacity = useSharedValue(0);
+  const prevSettledOpacity = useSharedValue(0);
   /** 기록 카드: 위에서 아래로 */
   const cardEnterTranslateY = useSharedValue(-ENTER_SLIDE_OFFSET);
   const cardEnterOpacity = useSharedValue(0);
@@ -425,13 +446,23 @@ export function QuickInputSmsInbox({
     cardEnterTranslateY,
   ]);
 
-  const cardEnterStyle = useAnimatedStyle(() => ({
-    opacity: cardEnterOpacity.value * stackOpacity.value,
+  const originalEnterStyle = useAnimatedStyle(() => ({
+    opacity: cardEnterOpacity.value,
     transform: [{ translateY: cardEnterTranslateY.value }],
   }));
 
-  const bottomEnterStyle = useAnimatedStyle(() => ({
-    opacity: bottomEnterOpacity.value,
+  const stackLayerStyle = useAnimatedStyle(() => ({
+    opacity: bottomEnterOpacity.value * stackOpacity.value,
+    transform: [{ translateY: bottomEnterTranslateY.value }],
+  }));
+
+  const nextSettledLayerStyle = useAnimatedStyle(() => ({
+    opacity: bottomEnterOpacity.value * nextSettledOpacity.value,
+    transform: [{ translateY: bottomEnterTranslateY.value }],
+  }));
+
+  const prevSettledLayerStyle = useAnimatedStyle(() => ({
+    opacity: bottomEnterOpacity.value * prevSettledOpacity.value,
     transform: [{ translateY: bottomEnterTranslateY.value }],
   }));
 
@@ -479,6 +510,36 @@ export function QuickInputSmsInbox({
     ];
   }, [items, safeIndex]);
 
+  const nextSettledWindow = useMemo((): [
+    SmsInboxItem | null,
+    SmsInboxItem | null,
+    SmsInboxItem | null,
+  ] => {
+    const baseIndex = frozenPagerIndex ?? safeIndex;
+    return [
+      items[baseIndex + 1] ?? null,
+      items[baseIndex + 2] ?? null,
+      items[baseIndex + 3] ?? null,
+    ];
+  }, [frozenPagerIndex, items, safeIndex]);
+
+  /** prev 완료 시 도착 rest 윈도우 (base-1 / base / base+1) */
+  const prevSettledWindow = useMemo((): [
+    SmsInboxItem | null,
+    SmsInboxItem | null,
+    SmsInboxItem | null,
+  ] => {
+    const baseIndex = frozenPagerIndex ?? safeIndex;
+    if (baseIndex <= 0) {
+      return [items[0] ?? null, items[1] ?? null, items[2] ?? null];
+    }
+    return [
+      items[baseIndex - 1] ?? null,
+      items[baseIndex] ?? null,
+      items[baseIndex + 1] ?? null,
+    ];
+  }, [frozenPagerIndex, items, safeIndex]);
+
   const windowItems: Array<SmsInboxItem | null> =
     isConsuming && items.length > 1
       ? consumeWindow
@@ -496,40 +557,46 @@ export function QuickInputSmsInbox({
     onIndexChange(safeIndex - 1);
   }, [onIndexChange, safeIndex]);
 
-  const endRollLoading = useCallback(() => {
-    isRolling.value = false;
-    stopOriginalLoading();
-  }, [isRolling, stopOriginalLoading]);
+  const revealSettledStack = useCallback(() => {
+    requestAnimationFrame(() => {
+      stackOpacity.value = 1;
+      nextSettledOpacity.value = 0;
+      prevSettledOpacity.value = 0;
+      isRolling.value = false;
+      stopOriginalLoading();
+    });
+  }, [
+    isRolling,
+    nextSettledOpacity,
+    prevSettledOpacity,
+    stackOpacity,
+    stopOriginalLoading,
+  ]);
 
   /**
-   * next: 모션 종료 포즈 ≈ 커밋 후 rest이므로 epoch remount/opacity 토글 없이
-   * idle 리셋 후 인덱스만 커밋 (prev 버튼은 commit-first라 원래 깜빡임 없음)
+   * next/prev 종료: 도착 정착 오버레이가 보이는 상태에서
+   * 데이터 커밋 + idle 포즈를 맞춘 뒤 메인 스택을 다시 켠다.
+   * 스택 전체를 비우면 깜빡이므로 빈 프레임을 만들지 않는다.
    */
   const finishNextRoll = useCallback(() => {
-    animKind.value = 0;
-    progress.value = 0;
     flushSync(() => {
       setRenderMode('rest');
       commitNext();
     });
-    isRolling.value = false;
-    stopOriginalLoading();
-  }, [animKind, commitNext, isRolling, progress, stopOriginalLoading]);
+    animKind.value = 0;
+    progress.value = 0;
+    revealSettledStack();
+  }, [animKind, commitNext, progress, revealSettledStack]);
 
-  /** 제스처 prev: 이미 -1 끝 프레임. remount 전에 숨겨 mid 깜빡임 제거 */
   const finishPrevScrub = useCallback(() => {
-    stackOpacity.value = 0;
     flushSync(() => {
       setRenderMode('rest');
       commitPrev();
-      setStackEpoch((epoch) => epoch + 1);
     });
     animKind.value = 0;
     progress.value = 0;
-    isRolling.value = false;
-    stackOpacity.value = 1;
-    stopOriginalLoading();
-  }, [animKind, commitPrev, isRolling, progress, stackOpacity, stopOriginalLoading]);
+    revealSettledStack();
+  }, [animKind, commitPrev, progress, revealSettledStack]);
 
   const resetConsumeMotion = useCallback(() => {
     animKind.value = 0;
@@ -688,28 +755,23 @@ export function QuickInputSmsInbox({
   const handlePrev = useCallback(() => {
     if (!canGoPrev || isRolling.value) return;
     startOriginalLoading();
+    setRenderMode('prev');
     isRolling.value = true;
-    // 커밋 직후 rest 한 프레임이 보이지 않게 숨긴 뒤 prevEnter 시작 포즈로 맞춤
-    stackOpacity.value = 0;
-    flushSync(() => {
-      setRenderMode('rest');
-      commitPrev();
-    });
-    animKind.value = 2;
+    animKind.value = 0;
     progress.value = 0;
-    stackOpacity.value = 1;
-    progress.value = withTiming(1, { duration: ROLL_DURATION_MS, easing: ROLL_EASING }, (finished) => {
-      if (!finished) return;
-      animKind.value = 0;
-      progress.value = 0;
-      runOnJS(endRollLoading)();
+    progress.value = withTiming(-1, { duration: ROLL_DURATION_MS, easing: ROLL_EASING }, (finished) => {
+      if (finished) {
+        prevSettledOpacity.value = 1;
+        stackOpacity.value = 0;
+        runOnJS(finishPrevScrub)();
+      }
     });
   }, [
     animKind,
     canGoPrev,
-    commitPrev,
-    endRollLoading,
+    finishPrevScrub,
     isRolling,
+    prevSettledOpacity,
     progress,
     stackOpacity,
     startOriginalLoading,
@@ -724,10 +786,21 @@ export function QuickInputSmsInbox({
     progress.value = 0;
     progress.value = withTiming(1, { duration: ROLL_DURATION_MS, easing: ROLL_EASING }, (finished) => {
       if (finished) {
+        nextSettledOpacity.value = 1;
+        stackOpacity.value = 0;
         runOnJS(finishNextRoll)();
       }
     });
-  }, [animKind, canGoNext, finishNextRoll, isRolling, progress, startOriginalLoading]);
+  }, [
+    animKind,
+    canGoNext,
+    finishNextRoll,
+    isRolling,
+    nextSettledOpacity,
+    progress,
+    stackOpacity,
+    startOriginalLoading,
+  ]);
 
   const pan = useMemo(
     () =>
@@ -772,6 +845,8 @@ export function QuickInputSmsInbox({
               { duration: ROLL_DURATION_MS, easing: ROLL_EASING },
               (finished) => {
                 if (finished) {
+                  nextSettledOpacity.value = 1;
+                  stackOpacity.value = 0;
                   runOnJS(finishNextRoll)();
                 }
               },
@@ -787,6 +862,8 @@ export function QuickInputSmsInbox({
               { duration: ROLL_DURATION_MS, easing: ROLL_EASING },
               (finished) => {
                 if (finished) {
+                  prevSettledOpacity.value = 1;
+                  stackOpacity.value = 0;
                   runOnJS(finishPrevScrub)();
                 }
               },
@@ -806,22 +883,39 @@ export function QuickInputSmsInbox({
       finishNextRoll,
       finishPrevScrub,
       isRolling,
+      nextSettledOpacity,
+      prevSettledOpacity,
       progress,
+      stackOpacity,
       startOriginalLoading,
     ],
   );
 
   const topOffset = insets.top;
-  const style0 = useSlotAnimatedStyle(0, progress, animKind, nextToLastSV, topOffset, windowWidth);
-  const style1 = useSlotAnimatedStyle(1, progress, animKind, nextToLastSV, topOffset, windowWidth);
-  const style2 = useSlotAnimatedStyle(2, progress, animKind, nextToLastSV, topOffset, windowWidth);
-  const style3 = useSlotAnimatedStyle(3, progress, animKind, nextToLastSV, topOffset, windowWidth);
-  const slotStyles = [style0, style1, style2, style3] as const;
-
   const pagerBottom = Math.max(
     insets.bottom,
     FIGMA_SCREEN_HEIGHT - (FIGMA_PAGER.top + FIGMA_PAGER.height),
   );
+  const pagerTop = windowHeight - pagerBottom - FIGMA_PAGER.height;
+  const stackTop =
+    pagerTop -
+    STACK_PAGER_GAP -
+    RECORD_CARD_HEIGHT -
+    SLOT_TOP_OFFSETS[SLOT_TOP_OFFSETS.length - 1];
+  const style0 = useSlotAnimatedStyle(0, progress, animKind, nextToLastSV, stackTop, windowWidth);
+  const style1 = useSlotAnimatedStyle(1, progress, animKind, nextToLastSV, stackTop, windowWidth);
+  const style2 = useSlotAnimatedStyle(2, progress, animKind, nextToLastSV, stackTop, windowWidth);
+  const style3 = useSlotAnimatedStyle(3, progress, animKind, nextToLastSV, stackTop, windowWidth);
+  const slotStyles = [style0, style1, style2, style3] as const;
+  const nextSettledSlotStyles = useMemo(
+    () =>
+      ([0, 1, 2] as const).map((role) =>
+        settledSlotStyle(stackTop, windowWidth, role),
+      ),
+    [stackTop, windowWidth],
+  );
+
+  const originalTop = topOffset + (FIGMA_ORIGINAL.top - FIGMA_STATUS_BAR);
 
   const current = items[safeIndex];
   if (!current) {
@@ -841,51 +935,17 @@ export function QuickInputSmsInbox({
           accessibilityLabel="문자 수신함 닫기"
         />
       ) : null}
-      <Animated.View style={[styles.stackLayer, cardEnterStyle]} pointerEvents="box-none">
-        <GestureDetector gesture={pan}>
-          <Animated.View
-            key={stackEpoch}
-            style={styles.stackGestureLayer}
-            pointerEvents="box-none"
-          >
-            {windowItems.map((item, role) => {
-              if (role > 3 || item == null) return null;
-              const isTopInteractive =
-                role === 0 && renderMode === 'rest' && !originalLoading && !isConsuming;
-              return (
-                <StackCard
-                  key={item.id}
-                  item={item}
-                  interactive={isTopInteractive}
-                  onConfirm={
-                    isTopInteractive
-                      ? (target) => requestConsume(target, 'confirm')
-                      : undefined
-                  }
-                  onCancel={
-                    isTopInteractive
-                      ? (target) => requestConsume(target, 'cancel')
-                      : undefined
-                  }
-                  onChange={isTopInteractive ? onChange : undefined}
-                  addLoading={isTopInteractive ? addLoading : false}
-                  contentLoading={originalLoading}
-                  style={slotStyles[role as 0 | 1 | 2 | 3]}
-                />
-              );
-            })}
-          </Animated.View>
-        </GestureDetector>
-      </Animated.View>
 
       <Animated.View
-        style={[styles.bottomBlock, { bottom: pagerBottom }, bottomEnterStyle]}
+        style={[
+          styles.originalBlock,
+          { top: originalTop, left: FIGMA_ORIGINAL.left, right: FIGMA_ORIGINAL.left },
+          originalEnterStyle,
+        ]}
         pointerEvents="box-none"
       >
         <View style={[styles.originalCard, { backgroundColor: palette.backgroundAlt }]}>
-          <View
-            style={[styles.originalHeaderBar, { backgroundColor: atomicColors.neutral[800] }]}
-          >
+          <View style={[styles.originalHeaderBar, { backgroundColor: atomicColors.blue[500] }]}>
             {!originalLoading ? (
               <View style={styles.originalHeaderRow}>
                 <View style={styles.originalSenderSlot}>
@@ -927,43 +987,129 @@ export function QuickInputSmsInbox({
             </Text>
           )}
         </View>
+      </Animated.View>
 
-        <View style={[styles.pager, { backgroundColor: palette.background }]}>
-          <Pressable
-            onPress={handlePrev}
-            disabled={!canGoPrev}
-            accessibilityRole="button"
-            accessibilityLabel="이전 문자"
-            hitSlop={8}
-            style={styles.pagerButton}
+      <Animated.View style={[styles.stackLayer, stackLayerStyle]} pointerEvents="box-none">
+        <GestureDetector gesture={pan}>
+          <Animated.View
+            key={stackEpoch}
+            style={styles.stackGestureLayer}
+            pointerEvents="box-none"
           >
-            <Icon
-              name="arrowLeft"
-              variant="line"
-              size={24}
-              color={!canGoPrev ? palette.textDisabled : palette.staticBlack}
-            />
-          </Pressable>
-          <Text style={[typography.body02.bold, { color: palette.textNeutral }]}>
-            {formatPagerLabel(displayedPagerIndex, items.length)}
-          </Text>
-          <Pressable
-            onPress={handleNext}
-            disabled={!canGoNext}
-            accessibilityRole="button"
-            accessibilityLabel="다음 문자"
-            hitSlop={8}
-            style={styles.pagerButton}
-          >
-            <Icon
-              name="arrowRight"
-              variant="line"
-              size={24}
-              color={!canGoNext ? palette.textDisabled : palette.staticBlack}
-            />
-          </Pressable>
+            {windowItems.map((item, role) => {
+              if (role > 3 || item == null) return null;
+              const isTopInteractive =
+                role === 0 && renderMode === 'rest' && !originalLoading && !isConsuming;
+              return (
+                <StackCard
+                  key={item.id}
+                  item={item}
+                  interactive={isTopInteractive}
+                  onConfirm={
+                    isTopInteractive
+                      ? (target) => requestConsume(target, 'confirm')
+                      : undefined
+                  }
+                  onCancel={
+                    isTopInteractive
+                      ? (target) => requestConsume(target, 'cancel')
+                      : undefined
+                  }
+                  onChange={isTopInteractive ? onChange : undefined}
+                  addLoading={isTopInteractive ? addLoading : false}
+                  contentLoading={originalLoading}
+                  style={slotStyles[role as 0 | 1 | 2 | 3]}
+                />
+              );
+            })}
+          </Animated.View>
+        </GestureDetector>
+      </Animated.View>
+
+      <Animated.View
+        style={[styles.stackLayer, nextSettledLayerStyle]}
+        pointerEvents="none"
+      >
+        <View style={styles.stackGestureLayer}>
+          {nextSettledWindow.map((item, role) =>
+            item ? (
+              <StackCard
+                key={`next-settled-${item.id}`}
+                item={item}
+                interactive={false}
+                contentLoading
+                style={nextSettledSlotStyles[role as 0 | 1 | 2]}
+              />
+            ) : null,
+          )}
         </View>
       </Animated.View>
+
+      <Animated.View
+        style={[styles.stackLayer, prevSettledLayerStyle]}
+        pointerEvents="none"
+      >
+        <View style={styles.stackGestureLayer}>
+          {prevSettledWindow.map((item, role) =>
+            item ? (
+              <StackCard
+                key={`prev-settled-${item.id}`}
+                item={item}
+                interactive={false}
+                contentLoading
+                style={nextSettledSlotStyles[role as 0 | 1 | 2]}
+              />
+            ) : null,
+          )}
+        </View>
+      </Animated.View>
+
+      <View
+        style={[
+          styles.pager,
+          {
+            bottom: pagerBottom,
+            left: FIGMA_PAGER.left,
+            right: FIGMA_PAGER.left,
+            backgroundColor: palette.background,
+          },
+        ]}
+        pointerEvents="box-none"
+      >
+        <Pressable
+          onPress={handlePrev}
+          disabled={!canGoPrev}
+          accessibilityRole="button"
+          accessibilityLabel="이전 문자"
+          hitSlop={8}
+          style={styles.pagerButton}
+        >
+          <Icon
+            name="arrowLeft"
+            variant="line"
+            size={24}
+            color={!canGoPrev ? palette.textDisabled : palette.staticBlack}
+          />
+        </Pressable>
+        <Text style={[typography.body02.bold, { color: palette.textNeutral }]}>
+          {formatPagerLabel(displayedPagerIndex, items.length)}
+        </Text>
+        <Pressable
+          onPress={handleNext}
+          disabled={!canGoNext}
+          accessibilityRole="button"
+          accessibilityLabel="다음 문자"
+          hitSlop={8}
+          style={styles.pagerButton}
+        >
+          <Icon
+            name="arrowRight"
+            variant="line"
+            size={24}
+            color={!canGoNext ? palette.textDisabled : palette.staticBlack}
+          />
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -979,7 +1125,7 @@ const styles = StyleSheet.create({
   },
   stackLayer: {
     ...StyleSheet.absoluteFill,
-    zIndex: 1,
+    zIndex: 2,
   },
   stackGestureLayer: {
     ...StyleSheet.absoluteFill,
@@ -988,21 +1134,19 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: 'visible',
   },
-  bottomBlock: {
+  originalBlock: {
     position: 'absolute',
-    left: FIGMA_ORIGINAL.left,
-    right: FIGMA_ORIGINAL.left,
-    gap: FIGMA_ORIGINAL_PAGER_GAP,
-    zIndex: 2,
+    zIndex: 1,
   },
   originalCard: {
     borderRadius: 16,
     overflow: 'hidden',
-    minHeight: FIGMA_ORIGINAL.height,
+    height: FIGMA_ORIGINAL.height,
+    position: 'relative',
   },
   originalHeaderBar: {
     height: 48,
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     justifyContent: 'center',
   },
   originalHeaderRow: {
@@ -1024,21 +1168,21 @@ const styles = StyleSheet.create({
   originalBody: {
     paddingHorizontal: 16,
     paddingTop: 16,
-    paddingBottom: 16,
   },
   originalLoadingBody: {
-    flexGrow: 1,
-    minHeight: FIGMA_ORIGINAL.height - 48,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
   },
   pager: {
+    position: 'absolute',
     height: FIGMA_PAGER.height,
     borderRadius: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 12,
+    zIndex: 3,
   },
   pagerButton: {
     width: 24,
