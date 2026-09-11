@@ -23,7 +23,6 @@ import type { SmsInboxItem } from '@/utils/sms-inbox-mock';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import {
-  ActivityIndicator,
   Platform,
   Pressable,
   StyleSheet,
@@ -43,6 +42,7 @@ import Animated, {
   type SharedValue,
   useAnimatedStyle,
   useSharedValue,
+  withRepeat,
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -118,6 +118,61 @@ function formatPagerLabel(index: number, total: number): string {
 
 function toCardData(item: SmsInboxItem): QuickInputConfirmCardData {
   return { ...item.card, category: item.card.category || '미정' };
+}
+
+/** 원문 로딩 — Figma Frame 296 스켈레톤 (2241:31037 / 2250:31703) */
+function OriginalMessageSkeleton({ boneColor, lineColor }: { boneColor: string; lineColor: string }) {
+  const pulse = useSharedValue(0.45);
+
+  useEffect(() => {
+    pulse.value = withRepeat(
+      withTiming(1, {
+        duration: 150,
+        easing: Easing.inOut(Easing.ease),
+      }),
+      -1,
+      true,
+    );
+  }, [pulse]);
+
+  const bonePulseStyle = useAnimatedStyle(() => ({
+    opacity: pulse.value,
+  }));
+
+  return (
+    <View style={styles.originalSkeleton} accessibilityLabel="원문 불러오는 중">
+      <View style={styles.originalSkeletonHeader}>
+        <Animated.View
+          style={[
+            styles.originalSkeletonBoneHeader,
+            { backgroundColor: boneColor },
+            bonePulseStyle,
+          ]}
+        />
+        <View style={[styles.originalSkeletonHeaderLine, { backgroundColor: lineColor }]} />
+      </View>
+      <View style={styles.originalSkeletonBody}>
+        {[0, 1, 2].map((row) => (
+          <View key={row} style={styles.originalSkeletonRow}>
+            <Animated.View
+              style={[
+                styles.originalSkeletonBoneLabel,
+                { backgroundColor: boneColor },
+                bonePulseStyle,
+              ]}
+            />
+            <Animated.View
+              style={[
+                styles.originalSkeletonBoneValue,
+                { backgroundColor: boneColor },
+                bonePulseStyle,
+              ]}
+            />
+          </View>
+        ))}
+      </View>
+    </View>
+  );
 }
 
 /**
@@ -945,12 +1000,17 @@ export function QuickInputSmsInbox({
         pointerEvents="box-none"
       >
         <View style={[styles.originalCard, { backgroundColor: palette.backgroundAlt }]}>
-          <View style={[styles.originalHeaderBar, { backgroundColor: atomicColors.blue[500] }]}>
-            {!originalLoading ? (
+          {originalLoading ? (
+            <OriginalMessageSkeleton
+              boneColor={atomicColors.neutral[200]}
+              lineColor={palette.border}
+            />
+          ) : (
+            <View style={styles.originalContent}>
               <View style={styles.originalHeaderRow}>
                 <View style={styles.originalSenderSlot}>
                   <Text
-                    style={[typography.body01.bold, { color: palette.staticWhite }]}
+                    style={[typography.body01.bold, { color: palette.textNeutral }]}
                     numberOfLines={1}
                   >
                     {current.senderLabels[0] ?? ''}
@@ -959,7 +1019,7 @@ export function QuickInputSmsInbox({
                 {current.senderLabels[1] ? (
                   <View style={styles.originalSenderSlot}>
                     <Text
-                      style={[typography.body01.bold, { color: palette.staticWhite }]}
+                      style={[typography.body01.bold, { color: palette.textNeutral }]}
                       numberOfLines={1}
                     >
                       {current.senderLabels[1]}
@@ -969,22 +1029,16 @@ export function QuickInputSmsInbox({
                   <View style={styles.originalSenderSlotSpacer} />
                 )}
               </View>
-            ) : null}
-          </View>
-          {originalLoading ? (
-            <View style={styles.originalLoadingBody} accessibilityLabel="원문 불러오는 중">
-              <ActivityIndicator color={palette.textNeutral} />
+              <View style={[styles.originalDivider, { backgroundColor: palette.border }]} />
+              <Text
+                style={[
+                  typography.body01.medium,
+                  { color: palette.textNeutral },
+                ]}
+              >
+                {current.originalBody}
+              </Text>
             </View>
-          ) : (
-            <Text
-              style={[
-                styles.originalBody,
-                typography.body01.medium,
-                { color: palette.textNeutral },
-              ]}
-            >
-              {current.originalBody}
-            </Text>
           )}
         </View>
       </Animated.View>
@@ -1141,13 +1195,12 @@ const styles = StyleSheet.create({
   originalCard: {
     borderRadius: 16,
     overflow: 'hidden',
-    height: FIGMA_ORIGINAL.height,
+    minHeight: FIGMA_ORIGINAL.height,
     position: 'relative',
   },
-  originalHeaderBar: {
-    height: 48,
-    paddingHorizontal: 12,
-    justifyContent: 'center',
+  originalContent: {
+    padding: 16,
+    gap: 12,
   },
   originalHeaderRow: {
     height: 24,
@@ -1165,14 +1218,50 @@ const styles = StyleSheet.create({
     width: 43,
     height: 24,
   },
-  originalBody: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
+  originalDivider: {
+    height: 1,
+    width: '100%',
   },
-  originalLoadingBody: {
-    ...StyleSheet.absoluteFill,
-    alignItems: 'center',
+  originalSkeleton: {
+    minHeight: FIGMA_ORIGINAL.height,
+  },
+  originalSkeletonHeader: {
+    height: 48,
+    paddingHorizontal: 24,
     justifyContent: 'center',
+  },
+  originalSkeletonBoneHeader: {
+    width: 215,
+    height: 20,
+    borderRadius: 8,
+  },
+  originalSkeletonHeaderLine: {
+    position: 'absolute',
+    left: 24,
+    right: 24,
+    bottom: 0,
+    height: 1,
+  },
+  originalSkeletonBody: {
+    paddingHorizontal: 24,
+    paddingTop: 26,
+    gap: 8,
+  },
+  originalSkeletonRow: {
+    height: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  originalSkeletonBoneLabel: {
+    width: 64,
+    height: 20,
+    borderRadius: 8,
+  },
+  originalSkeletonBoneValue: {
+    width: 215,
+    height: 20,
+    borderRadius: 8,
   },
   pager: {
     position: 'absolute',
