@@ -1,18 +1,14 @@
 /**
  * Use Notifications Hook
- * 
- * Manages notification permissions and settings
- * - Request permission on first app launch
- * - Check permission when user enables notifications in settings
+ *
+ * - 알림 권한 OS 모달은 사용자 액션(문자 수신 ON / 알림 설정 토글)에서만 요청
+ * - 첫 실행에서 미리 요청하지 않음 (undetermined 소진 방지)
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useState } from 'react';
 
 import { getExpoNotifications } from '@/utils/expo-notifications-client';
-import { Alert, Linking, Platform } from 'react-native';
-
-const HAS_REQUESTED_PERMISSION_KEY = 'hasRequestedNotificationPermission';
+import { Alert, Linking, PermissionsAndroid, Platform } from 'react-native';
 
 /**
  * Request notification permission
@@ -24,45 +20,12 @@ export async function requestNotificationPermission(): Promise<boolean> {
     if (!Notifications) {
       return false;
     }
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
-    
-    let finalStatus = existingStatus;
-    
-    // If not determined yet, ask user
-    if (existingStatus !== 'granted') {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
-    }
-
-    return finalStatus === 'granted';
+    // 항상 request 호출 — 이미 granted/denied면 OS가 모달 없이 즉시 반환
+    const { status } = await Notifications.requestPermissionsAsync();
+    return status === 'granted';
   } catch (error) {
 
     return false;
-  }
-}
-
-/**
- * Check if permission has been requested before
- */
-export async function hasRequestedPermission(): Promise<boolean> {
-  try {
-    const value = await AsyncStorage.getItem(HAS_REQUESTED_PERMISSION_KEY);
-    return value === 'true';
-  } catch (error) {
-
-    return false;
-  }
-}
-
-/**
- * Mark permission as requested
- */
-export async function markPermissionAsRequested(): Promise<void> {
-  try {
-    await AsyncStorage.setItem(HAS_REQUESTED_PERMISSION_KEY, 'true');
-
-  } catch (error) {
-
   }
 }
 
@@ -84,6 +47,76 @@ export async function getNotificationPermissionStatus(): Promise<'granted' | 'de
 }
 
 /**
+ * Open OS app settings (notification permission can be changed there).
+ */
+export function openAppNotificationSettings(): void {
+  if (Platform.OS === 'ios') {
+    void Linking.openURL('app-settings:');
+    return;
+  }
+  void Linking.openSettings();
+}
+
+/**
+ * SMS 수신 ON 권한 플로우 결과
+ * - skipped: Android 아님 — 이 플로우 미적용
+ * - granted: 이미 허용 — 추가 동작 없음
+ * - prompted: OS 시스템 모달 후(또는 거부 상태에서) 설정 이동
+ */
+export type SmsReceivePermissionFlowResult = 'skipped' | 'granted' | 'prompted';
+
+/**
+ * SMS 수신 ON용 권한 플로우 — **Android만**.
+ *
+ * 1) undetermined / 다시 물을 수 있음 → OS 시스템 모달(허용/거부) → 설정
+ * 2) denied(다시 못 물음) → OS 모달 없이 설정으로 이동
+ * 3) granted → 아무 것도 안 함
+ *
+ * iOS는 no-op (`skipped`). 인앱 「알림 권한 설정 안내」는 Android 안내 버튼 전용.
+ */
+export async function requestNotificationPermissionThenOpenSettings(): Promise<SmsReceivePermissionFlowResult> {
+  if (Platform.OS !== 'android') {
+    return 'skipped';
+  }
+
+  const Notifications = getExpoNotifications();
+
+  // Expo Go Android 등 — Notifications 모듈 없음 → PermissionsAndroid
+  if (!Notifications) {
+    const apiLevel =
+      typeof Platform.Version === 'number' ? Platform.Version : Number(Platform.Version);
+    if (!Number.isFinite(apiLevel) || apiLevel < 33) {
+      openAppNotificationSettings();
+      return 'prompted';
+    }
+
+    const permission = PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS;
+    const alreadyGranted = await PermissionsAndroid.check(permission);
+    if (alreadyGranted) {
+      return 'granted';
+    }
+
+    await PermissionsAndroid.request(permission);
+    openAppNotificationSettings();
+    return 'prompted';
+  }
+
+  const before = await Notifications.getPermissionsAsync();
+  if (before.status === 'granted') {
+    return 'granted';
+  }
+
+  // undetermined / canAskAgain → OS 시스템 모달
+  // denied + 다시 못 물음 → 모달 스킵 후 설정
+  if (before.status !== 'denied' || before.canAskAgain === true) {
+    await Notifications.requestPermissionsAsync();
+  }
+
+  openAppNotificationSettings();
+  return 'prompted';
+}
+
+/**
  * Show alert to guide user to app settings
  */
 export function showSettingsAlert(): void {
@@ -98,11 +131,7 @@ export function showSettingsAlert(): void {
       {
         text: '허용',
         onPress: () => {
-          if (Platform.OS === 'ios') {
-            Linking.openURL('app-settings:');
-          } else {
-            Linking.openSettings();
-          }
+          openAppNotificationSettings();
         },
       },
     ]
@@ -110,42 +139,14 @@ export function showSettingsAlert(): void {
 }
 
 /**
- * Hook to manage notification permission on first app launch
+ * 부트스트랩용 — 알림 스케줄 정리 타이밍만 맞춤.
+ * OS 권한 모달은 여기서 요청하지 않음 (문자 수신 ON / 알림 설정에서 요청).
  */
 export function useFirstLaunchNotificationPermission() {
   const [permissionChecked, setPermissionChecked] = useState(false);
 
   useEffect(() => {
-    const checkAndRequestPermission = async () => {
-      try {
-        // Check if we've already requested permission
-        const hasRequested = await hasRequestedPermission();
-        
-        if (!hasRequested) {
-
-          // Request permission
-          const granted = await requestNotificationPermission();
-          
-          // Mark as requested (regardless of result)
-          await markPermissionAsRequested();
-          
-          if (granted) {
-
-          } else {
-
-          }
-        } else {
-
-        }
-        
-        setPermissionChecked(true);
-      } catch (error) {
-
-        setPermissionChecked(true);
-      }
-    };
-
-    checkAndRequestPermission();
+    setPermissionChecked(true);
   }, []);
 
   return { permissionChecked };

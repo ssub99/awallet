@@ -47,6 +47,10 @@ import { getApiSecurityHeaders } from '@/utils/api-security-headers';
 import { isAtLeastVersion, QUICK_INPUT_MIN_VERSION } from '@/utils/app-version';
 import { createSmsInboxMockItems, type SmsInboxItem } from '@/utils/sms-inbox-mock';
 import {
+  loadSmsReceiveEnabled,
+  subscribeSmsReceiveEnabled,
+} from '@/utils/sms-receive-settings';
+import {
   EXPENSE_RECORD_SHEET_ANALYTICS_SCREEN_NAME,
   INCOME_RECORD_SHEET_ANALYTICS_SCREEN_NAME,
 } from '@/utils/expense-record-creation-mode';
@@ -985,6 +989,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const [isQuickInputSmsInboxVisible, setIsQuickInputSmsInboxVisible] = useState(false);
   const [isQuickInputSmsInboxOpening, setIsQuickInputSmsInboxOpening] = useState(false);
   const isQuickInputSmsInboxClosingRef = useRef(false);
+  /** 문자 수신 설정 ON일 때만 칩·숏 뱃지 노출 */
+  const [smsReceiveEnabled, setSmsReceiveEnabled] = useState(false);
   const [smsInboxItems, setSmsInboxItems] = useState<SmsInboxItem[]>(() => createSmsInboxMockItems());
   const [smsInboxIndex, setSmsInboxIndex] = useState(0);
   const [confirmCardData, setConfirmCardData] = useState<QuickInputConfirmCardData | null>(null);
@@ -1141,6 +1147,20 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   useEffect(() => {
     isQuickInputVisibleRef.current = isQuickInputVisible;
   }, [isQuickInputVisible]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadSmsReceiveEnabled().then((enabled) => {
+      if (!cancelled) {
+        setSmsReceiveEnabled(enabled);
+      }
+    });
+    const unsubscribe = subscribeSmsReceiveEnabled(setSmsReceiveEnabled);
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, []);
 
   const markAndroidKeyboardVisible = useCallback(() => {
     androidKeyboardWasVisibleRef.current = true;
@@ -1340,7 +1360,9 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       setQuickInputCalculatorExpression([]);
       setIsQuickInputSmsInboxVisible(false);
       // ponytail: unread SMS mock until native ingest lands.
-      setSmsInboxItems((prev) => (prev.length > 0 ? prev : createSmsInboxMockItems()));
+      if (smsReceiveEnabled) {
+        setSmsInboxItems((prev) => (prev.length > 0 ? prev : createSmsInboxMockItems()));
+      }
       setSmsInboxIndex(0);
       smsInboxCategoryItemIdRef.current = null;
       if (smsInboxCategorySheetUnmountTimeoutRef.current) {
@@ -1355,7 +1377,14 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       setIsQuickInputContentVisible(true);
       setIsQuickInputVisible(true);
     },
-    [animatedBottom, iosKeyboardHeightPrev, iosKeyboardPeakHeight, setShouldFollowKeyboard, shortBottomFromScreen]
+    [
+      animatedBottom,
+      iosKeyboardHeightPrev,
+      iosKeyboardPeakHeight,
+      setShouldFollowKeyboard,
+      shortBottomFromScreen,
+      smsReceiveEnabled,
+    ]
   );
 
   const handleQuickInputFieldFocus = useCallback(() => {
@@ -1478,6 +1507,9 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   ]);
 
   const handleQuickInputSmsInboxPress = useCallback(() => {
+    if (!smsReceiveEnabled) {
+      return;
+    }
     if (isQuickInputSmsInboxVisible || isQuickInputSmsInboxOpening) {
       if (isQuickInputSmsInboxVisible) {
         closeQuickInputSmsInbox();
@@ -1600,6 +1632,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     shortBottomFromScreen,
     showToast,
     smsInboxItems.length,
+    smsReceiveEnabled,
   ]);
 
   const handleSmsInboxIndexChange = useCallback((nextIndex: number) => {
@@ -4264,7 +4297,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       isQuickInputVisible,
       isQuickInputContentVisible,
       isQuickInputShortVisible,
-      smsInboxUnreadCount: smsInboxItems.length,
+      smsInboxUnreadCount: smsReceiveEnabled ? smsInboxItems.length : 0,
       showQuickInput,
       hideQuickInput,
       quickInputText,
@@ -4279,6 +4312,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       quickInputText,
       setQuickInputTextTruncated,
       smsInboxItems.length,
+      smsReceiveEnabled,
     ]
   );
 
@@ -4465,28 +4499,30 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                           contentContainerStyle={styles.actionRow}
                           keyboardShouldPersistTaps="handled"
                         >
-                            <Pressable
-                              style={styles.actionChip}
-                              onPress={handleQuickInputSmsInboxPress}
-                              accessibilityRole="button"
-                              accessibilityLabel={
-                                smsInboxItems.length > 0
-                                  ? `문자 수신함, 미처리 ${smsInboxItems.length}건`
-                                  : '문자 수신함'
-                              }
-                            >
-                              <View style={styles.actionIconBox}>
-                                <Icon name="message" variant="solid" size={24} />
-                              </View>
-                              <Text style={styles.actionLabel}>문자 수신함</Text>
-                              {smsInboxItems.length > 0 ? (
-                                <View style={styles.actionBadge}>
-                                  <Text style={styles.actionBadgeLabel}>
-                                    {smsInboxItems.length > 99 ? '99+' : String(smsInboxItems.length)}
-                                  </Text>
+                            {smsReceiveEnabled ? (
+                              <Pressable
+                                style={styles.actionChip}
+                                onPress={handleQuickInputSmsInboxPress}
+                                accessibilityRole="button"
+                                accessibilityLabel={
+                                  smsInboxItems.length > 0
+                                    ? `문자 수신함, 미처리 ${smsInboxItems.length}건`
+                                    : '문자 수신함'
+                                }
+                              >
+                                <View style={styles.actionIconBox}>
+                                  <Icon name="message" variant="solid" size={24} />
                                 </View>
-                              ) : null}
-                            </Pressable>
+                                <Text style={styles.actionLabel}>문자 수신함</Text>
+                                {smsInboxItems.length > 0 ? (
+                                  <View style={styles.actionBadge}>
+                                    <Text style={styles.actionBadgeLabel}>
+                                      {smsInboxItems.length > 99 ? '99+' : String(smsInboxItems.length)}
+                                    </Text>
+                                  </View>
+                                ) : null}
+                              </Pressable>
+                            ) : null}
                             <Pressable
                               style={styles.actionChip}
                               onPress={handleQuickInputCalculatorPress}

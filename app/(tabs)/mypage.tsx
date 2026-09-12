@@ -378,8 +378,22 @@ export default function MyPageScreen() {
             </Pressable>
           </View>
 
-          {/* Category Settings Card */}
+          {/* Category / SMS receive Card — Figma Frame 64 · settings.default */}
           <View style={[styles.card, { backgroundColor: colors.background }]}>
+            <Pressable
+              style={styles.menuRow}
+              onPress={() => {
+                router.push('/settings-sms-receive');
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="문자 수신 설정"
+            >
+              <UiLineText style={[styles.menuLabel, { color: colors.text }]}>문자 수신 설정</UiLineText>
+              <Icon name="arrowRight" size={24} color={colors.text} />
+            </Pressable>
+
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
             {/* Category Settings */}
             <Pressable 
               style={styles.menuRow}

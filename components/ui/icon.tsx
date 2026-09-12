@@ -55,6 +55,7 @@ import ArrowDownSolid from '@/assets/images/icons/solid/arrowDown.svg';
 import ArrowLeftSolid from '@/assets/images/icons/solid/arrowLeft.svg';
 import ArrowRightSolid from '@/assets/images/icons/solid/arrowRight.svg';
 import ArrowUpSolid from '@/assets/images/icons/solid/arrowUp.svg';
+import AddNumberSolid from '@/assets/images/icons/solid/addNumber.svg';
 import CalculatorSolid from '@/assets/images/icons/solid/calculator.svg';
 import CancelSolid from '@/assets/images/icons/solid/cancel.svg';
 import CategorySettingSolid from '@/assets/images/icons/solid/categorysetting.svg';
@@ -152,6 +153,7 @@ const iconComponents = {
     star: StarLine,
   },
   solid: {
+    addNumber: AddNumberSolid,
     arrowDown: ArrowDownSolid,
     arrowLeft: ArrowLeftSolid,
     arrowRight: ArrowRightSolid,

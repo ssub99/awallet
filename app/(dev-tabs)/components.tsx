@@ -565,7 +565,9 @@ function TestContent({ colors }: { colors: ColorPalette }) {
                 try {
                   await AsyncStorage.removeItem('hasRequestedNotificationPermission');
 
-                  alert('알림 권한 요청 기록이 삭제되었습니다.\n앱을 재시작하면 다시 권한을 요청합니다.');
+                  alert(
+                    '앱 내 기록만 삭제됩니다.\niOS 시스템 모달을 다시 보려면 Expo Go를 삭제 후 재설치하세요.',
+                  );
                 } catch (error) {
                   console.error('알림 권한 리셋 중 오류:', error);
                   alert('알림 권한 리셋 중 오류가 발생했습니다.');
