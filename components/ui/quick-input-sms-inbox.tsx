@@ -21,6 +21,13 @@ import { atomicColors } from '@/constants/atomic-colors';
 import { colors, typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import type { SmsInboxItem } from '@/utils/sms-inbox-mock';
+import {
+  buildStackFrame,
+  SlotMotion,
+  STACK_FRAME_CAPACITY,
+  type SlotMotionValue,
+  type StackTransition,
+} from '@/utils/sms-inbox-stack-frame';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import {
@@ -70,7 +77,7 @@ const FIGMA_SCREEN_HEIGHT = 812;
 const FIGMA_PAGER_BOTTOM_GAP = FIGMA_SCREEN_HEIGHT - (FIGMA_PAGER.top + FIGMA_PAGER.height);
 
 const SWIPE_COMMIT_VELOCITY = 800;
-const ROLL_DURATION_MS = 640;
+const ROLL_DURATION_MS = 320;
 const ROLL_EASING = Easing.out(Easing.cubic);
 /** 앞↔뒤 넘김이 보이도록 슬롯 간격(12px)보다 크게 띄움 */
 const ROLL_LIFT_PX = 36;
@@ -197,13 +204,11 @@ function OriginalMessageSkeleton({ boneColor, lineColor }: { boneColor: string; 
 }
 
 /**
- * role 0/1/2 = 윈도우 top/mid/bottom · role 3 = consume 시 뒤에서 들어오는 다음 카드
- * animKind: 0 idle · 1 next · 2 prevEnter · 3 consume(퇴장+롤업+유입) · 4 lastExit
- * progress: idle scrub / 그 외 0→1
+ * 한 프레임에 그릴 카드·모션은 buildStackFrame이 확정한다 (utils/sms-inbox-stack-frame).
+ * 여기서는 motion 하나만 보고 궤적을 그리므로, 카드가 없는 슬롯의 모션은 생길 수 없다.
  *
- * 추가/취소(잔여): 로딩 + top퇴장 · mid→top · bottom→mid · next→bottom
- * 추가/취소(마지막): 퇴장만 → 메인 복귀 (추가만 토스트)
- * next(마지막 직전→마지막): top 퇴장 + mid→top (bottom 쌓임 없음)
+ * progress: forward(+) = 다음·추가·취소 · backward(-) = 이전 · 0 = 정지
+ * 모션마다 자기 방향의 진행도만 쓰므로 transition 상태가 한 프레임 늦어도 정지 포즈가 된다.
  */
 function slotTopY(stackTop: number, slotIndex: 0 | 1 | 2): number {
   'worklet';
@@ -235,20 +240,16 @@ function settledSlotStyle(
   };
 }
 
-function useSlotAnimatedStyle(
-  role: 0 | 1 | 2 | 3,
+function useMotionStyle(
+  motion: SlotMotionValue | 0,
   progress: SharedValue<number>,
-  animKind: SharedValue<number>,
-  nextToLastSV: SharedValue<boolean>,
-  canGoPrevSV: SharedValue<boolean>,
-  isLastSV: SharedValue<boolean>,
   stackTop: number,
   screenWidth: number,
 ) {
   return useAnimatedStyle(() => {
-    const kind = animKind.value;
-    const p = progress.value;
     const centerX = screenWidth / 2;
+    const forward = Math.min(Math.max(progress.value, 0), 1);
+    const backward = Math.min(Math.max(-progress.value, 0), 1);
 
     const topY = slotTopY(stackTop, 0);
     const midY = slotTopY(stackTop, 1);
@@ -259,172 +260,73 @@ function useSlotAnimatedStyle(
     const incomingW = screenWidth - SLOT_INCOMING_INSET * 2;
     const incomingY = botY + SLOT_INCOMING_EXTRA_Y;
 
-    let top = role <= 2 ? slotTopY(stackTop, role as 0 | 1 | 2) : botY;
-    let width = role <= 2 ? slotWidth(screenWidth, role as 0 | 1 | 2) : botW;
-    let zIndex = role <= 2 ? SLOT_Z[role as 0 | 1 | 2] : 0;
+    let top = topY;
+    let width = topW;
+    let zIndex: number = SLOT_Z[0];
     let liftY = 0;
     let opacity = 1;
 
-    if (kind === 3 || kind === 4) {
-      const t = Math.min(Math.max(p, 0), 1);
-      const exitOnly = kind === 4;
-      if (role === 3) {
-        if (exitOnly) {
-          opacity = 0;
-          zIndex = 0;
-        } else {
-          // 맨 뒤에서 bottom 슬롯으로 쌓임
-          width = interpolate(t, [0, 1], [incomingW, botW], Extrapolation.CLAMP);
-          top = interpolate(t, [0, 1], [incomingY, botY], Extrapolation.CLAMP);
-          opacity = interpolate(t, [0, 0.25, 1], [0, 0.85, 1], Extrapolation.CLAMP);
-          liftY = interpolate(t, [0, 0.5, 1], [8, 2, 0], Extrapolation.CLAMP);
-          zIndex = 0;
-        }
-      } else if (role === 0) {
-        width = topW;
-        top = topY;
-        liftY = interpolate(t, [0, 1], [0, -ROLL_LIFT_PX * 1.25], Extrapolation.CLAMP);
-        opacity = interpolate(t, [0, 0.55, 1], [1, 0.35, 0], Extrapolation.CLAMP);
-        zIndex = 6;
-      } else if (role === 1) {
-        if (exitOnly) {
-          width = midW;
-          top = midY;
-          zIndex = 2;
-        } else {
-          width = interpolate(t, [0, 1], [midW, topW], Extrapolation.CLAMP);
-          top = interpolate(t, [0, 1], [midY, topY], Extrapolation.CLAMP);
-          liftY = interpolate(t, [0, 0.45, 1], [0, -10, 0], Extrapolation.CLAMP);
-          // mid가 앞으로 나갈 때까지 bot보다 항상 위
-          zIndex = t < 0.35 ? 2 : 4;
-        }
-      } else if (exitOnly) {
-        width = botW;
-        top = botY;
-        zIndex = 1;
-      } else {
-        width = interpolate(t, [0, 1], [botW, midW], Extrapolation.CLAMP);
-        top = interpolate(t, [0, 1], [botY, midY], Extrapolation.CLAMP);
-        liftY = interpolate(t, [0, 0.5, 1], [0, -6, 0], Extrapolation.CLAMP);
-        // mid 승격 전에는 1 — mid와 z=2 동급이면 그려진 순서로 third가 덮음
-        zIndex = t < 0.35 ? 1 : 2;
-      }
-    } else if (role === 3) {
+    if (motion === SlotMotion.holdFront) {
+      top = topY;
+      width = topW;
+      zIndex = SLOT_Z[0];
+    } else if (motion === SlotMotion.holdMid) {
+      top = midY;
+      width = midW;
+      zIndex = SLOT_Z[1];
+    } else if (motion === SlotMotion.holdThird) {
+      top = botY;
+      width = botW;
+      zIndex = SLOT_Z[2];
+    } else if (motion === SlotMotion.exitUp) {
+      top = topY;
+      width = topW;
+      liftY = interpolate(forward, [0, 1], [0, -ROLL_LIFT_PX * 1.25], Extrapolation.CLAMP);
+      opacity = interpolate(forward, [0, 0.55, 1], [1, 0.35, 0], Extrapolation.CLAMP);
+      zIndex = 6;
+    } else if (motion === SlotMotion.midToFront) {
+      top = interpolate(forward, [0, 1], [midY, topY], Extrapolation.CLAMP);
+      width = interpolate(forward, [0, 1], [midW, topW], Extrapolation.CLAMP);
+      liftY = interpolate(forward, [0, 0.45, 1], [0, -10, 0], Extrapolation.CLAMP);
+      zIndex = 4;
+    } else if (motion === SlotMotion.thirdToMid) {
+      top = interpolate(forward, [0, 1], [botY, midY], Extrapolation.CLAMP);
+      width = interpolate(forward, [0, 1], [botW, midW], Extrapolation.CLAMP);
+      liftY = interpolate(forward, [0, 0.5, 1], [0, -6, 0], Extrapolation.CLAMP);
+      zIndex = 2;
+    } else if (motion === SlotMotion.enterFromBelow) {
+      top = interpolate(forward, [0, 1], [incomingY, botY], Extrapolation.CLAMP);
+      width = interpolate(forward, [0, 1], [incomingW, botW], Extrapolation.CLAMP);
+      liftY = interpolate(forward, [0, 0.5, 1], [8, 2, 0], Extrapolation.CLAMP);
+      opacity = interpolate(forward, [0, 0.25, 1], [0, 0.85, 1], Extrapolation.CLAMP);
+      zIndex = 1;
+    } else if (motion === SlotMotion.enterFromAbove) {
+      // exitUp의 역재생
+      top = topY;
+      width = topW;
+      liftY = interpolate(backward, [0, 1], [-ROLL_LIFT_PX * 1.25, 0], Extrapolation.CLAMP);
+      opacity = interpolate(backward, [0, 0.45, 1], [0, 0.65, 1], Extrapolation.CLAMP);
+      zIndex = 6;
+    } else if (motion === SlotMotion.frontToMid) {
+      top = interpolate(backward, [0, 1], [topY, midY], Extrapolation.CLAMP);
+      width = interpolate(backward, [0, 1], [topW, midW], Extrapolation.CLAMP);
+      liftY = interpolate(backward, [0, 0.45, 1], [0, 10, 0], Extrapolation.CLAMP);
+      zIndex = 3;
+    } else if (motion === SlotMotion.midToThird) {
+      top = interpolate(backward, [0, 1], [midY, botY], Extrapolation.CLAMP);
+      width = interpolate(backward, [0, 1], [midW, botW], Extrapolation.CLAMP);
+      liftY = interpolate(backward, [0, 0.5, 1], [0, 6, 0], Extrapolation.CLAMP);
+      zIndex = 2;
+    } else if (motion === SlotMotion.exitDown) {
+      // exitUp의 대칭
+      top = botY;
+      width = botW;
+      liftY = interpolate(backward, [0, 1], [0, ROLL_LIFT_PX * 1.25], Extrapolation.CLAMP);
+      opacity = interpolate(backward, [0, 0.55, 1], [1, 0.35, 0], Extrapolation.CLAMP);
+      zIndex = 1;
+    } else {
       opacity = 0;
       zIndex = 0;
-    } else if (kind === 2) {
-      // prevEnter(레거시): 새 rest 윈도우에서 role0이 뒤→앞. 아래 쌓임 없음.
-      const t = Math.min(Math.max(p, 0), 1);
-      if (role === 0) {
-        width = interpolate(t, [0, 1], [botW, topW], Extrapolation.CLAMP);
-        top = interpolate(t, [0, 1], [botY, topY], Extrapolation.CLAMP);
-        liftY = interpolate(t, [0, 0.4, 1], [0, -ROLL_LIFT_PX, 0], Extrapolation.CLAMP);
-        zIndex = SLOT_Z[0];
-      } else if (role === 1) {
-        width = interpolate(t, [0, 1], [topW, midW], Extrapolation.CLAMP);
-        top = interpolate(t, [0, 1], [topY, midY], Extrapolation.CLAMP);
-        liftY = interpolate(t, [0, 0.4, 1], [0, 8, 0], Extrapolation.CLAMP);
-        zIndex = SLOT_Z[1];
-      } else {
-        width = botW;
-        top = botY;
-        opacity = 1;
-        zIndex = 1;
-      }
-    } else if (kind === 1 || p > 0) {
-      // next · 마지막 직전→마지막은 top이 bottom에 쌓이지 않고 퇴장만
-      const t = Math.min(p, 1);
-      if (t > 0) {
-        const toLast = nextToLastSV.value;
-        if (role === 0) {
-          if (toLast) {
-            width = topW;
-            top = topY;
-            liftY = interpolate(t, [0, 1], [0, -ROLL_LIFT_PX * 1.25], Extrapolation.CLAMP);
-            opacity = interpolate(t, [0, 0.55, 1], [1, 0.35, 0], Extrapolation.CLAMP);
-            zIndex = 6;
-          } else {
-            width = interpolate(t, [0, 1], [topW, botW], Extrapolation.CLAMP);
-            top = interpolate(t, [0, 1], [topY, botY], Extrapolation.CLAMP);
-            liftY = interpolate(t, [0, 0.35, 1], [0, -ROLL_LIFT_PX, 0], Extrapolation.CLAMP);
-            zIndex = t < 0.42 ? 5 : 1;
-          }
-        } else if (role === 1) {
-          width = interpolate(t, [0, 1], [midW, topW], Extrapolation.CLAMP);
-          top = interpolate(t, [0, 1], [midY, topY], Extrapolation.CLAMP);
-          liftY = interpolate(t, [0, 0.45, 1], [0, -10, 0], Extrapolation.CLAMP);
-          zIndex = t < 0.42 ? 2 : 4;
-        } else {
-          width = interpolate(t, [0, 1], [botW, midW], Extrapolation.CLAMP);
-          top = interpolate(t, [0, 1], [botY, midY], Extrapolation.CLAMP);
-          liftY = interpolate(t, [0, 0.5, 1], [0, -6, 0], Extrapolation.CLAMP);
-          // mid와 동급 z 금지 — 제스처 next에서 third가 second 위로 뜨던 원인
-          zIndex = t < 0.42 ? 1 : 2;
-        }
-      }
-    } else if (p < 0) {
-      // prev scrub (제스처·버튼)
-      const t = Math.min(-p, 1);
-      if (!canGoPrevSV.value) {
-        // 첫 카드 러버밴드 = next 러버의 net 변위 정반대 (top+lift 이중 적용 없이 한 축)
-        if (role === 0) {
-          const nextTop = interpolate(t, [0, 1], [topY, botY], Extrapolation.CLAMP);
-          const nextLift = interpolate(t, [0, 0.35, 1], [0, -ROLL_LIFT_PX, 0], Extrapolation.CLAMP);
-          top = topY;
-          width = topW;
-          liftY = -((nextTop - topY) + nextLift);
-          zIndex = SLOT_Z[0];
-        } else if (role === 1) {
-          const nextTop = interpolate(t, [0, 1], [midY, topY], Extrapolation.CLAMP);
-          const nextLift = interpolate(t, [0, 0.45, 1], [0, -10, 0], Extrapolation.CLAMP);
-          top = midY;
-          width = midW;
-          liftY = -((nextTop - midY) + nextLift);
-          zIndex = SLOT_Z[1];
-        } else {
-          const nextTop = interpolate(t, [0, 1], [botY, midY], Extrapolation.CLAMP);
-          const nextLift = interpolate(t, [0, 0.5, 1], [0, -6, 0], Extrapolation.CLAMP);
-          top = botY;
-          width = botW;
-          liftY = -((nextTop - botY) + nextLift);
-          zIndex = SLOT_Z[2];
-        }
-      } else if (isLastSV.value) {
-        // 마지막→이전: toLast 퇴장(위로 fade-out)의 역재생 + 앞카드→mid
-        if (role === 0) {
-          width = interpolate(t, [0, 1], [topW, midW], Extrapolation.CLAMP);
-          top = interpolate(t, [0, 1], [topY, midY], Extrapolation.CLAMP);
-          liftY = interpolate(t, [0, 0.45, 1], [0, 10, 0], Extrapolation.CLAMP);
-          zIndex = SLOT_Z[1];
-        } else if (role === 1) {
-          opacity = 0;
-          zIndex = 0;
-        } else {
-          // 퇴장했던 카드가 같은 궤적으로 복귀 → 프론트
-          width = topW;
-          top = topY;
-          liftY = interpolate(t, [0, 1], [-ROLL_LIFT_PX * 1.25, 0], Extrapolation.CLAMP);
-          opacity = interpolate(t, [0, 0.45, 1], [0, 0.65, 1], Extrapolation.CLAMP);
-          zIndex = SLOT_Z[0];
-        }
-      } else if (role === 0) {
-        width = interpolate(t, [0, 1], [topW, midW], Extrapolation.CLAMP);
-        top = interpolate(t, [0, 1], [topY, midY], Extrapolation.CLAMP);
-        liftY = interpolate(t, [0, 0.4, 1], [0, 8, 0], Extrapolation.CLAMP);
-        zIndex = SLOT_Z[1];
-      } else if (role === 1) {
-        // mid→bot 직접 (아래 incoming 쌓임/페이드 없음)
-        width = interpolate(t, [0, 1], [midW, botW], Extrapolation.CLAMP);
-        top = interpolate(t, [0, 1], [midY, botY], Extrapolation.CLAMP);
-        liftY = interpolate(t, [0, 0.5, 1], [0, 6, 0], Extrapolation.CLAMP);
-        opacity = 1;
-        zIndex = 1;
-      } else {
-        width = interpolate(t, [0, 1], [botW, topW], Extrapolation.CLAMP);
-        top = interpolate(t, [0, 1], [botY, topY], Extrapolation.CLAMP);
-        liftY = interpolate(t, [0, 0.4, 1], [0, -ROLL_LIFT_PX, 0], Extrapolation.CLAMP);
-        zIndex = SLOT_Z[0];
-      }
     }
 
     return {
@@ -436,7 +338,7 @@ function useSlotAnimatedStyle(
       opacity,
       transform: [{ translateY: liftY }],
     };
-  });
+  }, [motion, stackTop, screenWidth]);
 }
 
 function StackCard({
@@ -503,19 +405,11 @@ export function QuickInputSmsInbox({
   const safeIndex = items.length === 0 ? 0 : Math.min(Math.max(index, 0), items.length - 1);
   const canGoPrev = safeIndex > 0;
   const canGoNext = safeIndex < items.length - 1;
-  /** next로 마지막 카드에 도착하는 전환 (9→10 등) — bottom 쌓임 생략 */
-  const isNextToLast = canGoNext && safeIndex === items.length - 2;
-  /** 마지막에서 prev — toLast 퇴장 역재생 */
-  const isLast = safeIndex === items.length - 1 && items.length > 0;
 
   const progress = useSharedValue(0);
-  /** 0 idle · 1 next · 2 prevEnter · 3 consume(퇴장+롤업) · 4 confirmLastExit */
-  const animKind = useSharedValue(0);
   const isRolling = useSharedValue(false);
   const canGoNextSV = useSharedValue(canGoNext);
   const canGoPrevSV = useSharedValue(canGoPrev);
-  const nextToLastSV = useSharedValue(isNextToLast);
-  const isLastSV = useSharedValue(isLast);
   const stackOpacity = useSharedValue(1);
   /** next/prev 완료 시 현재 스택과 교대할 도착 순서의 정착 포즈 */
   const nextSettledOpacity = useSharedValue(0);
@@ -526,7 +420,7 @@ export function QuickInputSmsInbox({
   /** 원문+핸들: 아래에서 위로 */
   const bottomEnterTranslateY = useSharedValue(ENTER_SLIDE_OFFSET);
   const bottomEnterOpacity = useSharedValue(0);
-  const [renderMode, setRenderMode] = useState<'rest' | 'prev'>('rest');
+  const [transition, setTransition] = useState<StackTransition>('idle');
   const [stackEpoch, setStackEpoch] = useState(0);
   const [originalLoading, setOriginalLoading] = useState(false);
   const [isConsuming, setIsConsuming] = useState(false);
@@ -549,18 +443,7 @@ export function QuickInputSmsInbox({
   useEffect(() => {
     canGoNextSV.value = canGoNext;
     canGoPrevSV.value = canGoPrev;
-    nextToLastSV.value = isNextToLast;
-    isLastSV.value = isLast;
-  }, [
-    canGoNext,
-    canGoPrev,
-    canGoNextSV,
-    canGoPrevSV,
-    isLast,
-    isLastSV,
-    isNextToLast,
-    nextToLastSV,
-  ]);
+  }, [canGoNext, canGoPrev, canGoNextSV, canGoPrevSV]);
 
   useEffect(() => {
     cardEnterTranslateY.value = -ENTER_SLIDE_OFFSET;
@@ -617,86 +500,25 @@ export function QuickInputSmsInbox({
     transform: [{ translateY: bottomEnterTranslateY.value }],
   }));
 
-  const restWindow = useMemo((): [
-    SmsInboxItem | null,
-    SmsInboxItem | null,
-    SmsInboxItem | null,
-  ] => {
-    return [
-      items[safeIndex] ?? null,
-      items[safeIndex + 1] ?? null,
-      items[safeIndex + 2] ?? null,
-    ];
-  }, [items, safeIndex]);
-
-  /** prev 롤링: role2에 이전 카드를 고정(filter 금지 — 끝 인덱스에서 role이 밀림) */
-  const prevWindow = useMemo((): [
-    SmsInboxItem | null,
-    SmsInboxItem | null,
-    SmsInboxItem | null,
-  ] => {
-    if (safeIndex <= 0) return restWindow;
-    return [
-      items[safeIndex] ?? null,
-      items[safeIndex + 1] ?? null,
-      items[safeIndex - 1] ?? null,
-    ];
-  }, [items, restWindow, safeIndex]);
-
   /**
-   * consume(잔여): top/mid/bottom + 뒤에서 들어올 다음 카드(role3)
-   * 제거 전 큐 기준 items[i+3]가 새 bottom이 된다.
+   * 지금 그릴 프레임. 추가/취소(consume)는 다음 넘김과 같은 forward 모션이고,
+   * 커밋 방식만 다르다 (index 이동 vs 큐에서 제거).
    */
-  const consumeWindow = useMemo((): [
-    SmsInboxItem | null,
-    SmsInboxItem | null,
-    SmsInboxItem | null,
-    SmsInboxItem | null,
-  ] => {
-    return [
-      items[safeIndex] ?? null,
-      items[safeIndex + 1] ?? null,
-      items[safeIndex + 2] ?? null,
-      items[safeIndex + 3] ?? null,
-    ];
-  }, [items, safeIndex]);
+  const frame = useMemo(
+    () => buildStackFrame(items.length, safeIndex, transition),
+    [items.length, safeIndex, transition],
+  );
 
-  const nextSettledWindow = useMemo((): [
-    SmsInboxItem | null,
-    SmsInboxItem | null,
-    SmsInboxItem | null,
-  ] => {
-    const baseIndex = frozenPagerIndex ?? safeIndex;
-    return [
-      items[baseIndex + 1] ?? null,
-      items[baseIndex + 2] ?? null,
-      items[baseIndex + 3] ?? null,
-    ];
-  }, [frozenPagerIndex, items, safeIndex]);
+  /** 전환 완료 시 교대할 도착 순서의 정지 프레임 */
+  const nextSettledFrame = useMemo(
+    () => buildStackFrame(items.length, (frozenPagerIndex ?? safeIndex) + 1, 'idle'),
+    [frozenPagerIndex, items.length, safeIndex],
+  );
 
-  /** prev 완료 시 도착 rest 윈도우 (base-1 / base / base+1) */
-  const prevSettledWindow = useMemo((): [
-    SmsInboxItem | null,
-    SmsInboxItem | null,
-    SmsInboxItem | null,
-  ] => {
-    const baseIndex = frozenPagerIndex ?? safeIndex;
-    if (baseIndex <= 0) {
-      return [items[0] ?? null, items[1] ?? null, items[2] ?? null];
-    }
-    return [
-      items[baseIndex - 1] ?? null,
-      items[baseIndex] ?? null,
-      items[baseIndex + 1] ?? null,
-    ];
-  }, [frozenPagerIndex, items, safeIndex]);
-
-  const windowItems: Array<SmsInboxItem | null> =
-    isConsuming && items.length > 1
-      ? consumeWindow
-      : renderMode === 'prev'
-        ? prevWindow
-        : restWindow;
+  const prevSettledFrame = useMemo(
+    () => buildStackFrame(items.length, (frozenPagerIndex ?? safeIndex) - 1, 'idle'),
+    [frozenPagerIndex, items.length, safeIndex],
+  );
 
   const commitNext = useCallback(() => {
     if (safeIndex >= items.length - 1) return;
@@ -731,31 +553,28 @@ export function QuickInputSmsInbox({
    */
   const finishNextRoll = useCallback(() => {
     flushSync(() => {
-      setRenderMode('rest');
+      setTransition('idle');
       commitNext();
     });
-    animKind.value = 0;
     progress.value = 0;
     revealSettledStack();
-  }, [animKind, commitNext, progress, revealSettledStack]);
+  }, [commitNext, progress, revealSettledStack]);
 
   const finishPrevScrub = useCallback(() => {
     flushSync(() => {
-      setRenderMode('rest');
+      setTransition('idle');
       commitPrev();
     });
-    animKind.value = 0;
     progress.value = 0;
     revealSettledStack();
-  }, [animKind, commitPrev, progress, revealSettledStack]);
+  }, [commitPrev, progress, revealSettledStack]);
 
   const resetConsumeMotion = useCallback(() => {
-    animKind.value = 0;
     progress.value = 0;
     isRolling.value = false;
     setIsConsuming(false);
-    setRenderMode('rest');
-  }, [animKind, isRolling, progress]);
+    setTransition('idle');
+  }, [isRolling, progress]);
 
   /** 잔여 추가: consume(퇴장+롤업) 종료 → 저장 훅 → 제거+토스트 */
   const finishConfirmConsume = useCallback(() => {
@@ -785,17 +604,15 @@ export function QuickInputSmsInbox({
           onConfirmConsumed(pending.item);
         }
         setIsConsuming(false);
-        setRenderMode('rest');
+        setTransition('idle');
         setStackEpoch((epoch) => epoch + 1);
         setOriginalLoading(false);
         setFrozenPagerIndex(null);
       });
-      animKind.value = 0;
-      progress.value = 0;
+        progress.value = 0;
       isRolling.value = false;
     })();
   }, [
-    animKind,
     isRolling,
     onConfirm,
     onConfirmConsumed,
@@ -833,15 +650,14 @@ export function QuickInputSmsInbox({
         onCancel(pending.item);
       }
       setIsConsuming(false);
-      setRenderMode('rest');
+      setTransition('idle');
       setStackEpoch((epoch) => epoch + 1);
       setOriginalLoading(false);
       setFrozenPagerIndex(null);
     });
-    animKind.value = 0;
     progress.value = 0;
     isRolling.value = false;
-  }, [animKind, isRolling, onCancel, progress]);
+  }, [isRolling, onCancel, progress]);
 
   /** 취소(마지막): 퇴장만 → 메인 복귀 */
   const finishCancelLastExit = useCallback(() => {
@@ -863,7 +679,7 @@ export function QuickInputSmsInbox({
       }
       pendingConsumeRef.current = { item, action };
       setIsConsuming(true);
-      setRenderMode('rest');
+      setTransition('forward');
       isRolling.value = true;
       progress.value = 0;
 
@@ -881,7 +697,6 @@ export function QuickInputSmsInbox({
         setOriginalLoading(true);
       }
 
-      animKind.value = isLast ? 4 : 3;
       progress.value = withTiming(
         1,
         { duration: ROLL_DURATION_MS, easing: ROLL_EASING },
@@ -893,8 +708,7 @@ export function QuickInputSmsInbox({
       );
     },
     [
-      animKind,
-      finishCancelConsume,
+        finishCancelConsume,
       finishCancelLastExit,
       finishConfirmConsume,
       finishConfirmLastExit,
@@ -910,9 +724,8 @@ export function QuickInputSmsInbox({
   const handlePrev = useCallback(() => {
     if (!canGoPrev || isRolling.value) return;
     startOriginalLoading();
-    setRenderMode('prev');
+    setTransition('backward');
     isRolling.value = true;
-    animKind.value = 0;
     progress.value = 0;
     progress.value = withTiming(-1, { duration: ROLL_DURATION_MS, easing: ROLL_EASING }, (finished) => {
       if (finished) {
@@ -922,7 +735,6 @@ export function QuickInputSmsInbox({
       }
     });
   }, [
-    animKind,
     canGoPrev,
     finishPrevScrub,
     isRolling,
@@ -935,9 +747,8 @@ export function QuickInputSmsInbox({
   const handleNext = useCallback(() => {
     if (!canGoNext || isRolling.value) return;
     startOriginalLoading();
-    setRenderMode('rest');
+    setTransition('forward');
     isRolling.value = true;
-    animKind.value = 1;
     progress.value = 0;
     progress.value = withTiming(1, { duration: ROLL_DURATION_MS, easing: ROLL_EASING }, (finished) => {
       if (finished) {
@@ -947,7 +758,6 @@ export function QuickInputSmsInbox({
       }
     });
   }, [
-    animKind,
     canGoNext,
     finishNextRoll,
     isRolling,
@@ -972,10 +782,12 @@ export function QuickInputSmsInbox({
           if (nextProgress < 0 && !canGoPrevSV.value) {
             nextProgress *= 0.2;
           }
-          if (nextProgress < -0.02 && canGoPrevSV.value) {
-            runOnJS(setRenderMode)('prev');
-          } else if (nextProgress >= 0) {
-            runOnJS(setRenderMode)('rest');
+          if (nextProgress > 0.02) {
+            runOnJS(setTransition)('forward');
+          } else if (nextProgress < -0.02) {
+            runOnJS(setTransition)('backward');
+          } else {
+            runOnJS(setTransition)('idle');
           }
           progress.value = nextProgress;
         })
@@ -992,9 +804,8 @@ export function QuickInputSmsInbox({
 
           if (shouldNext) {
             isRolling.value = true;
-            animKind.value = 1;
             runOnJS(startOriginalLoading)();
-            runOnJS(setRenderMode)('rest');
+            runOnJS(setTransition)('forward');
             progress.value = withTiming(
               1,
               { duration: ROLL_DURATION_MS, easing: ROLL_EASING },
@@ -1011,7 +822,7 @@ export function QuickInputSmsInbox({
           if (shouldPrev) {
             isRolling.value = true;
             runOnJS(startOriginalLoading)();
-            runOnJS(setRenderMode)('prev');
+            runOnJS(setTransition)('backward');
             progress.value = withTiming(
               -1,
               { duration: ROLL_DURATION_MS, easing: ROLL_EASING },
@@ -1027,13 +838,12 @@ export function QuickInputSmsInbox({
           }
           progress.value = withTiming(0, { duration: 180, easing: ROLL_EASING }, (finished) => {
             if (finished) {
-              runOnJS(setRenderMode)('rest');
+              runOnJS(setTransition)('idle');
             }
           });
         }),
     [
-      animKind,
-      canGoNextSV,
+        canGoNextSV,
       canGoPrevSV,
       finishNextRoll,
       finishPrevScrub,
@@ -1067,10 +877,11 @@ export function QuickInputSmsInbox({
     STACK_PAGER_GAP -
     RECORD_CARD_HEIGHT -
     SLOT_TOP_OFFSETS[SLOT_TOP_OFFSETS.length - 1];
-  const style0 = useSlotAnimatedStyle(0, progress, animKind, nextToLastSV, canGoPrevSV, isLastSV, stackTop, windowWidth);
-  const style1 = useSlotAnimatedStyle(1, progress, animKind, nextToLastSV, canGoPrevSV, isLastSV, stackTop, windowWidth);
-  const style2 = useSlotAnimatedStyle(2, progress, animKind, nextToLastSV, canGoPrevSV, isLastSV, stackTop, windowWidth);
-  const style3 = useSlotAnimatedStyle(3, progress, animKind, nextToLastSV, canGoPrevSV, isLastSV, stackTop, windowWidth);
+  const motionOf = (slot: number): SlotMotionValue | 0 => frame[slot]?.motion ?? 0;
+  const style0 = useMotionStyle(motionOf(0), progress, stackTop, windowWidth);
+  const style1 = useMotionStyle(motionOf(1), progress, stackTop, windowWidth);
+  const style2 = useMotionStyle(motionOf(2), progress, stackTop, windowWidth);
+  const style3 = useMotionStyle(motionOf(3), progress, stackTop, windowWidth);
   const slotStyles = [style0, style1, style2, style3] as const;
   const nextSettledSlotStyles = useMemo(
     () =>
@@ -1189,10 +1000,16 @@ export function QuickInputSmsInbox({
             style={styles.stackGestureLayer}
             pointerEvents="box-none"
           >
-            {windowItems.map((item, role) => {
-              if (role > 3 || item == null) return null;
+            {frame.map((slot, position) => {
+              const item = items[slot.itemIndex];
+              if (!item || position >= STACK_FRAME_CAPACITY) return null;
               const isTopInteractive =
-                role === 0 && renderMode === 'rest' && !originalLoading && !isConsuming;
+                slot.motion === SlotMotion.holdFront && !originalLoading && !isConsuming;
+              // 앞카드였던 카드만 실데이터 — 뒤 카드·유입/복귀 카드는 스켈레톤 유지
+              const showsContent =
+                slot.motion === SlotMotion.holdFront ||
+                slot.motion === SlotMotion.exitUp ||
+                slot.motion === SlotMotion.frontToMid;
               return (
                 <StackCard
                   key={item.id}
@@ -1211,9 +1028,8 @@ export function QuickInputSmsInbox({
                   onChange={isTopInteractive ? onChange : undefined}
                   onCategoryPress={isTopInteractive ? onCategoryPress : undefined}
                   addLoading={isTopInteractive ? addLoading : false}
-                  // mid/bottom·유입 카드는 데이터 있어도 스켈레톤 유지 (롤링 중 실데이터 노출 방지)
-                  contentLoading={role !== 0 || originalLoading}
-                  style={slotStyles[role as 0 | 1 | 2 | 3]}
+                  contentLoading={!showsContent || originalLoading}
+                  style={slotStyles[position as 0 | 1 | 2 | 3]}
                 />
               );
             })}
@@ -1226,17 +1042,18 @@ export function QuickInputSmsInbox({
         pointerEvents="none"
       >
         <View style={styles.stackGestureLayer}>
-          {nextSettledWindow.map((item, role) =>
-            item ? (
+          {nextSettledFrame.map((slot, position) => {
+            const item = items[slot.itemIndex];
+            return item ? (
               <StackCard
                 key={`next-settled-${item.id}`}
                 item={item}
                 interactive={false}
                 contentLoading
-                style={nextSettledSlotStyles[role as 0 | 1 | 2]}
+                style={nextSettledSlotStyles[position as 0 | 1 | 2]}
               />
-            ) : null,
-          )}
+            ) : null;
+          })}
         </View>
       </Animated.View>
 
@@ -1245,17 +1062,18 @@ export function QuickInputSmsInbox({
         pointerEvents="none"
       >
         <View style={styles.stackGestureLayer}>
-          {prevSettledWindow.map((item, role) =>
-            item ? (
+          {prevSettledFrame.map((slot, position) => {
+            const item = items[slot.itemIndex];
+            return item ? (
               <StackCard
                 key={`prev-settled-${item.id}`}
                 item={item}
                 interactive={false}
                 contentLoading
-                style={nextSettledSlotStyles[role as 0 | 1 | 2]}
+                style={nextSettledSlotStyles[position as 0 | 1 | 2]}
               />
-            ) : null,
-          )}
+            ) : null;
+          })}
         </View>
       </Animated.View>
 
