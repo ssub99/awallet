@@ -240,6 +240,8 @@ function useSlotAnimatedStyle(
   progress: SharedValue<number>,
   animKind: SharedValue<number>,
   nextToLastSV: SharedValue<boolean>,
+  canGoPrevSV: SharedValue<boolean>,
+  isLastSV: SharedValue<boolean>,
   stackTop: number,
   screenWidth: number,
 ) {
@@ -293,6 +295,7 @@ function useSlotAnimatedStyle(
           width = interpolate(t, [0, 1], [midW, topW], Extrapolation.CLAMP);
           top = interpolate(t, [0, 1], [midY, topY], Extrapolation.CLAMP);
           liftY = interpolate(t, [0, 0.45, 1], [0, -10, 0], Extrapolation.CLAMP);
+          // mid가 앞으로 나갈 때까지 bot보다 항상 위
           zIndex = t < 0.35 ? 2 : 4;
         }
       } else if (exitOnly) {
@@ -303,30 +306,29 @@ function useSlotAnimatedStyle(
         width = interpolate(t, [0, 1], [botW, midW], Extrapolation.CLAMP);
         top = interpolate(t, [0, 1], [botY, midY], Extrapolation.CLAMP);
         liftY = interpolate(t, [0, 0.5, 1], [0, -6, 0], Extrapolation.CLAMP);
-        zIndex = 2;
+        // mid 승격 전에는 1 — mid와 z=2 동급이면 그려진 순서로 third가 덮음
+        zIndex = t < 0.35 ? 1 : 2;
       }
     } else if (role === 3) {
       opacity = 0;
       zIndex = 0;
     } else if (kind === 2) {
-      // prevEnter: 이미 새 rest 윈도우. role0(이전 카드)이 뒤→앞으로.
+      // prevEnter(레거시): 새 rest 윈도우에서 role0이 뒤→앞. 아래 쌓임 없음.
       const t = Math.min(Math.max(p, 0), 1);
       if (role === 0) {
         width = interpolate(t, [0, 1], [botW, topW], Extrapolation.CLAMP);
         top = interpolate(t, [0, 1], [botY, topY], Extrapolation.CLAMP);
         liftY = interpolate(t, [0, 0.4, 1], [0, -ROLL_LIFT_PX, 0], Extrapolation.CLAMP);
-        zIndex = t < 0.28 ? 1 : 5;
+        zIndex = SLOT_Z[0];
       } else if (role === 1) {
         width = interpolate(t, [0, 1], [topW, midW], Extrapolation.CLAMP);
         top = interpolate(t, [0, 1], [topY, midY], Extrapolation.CLAMP);
         liftY = interpolate(t, [0, 0.4, 1], [0, 8, 0], Extrapolation.CLAMP);
-        zIndex = t < 0.4 ? 3 : 2;
+        zIndex = SLOT_Z[1];
       } else {
-        // third 쌓임: 아래에서 위로
-        width = interpolate(t, [0, 1], [incomingW, botW], Extrapolation.CLAMP);
-        top = interpolate(t, [0, 1], [incomingY, botY], Extrapolation.CLAMP);
-        opacity = interpolate(t, [0, 0.25, 1], [0, 0.85, 1], Extrapolation.CLAMP);
-        liftY = interpolate(t, [0, 0.5, 1], [8, 2, 0], Extrapolation.CLAMP);
+        width = botW;
+        top = botY;
+        opacity = 1;
         zIndex = 1;
       }
     } else if (kind === 1 || p > 0) {
@@ -356,38 +358,72 @@ function useSlotAnimatedStyle(
           width = interpolate(t, [0, 1], [botW, midW], Extrapolation.CLAMP);
           top = interpolate(t, [0, 1], [botY, midY], Extrapolation.CLAMP);
           liftY = interpolate(t, [0, 0.5, 1], [0, -6, 0], Extrapolation.CLAMP);
-          zIndex = 2;
+          // mid와 동급 z 금지 — 제스처 next에서 third가 second 위로 뜨던 원인
+          zIndex = t < 0.42 ? 1 : 2;
         }
       }
     } else if (p < 0) {
-      // prev scrub (제스처) · 3→2 등: third 쌓임은 아래에서 위로
+      // prev scrub (제스처·버튼)
       const t = Math.min(-p, 1);
-      if (role === 0) {
+      if (!canGoPrevSV.value) {
+        // 첫 카드 러버밴드 = next 러버의 net 변위 정반대 (top+lift 이중 적용 없이 한 축)
+        if (role === 0) {
+          const nextTop = interpolate(t, [0, 1], [topY, botY], Extrapolation.CLAMP);
+          const nextLift = interpolate(t, [0, 0.35, 1], [0, -ROLL_LIFT_PX, 0], Extrapolation.CLAMP);
+          top = topY;
+          width = topW;
+          liftY = -((nextTop - topY) + nextLift);
+          zIndex = SLOT_Z[0];
+        } else if (role === 1) {
+          const nextTop = interpolate(t, [0, 1], [midY, topY], Extrapolation.CLAMP);
+          const nextLift = interpolate(t, [0, 0.45, 1], [0, -10, 0], Extrapolation.CLAMP);
+          top = midY;
+          width = midW;
+          liftY = -((nextTop - midY) + nextLift);
+          zIndex = SLOT_Z[1];
+        } else {
+          const nextTop = interpolate(t, [0, 1], [botY, midY], Extrapolation.CLAMP);
+          const nextLift = interpolate(t, [0, 0.5, 1], [0, -6, 0], Extrapolation.CLAMP);
+          top = botY;
+          width = botW;
+          liftY = -((nextTop - botY) + nextLift);
+          zIndex = SLOT_Z[2];
+        }
+      } else if (isLastSV.value) {
+        // 마지막→이전: toLast 퇴장(위로 fade-out)의 역재생 + 앞카드→mid
+        if (role === 0) {
+          width = interpolate(t, [0, 1], [topW, midW], Extrapolation.CLAMP);
+          top = interpolate(t, [0, 1], [topY, midY], Extrapolation.CLAMP);
+          liftY = interpolate(t, [0, 0.45, 1], [0, 10, 0], Extrapolation.CLAMP);
+          zIndex = SLOT_Z[1];
+        } else if (role === 1) {
+          opacity = 0;
+          zIndex = 0;
+        } else {
+          // 퇴장했던 카드가 같은 궤적으로 복귀 → 프론트
+          width = topW;
+          top = topY;
+          liftY = interpolate(t, [0, 1], [-ROLL_LIFT_PX * 1.25, 0], Extrapolation.CLAMP);
+          opacity = interpolate(t, [0, 0.45, 1], [0, 0.65, 1], Extrapolation.CLAMP);
+          zIndex = SLOT_Z[0];
+        }
+      } else if (role === 0) {
         width = interpolate(t, [0, 1], [topW, midW], Extrapolation.CLAMP);
         top = interpolate(t, [0, 1], [topY, midY], Extrapolation.CLAMP);
         liftY = interpolate(t, [0, 0.4, 1], [0, 8, 0], Extrapolation.CLAMP);
-        zIndex = t < 0.4 ? 3 : 2;
+        zIndex = SLOT_Z[1];
       } else if (role === 1) {
-        width = interpolate(
-          t,
-          [0, 0.4, 0.42, 1],
-          [midW, midW, incomingW, botW],
-          Extrapolation.CLAMP,
-        );
-        top = interpolate(
-          t,
-          [0, 0.4, 0.42, 1],
-          [midY, midY + 8, incomingY, botY],
-          Extrapolation.CLAMP,
-        );
-        opacity = interpolate(t, [0, 0.38, 0.42, 1], [1, 0, 0, 1], Extrapolation.CLAMP);
-        liftY = interpolate(t, [0, 0.4, 0.7, 1], [0, 0, 8, 0], Extrapolation.CLAMP);
+        // mid→bot 직접 (아래 incoming 쌓임/페이드 없음)
+        width = interpolate(t, [0, 1], [midW, botW], Extrapolation.CLAMP);
+        top = interpolate(t, [0, 1], [midY, botY], Extrapolation.CLAMP);
+        liftY = interpolate(t, [0, 0.5, 1], [0, 6, 0], Extrapolation.CLAMP);
+        opacity = 1;
         zIndex = 1;
       } else {
         width = interpolate(t, [0, 1], [botW, topW], Extrapolation.CLAMP);
         top = interpolate(t, [0, 1], [botY, topY], Extrapolation.CLAMP);
         liftY = interpolate(t, [0, 0.4, 1], [0, -ROLL_LIFT_PX, 0], Extrapolation.CLAMP);
-        zIndex = t < 0.28 ? 1 : 5;
+        zIndex = SLOT_Z[0];
       }
     }
 
@@ -469,6 +505,8 @@ export function QuickInputSmsInbox({
   const canGoNext = safeIndex < items.length - 1;
   /** next로 마지막 카드에 도착하는 전환 (9→10 등) — bottom 쌓임 생략 */
   const isNextToLast = canGoNext && safeIndex === items.length - 2;
+  /** 마지막에서 prev — toLast 퇴장 역재생 */
+  const isLast = safeIndex === items.length - 1 && items.length > 0;
 
   const progress = useSharedValue(0);
   /** 0 idle · 1 next · 2 prevEnter · 3 consume(퇴장+롤업) · 4 confirmLastExit */
@@ -477,6 +515,7 @@ export function QuickInputSmsInbox({
   const canGoNextSV = useSharedValue(canGoNext);
   const canGoPrevSV = useSharedValue(canGoPrev);
   const nextToLastSV = useSharedValue(isNextToLast);
+  const isLastSV = useSharedValue(isLast);
   const stackOpacity = useSharedValue(1);
   /** next/prev 완료 시 현재 스택과 교대할 도착 순서의 정착 포즈 */
   const nextSettledOpacity = useSharedValue(0);
@@ -511,7 +550,17 @@ export function QuickInputSmsInbox({
     canGoNextSV.value = canGoNext;
     canGoPrevSV.value = canGoPrev;
     nextToLastSV.value = isNextToLast;
-  }, [canGoNext, canGoPrev, canGoNextSV, canGoPrevSV, isNextToLast, nextToLastSV]);
+    isLastSV.value = isLast;
+  }, [
+    canGoNext,
+    canGoPrev,
+    canGoNextSV,
+    canGoPrevSV,
+    isLast,
+    isLastSV,
+    isNextToLast,
+    nextToLastSV,
+  ]);
 
   useEffect(() => {
     cardEnterTranslateY.value = -ENTER_SLIDE_OFFSET;
@@ -1018,10 +1067,10 @@ export function QuickInputSmsInbox({
     STACK_PAGER_GAP -
     RECORD_CARD_HEIGHT -
     SLOT_TOP_OFFSETS[SLOT_TOP_OFFSETS.length - 1];
-  const style0 = useSlotAnimatedStyle(0, progress, animKind, nextToLastSV, stackTop, windowWidth);
-  const style1 = useSlotAnimatedStyle(1, progress, animKind, nextToLastSV, stackTop, windowWidth);
-  const style2 = useSlotAnimatedStyle(2, progress, animKind, nextToLastSV, stackTop, windowWidth);
-  const style3 = useSlotAnimatedStyle(3, progress, animKind, nextToLastSV, stackTop, windowWidth);
+  const style0 = useSlotAnimatedStyle(0, progress, animKind, nextToLastSV, canGoPrevSV, isLastSV, stackTop, windowWidth);
+  const style1 = useSlotAnimatedStyle(1, progress, animKind, nextToLastSV, canGoPrevSV, isLastSV, stackTop, windowWidth);
+  const style2 = useSlotAnimatedStyle(2, progress, animKind, nextToLastSV, canGoPrevSV, isLastSV, stackTop, windowWidth);
+  const style3 = useSlotAnimatedStyle(3, progress, animKind, nextToLastSV, canGoPrevSV, isLastSV, stackTop, windowWidth);
   const slotStyles = [style0, style1, style2, style3] as const;
   const nextSettledSlotStyles = useMemo(
     () =>
