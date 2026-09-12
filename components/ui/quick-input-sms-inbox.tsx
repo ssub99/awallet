@@ -70,7 +70,7 @@ const FIGMA_SCREEN_HEIGHT = 812;
 const FIGMA_PAGER_BOTTOM_GAP = FIGMA_SCREEN_HEIGHT - (FIGMA_PAGER.top + FIGMA_PAGER.height);
 
 const SWIPE_COMMIT_VELOCITY = 800;
-const ROLL_DURATION_MS = 380;
+const ROLL_DURATION_MS = 640;
 const ROLL_EASING = Easing.out(Easing.cubic);
 /** 앞↔뒤 넘김이 보이도록 슬롯 간격(12px)보다 크게 띄움 */
 const ROLL_LIFT_PX = 36;
@@ -134,7 +134,7 @@ function toCardData(item: SmsInboxItem): QuickInputConfirmCardData {
   return { ...item.card, category: trimmed === '미정' ? '' : trimmed };
 }
 
-const SKELETON_PULSE_HALF_MS = 180;
+const SKELETON_PULSE_HALF_MS = 500;
 
 /** 원문 로딩 — Figma Frame 296 스켈레톤 (2241:31037 / 2250:31703) */
 function OriginalMessageSkeleton({ boneColor, lineColor }: { boneColor: string; lineColor: string }) {
@@ -322,8 +322,11 @@ function useSlotAnimatedStyle(
         liftY = interpolate(t, [0, 0.4, 1], [0, 8, 0], Extrapolation.CLAMP);
         zIndex = t < 0.4 ? 3 : 2;
       } else {
-        width = interpolate(t, [0, 1], [midW, botW], Extrapolation.CLAMP);
-        top = interpolate(t, [0, 1], [midY, botY], Extrapolation.CLAMP);
+        // third 쌓임: 아래에서 위로
+        width = interpolate(t, [0, 1], [incomingW, botW], Extrapolation.CLAMP);
+        top = interpolate(t, [0, 1], [incomingY, botY], Extrapolation.CLAMP);
+        opacity = interpolate(t, [0, 0.25, 1], [0, 0.85, 1], Extrapolation.CLAMP);
+        liftY = interpolate(t, [0, 0.5, 1], [8, 2, 0], Extrapolation.CLAMP);
         zIndex = 1;
       }
     } else if (kind === 1 || p > 0) {
@@ -357,7 +360,7 @@ function useSlotAnimatedStyle(
         }
       }
     } else if (p < 0) {
-      // prev scrub (제스처)
+      // prev scrub (제스처) · 3→2 등: third 쌓임은 아래에서 위로
       const t = Math.min(-p, 1);
       if (role === 0) {
         width = interpolate(t, [0, 1], [topW, midW], Extrapolation.CLAMP);
@@ -365,8 +368,20 @@ function useSlotAnimatedStyle(
         liftY = interpolate(t, [0, 0.4, 1], [0, 8, 0], Extrapolation.CLAMP);
         zIndex = t < 0.4 ? 3 : 2;
       } else if (role === 1) {
-        width = interpolate(t, [0, 1], [midW, botW], Extrapolation.CLAMP);
-        top = interpolate(t, [0, 1], [midY, botY], Extrapolation.CLAMP);
+        width = interpolate(
+          t,
+          [0, 0.4, 0.42, 1],
+          [midW, midW, incomingW, botW],
+          Extrapolation.CLAMP,
+        );
+        top = interpolate(
+          t,
+          [0, 0.4, 0.42, 1],
+          [midY, midY + 8, incomingY, botY],
+          Extrapolation.CLAMP,
+        );
+        opacity = interpolate(t, [0, 0.38, 0.42, 1], [1, 0, 0, 1], Extrapolation.CLAMP);
+        liftY = interpolate(t, [0, 0.4, 0.7, 1], [0, 0, 8, 0], Extrapolation.CLAMP);
         zIndex = 1;
       } else {
         width = interpolate(t, [0, 1], [botW, topW], Extrapolation.CLAMP);
@@ -1147,7 +1162,8 @@ export function QuickInputSmsInbox({
                   onChange={isTopInteractive ? onChange : undefined}
                   onCategoryPress={isTopInteractive ? onCategoryPress : undefined}
                   addLoading={isTopInteractive ? addLoading : false}
-                  contentLoading={originalLoading}
+                  // mid/bottom·유입 카드는 데이터 있어도 스켈레톤 유지 (롤링 중 실데이터 노출 방지)
+                  contentLoading={role !== 0 || originalLoading}
                   style={slotStyles[role as 0 | 1 | 2 | 3]}
                 />
               );

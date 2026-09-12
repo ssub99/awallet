@@ -186,7 +186,7 @@ function PaymentTypeRow({
 const CARD_SLIDE_OFFSET = 16;
 const CARD_ANIMATION_DURATION = 180;
 /** 원문 스켈레톤과 동일 — 왕복 0.7초 */
-const SKELETON_PULSE_HALF_MS = 180;
+const SKELETON_PULSE_HALF_MS = 500;
 
 /** 기록 카드 로딩 — Figma Frame 172 (2241:31518) */
 function ConfirmCardSkeleton({
