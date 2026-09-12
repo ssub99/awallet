@@ -1,6 +1,5 @@
 const path = require('path');
 const { getDefaultConfig } = require('expo/metro-config');
-const { resolve: metroResolve } = require('metro-resolver');
 
 const projectRoot = __dirname;
 
@@ -15,8 +14,6 @@ const PATCHES_DIR = `${path.sep}patches${path.sep}`;
 
 const config = getDefaultConfig(projectRoot);
 
-const defaultResolveRequest = config.resolver.resolveRequest;
-
 config.transformer = {
   ...config.transformer,
   babelTransformerPath: require.resolve('react-native-svg-transformer'),
@@ -27,9 +24,10 @@ config.resolver = {
   assetExts: config.resolver.assetExts.filter((ext) => ext !== 'svg'),
   sourceExts: [...config.resolver.sourceExts, 'svg'],
   resolveRequest: (context, moduleName, platform) => {
-    const resolution =
-      defaultResolveRequest?.(context, moduleName, platform) ??
-      metroResolve(context, moduleName, platform);
+    // Metro는 이 훅 호출 전에 context.resolveRequest를 내장 resolve로 바꿔 둔다.
+    // 여길 쓰면 Expo 경로 alias(@/)·exports가 유지되고,
+    // 루트/expo 이중 metro-resolver 재귀도 피한다.
+    const resolution = context.resolveRequest(context, moduleName, platform);
 
     if (!resolution?.filePath) {
       return resolution;

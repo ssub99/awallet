@@ -1,7 +1,8 @@
 import { BlurView, type BlurTint } from 'expo-blur';
-import { memo, useMemo, type ReactNode } from 'react';
+import { memo, useMemo, type ReactNode, type RefObject } from 'react';
 import { Platform, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
+import { useAndroidBlurTarget } from '@/contexts/android-blur-target-context';
 import { getAndroidBlurProps, resolveBlurTintCached } from '@/utils/expo-blur-platform';
 
 const ANDROID_BLUR_FALLBACK_BG = 'rgba(253, 253, 253, 0.94)';
@@ -22,6 +23,8 @@ export type GlassSurfaceProps = {
   androidFallbackBackground?: string;
   /** Android only: dimezis BlurView (기본 false — 커스텀 키패드 등 명시적 사용처만 true) */
   enableAndroidBlur?: boolean;
+  /** Android: BlurTargetView ref (미지정 시 AndroidBlurTargetProvider context) */
+  blurTarget?: RefObject<View | null>;
 };
 
 function GlassSurfaceInner({
@@ -34,7 +37,10 @@ function GlassSurfaceInner({
   children,
   androidFallbackBackground,
   enableAndroidBlur = false,
+  blurTarget: blurTargetProp,
 }: GlassSurfaceProps) {
+  const blurTargetFromContext = useAndroidBlurTarget();
+  const blurTarget = blurTargetProp ?? blurTargetFromContext;
   const cornerStyle = useMemo(
     () =>
       topCornerRadius != null
@@ -78,6 +84,16 @@ function GlassSurfaceInner({
       );
     }
 
+    // SDK 57+: dimezisBlurView는 blurTarget(BlurTargetView) 없으면 'none'으로 폴백
+    if (blurTarget == null) {
+      return (
+        <View style={[containerStyle, { backgroundColor: androidFallbackBg }]}>
+          {overlayLayer}
+          {children}
+        </View>
+      );
+    }
+
     const androidBlur = getAndroidBlurProps(intensity);
     return (
       <BlurView
@@ -85,6 +101,7 @@ function GlassSurfaceInner({
         tint={resolvedTint}
         blurMethod={androidBlur.blurMethod}
         blurReductionFactor={androidBlur.blurReductionFactor}
+        blurTarget={blurTarget}
         style={containerStyle}
       >
         {overlayLayer}

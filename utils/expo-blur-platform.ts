@@ -4,8 +4,9 @@ import { Platform } from 'react-native';
 import type { PlatformBlurIntensity, PlatformBlurOverlay } from '@/constants/blur-tokens';
 
 /**
- * Android requires dimezisBlurView; default "none" is only a flat tint (no real blur).
- * blurReductionFactor: 1 — default 4 divides native radius and looks like no blur.
+ * Android requires dimezisBlurView + blurTarget(BlurTargetView); without blurTarget
+ * expo-blur falls back to "none" (flat tint only). blurReductionFactor: 1 — default 4
+ * divides native radius and looks like no blur.
  * @see https://docs.expo.dev/versions/latest/sdk/blur-view/
  */
 export const EXPO_BLUR_ANDROID_PROPS: Pick<

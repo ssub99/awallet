@@ -12,14 +12,21 @@ import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { spacing } from '@/constants/spacing';
 import { typographyLayout } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState, useRef } from 'react';
+import {
+  ActivityIndicator,
+  Animated as RNAnimated,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import Animated, {
   Easing,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
-  withRepeat,
   withTiming,
 } from 'react-native-reanimated';
 
@@ -179,7 +186,7 @@ function PaymentTypeRow({
 const CARD_SLIDE_OFFSET = 16;
 const CARD_ANIMATION_DURATION = 180;
 /** 원문 스켈레톤과 동일 — 왕복 0.7초 */
-const SKELETON_PULSE_HALF_MS = 350;
+const SKELETON_PULSE_HALF_MS = 180;
 
 /** 기록 카드 로딩 — Figma Frame 172 (2241:31518) */
 function ConfirmCardSkeleton({
@@ -191,56 +198,62 @@ function ConfirmCardSkeleton({
   lineColor: string;
   actionButtonHeight: number;
 }) {
-  const pulse = useSharedValue(0.45);
+  const pulse = useRef(new RNAnimated.Value(0.45)).current;
 
   useEffect(() => {
-    pulse.value = withRepeat(
-      withTiming(1, {
-        duration: SKELETON_PULSE_HALF_MS,
-        easing: Easing.inOut(Easing.ease),
-      }),
-      -1,
-      true,
+    // RN Animated.loop — Reanimated withRepeat는 ReduceMotion.System이면 1회 후 종료됨
+    const loop = RNAnimated.loop(
+      RNAnimated.sequence([
+        RNAnimated.timing(pulse, {
+          toValue: 1,
+          duration: SKELETON_PULSE_HALF_MS,
+          useNativeDriver: true,
+        }),
+        RNAnimated.timing(pulse, {
+          toValue: 0.45,
+          duration: SKELETON_PULSE_HALF_MS,
+          useNativeDriver: true,
+        }),
+      ]),
     );
+    loop.start();
+    return () => {
+      loop.stop();
+      pulse.setValue(0.45);
+    };
   }, [pulse]);
-
-  const bonePulseStyle = useAnimatedStyle(() => ({
-    opacity: pulse.value,
-  }));
 
   return (
     <View style={styles.skeleton} accessibilityLabel="기록 불러오는 중">
       <View style={styles.skeletonTitleRow}>
-        <Animated.View
-          style={[styles.skeletonTitleBone, { backgroundColor: boneColor }, bonePulseStyle]}
+        <RNAnimated.View
+          style={[styles.skeletonTitleBone, { backgroundColor: boneColor, opacity: pulse }]}
         />
       </View>
       <View style={[styles.skeletonDivider, { backgroundColor: lineColor }]} />
       <View style={styles.skeletonRows}>
         {[0, 1, 2, 3, 4].map((row) => (
           <View key={row} style={styles.skeletonRow}>
-            <Animated.View
-              style={[styles.skeletonLabelBone, { backgroundColor: boneColor }, bonePulseStyle]}
+            <RNAnimated.View
+              style={[styles.skeletonLabelBone, { backgroundColor: boneColor, opacity: pulse }]}
             />
-            <Animated.View
-              style={[styles.skeletonValueBone, { backgroundColor: boneColor }, bonePulseStyle]}
+            <RNAnimated.View
+              style={[styles.skeletonValueBone, { backgroundColor: boneColor, opacity: pulse }]}
             />
           </View>
         ))}
       </View>
       <View style={styles.skeletonButtonRow}>
-        <Animated.View
+        <RNAnimated.View
           style={[
             styles.skeletonButtonBone,
-            { height: actionButtonHeight, backgroundColor: boneColor },
-            bonePulseStyle,
+            { height: actionButtonHeight, backgroundColor: boneColor, opacity: pulse },
           ]}
         />
-        <Animated.View
+        <RNAnimated.View
           style={[
             styles.skeletonButtonBone,
-            { height: actionButtonHeight, backgroundColor: boneColor },
-            bonePulseStyle,
+            { height: actionButtonHeight, backgroundColor: boneColor, opacity: pulse },
           ]}
         />
       </View>

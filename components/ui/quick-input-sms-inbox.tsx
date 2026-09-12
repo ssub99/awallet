@@ -24,6 +24,7 @@ import type { SmsInboxItem } from '@/utils/sms-inbox-mock';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import {
+  Animated as RNAnimated,
   Platform,
   Pressable,
   StyleSheet,
@@ -43,10 +44,9 @@ import Animated, {
   type SharedValue,
   useAnimatedStyle,
   useSharedValue,
-  withRepeat,
   withTiming,
 } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { initialWindowMetrics, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const FIGMA_STATUS_BAR = 44;
 /** Figma 375 기준 inset — 실기기에서는 screenWidth - inset*2 로 폭 계산 */
@@ -65,13 +65,15 @@ const FIGMA_CLOSE = { left: 16, top: 48, width: 48, height: 48 } as const;
 /** baseline 2233:20949 — Frame 301 추가 후 원문 top 60→112 */
 const FIGMA_ORIGINAL = { left: 16, top: 112, width: 343, height: 176 } as const;
 const FIGMA_PAGER = { left: 16, top: 724, width: 343, height: 56 } as const;
+/** Figma 812 기준 페이저 하단~스크린 하단 (= Frame 6 homeIndicator 구간, 학습 2233:20949) */
 const FIGMA_SCREEN_HEIGHT = 812;
+const FIGMA_PAGER_BOTTOM_GAP = FIGMA_SCREEN_HEIGHT - (FIGMA_PAGER.top + FIGMA_PAGER.height);
 
 const SWIPE_COMMIT_VELOCITY = 800;
 const ROLL_DURATION_MS = 380;
 const ROLL_EASING = Easing.out(Easing.cubic);
 /** 앞↔뒤 넘김이 보이도록 슬롯 간격(12px)보다 크게 띄움 */
-const ROLL_LIFT_PX = 88;
+const ROLL_LIFT_PX = 36;
 
 /** 간편입력 확인 카드(QuickInputConfirmCard) 등장과 동일 */
 const ENTER_SLIDE_OFFSET = 16;
@@ -132,34 +134,42 @@ function toCardData(item: SmsInboxItem): QuickInputConfirmCardData {
   return { ...item.card, category: trimmed === '미정' ? '' : trimmed };
 }
 
+const SKELETON_PULSE_HALF_MS = 180;
+
 /** 원문 로딩 — Figma Frame 296 스켈레톤 (2241:31037 / 2250:31703) */
 function OriginalMessageSkeleton({ boneColor, lineColor }: { boneColor: string; lineColor: string }) {
-  const pulse = useSharedValue(0.45);
+  const pulse = useRef(new RNAnimated.Value(0.45)).current;
 
   useEffect(() => {
-    pulse.value = withRepeat(
-      withTiming(1, {
-        // 왕복 0.7초 (반주기)
-        duration: 350,
-        easing: Easing.inOut(Easing.ease),
-      }),
-      -1,
-      true,
+    // RN Animated.loop — Reanimated withRepeat는 ReduceMotion.System이면 1회 후 종료됨
+    const loop = RNAnimated.loop(
+      RNAnimated.sequence([
+        RNAnimated.timing(pulse, {
+          toValue: 1,
+          duration: SKELETON_PULSE_HALF_MS,
+          useNativeDriver: true,
+        }),
+        RNAnimated.timing(pulse, {
+          toValue: 0.45,
+          duration: SKELETON_PULSE_HALF_MS,
+          useNativeDriver: true,
+        }),
+      ]),
     );
+    loop.start();
+    return () => {
+      loop.stop();
+      pulse.setValue(0.45);
+    };
   }, [pulse]);
-
-  const bonePulseStyle = useAnimatedStyle(() => ({
-    opacity: pulse.value,
-  }));
 
   return (
     <View style={styles.originalSkeleton} accessibilityLabel="원문 불러오는 중">
       <View style={styles.originalSkeletonHeader}>
-        <Animated.View
+        <RNAnimated.View
           style={[
             styles.originalSkeletonBoneHeader,
-            { backgroundColor: boneColor },
-            bonePulseStyle,
+            { backgroundColor: boneColor, opacity: pulse },
           ]}
         />
         <View style={[styles.originalSkeletonHeaderLine, { backgroundColor: lineColor }]} />
@@ -167,18 +177,16 @@ function OriginalMessageSkeleton({ boneColor, lineColor }: { boneColor: string; 
       <View style={styles.originalSkeletonBody}>
         {[0, 1, 2].map((row) => (
           <View key={row} style={styles.originalSkeletonRow}>
-            <Animated.View
+            <RNAnimated.View
               style={[
                 styles.originalSkeletonBoneLabel,
-                { backgroundColor: boneColor },
-                bonePulseStyle,
+                { backgroundColor: boneColor, opacity: pulse },
               ]}
             />
-            <Animated.View
+            <RNAnimated.View
               style={[
                 styles.originalSkeletonBoneValue,
-                { backgroundColor: boneColor },
-                bonePulseStyle,
+                { backgroundColor: boneColor, opacity: pulse },
               ]}
             />
           </View>
@@ -526,6 +534,12 @@ export function QuickInputSmsInbox({
 
   const stackLayerStyle = useAnimatedStyle(() => ({
     opacity: bottomEnterOpacity.value * stackOpacity.value,
+    transform: [{ translateY: bottomEnterTranslateY.value }],
+  }));
+
+  /** 페이저: 카드 스택과 같이 등장하되, consume 시 stackOpacity에 묶이지 않음 */
+  const pagerEnterStyle = useAnimatedStyle(() => ({
+    opacity: bottomEnterOpacity.value,
     transform: [{ translateY: bottomEnterTranslateY.value }],
   }));
 
@@ -969,10 +983,20 @@ export function QuickInputSmsInbox({
   );
 
   const topOffset = insets.top;
-  const pagerBottom = Math.max(
-    insets.bottom,
-    FIGMA_SCREEN_HEIGHT - (FIGMA_PAGER.top + FIGMA_PAGER.height),
-  );
+  // Nested overlay에서 Android bottom inset이 0으로 올 수 있어 window metrics 폴백
+  // (ModalBottomsheetBottomInset과 동일)
+  const safeBottom =
+    insets.bottom > 0 ? insets.bottom : (initialWindowMetrics?.insets.bottom ?? 0);
+  // 학습 baseline 2233:20949:
+  // - Frame 293(페이저) bottom = 724+56 = 780
+  // - Frame 6(homeIndicator) top = 778 → 스크린 하단까지 32(FIGMA_PAGER_BOTTOM_GAP)
+  // iOS: 홈 인디케이터 구역이 곧 그 32이므로 safeBottom만 맞춤.
+  // Android: 내비 inset 위에 시안 32를 더해 핸들↔OS 인디케이터 여백을 시안과 동일하게.
+  // inset이 0이면 edge-to-edge 3-button 폴백(48)+시안 32.
+  const pagerBottom =
+    Platform.OS === 'android'
+      ? (safeBottom > 0 ? safeBottom : 48) + FIGMA_PAGER_BOTTOM_GAP
+      : Math.max(safeBottom, FIGMA_PAGER_BOTTOM_GAP);
   const pagerTop = windowHeight - pagerBottom - FIGMA_PAGER.height;
   const stackTop =
     pagerTop -
@@ -1170,7 +1194,7 @@ export function QuickInputSmsInbox({
         </View>
       </Animated.View>
 
-      <View
+      <Animated.View
         style={[
           styles.pager,
           {
@@ -1179,6 +1203,7 @@ export function QuickInputSmsInbox({
             right: FIGMA_PAGER.left,
             backgroundColor: palette.background,
           },
+          pagerEnterStyle,
         ]}
       >
         <Pressable
@@ -1214,7 +1239,7 @@ export function QuickInputSmsInbox({
             color={!canGoNext ? palette.textDisabled : palette.staticBlack}
           />
         </Pressable>
-      </View>
+      </Animated.View>
     </View>
   );
 }

@@ -113,6 +113,8 @@ import {
   type TextInput,
   unstable_batchedUpdates,
 } from 'react-native';
+import { BlurTargetView } from 'expo-blur';
+import { AndroidBlurTargetContext } from '@/contexts/android-blur-target-context';
 import {
     AndroidSoftInputModes,
     KeyboardController,
@@ -981,6 +983,12 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const [quickInputCalculatorAmount, setQuickInputCalculatorAmount] = useState('');
   const [quickInputCalculatorExpression, setQuickInputCalculatorExpression] = useState<ExpressionToken[]>([]);
   const [isQuickInputSmsInboxVisible, setIsQuickInputSmsInboxVisible] = useState(false);
+  const [isQuickInputSmsInboxOpening, setIsQuickInputSmsInboxOpening] = useState(false);
+  const isQuickInputSmsInboxClosingRef = useRef(false);
+  /** 수신함 닫힌 뒤 TextInput remount 커밋 이후에 focus (같은 틱 focus는 ref 없음) */
+  const pendingSmsInboxRefocusRef = useRef(false);
+  /** 수신함 닫기 Press가 언마운트 후 백드롭으로 떨어져 blur/dismiss 되는 것 방지 */
+  const suppressQuickInputBackdropUntilRef = useRef(0);
   const [smsInboxItems, setSmsInboxItems] = useState<SmsInboxItem[]>(() => createSmsInboxMockItems());
   const [smsInboxIndex, setSmsInboxIndex] = useState(0);
   const [confirmCardData, setConfirmCardData] = useState<QuickInputConfirmCardData | null>(null);
@@ -1089,6 +1097,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const quickInputCategorySettingIsDraggingRef = useRef(false);
   const quickInputCategoryEmojiScrollViewRef = useRef<FlashListRef<{ category: EmojiCategory; columns: string[][] }> | null>(null);
   const editSheetOpenAnimationRef = useRef<RNAnimated.CompositeAnimation | null>(null);
+  const androidBlurTargetRef = useRef<View | null>(null);
   const editSheetOpenCardTranslateY = useRef(new RNAnimated.Value(0)).current;
   const editSheetOpenCardOpacity = useRef(new RNAnimated.Value(1)).current;
   const editSheetOpenInputTranslateY = useRef(new RNAnimated.Value(0)).current;
@@ -1294,7 +1303,10 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
 
     if (Platform.OS === 'android') {
       const height = Math.abs(keyboardReanimated.height.value);
-      return { bottom: height > 0 ? height + KEYBOARD_GAP : shortBottom };
+      // short보다 낮은 중간 프레임으로 한 번 내려갔다 올라가는 깜빡임 방지
+      return {
+        bottom: height > 0 ? Math.max(shortBottom, height + KEYBOARD_GAP) : shortBottom,
+      };
     }
 
     return { bottom: animatedBottom.value };
@@ -1355,11 +1367,14 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }, [setShouldFollowKeyboard]);
 
   /** 계산기/시트 닫힌 뒤 TextInput remount 직후 focus — Android는 delay·재시도 필요 */
-  const focusQuickInputField = useCallback(() => {
+  const focusQuickInputField = useCallback((options?: { deferMs?: number }) => {
     if (quickInputRefocusTimeoutRef.current) {
       clearTimeout(quickInputRefocusTimeoutRef.current);
       quickInputRefocusTimeoutRef.current = null;
     }
+    const deferMs =
+      options?.deferMs ??
+      (Platform.OS === 'android' ? ANDROID_QUICK_INPUT_REFOCUS_DELAY_MS : 0);
     const run = (attempt: number) => {
       quickInputRefocusTimeoutRef.current = null;
       if (!isQuickInputVisibleRef.current || isClosingRef.current) {
@@ -1367,6 +1382,13 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       }
       if (quickInputRef.current) {
         quickInputRef.current.focus();
+        // Android: remount 직후 첫 focus가 IME를 안 띄우는 기기 대응
+        if (Platform.OS === 'android' && attempt === 0) {
+          quickInputRefocusTimeoutRef.current = setTimeout(
+            () => run(1),
+            ANDROID_QUICK_INPUT_REFOCUS_RETRY_MS,
+          );
+        }
         return;
       }
       // 시트/계산기 언마운트 직후 필드가 아직 없으면 짧게 재시도
@@ -1377,11 +1399,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         );
       }
     };
-    if (Platform.OS === 'android') {
-      quickInputRefocusTimeoutRef.current = setTimeout(
-        () => run(0),
-        ANDROID_QUICK_INPUT_REFOCUS_DELAY_MS,
-      );
+    if (deferMs > 0) {
+      quickInputRefocusTimeoutRef.current = setTimeout(() => run(0), deferMs);
       return;
     }
     requestAnimationFrame(() => run(0));
@@ -1419,35 +1438,97 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   ]);
 
   const closeQuickInputSmsInbox = useCallback(() => {
+    if (!isQuickInputSmsInboxVisible || isQuickInputSmsInboxClosingRef.current) {
+      return;
+    }
+    isQuickInputSmsInboxClosingRef.current = true;
     smsInboxEditingItemIdRef.current = null;
     smsInboxCategoryItemIdRef.current = null;
     if (smsInboxCategorySheetUnmountTimeoutRef.current) {
       clearTimeout(smsInboxCategorySheetUnmountTimeoutRef.current);
       smsInboxCategorySheetUnmountTimeoutRef.current = null;
     }
+    editSheetOpenAnimationRef.current?.stop();
     setSmsInboxCategorySheetVisible(false);
     setSmsInboxCategorySheetMounted(false);
-    setIsQuickInputSmsInboxVisible(false);
-    shortBottomFromScreen.value = lastShortBottomRef.current;
-    animatedBottom.value = lastShortBottomRef.current;
+    setIsQuickInputSmsInboxOpening(false);
+
+    editSheetOpenCardTranslateY.setValue(0);
+    editSheetOpenCardOpacity.setValue(1);
+    editSheetOpenInputTranslateY.setValue(0);
+    editSheetOpenInputOpacity.setValue(1);
+
+    // 이전 버튼 Press가 수신함 언마운트 직후 백드롭 onPress로 전달되는 것 차단
+    suppressQuickInputBackdropUntilRef.current = Date.now() + 500;
+
+    // short 앵커만 복구. 키보드 높이로 미리 올리면 IME 상승 중 아래로 한 번 당겨짐.
+    const restoreBottom = Math.max(KEYBOARD_GAP, lastShortBottomRef.current);
+    shortBottomFromScreen.value = restoreBottom;
+    animatedBottom.value = restoreBottom;
     resetAndroidKeyboardFollowPeak();
     setShouldFollowKeyboard(true);
-    focusQuickInputField();
+
+    // Press 제스처가 끝난 다음 프레임에 언마운트 → 백드롭 관통 방지 + remount 후 focus
+    requestAnimationFrame(() => {
+      setIsQuickInputSmsInboxVisible(false);
+      pendingSmsInboxRefocusRef.current = true;
+    });
   }, [
     animatedBottom,
-    focusQuickInputField,
+    editSheetOpenCardOpacity,
+    editSheetOpenCardTranslateY,
+    editSheetOpenInputOpacity,
+    editSheetOpenInputTranslateY,
+    isQuickInputSmsInboxVisible,
     resetAndroidKeyboardFollowPeak,
     setShouldFollowKeyboard,
     shortBottomFromScreen,
   ]);
 
+  // 수신함 언마운트·필드 remount 커밋 후 focus (닫기 직후 같은 틱 focus는 ref null)
+  useEffect(() => {
+    if (!pendingSmsInboxRefocusRef.current) {
+      return;
+    }
+    if (isQuickInputSmsInboxVisible || isQuickInputSmsInboxOpening) {
+      return;
+    }
+    if (!isQuickInputVisible || isClosingRef.current) {
+      pendingSmsInboxRefocusRef.current = false;
+      isQuickInputSmsInboxClosingRef.current = false;
+      return;
+    }
+    pendingSmsInboxRefocusRef.current = false;
+    // 계산기/시트와 동일 — Android는 Press 종료 후 IME가 먹히려면 기본 160ms 필요
+    focusQuickInputField();
+    isQuickInputSmsInboxClosingRef.current = false;
+  }, [
+    focusQuickInputField,
+    isQuickInputSmsInboxOpening,
+    isQuickInputSmsInboxVisible,
+    isQuickInputVisible,
+  ]);
+
   const handleQuickInputSmsInboxPress = useCallback(() => {
-    if (isQuickInputSmsInboxVisible) {
-      closeQuickInputSmsInbox();
+    if (isQuickInputSmsInboxVisible || isQuickInputSmsInboxOpening) {
+      if (isQuickInputSmsInboxVisible) {
+        closeQuickInputSmsInbox();
+      }
       return;
     }
     if (smsInboxItems.length === 0) {
       showToast('수신된 기록이 존재하지 않습니다.');
+      return;
+    }
+    if (
+      isQuickInputEditOpening ||
+      isQuickInputEditSheetClosing ||
+      isQuickInputCategorySettingOpening ||
+      quickInputCategorySettingSheetMounted
+    ) {
+      return;
+    }
+    if (isQuickInputSmsInboxClosingRef.current) {
       return;
     }
     if (isQuickInputCalculatorMounted || isQuickInputCalculatorVisible) {
@@ -1458,21 +1539,94 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       setQuickInputCalculatorAmount('');
       setQuickInputCalculatorExpression([]);
     }
+    editSheetOpenAnimationRef.current?.stop();
+    editSheetOpenCardTranslateY.setValue(0);
+    editSheetOpenCardOpacity.setValue(1);
+    editSheetOpenInputTranslateY.setValue(0);
+    editSheetOpenInputOpacity.setValue(1);
+    setIsQuickInputSmsInboxOpening(true);
+    // 키보드 높이에서 바로 bottom=0으로 점프하면 칩만 하단에 남음.
+    // follow 끄기 전에 현재 키보드 위치를 shortBottom에 고정한 뒤 같이 내린다.
+    const keyboardHeight = Math.abs(keyboardReanimated.height.value);
+    const parkedBottom =
+      keyboardHeight > 0 ? keyboardHeight + KEYBOARD_GAP : lastShortBottomRef.current;
+    shortBottomFromScreen.value = parkedBottom;
+    animatedBottom.value = parkedBottom;
     setShouldFollowKeyboard(false);
     resetAndroidKeyboardFollowPeak();
-    shortBottomFromScreen.value = 0;
-    animatedBottom.value = 0;
     quickInputRef.current?.blur();
     Keyboard.dismiss();
     // ponytail: mock until Shortcuts / NotificationListener persist unread SMS.
     setSmsInboxIndex(0);
-    setIsQuickInputSmsInboxVisible(true);
+    editSheetOpenAnimationRef.current = RNAnimated.parallel([
+      RNAnimated.timing(editSheetOpenCardTranslateY, {
+        toValue: -16,
+        duration: QUICK_INPUT_EDIT_OPENING_ANIMATION_DURATION,
+        easing: CALCULATOR_ANIMATION_EASING,
+        useNativeDriver: true,
+      }),
+      RNAnimated.timing(editSheetOpenCardOpacity, {
+        toValue: 0,
+        duration: QUICK_INPUT_EDIT_OPENING_ANIMATION_DURATION,
+        easing: CALCULATOR_ANIMATION_EASING,
+        useNativeDriver: true,
+      }),
+      RNAnimated.timing(editSheetOpenInputTranslateY, {
+        toValue: 160,
+        duration: QUICK_INPUT_EDIT_OPENING_ANIMATION_DURATION,
+        easing: CALCULATOR_ANIMATION_EASING,
+        useNativeDriver: true,
+      }),
+      RNAnimated.timing(editSheetOpenInputOpacity, {
+        toValue: 0,
+        duration: QUICK_INPUT_EDIT_OPENING_ANIMATION_DURATION,
+        easing: CALCULATOR_ANIMATION_EASING,
+        useNativeDriver: true,
+      }),
+    ]);
+    const finishOpen = (finished: boolean) => {
+      if (!finished) {
+        setIsQuickInputSmsInboxOpening(false);
+        editSheetOpenCardTranslateY.setValue(0);
+        editSheetOpenCardOpacity.setValue(1);
+        editSheetOpenInputTranslateY.setValue(0);
+        editSheetOpenInputOpacity.setValue(1);
+        return;
+      }
+      shortBottomFromScreen.value = 0;
+      animatedBottom.value = 0;
+      // 수신함 레이어는 card opacity를 쓰므로 먼저 복구. input은 언마운트 후 복구.
+      editSheetOpenCardTranslateY.setValue(0);
+      editSheetOpenCardOpacity.setValue(1);
+      setIsQuickInputSmsInboxVisible(true);
+      setIsQuickInputSmsInboxOpening(false);
+      requestAnimationFrame(() => {
+        editSheetOpenInputTranslateY.setValue(0);
+        editSheetOpenInputOpacity.setValue(1);
+      });
+    };
+    // setState로 애니 스타일이 붙은 다음 프레임에 시작 (미바인딩 시 칩이 제자리)
+    requestAnimationFrame(() => {
+      editSheetOpenAnimationRef.current?.start(({ finished }) => {
+        finishOpen(finished);
+      });
+    });
   }, [
     animatedBottom,
     closeQuickInputSmsInbox,
+    editSheetOpenCardOpacity,
+    editSheetOpenCardTranslateY,
+    editSheetOpenInputOpacity,
+    editSheetOpenInputTranslateY,
     isQuickInputCalculatorMounted,
     isQuickInputCalculatorVisible,
+    isQuickInputCategorySettingOpening,
+    isQuickInputEditOpening,
+    isQuickInputEditSheetClosing,
+    isQuickInputSmsInboxOpening,
     isQuickInputSmsInboxVisible,
+    keyboardReanimated.height,
+    quickInputCategorySettingSheetMounted,
     resetAndroidKeyboardFollowPeak,
     setShouldFollowKeyboard,
     shortBottomFromScreen,
@@ -1887,6 +2041,10 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     setQuickInputCalculatorAmount('');
     setQuickInputCalculatorExpression([]);
     setIsQuickInputSmsInboxVisible(false);
+    setIsQuickInputSmsInboxOpening(false);
+    isQuickInputSmsInboxClosingRef.current = false;
+    pendingSmsInboxRefocusRef.current = false;
+    suppressQuickInputBackdropUntilRef.current = 0;
     setSmsInboxIndex(0);
     smsInboxCategoryItemIdRef.current = null;
     if (smsInboxCategorySheetUnmountTimeoutRef.current) {
@@ -3919,26 +4077,66 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     });
   }, [confirmCardData]);
 
-  /** Android 하드웨어 뒤로가기: 시스템 키보드 + 간편입력 오버레이 함께 닫기 */
+  /** Android 하드웨어 뒤로가기: 딤/이전과 동일 레이어 스택 (수신함→간편메인, 메인이면 전체 닫기) */
   useEffect(() => {
     if (Platform.OS !== 'android' || !isQuickInputVisible) {
       return;
     }
 
     const onBackPress = () => {
+      if (quickInputEditSheetVisible || isQuickInputEditSheetClosing || isQuickInputEditOpening) {
+        handleQuickInputEditSheetClose();
+        return true;
+      }
+      if (smsInboxCategorySheetMounted) {
+        closeSmsInboxCategorySheet();
+        return true;
+      }
+      if (quickInputCategorySettingSheetMounted || isQuickInputCategorySettingOpening) {
+        handleQuickInputCategorySettingSheetClose();
+        return true;
+      }
+      if (isQuickInputSmsInboxVisible) {
+        closeQuickInputSmsInbox();
+        return true;
+      }
+      if (isQuickInputCalculatorVisible || isQuickInputCalculatorMounted) {
+        closeQuickInputCalculator();
+        return true;
+      }
       hideQuickInput({ simultaneous: true });
       return true;
     };
 
     const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
     return () => subscription.remove();
-  }, [hideQuickInput, isQuickInputVisible]);
+  }, [
+    closeQuickInputCalculator,
+    closeQuickInputSmsInbox,
+    closeSmsInboxCategorySheet,
+    handleQuickInputCategorySettingSheetClose,
+    handleQuickInputEditSheetClose,
+    hideQuickInput,
+    isQuickInputCalculatorMounted,
+    isQuickInputCalculatorVisible,
+    isQuickInputCategorySettingOpening,
+    isQuickInputEditOpening,
+    isQuickInputEditSheetClosing,
+    isQuickInputSmsInboxVisible,
+    isQuickInputVisible,
+    quickInputCategorySettingSheetMounted,
+    quickInputEditSheetVisible,
+    smsInboxCategorySheetMounted,
+  ]);
 
   const handleCancel = useCallback(() => {
     setQuickInputText('');
   }, []);
 
   const handleQuickInputBackdropPress = useCallback(() => {
+    if (Date.now() < suppressQuickInputBackdropUntilRef.current) {
+      return;
+    }
     if (quickInputEditSheetVisible || isQuickInputEditSheetClosing || isQuickInputEditOpening) {
       handleQuickInputEditSheetClose();
       return;
@@ -4184,8 +4382,15 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
 
   return (
     <QuickInputContext.Provider value={value}>
+      <AndroidBlurTargetContext.Provider value={androidBlurTargetRef}>
       <View style={styles.root}>
-        {children}
+        {Platform.OS === 'android' ? (
+          <BlurTargetView ref={androidBlurTargetRef} style={styles.blurTarget}>
+            {children}
+          </BlurTargetView>
+        ) : (
+          children
+        )}
         {isQuickInputVisible && !isQuickInputOverlaySuppressed && (
           <View style={styles.overlay} pointerEvents="box-none">
               <RNAnimated.View
@@ -4205,13 +4410,15 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                       !isQuickInputEditSheetClosing &&
                       !isQuickInputEditOpening &&
                       !quickInputCategorySettingSheetMounted &&
-                      !isQuickInputCategorySettingOpening
+                      !isQuickInputCategorySettingOpening &&
+                      !isQuickInputSmsInboxVisible &&
+                      !isQuickInputSmsInboxOpening
                         ? handleQuickInputBackdropPress
                         : undefined
                     }
                     onPress={handleQuickInputBackdropPress}
                   />
-                  {confirmCardData != null && !isQuickInputConfirmCardRevealPaused && !quickInputEditSheetVisible && !isQuickInputEditSheetClosing && !isQuickInputSmsInboxVisible && (!quickInputCategorySettingSheetMounted || isQuickInputCategorySettingOpening) && (
+                  {confirmCardData != null && !isQuickInputConfirmCardRevealPaused && !quickInputEditSheetVisible && !isQuickInputEditSheetClosing && (!isQuickInputSmsInboxVisible || isQuickInputSmsInboxOpening) && (!quickInputCategorySettingSheetMounted || isQuickInputCategorySettingOpening) && (
                     <RNAnimated.View
                       style={[
                         styles.confirmCardContainer,
@@ -4232,6 +4439,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                     </RNAnimated.View>
                   )}
                   {isQuickInputSmsInboxVisible &&
+                  !isQuickInputSmsInboxOpening &&
                   !quickInputEditSheetVisible &&
                   !isQuickInputEditSheetClosing ? (
                     <RNAnimated.View
@@ -4261,14 +4469,14 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                     </RNAnimated.View>
                   ) : null}
                   <Animated.View style={[styles.container, containerAnimatedStyle]}>
-                    {!quickInputEditSheetVisible && !isQuickInputEditSheetClosing && !isQuickInputCalculatorVisible && !isQuickInputSmsInboxVisible && (!quickInputCategorySettingSheetMounted || isQuickInputCategorySettingOpening) && (
+                    {!quickInputEditSheetVisible && !isQuickInputEditSheetClosing && !isQuickInputCalculatorVisible && (!isQuickInputSmsInboxVisible || isQuickInputSmsInboxOpening) && (!quickInputCategorySettingSheetMounted || isQuickInputCategorySettingOpening) && (
                       <RNAnimated.View
                         style={[
                           styles.normalInputStack,
-                          isQuickInputEditOpening || isQuickInputCategorySettingOpening ? {
+                          {
                             opacity: editSheetOpenInputOpacity,
                             transform: [{ translateY: editSheetOpenInputTranslateY }],
-                          } : null,
+                          },
                         ]}
                       >
                         <ScrollView
@@ -4332,6 +4540,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                             starScale={overlayStarScale}
                             starRotate={overlayStarRotate}
                             onFocus={handleQuickInputFieldFocus}
+                            showSoftInputOnFocus
                             onSend={handleSend}
                             onCancel={handleCancel}
                             sendLoading={isQuickInputSendLoading}
@@ -5278,6 +5487,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
             </View>
         )}
       </View>
+      </AndroidBlurTargetContext.Provider>
     </QuickInputContext.Provider>
   );
 };
@@ -5294,6 +5504,9 @@ export { FAB_OFFSET_ABOVE_TABS };
 
 const styles = StyleSheet.create({
   root: {
+    flex: 1,
+  },
+  blurTarget: {
     flex: 1,
   },
   overlay: {
