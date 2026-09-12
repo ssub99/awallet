@@ -97,7 +97,6 @@ import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
-import { flushSync } from 'react-dom';
 import {
   ActivityIndicator,
   BackHandler,
@@ -109,7 +108,6 @@ import {
   Animated as RNAnimated,
   StyleSheet,
   Text,
-  InteractionManager,
   useWindowDimensions,
   View,
   type TextInput,
@@ -165,8 +163,6 @@ const ANDROID_QUICK_INPUT_REFOCUS_DELAY_MS = 160;
 /** Android: remount 레이스 시 focus 재시도 */
 const ANDROID_QUICK_INPUT_REFOCUS_RETRY_MS = 50;
 const ANDROID_QUICK_INPUT_REFOCUS_MAX_ATTEMPTS = 6;
-/** 수신함 → 메인 복귀 후 Android IME focus (Press 직후엔 안 떠서 짧게만 대기) */
-const SMS_INBOX_REFOCUS_DELAY_MS = 10;
 const PAYMENT_SHEET_LIST_BOTTOM_GAP = 16;
 /** 카테고리 설정 리스트 카드 ↔ safe area 사이 (결제유형 시트와 동일) */
 const CATEGORY_SETTING_LIST_BOTTOM_GAP = 16;
@@ -989,8 +985,6 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const [isQuickInputSmsInboxVisible, setIsQuickInputSmsInboxVisible] = useState(false);
   const [isQuickInputSmsInboxOpening, setIsQuickInputSmsInboxOpening] = useState(false);
   const isQuickInputSmsInboxClosingRef = useRef(false);
-  /** 수신함 닫기 Press가 언마운트 후 백드롭으로 떨어져 blur/dismiss 되는 것 방지 */
-  const suppressQuickInputBackdropUntilRef = useRef(0);
   const [smsInboxItems, setSmsInboxItems] = useState<SmsInboxItem[]>(() => createSmsInboxMockItems());
   const [smsInboxIndex, setSmsInboxIndex] = useState(0);
   const [confirmCardData, setConfirmCardData] = useState<QuickInputConfirmCardData | null>(null);
@@ -1460,9 +1454,6 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     editSheetOpenInputTranslateY.setValue(0);
     editSheetOpenInputOpacity.setValue(1);
 
-    // 이전 버튼 Press → 언마운트 후 백드롭 onPress 관통만 막음 (UI 대기 없음)
-    suppressQuickInputBackdropUntilRef.current = Date.now() + 400;
-
     // short 앵커만 복구. 키보드 높이로 미리 올리면 IME 상승 중 아래로 한 번 당겨짐.
     const restoreBottom = Math.max(KEYBOARD_GAP, lastShortBottomRef.current);
     shortBottomFromScreen.value = restoreBottom;
@@ -1470,28 +1461,16 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     resetAndroidKeyboardFollowPeak();
     setShouldFollowKeyboard(true);
 
-    // UI 전환은 즉시. 키패드는 Press 제스처 종료 후 focus (동기 focus는 Android IME 미표시)
-    flushSync(() => {
-      setIsQuickInputSmsInboxVisible(false);
-    });
-    const refocus = () => {
-      focusQuickInputField({
-        deferMs: Platform.OS === 'android' ? SMS_INBOX_REFOCUS_DELAY_MS : 0,
-      });
-      isQuickInputSmsInboxClosingRef.current = false;
-    };
-    if (Platform.OS === 'android') {
-      InteractionManager.runAfterInteractions(refocus);
-    } else {
-      refocus();
-    }
+    // QuickInputField는 수신함에서도 마운트 상태라 remount 대기 없이 즉시 focus 가능.
+    setIsQuickInputSmsInboxVisible(false);
+    quickInputRef.current?.focus();
+    isQuickInputSmsInboxClosingRef.current = false;
   }, [
     animatedBottom,
     editSheetOpenCardOpacity,
     editSheetOpenCardTranslateY,
     editSheetOpenInputOpacity,
     editSheetOpenInputTranslateY,
-    focusQuickInputField,
     isQuickInputSmsInboxVisible,
     resetAndroidKeyboardFollowPeak,
     setShouldFollowKeyboard,
@@ -2032,7 +2011,6 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     setIsQuickInputSmsInboxVisible(false);
     setIsQuickInputSmsInboxOpening(false);
     isQuickInputSmsInboxClosingRef.current = false;
-    suppressQuickInputBackdropUntilRef.current = 0;
     setSmsInboxIndex(0);
     smsInboxCategoryItemIdRef.current = null;
     if (smsInboxCategorySheetUnmountTimeoutRef.current) {
@@ -4122,9 +4100,6 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }, []);
 
   const handleQuickInputBackdropPress = useCallback(() => {
-    if (Date.now() < suppressQuickInputBackdropUntilRef.current) {
-      return;
-    }
     if (quickInputEditSheetVisible || isQuickInputEditSheetClosing || isQuickInputEditOpening) {
       handleQuickInputEditSheetClose();
       return;
@@ -4457,15 +4432,31 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                     </RNAnimated.View>
                   ) : null}
                   <Animated.View style={[styles.container, containerAnimatedStyle]}>
-                    {!quickInputEditSheetVisible && !isQuickInputEditSheetClosing && !isQuickInputCalculatorVisible && (!isQuickInputSmsInboxVisible || isQuickInputSmsInboxOpening) && (!quickInputCategorySettingSheetMounted || isQuickInputCategorySettingOpening) && (
+                    {!quickInputEditSheetVisible && !isQuickInputEditSheetClosing && !isQuickInputCalculatorVisible && (!quickInputCategorySettingSheetMounted || isQuickInputCategorySettingOpening) && (
                       <RNAnimated.View
                         style={[
                           styles.normalInputStack,
                           {
-                            opacity: editSheetOpenInputOpacity,
+                            opacity:
+                              isQuickInputSmsInboxVisible && !isQuickInputSmsInboxOpening
+                                ? 0
+                                : editSheetOpenInputOpacity,
                             transform: [{ translateY: editSheetOpenInputTranslateY }],
                           },
                         ]}
+                        pointerEvents={
+                          isQuickInputSmsInboxVisible || isQuickInputSmsInboxOpening
+                            ? 'none'
+                            : 'box-none'
+                        }
+                        accessibilityElementsHidden={
+                          isQuickInputSmsInboxVisible || isQuickInputSmsInboxOpening
+                        }
+                        importantForAccessibility={
+                          isQuickInputSmsInboxVisible || isQuickInputSmsInboxOpening
+                            ? 'no-hide-descendants'
+                            : 'auto'
+                        }
                       >
                         <ScrollView
                           horizontal

@@ -1031,10 +1031,7 @@ export function QuickInputSmsInbox({
       {onDismiss ? (
         <Pressable
           style={styles.dismissHitArea}
-          onPress={() => {
-            // Press 제스처가 끝난 뒤 닫기 — 동기 onDismiss+focus는 Android IME가 안 뜸
-            setTimeout(() => onDismiss(), 0);
-          }}
+          onPress={onDismiss}
           accessibilityRole="button"
           accessibilityLabel="문자 수신함 닫기"
         />
@@ -1053,9 +1050,7 @@ export function QuickInputSmsInbox({
           ]}
         >
           <Pressable
-            onPress={() => {
-              setTimeout(() => onDismiss(), 0);
-            }}
+            onPress={onDismiss}
             accessibilityRole="button"
             accessibilityLabel="이전"
             hitSlop={8}
