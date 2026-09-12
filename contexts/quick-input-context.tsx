@@ -97,6 +97,7 @@ import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
+import { flushSync } from 'react-dom';
 import {
   ActivityIndicator,
   BackHandler,
@@ -108,6 +109,7 @@ import {
   Animated as RNAnimated,
   StyleSheet,
   Text,
+  InteractionManager,
   useWindowDimensions,
   View,
   type TextInput,
@@ -163,6 +165,8 @@ const ANDROID_QUICK_INPUT_REFOCUS_DELAY_MS = 160;
 /** Android: remount 레이스 시 focus 재시도 */
 const ANDROID_QUICK_INPUT_REFOCUS_RETRY_MS = 50;
 const ANDROID_QUICK_INPUT_REFOCUS_MAX_ATTEMPTS = 6;
+/** 수신함 → 메인 복귀 후 Android IME focus (Press 직후엔 안 떠서 짧게만 대기) */
+const SMS_INBOX_REFOCUS_DELAY_MS = 10;
 const PAYMENT_SHEET_LIST_BOTTOM_GAP = 16;
 /** 카테고리 설정 리스트 카드 ↔ safe area 사이 (결제유형 시트와 동일) */
 const CATEGORY_SETTING_LIST_BOTTOM_GAP = 16;
@@ -985,8 +989,6 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const [isQuickInputSmsInboxVisible, setIsQuickInputSmsInboxVisible] = useState(false);
   const [isQuickInputSmsInboxOpening, setIsQuickInputSmsInboxOpening] = useState(false);
   const isQuickInputSmsInboxClosingRef = useRef(false);
-  /** 수신함 닫힌 뒤 TextInput remount 커밋 이후에 focus (같은 틱 focus는 ref 없음) */
-  const pendingSmsInboxRefocusRef = useRef(false);
   /** 수신함 닫기 Press가 언마운트 후 백드롭으로 떨어져 blur/dismiss 되는 것 방지 */
   const suppressQuickInputBackdropUntilRef = useRef(0);
   const [smsInboxItems, setSmsInboxItems] = useState<SmsInboxItem[]>(() => createSmsInboxMockItems());
@@ -1458,8 +1460,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     editSheetOpenInputTranslateY.setValue(0);
     editSheetOpenInputOpacity.setValue(1);
 
-    // 이전 버튼 Press가 수신함 언마운트 직후 백드롭 onPress로 전달되는 것 차단
-    suppressQuickInputBackdropUntilRef.current = Date.now() + 500;
+    // 이전 버튼 Press → 언마운트 후 백드롭 onPress 관통만 막음 (UI 대기 없음)
+    suppressQuickInputBackdropUntilRef.current = Date.now() + 400;
 
     // short 앵커만 복구. 키보드 높이로 미리 올리면 IME 상승 중 아래로 한 번 당겨짐.
     const restoreBottom = Math.max(KEYBOARD_GAP, lastShortBottomRef.current);
@@ -1468,45 +1470,32 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     resetAndroidKeyboardFollowPeak();
     setShouldFollowKeyboard(true);
 
-    // Press 제스처가 끝난 다음 프레임에 언마운트 → 백드롭 관통 방지 + remount 후 focus
-    requestAnimationFrame(() => {
+    // UI 전환은 즉시. 키패드는 Press 제스처 종료 후 focus (동기 focus는 Android IME 미표시)
+    flushSync(() => {
       setIsQuickInputSmsInboxVisible(false);
-      pendingSmsInboxRefocusRef.current = true;
     });
+    const refocus = () => {
+      focusQuickInputField({
+        deferMs: Platform.OS === 'android' ? SMS_INBOX_REFOCUS_DELAY_MS : 0,
+      });
+      isQuickInputSmsInboxClosingRef.current = false;
+    };
+    if (Platform.OS === 'android') {
+      InteractionManager.runAfterInteractions(refocus);
+    } else {
+      refocus();
+    }
   }, [
     animatedBottom,
     editSheetOpenCardOpacity,
     editSheetOpenCardTranslateY,
     editSheetOpenInputOpacity,
     editSheetOpenInputTranslateY,
+    focusQuickInputField,
     isQuickInputSmsInboxVisible,
     resetAndroidKeyboardFollowPeak,
     setShouldFollowKeyboard,
     shortBottomFromScreen,
-  ]);
-
-  // 수신함 언마운트·필드 remount 커밋 후 focus (닫기 직후 같은 틱 focus는 ref null)
-  useEffect(() => {
-    if (!pendingSmsInboxRefocusRef.current) {
-      return;
-    }
-    if (isQuickInputSmsInboxVisible || isQuickInputSmsInboxOpening) {
-      return;
-    }
-    if (!isQuickInputVisible || isClosingRef.current) {
-      pendingSmsInboxRefocusRef.current = false;
-      isQuickInputSmsInboxClosingRef.current = false;
-      return;
-    }
-    pendingSmsInboxRefocusRef.current = false;
-    // 계산기/시트와 동일 — Android는 Press 종료 후 IME가 먹히려면 기본 160ms 필요
-    focusQuickInputField();
-    isQuickInputSmsInboxClosingRef.current = false;
-  }, [
-    focusQuickInputField,
-    isQuickInputSmsInboxOpening,
-    isQuickInputSmsInboxVisible,
-    isQuickInputVisible,
   ]);
 
   const handleQuickInputSmsInboxPress = useCallback(() => {
@@ -2043,7 +2032,6 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     setIsQuickInputSmsInboxVisible(false);
     setIsQuickInputSmsInboxOpening(false);
     isQuickInputSmsInboxClosingRef.current = false;
-    pendingSmsInboxRefocusRef.current = false;
     suppressQuickInputBackdropUntilRef.current = 0;
     setSmsInboxIndex(0);
     smsInboxCategoryItemIdRef.current = null;
