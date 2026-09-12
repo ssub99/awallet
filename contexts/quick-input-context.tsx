@@ -1025,6 +1025,12 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const [quickInputPaymentSheetVisible, setQuickInputPaymentSheetVisible] = useState(false);
   const [quickInputPaymentSheetFilter, setQuickInputPaymentSheetFilter] = useState<'credit' | 'debit'>('credit');
   const [quickInputPaymentSheetItems, setQuickInputPaymentSheetItems] = useState<PaymentSubtype[]>([]);
+  const [smsInboxCategorySheetMounted, setSmsInboxCategorySheetMounted] = useState(false);
+  const [smsInboxCategorySheetVisible, setSmsInboxCategorySheetVisible] = useState(false);
+  const [smsInboxCategorySheetCategories, setSmsInboxCategorySheetCategories] = useState<Category[]>(() =>
+    getCategoriesByType('expense'),
+  );
+  const [smsInboxCategorySheetSelected, setSmsInboxCategorySheetSelected] = useState('');
   const [quickInputAmountKeypadMounted, setQuickInputAmountKeypadMounted] = useState(false);
   const [quickInputAmountKeypadVisible, setQuickInputAmountKeypadVisible] = useState(false);
   const [quickInputEditAmountExpression, setQuickInputEditAmountExpression] = useState<ExpressionToken[]>([]);
@@ -1052,6 +1058,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const pendingRecordRef = useRef<PendingParseRecord | null>(null);
   /** 문자 수신함 카드 「변경」으로 수정 시트 연 경우 — 확인 시 해당 아이템 갱신 */
   const smsInboxEditingItemIdRef = useRef<string | null>(null);
+  /** 문자 수신함 카테고리 단독 시트에서 수정 중인 아이템 */
+  const smsInboxCategoryItemIdRef = useRef<string | null>(null);
   /** 토큰 비용 절감: 최근 요청 시각 목록 (rate limit용) */
   const rateLimitTimestampsRef = useRef<number[]>([]);
   /** 토큰 비용 절감: 비기록 연속 횟수, 잠금 해제 시각 */
@@ -1067,6 +1075,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const confirmCardRevealTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dateSheetUnmountTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const paymentSheetUnmountTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const smsInboxCategorySheetUnmountTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const categorySettingSheetUnmountTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const categorySettingSheetRefocusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const quickInputRefocusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1325,6 +1334,14 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       // ponytail: unread SMS mock until native ingest lands.
       setSmsInboxItems((prev) => (prev.length > 0 ? prev : createSmsInboxMockItems()));
       setSmsInboxIndex(0);
+      smsInboxCategoryItemIdRef.current = null;
+      if (smsInboxCategorySheetUnmountTimeoutRef.current) {
+        clearTimeout(smsInboxCategorySheetUnmountTimeoutRef.current);
+        smsInboxCategorySheetUnmountTimeoutRef.current = null;
+      }
+      setSmsInboxCategorySheetVisible(false);
+      setSmsInboxCategorySheetMounted(false);
+      setSmsInboxCategorySheetSelected('');
       quickInputLongOpacity.setValue(1);
       setIsQuickInputShortVisible(false);
       setIsQuickInputContentVisible(true);
@@ -1403,6 +1420,13 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
 
   const closeQuickInputSmsInbox = useCallback(() => {
     smsInboxEditingItemIdRef.current = null;
+    smsInboxCategoryItemIdRef.current = null;
+    if (smsInboxCategorySheetUnmountTimeoutRef.current) {
+      clearTimeout(smsInboxCategorySheetUnmountTimeoutRef.current);
+      smsInboxCategorySheetUnmountTimeoutRef.current = null;
+    }
+    setSmsInboxCategorySheetVisible(false);
+    setSmsInboxCategorySheetMounted(false);
     setIsQuickInputSmsInboxVisible(false);
     shortBottomFromScreen.value = lastShortBottomRef.current;
     animatedBottom.value = lastShortBottomRef.current;
@@ -1536,12 +1560,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     [removeSmsInboxItem],
   );
 
-  const handleSmsInboxChange = useCallback(
+  const openSmsInboxItemEditor = useCallback(
     (item: SmsInboxItem) => {
-      void logEvent('btn', {
-        screen_name: '/home',
-        target: 'sms-inbox-card-modify',
-      });
       const pending = confirmCardDataToPending(item.card);
       if (!pending) {
         showToast('기록 정보를 확인할 수 없습니다.');
@@ -1656,6 +1676,97 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       setShouldFollowKeyboard,
       showToast,
     ],
+  );
+
+  const handleSmsInboxChange = useCallback(
+    (item: SmsInboxItem) => {
+      void logEvent('btn', {
+        screen_name: '/home',
+        target: 'sms-inbox-card-modify',
+      });
+      openSmsInboxItemEditor(item);
+    },
+    [openSmsInboxItemEditor],
+  );
+
+  const closeSmsInboxCategorySheet = useCallback(() => {
+    if (!smsInboxCategorySheetVisible && !smsInboxCategorySheetMounted) {
+      return;
+    }
+    setSmsInboxCategorySheetVisible(false);
+    if (smsInboxCategorySheetUnmountTimeoutRef.current) {
+      clearTimeout(smsInboxCategorySheetUnmountTimeoutRef.current);
+    }
+    smsInboxCategorySheetUnmountTimeoutRef.current = setTimeout(() => {
+      smsInboxCategorySheetUnmountTimeoutRef.current = null;
+      smsInboxCategoryItemIdRef.current = null;
+      setSmsInboxCategorySheetMounted(false);
+      setSmsInboxCategorySheetSelected('');
+    }, QUICK_INPUT_EMBEDDED_SHEET_UNMOUNT_DELAY);
+  }, [smsInboxCategorySheetMounted, smsInboxCategorySheetVisible]);
+
+  const handleSmsInboxCategoryPress = useCallback(
+    (item: SmsInboxItem) => {
+      void logEvent('btn', {
+        screen_name: '/home',
+        target: 'sms-inbox-card-category',
+      });
+      const categoryType = item.card.recordType === 'income' ? 'income' : 'expense';
+      const categoryLabel = item.card.category.trim();
+      const isUnset = categoryLabel.length === 0 || categoryLabel === '미정';
+
+      smsInboxCategoryItemIdRef.current = item.id;
+      setSmsInboxCategorySheetSelected(isUnset ? '' : categoryLabel);
+      setSmsInboxCategorySheetCategories(getCategoriesByType(categoryType));
+      if (smsInboxCategorySheetUnmountTimeoutRef.current) {
+        clearTimeout(smsInboxCategorySheetUnmountTimeoutRef.current);
+        smsInboxCategorySheetUnmountTimeoutRef.current = null;
+      }
+      setSmsInboxCategorySheetMounted(true);
+      setSmsInboxCategorySheetVisible(true);
+
+      void Promise.all([loadCategories(categoryType), loadCategoryOrder(categoryType)])
+        .then(([loadedCategories, savedOrder]) => {
+          setSmsInboxCategorySheetCategories(
+            savedOrder && savedOrder.length > 0
+              ? applySavedOrder(loadedCategories, savedOrder)
+              : loadedCategories,
+          );
+        })
+        .catch(() => {});
+    },
+    [],
+  );
+
+  const handleSmsInboxCategorySelect = useCallback(
+    (category: Category) => {
+      const smsItemId = smsInboxCategoryItemIdRef.current;
+      if (!smsItemId) {
+        closeSmsInboxCategorySheet();
+        return;
+      }
+      void logEvent('list', {
+        screen_name: '/home',
+        target: 'sms-inbox-category-option',
+        category: category.label,
+      });
+      setSmsInboxItems((prev) =>
+        prev.map((item) =>
+          item.id === smsItemId
+            ? {
+                ...item,
+                card: {
+                  ...item.card,
+                  category: category.label,
+                  categoryEmoji: category.emoji,
+                },
+              }
+            : item,
+        ),
+      );
+      closeSmsInboxCategorySheet();
+    },
+    [closeSmsInboxCategorySheet],
   );
 
   const formatQuickInputCalculatorAmount = useCallback((raw: string) => {
@@ -1777,6 +1888,14 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     setQuickInputCalculatorExpression([]);
     setIsQuickInputSmsInboxVisible(false);
     setSmsInboxIndex(0);
+    smsInboxCategoryItemIdRef.current = null;
+    if (smsInboxCategorySheetUnmountTimeoutRef.current) {
+      clearTimeout(smsInboxCategorySheetUnmountTimeoutRef.current);
+      smsInboxCategorySheetUnmountTimeoutRef.current = null;
+    }
+    setSmsInboxCategorySheetVisible(false);
+    setSmsInboxCategorySheetMounted(false);
+    setSmsInboxCategorySheetSelected('');
     setQuickInputText('');
     setConfirmCardData(null);
     setIsQuickInputConfirmCardRevealPaused(false);
@@ -3465,6 +3584,13 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     setQuickInputEditView('form');
   }, [quickInputCategorySheetCategories, quickInputCategorySheetSelected, showToast, updateQuickInputEditDraft]);
 
+  const handleQuickInputCategoryOptionPress = useCallback((category: Category) => {
+    logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'list', 'category-option', {
+      category: category.label,
+    });
+    setQuickInputCategorySheetSelected(category.label);
+  }, []);
+
   const handleQuickInputEditDatePress = useCallback(() => {
     logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'ui', 'calendar');
     closeQuickInputEditAmountKeypad({ immediate: true });
@@ -3817,6 +3943,10 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       handleQuickInputEditSheetClose();
       return;
     }
+    if (smsInboxCategorySheetMounted) {
+      closeSmsInboxCategorySheet();
+      return;
+    }
     if (quickInputCategorySettingSheetMounted || isQuickInputCategorySettingOpening) {
       handleQuickInputCategorySettingSheetClose();
       return;
@@ -3837,6 +3967,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }, [
     closeQuickInputCalculator,
     closeQuickInputSmsInbox,
+    closeSmsInboxCategorySheet,
     handleQuickInputCategorySettingSheetClose,
     handleQuickInputEditSheetClose,
     hideQuickInput,
@@ -3848,6 +3979,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     isQuickInputSmsInboxVisible,
     quickInputCategorySettingSheetMounted,
     quickInputEditSheetVisible,
+    smsInboxCategorySheetMounted,
   ]);
 
   // 백드롭 딤 애니메이션 (닫기 중에는 hideQuickInput에서 페이드 처리)
@@ -4110,7 +4242,9 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                           transform: [{ translateY: editSheetOpenCardTranslateY }],
                         },
                       ]}
-                      pointerEvents={isQuickInputEditOpening ? 'none' : 'box-none'}
+                      pointerEvents={
+                        isQuickInputEditOpening || smsInboxCategorySheetMounted ? 'none' : 'box-none'
+                      }
                     >
                       <QuickInputSmsInbox
                         items={smsInboxItems}
@@ -4120,6 +4254,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                         onConfirmConsumed={handleSmsInboxConfirmConsumed}
                         onCancel={handleSmsInboxCancel}
                         onChange={handleSmsInboxChange}
+                        onCategoryPress={handleSmsInboxCategoryPress}
                         onBeforeConfirm={handleSmsInboxBeforeConfirm}
                         onDismiss={closeQuickInputSmsInbox}
                       />
@@ -4429,12 +4564,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                                     <View key={`${category.type}-${category.label}`}>
                                       <Pressable
                                         style={styles.categorySheetItem}
-                                        onPress={() => {
-                                          logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'list', 'category-option', {
-                                            category: category.label,
-                                          });
-                                          setQuickInputCategorySheetSelected(category.label);
-                                        }}
+                                        onPress={() => handleQuickInputCategoryOptionPress(category)}
                                         accessibilityRole="button"
                                         accessibilityLabel={`${category.label} 선택`}
                                       >
@@ -5066,6 +5196,64 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                 </View>
                 </ModalBottomsheet>
               ) : null}
+              {smsInboxCategorySheetMounted ? (
+                <View
+                  pointerEvents="box-none"
+                  style={styles.smsInboxCategorySheetHost}
+                >
+                  <ModalBottomsheet
+                    visible={smsInboxCategorySheetVisible}
+                    title="카테고리 선택"
+                    onClose={closeSmsInboxCategorySheet}
+                    closeOnBackdrop
+                    embedded
+                    embeddedZIndex={1}
+                    navigationLeftIcon="close"
+                    showHandle
+                    resizable
+                    dragBehavior="sheet"
+                    style={{ height: windowHeight * CATEGORY_SETTING_SHEET_HEIGHT_RATIO }}
+                    contentStyle={styles.smsInboxCategorySheetContent}
+                    noPaddingBottom
+                  >
+                    <View style={styles.categorySheetBody}>
+                      <View style={styles.categorySheetCard}>
+                        <ScrollView
+                          style={styles.categorySheetScroll}
+                          contentContainerStyle={styles.categorySheetScrollContent}
+                          showsVerticalScrollIndicator={false}
+                          bounces={false}
+                          overScrollMode="never"
+                        >
+                          {smsInboxCategorySheetCategories.map((category, index) => (
+                            <View key={`${category.type}-${category.label}`}>
+                              <Pressable
+                                style={styles.categorySheetItem}
+                                onPress={() => handleSmsInboxCategorySelect(category)}
+                                accessibilityRole="button"
+                                accessibilityLabel={`${category.label} 선택`}
+                              >
+                                <View style={styles.categorySheetItemContent}>
+                                  <Text style={styles.categorySheetEmoji}>{category.emoji}</Text>
+                                  <Text style={styles.categorySheetLabel}>{category.label}</Text>
+                                </View>
+                                {smsInboxCategorySheetSelected === category.label ? (
+                                  <Icon name="check" variant="line" size={24} color={atomicColors.blue[600]} />
+                                ) : null}
+                              </Pressable>
+                              {index < smsInboxCategorySheetCategories.length - 1 ? (
+                                <View style={styles.categorySheetDivider} />
+                              ) : null}
+                            </View>
+                          ))}
+                        </ScrollView>
+                      </View>
+                      <View style={{ height: CATEGORY_SETTING_LIST_BOTTOM_GAP }} />
+                      <ModalBottomsheetBottomInset backgroundColor={atomicColors.neutral[100]} />
+                    </View>
+                  </ModalBottomsheet>
+                </View>
+              ) : null}
               {quickInputAmountKeypadMounted ? (
                 <CustomKeypadOverlay style={styles.editAmountKeypadOverlay}>
                   <Pressable
@@ -5351,6 +5539,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 0,
+  },
+  smsInboxCategorySheetContent: {
+    flex: 1,
+    minHeight: 0,
+    padding: 0,
+  },
+  /** 닫힘 중 ModalBottomsheet host elevation=0이 되어도 수신함 카드 위로 유지 */
+  smsInboxCategorySheetHost: {
+    ...StyleSheet.absoluteFill,
+    zIndex: 100010,
+    elevation: 100010,
   },
   categorySheetCard: {
     flex: 1,

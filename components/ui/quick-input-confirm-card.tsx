@@ -44,6 +44,8 @@ export interface QuickInputConfirmCardProps {
   onConfirm: () => void;
   onCancel: () => void;
   onChange?: () => void;
+  /** 카테고리 미선택 플레이스홀더 탭 (문자 수신함 등) */
+  onCategoryPress?: () => void;
   /** 추가 버튼 로딩 여부. true면 추가 버튼에 인디케이터, 취소 버튼 비활성화 */
   addLoading?: boolean;
   /** false면 등장 슬라이드/페이드 생략 (문자 수신함 스택 등) */
@@ -84,19 +86,62 @@ function ConfirmRow({
   value,
   colors,
   valueColor,
+  valuePrefix,
+  valueUnderline,
+  onValuePress,
+  valueAccessibilityLabel,
 }: {
   label: string;
   value: string;
   colors: ColorPalette;
   /** 미지정 시 Semantic/Label/Normal(`colors.text`) */
   valueColor?: string;
+  /** 이모지 등 — 언더라인 대상에서 제외 */
+  valuePrefix?: string;
+  valueUnderline?: boolean;
+  onValuePress?: () => void;
+  valueAccessibilityLabel?: string;
 }) {
+  const valueColorStyle = { color: valueColor ?? colors.text };
+  const textNode = (
+    <Text
+      style={[
+        valuePrefix || onValuePress ? styles.valueInPressable : styles.value,
+        valueColorStyle,
+        valueUnderline ? styles.valueUnderline : null,
+      ]}
+      numberOfLines={1}
+    >
+      {value}
+    </Text>
+  );
+  const valueContent = valuePrefix ? (
+    <View style={onValuePress ? styles.valuePressableInner : styles.valueWithPrefix}>
+      <Text style={[styles.categoryEmoji, valueColorStyle]}>{valuePrefix} </Text>
+      {textNode}
+    </View>
+  ) : (
+    textNode
+  );
+
   return (
     <View style={styles.row}>
       <Text style={[styles.label, { color: colors.textAssistive }]}>{label}</Text>
-      <Text style={[styles.value, { color: valueColor ?? colors.text }]} numberOfLines={1}>
-        {value}
-      </Text>
+      {onValuePress ? (
+        <Pressable
+          onPress={onValuePress}
+          accessibilityRole="button"
+          accessibilityLabel={valueAccessibilityLabel ?? value}
+          hitSlop={8}
+          style={styles.valuePressable}
+        >
+          {valueContent}
+        </Pressable>
+      ) : valuePrefix ? (
+        valueContent
+      ) : (
+        textNode
+      )}
     </View>
   );
 }
@@ -208,6 +253,7 @@ export function QuickInputConfirmCard({
   onConfirm,
   onCancel,
   onChange,
+  onCategoryPress,
   addLoading = false,
   animateEntrance = true,
   actionButtonHeight = 40,
@@ -306,6 +352,12 @@ export function QuickInputConfirmCard({
     onChange();
   }, [buttonsDisabled, dismissMemoTooltip, onChange]);
 
+  const handleCategoryPress = useCallback(() => {
+    if (buttonsDisabled || !onCategoryPress) return;
+    dismissMemoTooltip();
+    onCategoryPress();
+  }, [buttonsDisabled, dismissMemoTooltip, onCategoryPress]);
+
   const handleMemoPress = useCallback(() => {
     if (buttonsDisabled) return;
     if (memoTooltipVisible) {
@@ -323,9 +375,9 @@ export function QuickInputConfirmCard({
   const isCategoryEmpty = isCategoryUnset(data.category);
   const categoryDisplay = isCategoryEmpty
     ? CATEGORY_EMPTY_PLACEHOLDER
-    : data.categoryEmoji
-      ? `${data.categoryEmoji} ${data.category}`
-      : data.category;
+    : data.category;
+  const categoryEmojiPrefix =
+    !isCategoryEmpty && data.categoryEmoji ? data.categoryEmoji : undefined;
 
   const title =
     data.recordType === 'income'
@@ -408,8 +460,14 @@ export function QuickInputConfirmCard({
           <ConfirmRow
             label={ROW_LABELS.category}
             value={categoryDisplay}
+            valuePrefix={categoryEmojiPrefix}
             colors={palette}
             valueColor={isCategoryEmpty ? palette.textAssistive : undefined}
+            valueUnderline={Boolean(onCategoryPress)}
+            onValuePress={
+              onCategoryPress && !buttonsDisabled ? handleCategoryPress : undefined
+            }
+            valueAccessibilityLabel={isCategoryEmpty ? '카테고리 선택' : '카테고리 변경'}
           />
           <ConfirmRow label={ROW_LABELS.date} value={data.date} colors={palette} />
           <ConfirmRow label={ROW_LABELS.amount} value={data.amount} colors={palette} />
@@ -607,6 +665,33 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: 'left',
   },
+  valueInPressable: {
+    ...typographyLayout.uiLineBody01Medium,
+    textAlign: 'left',
+    flexShrink: 1,
+  },
+  valueUnderline: {
+    textDecorationLine: 'underline',
+  },
+  valuePressable: {
+    flex: 1,
+    marginLeft: spacing[200],
+    minWidth: 0,
+  },
+  valuePressableInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 0,
+    flexShrink: 1,
+  },
+  valueWithPrefix: {
+    marginLeft: spacing[200],
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 0,
+  },
+  categoryEmoji: typographyLayout.uiLineBody01Regular,
   valueNoMarginLeft: {
     marginLeft: 0,
   },

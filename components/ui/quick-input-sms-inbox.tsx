@@ -108,6 +108,8 @@ export type QuickInputSmsInboxProps = {
   onConfirmConsumed: (item: SmsInboxItem) => void;
   onCancel: (item: SmsInboxItem) => void;
   onChange?: (item: SmsInboxItem) => void;
+  /** 카테고리 미선택 플레이스홀더 탭 */
+  onCategoryPress?: (item: SmsInboxItem) => void;
   /**
    * 추가 직전 동기 검증. false면 퇴장 모션 없이 중단.
    * 토스트 등은 호출측에서 처리.
@@ -384,6 +386,7 @@ function StackCard({
   onConfirm,
   onCancel,
   onChange,
+  onCategoryPress,
   addLoading,
   contentLoading,
   style,
@@ -393,6 +396,7 @@ function StackCard({
   onConfirm?: (item: SmsInboxItem) => void;
   onCancel?: (item: SmsInboxItem) => void;
   onChange?: (item: SmsInboxItem) => void;
+  onCategoryPress?: (item: SmsInboxItem) => void;
   addLoading?: boolean;
   /** 순서 전환 중 카드 콘텐츠 숨김 + 인디케이터 (원문 로딩과 동일 타이밍) */
   contentLoading?: boolean;
@@ -408,6 +412,7 @@ function StackCard({
         onConfirm={() => onConfirm?.(item)}
         onCancel={() => onCancel?.(item)}
         onChange={onChange ? () => onChange(item) : undefined}
+        onCategoryPress={onCategoryPress ? () => onCategoryPress(item) : undefined}
         addLoading={interactive ? addLoading : false}
         contentLoading={contentLoading}
         deferExitAnimation={interactive}
@@ -426,6 +431,7 @@ export function QuickInputSmsInbox({
   onConfirmConsumed,
   onCancel,
   onChange,
+  onCategoryPress,
   onBeforeConfirm,
   onDismiss,
   addLoading = false,
@@ -1115,6 +1121,7 @@ export function QuickInputSmsInbox({
                       : undefined
                   }
                   onChange={isTopInteractive ? onChange : undefined}
+                  onCategoryPress={isTopInteractive ? onCategoryPress : undefined}
                   addLoading={isTopInteractive ? addLoading : false}
                   contentLoading={originalLoading}
                   style={slotStyles[role as 0 | 1 | 2 | 3]}
