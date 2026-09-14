@@ -1464,8 +1464,13 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     };
   }, []);
 
+  const pendingSmsInboxMainRevealRef = useRef(false);
+  const smsInboxMainRevealFallbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const maybeRevealQuickInputMainFromSmsInboxRef = useRef<() => void>(() => {});
+
   const markAndroidKeyboardVisible = useCallback(() => {
     androidKeyboardWasVisibleRef.current = true;
+    maybeRevealQuickInputMainFromSmsInboxRef.current();
   }, []);
 
   /** Android: IME가 백을 먼저 먹어 키보드만 내려갈 때 간편입력도 즉시 닫기 */
@@ -1496,15 +1501,64 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     [shouldFollowKeyboard]
   );
 
+  /** 수신함 → 간편생성 메인: 키패드가 올라오기 전 칩/입력이 공중에 뜨지 않게 숨김 유지 */
+  const revealQuickInputMainFromSmsInbox = useCallback(() => {
+    if (!pendingSmsInboxMainRevealRef.current) {
+      return;
+    }
+    pendingSmsInboxMainRevealRef.current = false;
+    if (smsInboxMainRevealFallbackTimeoutRef.current != null) {
+      clearTimeout(smsInboxMainRevealFallbackTimeoutRef.current);
+      smsInboxMainRevealFallbackTimeoutRef.current = null;
+    }
+
+    setShouldFollowKeyboard(true);
+    editSheetOpenAnimationRef.current?.stop();
+    editSheetOpenAnimationRef.current = RNAnimated.parallel([
+      RNAnimated.timing(editSheetOpenInputTranslateY, {
+        toValue: 0,
+        duration: QUICK_INPUT_EDIT_OPENING_ANIMATION_DURATION,
+        easing: CALCULATOR_ANIMATION_EASING,
+        useNativeDriver: true,
+      }),
+      RNAnimated.timing(editSheetOpenInputOpacity, {
+        toValue: 1,
+        duration: QUICK_INPUT_EDIT_OPENING_ANIMATION_DURATION,
+        easing: CALCULATOR_ANIMATION_EASING,
+        useNativeDriver: true,
+      }),
+    ]);
+    editSheetOpenAnimationRef.current.start(({ finished }) => {
+      if (!finished) {
+        editSheetOpenInputTranslateY.setValue(0);
+        editSheetOpenInputOpacity.setValue(1);
+      }
+      isQuickInputSmsInboxClosingRef.current = false;
+    });
+  }, [
+    editSheetOpenInputOpacity,
+    editSheetOpenInputTranslateY,
+    setShouldFollowKeyboard,
+  ]);
+
+  maybeRevealQuickInputMainFromSmsInboxRef.current = revealQuickInputMainFromSmsInbox;
+
+  const maybeRevealQuickInputMainFromSmsInbox = useCallback(() => {
+    maybeRevealQuickInputMainFromSmsInboxRef.current();
+  }, []);
+
   useGenericKeyboardHandler(
     {
       onStart: (event) => {
         'worklet';
+        const keyboardHeight = Number.isFinite(event.height) ? event.height : 0;
+        if (keyboardHeight > 0) {
+          runOnJS(maybeRevealQuickInputMainFromSmsInbox)();
+        }
         if (!shouldFollowKeyboard.value) {
           animatedBottom.value = shortBottomFromScreen.value;
           return;
         }
-        const keyboardHeight = Number.isFinite(event.height) ? event.height : 0;
         if (Platform.OS === 'android') {
           // 위치는 keyboardReanimated.height → containerAnimatedStyle. 핸들러는 visible/dismiss만.
           if (keyboardHeight !== 0) {
@@ -1531,10 +1585,13 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       },
       onMove: (event) => {
         'worklet';
+        const keyboardHeight = Number.isFinite(event.height) ? event.height : 0;
+        if (keyboardHeight > 0) {
+          runOnJS(maybeRevealQuickInputMainFromSmsInbox)();
+        }
         if (!shouldFollowKeyboard.value) {
           return;
         }
-        const keyboardHeight = Number.isFinite(event.height) ? event.height : 0;
         if (keyboardHeight <= 0) {
           return;
         }
@@ -1604,7 +1661,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         );
       },
     },
-    [handleAndroidKeyboardDismissed, markAndroidKeyboardVisible]
+    [handleAndroidKeyboardDismissed, markAndroidKeyboardVisible, maybeRevealQuickInputMainFromSmsInbox]
   );
 
   /**
@@ -1770,6 +1827,10 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       clearTimeout(smsInboxCategorySheetUnmountTimeoutRef.current);
       smsInboxCategorySheetUnmountTimeoutRef.current = null;
     }
+    if (smsInboxMainRevealFallbackTimeoutRef.current != null) {
+      clearTimeout(smsInboxMainRevealFallbackTimeoutRef.current);
+      smsInboxMainRevealFallbackTimeoutRef.current = null;
+    }
     editSheetOpenAnimationRef.current?.stop();
     setSmsInboxCategorySheetVisible(false);
     setSmsInboxCategorySheetMounted(false);
@@ -1777,28 +1838,39 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
 
     editSheetOpenCardTranslateY.setValue(0);
     editSheetOpenCardOpacity.setValue(1);
-    editSheetOpenInputTranslateY.setValue(0);
-    editSheetOpenInputOpacity.setValue(1);
+    // 열릴 때와 반대로: 칩/입력을 아래+투명으로 숨긴 뒤 키패드와 함께 페이드인
+    editSheetOpenInputTranslateY.setValue(160);
+    editSheetOpenInputOpacity.setValue(0);
 
-    // short 앵커만 복구. 키보드 높이로 미리 올리면 IME 상승 중 아래로 한 번 당겨짐.
-    const restoreBottom = Math.max(KEYBOARD_GAP, lastShortBottomRef.current);
-    shortBottomFromScreen.value = restoreBottom;
-    animatedBottom.value = restoreBottom;
+    iosKeyboardHeightPrev.value = 0;
+    iosKeyboardPeakHeight.value = 0;
+    shortBottomFromScreen.value = KEYBOARD_GAP;
+    animatedBottom.value = KEYBOARD_GAP;
     resetAndroidKeyboardFollowPeak();
-    setShouldFollowKeyboard(true);
+    // 스테일 keyboard height로 공중에 뜨지 않게 follow는 키 상승 감지 후 켠다
+    setShouldFollowKeyboard(false);
 
-    // QuickInputField는 수신함에서도 마운트 상태라 remount 대기 없이 즉시 focus 가능.
+    pendingSmsInboxMainRevealRef.current = true;
     isQuickInputSmsInboxVisibleRef.current = false;
     setIsQuickInputSmsInboxVisible(false);
-    quickInputRef.current?.focus();
-    isQuickInputSmsInboxClosingRef.current = false;
+
+    requestAnimationFrame(() => {
+      quickInputRef.current?.focus();
+      // 키보드 이벤트가 안 오면 짧게 폴백 노출
+      smsInboxMainRevealFallbackTimeoutRef.current = setTimeout(() => {
+        revealQuickInputMainFromSmsInbox();
+      }, 450);
+    });
   }, [
     animatedBottom,
     editSheetOpenCardOpacity,
     editSheetOpenCardTranslateY,
     editSheetOpenInputOpacity,
     editSheetOpenInputTranslateY,
+    iosKeyboardHeightPrev,
+    iosKeyboardPeakHeight,
     resetAndroidKeyboardFollowPeak,
+    revealQuickInputMainFromSmsInbox,
     setShouldFollowKeyboard,
     shortBottomFromScreen,
   ]);
@@ -1979,7 +2051,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
 
   const handleSmsInboxConfirm = useCallback(
     async (item: SmsInboxItem): Promise<SmsInboxConfirmResult> => {
-      // 완료 토스트는 모션 종료 후(잔여: consume 후 onConfirmConsumed / 마지막: 메인 복귀 직후).
+      // 잔여: consume 후 onConfirmConsumed에서 토스트.
+      // 마지막: 간편생성 메인 전환 후 토스트.
       const category = item.card.category.trim();
       if (!category || category === '미정') {
         showToast('카테고리를 선택해 주세요.');
@@ -2002,7 +2075,12 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       const remaining = smsInboxItemsRef.current.filter((entry) => entry.id !== item.id).length;
       if (remaining === 0) {
         removeSmsInboxItem(item.id);
-        showToast('기록 생성이 완료되었습니다.');
+        // 간편생성 메인이 그려진 뒤 토스트
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            showToast('기록 생성이 완료되었습니다.');
+          });
+        });
         return 'last';
       }
       return 'continue';

@@ -112,8 +112,8 @@ export type QuickInputSmsInboxProps = {
   index: number;
   onIndexChange: (nextIndex: number) => void;
   /**
-   * 모션 중/후 저장 훅. 토스트 타이밍은 아래 참고.
-   * - last: 수신함 닫힘 + 완료 토스트
+   * 모션 중/후 저장 훅. 토스트 타이밍은 호출측 참고.
+   * - last: 스켈레톤 유지 중 저장 → 간편생성 메인 복귀 후 토스트
    * - continue: 제거·토스트는 onConfirmConsumed
    * - abort: 카드 복구
    */
@@ -630,8 +630,8 @@ export function QuickInputSmsInbox({
     stopOriginalLoading,
   ]);
 
-  /** 마지막 건: 퇴장만 → 메인 복귀 + 토스트 */
-  const finishConfirmLastExit = useCallback(() => {
+  /** 마지막 건 추가: 퇴장 없이 원문·카드 스켈레톤 → 저장 → 간편생성 메인 */
+  const runConfirmLastWithSkeleton = useCallback(() => {
     const pending = pendingConsumeRef.current;
     if (!pending || pending.action !== 'confirm') {
       return;
@@ -645,16 +645,18 @@ export function QuickInputSmsInbox({
       }
       if (result === 'abort') {
         pendingConsumeRef.current = null;
+        setOriginalLoading(false);
+        setFrozenPagerIndex(null);
         resetConsumeMotion();
         setStackEpoch((epoch) => epoch + 1);
         return;
       }
       pendingConsumeRef.current = null;
-      resetConsumeMotion();
-      // 마지막 건 추가 후 수신함 닫고 간편생성 메인으로
+      // 저장·큐 제거는 onConfirm. 토스트는 간편생성 메인 전환 후 호출측에서.
       if (result === 'last') {
         onDismiss?.();
       }
+      resetConsumeMotion();
     })();
   }, [onConfirm, onDismiss, resetConsumeMotion]);
 
@@ -676,7 +678,7 @@ export function QuickInputSmsInbox({
     isRolling.value = false;
   }, [isRolling, onCancel, progress]);
 
-  /** 취소(마지막): 퇴장만 → 메인 복귀 */
+  /** 마지막 건 취소: 퇴장만 → 간편생성 메인 복귀 */
   const finishCancelLastExit = useCallback(() => {
     const pending = pendingConsumeRef.current;
     pendingConsumeRef.current = null;
@@ -697,15 +699,23 @@ export function QuickInputSmsInbox({
       }
       pendingConsumeRef.current = { item, action };
       setIsConsuming(true);
+
+      const isLast = items.length <= 1;
+
+      // 마지막 건 추가: 퇴장 모션 없이 스켈레톤 + 저장
+      if (isLast && action === 'confirm') {
+        setFrozenPagerIndex(safeIndex);
+        setOriginalLoading(true);
+        runConfirmLastWithSkeleton();
+        return;
+      }
+
       setTransition('forward');
       isRolling.value = true;
       progress.value = 0;
 
-      const isLast = items.length <= 1;
       const onFinished = isLast
-        ? action === 'confirm'
-          ? finishConfirmLastExit
-          : finishCancelLastExit
+        ? finishCancelLastExit
         : action === 'confirm'
           ? finishConfirmConsume
           : finishCancelConsume;
@@ -726,15 +736,15 @@ export function QuickInputSmsInbox({
       );
     },
     [
-        finishCancelConsume,
+      finishCancelConsume,
       finishCancelLastExit,
       finishConfirmConsume,
-      finishConfirmLastExit,
       isConsuming,
       isRolling,
       items.length,
       onBeforeConfirm,
       progress,
+      runConfirmLastWithSkeleton,
       safeIndex,
     ],
   );
