@@ -16,7 +16,7 @@ import { typography, typographyLayout } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { requestNotificationPermissionThenOpenSettings } from '@/hooks/use-notifications';
-import { buildSmsInboxShortcutInstallUrl } from '@/constants/sms-inbox-shortcut';
+import { resolveSmsInboxShortcutInstallUrl } from '@/constants/sms-inbox-shortcut';
 import {
   diagnoseSmsInboxNativeQueue,
   flushPendingSmsInboxFromNative,
@@ -137,13 +137,21 @@ export default function SettingsSmsReceiveScreen() {
 
   const handleShortcutsPress = useCallback(() => {
     if (Platform.OS === 'ios') {
-      // 공유 단축어 추가 화면으로 바로 이동 (앱 내 컨펌 모달 없음).
-      const installUrl = buildSmsInboxShortcutInstallUrl();
-      void Linking.openURL(installUrl ?? 'shortcuts://');
+      void (async () => {
+        try {
+          setLoading(true);
+          const installUrl = await resolveSmsInboxShortcutInstallUrl();
+          await Linking.openURL(installUrl);
+        } catch {
+          await Linking.openURL('shortcuts://');
+        } finally {
+          setLoading(false);
+        }
+      })();
       return;
     }
     void Linking.openSettings();
-  }, []);
+  }, [setLoading]);
 
   /** Intent→App Group 전달 여부 확인 (큐를 비우지 않음) */
   const handleVerifyPeek = useCallback(async () => {
@@ -296,7 +304,7 @@ export default function SettingsSmsReceiveScreen() {
                   <Icon name="arrowRight" size={24} color={colors.staticBlack} />
                 </View>
                 <UiLineText style={[styles.caption, { color: colors.textAssistive }]}>
-                  단축어「문자 수신함」에 입력 내용←메시지 내용, 발신번호←발신자를 연결하세요.
+                  공유 단축어를 추가한 뒤, 자동화에서 발신번호 트리거만 연결하세요. (아이폰)
                 </UiLineText>
               </Pressable>
               {Platform.OS === 'ios' ? (

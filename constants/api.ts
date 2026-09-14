@@ -12,6 +12,7 @@ import * as Updates from 'expo-updates';
  *   EXPO_PUBLIC_APP_VERSION_POLICY_URL 로 분리 URL 가능(빌드 시 박힘·비밀 아님). 신뢰하는 호스트만 사용.
  * - 공지사항 JSON: `{VERCEL_API_BASE_URL}/app-notices.json` (Vercel static 배포분만 표시).
  *   EXPO_PUBLIC_APP_NOTICES_URL 로 분리 URL 가능.
+ * - 문자 수신함 공유 단축어: `{VERCEL_API_BASE_URL}/sms-inbox-shortcut.json`
  * - 그 밖의 프로덕션 빌드: EXPO_PUBLIC 이 있으면 우선, 없으면 프로덕션 기본 도메인.
  */
 
@@ -77,6 +78,10 @@ export const APP_VERSION_POLICY_URL =
 export const APP_NOTICES_URL =
   normalizeApiBaseUrl(process.env.EXPO_PUBLIC_APP_NOTICES_URL) ??
   `${VERCEL_API_BASE_URL}/app-notices.json`;
+
+/** 문자 수신함 iCloud 공유 단축어 최신 URL (`static/sms-inbox-shortcut.json`) */
+export const SMS_INBOX_SHORTCUT_CONFIG_URL =
+  `${VERCEL_API_BASE_URL}/sms-inbox-shortcut.json`;
 
 export const PARSE_EXPENSE_API_URL = `${VERCEL_API_BASE_URL}/api/parse-expense`;
 

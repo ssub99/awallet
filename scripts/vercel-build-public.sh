@@ -8,4 +8,5 @@ mkdir -p public/notices
 cp -R static/notices/. public/notices/ 2>/dev/null || true
 cp static/app-version.json public/app-version.json
 cp static/app-notices.json public/app-notices.json
+cp static/sms-inbox-shortcut.json public/sms-inbox-shortcut.json
 printf '%s\n' '<!DOCTYPE html><html><body><p>API only.</p></body></html>' > public/index.html
