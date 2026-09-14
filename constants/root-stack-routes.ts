@@ -17,6 +17,7 @@ export const ROOT_STACK_ROUTE_NAMES = [
   'expense-category-detail',
   'notification-setting',
   'settings-sms-receive',
+  'sms-inbox',
   'settings-notice',
   'settings-notice-compose',
   'settings-notice-edit',

@@ -29,6 +29,7 @@
     "verify:reviews": "npx tsx scripts/verify-parse-expense-reviews.ts",
     "verify:recurring-month": "npx tsx scripts/verify-recurring-month-anchor.ts",
     "verify:sms-inbox-stack": "npx tsx scripts/verify-sms-inbox-stack-frame.ts",
+    "verify:sms-inbox-parse": "npx tsx scripts/verify-sms-inbox-parse.ts",
     "eas": "eas",
     "postinstall": "bash scripts/postinstall.sh"
   },

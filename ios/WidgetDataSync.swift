@@ -67,9 +67,9 @@ class WidgetDataSync: NSObject, RCTBridgeModule {
     }
   }
 
-  @objc
+  @objc(clearMonthlyExpenseRevealState:rejecter:)
   func clearMonthlyExpenseRevealState(
-    resolver resolve: @escaping RCTPromiseResolveBlock,
+    _ resolve: @escaping RCTPromiseResolveBlock,
     rejecter reject: @escaping RCTPromiseRejectBlock
   ) {
     guard let sharedDefaults = UserDefaults(suiteName: appGroupIdentifier) else {
@@ -88,6 +88,37 @@ class WidgetDataSync: NSObject, RCTBridgeModule {
     resolve(nil)
   }
 
+  /// 재설치 검증용. 값이 `sms-inbox-1`이면 peek/drain 포함 빌드.
+  @objc(getSmsInboxBridgeVersion:rejecter:)
+  func getSmsInboxBridgeVersion(
+    _ resolve: @escaping RCTPromiseResolveBlock,
+    rejecter reject: @escaping RCTPromiseRejectBlock
+  ) {
+    resolve("sms-inbox-1")
+  }
+
+  /// App Intent가 쌓아 둔 문자 수신함 대기 큐를 읽고 비운다.
+  @objc(drainPendingSmsInbox:rejecter:)
+  func drainPendingSmsInbox(
+    _ resolve: @escaping RCTPromiseResolveBlock,
+    rejecter reject: @escaping RCTPromiseRejectBlock
+  ) {
+    let items = SmsInboxAppGroupQueue.drain()
+    NSLog("[SmsInbox] drain count=%d", items.count)
+    resolve(items)
+  }
+
+  /// 대기 큐만 조회 (비우지 않음) — 전송/수신 검증용.
+  @objc(peekPendingSmsInbox:rejecter:)
+  func peekPendingSmsInbox(
+    _ resolve: @escaping RCTPromiseResolveBlock,
+    rejecter reject: @escaping RCTPromiseRejectBlock
+  ) {
+    let items = SmsInboxAppGroupQueue.peek()
+    NSLog("[SmsInbox] peek count=%d", items.count)
+    resolve(items)
+  }
+
   @objc
   static func requiresMainQueueSetup() -> Bool {
     return true
@@ -96,6 +127,84 @@ class WidgetDataSync: NSObject, RCTBridgeModule {
   @objc
   static func moduleName() -> String {
     return "WidgetDataSync"
+  }
+}
+
+// MARK: - SMS inbox pending queue (App Intent → JS)
+
+enum SmsInboxAppGroupQueue {
+  static let storageKey = "smsInboxPendingQueue"
+
+  private static var appGroupIdentifier: String {
+    let bundleId = Bundle.main.bundleIdentifier ?? ""
+    if bundleId.contains(".stage") {
+      return "group.com.ssong.awallet.stage"
+    }
+    return "group.com.ssong.awallet"
+  }
+
+  static func enqueue(body: String, sender: String = "") {
+    let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else {
+      NSLog("[SmsInbox] enqueue skipped: empty body")
+      return
+    }
+    guard let defaults = UserDefaults(suiteName: appGroupIdentifier) else {
+      NSLog("[SmsInbox] enqueue failed: no App Group %@", appGroupIdentifier)
+      return
+    }
+
+    let senderTrimmed = sender.trimmingCharacters(in: .whitespacesAndNewlines)
+    var queue = loadQueue(from: defaults)
+    queue.append([
+      "id": UUID().uuidString,
+      "body": trimmed,
+      "sender": senderTrimmed,
+      "enqueuedAt": ISO8601DateFormatter().string(from: Date()),
+    ])
+    defaults.set(queue, forKey: storageKey)
+    defaults.synchronize()
+    NSLog(
+      "[SmsInbox] enqueue ok group=%@ queueCount=%d bodyLen=%d senderLen=%d",
+      appGroupIdentifier,
+      queue.count,
+      trimmed.count,
+      senderTrimmed.count
+    )
+  }
+
+  /// 대기 항목을 반환하고 큐를 비운다.
+  static func drain() -> [[String: Any]] {
+    guard let defaults = UserDefaults(suiteName: appGroupIdentifier) else {
+      return []
+    }
+    let queue = loadQueue(from: defaults)
+    defaults.removeObject(forKey: storageKey)
+    defaults.synchronize()
+    return queue
+  }
+
+  /// 대기 항목만 조회 (큐 유지).
+  static func peek() -> [[String: Any]] {
+    guard let defaults = UserDefaults(suiteName: appGroupIdentifier) else {
+      return []
+    }
+    return loadQueue(from: defaults)
+  }
+
+  private static func loadQueue(from defaults: UserDefaults) -> [[String: Any]] {
+    guard let raw = defaults.array(forKey: storageKey) else {
+      return []
+    }
+    return raw.compactMap { entry in
+      guard let dict = entry as? [String: Any],
+            let body = dict["body"] as? String,
+            !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      else {
+        return nil
+      }
+      return dict
+    }
   }
 }
 

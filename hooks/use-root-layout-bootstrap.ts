@@ -29,6 +29,7 @@ import {
   refreshWidgetWithCurrentMonth,
   resetMonthlyExpenseMaskInWidget,
 } from '@/utils/widget-data-sync';
+import { flushPendingSmsInboxFromNative } from '@/utils/sms-inbox-native-queue';
 import Constants from 'expo-constants';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Updates from 'expo-updates';
@@ -239,6 +240,20 @@ export function useRootLayoutBootstrap() {
     const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
       if (next === 'active') {
         runEmit();
+      }
+    });
+    return () => sub.remove();
+  }, [appIsReady]);
+
+  /** iOS: App Intent가 App Group에 쌓은 문자 → ingest → 수신함 스토어/UI */
+  useEffect(() => {
+    if (!appIsReady || Platform.OS !== 'ios') {
+      return undefined;
+    }
+    void flushPendingSmsInboxFromNative();
+    const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
+      if (next === 'active') {
+        void flushPendingSmsInboxFromNative();
       }
     });
     return () => sub.remove();

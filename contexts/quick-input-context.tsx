@@ -45,7 +45,13 @@ import { useRecordFormMemoKeyboard } from '@/hooks/use-record-form-memo-keyboard
 import { logEvent } from '@/utils/analytics';
 import { getApiSecurityHeaders } from '@/utils/api-security-headers';
 import { isAtLeastVersion, QUICK_INPUT_MIN_VERSION } from '@/utils/app-version';
-import { createSmsInboxMockItems, type SmsInboxItem } from '@/utils/sms-inbox-mock';
+import type { SmsInboxItem } from '@/utils/sms-inbox-types';
+import {
+  loadSmsInboxItems,
+  replaceSmsInboxItems,
+  subscribeSmsInboxItems,
+} from '@/utils/sms-inbox-store';
+import { flushPendingSmsInboxFromNative } from '@/utils/sms-inbox-native-queue';
 import {
   loadSmsReceiveEnabled,
   subscribeSmsReceiveEnabled,
@@ -962,6 +968,269 @@ async function buildConfirmCardFromPending(
   };
 }
 
+async function persistPendingParseRecord(
+  pending: PendingParseRecord,
+  deps: {
+    getPaymentSubtypesCached: () => Promise<PaymentSubtype[]>;
+    refresh: () => Promise<void>;
+    showToast: (message: string) => void;
+  },
+): Promise<boolean> {
+  const { getPaymentSubtypesCached, refresh, showToast } = deps;
+  try {
+    const parsedDate = parsePendingDate(pending.date);
+    if (!parsedDate) {
+      showToast('올바른 날짜를 기입해 주세요.');
+      return false;
+    }
+    const { year, month, day } = parsedDate;
+    const dateStr = `${year}.${String(month).padStart(2, '0')}.${String(day).padStart(2, '0')}`;
+
+    const dateObj = new Date(year, month - 1, day);
+    const dayOfWeek = dateObj.getDay();
+    const isWeekendDay = dayOfWeek === 0 || dayOfWeek === 6;
+    const isWeekday = !isWeekendDay;
+
+    const isRecurring = !!pending.isRecurring;
+    const isInstallment = !!pending.isInstallment;
+    const isIncomeRecord = pending.recordType === 'income';
+    const recurringType = pending.recurringType ?? '매월';
+    const totalMonths = Math.max(2, Math.min(12, pending.totalMonths ?? 1));
+    const weekendOption = (pending.weekendOption ?? 'weekend') as 'weekend' | 'friday' | 'monday';
+
+    let actualDate = dateStr;
+    if (isRecurring && recurringType === '주중' && isWeekendDay) {
+      const nextMonday = new Date(dateObj);
+      const daysUntilMonday = (8 - dayOfWeek) % 7;
+      nextMonday.setDate(nextMonday.getDate() + (daysUntilMonday === 0 ? 7 : daysUntilMonday));
+      actualDate = `${nextMonday.getFullYear()}.${String(nextMonday.getMonth() + 1).padStart(2, '0')}.${String(nextMonday.getDate()).padStart(2, '0')}`;
+    } else if (isRecurring && recurringType === '주말' && isWeekday) {
+      const thisSaturday = new Date(dateObj);
+      const daysUntilSaturday = 6 - dayOfWeek;
+      thisSaturday.setDate(thisSaturday.getDate() + daysUntilSaturday);
+      actualDate = `${thisSaturday.getFullYear()}.${String(thisSaturday.getMonth() + 1).padStart(2, '0')}.${String(thisSaturday.getDate()).padStart(2, '0')}`;
+    } else {
+      const shouldIgnore = isRecurring && ['매일', '주중', '주말'].includes(recurringType);
+      if ((isRecurring || isInstallment) && isWeekendDay && weekendOption !== 'weekend' && !shouldIgnore) {
+        actualDate = adjustWeekendDate(dateStr, weekendOption);
+      }
+    }
+
+    const newTimestamp = Date.now();
+    const recordId = generateRecordId();
+    const recurringId = isRecurring ? generateGroupId('recurring') : undefined;
+    const installmentId = isInstallment ? generateGroupId('installment') : undefined;
+    const allPaymentSubtypes = isIncomeRecord ? [] : await getPaymentSubtypesCached();
+
+    const expenseAmount = Number(pending.amount);
+    if (!Number.isFinite(expenseAmount) || expenseAmount <= 0) {
+      showToast('금액을 확인해 주세요.');
+      return false;
+    }
+
+    if (isIncomeRecord) {
+      const incomeRecord: IncomeRecord = {
+        type: 'income',
+        id: generateRecordId(),
+        amount: expenseAmount,
+        category: pending.category ?? '기타',
+        date: actualDate,
+        timestamp: Date.now(),
+        memo: pending.memo,
+        createdVia: 'simple',
+      };
+      await createIncome(incomeRecord, { simpleCreation: true });
+      await refreshWidgetWithCurrentMonth().catch(() => {});
+      const actualDateKey = actualDate.replace(/\./g, '-');
+      const savedDate = new Date(
+        parseInt(actualDate.split('.')[0], 10),
+        parseInt(actualDate.split('.')[1], 10) - 1,
+        parseInt(actualDate.split('.')[2], 10)
+      );
+      const monthStartDay = await loadMonthStartDay();
+      const { year: targetYear, month: targetMonth } = getCustomMonthInfo(savedDate, monthStartDay);
+      publishCalendarTarget({
+        year: targetYear,
+        month: targetMonth,
+        targetDate: actualDateKey,
+      });
+      await refresh();
+      rescheduleDailyReminderIfNeeded().catch(() => {});
+      return true;
+    }
+
+    let monthlyAmount: number;
+    if (isInstallment) {
+      const baseAmount = Math.floor(expenseAmount / totalMonths);
+      const remainder = expenseAmount - baseAmount * totalMonths;
+      monthlyAmount = baseAmount + remainder;
+    } else {
+      monthlyAmount = expenseAmount;
+    }
+
+    const recordsToSave: ExpenseRecord[] = [];
+    const paymentMethod = (pending.paymentMethod as PaymentMethod) ?? 'credit';
+    const paymentSubtypeLabel = pending.paymentSubtypeLabel?.trim() ?? '';
+    let paymentSubtypeId: string | undefined;
+    if (paymentMethod !== 'cash') {
+      const matchedSubtype = pending.paymentSubtypeId
+        ? allPaymentSubtypes.find((item) => item.id === pending.paymentSubtypeId)
+        : findBestPaymentSubtypeMatch(
+            allPaymentSubtypes,
+            paymentMethod,
+            paymentSubtypeLabel,
+          );
+      paymentSubtypeId =
+        matchedSubtype?.id ?? getDefaultSubtypeIdByMethod(paymentMethod, allPaymentSubtypes);
+    }
+    const baseRecord: ExpenseRecord = {
+      type: 'expense',
+      id: recordId,
+      amount: monthlyAmount,
+      category: pending.category ?? '기타',
+      date: actualDate,
+      timestamp: newTimestamp,
+      paymentMethod,
+      paymentSubtypeId,
+      memo: pending.memo,
+      isRecurring,
+      weekendOption: (isRecurring || isInstallment) ? weekendOption : undefined,
+      recurringId,
+      installmentId,
+      isAutoGenerated: false,
+      isInstallment: isInstallment ? true : undefined,
+      totalMonths: isRecurring ? totalMonths : undefined,
+      installmentMonths: isInstallment ? totalMonths : undefined,
+      originalInstallment: isInstallment ? true : undefined,
+      recurringType: isRecurring ? recurringType : undefined,
+      originalAmount: monthlyAmount,
+      originalCategory: pending.category ?? '기타',
+      originalDate: actualDate,
+      createdVia: 'simple',
+    };
+    recordsToSave.push(baseRecord);
+
+    if ((isRecurring || isInstallment) && !isRecurring) {
+      const [yearNum, monthNum, dayNum] = dateStr.split('.').map(Number);
+      for (let i = 1; i < totalMonths; i++) {
+        const shifted = addCalendarMonths(yearNum, monthNum, i);
+        let futureYear = shifted.year;
+        let futureMonth = shifted.month;
+        const actualDay = getActualDayForMonth(futureYear, futureMonth, dayNum);
+        let futureDate = `${futureYear}.${String(futureMonth).padStart(2, '0')}.${String(actualDay).padStart(2, '0')}`;
+        const futureDateObj = new Date(futureYear, futureMonth - 1, actualDay);
+        const futureDayOfWeek = futureDateObj.getDay();
+        if ((futureDayOfWeek === 0 || futureDayOfWeek === 6) && weekendOption !== 'weekend') {
+          futureDate = adjustWeekendDate(futureDate, weekendOption);
+        }
+        const futureAmount = Math.floor(expenseAmount / totalMonths);
+        recordsToSave.push({
+          ...baseRecord,
+          id: generateRecordId(),
+          amount: futureAmount,
+          date: futureDate,
+          timestamp: newTimestamp + i,
+          isAutoGenerated: true,
+          originalAmount: futureAmount,
+          originalDate: futureDate,
+        });
+      }
+    } else if ((isRecurring || isInstallment) && isRecurring) {
+      let iterations: number;
+      iterations = calculateRecurringIterations(actualDate, recurringType);
+      let currentDate = actualDate;
+      const startYear = year;
+      const [, , seriesAnchorDay] = dateStr.split('.').map(Number);
+      for (let iteration = 1; iteration < iterations; iteration++) {
+        const nextDate = getNextRecurringDate(
+          currentDate,
+          recurringType,
+          iteration,
+          startYear,
+          seriesAnchorDay,
+        );
+        if (!nextDate) break;
+        const isEdgeCaseAdjusted =
+          isRecurring &&
+          ((recurringType === '주중' && isWeekendDay) || (recurringType === '주말' && isWeekday));
+        let futureDate = nextDate;
+        if (iteration === 1 && isEdgeCaseAdjusted) {
+          const [ny, nm, nd] = nextDate.split('.').map(Number);
+          const nextDateObj = new Date(ny, nm - 1, nd);
+          const actualDateObj = new Date(
+            parseInt(actualDate.split('.')[0], 10),
+            parseInt(actualDate.split('.')[1], 10) - 1,
+            parseInt(actualDate.split('.')[2], 10)
+          );
+          if (nextDateObj <= actualDateObj) {
+            const nextNext = getNextRecurringDate(
+              nextDate,
+              recurringType,
+              iteration,
+              startYear,
+              seriesAnchorDay,
+            );
+            if (nextNext) futureDate = nextNext;
+          }
+        }
+        const [fy, fm, fd] = futureDate.split('.').map(Number);
+        const futureDateObj = new Date(fy, fm - 1, fd);
+        const futureDayOfWeek = futureDateObj.getDay();
+        const shouldIgnore = ['매일', '주중', '주말'].includes(recurringType);
+        if ((futureDayOfWeek === 0 || futureDayOfWeek === 6) && weekendOption !== 'weekend' && !shouldIgnore) {
+          futureDate = adjustWeekendDate(futureDate, weekendOption);
+        }
+        const futureAmount = isInstallment ? Math.floor(expenseAmount / totalMonths) : expenseAmount;
+        recordsToSave.push({
+          ...baseRecord,
+          id: generateRecordId(),
+          amount: futureAmount,
+          date: futureDate,
+          timestamp: newTimestamp + iteration,
+          isAutoGenerated: true,
+          originalAmount: futureAmount,
+          originalDate: futureDate,
+        });
+        currentDate = futureDate;
+      }
+    }
+
+    await createExpensesBatch(recordsToSave, {
+      creationCompletionRepeatCount: recordsToSave.length,
+      simpleCreation: true,
+    });
+    await refreshWidgetWithCurrentMonth().catch(() => {});
+
+    const challengeCategory = pending.category ?? '기타';
+    const actualDateKey = actualDate.replace(/\./g, '-');
+    const savedDate = new Date(
+      parseInt(actualDate.split('.')[0], 10),
+      parseInt(actualDate.split('.')[1], 10) - 1,
+      parseInt(actualDate.split('.')[2], 10)
+    );
+    const monthStartDay = await loadMonthStartDay();
+    const { year: targetYear, month: targetMonth } = getCustomMonthInfo(savedDate, monthStartDay);
+    publishCalendarTarget({
+      year: targetYear,
+      month: targetMonth,
+      targetDate: actualDateKey,
+    });
+
+    await refresh();
+    if (challengeCategory) {
+      const recordDateObj = new Date(actualDateKey);
+      await triggerChallengeNotifications(challengeCategory, recordDateObj).catch((error) => {
+        console.error('[quick-input] Failed to trigger challenge notifications:', error);
+      });
+    }
+    rescheduleDailyReminderIfNeeded().catch(() => {});
+    return true;
+  } catch {
+    showToast('기록 저장에 실패했습니다.');
+    return false;
+  }
+}
+
 export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const insets = useSafeAreaInsets();
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
@@ -989,9 +1258,11 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const [isQuickInputSmsInboxVisible, setIsQuickInputSmsInboxVisible] = useState(false);
   const [isQuickInputSmsInboxOpening, setIsQuickInputSmsInboxOpening] = useState(false);
   const isQuickInputSmsInboxClosingRef = useRef(false);
+  const isQuickInputSmsInboxVisibleRef = useRef(false);
   /** 문자 수신 설정 ON일 때만 칩·숏 뱃지 노출 */
   const [smsReceiveEnabled, setSmsReceiveEnabled] = useState(false);
-  const [smsInboxItems, setSmsInboxItems] = useState<SmsInboxItem[]>(() => createSmsInboxMockItems());
+  const [smsInboxItems, setSmsInboxItems] = useState<SmsInboxItem[]>([]);
+  const smsInboxItemsRef = useRef<SmsInboxItem[]>([]);
   const [smsInboxIndex, setSmsInboxIndex] = useState(0);
   const [confirmCardData, setConfirmCardData] = useState<QuickInputConfirmCardData | null>(null);
   const [isQuickInputConfirmCardRevealPaused, setIsQuickInputConfirmCardRevealPaused] = useState(false);
@@ -1149,6 +1420,14 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }, [isQuickInputVisible]);
 
   useEffect(() => {
+    isQuickInputSmsInboxVisibleRef.current = isQuickInputSmsInboxVisible;
+  }, [isQuickInputSmsInboxVisible]);
+
+  useEffect(() => {
+    smsInboxItemsRef.current = smsInboxItems;
+  }, [smsInboxItems]);
+
+  useEffect(() => {
     let cancelled = false;
     void loadSmsReceiveEnabled().then((enabled) => {
       if (!cancelled) {
@@ -1156,6 +1435,29 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       }
     });
     const unsubscribe = subscribeSmsReceiveEnabled(setSmsReceiveEnabled);
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const sync = async () => {
+      await flushPendingSmsInboxFromNative();
+      const items = await loadSmsInboxItems();
+      if (!cancelled) {
+        setSmsInboxItems(items);
+      }
+    };
+    void sync();
+    const unsubscribe = subscribeSmsInboxItems((items) => {
+      setSmsInboxItems(items);
+      setSmsInboxIndex((current) => {
+        if (items.length === 0) return 0;
+        return Math.min(current, items.length - 1);
+      });
+    });
     return () => {
       cancelled = true;
       unsubscribe();
@@ -1359,10 +1661,6 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       setQuickInputCalculatorAmount('');
       setQuickInputCalculatorExpression([]);
       setIsQuickInputSmsInboxVisible(false);
-      // ponytail: unread SMS mock until native ingest lands.
-      if (smsReceiveEnabled) {
-        setSmsInboxItems((prev) => (prev.length > 0 ? prev : createSmsInboxMockItems()));
-      }
       setSmsInboxIndex(0);
       smsInboxCategoryItemIdRef.current = null;
       if (smsInboxCategorySheetUnmountTimeoutRef.current) {
@@ -1383,7 +1681,6 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       iosKeyboardPeakHeight,
       setShouldFollowKeyboard,
       shortBottomFromScreen,
-      smsReceiveEnabled,
     ]
   );
 
@@ -1463,7 +1760,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   ]);
 
   const closeQuickInputSmsInbox = useCallback(() => {
-    if (!isQuickInputSmsInboxVisible || isQuickInputSmsInboxClosingRef.current) {
+    if (!isQuickInputSmsInboxVisibleRef.current || isQuickInputSmsInboxClosingRef.current) {
       return;
     }
     isQuickInputSmsInboxClosingRef.current = true;
@@ -1491,6 +1788,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     setShouldFollowKeyboard(true);
 
     // QuickInputField는 수신함에서도 마운트 상태라 remount 대기 없이 즉시 focus 가능.
+    isQuickInputSmsInboxVisibleRef.current = false;
     setIsQuickInputSmsInboxVisible(false);
     quickInputRef.current?.focus();
     isQuickInputSmsInboxClosingRef.current = false;
@@ -1500,11 +1798,21 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     editSheetOpenCardTranslateY,
     editSheetOpenInputOpacity,
     editSheetOpenInputTranslateY,
-    isQuickInputSmsInboxVisible,
     resetAndroidKeyboardFollowPeak,
     setShouldFollowKeyboard,
     shortBottomFromScreen,
   ]);
+
+  // 수신함 큐가 비면 간편생성 메인으로 복귀 (마지막 건 추가/취소 후 딤만 남는 케이스 방지)
+  useEffect(() => {
+    if (!isQuickInputSmsInboxVisible) {
+      return;
+    }
+    if (smsInboxItems.length > 0) {
+      return;
+    }
+    closeQuickInputSmsInbox();
+  }, [closeQuickInputSmsInbox, isQuickInputSmsInboxVisible, smsInboxItems.length]);
 
   const handleQuickInputSmsInboxPress = useCallback(() => {
     if (!smsReceiveEnabled) {
@@ -1658,6 +1966,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
           }
           return Math.min(currentIndex, next.length - 1);
         });
+        void replaceSmsInboxItems(next);
         return next;
       });
       if (emptied) {
@@ -1670,14 +1979,27 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
 
   const handleSmsInboxConfirm = useCallback(
     async (item: SmsInboxItem): Promise<SmsInboxConfirmResult> => {
-      // ponytail: 실데이터 저장(createExpensesBatch 등) 연동 전 UI 순서만 맞춤.
       // 완료 토스트는 모션 종료 후(잔여: consume 후 onConfirmConsumed / 마지막: 메인 복귀 직후).
       const category = item.card.category.trim();
       if (!category || category === '미정') {
         showToast('카테고리를 선택해 주세요.');
         return 'abort';
       }
-      const remaining = smsInboxItems.filter((entry) => entry.id !== item.id).length;
+      const pending = confirmCardDataToPending(item.card);
+      if (!pending) {
+        showToast('기록 정보를 확인할 수 없습니다.');
+        return 'abort';
+      }
+      const saved = await persistPendingParseRecord(pending, {
+        // getPaymentSubtypesCached는 아래에서 정의되므로 모듈 loadPaymentSubtypes 사용
+        getPaymentSubtypesCached: loadPaymentSubtypes,
+        refresh,
+        showToast,
+      });
+      if (!saved) {
+        return 'abort';
+      }
+      const remaining = smsInboxItemsRef.current.filter((entry) => entry.id !== item.id).length;
       if (remaining === 0) {
         removeSmsInboxItem(item.id);
         showToast('기록 생성이 완료되었습니다.');
@@ -1685,7 +2007,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       }
       return 'continue';
     },
-    [removeSmsInboxItem, showToast, smsInboxItems],
+    [refresh, removeSmsInboxItem, showToast],
   );
 
   const handleSmsInboxBeforeConfirm = useCallback(
@@ -1905,8 +2227,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         target: 'sms-inbox-category-option',
         category: category.label,
       });
-      setSmsInboxItems((prev) =>
-        prev.map((item) =>
+      setSmsInboxItems((prev) => {
+        const next = prev.map((item) =>
           item.id === smsItemId
             ? {
                 ...item,
@@ -1917,8 +2239,10 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                 },
               }
             : item,
-        ),
-      );
+        );
+        void replaceSmsInboxItems(next);
+        return next;
+      });
       closeSmsInboxCategorySheet();
     },
     [closeSmsInboxCategorySheet],
@@ -3200,263 +3524,18 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     setIsQuickInputConfirmAdding(true);
 
     try {
-      const parsedDate = parsePendingDate(pending.date);
-      if (!parsedDate) {
-        showToast('올바른 날짜를 기입해 주세요.');
-        return;
-      }
-      const { year, month, day } = parsedDate;
-      const dateStr = `${year}.${String(month).padStart(2, '0')}.${String(day).padStart(2, '0')}`;
-
-      const dateObj = new Date(year, month - 1, day);
-      const dayOfWeek = dateObj.getDay();
-      const isWeekendDay = dayOfWeek === 0 || dayOfWeek === 6;
-      const isWeekday = !isWeekendDay;
-
-      const isRecurring = !!pending.isRecurring;
-      const isInstallment = !!pending.isInstallment;
-      const isIncomeRecord = pending.recordType === 'income';
-      const recurringType = pending.recurringType ?? '매월';
-      const totalMonths = Math.max(2, Math.min(12, pending.totalMonths ?? 1));
-      const weekendOption = (pending.weekendOption ?? 'weekend') as 'weekend' | 'friday' | 'monday';
-
-      let actualDate = dateStr;
-      if (isRecurring && recurringType === '주중' && isWeekendDay) {
-        const nextMonday = new Date(dateObj);
-        const daysUntilMonday = (8 - dayOfWeek) % 7;
-        nextMonday.setDate(nextMonday.getDate() + (daysUntilMonday === 0 ? 7 : daysUntilMonday));
-        actualDate = `${nextMonday.getFullYear()}.${String(nextMonday.getMonth() + 1).padStart(2, '0')}.${String(nextMonday.getDate()).padStart(2, '0')}`;
-      } else if (isRecurring && recurringType === '주말' && isWeekday) {
-        const thisSaturday = new Date(dateObj);
-        const daysUntilSaturday = 6 - dayOfWeek;
-        thisSaturday.setDate(thisSaturday.getDate() + daysUntilSaturday);
-        actualDate = `${thisSaturday.getFullYear()}.${String(thisSaturday.getMonth() + 1).padStart(2, '0')}.${String(thisSaturday.getDate()).padStart(2, '0')}`;
-      } else {
-        const shouldIgnore = isRecurring && ['매일', '주중', '주말'].includes(recurringType);
-        if ((isRecurring || isInstallment) && isWeekendDay && weekendOption !== 'weekend' && !shouldIgnore) {
-          actualDate = adjustWeekendDate(dateStr, weekendOption);
-        }
-      }
-
-      const newTimestamp = Date.now();
-      const recordId = generateRecordId();
-      const recurringId = isRecurring ? generateGroupId('recurring') : undefined;
-      const installmentId = isInstallment ? generateGroupId('installment') : undefined;
-      const allPaymentSubtypes = isIncomeRecord ? [] : await getPaymentSubtypesCached();
-
-      const expenseAmount = Number(pending.amount);
-      if (!Number.isFinite(expenseAmount) || expenseAmount <= 0) {
-        showToast('금액을 확인해 주세요.');
-        return;
-      }
-
-      if (isIncomeRecord) {
-        const incomeRecord: IncomeRecord = {
-          type: 'income',
-          id: generateRecordId(),
-          amount: expenseAmount,
-          category: pending.category ?? '기타',
-          date: actualDate,
-          timestamp: Date.now(),
-          memo: pending.memo,
-          createdVia: 'simple',
-        };
-        await createIncome(incomeRecord, { simpleCreation: true });
-        await refreshWidgetWithCurrentMonth().catch(() => {});
-        const actualDateKey = actualDate.replace(/\./g, '-');
-        const savedDate = new Date(
-          parseInt(actualDate.split('.')[0], 10),
-          parseInt(actualDate.split('.')[1], 10) - 1,
-          parseInt(actualDate.split('.')[2], 10)
-        );
-        const monthStartDay = await loadMonthStartDay();
-        const { year: targetYear, month: targetMonth } = getCustomMonthInfo(savedDate, monthStartDay);
-        publishCalendarTarget({
-          year: targetYear,
-          month: targetMonth,
-          targetDate: actualDateKey,
-        });
-        pendingRecordRef.current = null;
-        setConfirmCardData(null);
-        hideQuickInput();
-        showToast('기록 생성이 완료되었습니다.');
-        await refresh();
-        rescheduleDailyReminderIfNeeded().catch(() => {});
-        return;
-      }
-
-      let monthlyAmount: number;
-      if (isInstallment) {
-        const baseAmount = Math.floor(expenseAmount / totalMonths);
-        const remainder = expenseAmount - baseAmount * totalMonths;
-        monthlyAmount = baseAmount + remainder;
-      } else {
-        monthlyAmount = expenseAmount;
-      }
-
-      const recordsToSave: ExpenseRecord[] = [];
-      const paymentMethod = (pending.paymentMethod as PaymentMethod) ?? 'credit';
-      const paymentSubtypeLabel = pending.paymentSubtypeLabel?.trim() ?? '';
-      let paymentSubtypeId: string | undefined;
-      if (paymentMethod !== 'cash') {
-        const matchedSubtype = pending.paymentSubtypeId
-          ? allPaymentSubtypes.find((item) => item.id === pending.paymentSubtypeId)
-          : findBestPaymentSubtypeMatch(
-              allPaymentSubtypes,
-              paymentMethod,
-              paymentSubtypeLabel,
-            );
-        paymentSubtypeId =
-          matchedSubtype?.id ?? getDefaultSubtypeIdByMethod(paymentMethod, allPaymentSubtypes);
-      }
-      const baseRecord: ExpenseRecord = {
-        type: 'expense',
-        id: recordId,
-        amount: monthlyAmount,
-        category: pending.category ?? '기타',
-        date: actualDate,
-        timestamp: newTimestamp,
-        paymentMethod,
-        paymentSubtypeId,
-        memo: pending.memo,
-        isRecurring,
-        weekendOption: (isRecurring || isInstallment) ? weekendOption : undefined,
-        recurringId,
-        installmentId,
-        isAutoGenerated: false,
-        isInstallment: isInstallment ? true : undefined,
-        totalMonths: isRecurring ? totalMonths : undefined,
-        installmentMonths: isInstallment ? totalMonths : undefined,
-        originalInstallment: isInstallment ? true : undefined,
-        recurringType: isRecurring ? recurringType : undefined,
-        originalAmount: monthlyAmount,
-        originalCategory: pending.category ?? '기타',
-        originalDate: actualDate,
-        createdVia: 'simple',
-      };
-      recordsToSave.push(baseRecord);
-
-      if ((isRecurring || isInstallment) && !isRecurring) {
-        const [yearNum, monthNum, dayNum] = dateStr.split('.').map(Number);
-        for (let i = 1; i < totalMonths; i++) {
-          const shifted = addCalendarMonths(yearNum, monthNum, i);
-          let futureYear = shifted.year;
-          let futureMonth = shifted.month;
-          const actualDay = getActualDayForMonth(futureYear, futureMonth, dayNum);
-          let futureDate = `${futureYear}.${String(futureMonth).padStart(2, '0')}.${String(actualDay).padStart(2, '0')}`;
-          const futureDateObj = new Date(futureYear, futureMonth - 1, actualDay);
-          const futureDayOfWeek = futureDateObj.getDay();
-          if ((futureDayOfWeek === 0 || futureDayOfWeek === 6) && weekendOption !== 'weekend') {
-            futureDate = adjustWeekendDate(futureDate, weekendOption);
-          }
-          const futureAmount = Math.floor(expenseAmount / totalMonths);
-          recordsToSave.push({
-            ...baseRecord,
-            id: generateRecordId(),
-            amount: futureAmount,
-            date: futureDate,
-            timestamp: newTimestamp + i,
-            isAutoGenerated: true,
-            originalAmount: futureAmount,
-            originalDate: futureDate,
-          });
-        }
-      } else if ((isRecurring || isInstallment) && isRecurring) {
-        let iterations: number;
-        iterations = calculateRecurringIterations(actualDate, recurringType);
-        let currentDate = actualDate;
-        const startYear = year;
-        const [, , seriesAnchorDay] = dateStr.split('.').map(Number);
-        for (let iteration = 1; iteration < iterations; iteration++) {
-          const nextDate = getNextRecurringDate(
-            currentDate,
-            recurringType,
-            iteration,
-            startYear,
-            seriesAnchorDay,
-          );
-          if (!nextDate) break;
-          const isEdgeCaseAdjusted =
-            isRecurring &&
-            ((recurringType === '주중' && isWeekendDay) || (recurringType === '주말' && isWeekday));
-          let futureDate = nextDate;
-          if (iteration === 1 && isEdgeCaseAdjusted) {
-            const [ny, nm, nd] = nextDate.split('.').map(Number);
-            const nextDateObj = new Date(ny, nm - 1, nd);
-            const actualDateObj = new Date(
-              parseInt(actualDate.split('.')[0], 10),
-              parseInt(actualDate.split('.')[1], 10) - 1,
-              parseInt(actualDate.split('.')[2], 10)
-            );
-            if (nextDateObj <= actualDateObj) {
-              const nextNext = getNextRecurringDate(
-                nextDate,
-                recurringType,
-                iteration,
-                startYear,
-                seriesAnchorDay,
-              );
-              if (nextNext) futureDate = nextNext;
-            }
-          }
-          const [fy, fm, fd] = futureDate.split('.').map(Number);
-          const futureDateObj = new Date(fy, fm - 1, fd);
-          const futureDayOfWeek = futureDateObj.getDay();
-          const shouldIgnore = ['매일', '주중', '주말'].includes(recurringType);
-          if ((futureDayOfWeek === 0 || futureDayOfWeek === 6) && weekendOption !== 'weekend' && !shouldIgnore) {
-            futureDate = adjustWeekendDate(futureDate, weekendOption);
-          }
-          const futureAmount = isInstallment ? Math.floor(expenseAmount / totalMonths) : expenseAmount;
-          recordsToSave.push({
-            ...baseRecord,
-            id: generateRecordId(),
-            amount: futureAmount,
-            date: futureDate,
-            timestamp: newTimestamp + iteration,
-            isAutoGenerated: true,
-            originalAmount: futureAmount,
-            originalDate: futureDate,
-          });
-          currentDate = futureDate;
-        }
-      }
-
-      await createExpensesBatch(recordsToSave, {
-        creationCompletionRepeatCount: recordsToSave.length,
-        simpleCreation: true,
+      const saved = await persistPendingParseRecord(pending, {
+        getPaymentSubtypesCached,
+        refresh,
+        showToast,
       });
-      await refreshWidgetWithCurrentMonth().catch(() => {});
-
-      const challengeCategory = pending.category ?? '기타';
-      const actualDateKey = actualDate.replace(/\./g, '-');
-      const savedDate = new Date(
-        parseInt(actualDate.split('.')[0], 10),
-        parseInt(actualDate.split('.')[1], 10) - 1,
-        parseInt(actualDate.split('.')[2], 10)
-      );
-      const monthStartDay = await loadMonthStartDay();
-      const { year: targetYear, month: targetMonth } = getCustomMonthInfo(savedDate, monthStartDay);
-      publishCalendarTarget({
-        year: targetYear,
-        month: targetMonth,
-        targetDate: actualDateKey,
-      });
-
+      if (!saved) {
+        return;
+      }
       pendingRecordRef.current = null;
       setConfirmCardData(null);
       hideQuickInput();
       showToast('기록 생성이 완료되었습니다.');
-
-      await refresh();
-      if (challengeCategory) {
-        const recordDateObj = new Date(actualDateKey);
-        await triggerChallengeNotifications(challengeCategory, recordDateObj).catch((error) => {
-          console.error('[quick-input] Failed to trigger challenge notifications:', error);
-        });
-      }
-      rescheduleDailyReminderIfNeeded().catch(() => {});
-    } catch {
-      showToast('기록 저장에 실패했습니다.');
     } finally {
       setIsQuickInputConfirmAdding(false);
       isConfirmAddInFlightRef.current = false;
@@ -4049,9 +4128,11 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     })
       .then((card) => {
         if (smsItemId) {
-          setSmsInboxItems((prev) =>
-            prev.map((item) => (item.id === smsItemId ? { ...item, card } : item)),
-          );
+          setSmsInboxItems((prev) => {
+            const next = prev.map((item) => (item.id === smsItemId ? { ...item, card } : item));
+            void replaceSmsInboxItems(next);
+            return next;
+          });
           return;
         }
         setConfirmCardData(card);

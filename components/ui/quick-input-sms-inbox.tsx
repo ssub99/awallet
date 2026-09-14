@@ -21,6 +21,7 @@ import { atomicColors } from '@/constants/atomic-colors';
 import { colors, typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import type { SmsInboxItem } from '@/utils/sms-inbox-mock';
+import { normalizeSmsOriginalBody } from '@/utils/sms-inbox-store';
 import {
   buildStackFrame,
   SlotMotion,
@@ -34,6 +35,7 @@ import {
   Animated as RNAnimated,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -71,6 +73,9 @@ const SLOT_INCOMING_EXTRA_Y = 16;
 const FIGMA_CLOSE = { left: 16, top: 48, width: 48, height: 48 } as const;
 /** baseline 2233:20949 — Frame 301 추가 후 원문 top 60→112 */
 const FIGMA_ORIGINAL = { left: 16, top: 112, width: 343, height: 176 } as const;
+/** 카드 padding16×2 + 발신 행24 + gap12 + divider1 + gap12 */
+const ORIGINAL_BODY_CHROME_HEIGHT = 16 + 24 + 12 + 1 + 12 + 16;
+const ORIGINAL_BODY_SCROLL_MAX = FIGMA_ORIGINAL.height - ORIGINAL_BODY_CHROME_HEIGHT;
 const FIGMA_PAGER = { left: 16, top: 724, width: 343, height: 56 } as const;
 /** Figma 812 기준 페이저 하단~스크린 하단 (= Frame 6 homeIndicator 구간, 학습 2233:20949) */
 const FIGMA_SCREEN_HEIGHT = 812;
@@ -609,13 +614,17 @@ export function QuickInputSmsInbox({
         setOriginalLoading(false);
         setFrozenPagerIndex(null);
       });
-        progress.value = 0;
+      progress.value = 0;
       isRolling.value = false;
+      if (result === 'last') {
+        onDismiss?.();
+      }
     })();
   }, [
     isRolling,
     onConfirm,
     onConfirmConsumed,
+    onDismiss,
     progress,
     resetConsumeMotion,
     stopOriginalLoading,
@@ -628,9 +637,13 @@ export function QuickInputSmsInbox({
       return;
     }
     void (async () => {
+      let result: SmsInboxConfirmResult = 'abort';
       try {
-        await onConfirm(pending.item);
+        result = await onConfirm(pending.item);
       } catch {
+        result = 'abort';
+      }
+      if (result === 'abort') {
         pendingConsumeRef.current = null;
         resetConsumeMotion();
         setStackEpoch((epoch) => epoch + 1);
@@ -638,8 +651,12 @@ export function QuickInputSmsInbox({
       }
       pendingConsumeRef.current = null;
       resetConsumeMotion();
+      // 마지막 건 추가 후 수신함 닫고 간편생성 메인으로
+      if (result === 'last') {
+        onDismiss?.();
+      }
     })();
-  }, [onConfirm, resetConsumeMotion]);
+  }, [onConfirm, onDismiss, resetConsumeMotion]);
 
   /** 취소(잔여): consume 종료 → 큐 소진(토스트 없음) */
   const finishCancelConsume = useCallback(() => {
@@ -667,7 +684,8 @@ export function QuickInputSmsInbox({
       onCancel(pending.item);
     }
     resetConsumeMotion();
-  }, [onCancel, resetConsumeMotion]);
+    onDismiss?.();
+  }, [onCancel, onDismiss, resetConsumeMotion]);
 
   const requestConsume = useCallback(
     (item: SmsInboxItem, action: 'confirm' | 'cancel') => {
@@ -980,14 +998,30 @@ export function QuickInputSmsInbox({
                 )}
               </View>
               <View style={[styles.originalDivider, { backgroundColor: palette.border }]} />
-              <Text
-                style={[
-                  typography.body01.medium,
-                  { color: palette.textNeutral },
-                ]}
+              <ScrollView
+                style={styles.originalBodyScroll}
+                contentContainerStyle={styles.originalBodyScrollContent}
+                showsVerticalScrollIndicator
+                bounces={false}
+                nestedScrollEnabled
+                keyboardShouldPersistTaps="handled"
               >
-                {current.originalBody}
-              </Text>
+                <Text
+                  style={[
+                    typography.body01.medium,
+                    { color: palette.textNeutral },
+                  ]}
+                >
+                  {normalizeSmsOriginalBody(current.originalBody)
+                    .split('\n')
+                    .map((line, index, lines) => (
+                      <Text key={`sms-line-${index}`}>
+                        {line.length > 0 ? line : ' '}
+                        {index < lines.length - 1 ? '\n' : null}
+                      </Text>
+                    ))}
+                </Text>
+              </ScrollView>
             </View>
           )}
         </View>
@@ -1166,12 +1200,13 @@ const styles = StyleSheet.create({
   originalCard: {
     borderRadius: 16,
     overflow: 'hidden',
-    minHeight: FIGMA_ORIGINAL.height,
+    maxHeight: FIGMA_ORIGINAL.height,
     position: 'relative',
   },
   originalContent: {
     padding: 16,
     gap: 12,
+    maxHeight: FIGMA_ORIGINAL.height,
   },
   originalHeaderRow: {
     height: 24,
@@ -1179,6 +1214,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 8,
+    flexShrink: 0,
   },
   originalSenderSlot: {
     flexShrink: 1,
@@ -1192,6 +1228,14 @@ const styles = StyleSheet.create({
   originalDivider: {
     height: 1,
     width: '100%',
+    flexShrink: 0,
+  },
+  originalBodyScroll: {
+    maxHeight: ORIGINAL_BODY_SCROLL_MAX,
+    flexGrow: 0,
+  },
+  originalBodyScrollContent: {
+    flexGrow: 0,
   },
   originalSkeleton: {
     minHeight: FIGMA_ORIGINAL.height,

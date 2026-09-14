@@ -1,0 +1,77 @@
+--- a/node_modules/react-native-keyboard-controller/ios/views/OverKeyboardViewManager.mm	1985-10-26 17:15:00
++++ b/node_modules/react-native-keyboard-controller/ios/views/OverKeyboardViewManager.mm	2026-09-14 16:11:45
+@@ -21,7 +21,7 @@
+ #import <react/renderer/components/RNKC/RCTComponentViewHelpers.h>
+ #import <react/renderer/components/RNKC/RNKCOverKeyboardViewComponentDescriptor.h>
+ 
+-#import "RCTFabricComponentsPlugins.h"
++#import <React/RCTFabricComponentsPlugins.h>
+ #endif
+ 
+ #import <React/RCTTouchHandler.h>
+--- a/node_modules/react-native-keyboard-controller/ios/views/KeyboardControllerView.mm	1985-10-26 17:15:00
++++ b/node_modules/react-native-keyboard-controller/ios/views/KeyboardControllerView.mm	2026-09-14 16:12:01
+@@ -26,7 +26,7 @@
+ #import <react/renderer/components/RNKC/RNKCKeyboardControllerViewComponentDescriptor.h>
+ 
+ #import "KeyboardControllerModule-Header.h"
+-#import "RCTFabricComponentsPlugins.h"
++#import <React/RCTFabricComponentsPlugins.h>
+ 
+ using namespace facebook::react;
+ 
+--- a/node_modules/react-native-keyboard-controller/ios/views/KeyboardGestureAreaManager.mm	1985-10-26 17:15:00
++++ b/node_modules/react-native-keyboard-controller/ios/views/KeyboardGestureAreaManager.mm	2026-09-14 16:12:01
+@@ -19,7 +19,7 @@
+ #import <react/renderer/components/RNKC/RCTComponentViewHelpers.h>
+ #import <react/renderer/components/RNKC/RNKCKeyboardGestureAreaComponentDescriptor.h>
+ 
+-#import "RCTFabricComponentsPlugins.h"
++#import <React/RCTFabricComponentsPlugins.h>
+ #endif
+ 
+ #import <UIKit/UIKit.h>
+--- a/node_modules/react-native-keyboard-controller/ios/views/KeyboardBackgroundViewManager.mm	1985-10-26 17:15:00
++++ b/node_modules/react-native-keyboard-controller/ios/views/KeyboardBackgroundViewManager.mm	2026-09-14 16:12:01
+@@ -19,7 +19,7 @@
+ #import <react/renderer/components/RNKC/RCTComponentViewHelpers.h>
+ #import <react/renderer/components/RNKC/RNKCKeyboardBackgroundViewComponentDescriptor.h>
+ 
+-#import "RCTFabricComponentsPlugins.h"
++#import <React/RCTFabricComponentsPlugins.h>
+ #endif
+ 
+ #import <React/RCTView.h>
+--- a/node_modules/react-native-keyboard-controller/ios/views/KeyboardToolbarGroupViewManager.mm	1985-10-26 17:15:00
++++ b/node_modules/react-native-keyboard-controller/ios/views/KeyboardToolbarGroupViewManager.mm	2026-09-14 16:12:01
+@@ -13,7 +13,7 @@
+ #import <react/renderer/components/RNKC/RCTComponentViewHelpers.h>
+ #import <react/renderer/components/RNKC/RNKCKeyboardToolbarGroupViewComponentDescriptor.h>
+ 
+-#import "RCTFabricComponentsPlugins.h"
++#import <React/RCTFabricComponentsPlugins.h>
+ #endif
+ 
+ #import <UIKit/UIKit.h>
+--- a/node_modules/react-native-keyboard-controller/ios/views/KeyboardExtenderManager.mm	1985-10-26 17:15:00
++++ b/node_modules/react-native-keyboard-controller/ios/views/KeyboardExtenderManager.mm	2026-09-14 16:12:01
+@@ -21,7 +21,7 @@
+ #import <react/renderer/components/RNKC/RCTComponentViewHelpers.h>
+ #import <react/renderer/components/RNKC/RNKCKeyboardExtenderComponentDescriptor.h>
+ 
+-#import "RCTFabricComponentsPlugins.h"
++#import <React/RCTFabricComponentsPlugins.h>
+ #endif
+ 
+ #import <React/RCTTouchHandler.h>
+--- a/node_modules/react-native-keyboard-controller/ios/views/ClippingScrollViewDecoratorViewManager.mm	1985-10-26 17:15:00
++++ b/node_modules/react-native-keyboard-controller/ios/views/ClippingScrollViewDecoratorViewManager.mm	2026-09-14 16:12:01
+@@ -13,7 +13,7 @@
+ #import <react/renderer/components/RNKC/RCTComponentViewHelpers.h>
+ #import <react/renderer/components/RNKC/RNKCClippingScrollViewDecoratorViewComponentDescriptor.h>
+ 
+-#import "RCTFabricComponentsPlugins.h"
++#import <React/RCTFabricComponentsPlugins.h>
+ #endif
+ 
+ #import <TargetConditionals.h>

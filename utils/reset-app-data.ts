@@ -22,6 +22,7 @@ import {
   CHALLENGE_NOTIFICATIONS_ENABLED_KEY,
 } from '@/utils/notification-scheduler';
 import { QUICK_INPUT_TIP_BOX_EXPANDED_KEY } from '@/utils/quick-input-tip-preference';
+import { SMS_INBOX_ITEMS_KEY } from '@/utils/sms-inbox-store';
 
 /** 전체 초기화 시 제거할 AsyncStorage 키 (데이터·설정·캐시) */
 const KEYS_TO_REMOVE = [
@@ -46,6 +47,9 @@ const KEYS_TO_REMOVE = [
   APP_STORE_WRITE_REVIEW_PROMPT_SHOWN_KEY,
   APP_STORE_REVIEW_LIFETIME_RECORD_COUNT_KEY,
   QUICK_INPUT_TIP_BOX_EXPANDED_KEY,
+  SMS_INBOX_ITEMS_KEY,
+  '@awallet/smsReceiveEnabled',
+  '@awallet/smsReceiveNumbers',
 ];
 
 /**

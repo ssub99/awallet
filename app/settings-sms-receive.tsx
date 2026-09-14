@@ -16,6 +16,13 @@ import { typography, typographyLayout } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { requestNotificationPermissionThenOpenSettings } from '@/hooks/use-notifications';
+import { buildSmsInboxShortcutInstallUrl } from '@/constants/sms-inbox-shortcut';
+import {
+  diagnoseSmsInboxNativeQueue,
+  flushPendingSmsInboxFromNative,
+  formatSmsInboxDiagnoseMessage,
+  formatSmsInboxFlushMessage,
+} from '@/utils/sms-inbox-native-queue';
 import {
   loadSmsReceiveEnabled,
   loadSmsReceiveNumbers,
@@ -64,6 +71,9 @@ export default function SettingsSmsReceiveScreen() {
   const [editingNumber, setEditingNumber] = useState<string | null>(null);
   const [draftNumber, setDraftNumber] = useState('');
   const [permissionGuideVisible, setPermissionGuideVisible] = useState(false);
+  const [verifyVisible, setVerifyVisible] = useState(false);
+  const [verifyTitle, setVerifyTitle] = useState('문자 수신 검증');
+  const [verifyMessage, setVerifyMessage] = useState('');
 
   useEffect(() => {
     const load = async () => {
@@ -127,11 +137,55 @@ export default function SettingsSmsReceiveScreen() {
 
   const handleShortcutsPress = useCallback(() => {
     if (Platform.OS === 'ios') {
-      void Linking.openURL('shortcuts://');
+      // 공유 단축어 추가 화면으로 바로 이동 (앱 내 컨펌 모달 없음).
+      const installUrl = buildSmsInboxShortcutInstallUrl();
+      void Linking.openURL(installUrl ?? 'shortcuts://');
       return;
     }
     void Linking.openSettings();
   }, []);
+
+  /** Intent→App Group 전달 여부 확인 (큐를 비우지 않음) */
+  const handleVerifyPeek = useCallback(async () => {
+    if (Platform.OS !== 'ios') return;
+    try {
+      setLoading(true);
+      const report = await diagnoseSmsInboxNativeQueue();
+      setVerifyTitle('대기 큐 확인 (peek)');
+      setVerifyMessage(formatSmsInboxDiagnoseMessage(report));
+      setVerifyVisible(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [setLoading]);
+
+  /** 대기 큐 drain → ingest 결과 확인 */
+  const handleVerifyFlush = useCallback(async () => {
+    if (Platform.OS !== 'ios') return;
+    try {
+      setLoading(true);
+      const before = await diagnoseSmsInboxNativeQueue();
+      const flush = await flushPendingSmsInboxFromNative();
+      const after = await diagnoseSmsInboxNativeQueue();
+      setVerifyTitle('flush → ingest 결과');
+      setVerifyMessage(
+        [
+          '[flush 전]',
+          formatSmsInboxDiagnoseMessage(before),
+          '',
+          '[flush]',
+          formatSmsInboxFlushMessage(flush),
+          '',
+          '[flush 후]',
+          `스토어 가기록: ${after.storeItemCount}`,
+          `pending: ${after.pendingCount}`,
+        ].join('\n'),
+      );
+      setVerifyVisible(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [setLoading]);
 
   const openAddOverlay = useCallback(() => {
     setEditingNumber(null);
@@ -242,9 +296,47 @@ export default function SettingsSmsReceiveScreen() {
                   <Icon name="arrowRight" size={24} color={colors.staticBlack} />
                 </View>
                 <UiLineText style={[styles.caption, { color: colors.textAssistive }]}>
-                  메세지의 내용을 전달하여 문자 수신함에 적재합니다.
+                  단축어「문자 수신함」에 입력 내용←메시지 내용, 발신번호←발신자를 연결하세요.
                 </UiLineText>
               </Pressable>
+              {Platform.OS === 'ios' ? (
+                <>
+                  <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                  <Pressable
+                    style={styles.toggleBlock}
+                    onPress={() => {
+                      void handleVerifyPeek();
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel="대기 큐 확인"
+                  >
+                    <View style={styles.toggleRow}>
+                      <UiLineText style={{ color: colors.text }}>대기 큐 확인 (peek)</UiLineText>
+                      <Icon name="arrowRight" size={24} color={colors.staticBlack} />
+                    </View>
+                    <UiLineText style={[styles.caption, { color: colors.textAssistive }]}>
+                      단축어가 App Group에 본문을 넣었는지 확인합니다. 큐는 비우지 않습니다.
+                    </UiLineText>
+                  </Pressable>
+                  <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                  <Pressable
+                    style={styles.toggleBlock}
+                    onPress={() => {
+                      void handleVerifyFlush();
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel="대기 큐 flush"
+                  >
+                    <View style={styles.toggleRow}>
+                      <UiLineText style={{ color: colors.text }}>대기 큐 flush → 수신함</UiLineText>
+                      <Icon name="arrowRight" size={24} color={colors.staticBlack} />
+                    </View>
+                    <UiLineText style={[styles.caption, { color: colors.textAssistive }]}>
+                      큐를 비워 ingest하고 성공/실패 reason을 보여 줍니다.
+                    </UiLineText>
+                  </Pressable>
+                </>
+              ) : null}
             </>
           ) : null}
         </View>
@@ -391,6 +483,18 @@ export default function SettingsSmsReceiveScreen() {
           confirmText="확인"
           onConfirm={closePermissionGuide}
           onCancel={closePermissionGuide}
+        />
+      ) : null}
+
+      {Platform.OS === 'ios' ? (
+        <ModalPopup
+          visible={verifyVisible}
+          title={verifyTitle}
+          message={verifyMessage}
+          confirmText="확인"
+          onConfirm={() => setVerifyVisible(false)}
+          onCancel={() => setVerifyVisible(false)}
+          closeOnBackdrop
         />
       ) : null}
     </SafeAreaView>

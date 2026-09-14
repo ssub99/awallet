@@ -63,5 +63,24 @@ abstract_target 'awallet-common' do
       :mac_catalyst_enabled => false,
       :ccache_enabled => ccache_enabled?(podfile_properties),
     )
+
+    # RN 0.86 prebuilt: quoted `#import "RCTFabricComponentsPlugins.h"` needs the
+    # React/ sibling dir on HEADER_SEARCH_PATHS (angle `<React/...>` works via Public headers).
+    fabric_react_headers = [
+      '"$(PODS_ROOT)/Headers/Public/React-RCTFabric/React"',
+      '"$(PODS_ROOT)/React-Core-prebuilt/React.xcframework/Headers/React_RCTFabric/React"',
+      '"$(PODS_ROOT)/Headers/Public/React-Core-prebuilt/React_RCTFabric/React"',
+    ]
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |bc|
+        headers = bc.build_settings['HEADER_SEARCH_PATHS']
+        headers = ['$(inherited)'] if headers.nil?
+        headers = [headers] unless headers.is_a?(Array)
+        fabric_react_headers.each do |path|
+          headers << path unless headers.include?(path)
+        end
+        bc.build_settings['HEADER_SEARCH_PATHS'] = headers
+      end
+    end
   end
 end
