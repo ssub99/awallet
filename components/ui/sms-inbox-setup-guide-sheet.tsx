@@ -42,22 +42,26 @@ const IMAGE_MAX_HEIGHT_RATIO = 0.48;
 export function SmsInboxSetupGuideSheet({ visible, onClose }: SmsInboxSetupGuideSheetProps) {
   const colorScheme = useColorScheme();
   const colors = themeColors[colorScheme ?? 'light'];
-  const { height: windowHeight } = useWindowDimensions();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const listRef = useRef<FlatList<(typeof SMS_INBOX_SETUP_GUIDE_STEPS)[number]>>(null);
 
   const [pageIndex, setPageIndex] = useState(0);
-  const [pageWidth, setPageWidth] = useState(0);
+  /** onLayout 전에도 시트 content 폭(윈도우−패딩)으로 그려 빈 Neutral 박스가 남지 않게 함 */
+  const [pageWidth, setPageWidth] = useState(() => Math.max(0, Math.round(windowWidth - 32)));
 
   const imageWidth = useMemo(() => {
-    if (pageWidth <= 0) {
+    const width = pageWidth > 0 ? pageWidth : Math.max(0, Math.round(windowWidth - 32));
+    if (width <= 0) {
       return 0;
     }
-    const byRatio = pageWidth * IMAGE_WIDTH_RATIO;
-    const maxByHeight = windowHeight * IMAGE_MAX_HEIGHT_RATIO * SMS_INBOX_SETUP_GUIDE_IMAGE_ASPECT;
-    return Math.min(pageWidth, byRatio, maxByHeight);
-  }, [pageWidth, windowHeight]);
+    const byRatio = width * IMAGE_WIDTH_RATIO;
+    const maxByHeight =
+      Math.max(windowHeight, 1) * IMAGE_MAX_HEIGHT_RATIO * SMS_INBOX_SETUP_GUIDE_IMAGE_ASPECT;
+    return Math.min(width, byRatio, maxByHeight);
+  }, [pageWidth, windowHeight, windowWidth]);
 
   const imageHeight = imageWidth > 0 ? imageWidth / SMS_INBOX_SETUP_GUIDE_IMAGE_ASPECT : 0;
+  const listWidth = pageWidth > 0 ? pageWidth : Math.max(0, Math.round(windowWidth - 32));
 
   useEffect(() => {
     if (!visible) {
@@ -87,15 +91,16 @@ export function SmsInboxSetupGuideSheet({ visible, onClose }: SmsInboxSetupGuide
 
   const handleScrollEnd = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      if (pageWidth <= 0) {
+      const width = pageWidth > 0 ? pageWidth : Math.max(0, Math.round(windowWidth - 32));
+      if (width <= 0) {
         return;
       }
-      const next = Math.round(event.nativeEvent.contentOffset.x / pageWidth);
+      const next = Math.round(event.nativeEvent.contentOffset.x / width);
       if (next >= 0 && next < SMS_INBOX_SETUP_GUIDE_STEPS.length) {
         setPageIndex(next);
       }
     },
-    [pageWidth],
+    [pageWidth, windowWidth],
   );
 
   const step = SMS_INBOX_SETUP_GUIDE_STEPS[pageIndex] ?? SMS_INBOX_SETUP_GUIDE_STEPS[0];
@@ -146,7 +151,7 @@ export function SmsInboxSetupGuideSheet({ visible, onClose }: SmsInboxSetupGuide
           ))}
         </View>
 
-        {pageWidth > 0 && imageWidth > 0 ? (
+        {listWidth > 0 && imageWidth > 0 ? (
           <FlatList
             ref={listRef}
             data={[...SMS_INBOX_SETUP_GUIDE_STEPS]}
@@ -156,17 +161,17 @@ export function SmsInboxSetupGuideSheet({ visible, onClose }: SmsInboxSetupGuide
             showsHorizontalScrollIndicator={false}
             bounces={false}
             overScrollMode="never"
-            style={{ width: pageWidth }}
+            style={{ width: listWidth }}
             getItemLayout={(_, index) => ({
-              length: pageWidth,
-              offset: pageWidth * index,
+              length: listWidth,
+              offset: listWidth * index,
               index,
             })}
             onMomentumScrollEnd={handleScrollEnd}
             onViewableItemsChanged={onViewableItemsChanged}
             viewabilityConfig={viewabilityConfig}
             renderItem={({ item }) => (
-              <View style={[styles.page, { width: pageWidth }]}>
+              <View style={[styles.page, { width: listWidth }]}>
                 <View
                   style={[
                     styles.imageBody,
@@ -183,6 +188,8 @@ export function SmsInboxSetupGuideSheet({ visible, onClose }: SmsInboxSetupGuide
                     source={item.image}
                     style={{ width: imageWidth, height: imageHeight }}
                     contentFit="cover"
+                    cachePolicy="memory-disk"
+                    recyclingKey={item.id}
                     accessibilityLabel={item.title}
                   />
                 </View>
