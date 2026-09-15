@@ -49,7 +49,6 @@ struct IngestSmsInboxIntent: AppIntent {
   func perform() async throws -> some IntentResult {
     let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
     if trimmed.isEmpty {
-      NSLog("[SmsInbox] intent skip: empty body (no enqueue)")
       return .result()
     }
     let senderTrimmed = sender.trimmingCharacters(in: .whitespacesAndNewlines)

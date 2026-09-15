@@ -1,6 +1,6 @@
 /**
  * 문자 수신 설정
- * Figma / Fluid: settings.smsReceive.default (+ addNumberKeypad 추가 플로우)
+ * Figma / Fluid: settings.smsReceive.default · addNumberKeypad · setupGuide
  */
 
 import { TopNavigation } from '@/components/navigation/top-navigation';
@@ -8,21 +8,16 @@ import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { ModalPopup } from '@/components/ui/modal-popup';
 import { SectionTitle } from '@/components/ui/section-title';
+import { SmsInboxSetupGuideSheet } from '@/components/ui/sms-inbox-setup-guide-sheet';
 import { Switch } from '@/components/ui/switch';
 import { UiLineText } from '@/components/ui/ui-line-text';
 import { atomicColors } from '@/constants/atomic-colors';
+import { resolveSmsInboxShortcutInstallUrl } from '@/constants/sms-inbox-shortcut';
 import { themeColors } from '@/constants/theme-colors';
 import { typography, typographyLayout } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { requestNotificationPermissionThenOpenSettings } from '@/hooks/use-notifications';
-import { resolveSmsInboxShortcutInstallUrl } from '@/constants/sms-inbox-shortcut';
-import {
-  diagnoseSmsInboxNativeQueue,
-  flushPendingSmsInboxFromNative,
-  formatSmsInboxDiagnoseMessage,
-  formatSmsInboxFlushMessage,
-} from '@/utils/sms-inbox-native-queue';
 import {
   loadSmsReceiveEnabled,
   loadSmsReceiveNumbers,
@@ -71,9 +66,7 @@ export default function SettingsSmsReceiveScreen() {
   const [editingNumber, setEditingNumber] = useState<string | null>(null);
   const [draftNumber, setDraftNumber] = useState('');
   const [permissionGuideVisible, setPermissionGuideVisible] = useState(false);
-  const [verifyVisible, setVerifyVisible] = useState(false);
-  const [verifyTitle, setVerifyTitle] = useState('문자 수신 검증');
-  const [verifyMessage, setVerifyMessage] = useState('');
+  const [setupGuideVisible, setSetupGuideVisible] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -119,6 +112,7 @@ export default function SettingsSmsReceiveScreen() {
       setAddOverlayVisible(false);
       setEditingNumber(null);
       setDraftNumber('');
+      setSetupGuideVisible(false);
       return;
     }
     // Android만: OS 시스템 모달(가능 시) → 알림 권한 설정 화면
@@ -133,6 +127,14 @@ export default function SettingsSmsReceiveScreen() {
 
   const closePermissionGuide = useCallback(() => {
     setPermissionGuideVisible(false);
+  }, []);
+
+  const handleSetupGuidePress = useCallback(() => {
+    setSetupGuideVisible(true);
+  }, []);
+
+  const closeSetupGuide = useCallback(() => {
+    setSetupGuideVisible(false);
   }, []);
 
   const handleShortcutsPress = useCallback(() => {
@@ -151,48 +153,6 @@ export default function SettingsSmsReceiveScreen() {
       return;
     }
     void Linking.openSettings();
-  }, [setLoading]);
-
-  /** Intent→App Group 전달 여부 확인 (큐를 비우지 않음) */
-  const handleVerifyPeek = useCallback(async () => {
-    if (Platform.OS !== 'ios') return;
-    try {
-      setLoading(true);
-      const report = await diagnoseSmsInboxNativeQueue();
-      setVerifyTitle('대기 큐 확인 (peek)');
-      setVerifyMessage(formatSmsInboxDiagnoseMessage(report));
-      setVerifyVisible(true);
-    } finally {
-      setLoading(false);
-    }
-  }, [setLoading]);
-
-  /** 대기 큐 drain → ingest 결과 확인 */
-  const handleVerifyFlush = useCallback(async () => {
-    if (Platform.OS !== 'ios') return;
-    try {
-      setLoading(true);
-      const before = await diagnoseSmsInboxNativeQueue();
-      const flush = await flushPendingSmsInboxFromNative();
-      const after = await diagnoseSmsInboxNativeQueue();
-      setVerifyTitle('flush → ingest 결과');
-      setVerifyMessage(
-        [
-          '[flush 전]',
-          formatSmsInboxDiagnoseMessage(before),
-          '',
-          '[flush]',
-          formatSmsInboxFlushMessage(flush),
-          '',
-          '[flush 후]',
-          `스토어 가기록: ${after.storeItemCount}`,
-          `pending: ${after.pendingCount}`,
-        ].join('\n'),
-      );
-      setVerifyVisible(true);
-    } finally {
-      setLoading(false);
-    }
   }, [setLoading]);
 
   const openAddOverlay = useCallback(() => {
@@ -304,53 +264,33 @@ export default function SettingsSmsReceiveScreen() {
                   <Icon name="arrowRight" size={24} color={colors.staticBlack} />
                 </View>
                 <UiLineText style={[styles.caption, { color: colors.textAssistive }]}>
-                  공유 단축어를 추가한 뒤, 자동화에서 발신번호 트리거만 연결하세요. (아이폰)
+                  메세지의 내용을 전달하여 문자 수신함에 적재합니다.
                 </UiLineText>
               </Pressable>
-              {Platform.OS === 'ios' ? (
-                <>
-                  <View style={[styles.divider, { backgroundColor: colors.border }]} />
-                  <Pressable
-                    style={styles.toggleBlock}
-                    onPress={() => {
-                      void handleVerifyPeek();
-                    }}
-                    accessibilityRole="button"
-                    accessibilityLabel="대기 큐 확인"
-                  >
-                    <View style={styles.toggleRow}>
-                      <UiLineText style={{ color: colors.text }}>대기 큐 확인 (peek)</UiLineText>
-                      <Icon name="arrowRight" size={24} color={colors.staticBlack} />
-                    </View>
-                    <UiLineText style={[styles.caption, { color: colors.textAssistive }]}>
-                      단축어가 App Group에 본문을 넣었는지 확인합니다. 큐는 비우지 않습니다.
-                    </UiLineText>
-                  </Pressable>
-                  <View style={[styles.divider, { backgroundColor: colors.border }]} />
-                  <Pressable
-                    style={styles.toggleBlock}
-                    onPress={() => {
-                      void handleVerifyFlush();
-                    }}
-                    accessibilityRole="button"
-                    accessibilityLabel="대기 큐 flush"
-                  >
-                    <View style={styles.toggleRow}>
-                      <UiLineText style={{ color: colors.text }}>대기 큐 flush → 수신함</UiLineText>
-                      <Icon name="arrowRight" size={24} color={colors.staticBlack} />
-                    </View>
-                    <UiLineText style={[styles.caption, { color: colors.textAssistive }]}>
-                      큐를 비워 ingest하고 성공/실패 reason을 보여 줍니다.
-                    </UiLineText>
-                  </Pressable>
-                </>
-              ) : null}
             </>
           ) : null}
         </View>
 
         {smsReceiveEnabled ? (
           <>
+            {/*
+              Figma Frame 303 — 문자 수신함 설정 가이드 (문자 수신 ON일 때만)
+              HORIZONTAL SPACE_BETWEEN · pad 16 · radius 16 · 좌: tip 24 + gap8 + body01 regular
+            */}
+            <Pressable
+              style={[styles.guideCard, { backgroundColor: colors.staticWhite }]}
+              onPress={handleSetupGuidePress}
+              accessibilityRole="button"
+              accessibilityLabel="문자 수신함 설정 가이드"
+            >
+              <View style={styles.guideLeading}>
+                <View style={styles.guideIconSlot}>
+                  <Icon name="tip" variant="solid" size={24} accessibilityLabel="설정 가이드" />
+                </View>
+                <UiLineText style={{ color: colors.staticBlack }}>문자 수신함 설정 가이드</UiLineText>
+              </View>
+            </Pressable>
+
             <SectionTitle style={[styles.numberSectionTitle, { color: colors.staticBlack }]}>
               수신 번호 설정
             </SectionTitle>
@@ -494,17 +434,7 @@ export default function SettingsSmsReceiveScreen() {
         />
       ) : null}
 
-      {Platform.OS === 'ios' ? (
-        <ModalPopup
-          visible={verifyVisible}
-          title={verifyTitle}
-          message={verifyMessage}
-          confirmText="확인"
-          onConfirm={() => setVerifyVisible(false)}
-          onCancel={() => setVerifyVisible(false)}
-          closeOnBackdrop
-        />
-      ) : null}
+      <SmsInboxSetupGuideSheet visible={setupGuideVisible} onClose={closeSetupGuide} />
     </SafeAreaView>
   );
 }
@@ -535,6 +465,23 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: 16,
     overflow: 'hidden',
+  },
+  /** Figma Frame 303 */
+  guideCard: {
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  guideLeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  guideIconSlot: {
+    width: 24,
+    height: 24,
   },
   toggleBlock: {
     paddingHorizontal: 16,

@@ -103,20 +103,16 @@ class WidgetDataSync: NSObject, RCTBridgeModule {
     _ resolve: @escaping RCTPromiseResolveBlock,
     rejecter reject: @escaping RCTPromiseRejectBlock
   ) {
-    let items = SmsInboxAppGroupQueue.drain()
-    NSLog("[SmsInbox] drain count=%d", items.count)
-    resolve(items)
+    resolve(SmsInboxAppGroupQueue.drain())
   }
 
-  /// 대기 큐만 조회 (비우지 않음) — 전송/수신 검증용.
+  /// 대기 큐만 조회 (비우지 않음).
   @objc(peekPendingSmsInbox:rejecter:)
   func peekPendingSmsInbox(
     _ resolve: @escaping RCTPromiseResolveBlock,
     rejecter reject: @escaping RCTPromiseRejectBlock
   ) {
-    let items = SmsInboxAppGroupQueue.peek()
-    NSLog("[SmsInbox] peek count=%d", items.count)
-    resolve(items)
+    resolve(SmsInboxAppGroupQueue.peek())
   }
 
   @objc
@@ -146,11 +142,9 @@ enum SmsInboxAppGroupQueue {
   static func enqueue(body: String, sender: String = "") {
     let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else {
-      NSLog("[SmsInbox] enqueue skipped: empty body")
       return
     }
     guard let defaults = UserDefaults(suiteName: appGroupIdentifier) else {
-      NSLog("[SmsInbox] enqueue failed: no App Group %@", appGroupIdentifier)
       return
     }
 
@@ -164,13 +158,6 @@ enum SmsInboxAppGroupQueue {
     ])
     defaults.set(queue, forKey: storageKey)
     defaults.synchronize()
-    NSLog(
-      "[SmsInbox] enqueue ok group=%@ queueCount=%d bodyLen=%d senderLen=%d",
-      appGroupIdentifier,
-      queue.count,
-      trimmed.count,
-      senderTrimmed.count
-    )
   }
 
   /// 대기 항목을 반환하고 큐를 비운다.

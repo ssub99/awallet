@@ -69,6 +69,7 @@ import MypageSolid from '@/assets/images/icons/solid/mypage.svg';
 import PauseSolid from '@/assets/images/icons/solid/pause.svg';
 import PlaySolid from '@/assets/images/icons/solid/play.svg';
 import SettingSolid from '@/assets/images/icons/solid/setting.svg';
+import TipSolid from '@/assets/images/icons/solid/tip.svg';
 
 /**
  * Icon variant types
@@ -170,6 +171,7 @@ const iconComponents = {
     pause: PauseSolid,
     play: PlaySolid,
     setting: SettingSolid,
+    tip: TipSolid,
   },
 } as const;
 
