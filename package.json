@@ -1,7 +1,7 @@
 {
   "name": "awallet",
   "main": "expo-router/entry",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "scripts": {
     "start": "expo start",
     "start:ing": "bash ./scripts/start-with-env.sh",
