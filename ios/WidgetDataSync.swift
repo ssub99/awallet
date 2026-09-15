@@ -3,7 +3,7 @@ import React
 import WidgetKit
 
 @objc(WidgetDataSync)
-class WidgetDataSync: NSObject, RCTBridgeModule {
+class WidgetDataSync: RCTEventEmitter {
   private let revealStateKey = "monthlyExpenseRevealState"
   private let revealUntilKey = "monthlyExpenseRevealUntil"
 
@@ -17,6 +17,20 @@ class WidgetDataSync: NSObject, RCTBridgeModule {
     } else {
       return "group.com.ssong.awallet"
     }
+  }
+
+  override func supportedEvents() -> [String]! {
+    [SmsInboxPendingDarwin.eventName]
+  }
+
+  override func startObserving() {
+    SmsInboxPendingDarwinObserver.shared.attach { [weak self] in
+      self?.sendEvent(withName: SmsInboxPendingDarwin.eventName, body: nil)
+    }
+  }
+
+  override func stopObserving() {
+    SmsInboxPendingDarwinObserver.shared.detach()
   }
 
   @objc
@@ -88,13 +102,13 @@ class WidgetDataSync: NSObject, RCTBridgeModule {
     resolve(nil)
   }
 
-  /// 재설치 검증용. 값이 `sms-inbox-1`이면 peek/drain 포함 빌드.
+  /// 재설치 검증용. `sms-inbox-2` = Darwin enqueue notify + peek/drain.
   @objc(getSmsInboxBridgeVersion:rejecter:)
   func getSmsInboxBridgeVersion(
     _ resolve: @escaping RCTPromiseResolveBlock,
     rejecter reject: @escaping RCTPromiseRejectBlock
   ) {
-    resolve("sms-inbox-1")
+    resolve("sms-inbox-2")
   }
 
   /// App Intent가 쌓아 둔 문자 수신함 대기 큐를 읽고 비운다.
@@ -116,13 +130,66 @@ class WidgetDataSync: NSObject, RCTBridgeModule {
   }
 
   @objc
-  static func requiresMainQueueSetup() -> Bool {
+  override static func requiresMainQueueSetup() -> Bool {
     return true
   }
 
   @objc
-  static func moduleName() -> String {
+  override static func moduleName() -> String! {
     return "WidgetDataSync"
+  }
+}
+
+// MARK: - Darwin notify (App Intent process → foreground RN)
+
+enum SmsInboxPendingDarwin {
+  static let eventName = "SmsInboxPendingEnqueued"
+
+  static var notifyName: CFNotificationName {
+    let bundleId = Bundle.main.bundleIdentifier ?? "com.ssong.awallet"
+    return CFNotificationName("\(bundleId).smsInboxPendingEnqueued" as CFString)
+  }
+
+  static func post() {
+    CFNotificationCenterPostNotification(
+      CFNotificationCenterGetDarwinNotifyCenter(),
+      notifyName,
+      nil,
+      nil,
+      true
+    )
+  }
+}
+
+final class SmsInboxPendingDarwinObserver {
+  static let shared = SmsInboxPendingDarwinObserver()
+
+  private var handler: (() -> Void)?
+  private var registered = false
+
+  func attach(handler: @escaping () -> Void) {
+    self.handler = handler
+    guard !registered else { return }
+    registered = true
+    let name = SmsInboxPendingDarwin.notifyName
+    CFNotificationCenterAddObserver(
+      CFNotificationCenterGetDarwinNotifyCenter(),
+      Unmanaged.passUnretained(self).toOpaque(),
+      { _, observer, _, _, _ in
+        guard let observer else { return }
+        let box = Unmanaged<SmsInboxPendingDarwinObserver>.fromOpaque(observer).takeUnretainedValue()
+        DispatchQueue.main.async {
+          box.handler?()
+        }
+      },
+      name.rawValue,
+      nil,
+      .deliverImmediately
+    )
+  }
+
+  func detach() {
+    handler = nil
   }
 }
 
@@ -158,6 +225,8 @@ enum SmsInboxAppGroupQueue {
     ])
     defaults.set(queue, forKey: storageKey)
     defaults.synchronize()
+    // 포그라운드 RN이 flush할 수 있게 프로세스 간 신호
+    SmsInboxPendingDarwin.post()
   }
 
   /// 대기 항목을 반환하고 큐를 비운다.
@@ -203,4 +272,3 @@ struct MonthlyExpenseData: Codable {
   let monthStartDay: Int
   let lastUpdated: Date
 }
-

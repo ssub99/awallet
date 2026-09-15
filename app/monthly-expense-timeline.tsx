@@ -28,7 +28,7 @@ import { initializePaymentSubtypes, type PaymentSubtype } from '@/utils/payment-
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GlassSurface } from '@/components/ui/glass-surface';
 import { BlurRuntime } from '@/constants/blur-runtime';
-import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -1027,6 +1027,9 @@ export default function MonthlyExpenseTimelineScreen() {
         },
       ]}
     >
+      {/* 이전 달 스와이프(→)와 스택 pop 제스처 충돌 방지. 뒤로가기는 TopNavigation */}
+      <Stack.Screen options={{ gestureEnabled: false }} />
+
       {/* Top Navigation + 날짜 스트립: Android 진입 시 SafeAreaView 지연 보정으로 들썩이지 않도록 고정 영역 */}
       <View style={styles.timelineHeader} collapsable={false}>
         <TopNavigation
@@ -1644,7 +1647,7 @@ export default function MonthlyExpenseTimelineScreen() {
         </ModalBottomsheet>
       {isMonthTransitionLoading ? (
         <View style={styles.monthTransitionSpinnerOverlay} pointerEvents="none">
-          <ActivityIndicator size="large" />
+          <ActivityIndicator size="small" />
         </View>
       ) : null}
     </View>

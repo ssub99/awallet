@@ -1,4 +1,5 @@
 import { AnalyticsRouteListener } from '@/components/analytics-route-listener';
+import { SmsInboxForegroundFlush } from '@/components/sms-inbox-foreground-flush';
 import { GlobalProgressBar } from '@/components/ui/global-progress-bar';
 import { AppDataProvider } from '@/contexts/app-data-context';
 import { LoadingProvider } from '@/contexts/loading-context';
@@ -40,6 +41,7 @@ export function RootLayoutShell({
                       {showApp ? (
                         <>
                           <AnalyticsRouteListener />
+                          <SmsInboxForegroundFlush />
                           {navigation}
                           <GlobalProgressBar />
                         </>

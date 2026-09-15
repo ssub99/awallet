@@ -8,7 +8,8 @@
  *           「발신번호」←「발신자」(메시지 발신자)
  *
  * 앱 종료 상태에서도 적재: 앱 UI를 열지 않고 App Group 큐에만 기록.
- * JS가 다음 기동/포그라운드에서 drain → ingest → sms-inbox-store → UI.
+ * enqueue 후 Darwin notify → 포그라운드 JS가 drain → ingest.
+ * (앱이 꺼져 있으면 다음 기동/AppState active flush로 drain.)
  *
  * 입력 내용이 비면 적재하지 않고 조용히 종료 (실패/완료 반응용 에러 throw 없음).
  * ※ OS 단축어「실행됨」알림은 시스템이 띄울 수 있으며 앱에서 막을 수 없음.

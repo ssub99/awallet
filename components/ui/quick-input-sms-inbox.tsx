@@ -660,7 +660,7 @@ export function QuickInputSmsInbox({
     })();
   }, [onConfirm, onDismiss, resetConsumeMotion]);
 
-  /** 취소(잔여): consume 종료 → 큐 소진(토스트 없음) */
+  /** 취소(잔여): consume 종료 → 큐 소진(토스트 없음 · 수신함 유지) */
   const finishCancelConsume = useCallback(() => {
     const pending = pendingConsumeRef.current;
     pendingConsumeRef.current = null;
@@ -678,15 +678,21 @@ export function QuickInputSmsInbox({
     isRolling.value = false;
   }, [isRolling, onCancel, progress]);
 
-  /** 마지막 건 취소: 퇴장만 → 간편생성 메인 복귀 */
-  const finishCancelLastExit = useCallback(() => {
+  /** 마지막 건 취소: 추가와 동일 — 퇴장 롤 없이 스켈레톤 → 간편생성 메인(토스트 없음) */
+  const runCancelLastWithSkeleton = useCallback(() => {
     const pending = pendingConsumeRef.current;
-    pendingConsumeRef.current = null;
-    if (pending?.action === 'cancel') {
-      onCancel(pending.item);
+    if (!pending || pending.action !== 'cancel') {
+      return;
     }
-    resetConsumeMotion();
-    onDismiss?.();
+    pendingConsumeRef.current = null;
+    // 추가는 저장 await 동안 스켈레톤이 보임. 취소는 페인트 한 뒤 메인으로.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        onCancel(pending.item);
+        resetConsumeMotion();
+        onDismiss?.();
+      });
+    });
   }, [onCancel, onDismiss, resetConsumeMotion]);
 
   const requestConsume = useCallback(
@@ -702,28 +708,25 @@ export function QuickInputSmsInbox({
 
       const isLast = items.length <= 1;
 
-      // 마지막 건 추가: 퇴장 모션 없이 스켈레톤 + 저장
-      if (isLast && action === 'confirm') {
+      // 마지막 건 추가/취소: 퇴장 롤 없이 스켈레톤 → 메인(추가는 저장·토스트, 취소는 토스트 없음)
+      if (isLast) {
         setFrozenPagerIndex(safeIndex);
         setOriginalLoading(true);
-        runConfirmLastWithSkeleton();
+        if (action === 'confirm') {
+          runConfirmLastWithSkeleton();
+        } else {
+          runCancelLastWithSkeleton();
+        }
         return;
       }
 
       setTransition('forward');
       isRolling.value = true;
       progress.value = 0;
+      setFrozenPagerIndex(safeIndex);
+      setOriginalLoading(true);
 
-      const onFinished = isLast
-        ? finishCancelLastExit
-        : action === 'confirm'
-          ? finishConfirmConsume
-          : finishCancelConsume;
-
-      if (!isLast) {
-        setFrozenPagerIndex(safeIndex);
-        setOriginalLoading(true);
-      }
+      const onFinished = action === 'confirm' ? finishConfirmConsume : finishCancelConsume;
 
       progress.value = withTiming(
         1,
@@ -737,13 +740,13 @@ export function QuickInputSmsInbox({
     },
     [
       finishCancelConsume,
-      finishCancelLastExit,
       finishConfirmConsume,
       isConsuming,
       isRolling,
       items.length,
       onBeforeConfirm,
       progress,
+      runCancelLastWithSkeleton,
       runConfirmLastWithSkeleton,
       safeIndex,
     ],

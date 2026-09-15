@@ -1,6 +1,7 @@
 #import <React/RCTBridgeModule.h>
+#import <React/RCTEventEmitter.h>
 
-@interface RCT_EXTERN_MODULE(WidgetDataSync, NSObject)
+@interface RCT_EXTERN_MODULE(WidgetDataSync, RCTEventEmitter)
 
 RCT_EXTERN_METHOD(saveMonthlyExpenseData:(NSDictionary *)data
                   resolver:(RCTPromiseResolveBlock)resolve
