@@ -6,7 +6,6 @@
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
-import { ModalPopup } from '@/components/ui/modal-popup';
 import { SectionTitle } from '@/components/ui/section-title';
 import { SmsInboxSetupGuideSheet } from '@/components/ui/sms-inbox-setup-guide-sheet';
 import { Switch } from '@/components/ui/switch';
@@ -17,16 +16,24 @@ import { themeColors } from '@/constants/theme-colors';
 import { typography, typographyLayout } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { requestNotificationPermissionThenOpenSettings } from '@/hooks/use-notifications';
 import {
+  hasAndroidSmsReceivePermission,
+  openAndroidAppSettings,
+  requestAndroidSmsReceivePermission,
+} from '@/utils/android-sms-permission';
+import {
+  loadSmsReceiveDisclosureAccepted,
   loadSmsReceiveEnabled,
   loadSmsReceiveNumbers,
+  saveSmsReceiveDisclosureAccepted,
   saveSmsReceiveEnabled,
   saveSmsReceiveNumbers,
 } from '@/utils/sms-receive-settings';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Alert,
+  AppState,
   BackHandler,
   Keyboard,
   Linking,
@@ -58,6 +65,9 @@ const ADD_BAR_HEIGHT = 64;
 const ADD_BAR_GAP_ABOVE_KEYBOARD = 16;
 const ADD_BACKDROP_FADE_MS = 200;
 
+const SMS_DISCLOSURE_MESSAGE =
+  '설정한 발신번호의 문자를 수신하여 문자 수신함에 적재하기 위해 SMS의 발신번호와 본문에 접근합니다. 그 외의 수신되는 SMS는 별도로 저장하지 않습니다.';
+
 export default function SettingsSmsReceiveScreen() {
   const colorScheme = useColorScheme();
   const colors = themeColors[colorScheme ?? 'light'];
@@ -78,7 +88,6 @@ export default function SettingsSmsReceiveScreen() {
   /** null이면 신규 추가, 문자열이면 해당 번호 편집 */
   const [editingNumber, setEditingNumber] = useState<string | null>(null);
   const [draftNumber, setDraftNumber] = useState('');
-  const [permissionGuideVisible, setPermissionGuideVisible] = useState(false);
   const [setupGuideVisible, setSetupGuideVisible] = useState(false);
 
   const addBackdropAnimatedStyle = useAnimatedStyle(() => ({
@@ -104,14 +113,33 @@ export default function SettingsSmsReceiveScreen() {
           loadSmsReceiveEnabled(),
           loadSmsReceiveNumbers(),
         ]);
-        setSmsReceiveEnabled(enabled);
+        const canReceive =
+          Platform.OS !== 'android' || (await hasAndroidSmsReceivePermission());
+        const effectiveEnabled = enabled && canReceive;
+        setSmsReceiveEnabled(effectiveEnabled);
         setNumbers(storedNumbers);
+        if (enabled !== effectiveEnabled) {
+          await saveSmsReceiveEnabled(effectiveEnabled);
+        }
       } finally {
         setLoading(false);
       }
     };
     void load();
   }, [setLoading]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return undefined;
+    const subscription = AppState.addEventListener('change', (next) => {
+      if (next !== 'active' || !smsReceiveEnabled) return;
+      void (async () => {
+        if (await hasAndroidSmsReceivePermission()) return;
+        setSmsReceiveEnabled(false);
+        await saveSmsReceiveEnabled(false);
+      })();
+    });
+    return () => subscription.remove();
+  }, [smsReceiveEnabled]);
 
   useEffect(() => {
     if (!addOverlayVisible) return;
@@ -129,10 +157,63 @@ export default function SettingsSmsReceiveScreen() {
     router.back();
   };
 
+  const showPermissionDeniedGuide = useCallback((mode: 'denied' | 'blocked') => {
+    if (mode === 'blocked') {
+      Alert.alert(
+        '문자 수신 권한이 필요합니다',
+        '권한 요청이 차단되어 있습니다. Android 앱 설정에서 SMS 권한을 허용한 뒤 문자 수신을 다시 켜 주세요.',
+        [
+          { text: '취소', style: 'cancel' },
+          { text: '설정으로 이동', onPress: () => openAndroidAppSettings() },
+        ],
+      );
+      return;
+    }
+    Alert.alert(
+      '문자 수신 권한이 필요합니다',
+      'SMS 수신 권한을 허용하지 않아 문자 수신을 켜지 않았습니다.',
+      [{ text: '확인' }],
+    );
+  }, []);
+
+  const requestSmsPermissionAfterDisclosure = useCallback(async () => {
+    await saveSmsReceiveDisclosureAccepted();
+    const result = await requestAndroidSmsReceivePermission();
+    if (result === 'granted') {
+      setSmsReceiveEnabled(true);
+      await saveSmsReceiveEnabled(true);
+      return;
+    }
+    setSmsReceiveEnabled(false);
+    await saveSmsReceiveEnabled(false);
+    showPermissionDeniedGuide(result === 'blocked' ? 'blocked' : 'denied');
+  }, [showPermissionDeniedGuide]);
+
+  const showSmsDisclosureAlert = useCallback(() => {
+    Alert.alert(
+      '문자 수신 설정 안내',
+      SMS_DISCLOSURE_MESSAGE,
+      [
+        {
+          text: '허용 안 함',
+          style: 'cancel',
+          onPress: () => setSmsReceiveEnabled(false),
+        },
+        {
+          text: '허용',
+          onPress: () => {
+            void requestSmsPermissionAfterDisclosure();
+          },
+        },
+      ],
+      { cancelable: false },
+    );
+  }, [requestSmsPermissionAfterDisclosure]);
+
   const handleToggle = useCallback(async (value: boolean) => {
-    setSmsReceiveEnabled(value);
-    await saveSmsReceiveEnabled(value);
     if (!value) {
+      setSmsReceiveEnabled(false);
+      await saveSmsReceiveEnabled(false);
       Keyboard.dismiss();
       isAddClosingRef.current = false;
       addOverlayVisibleRef.current = false;
@@ -146,18 +227,27 @@ export default function SettingsSmsReceiveScreen() {
       }
       return;
     }
-    // Android만: OS 시스템 모달(가능 시) → 알림 권한 설정 화면
+
     if (Platform.OS === 'android') {
-      await requestNotificationPermissionThenOpenSettings();
+      const [disclosureAccepted, permissionGranted] = await Promise.all([
+        loadSmsReceiveDisclosureAccepted(),
+        hasAndroidSmsReceivePermission(),
+      ]);
+      if (!disclosureAccepted || !permissionGranted) {
+        showSmsDisclosureAlert();
+        return;
+      }
     }
-  }, []);
+    setSmsReceiveEnabled(true);
+    await saveSmsReceiveEnabled(true);
+  }, [showSmsDisclosureAlert]);
 
   const handlePermissionGuidePress = useCallback(() => {
-    setPermissionGuideVisible(true);
-  }, []);
-
-  const closePermissionGuide = useCallback(() => {
-    setPermissionGuideVisible(false);
+    Alert.alert(
+      'SMS 수신 권한 안내',
+      '설정한 발신번호에서 새로 도착하는 거래 문자를 문자 수신함에 자동으로 적재하려면 SMS 수신 권한이 필요합니다. 기존 문자함은 조회하지 않습니다.',
+      [{ text: '확인' }],
+    );
   }, []);
 
   const handleSetupGuidePress = useCallback(() => {
@@ -352,18 +442,18 @@ export default function SettingsSmsReceiveScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-        {/* Figma: 문자 수신 여부 + (Android) 알림 권한 설정 안내 */}
+        {/* Figma: 문자 수신 여부 + Android SMS 권한 안내 */}
         <View style={styles.sectionHeaderRow}>
           <SectionTitle style={{ color: colors.staticBlack }}>문자 수신 여부</SectionTitle>
           {Platform.OS === 'android' ? (
             <Pressable
               onPress={handlePermissionGuidePress}
               accessibilityRole="link"
-              accessibilityLabel="알림 권한 설정 안내"
+              accessibilityLabel="SMS 수신 권한 안내"
               hitSlop={8}
             >
               <UiLineText style={[styles.permissionLink, { color: colors.textAssistive }]}>
-                알림 권한 설정 안내
+                SMS 수신 권한 안내
               </UiLineText>
             </Pressable>
           ) : null}
@@ -373,7 +463,11 @@ export default function SettingsSmsReceiveScreen() {
           <View style={styles.toggleBlock}>
             <View style={styles.toggleRow}>
               <UiLineText style={{ color: colors.text }}>문자 수신</UiLineText>
-              <Switch value={smsReceiveEnabled} onValueChange={(v) => void handleToggle(v)} />
+              <Switch
+                value={smsReceiveEnabled}
+                onValueChange={(v) => void handleToggle(v)}
+                accessibilityLabel="문자 수신"
+              />
             </View>
             <UiLineText style={[styles.caption, { color: colors.textAssistive }]}>
               발송되는 문자를 수신하여 기록으로 생성합니다.
@@ -407,19 +501,23 @@ export default function SettingsSmsReceiveScreen() {
               Figma Frame 303 — 문자 수신함 설정 가이드 (문자 수신 ON일 때만)
               HORIZONTAL SPACE_BETWEEN · pad 16 · radius 16 · 좌: tip 24 + gap8 + body01 regular
             */}
-            <Pressable
-              style={[styles.guideCard, { backgroundColor: colors.staticWhite }]}
-              onPress={handleSetupGuidePress}
-              accessibilityRole="button"
-              accessibilityLabel="문자 수신함 설정 가이드"
-            >
-              <View style={styles.guideLeading}>
-                <View style={styles.guideIconSlot}>
-                  <Icon name="tip" variant="solid" size={24} accessibilityLabel="설정 가이드" />
+            {Platform.OS === 'ios' ? (
+              <Pressable
+                style={[styles.guideCard, { backgroundColor: colors.staticWhite }]}
+                onPress={handleSetupGuidePress}
+                accessibilityRole="button"
+                accessibilityLabel="문자 수신함 설정 가이드"
+              >
+                <View style={styles.guideLeading}>
+                  <View style={styles.guideIconSlot}>
+                    <Icon name="tip" variant="solid" size={24} accessibilityLabel="설정 가이드" />
+                  </View>
+                  <UiLineText style={{ color: colors.staticBlack }}>
+                    문자 수신함 설정 가이드
+                  </UiLineText>
                 </View>
-                <UiLineText style={{ color: colors.staticBlack }}>문자 수신함 설정 가이드</UiLineText>
-              </View>
-            </Pressable>
+              </Pressable>
+            ) : null}
 
             <SectionTitle style={[styles.numberSectionTitle, { color: colors.staticBlack }]}>
               수신 번호 설정
@@ -547,16 +645,6 @@ export default function SettingsSmsReceiveScreen() {
             </View>
           </Animated.View>
         </View>
-      ) : null}
-
-      {Platform.OS === 'android' ? (
-        <ModalPopup
-          visible={permissionGuideVisible}
-          title="알림 권한 설정 안내"
-          confirmText="확인"
-          onConfirm={closePermissionGuide}
-          onCancel={closePermissionGuide}
-        />
       ) : null}
 
       <SmsInboxSetupGuideSheet visible={setupGuideVisible} onClose={closeSetupGuide} />

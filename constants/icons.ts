@@ -109,6 +109,7 @@ export const IconSizes = {
  * Icon descriptions for accessibility and documentation
  */
 export const IconDescriptions: Record<IconName, string> = {
+  addNumber: 'Add number',
   addTask: 'Add new task',
   addTaskFab: 'Add task floating action button',
   arrowDown: 'Arrow pointing down',
@@ -150,6 +151,7 @@ export const IconDescriptions: Record<IconName, string> = {
   send: 'Send message',
   setting: 'Settings or configuration',
   star: 'Star',
+  tip: 'Tip or guide',
 };
 
 /**

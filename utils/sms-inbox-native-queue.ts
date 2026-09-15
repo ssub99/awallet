@@ -1,7 +1,4 @@
-/**
- * App Intent → App Group 대기 큐 → ingest 플러시.
- * 포그라운드: Darwin enqueue notify → subscribe → flush (+ 글로벌 로딩은 호출측).
- */
+/** iOS App Intent / Android SMS Receiver 대기 큐 → 기존 ingest 플러시. */
 
 import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
 
@@ -16,7 +13,9 @@ export type PendingSmsInboxNativeItem = {
 };
 
 type WidgetDataSyncSmsInboxModule = {
-  drainPendingSmsInbox: () => Promise<PendingSmsInboxNativeItem[]>;
+  drainPendingSmsInbox?: () => Promise<PendingSmsInboxNativeItem[]>;
+  getPendingSmsInbox?: () => Promise<PendingSmsInboxNativeItem[]>;
+  acknowledgePendingSmsInbox?: (ids: string[]) => Promise<void>;
 };
 
 const SMS_INBOX_PENDING_ENQUEUED_EVENT = 'SmsInboxPendingEnqueued';
@@ -32,10 +31,13 @@ function isPendingItem(value: unknown): value is PendingSmsInboxNativeItem {
 }
 
 async function drainPendingList(): Promise<PendingSmsInboxNativeItem[]> {
-  if (Platform.OS !== 'ios') {
+  if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
     return [];
   }
-  const fn = widgetDataSync?.drainPendingSmsInbox;
+  const fn =
+    Platform.OS === 'android'
+      ? widgetDataSync?.getPendingSmsInbox
+      : widgetDataSync?.drainPendingSmsInbox;
   if (typeof fn !== 'function') {
     return [];
   }
@@ -50,13 +52,20 @@ async function drainPendingList(): Promise<PendingSmsInboxNativeItem[]> {
   }
 }
 
+async function acknowledgeAndroidItems(ids: string[]): Promise<void> {
+  if (Platform.OS !== 'android' || ids.length === 0) return;
+  const fn = widgetDataSync?.acknowledgePendingSmsInbox;
+  if (typeof fn !== 'function') return;
+  await fn.call(widgetDataSync, ids);
+}
+
 /**
- * App Group 대기 큐를 비우고 기존 ingest 파이프라인으로 적재한다.
- * @returns 드레인한 항목 수 (ingest 성공/실패와 무관)
+ * 네이티브 대기 큐를 기존 ingest 파이프라인으로 적재한다.
+ * Android는 처리 완료 항목만 ack하여 예외 발생 항목을 다음 실행에서 재시도한다.
  */
 export function flushPendingSmsInboxFromNative(): Promise<number> {
   const run = flushChain.then(async () => {
-    if (Platform.OS !== 'ios') {
+    if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
       return 0;
     }
     const items = await drainPendingList();
@@ -66,8 +75,11 @@ export function flushPendingSmsInboxFromNative(): Promise<number> {
           body: normalizeSmsOriginalBody(entry.body ?? ''),
           sender: (entry.sender ?? '').trim(),
         });
+        if (entry.id) {
+          await acknowledgeAndroidItems([entry.id]);
+        }
       } catch {
-        // ingest 실패 건은 스킵하고 다음 항목 계속
+        // Android는 ack하지 않아 다음 앱 실행/복귀 때 재시도한다.
       }
     }
     return items.length;
@@ -81,9 +93,9 @@ export function flushPendingSmsInboxFromNative(): Promise<number> {
   return run.catch(() => 0);
 }
 
-/** App Intent enqueue Darwin → RN. 구독 해제 함수 반환. */
+/** 네이티브 enqueue → RN. 구독 해제 함수 반환. */
 export function subscribeSmsInboxPendingEnqueued(listener: () => void): () => void {
-  if (Platform.OS !== 'ios') {
+  if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
     return () => {};
   }
   const mod = NativeModules.WidgetDataSync;

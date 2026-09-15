@@ -41,7 +41,8 @@
       "playStoreUrl": "https://play.google.com/store/apps/details?id=com.ssong.awallet",
       "versionCode": 54,
       "permissions": [
-        "android.permission.POST_NOTIFICATIONS"
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.RECEIVE_SMS"
       ],
       "runtimeVersion": "1.2.3"
     },

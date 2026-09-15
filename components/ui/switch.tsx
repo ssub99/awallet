@@ -30,6 +30,9 @@ export interface SwitchProps {
    * Container style
    */
   style?: ViewStyle;
+
+  /** Screen reader label for the setting controlled by this switch. */
+  accessibilityLabel?: string;
 }
 
 /**
@@ -40,6 +43,7 @@ export function Switch({
   onValueChange,
   disabled = false,
   style,
+  accessibilityLabel,
 }: SwitchProps) {
   const colorScheme = useColorScheme();
   const palette = colors[colorScheme ?? 'light'] as ColorPalette;
@@ -82,6 +86,7 @@ export function Switch({
         style,
       ]}
       accessibilityRole="switch"
+      accessibilityLabel={accessibilityLabel}
       accessibilityState={{ checked: value, disabled }}
     >
       {/* Animated Toggle Circle */}

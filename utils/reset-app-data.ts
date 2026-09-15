@@ -23,6 +23,12 @@ import {
 } from '@/utils/notification-scheduler';
 import { QUICK_INPUT_TIP_BOX_EXPANDED_KEY } from '@/utils/quick-input-tip-preference';
 import { SMS_INBOX_ITEMS_KEY } from '@/utils/sms-inbox-store';
+import {
+  clearSmsReceiveNativeState,
+  SMS_RECEIVE_DISCLOSURE_ACCEPTED_KEY,
+  SMS_RECEIVE_ENABLED_KEY,
+  SMS_RECEIVE_NUMBERS_KEY,
+} from '@/utils/sms-receive-settings';
 
 /** 전체 초기화 시 제거할 AsyncStorage 키 (데이터·설정·캐시) */
 const KEYS_TO_REMOVE = [
@@ -48,8 +54,9 @@ const KEYS_TO_REMOVE = [
   APP_STORE_REVIEW_LIFETIME_RECORD_COUNT_KEY,
   QUICK_INPUT_TIP_BOX_EXPANDED_KEY,
   SMS_INBOX_ITEMS_KEY,
-  '@awallet/smsReceiveEnabled',
-  '@awallet/smsReceiveNumbers',
+  SMS_RECEIVE_ENABLED_KEY,
+  SMS_RECEIVE_NUMBERS_KEY,
+  SMS_RECEIVE_DISCLOSURE_ACCEPTED_KEY,
 ];
 
 /**
@@ -88,6 +95,7 @@ export async function resetAppData(): Promise<void> {
   await clearAllIncomes();
   await clearAllChallenges();
   await AsyncStorage.multiRemove(resolveKeysToRemove());
+  await clearSmsReceiveNativeState();
 
   // 소비 리포트 AI 캐시 제거 + 리포트 UI 리셋 신호(백업 복원 시 utils/backup.ts 와 동일 계약)
   try {

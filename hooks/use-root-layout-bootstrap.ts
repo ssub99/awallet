@@ -30,6 +30,7 @@ import {
   resetMonthlyExpenseMaskInWidget,
 } from '@/utils/widget-data-sync';
 import { flushPendingSmsInboxFromNative } from '@/utils/sms-inbox-native-queue';
+import { syncSmsReceiveSettingsToNative } from '@/utils/sms-receive-settings';
 import Constants from 'expo-constants';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Updates from 'expo-updates';
@@ -245,15 +246,22 @@ export function useRootLayoutBootstrap() {
     return () => sub.remove();
   }, [appIsReady]);
 
-  /** iOS: App Intent가 App Group에 쌓은 문자 → ingest → 수신함 스토어/UI */
+  /** iOS App Intent / Android SMS Receiver 대기 큐 → 기존 ingest */
   useEffect(() => {
-    if (!appIsReady || Platform.OS !== 'ios') {
+    if (
+      !appIsReady ||
+      (Platform.OS !== 'ios' && Platform.OS !== 'android')
+    ) {
       return undefined;
     }
-    void flushPendingSmsInboxFromNative();
+    const syncAndFlush = async () => {
+      await syncSmsReceiveSettingsToNative();
+      await flushPendingSmsInboxFromNative();
+    };
+    void syncAndFlush();
     const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
       if (next === 'active') {
-        void flushPendingSmsInboxFromNative();
+        void syncAndFlush();
       }
     });
     return () => sub.remove();

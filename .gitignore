@@ -118,6 +118,8 @@ app-example
 /android/app/src/debugOptimized/*
 !/android/app/src/debugOptimized/AndroidManifest.xml
 # 위젯·네이티브 리소스 (추가 시 커밋). 아이콘·폰트 등 prebuild 산출 res는 제외.
+!/android/app/src/main/res/
+/android/app/src/main/res/*
 !/android/app/src/main/res/xml/
 !/android/app/src/main/res/xml/**
 !/android/app/src/main/res/layout/
