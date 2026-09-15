@@ -27,9 +27,9 @@ import {
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  BackHandler,
   Keyboard,
   Linking,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -40,9 +40,14 @@ import {
 import {
   AndroidSoftInputModes,
   KeyboardController,
-  KeyboardStickyView,
+  useKeyboardContext,
 } from 'react-native-keyboard-controller';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /**
  * Frame 292 ≡ 간편입력 계산기 calculatorBar
@@ -51,13 +56,21 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 const ADD_BAR_HEIGHT = 64;
 /** Figma: Frame 292 bottom → NumericKeyboard top */
 const ADD_BAR_GAP_ABOVE_KEYBOARD = 16;
+const ADD_BACKDROP_FADE_MS = 200;
 
 export default function SettingsSmsReceiveScreen() {
   const colorScheme = useColorScheme();
   const colors = themeColors[colorScheme ?? 'light'];
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { setLoading } = useLoading();
   const inputRef = useRef<TextInput>(null);
+  const addOverlayVisibleRef = useRef(false);
+  const addKeyboardWasVisibleRef = useRef(false);
+  const isAddClosingRef = useRef(false);
+  const addCloseFallbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { reanimated: keyboardReanimated } = useKeyboardContext();
+  const addBackdropOpacity = useSharedValue(0);
 
   const [smsReceiveEnabled, setSmsReceiveEnabled] = useState(false);
   const [numbers, setNumbers] = useState<string[]>([]);
@@ -67,6 +80,21 @@ export default function SettingsSmsReceiveScreen() {
   const [draftNumber, setDraftNumber] = useState('');
   const [permissionGuideVisible, setPermissionGuideVisible] = useState(false);
   const [setupGuideVisible, setSetupGuideVisible] = useState(false);
+
+  const addBackdropAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: addBackdropOpacity.value,
+  }));
+
+  const addBarAnimatedStyle = useAnimatedStyle(() => {
+    const keyboardHeight = Math.abs(keyboardReanimated.height.value);
+    const restBottom = insets.bottom;
+    return {
+      bottom:
+        keyboardHeight > 0
+          ? keyboardHeight + ADD_BAR_GAP_ABOVE_KEYBOARD
+          : restBottom + ADD_BAR_GAP_ABOVE_KEYBOARD,
+    };
+  }, [insets.bottom]);
 
   useEffect(() => {
     const load = async () => {
@@ -87,18 +115,15 @@ export default function SettingsSmsReceiveScreen() {
 
   useEffect(() => {
     if (!addOverlayVisible) return;
-    // Android adjustResize와 sticky 이중 이동 방지 — 간편입력과 동일
-    if (Platform.OS === 'android') {
-      KeyboardController.setInputMode(AndroidSoftInputModes.SOFT_INPUT_ADJUST_NOTHING);
-    }
-    const timer = setTimeout(() => inputRef.current?.focus(), 100);
+    // eslint-disable-next-line react-hooks/immutability
+    addBackdropOpacity.value = withTiming(1, { duration: ADD_BACKDROP_FADE_MS });
+    const timer = setTimeout(() => {
+      inputRef.current?.focus();
+    }, 100);
     return () => {
       clearTimeout(timer);
-      if (Platform.OS === 'android') {
-        KeyboardController.setDefaultMode();
-      }
     };
-  }, [addOverlayVisible]);
+  }, [addBackdropOpacity, addOverlayVisible]);
 
   const handleBack = () => {
     router.back();
@@ -109,10 +134,16 @@ export default function SettingsSmsReceiveScreen() {
     await saveSmsReceiveEnabled(value);
     if (!value) {
       Keyboard.dismiss();
+      isAddClosingRef.current = false;
+      addOverlayVisibleRef.current = false;
+      addKeyboardWasVisibleRef.current = false;
       setAddOverlayVisible(false);
       setEditingNumber(null);
       setDraftNumber('');
       setSetupGuideVisible(false);
+      if (Platform.OS === 'android') {
+        KeyboardController.setDefaultMode();
+      }
       return;
     }
     // Android만: OS 시스템 모달(가능 시) → 알림 권한 설정 화면
@@ -138,40 +169,138 @@ export default function SettingsSmsReceiveScreen() {
   }, []);
 
   const handleShortcutsPress = useCallback(() => {
-    if (Platform.OS === 'ios') {
-      void (async () => {
-        try {
-          setLoading(true);
-          const installUrl = await resolveSmsInboxShortcutInstallUrl();
-          await Linking.openURL(installUrl);
-        } catch {
-          await Linking.openURL('shortcuts://');
-        } finally {
-          setLoading(false);
-        }
-      })();
-      return;
-    }
-    void Linking.openSettings();
+    void (async () => {
+      try {
+        setLoading(true);
+        const installUrl = await resolveSmsInboxShortcutInstallUrl();
+        await Linking.openURL(installUrl);
+      } catch {
+        await Linking.openURL('shortcuts://');
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, [setLoading]);
 
   const openAddOverlay = useCallback(() => {
+    if (Platform.OS === 'android') {
+      KeyboardController.setInputMode(AndroidSoftInputModes.SOFT_INPUT_ADJUST_NOTHING);
+    }
+    isAddClosingRef.current = false;
+    // eslint-disable-next-line react-hooks/immutability
+    addBackdropOpacity.value = 0;
+    addOverlayVisibleRef.current = true;
     setEditingNumber(null);
     setDraftNumber('');
     setAddOverlayVisible(true);
-  }, []);
+  }, [addBackdropOpacity]);
 
-  const openEditOverlay = useCallback((number: string) => {
-    setEditingNumber(number);
-    setDraftNumber(number);
-    setAddOverlayVisible(true);
-  }, []);
+  const openEditOverlay = useCallback(
+    (number: string) => {
+      if (Platform.OS === 'android') {
+        KeyboardController.setInputMode(AndroidSoftInputModes.SOFT_INPUT_ADJUST_NOTHING);
+      }
+      isAddClosingRef.current = false;
+      // eslint-disable-next-line react-hooks/immutability
+      addBackdropOpacity.value = 0;
+      addOverlayVisibleRef.current = true;
+      setEditingNumber(number);
+      setDraftNumber(number);
+      setAddOverlayVisible(true);
+    },
+    [addBackdropOpacity],
+  );
 
-  const closeAddOverlay = useCallback(() => {
-    Keyboard.dismiss();
+  const finishCloseAddOverlay = useCallback(() => {
+    if (addCloseFallbackTimeoutRef.current != null) {
+      clearTimeout(addCloseFallbackTimeoutRef.current);
+      addCloseFallbackTimeoutRef.current = null;
+    }
+    if (!isAddClosingRef.current && !addOverlayVisibleRef.current) {
+      return;
+    }
+    isAddClosingRef.current = false;
+    addOverlayVisibleRef.current = false;
+    addKeyboardWasVisibleRef.current = false;
     setAddOverlayVisible(false);
     setEditingNumber(null);
     setDraftNumber('');
+    if (Platform.OS === 'android') {
+      KeyboardController.setDefaultMode();
+    }
+  }, []);
+
+  /**
+   * 간편입력 메인과 동일하게 키보드 SharedValue를 끝까지 따라간 뒤
+   * keyboardDidHide에서 오버레이를 정리한다.
+   */
+  const closeAddOverlay = useCallback(() => {
+    if (!addOverlayVisibleRef.current || isAddClosingRef.current) {
+      return;
+    }
+    isAddClosingRef.current = true;
+    inputRef.current?.blur();
+    // eslint-disable-next-line react-hooks/immutability
+    addBackdropOpacity.value = withTiming(0, { duration: ADD_BACKDROP_FADE_MS });
+    const keyboardVisible =
+      addKeyboardWasVisibleRef.current || (Keyboard.metrics()?.height ?? 0) > 0;
+    Keyboard.dismiss();
+
+    if (addCloseFallbackTimeoutRef.current != null) {
+      clearTimeout(addCloseFallbackTimeoutRef.current);
+    }
+    addCloseFallbackTimeoutRef.current = setTimeout(() => {
+      finishCloseAddOverlay();
+    }, keyboardVisible ? 600 : ADD_BACKDROP_FADE_MS + 20);
+  }, [addBackdropOpacity, finishCloseAddOverlay]);
+
+  useEffect(() => {
+    if (!addOverlayVisible) return undefined;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      closeAddOverlay();
+      return true;
+    });
+    return () => sub.remove();
+  }, [addOverlayVisible, closeAddOverlay]);
+
+  useEffect(() => {
+    if (!addOverlayVisible) {
+      return undefined;
+    }
+    const showSub = Keyboard.addListener('keyboardDidShow', () => {
+      if (!isAddClosingRef.current) {
+        addKeyboardWasVisibleRef.current = true;
+      }
+    });
+    const didHideSub = Keyboard.addListener('keyboardDidHide', () => {
+      if (isAddClosingRef.current) {
+        finishCloseAddOverlay();
+        return;
+      }
+      if (!addKeyboardWasVisibleRef.current) {
+        return;
+      }
+      addKeyboardWasVisibleRef.current = false;
+      if (!addOverlayVisibleRef.current) {
+        return;
+      }
+      // OS 키보드 내리기 버튼은 BackHandler보다 먼저 소비된다.
+      addBackdropOpacity.value = 0;
+      isAddClosingRef.current = true;
+      finishCloseAddOverlay();
+    });
+    return () => {
+      showSub.remove();
+      didHideSub.remove();
+    };
+  }, [addBackdropOpacity, addOverlayVisible, finishCloseAddOverlay]);
+
+  useEffect(() => {
+    return () => {
+      if (addCloseFallbackTimeoutRef.current != null) {
+        clearTimeout(addCloseFallbackTimeoutRef.current);
+      }
+    };
   }, []);
 
   const confirmAddNumber = useCallback(async () => {
@@ -203,25 +332,26 @@ export default function SettingsSmsReceiveScreen() {
   const canConfirmAdd = draftNumber.length > 0;
 
   return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: colors.staticWhite }]}
-      edges={['top', 'bottom']}
-    >
-      <TopNavigation
-        type="sub"
-        title="문자 수신 설정"
-        showLeftIcon
-        onLeftIconPress={handleBack}
-      />
+    <View style={[styles.container, { backgroundColor: colors.staticWhite }]}>
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <TopNavigation
+          type="sub"
+          title="문자 수신 설정"
+          showLeftIcon
+          onLeftIconPress={handleBack}
+        />
 
-      <ScrollView
-        style={[styles.scroll, { backgroundColor: colors.fill }]}
-        contentContainerStyle={styles.scrollContent}
-        bounces={false}
-        overScrollMode="never"
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
+        <ScrollView
+          style={[styles.scroll, { backgroundColor: colors.fill }]}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: 24 + insets.bottom },
+          ]}
+          bounces={false}
+          overScrollMode="never"
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
         {/* Figma: 문자 수신 여부 + (Android) 알림 권한 설정 안내 */}
         <View style={styles.sectionHeaderRow}>
           <SectionTitle style={{ color: colors.staticBlack }}>문자 수신 여부</SectionTitle>
@@ -250,7 +380,7 @@ export default function SettingsSmsReceiveScreen() {
             </UiLineText>
           </View>
 
-          {smsReceiveEnabled ? (
+          {smsReceiveEnabled && Platform.OS === 'ios' ? (
             <>
               <View style={[styles.divider, { backgroundColor: colors.border }]} />
               <Pressable
@@ -348,81 +478,76 @@ export default function SettingsSmsReceiveScreen() {
           </>
         ) : null}
       </ScrollView>
+      </SafeAreaView>
 
       {/*
         settings.smsReceive.addNumberKeypad
-        구조 = 간편입력 계산기: 풀스크린 딤 + calculatorBar(Frame 292) + OS 쿼티(공백 입력용)
-        딤은 루트 배경으로 깔고(절대 안 사라짐), 탭 영역은 상단 flex:1 Pressable.
+        간편입력 메인과 동일한 화면 오버레이 + keyboard SharedValue follow.
       */}
-      <Modal
-        visible={addOverlayVisible}
-        transparent
-        animationType="fade"
-        presentationStyle="overFullScreen"
-        statusBarTranslucent
-        onRequestClose={closeAddOverlay}
-      >
-        <View style={[styles.addOverlayRoot, { backgroundColor: colors.overlayDim }]}>
-          <View style={styles.addDockHost}>
-            <Pressable
-              style={styles.addDimTap}
-              onPress={closeAddOverlay}
-              accessibilityRole="button"
-              accessibilityLabel="추가 취소"
-            />
-            {/* 쿼티와 같은 프레임으로 인풋바 상승 (간편입력 calculatorBar와 동일 패턴) */}
-            <KeyboardStickyView offset={{ closed: 0, opened: 0 }}>
-              <View style={styles.addEdgeContent}>
-                {/* ≡ styles.calculatorBar */}
-                <View style={styles.addBar}>
-                  {/* ≡ styles.calculatorInput */}
-                  <View style={styles.addInputShell}>
-                    <TextInput
-                      ref={inputRef}
-                      value={draftNumber}
-                      onChangeText={setDraftNumber}
-                      placeholder="+82 1588-1100"
-                      placeholderTextColor={colors.textAssistive}
-                      keyboardType="default"
-                      autoFocus
-                      accessibilityLabel="수신 번호 입력"
-                      style={[
-                        styles.addInputText,
-                        typographyLayout.fieldInputLine,
-                        { color: colors.text },
-                      ]}
-                    />
-                  </View>
-                  {/* ≡ styles.calculatorActionButton — Frame 288 체크 */}
-                  <Pressable
-                    onPress={() => {
-                      void confirmAddNumber();
-                    }}
-                    disabled={!canConfirmAdd}
-                    accessibilityRole="button"
-                    accessibilityLabel="확인"
-                    accessibilityState={{ disabled: !canConfirmAdd }}
+      {addOverlayVisible ? (
+        <View style={styles.addOverlayRoot}>
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.addBackdrop,
+              { backgroundColor: colors.overlayDim },
+              addBackdropAnimatedStyle,
+            ]}
+          />
+          <Pressable
+            style={styles.addDimTap}
+            onPress={closeAddOverlay}
+            accessibilityRole="button"
+            accessibilityLabel="추가 취소"
+          />
+          <Animated.View style={[styles.addBarDock, addBarAnimatedStyle]}>
+            <View style={styles.addEdgeContent}>
+              <View style={styles.addBar}>
+                <View style={styles.addInputShell}>
+                  <TextInput
+                    ref={inputRef}
+                    value={draftNumber}
+                    onChangeText={setDraftNumber}
+                    placeholder="+82 1588-1100"
+                    placeholderTextColor={colors.textAssistive}
+                    keyboardType="default"
+                    showSoftInputOnFocus
+                    accessibilityLabel="수신 번호 입력"
                     style={[
-                      styles.addActionButton,
-                      {
-                        backgroundColor: canConfirmAdd
-                          ? colors.primary
-                          : atomicColors.neutral[300],
-                      },
+                      styles.addInputText,
+                      typographyLayout.fieldInputLine,
+                      { color: colors.text },
                     ]}
-                  >
-                    <Icon
-                      name="check"
-                      size={24}
-                      color={canConfirmAdd ? colors.staticWhite : colors.textDisabled}
-                    />
-                  </Pressable>
+                  />
                 </View>
+                <Pressable
+                  onPress={() => {
+                    void confirmAddNumber();
+                  }}
+                  disabled={!canConfirmAdd}
+                  accessibilityRole="button"
+                  accessibilityLabel="확인"
+                  accessibilityState={{ disabled: !canConfirmAdd }}
+                  style={[
+                    styles.addActionButton,
+                    {
+                      backgroundColor: canConfirmAdd
+                        ? colors.primary
+                        : atomicColors.neutral[300],
+                    },
+                  ]}
+                >
+                  <Icon
+                    name="check"
+                    size={24}
+                    color={canConfirmAdd ? colors.staticWhite : colors.textDisabled}
+                  />
+                </Pressable>
               </View>
-            </KeyboardStickyView>
-          </View>
+            </View>
+          </Animated.View>
         </View>
-      </Modal>
+      ) : null}
 
       {Platform.OS === 'android' ? (
         <ModalPopup
@@ -435,7 +560,7 @@ export default function SettingsSmsReceiveScreen() {
       ) : null}
 
       <SmsInboxSetupGuideSheet visible={setupGuideVisible} onClose={closeSetupGuide} />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -449,7 +574,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
     paddingTop: 24,
-    paddingBottom: 24,
     gap: 8,
   },
   sectionHeaderRow: {
@@ -537,19 +661,26 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   addOverlayRoot: {
-    flex: 1,
+    ...StyleSheet.absoluteFill,
+    zIndex: 10,
+    elevation: 10,
   },
-  addDockHost: {
-    flex: 1,
+  addBackdrop: {
+    ...StyleSheet.absoluteFill,
   },
-  /** 딤 탭 영역(색은 루트 backgroundColor) */
+  /** 풀스크린 딤 탭 */
   addDimTap: {
-    flex: 1,
+    ...StyleSheet.absoluteFill,
+  },
+  /** 키보드 height → bottom. 딤 위에 그려야 함 */
+  addBarDock: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
   },
   /** ≡ quick-input edgeContent */
   addEdgeContent: {
     marginHorizontal: 16,
-    marginBottom: ADD_BAR_GAP_ABOVE_KEYBOARD,
   },
   /** ≡ quick-input calculatorBar / Figma Frame 292 */
   addBar: {
