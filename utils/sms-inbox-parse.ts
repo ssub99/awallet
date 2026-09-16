@@ -45,7 +45,11 @@ export function isSenderAllowed(sender: string, allowlist: string[]): boolean {
     return (
       normalizedSender === normalizedEntry ||
       normalizedSender.endsWith(normalizedEntry) ||
-      normalizedEntry.endsWith(normalizedSender)
+      normalizedEntry.endsWith(normalizedSender) ||
+      // 1544/1588 같은 대표번호 축약 전달 허용 (예: 1544 -> 15447200)
+      (normalizedSender.length >= 4 &&
+        normalizedSender.length <= 5 &&
+        normalizedEntry.startsWith(normalizedSender))
     );
   });
 }

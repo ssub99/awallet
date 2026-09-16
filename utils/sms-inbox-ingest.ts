@@ -8,6 +8,7 @@
 
 import {
   isSenderAllowed,
+  normalizeSmsSender,
   parseSmsInboxBody,
   restoreSmsSenderFromQueryParam,
 } from '@/utils/sms-inbox-parse';
@@ -46,8 +47,10 @@ export async function ingestSmsInboxMessage(
   if (allowlist.length === 0) {
     return { ok: false, reason: 'empty-allowlist' };
   }
-  // sender가 있을 때만 앱 allowlist 재검증. 없으면 자동화 트리거를 신뢰.
-  if (sender && !isSenderAllowed(sender, allowlist)) {
+  // sender가 숫자로 해석될 때만 allowlist 재검증.
+  // iOS 단축어가 보낸 사람을 이름/라벨로 넘기는 케이스는 1차 트리거를 신뢰한다.
+  const normalizedSender = normalizeSmsSender(sender);
+  if (normalizedSender && !isSenderAllowed(sender, allowlist)) {
     return { ok: false, reason: 'sender-not-allowed' };
   }
 

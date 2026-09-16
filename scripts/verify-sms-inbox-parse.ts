@@ -89,6 +89,7 @@ function main(): void {
   );
   assert(normalizeSmsSender('1544-7200') === '15447200', 'norm local');
   assert(isSenderAllowed('1544-7200', ['+82 1544-7200']), 'allowlist match');
+  assert(isSenderAllowed('1544', ['+82 1544-7200']), 'allowlist short sender match');
   assert(!isSenderAllowed('010-9999-0000', ['+82 1544-7200']), 'allowlist reject');
 
   assert(
