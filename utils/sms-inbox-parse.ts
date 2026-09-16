@@ -79,8 +79,18 @@ function detectKind(body: string): 'approval' | 'cancel' | null {
 }
 
 /**
+ * `KRW 5,292` / `KRW5,292.00` → 정수 원.
+ * 승인·취소 공통. USD/EUR 등은 매칭하지 않음.
+ */
+function parseKrwCodeAmount(raw: string): number | null {
+  const amount = Number(raw.replace(/,/g, ''));
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+  return Math.round(amount);
+}
+
+/**
  * 건별 금액. 누적/잔액/합계에 붙은 금액만 제외 (같은 줄에 있어도 건별은 유지).
- * 카드사 공통: `5,190원`, `39,500원(일시불)`, `일시불/3,500원`, `13,000`(원 없음) 등.
+ * 카드사 공통: `5,190원`, `KRW 5,292`, `KRW 5,292.00`, `일시불/3,500원`, `13,000`(원 없음) 등.
  */
 export function extractPerTxnAmount(body: string): number | null {
   const candidates: number[] = [];
@@ -103,7 +113,24 @@ export function extractPerTxnAmount(body: string): number | null {
     return candidates[0] ?? null;
   }
 
-  // 2) 원 없는 줄 (체크카드출금 다음 줄 등). 누적 줄은 제외.
+  // 2) 해외원화 등 — `KRW 5,292` / `KRW5,292.00` (승인·취소 공통)
+  for (const match of body.matchAll(/\bKRW\s*(\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+(?:\.\d+)?)/gi)) {
+    const index = match.index ?? 0;
+    const prefix = body.slice(Math.max(0, index - 8), index);
+    if (/(?:누적|잔액|합계)\s*:?\s*$/.test(prefix)) {
+      continue;
+    }
+    const amount = parseKrwCodeAmount(match[1]!);
+    if (amount != null) {
+      candidates.push(amount);
+    }
+  }
+
+  if (candidates.length > 0) {
+    return candidates[0] ?? null;
+  }
+
+  // 3) 원 없는 줄 (체크카드출금 다음 줄 등). 누적 줄은 제외.
   const lines = body.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   for (const line of lines) {
     if (/(?:누적|잔액|합계)/.test(line)) continue;
