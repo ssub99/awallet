@@ -50,9 +50,15 @@ export function Switch({
   
   // Animation value for toggle position
   const togglePosition = useRef(new Animated.Value(value ? 24 : 0)).current;
+  const isFirstValueEffect = useRef(true);
 
-  // Animate toggle when value changes
+  // Animate toggle when value changes (첫 마운트는 스프링 없이 확정값으로)
   useEffect(() => {
+    if (isFirstValueEffect.current) {
+      isFirstValueEffect.current = false;
+      togglePosition.setValue(value ? 24 : 0);
+      return;
+    }
     Animated.spring(togglePosition, {
       toValue: value ? 24 : 0, // Off: 0px (padding handles 4px), On: 24px (56 - 24 - 8 padding)
       useNativeDriver: true,
