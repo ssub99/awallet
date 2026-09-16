@@ -86,6 +86,7 @@ const FIGMA_PAGER_BOTTOM_GAP = FIGMA_SCREEN_HEIGHT - (FIGMA_PAGER.top + FIGMA_PA
 const SWIPE_COMMIT_VELOCITY = 800;
 const ROLL_DURATION_MS = 320;
 const ROLL_EASING = Easing.out(Easing.cubic);
+const IS_ANDROID = Platform.OS === 'android';
 /** 앞↔뒤 넘김이 보이도록 슬롯 간격(12px)보다 크게 띄움 */
 const ROLL_LIFT_PX = 36;
 
@@ -591,6 +592,18 @@ export function QuickInputSmsInbox({
     setTransition('idle');
   }, [isRolling, progress]);
 
+  const finishConsumeSharedValues = useCallback(() => {
+    const reset = () => {
+      progress.value = 0;
+      isRolling.value = false;
+    };
+    if (IS_ANDROID) {
+      requestAnimationFrame(reset);
+      return;
+    }
+    reset();
+  }, [isRolling, progress]);
+
   /** 잔여 추가: consume(퇴장+롤업) 종료 → 저장 훅 → 제거+토스트 */
   const finishConfirmConsume = useCallback(() => {
     const pending = pendingConsumeRef.current;
@@ -620,22 +633,22 @@ export function QuickInputSmsInbox({
         }
         setIsConsuming(false);
         setTransition('idle');
-        setStackEpoch((epoch) => epoch + 1);
+        if (!IS_ANDROID) {
+          setStackEpoch((epoch) => epoch + 1);
+        }
         setOriginalLoading(false);
         setFrozenPagerIndex(null);
       });
-      progress.value = 0;
-      isRolling.value = false;
+      finishConsumeSharedValues();
       if (result === 'last') {
         onDismiss?.();
       }
     })();
   }, [
-    isRolling,
+    finishConsumeSharedValues,
     onConfirm,
     onConfirmConsumed,
     onDismiss,
-    progress,
     resetConsumeMotion,
     stopOriginalLoading,
   ]);
@@ -680,13 +693,14 @@ export function QuickInputSmsInbox({
       }
       setIsConsuming(false);
       setTransition('idle');
-      setStackEpoch((epoch) => epoch + 1);
+      if (!IS_ANDROID) {
+        setStackEpoch((epoch) => epoch + 1);
+      }
       setOriginalLoading(false);
       setFrozenPagerIndex(null);
     });
-    progress.value = 0;
-    isRolling.value = false;
-  }, [isRolling, onCancel, progress]);
+    finishConsumeSharedValues();
+  }, [finishConsumeSharedValues, onCancel]);
 
   /** 마지막 건 취소: 추가와 동일 — 퇴장 롤 없이 스켈레톤 → 간편생성 메인(토스트 없음) */
   const runCancelLastWithSkeleton = useCallback(() => {
