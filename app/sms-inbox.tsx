@@ -4,7 +4,10 @@
  * awallet://sms-inbox?body= 도 동일 ingest로 적재한다.
  */
 
-import { ingestSmsInboxDeepLinkUrl } from '@/utils/sms-inbox-ingest';
+import {
+  ingestSmsInboxDeepLinkUrl,
+  restoreSmsSenderFromQueryParam,
+} from '@/utils/sms-inbox-ingest';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import { View } from 'react-native';
@@ -24,7 +27,9 @@ export default function SmsInboxDeepLinkScreen() {
     ranRef.current = true;
 
     const body = firstParam(params.body) || firstParam(params.text);
-    const sender = firstParam(params.sender) || firstParam(params.from);
+    const sender = restoreSmsSenderFromQueryParam(
+      firstParam(params.sender) || firstParam(params.from),
+    );
 
     const run = async () => {
       try {

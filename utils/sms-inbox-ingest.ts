@@ -9,6 +9,7 @@
 import {
   isSenderAllowed,
   parseSmsInboxBody,
+  restoreSmsSenderFromQueryParam,
 } from '@/utils/sms-inbox-parse';
 import {
   ingestParsedSms,
@@ -58,6 +59,8 @@ export async function ingestSmsInboxMessage(
   return ingestParsedSms({ sender, body, parsed });
 }
 
+export { restoreSmsSenderFromQueryParam };
+
 /** `awallet://sms-inbox?body=&sender=` */
 export function parseSmsInboxDeepLink(url: string): SmsInboxIngestInput | null {
   try {
@@ -75,7 +78,9 @@ export function parseSmsInboxDeepLink(url: string): SmsInboxIngestInput | null {
     const query = normalized.slice(queryIndex + 1).split('#')[0] ?? '';
     const params = new URLSearchParams(query);
     const body = params.get('body') ?? params.get('text') ?? '';
-    const sender = params.get('sender') ?? params.get('from') ?? '';
+    const sender = restoreSmsSenderFromQueryParam(
+      params.get('sender') ?? params.get('from') ?? '',
+    );
     return { body, sender };
   } catch {
     return null;

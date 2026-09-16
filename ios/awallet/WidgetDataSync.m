@@ -19,4 +19,11 @@ RCT_EXTERN_METHOD(drainPendingSmsInbox:(RCTPromiseResolveBlock)resolve
 RCT_EXTERN_METHOD(peekPendingSmsInbox:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
+RCT_EXTERN_METHOD(acknowledgePendingSmsInbox:(NSArray *)ids
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+
+RCT_EXTERN_METHOD(getSmsInboxLastIntent:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+
 @end

@@ -7,6 +7,7 @@ import {
   isSenderAllowed,
   normalizeSmsSender,
   parseSmsInboxBody,
+  restoreSmsSenderFromQueryParam,
 } from '../utils/sms-inbox-parse';
 import { findCancelMatch } from '../utils/sms-inbox-store';
 import type { SmsInboxItem } from '../utils/sms-inbox-types';
@@ -89,6 +90,15 @@ function main(): void {
   assert(normalizeSmsSender('1544-7200') === '15447200', 'norm local');
   assert(isSenderAllowed('1544-7200', ['+82 1544-7200']), 'allowlist match');
   assert(!isSenderAllowed('010-9999-0000', ['+82 1544-7200']), 'allowlist reject');
+
+  assert(
+    restoreSmsSenderFromQueryParam('82 1544-7200') === '+82 1544-7200',
+    'restore + from query space',
+  );
+  assert(
+    restoreSmsSenderFromQueryParam('+82 1544-7200') === '+82 1544-7200',
+    'restore keeps existing +',
+  );
 
   const approvalItem: SmsInboxItem = {
     id: '1',

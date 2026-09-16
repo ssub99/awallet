@@ -102,16 +102,16 @@ class WidgetDataSync: RCTEventEmitter {
     resolve(nil)
   }
 
-  /// 재설치 검증용. `sms-inbox-2` = Darwin enqueue notify + peek/drain.
+  /// 재설치 검증용. `sms-inbox-3` = peek + id ack (성공 시에만 삭제).
   @objc(getSmsInboxBridgeVersion:rejecter:)
   func getSmsInboxBridgeVersion(
     _ resolve: @escaping RCTPromiseResolveBlock,
     rejecter reject: @escaping RCTPromiseRejectBlock
   ) {
-    resolve("sms-inbox-2")
+    resolve("sms-inbox-3")
   }
 
-  /// App Intent가 쌓아 둔 문자 수신함 대기 큐를 읽고 비운다.
+  /// App Intent가 쌓아 둔 문자 수신함 대기 큐를 읽고 비운다. (레거시·진단용)
   @objc(drainPendingSmsInbox:rejecter:)
   func drainPendingSmsInbox(
     _ resolve: @escaping RCTPromiseResolveBlock,
@@ -127,6 +127,26 @@ class WidgetDataSync: RCTEventEmitter {
     rejecter reject: @escaping RCTPromiseRejectBlock
   ) {
     resolve(SmsInboxAppGroupQueue.peek())
+  }
+
+  /// 처리 성공한 대기 항목만 id로 제거한다.
+  @objc(acknowledgePendingSmsInbox:resolver:rejecter:)
+  func acknowledgePendingSmsInbox(
+    _ ids: [String],
+    resolver resolve: @escaping RCTPromiseResolveBlock,
+    rejecter reject: @escaping RCTPromiseRejectBlock
+  ) {
+    SmsInboxAppGroupQueue.acknowledge(ids: ids)
+    resolve(nil)
+  }
+
+  /// App Intent 마지막 enqueue/skip 기록 (진단용).
+  @objc(getSmsInboxLastIntent:rejecter:)
+  func getSmsInboxLastIntent(
+    _ resolve: @escaping RCTPromiseResolveBlock,
+    rejecter reject: @escaping RCTPromiseRejectBlock
+  ) {
+    resolve(SmsInboxAppGroupQueue.lastIntent() ?? NSNull())
   }
 
   @objc
@@ -206,12 +226,16 @@ enum SmsInboxAppGroupQueue {
     return "group.com.ssong.awallet"
   }
 
+  static let lastIntentKey = "smsInboxLastIntent"
+
   static func enqueue(body: String, sender: String = "") {
     let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else {
+      recordLastIntent(ok: false, reason: "empty-body", sender: sender)
       return
     }
     guard let defaults = UserDefaults(suiteName: appGroupIdentifier) else {
+      recordLastIntent(ok: false, reason: "app-group-unavailable", sender: sender)
       return
     }
 
@@ -225,11 +249,12 @@ enum SmsInboxAppGroupQueue {
     ])
     defaults.set(queue, forKey: storageKey)
     defaults.synchronize()
+    recordLastIntent(ok: true, reason: "enqueued", sender: senderTrimmed, bodyPreview: String(trimmed.prefix(80)))
     // 포그라운드 RN이 flush할 수 있게 프로세스 간 신호
     SmsInboxPendingDarwin.post()
   }
 
-  /// 대기 항목을 반환하고 큐를 비운다.
+  /// 대기 항목을 반환하고 큐를 비운다. (레거시·진단용)
   static func drain() -> [[String: Any]] {
     guard let defaults = UserDefaults(suiteName: appGroupIdentifier) else {
       return []
@@ -246,6 +271,44 @@ enum SmsInboxAppGroupQueue {
       return []
     }
     return loadQueue(from: defaults)
+  }
+
+  /// 처리 성공 id만 제거. 실패 항목은 다음 flush에서 재시도.
+  static func acknowledge(ids: [String]) {
+    guard !ids.isEmpty else { return }
+    guard let defaults = UserDefaults(suiteName: appGroupIdentifier) else { return }
+    let remove = Set(ids)
+    let next = loadQueue(from: defaults).filter { entry in
+      guard let id = entry["id"] as? String else { return true }
+      return !remove.contains(id)
+    }
+    defaults.set(next, forKey: storageKey)
+    defaults.synchronize()
+  }
+
+  static func lastIntent() -> [String: Any]? {
+    guard let defaults = UserDefaults(suiteName: appGroupIdentifier) else { return nil }
+    return defaults.dictionary(forKey: lastIntentKey)
+  }
+
+  private static func recordLastIntent(
+    ok: Bool,
+    reason: String,
+    sender: String,
+    bodyPreview: String = ""
+  ) {
+    guard let defaults = UserDefaults(suiteName: appGroupIdentifier) else { return }
+    defaults.set(
+      [
+        "ok": ok,
+        "reason": reason,
+        "sender": sender.trimmingCharacters(in: .whitespacesAndNewlines),
+        "bodyPreview": bodyPreview,
+        "at": ISO8601DateFormatter().string(from: Date()),
+      ] as [String: Any],
+      forKey: lastIntentKey
+    )
+    defaults.synchronize()
   }
 
   private static func loadQueue(from defaults: UserDefaults) -> [[String: Any]] {

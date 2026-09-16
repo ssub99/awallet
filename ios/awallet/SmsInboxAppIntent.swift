@@ -48,12 +48,8 @@ struct IngestSmsInboxIntent: AppIntent {
   }
 
   func perform() async throws -> some IntentResult {
-    let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
-    if trimmed.isEmpty {
-      return .result()
-    }
-    let senderTrimmed = sender.trimmingCharacters(in: .whitespacesAndNewlines)
-    SmsInboxAppGroupQueue.enqueue(body: trimmed, sender: senderTrimmed)
+    // 빈 본문·App Group 실패도 enqueue 내부에서 lastIntent로 남긴다 (조용한 유실 방지).
+    SmsInboxAppGroupQueue.enqueue(body: body, sender: sender)
     return .result()
   }
 }

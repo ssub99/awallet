@@ -50,6 +50,19 @@ export function isSenderAllowed(sender: string, allowlist: string[]): boolean {
   });
 }
 
+/**
+ * 딥링크/쿼리에서 발신번호의 '+'가 공백으로 풀린 경우 복구.
+ * `application/x-www-form-urlencoded`: '+' ≡ 공백 → "+82 …"가 "82 …"가 됨.
+ */
+export function restoreSmsSenderFromQueryParam(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed.startsWith('+')) return trimmed;
+  if (/^\d{1,3}\s[\d\-()\s]+$/.test(trimmed)) {
+    return `+${trimmed}`;
+  }
+  return trimmed;
+}
+
 function detectKind(body: string): 'approval' | 'cancel' | null {
   // 취소 먼저 (승인취소)
   if (CANCEL_KEYWORDS.some((kw) => body.includes(kw))) {
