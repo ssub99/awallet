@@ -31,7 +31,7 @@ import {
   type SlotMotionValue,
   type StackTransition,
 } from '@/utils/sms-inbox-stack-frame';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import {
   Animated as RNAnimated,
@@ -349,17 +349,7 @@ function useMotionStyle(
   }, [motion, stackTop, screenWidth]);
 }
 
-function StackCard({
-  item,
-  interactive,
-  onConfirm,
-  onCancel,
-  onChange,
-  onCategoryPress,
-  addLoading,
-  contentLoading,
-  style,
-}: {
+type StackCardProps = {
   item: SmsInboxItem;
   interactive: boolean;
   onConfirm?: (item: SmsInboxItem) => void;
@@ -370,7 +360,19 @@ function StackCard({
   /** 순서 전환 중 카드 콘텐츠 숨김 + 인디케이터 (원문 로딩과 동일 타이밍) */
   contentLoading?: boolean;
   style: StyleProp<AnimatedStyle<ViewStyle>>;
-}) {
+};
+
+function StackCard({
+  item,
+  interactive,
+  onConfirm,
+  onCancel,
+  onChange,
+  onCategoryPress,
+  addLoading,
+  contentLoading,
+  style,
+}: StackCardProps) {
   return (
     <Animated.View
       pointerEvents={interactive ? 'box-none' : 'none'}
@@ -390,6 +392,24 @@ function StackCard({
       />
     </Animated.View>
   );
+}
+
+function MotionStackCard({
+  motion,
+  progress,
+  stackTop,
+  screenWidth,
+  slotStyle,
+  ...cardProps
+}: Omit<StackCardProps, 'style'> & {
+  motion: SlotMotionValue;
+  progress: SharedValue<number>;
+  stackTop: number;
+  screenWidth: number;
+  slotStyle: StyleProp<AnimatedStyle<ViewStyle>>;
+}) {
+  const itemMotionStyle = useMotionStyle(motion, progress, stackTop, screenWidth);
+  return <StackCard {...cardProps} style={IS_ANDROID ? itemMotionStyle : slotStyle} />;
 }
 
 export function QuickInputSmsInbox({
@@ -437,6 +457,8 @@ export function QuickInputSmsInbox({
     item: SmsInboxItem;
     action: 'confirm' | 'cancel';
   } | null>(null);
+  const pendingAndroidConsumeResetItemIdRef = useRef<string | null>(null);
+  const pendingAndroidSettledIndexRef = useRef<number | null>(null);
 
   const startOriginalLoading = useCallback(() => {
     setFrozenPagerIndex(safeIndex);
@@ -447,6 +469,42 @@ export function QuickInputSmsInbox({
     setOriginalLoading(false);
     setFrozenPagerIndex(null);
   }, []);
+
+  useLayoutEffect(() => {
+    const consumedItemId = pendingAndroidConsumeResetItemIdRef.current;
+    if (
+      !IS_ANDROID ||
+      consumedItemId == null ||
+      items.some((item) => item.id === consumedItemId)
+    ) {
+      return;
+    }
+    pendingAndroidConsumeResetItemIdRef.current = null;
+    progress.value = 0;
+    isRolling.value = false;
+  }, [isRolling, items, progress]);
+
+  useLayoutEffect(() => {
+    const settledIndex = pendingAndroidSettledIndexRef.current;
+    if (
+      !IS_ANDROID ||
+      settledIndex == null ||
+      transition !== 'idle' ||
+      safeIndex !== settledIndex
+    ) {
+      return;
+    }
+    pendingAndroidSettledIndexRef.current = null;
+    requestAnimationFrame(() => {
+      isRolling.set(false);
+      stopOriginalLoading();
+    });
+  }, [
+    isRolling,
+    safeIndex,
+    stopOriginalLoading,
+    transition,
+  ]);
 
   useEffect(() => {
     canGoNextSV.value = canGoNext;
@@ -564,26 +622,38 @@ export function QuickInputSmsInbox({
       screen_name: SMS_HISTORY_RECORD_ANALYTICS_SCREEN_NAME,
       target: 'receive-cardadd-order-next',
     });
+    if (IS_ANDROID) {
+      pendingAndroidSettledIndexRef.current = safeIndex + 1;
+      setTransition('idle');
+      commitNext();
+      return;
+    }
     flushSync(() => {
       setTransition('idle');
       commitNext();
     });
     progress.value = 0;
     revealSettledStack();
-  }, [commitNext, progress, revealSettledStack]);
+  }, [commitNext, progress, revealSettledStack, safeIndex]);
 
   const finishPrevScrub = useCallback(() => {
     void logEvent('btn', {
       screen_name: SMS_HISTORY_RECORD_ANALYTICS_SCREEN_NAME,
       target: 'receive-cardadd-order-prev',
     });
+    if (IS_ANDROID) {
+      pendingAndroidSettledIndexRef.current = safeIndex - 1;
+      setTransition('idle');
+      commitPrev();
+      return;
+    }
     flushSync(() => {
       setTransition('idle');
       commitPrev();
     });
     progress.value = 0;
     revealSettledStack();
-  }, [commitPrev, progress, revealSettledStack]);
+  }, [commitPrev, progress, revealSettledStack, safeIndex]);
 
   const resetConsumeMotion = useCallback(() => {
     progress.value = 0;
@@ -593,15 +663,11 @@ export function QuickInputSmsInbox({
   }, [isRolling, progress]);
 
   const finishConsumeSharedValues = useCallback(() => {
-    const reset = () => {
-      progress.value = 0;
-      isRolling.value = false;
-    };
     if (IS_ANDROID) {
-      requestAnimationFrame(reset);
       return;
     }
-    reset();
+    progress.value = 0;
+    isRolling.value = false;
   }, [isRolling, progress]);
 
   /** 잔여 추가: consume(퇴장+롤업) 종료 → 저장 훅 → 제거+토스트 */
@@ -627,6 +693,9 @@ export function QuickInputSmsInbox({
       }
 
       pendingConsumeRef.current = null;
+      if (IS_ANDROID) {
+        pendingAndroidConsumeResetItemIdRef.current = pending.item.id;
+      }
       flushSync(() => {
         if (result === 'continue') {
           onConfirmConsumed(pending.item);
@@ -687,6 +756,9 @@ export function QuickInputSmsInbox({
   const finishCancelConsume = useCallback(() => {
     const pending = pendingConsumeRef.current;
     pendingConsumeRef.current = null;
+    if (IS_ANDROID && pending?.action === 'cancel') {
+      pendingAndroidConsumeResetItemIdRef.current = pending.item.id;
+    }
     flushSync(() => {
       if (pending?.action === 'cancel') {
         onCancel(pending.item);
@@ -789,8 +861,10 @@ export function QuickInputSmsInbox({
     progress.value = 0;
     progress.value = withTiming(-1, { duration: ROLL_DURATION_MS, easing: ROLL_EASING }, (finished) => {
       if (finished) {
-        prevSettledOpacity.value = 1;
-        stackOpacity.value = 0;
+        if (!IS_ANDROID) {
+          prevSettledOpacity.value = 1;
+          stackOpacity.value = 0;
+        }
         runOnJS(finishPrevScrub)();
       }
     });
@@ -812,8 +886,10 @@ export function QuickInputSmsInbox({
     progress.value = 0;
     progress.value = withTiming(1, { duration: ROLL_DURATION_MS, easing: ROLL_EASING }, (finished) => {
       if (finished) {
-        nextSettledOpacity.value = 1;
-        stackOpacity.value = 0;
+        if (!IS_ANDROID) {
+          nextSettledOpacity.value = 1;
+          stackOpacity.value = 0;
+        }
         runOnJS(finishNextRoll)();
       }
     });
@@ -871,8 +947,10 @@ export function QuickInputSmsInbox({
               { duration: ROLL_DURATION_MS, easing: ROLL_EASING },
               (finished) => {
                 if (finished) {
-                  nextSettledOpacity.value = 1;
-                  stackOpacity.value = 0;
+                  if (!IS_ANDROID) {
+                    nextSettledOpacity.value = 1;
+                    stackOpacity.value = 0;
+                  }
                   runOnJS(finishNextRoll)();
                 }
               },
@@ -888,8 +966,10 @@ export function QuickInputSmsInbox({
               { duration: ROLL_DURATION_MS, easing: ROLL_EASING },
               (finished) => {
                 if (finished) {
-                  prevSettledOpacity.value = 1;
-                  stackOpacity.value = 0;
+                  if (!IS_ANDROID) {
+                    prevSettledOpacity.value = 1;
+                    stackOpacity.value = 0;
+                  }
                   runOnJS(finishPrevScrub)();
                 }
               },
@@ -1095,9 +1175,14 @@ export function QuickInputSmsInbox({
                 slot.motion === SlotMotion.exitUp ||
                 slot.motion === SlotMotion.frontToMid;
               return (
-                <StackCard
+                <MotionStackCard
                   key={item.id}
                   item={item}
+                  motion={slot.motion}
+                  progress={progress}
+                  stackTop={stackTop}
+                  screenWidth={windowWidth}
+                  slotStyle={slotStyles[position as 0 | 1 | 2 | 3]}
                   interactive={isTopInteractive}
                   onConfirm={
                     isTopInteractive
@@ -1113,7 +1198,6 @@ export function QuickInputSmsInbox({
                   onCategoryPress={isTopInteractive ? onCategoryPress : undefined}
                   addLoading={isTopInteractive ? addLoading : false}
                   contentLoading={!showsContent || originalLoading}
-                  style={slotStyles[position as 0 | 1 | 2 | 3]}
                 />
               );
             })}

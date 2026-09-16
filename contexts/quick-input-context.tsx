@@ -2091,7 +2091,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       const saved = await persistPendingParseRecord(pending, {
         // getPaymentSubtypesCached는 아래에서 정의되므로 모듈 loadPaymentSubtypes 사용
         getPaymentSubtypesCached: loadPaymentSubtypes,
-        refresh,
+        // 수신함은 자체 스켈레톤을 표시한다. Android 전역 로딩 overlay 교대로 카드가 재합성되지 않게 한다.
+        refresh: () => refresh({ showLoading: false }),
         showToast,
       });
       if (!saved) {
