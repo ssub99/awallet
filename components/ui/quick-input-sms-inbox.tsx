@@ -21,6 +21,8 @@ import { atomicColors } from '@/constants/atomic-colors';
 import { colors, typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import type { SmsInboxItem } from '@/utils/sms-inbox-mock';
+import { SMS_HISTORY_RECORD_ANALYTICS_SCREEN_NAME } from '@/utils/sms-inbox-types';
+import { logEvent } from '@/utils/analytics';
 import { normalizeSmsOriginalBody } from '@/utils/sms-inbox-store';
 import {
   buildStackFrame,
@@ -557,6 +559,10 @@ export function QuickInputSmsInbox({
    * 스택 전체를 비우면 깜빡이므로 빈 프레임을 만들지 않는다.
    */
   const finishNextRoll = useCallback(() => {
+    void logEvent('btn', {
+      screen_name: SMS_HISTORY_RECORD_ANALYTICS_SCREEN_NAME,
+      target: 'receive-cardadd-order-next',
+    });
     flushSync(() => {
       setTransition('idle');
       commitNext();
@@ -566,6 +572,10 @@ export function QuickInputSmsInbox({
   }, [commitNext, progress, revealSettledStack]);
 
   const finishPrevScrub = useCallback(() => {
+    void logEvent('btn', {
+      screen_name: SMS_HISTORY_RECORD_ANALYTICS_SCREEN_NAME,
+      target: 'receive-cardadd-order-prev',
+    });
     flushSync(() => {
       setTransition('idle');
       commitPrev();
@@ -703,6 +713,11 @@ export function QuickInputSmsInbox({
       if (action === 'confirm' && onBeforeConfirm && !onBeforeConfirm(item)) {
         return;
       }
+      void logEvent('btn', {
+        screen_name: SMS_HISTORY_RECORD_ANALYTICS_SCREEN_NAME,
+        target:
+          action === 'confirm' ? 'receive-cardadd-confirm' : 'receive-cardadd-cancel',
+      });
       pendingConsumeRef.current = { item, action };
       setIsConsuming(true);
 
@@ -897,6 +912,14 @@ export function QuickInputSmsInbox({
   // - Frame 6(homeIndicator) top = 778 → 스크린 하단까지 32(FIGMA_PAGER_BOTTOM_GAP)
   // iOS: 홈 인디케이터 구역이 곧 그 32이므로 safeBottom만 맞춤.
   // Android: 내비 inset 위에 시안 32를 더해 핸들↔OS 인디케이터 여백을 시안과 동일하게.
+  const handleScreenPrev = useCallback(() => {
+    void logEvent('btn', {
+      screen_name: SMS_HISTORY_RECORD_ANALYTICS_SCREEN_NAME,
+      target: 'receive-cardadd-screen-prev',
+    });
+    onDismiss?.();
+  }, [onDismiss]);
+
   // inset이 0이면 edge-to-edge 3-button 폴백(48)+시안 32.
   const pagerBottom =
     Platform.OS === 'android'
@@ -937,7 +960,7 @@ export function QuickInputSmsInbox({
       {onDismiss ? (
         <Pressable
           style={styles.dismissHitArea}
-          onPress={onDismiss}
+          onPress={handleScreenPrev}
           accessibilityRole="button"
           accessibilityLabel="문자 수신함 닫기"
         />
@@ -956,7 +979,7 @@ export function QuickInputSmsInbox({
           ]}
         >
           <Pressable
-            onPress={onDismiss}
+            onPress={handleScreenPrev}
             accessibilityRole="button"
             accessibilityLabel="이전"
             hitSlop={8}

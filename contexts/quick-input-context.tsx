@@ -46,6 +46,7 @@ import { logEvent } from '@/utils/analytics';
 import { getApiSecurityHeaders } from '@/utils/api-security-headers';
 import { isAtLeastVersion, QUICK_INPUT_MIN_VERSION } from '@/utils/app-version';
 import type { SmsInboxItem } from '@/utils/sms-inbox-types';
+import { SMS_HISTORY_RECORD_ANALYTICS_SCREEN_NAME } from '@/utils/sms-inbox-types';
 import {
   loadSmsInboxItems,
   replaceSmsInboxItems,
@@ -367,19 +368,21 @@ const INCOME_RECORD_SHEET_ANALYTICS_TARGETS = new Set([
   'memo',
 ]);
 
-/** 간편입력 기록 변경 바텀시트 analytics — 소비/수입 screen_name 분기 */
+/** 간편입력 기록 변경 바텀시트 analytics — 소비/수입/문자수신함 screen_name 분기 */
 function logExpenseRecordSheetEvent(
   recordType: 'income' | 'expense' | undefined,
   eventName: string,
   target: string,
   extra?: Record<string, unknown>,
+  screenNameOverride?: string | null,
 ): void {
   const screenName =
-    recordType === 'income'
+    screenNameOverride ??
+    (recordType === 'income'
       ? INCOME_RECORD_SHEET_ANALYTICS_SCREEN_NAME
       : recordType === 'expense'
         ? EXPENSE_RECORD_SHEET_ANALYTICS_SCREEN_NAME
-        : null;
+        : null);
   if (!screenName) {
     return;
   }
@@ -1341,6 +1344,23 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const smsInboxEditingItemIdRef = useRef<string | null>(null);
   /** 문자 수신함 카테고리 단독 시트에서 수정 중인 아이템 */
   const smsInboxCategoryItemIdRef = useRef<string | null>(null);
+
+  /** 가기록 시트 analytics — SMS 변경이면 screen_name=/sms-history-record */
+  const logRecordSheetEvent = useCallback(
+    (eventName: string, target: string, extra?: Record<string, unknown>) => {
+      logExpenseRecordSheetEvent(
+        pendingRecordRef.current?.recordType,
+        eventName,
+        target,
+        extra,
+        smsInboxEditingItemIdRef.current != null
+          ? SMS_HISTORY_RECORD_ANALYTICS_SCREEN_NAME
+          : null,
+      );
+    },
+    [],
+  );
+
   /** 토큰 비용 절감: 최근 요청 시각 목록 (rate limit용) */
   const rateLimitTimestampsRef = useRef<number[]>([]);
   /** 토큰 비용 절감: 비기록 연속 횟수, 잠금 해제 시각 */
@@ -1911,6 +1931,11 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     if (isQuickInputSmsInboxClosingRef.current) {
       return;
     }
+    // main_quick-input_sms-receive_ui (엑셀: quick-input / sms-receive / ui)
+    void logEvent('ui', {
+      screen_name: '/home',
+      target: 'sms-receive',
+    });
     if (isQuickInputCalculatorMounted || isQuickInputCalculatorVisible) {
       calculatorAnimationRef.current?.stop();
       calculatorTranslateYRef.current.setValue(calculatorPanelHeightRef.current);
@@ -2236,8 +2261,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const handleSmsInboxChange = useCallback(
     (item: SmsInboxItem) => {
       void logEvent('btn', {
-        screen_name: '/home',
-        target: 'sms-inbox-card-modify',
+        screen_name: SMS_HISTORY_RECORD_ANALYTICS_SCREEN_NAME,
+        target: 'receive-cardadd-modify',
       });
       openSmsInboxItemEditor(item);
     },
@@ -2260,11 +2285,22 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     }, QUICK_INPUT_EMBEDDED_SHEET_UNMOUNT_DELAY);
   }, [smsInboxCategorySheetMounted, smsInboxCategorySheetVisible]);
 
+  const dismissSmsInboxCategorySheet = useCallback(() => {
+    if (!smsInboxCategorySheetVisible && !smsInboxCategorySheetMounted) {
+      return;
+    }
+    void logEvent('btn', {
+      screen_name: SMS_HISTORY_RECORD_ANALYTICS_SCREEN_NAME,
+      target: 'receive-cardadd-category-close',
+    });
+    closeSmsInboxCategorySheet();
+  }, [closeSmsInboxCategorySheet, smsInboxCategorySheetMounted, smsInboxCategorySheetVisible]);
+
   const handleSmsInboxCategoryPress = useCallback(
     (item: SmsInboxItem) => {
       void logEvent('btn', {
-        screen_name: '/home',
-        target: 'sms-inbox-card-category',
+        screen_name: SMS_HISTORY_RECORD_ANALYTICS_SCREEN_NAME,
+        target: 'receive-cardadd-category',
       });
       const categoryType = item.card.recordType === 'income' ? 'income' : 'expense';
       const categoryLabel = item.card.category.trim();
@@ -2301,8 +2337,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         return;
       }
       void logEvent('list', {
-        screen_name: '/home',
-        target: 'sms-inbox-category-option',
+        screen_name: SMS_HISTORY_RECORD_ANALYTICS_SCREEN_NAME,
+        target: 'receive-cardadd-category-option',
         category: category.label,
       });
       setSmsInboxItems((prev) => {
@@ -3854,7 +3890,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }, [quickInputPaymentSheetVisible]);
 
   const handleQuickInputEditCategoryPress = useCallback(() => {
-    logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'ui', 'category');
+    logRecordSheetEvent('ui', 'category');
     const categoryType = pendingRecordRef.current?.recordType === 'income' ? 'income' : 'expense';
     closeQuickInputEditAmountKeypad({ immediate: true });
     setQuickInputCategorySheetSelected(quickInputEditDraft?.category ?? '');
@@ -3876,7 +3912,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }, [closeQuickInputEditAmountKeypad, quickInputEditDraft?.category]);
 
   const handleQuickInputCategorySheetClose = useCallback(() => {
-    logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'btn', 'category-option-prev');
+    logRecordSheetEvent('btn', 'category-option-prev');
     setQuickInputEditView('form');
   }, []);
 
@@ -3885,7 +3921,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       showToast('카테고리를 선택해 주세요.');
       return;
     }
-    logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'btn', 'category-option-confirm', {
+    logRecordSheetEvent('btn', 'category-option-confirm', {
       category: quickInputCategorySheetSelected,
     });
     const selectedCategory = quickInputCategorySheetCategories.find(
@@ -3899,14 +3935,14 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }, [quickInputCategorySheetCategories, quickInputCategorySheetSelected, showToast, updateQuickInputEditDraft]);
 
   const handleQuickInputCategoryOptionPress = useCallback((category: Category) => {
-    logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'list', 'category-option', {
+    logRecordSheetEvent('list', 'category-option', {
       category: category.label,
     });
     setQuickInputCategorySheetSelected(category.label);
   }, []);
 
   const handleQuickInputEditDatePress = useCallback(() => {
-    logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'ui', 'calendar');
+    logRecordSheetEvent('ui', 'calendar');
     closeQuickInputEditAmountKeypad({ immediate: true });
     setQuickInputDateSheetSelected(displayDateToIsoDate(quickInputEditDraft?.date ?? '') ?? new Date().toISOString().slice(0, 10));
     if (dateSheetUnmountTimeoutRef.current) {
@@ -3915,19 +3951,19 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     }
     setQuickInputDateSheetMounted(true);
     setQuickInputDateSheetVisible(true);
-    logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'sheet_view', 'calendar');
+    logRecordSheetEvent('sheet_view', 'calendar');
     void loadMonthStartDay()
       .then(setQuickInputDateSheetMonthStartDay)
       .catch(() => {});
   }, [closeQuickInputEditAmountKeypad, quickInputEditDraft?.date]);
 
   const handleQuickInputDateSheetClose = useCallback(() => {
-    logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'btn', 'calendar-close');
+    logRecordSheetEvent('btn', 'calendar-close');
     closeQuickInputDateSheet();
   }, [closeQuickInputDateSheet]);
 
   const handleQuickInputDateSheetConfirm = useCallback((isoDate: string) => {
-    logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'btn', 'calendar-confirm');
+    logRecordSheetEvent('btn', 'calendar-confirm');
     updateQuickInputEditDraft({ date: isoDateToQuickInputDisplayDate(isoDate) });
     closeQuickInputDateSheet();
   }, [closeQuickInputDateSheet, updateQuickInputEditDraft]);
@@ -3936,7 +3972,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     if (pendingRecordRef.current?.recordType === 'income') {
       return;
     }
-    logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'ui', 'payment');
+    logRecordSheetEvent('ui', 'payment');
     const method = quickInputEditDraft?.paymentMethod === 'debit' ? 'debit' : 'credit';
     closeQuickInputEditAmountKeypad({ immediate: true });
     setQuickInputPaymentSheetFilter(method);
@@ -3947,22 +3983,22 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     }
     setQuickInputPaymentSheetMounted(true);
     setQuickInputPaymentSheetVisible(true);
-    logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'sheet_view', 'payment');
+    logRecordSheetEvent('sheet_view', 'payment');
     void getPaymentSubtypesCached()
       .then(setQuickInputPaymentSheetItems)
       .catch(() => {});
   }, [closeQuickInputEditAmountKeypad, getPaymentSubtypesCached, quickInputEditDraft?.paymentMethod]);
 
   const handleQuickInputPaymentSheetClose = useCallback(() => {
-    logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'btn', 'payment-close');
+    logRecordSheetEvent('btn', 'payment-close');
     closeQuickInputPaymentSheet();
   }, [closeQuickInputPaymentSheet]);
 
   const handleQuickInputPaymentSelect = useCallback((method: 'credit' | 'debit' | 'cash', subtype?: PaymentSubtype) => {
     if (method === 'cash') {
-      logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'btn', 'payment-cash');
+      logRecordSheetEvent('btn', 'payment-cash');
     } else {
-      logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'list', method === 'credit' ? 'payment-credit' : 'payment-debit');
+      logRecordSheetEvent('list', method === 'credit' ? 'payment-credit' : 'payment-debit');
     }
     updateQuickInputEditDraft({
       paymentMethod: method,
@@ -3981,7 +4017,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }, [closeQuickInputPaymentSheet, updateQuickInputEditDraft]);
 
   const handleQuickInputEditAmountPress = useCallback(() => {
-    logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'ui', 'amount');
+    logRecordSheetEvent('ui', 'amount');
     Keyboard.dismiss();
     setQuickInputEditView('form');
     closeQuickInputDateSheet();
@@ -4009,7 +4045,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }, [closeQuickInputEditAmountKeypad, handleQuickInputEditAmountChange]);
 
   const handleQuickInputEditMemoFocus = useCallback(() => {
-    logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'ui', 'memo');
+    logRecordSheetEvent('ui', 'memo');
     closeQuickInputEditAmountKeypad({ immediate: true });
     handleQuickInputEditMemoKeyboardFocus();
   }, [closeQuickInputEditAmountKeypad, handleQuickInputEditMemoKeyboardFocus]);
@@ -4022,7 +4058,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     if (pendingRecordRef.current?.recordType === 'income') {
       return;
     }
-    logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'btn', 'option');
+    logRecordSheetEvent('btn', 'option');
     closeQuickInputEditAmountKeypad({ immediate: true });
     const source = quickInputEditDraft;
     setQuickInputRecurringDraftIsRecurring(source?.isRecurring ?? false);
@@ -4033,16 +4069,16 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     setQuickInputRecurringDraftWeekendOption(source?.weekendOption ?? 'weekend');
     setQuickInputRecurringDraftIsPeriodExpanded(false);
     setQuickInputEditView('recurring');
-    logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'sheet_view', 'recurring-installment-sheet');
+    logRecordSheetEvent('sheet_view', 'recurring-installment-sheet');
   }, [closeQuickInputEditAmountKeypad, quickInputEditDraft]);
 
   const handleQuickInputRecurringSheetClose = useCallback(() => {
-    logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'btn', 'recurring-installment-sheet-close');
+    logRecordSheetEvent('btn', 'recurring-installment-sheet-close');
     setQuickInputEditView('form');
   }, []);
 
   const handleQuickInputRecurringConfirm = useCallback(() => {
-    logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'btn', 'recurring-installment-sheet-confirm');
+    logRecordSheetEvent('btn', 'recurring-installment-sheet-confirm');
     updateQuickInputEditDraft({
       isRecurring: quickInputRecurringDraftIsRecurring,
       isInstallment: quickInputRecurringDraftIsInstallment,
@@ -4064,7 +4100,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   ]);
 
   const handleQuickInputRecurringToggle = useCallback((value: boolean) => {
-    logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'ui', 'recurring-toggle');
+    logRecordSheetEvent('ui', 'recurring-toggle');
     setQuickInputRecurringDraftIsRecurring(value);
     if (!value) {
       setQuickInputRecurringDraftTotalMonths(2);
@@ -4079,7 +4115,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }, [quickInputRecurringDraftHasSelectedInstallment]);
 
   const handleQuickInputInstallmentToggle = useCallback((value: boolean) => {
-    logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'ui', 'installment-toggle');
+    logRecordSheetEvent('ui', 'installment-toggle');
     setQuickInputRecurringDraftIsInstallment(value);
     if (value) {
       setQuickInputRecurringDraftIsRecurring(false);
@@ -4087,11 +4123,23 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     }
   }, []);
 
-  const handleQuickInputEditSheetClose = useCallback(() => {
+  const handleQuickInputEditSheetClose = useCallback((options?: { fromConfirm?: boolean }) => {
     if (isQuickInputEditOpening || isQuickInputEditSheetClosing) {
       return;
     }
     const isSmsInboxEdit = smsInboxEditingItemIdRef.current != null;
+    // onClose/onPress가 이벤트를 넘길 수 있어 fromConfirm만 좁게 판별
+    const fromConfirm =
+      options != null &&
+      typeof options === 'object' &&
+      'fromConfirm' in options &&
+      options.fromConfirm === true;
+    if (isSmsInboxEdit && !fromConfirm) {
+      void logEvent('btn', {
+        screen_name: SMS_HISTORY_RECORD_ANALYTICS_SCREEN_NAME,
+        target: 'cancel',
+      });
+    }
     setIsQuickInputConfirmCardRevealPaused(true);
     setIsQuickInputEditSheetClosing(true);
     setQuickInputEditSheetVisible(false);
@@ -4170,7 +4218,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       return;
     }
 
-    logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'btn', 'cta');
+    logRecordSheetEvent('btn', 'cta');
 
     const isIncomeEdit = current.recordType === 'income';
     const updated: PendingParseRecord = isIncomeEdit
@@ -4198,7 +4246,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
 
     const smsItemId = smsInboxEditingItemIdRef.current;
     pendingRecordRef.current = updated;
-    handleQuickInputEditSheetClose();
+    handleQuickInputEditSheetClose({ fromConfirm: true });
     void buildConfirmCardFromPending(updated, {
       getExpenseCategoriesCached,
       getIncomeCategoriesCached,
@@ -4247,7 +4295,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         return true;
       }
       if (smsInboxCategorySheetMounted) {
-        closeSmsInboxCategorySheet();
+        dismissSmsInboxCategorySheet();
         return true;
       }
       if (quickInputCategorySettingSheetMounted || isQuickInputCategorySettingOpening) {
@@ -4271,7 +4319,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }, [
     closeQuickInputCalculator,
     closeQuickInputSmsInbox,
-    closeSmsInboxCategorySheet,
+    dismissSmsInboxCategorySheet,
     handleQuickInputCategorySettingSheetClose,
     handleQuickInputEditSheetClose,
     hideQuickInput,
@@ -4297,7 +4345,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       return;
     }
     if (smsInboxCategorySheetMounted) {
-      closeSmsInboxCategorySheet();
+      dismissSmsInboxCategorySheet();
       return;
     }
     if (quickInputCategorySettingSheetMounted || isQuickInputCategorySettingOpening) {
@@ -4320,7 +4368,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }, [
     closeQuickInputCalculator,
     closeQuickInputSmsInbox,
-    closeSmsInboxCategorySheet,
+    dismissSmsInboxCategorySheet,
     handleQuickInputCategorySettingSheetClose,
     handleQuickInputEditSheetClose,
     hideQuickInput,
@@ -5037,7 +5085,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                                             if (!quickInputRecurringDraftIsRecurring && !quickInputRecurringDraftIsInstallment) return;
                                             const recurringTarget = QUICK_INPUT_RECURRING_ANALYTICS_TARGET[label];
                                             if (recurringTarget) {
-                                              logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'ui', recurringTarget);
+                                              logRecordSheetEvent('ui', recurringTarget);
                                             }
                                             setQuickInputRecurringDraftType(label);
                                             if (shouldIgnoreWeekendOptionForRecurringType(label)) {
@@ -5074,7 +5122,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                                             if (!quickInputRecurringDraftIsRecurring && !quickInputRecurringDraftIsInstallment) return;
                                             const installmentTarget = QUICK_INPUT_INSTALLMENT_ANALYTICS_TARGET[months];
                                             if (installmentTarget) {
-                                              logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'ui', installmentTarget);
+                                              logRecordSheetEvent('ui', installmentTarget);
                                             }
                                             setQuickInputRecurringDraftTotalMonths(months);
                                           }}
@@ -5109,7 +5157,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                                               showToast('해당 단위는 주말 옵션을 적용할 수 없습니다.');
                                               return;
                                             }
-                                            logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'ui', QUICK_INPUT_WEEKEND_ANALYTICS_TARGET[option.value]);
+                                            logRecordSheetEvent('ui', QUICK_INPUT_WEEKEND_ANALYTICS_TARGET[option.value]);
                                             setQuickInputRecurringDraftWeekendOption(option.value);
                                           }}
                                           disabled={!quickInputRecurringDraftIsRecurring && !quickInputRecurringDraftIsInstallment}
@@ -5127,7 +5175,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                                                 showToast('해당 단위는 주말 옵션을 적용할 수 없습니다.');
                                                 return;
                                               }
-                                              logExpenseRecordSheetEvent(pendingRecordRef.current?.recordType, 'ui', QUICK_INPUT_WEEKEND_ANALYTICS_TARGET[option.value]);
+                                              logRecordSheetEvent('ui', QUICK_INPUT_WEEKEND_ANALYTICS_TARGET[option.value]);
                                               setQuickInputRecurringDraftWeekendOption(option.value);
                                             }}
                                             label={false}
@@ -5587,7 +5635,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                   <ModalBottomsheet
                     visible={smsInboxCategorySheetVisible}
                     title="카테고리 선택"
-                    onClose={closeSmsInboxCategorySheet}
+                    onClose={dismissSmsInboxCategorySheet}
                     closeOnBackdrop
                     embedded
                     embeddedZIndex={1}
