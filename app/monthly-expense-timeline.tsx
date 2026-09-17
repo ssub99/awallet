@@ -1027,8 +1027,8 @@ export default function MonthlyExpenseTimelineScreen() {
         },
       ]}
     >
-      {/* 이전 달 스와이프(→)와 스택 pop 제스처 충돌 방지. 뒤로가기는 TopNavigation */}
-      <Stack.Screen options={{ gestureEnabled: false }} />
+      {/* iOS 26+ 기본 fullScreenGesture가 월 스와이프를 덮어쓰므로 엣지 pop만 유지 */}
+      <Stack.Screen options={{ fullScreenGestureEnabled: false }} />
 
       {/* Top Navigation + 날짜 스트립: Android 진입 시 SafeAreaView 지연 보정으로 들썩이지 않도록 고정 영역 */}
       <View style={styles.timelineHeader} collapsable={false}>
