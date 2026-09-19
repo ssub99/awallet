@@ -4,6 +4,9 @@
  * Swift Intent: ios/awallet/SmsInboxAppIntent.swift
  *
  * 최신 공유 링크는 Vercel static `sms-inbox-shortcut.json` (깃 관리).
+ * 배선 수정본(unsigned): `static/sms-inbox-shortcut-fixed.plist`
+ *   - body ← ExtensionInput (Shortcut Input)
+ *   - sender ← empty (do not coerce message body to phone)
  * 앱은 fetch 후 iCloud URL을 열어 단축어 앱으로 넘긴다 (별도 웹 UI 없음).
  */
 
