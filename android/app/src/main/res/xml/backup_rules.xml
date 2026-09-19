@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- allowBackup=false 와 함께: Auto Backup에 앱 데이터를 넣지 않음. 제품 백업(.awbak)과 무관. -->
 <full-backup-content>
-  <exclude domain="sharedpref" path="awallet_sms_inbox_native.xml"/>
+  <exclude domain="root" path="."/>
 </full-backup-content>

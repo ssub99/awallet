@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 클라우드 Auto Backup·기기 이전 모두 제외. 복원은 앱 내 .awbak/CSV/XLSX만. -->
 <data-extraction-rules>
   <cloud-backup>
-    <exclude domain="sharedpref" path="awallet_sms_inbox_native.xml"/>
+    <exclude domain="root" path="."/>
   </cloud-backup>
   <device-transfer>
-    <exclude domain="sharedpref" path="awallet_sms_inbox_native.xml"/>
+    <exclude domain="root" path="."/>
   </device-transfer>
 </data-extraction-rules>

@@ -73,7 +73,7 @@ const ADD_BAR_GAP_ABOVE_KEYBOARD = 16;
 const ADD_BACKDROP_FADE_MS = 100;
 
 const SMS_DISCLOSURE_MESSAGE =
-  '설정한 발신번호의 메세지 내용을 인식하기 위해 SMS 수신 권한과 알림 접근 권한이 필요합니다. 수신된 문자를 인식하기 위함이며 별도로 SMS/알림은 저장하지 않습니다.';
+  '설정한 발신번호의 메세지 내용을 확인하기 위해 SMS 접근 권한과 알림 접근 권한이 필요합니다. 수신된 문자를 인식하기 위함이며 별도로 SMS/알림은 저장하지 않습니다.';
 
 type AndroidEnablePendingStep = 'notification-access' | 'messages-notification' | null;
 
@@ -165,8 +165,8 @@ export default function SettingsSmsReceiveScreen() {
   const promptMessagesNotificationGuide = useCallback(() => {
     androidEnablePendingStepRef.current = 'messages-notification';
     Alert.alert(
-      '메세지 알림 켜기 안내',
-      '설정한 발신번호의 메세지를 인식하기 위해 메세지 앱의 알림 기능이 켜져 있어야 합니다.',
+      '메세지 알림 설정 안내',
+      '설정한 발신번호의 메세지를 확인하기 위해 메세지 앱의 알림 기능을 사용 설정해 주세요.',
       [
         {
           text: '취소',
@@ -200,7 +200,7 @@ export default function SettingsSmsReceiveScreen() {
     androidEnablePendingStepRef.current = 'notification-access';
     Alert.alert(
       '알림 접근 권한 안내',
-      '에이월렛의 알림 접근을 허용해 주세요.',
+      '수신되는 알림에 대해 접근을 허용해 주세요.',
       [
         {
           text: '취소',
@@ -292,7 +292,7 @@ export default function SettingsSmsReceiveScreen() {
   const showSmsPermissionBlockedGuide = useCallback(() => {
     Alert.alert(
       '문자 수신 권한 안내',
-      '메세지를 인식하기 위해선 SMS 수신 권한이 필요합니다. 수신 권한을 허용해 주세요.',
+      '메세지를 확인하기 위해선 SMS 접근 권한이 필요합니다. 접근 권한을 허용해 주세요.',
       [
         { text: '취소', style: 'cancel' },
         { text: '설정으로 이동', onPress: () => openAndroidAppSettings() },
@@ -386,7 +386,7 @@ export default function SettingsSmsReceiveScreen() {
   const handlePermissionGuidePress = useCallback(() => {
     Alert.alert(
       '접근/권한 허용 안내',
-      '설정한 발신번호의 메세지 내용을 인식하기 위해 SMS 수신 권한과 알림 접근 권한이 필요합니다. 수신된 문자를 인식하기 위함이며 별도로 SMS/알림은 저장하지 않음을 안내드립니다.',
+      '설정한 발신번호의 메세지 내용을 확인하기 위해 SMS 접근 권한과 알림 접근 권한이 필요합니다. 수신된 문자를 인식하기 위함이며 별도로 SMS/알림의 내용은 저장하지 않습니다.',
       [{ text: '확인' }],
     );
   }, []);
@@ -604,11 +604,11 @@ export default function SettingsSmsReceiveScreen() {
             <Pressable
               onPress={handlePermissionGuidePress}
               accessibilityRole="link"
-              accessibilityLabel="문자 수신 권한 안내"
+              accessibilityLabel="접근/권한 허용 안내"
               hitSlop={8}
             >
               <UiLineText style={[styles.permissionLink, { color: colors.textAssistive }]}>
-                문자 수신 권한 안내
+                접근/권한 허용 안내
               </UiLineText>
             </Pressable>
           ) : null}
