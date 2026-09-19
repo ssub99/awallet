@@ -7,6 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { buildConfirmCardFromSmsFields } from '@/utils/sms-inbox-card';
 import {
+  formatSmsSenderDisplay,
   parseSmsInboxBody,
   parsedFieldsToIso,
   type SmsInboxParsedFields,
@@ -92,8 +93,7 @@ export async function clearSmsInboxItems(): Promise<void> {
 }
 
 function formatSenderLabel(sender: string): string {
-  const trimmed = sender.trim();
-  return trimmed.length > 0 ? trimmed : '발신번호 없음';
+  return formatSmsSenderDisplay(sender);
 }
 
 function createId(): string {

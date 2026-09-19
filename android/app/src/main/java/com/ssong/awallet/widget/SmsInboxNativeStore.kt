@@ -130,6 +130,17 @@ object SmsInboxNativeStore {
     return describeSenderGate(context, sender).allowed
   }
 
+  fun isReceiveEnabled(context: Context): Boolean {
+    return context
+      .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+      .getBoolean(KEY_ENABLED, false)
+  }
+
+  fun allowedNumbers(context: Context): List<String> {
+    val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    return parseStringArray(prefs.getString(KEY_NUMBERS, null))
+  }
+
   fun hasSupportedTransactionKeyword(body: String): Boolean {
     return SUPPORTED_TRANSACTION_KEYWORDS.any(body::contains)
   }
@@ -293,8 +304,8 @@ object SmsInboxNativeStore {
     }
   }
 
-  private fun fingerprint(sender: String, body: String, receivedAt: Long): String {
-    val source = "${normalizeSender(sender)}\u0000$body\u0000$receivedAt"
+  private fun fingerprint(sender: String, body: String, @Suppress("UNUSED_PARAMETER") receivedAt: Long): String {
+    val source = "${normalizeSender(sender)}\u0000$body"
     return MessageDigest.getInstance("SHA-256")
       .digest(source.toByteArray(Charsets.UTF_8))
       .joinToString("") { "%02x".format(it) }

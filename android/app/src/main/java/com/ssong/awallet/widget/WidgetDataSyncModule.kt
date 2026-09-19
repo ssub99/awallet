@@ -9,6 +9,7 @@ import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.ReadableMap
+import com.facebook.react.bridge.UiThreadUtil
 
 class WidgetDataSyncModule(reactContext: ReactApplicationContext) :
   ReactContextBaseJavaModule(reactContext) {
@@ -163,6 +164,58 @@ class WidgetDataSyncModule(reactContext: ReactApplicationContext) :
       promise.resolve(null)
     } catch (e: Exception) {
       promise.reject("ERROR", "Failed to clear native SMS inbox state: ${e.message}", e)
+    }
+  }
+
+  @ReactMethod
+  fun isSmsInboxNotificationAccessEnabled(promise: Promise) {
+    try {
+      val enabled = SmsInboxNotificationListener.isNotificationAccessEnabled(
+        reactApplicationContext.applicationContext,
+      )
+      promise.resolve(enabled)
+    } catch (e: Exception) {
+      promise.reject("ERROR", "Failed to check notification access: ${e.message}", e)
+    }
+  }
+
+  @ReactMethod
+  fun openSmsInboxNotificationAccessSettings(promise: Promise) {
+    UiThreadUtil.runOnUiThread {
+      try {
+        SmsInboxNotificationListener.openNotificationAccessSettings(
+          reactApplicationContext.applicationContext,
+        )
+        promise.resolve(null)
+      } catch (e: Exception) {
+        promise.reject("ERROR", "Failed to open notification access settings: ${e.message}", e)
+      }
+    }
+  }
+
+  @ReactMethod
+  fun areDefaultSmsAppNotificationsEnabled(promise: Promise) {
+    try {
+      val enabled = SmsInboxNotificationListener.areDefaultSmsNotificationsEnabled(
+        reactApplicationContext.applicationContext,
+      )
+      promise.resolve(enabled)
+    } catch (e: Exception) {
+      promise.reject("ERROR", "Failed to check SMS app notifications: ${e.message}", e)
+    }
+  }
+
+  @ReactMethod
+  fun openDefaultSmsAppNotificationSettings(promise: Promise) {
+    UiThreadUtil.runOnUiThread {
+      try {
+        SmsInboxNotificationListener.openDefaultSmsNotificationSettings(
+          reactApplicationContext.applicationContext,
+        )
+        promise.resolve(null)
+      } catch (e: Exception) {
+        promise.reject("ERROR", "Failed to open SMS app notification settings: ${e.message}", e)
+      }
     }
   }
 

@@ -5,6 +5,7 @@
 
 import {
   extractPerTxnAmount,
+  formatSmsSenderDisplay,
   isSenderAllowed,
   normalizeSmsSender,
   parseSmsInboxBody,
@@ -121,6 +122,11 @@ function main(): void {
   assert(isSenderAllowed('1544-7200', ['+82 1544-7200']), 'allowlist match');
   assert(isSenderAllowed('1544', ['+82 1544-7200']), 'allowlist short sender match');
   assert(!isSenderAllowed('010-9999-0000', ['+82 1544-7200']), 'allowlist reject');
+
+  assert(formatSmsSenderDisplay('01074565658') === '+82 10-7456-5658', 'display mobile');
+  assert(formatSmsSenderDisplay('15447200') === '+82 1544-7200', 'display short');
+  assert(formatSmsSenderDisplay('+82 1544-7200') === '+82 1544-7200', 'display keeps +82');
+  assert(formatSmsSenderDisplay('') === '발신번호 없음', 'display empty');
 
   assert(
     restoreSmsSenderFromQueryParam('82 1544-7200') === '+82 1544-7200',

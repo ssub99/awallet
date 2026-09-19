@@ -24,6 +24,7 @@ import type { SmsInboxItem } from '@/utils/sms-inbox-mock';
 import { SMS_HISTORY_RECORD_ANALYTICS_SCREEN_NAME } from '@/utils/sms-inbox-types';
 import { logEvent } from '@/utils/analytics';
 import { normalizeSmsOriginalBody } from '@/utils/sms-inbox-store';
+import { formatSmsSenderDisplay } from '@/utils/sms-inbox-parse';
 import {
   buildStackFrame,
   SlotMotion,
@@ -1111,7 +1112,7 @@ export function QuickInputSmsInbox({
                     style={[typography.body01.bold, { color: palette.textNeutral }]}
                     numberOfLines={1}
                   >
-                    {current.senderLabels[0] ?? ''}
+                    {formatSmsSenderDisplay(current.senderLabels[0] ?? current.sender ?? '')}
                   </Text>
                 </View>
                 {current.senderLabels[1] ? (
@@ -1120,7 +1121,7 @@ export function QuickInputSmsInbox({
                       style={[typography.body01.bold, { color: palette.textNeutral }]}
                       numberOfLines={1}
                     >
-                      {current.senderLabels[1]}
+                      {formatSmsSenderDisplay(current.senderLabels[1])}
                     </Text>
                   </View>
                 ) : (

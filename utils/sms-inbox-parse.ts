@@ -36,6 +36,43 @@ export function normalizeSmsSender(raw: string): string {
   return digits;
 }
 
+/**
+ * UI 표시용 발신번호. iOS·설정 입력 형식과 동일하게 `+82 1544-7200` / `+82 10-1234-5678`.
+ * 숫자가 없으면(이름 등) 원문을 유지한다.
+ */
+export function formatSmsSenderDisplay(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return '발신번호 없음';
+  const digits = normalizeSmsSender(trimmed);
+  if (!digits) return trimmed;
+  return `+82 ${formatKrNationalNumber(digits)}`;
+}
+
+/** 국가코드·선행 0이 제거된 국내 번호에 하이픈 */
+function formatKrNationalNumber(digits: string): string {
+  // 휴대폰: 10xxxxxxxx → 10-xxxx-xxxx
+  if (digits.length === 10 && digits.startsWith('10')) {
+    return `${digits.slice(0, 2)}-${digits.slice(2, 6)}-${digits.slice(6)}`;
+  }
+  // 대표번호 등 8자리: 15447200 → 1544-7200
+  if (digits.length === 8) {
+    return `${digits.slice(0, 4)}-${digits.slice(4)}`;
+  }
+  // 7자리: 1588123 → 158-8123 (드묾)
+  if (digits.length === 7) {
+    return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  }
+  // 서울(02) 9자리: 2xxxxxxx → 2-xxxx-xxxx
+  if (digits.length === 9 && digits.startsWith('2')) {
+    return `${digits.slice(0, 1)}-${digits.slice(1, 5)}-${digits.slice(5)}`;
+  }
+  // 지역번호 10자리: 31xxxxxxx → 31-xxx-xxxx
+  if (digits.length === 10) {
+    return `${digits.slice(0, 2)}-${digits.slice(2, 6)}-${digits.slice(6)}`;
+  }
+  return digits;
+}
+
 export function isSenderAllowed(sender: string, allowlist: string[]): boolean {
   const normalizedSender = normalizeSmsSender(sender);
   if (!normalizedSender) return false;

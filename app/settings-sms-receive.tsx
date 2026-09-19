@@ -22,6 +22,12 @@ import {
   requestAndroidSmsReceivePermission,
 } from '@/utils/android-sms-permission';
 import {
+  areAndroidDefaultSmsAppNotificationsEnabled,
+  hasAndroidSmsInboxNotificationAccess,
+  openAndroidDefaultSmsAppNotificationSettings,
+  openAndroidSmsInboxNotificationAccessSettings,
+} from '@/utils/android-sms-inbox-notification-access';
+import {
   loadSmsReceiveDisclosureAccepted,
   loadSmsReceiveEnabled,
   loadSmsReceiveNumbers,
@@ -67,7 +73,9 @@ const ADD_BAR_GAP_ABOVE_KEYBOARD = 16;
 const ADD_BACKDROP_FADE_MS = 100;
 
 const SMS_DISCLOSURE_MESSAGE =
-  '설정한 발신번호의 문자를 수신하여 문자 수신함에 적재하기 위해 SMS의 발신번호와 본문에 접근합니다. 그 외의 수신되는 SMS는 별도로 저장하지 않습니다.';
+  '설정한 발신번호의 메세지 내용을 인식하기 위해 SMS 수신 권한과 알림 접근 권한이 필요합니다. 수신된 문자를 인식하기 위함이며 별도로 SMS/알림은 저장하지 않습니다.';
+
+type AndroidEnablePendingStep = 'notification-access' | 'messages-notification' | null;
 
 export default function SettingsSmsReceiveScreen() {
   const colorScheme = useColorScheme();
@@ -96,6 +104,7 @@ export default function SettingsSmsReceiveScreen() {
   const [editingNumber, setEditingNumber] = useState<string | null>(null);
   const [draftNumber, setDraftNumber] = useState('');
   const [setupGuideVisible, setSetupGuideVisible] = useState(false);
+  const androidEnablePendingStepRef = useRef<AndroidEnablePendingStep>(null);
 
   const addBackdropAnimatedStyle = useAnimatedStyle(() => ({
     opacity: addBackdropOpacity.value,
@@ -123,7 +132,9 @@ export default function SettingsSmsReceiveScreen() {
         if (cancelled) return;
 
         const canReceive =
-          Platform.OS !== 'android' || (await hasAndroidSmsReceivePermission());
+          Platform.OS !== 'android' ||
+          ((await hasAndroidSmsReceivePermission()) &&
+            (await hasAndroidSmsInboxNotificationAccess()));
         if (cancelled) return;
 
         const effectiveEnabled = enabled && canReceive;
@@ -145,18 +156,122 @@ export default function SettingsSmsReceiveScreen() {
     };
   }, []);
 
+  const finishAndroidEnable = useCallback(async () => {
+    androidEnablePendingStepRef.current = null;
+    setSmsReceiveEnabled(true);
+    await saveSmsReceiveEnabled(true);
+  }, []);
+
+  const promptMessagesNotificationGuide = useCallback(() => {
+    androidEnablePendingStepRef.current = 'messages-notification';
+    Alert.alert(
+      '메세지 알림 켜기 안내',
+      '설정한 발신번호의 메세지를 인식하기 위해 메세지 앱의 알림 기능이 켜져 있어야 합니다.',
+      [
+        {
+          text: '취소',
+          style: 'cancel',
+          onPress: () => {
+            androidEnablePendingStepRef.current = null;
+            setSmsReceiveEnabled(false);
+          },
+        },
+        {
+          text: '설정으로 이동',
+          onPress: () => {
+            void openAndroidDefaultSmsAppNotificationSettings();
+          },
+        },
+      ],
+      { cancelable: false },
+    );
+  }, []);
+
+  const continueAndroidEnableAfterSms = useCallback(async () => {
+    if (await hasAndroidSmsInboxNotificationAccess()) {
+      if (await areAndroidDefaultSmsAppNotificationsEnabled()) {
+        await finishAndroidEnable();
+        return;
+      }
+      promptMessagesNotificationGuide();
+      return;
+    }
+
+    androidEnablePendingStepRef.current = 'notification-access';
+    Alert.alert(
+      '알림 접근 권한 안내',
+      '에이월렛의 알림 접근을 허용해 주세요.',
+      [
+        {
+          text: '취소',
+          style: 'cancel',
+          onPress: () => {
+            androidEnablePendingStepRef.current = null;
+            setSmsReceiveEnabled(false);
+          },
+        },
+        {
+          text: '설정으로 이동',
+          onPress: () => {
+            void openAndroidSmsInboxNotificationAccessSettings();
+          },
+        },
+      ],
+      { cancelable: false },
+    );
+  }, [finishAndroidEnable, promptMessagesNotificationGuide]);
+
   useEffect(() => {
     if (Platform.OS !== 'android') return undefined;
     const subscription = AppState.addEventListener('change', (next) => {
-      if (next !== 'active' || !smsReceiveEnabled) return;
+      if (next !== 'active') return;
       void (async () => {
-        if (await hasAndroidSmsReceivePermission()) return;
+        const pending = androidEnablePendingStepRef.current;
+        if (pending === 'notification-access') {
+          if (!(await hasAndroidSmsInboxNotificationAccess())) {
+            return;
+          }
+          if (await areAndroidDefaultSmsAppNotificationsEnabled()) {
+            await finishAndroidEnable();
+            return;
+          }
+          promptMessagesNotificationGuide();
+          return;
+        }
+        if (pending === 'messages-notification') {
+          // 메시지 앱 알림은 완벽 감지가 어려워, 설정에서 돌아온 뒤 사용자가 켠 것으로 보고 진행한다.
+          // 감지가 false로 확실할 때만 다시 안내한다.
+          const messagesOn = await areAndroidDefaultSmsAppNotificationsEnabled();
+          if (!messagesOn) {
+            promptMessagesNotificationGuide();
+            return;
+          }
+          if (!(await hasAndroidSmsInboxNotificationAccess())) {
+            androidEnablePendingStepRef.current = 'notification-access';
+            return;
+          }
+          if (!(await hasAndroidSmsReceivePermission())) {
+            androidEnablePendingStepRef.current = null;
+            setSmsReceiveEnabled(false);
+            await saveSmsReceiveEnabled(false);
+            return;
+          }
+          await finishAndroidEnable();
+          return;
+        }
+
+        if (!smsReceiveEnabled) return;
+        const [smsOk, listenerOk] = await Promise.all([
+          hasAndroidSmsReceivePermission(),
+          hasAndroidSmsInboxNotificationAccess(),
+        ]);
+        if (smsOk && listenerOk) return;
         setSmsReceiveEnabled(false);
         await saveSmsReceiveEnabled(false);
       })();
     });
     return () => subscription.remove();
-  }, [smsReceiveEnabled]);
+  }, [finishAndroidEnable, promptMessagesNotificationGuide, smsReceiveEnabled]);
 
   useEffect(() => {
     if (!addOverlayVisible) return;
@@ -174,37 +289,31 @@ export default function SettingsSmsReceiveScreen() {
     router.back();
   };
 
-  const showPermissionDeniedGuide = useCallback((mode: 'denied' | 'blocked') => {
-    if (mode === 'blocked') {
-      Alert.alert(
-        '문자 수신 권한이 필요합니다',
-        '권한 요청이 차단되어 있습니다. Android 앱 설정에서 SMS 권한을 허용한 뒤 문자 수신을 다시 켜 주세요.',
-        [
-          { text: '취소', style: 'cancel' },
-          { text: '설정으로 이동', onPress: () => openAndroidAppSettings() },
-        ],
-      );
-      return;
-    }
+  const showSmsPermissionBlockedGuide = useCallback(() => {
     Alert.alert(
-      '문자 수신 권한이 필요합니다',
-      'SMS 수신 권한을 허용하지 않아 문자 수신을 켜지 않았습니다.',
-      [{ text: '확인' }],
+      '문자 수신 권한 안내',
+      '메세지를 인식하기 위해선 SMS 수신 권한이 필요합니다. 수신 권한을 허용해 주세요.',
+      [
+        { text: '취소', style: 'cancel' },
+        { text: '설정으로 이동', onPress: () => openAndroidAppSettings() },
+      ],
     );
   }, []);
 
   const requestSmsPermissionAfterDisclosure = useCallback(async () => {
     await saveSmsReceiveDisclosureAccepted();
     const result = await requestAndroidSmsReceivePermission();
-    if (result === 'granted') {
-      setSmsReceiveEnabled(true);
-      await saveSmsReceiveEnabled(true);
+    if (result !== 'granted') {
+      setSmsReceiveEnabled(false);
+      await saveSmsReceiveEnabled(false);
+      // 단순 거부는 스위치 OFF만. 시스템 팝업이 더 이상 안 뜨는 경우만 설정 안내.
+      if (result === 'blocked') {
+        showSmsPermissionBlockedGuide();
+      }
       return;
     }
-    setSmsReceiveEnabled(false);
-    await saveSmsReceiveEnabled(false);
-    showPermissionDeniedGuide(result === 'blocked' ? 'blocked' : 'denied');
-  }, [showPermissionDeniedGuide]);
+    await continueAndroidEnableAfterSms();
+  }, [continueAndroidEnableAfterSms, showSmsPermissionBlockedGuide]);
 
   const showSmsDisclosureAlert = useCallback(() => {
     Alert.alert(
@@ -229,6 +338,7 @@ export default function SettingsSmsReceiveScreen() {
 
   const handleToggle = useCallback(async (value: boolean) => {
     if (!value) {
+      androidEnablePendingStepRef.current = null;
       setSmsReceiveEnabled(false);
       await saveSmsReceiveEnabled(false);
       Keyboard.dismiss();
@@ -247,23 +357,36 @@ export default function SettingsSmsReceiveScreen() {
     }
 
     if (Platform.OS === 'android') {
-      const [disclosureAccepted, permissionGranted] = await Promise.all([
+      const [disclosureAccepted, permissionGranted, notificationAccess] = await Promise.all([
         loadSmsReceiveDisclosureAccepted(),
         hasAndroidSmsReceivePermission(),
+        hasAndroidSmsInboxNotificationAccess(),
       ]);
       if (!disclosureAccepted || !permissionGranted) {
         showSmsDisclosureAlert();
         return;
       }
+      if (!notificationAccess) {
+        await continueAndroidEnableAfterSms();
+        return;
+      }
+      if (!(await areAndroidDefaultSmsAppNotificationsEnabled())) {
+        promptMessagesNotificationGuide();
+        return;
+      }
     }
-    setSmsReceiveEnabled(true);
-    await saveSmsReceiveEnabled(true);
-  }, [showSmsDisclosureAlert]);
+    await finishAndroidEnable();
+  }, [
+    continueAndroidEnableAfterSms,
+    finishAndroidEnable,
+    promptMessagesNotificationGuide,
+    showSmsDisclosureAlert,
+  ]);
 
   const handlePermissionGuidePress = useCallback(() => {
     Alert.alert(
-      'SMS 수신 권한 안내',
-      '설정한 발신번호에서 새로 도착하는 거래 문자를 문자 수신함에 자동으로 적재하려면 SMS 수신 권한이 필요합니다. 기존 문자함은 조회하지 않습니다.',
+      '접근/권한 허용 안내',
+      '설정한 발신번호의 메세지 내용을 인식하기 위해 SMS 수신 권한과 알림 접근 권한이 필요합니다. 수신된 문자를 인식하기 위함이며 별도로 SMS/알림은 저장하지 않음을 안내드립니다.',
       [{ text: '확인' }],
     );
   }, []);
@@ -481,11 +604,11 @@ export default function SettingsSmsReceiveScreen() {
             <Pressable
               onPress={handlePermissionGuidePress}
               accessibilityRole="link"
-              accessibilityLabel="SMS 수신 권한 안내"
+              accessibilityLabel="문자 수신 권한 안내"
               hitSlop={8}
             >
               <UiLineText style={[styles.permissionLink, { color: colors.textAssistive }]}>
-                SMS 수신 권한 안내
+                문자 수신 권한 안내
               </UiLineText>
             </Pressable>
           ) : null}
