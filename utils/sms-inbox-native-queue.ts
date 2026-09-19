@@ -158,7 +158,17 @@ export function flushPendingSmsInboxFromNative(): Promise<number> {
     }
 
     if (report.peeked > 0 || report.results.length > 0) {
-      console.warn('[SmsInbox] flush', JSON.stringify(report));
+      console.warn(
+        '[SmsInbox] flush',
+        JSON.stringify({
+          ...report,
+          pendingSenders: items.map((item) => ({
+            id: item.id,
+            sender: item.sender,
+            preview: previewBody(item.body ?? ''),
+          })),
+        }),
+      );
     }
     await saveLastFlush(report);
     return report.peeked;

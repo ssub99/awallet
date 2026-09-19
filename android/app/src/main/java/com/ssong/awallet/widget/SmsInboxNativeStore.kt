@@ -27,6 +27,20 @@ object SmsInboxNativeStore {
     val enqueuedAt: String,
   )
 
+  data class SenderGateResult(
+    val allowed: Boolean,
+    val enabled: Boolean,
+    val senderRaw: String,
+    val senderNorm: String,
+    val allowlist: List<String>,
+    val matchMode: String,
+  ) {
+    override fun toString(): String {
+      return "allowed=$allowed enabled=$enabled senderRaw=$senderRaw senderNorm=$senderNorm " +
+        "allowlist=$allowlist matchMode=$matchMode"
+    }
+  }
+
   @Synchronized
   fun syncSettings(context: Context, enabled: Boolean, numbers: List<String>) {
     val normalized = numbers
@@ -38,19 +52,82 @@ object SmsInboxNativeStore {
       .putBoolean(KEY_ENABLED, enabled)
       .putString(KEY_NUMBERS, JSONArray(normalized).toString())
       .apply()
+    SmsInboxDebugLog.i(
+      "syncSettings enabled=$enabled raw=$numbers normalized=$normalized",
+    )
+  }
+
+  fun describeSenderGate(context: Context, sender: String): SenderGateResult {
+    val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    val enabled = prefs.getBoolean(KEY_ENABLED, false)
+    val normalizedSender = normalizeSender(sender)
+    val numbers = parseStringArray(prefs.getString(KEY_NUMBERS, null))
+    if (!enabled) {
+      return SenderGateResult(
+        allowed = false,
+        enabled = false,
+        senderRaw = sender,
+        senderNorm = normalizedSender,
+        allowlist = numbers,
+        matchMode = "disabled",
+      )
+    }
+    if (normalizedSender.isEmpty()) {
+      return SenderGateResult(
+        allowed = false,
+        enabled = true,
+        senderRaw = sender,
+        senderNorm = normalizedSender,
+        allowlist = numbers,
+        matchMode = "empty-norm",
+      )
+    }
+    for (allowed in numbers) {
+      when {
+        normalizedSender == allowed -> {
+          return SenderGateResult(
+            allowed = true,
+            enabled = true,
+            senderRaw = sender,
+            senderNorm = normalizedSender,
+            allowlist = numbers,
+            matchMode = "exact:$allowed",
+          )
+        }
+        normalizedSender.endsWith(allowed) -> {
+          return SenderGateResult(
+            allowed = true,
+            enabled = true,
+            senderRaw = sender,
+            senderNorm = normalizedSender,
+            allowlist = numbers,
+            matchMode = "senderEndsWithAllow:$allowed",
+          )
+        }
+        allowed.endsWith(normalizedSender) -> {
+          return SenderGateResult(
+            allowed = true,
+            enabled = true,
+            senderRaw = sender,
+            senderNorm = normalizedSender,
+            allowlist = numbers,
+            matchMode = "allowEndsWithSender:$allowed",
+          )
+        }
+      }
+    }
+    return SenderGateResult(
+      allowed = false,
+      enabled = true,
+      senderRaw = sender,
+      senderNorm = normalizedSender,
+      allowlist = numbers,
+      matchMode = "none",
+    )
   }
 
   fun isSenderAllowed(context: Context, sender: String): Boolean {
-    val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-    if (!prefs.getBoolean(KEY_ENABLED, false)) return false
-    val normalizedSender = normalizeSender(sender)
-    if (normalizedSender.isEmpty()) return false
-    val numbers = parseStringArray(prefs.getString(KEY_NUMBERS, null))
-    return numbers.any { allowed ->
-      normalizedSender == allowed ||
-        normalizedSender.endsWith(allowed) ||
-        allowed.endsWith(normalizedSender)
-    }
+    return describeSenderGate(context, sender).allowed
   }
 
   fun hasSupportedTransactionKeyword(body: String): Boolean {
@@ -61,18 +138,25 @@ object SmsInboxNativeStore {
   fun enqueue(context: Context, sender: String, body: String, receivedAt: Long): Boolean {
     val trimmedBody = body.trim()
     val trimmedSender = sender.trim()
-    if (trimmedBody.isEmpty() || trimmedSender.isEmpty()) return false
+    if (trimmedBody.isEmpty() || trimmedSender.isEmpty()) {
+      SmsInboxDebugLog.i("enqueue reject empty senderOrBody")
+      return false
+    }
 
     val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     val now = System.currentTimeMillis()
     val fingerprint = fingerprint(trimmedSender, trimmedBody, receivedAt)
     val fingerprints = loadFingerprints(prefs.getString(KEY_FINGERPRINTS, null), now)
-    if (fingerprints.any { it.first == fingerprint }) return false
+    if (fingerprints.any { it.first == fingerprint }) {
+      SmsInboxDebugLog.i("enqueue reject duplicate fingerprint=$fingerprint")
+      return false
+    }
 
     val pending = loadPending(prefs.getString(KEY_PENDING, null)).toMutableList()
+    val id = UUID.randomUUID().toString()
     pending.add(
       PendingItem(
-        id = UUID.randomUUID().toString(),
+        id = id,
         sender = trimmedSender,
         body = trimmedBody,
         enqueuedAt = iso8601(receivedAt),
@@ -86,6 +170,10 @@ object SmsInboxNativeStore {
       .putString(KEY_PENDING, pendingToJson(boundedPending).toString())
       .putString(KEY_FINGERPRINTS, fingerprintsToJson(boundedFingerprints).toString())
       .apply()
+    SmsInboxDebugLog.i(
+      "enqueue stored id=$id pendingCount=${boundedPending.size} " +
+        "senderNorm=${normalizeSender(trimmedSender)}",
+    )
     return true
   }
 
