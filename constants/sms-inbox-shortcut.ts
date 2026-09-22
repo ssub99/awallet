@@ -17,7 +17,7 @@ import { SMS_INBOX_SHORTCUT_CONFIG_URL } from '@/constants/api';
  * 예: https://www.icloud.com/shortcuts/xxxxxxxx
  */
 export const SMS_INBOX_SHORTCUT_ICLOUD_URL =
-  'https://www.icloud.com/shortcuts/e873c9423bc5427c85d8d8f12c2122ce';
+  'https://www.icloud.com/shortcuts/d7d8ee8ea9324cfd997e353b74f02ce7';
 
 function isIcloudShortcutsUrl(value: string): boolean {
   try {
