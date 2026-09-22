@@ -12,7 +12,6 @@ import {
   parseSmsInboxBody,
   restoreSmsSenderFromQueryParam,
 } from '@/utils/sms-inbox-parse';
-import { Platform } from 'react-native';
 
 import {
   ingestParsedSms,
@@ -36,60 +35,33 @@ export async function ingestSmsInboxMessage(
   // 중간 줄바꿈은 유지. 앞·뒤 빈 줄만 정리.
   const body = normalizeSmsOriginalBody(input.body);
   const sender = input.sender.trim();
-  const bodyPreview = body.replace(/\s+/g, ' ').trim().slice(0, 48);
-  const logGate = (reason: string, extra?: Record<string, unknown>) => {
-    if (Platform.OS !== 'android') return;
-    console.warn(
-      '[SmsInbox][android] ingest',
-      JSON.stringify({
-        reason,
-        sender,
-        senderNorm: normalizeSmsSender(sender),
-        bodyPreview: bodyPreview.length > 0 ? `${bodyPreview}${body.length > 48 ? '…' : ''}` : '',
-        ...extra,
-      }),
-    );
-  };
 
   if (!body) {
-    logGate('empty-body');
     return { ok: false, reason: 'empty-body' };
   }
 
   const enabled = await loadSmsReceiveEnabled();
   if (!enabled) {
-    logGate('disabled');
     return { ok: false, reason: 'disabled' };
   }
 
   const allowlist = await loadSmsReceiveNumbers();
   if (allowlist.length === 0) {
-    logGate('empty-allowlist');
     return { ok: false, reason: 'empty-allowlist' };
   }
   // sender가 숫자로 해석될 때만 allowlist 재검증.
   // iOS 단축어가 보낸 사람을 이름/라벨로 넘기는 케이스는 1차 트리거를 신뢰한다.
   const normalizedSender = normalizeSmsSender(sender);
   if (normalizedSender && !isSenderAllowed(sender, allowlist)) {
-    logGate('sender-not-allowed', {
-      allowlist,
-      allowlistNorm: allowlist.map(normalizeSmsSender),
-    });
     return { ok: false, reason: 'sender-not-allowed' };
   }
 
   const parsed = parseSmsInboxBody(body);
   if (parsed.kind === 'ignore') {
-    logGate(parsed.reason, { parseKind: 'ignore' });
     return { ok: false, reason: parsed.reason };
   }
 
-  const result = await ingestParsedSms({ sender, body, parsed });
-  logGate(`ok:${result.action}`, {
-    parseKind: parsed.kind,
-    allowlistNorm: allowlist.map(normalizeSmsSender),
-  });
-  return result;
+  return ingestParsedSms({ sender, body, parsed });
 }
 
 export { restoreSmsSenderFromQueryParam };

@@ -15,7 +15,9 @@ import { resolveSmsInboxShortcutInstallUrl } from '@/constants/sms-inbox-shortcu
 import { themeColors } from '@/constants/theme-colors';
 import { typography, typographyLayout } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
+import { useToast } from '@/contexts/toast-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { normalizeSmsSender } from '@/utils/sms-inbox-parse';
 import {
   hasAndroidSmsReceivePermission,
   openAndroidAppSettings,
@@ -86,6 +88,7 @@ export default function SettingsSmsReceiveScreen() {
   const topInset =
     insets.top > 0 ? insets.top : (initialWindowMetrics?.insets.top ?? 0);
   const { setLoading } = useLoading();
+  const { showToast } = useToast();
   const inputRef = useRef<TextInput>(null);
   const addOverlayVisibleRef = useRef(false);
   const addKeyboardWasVisibleRef = useRef(false);
@@ -556,12 +559,22 @@ export default function SettingsSmsReceiveScreen() {
       // 편집 결과가 다른 항목과 중복이면 한 번만 유지
       next = [...new Set(next)];
     } else {
-      next = numbers.includes(draftNumber) ? numbers : [...numbers, draftNumber];
+      const draftNorm = normalizeSmsSender(draftNumber);
+      const isDuplicate = numbers.some((item) => {
+        if (item === draftNumber) return true;
+        if (!draftNorm) return false;
+        return normalizeSmsSender(item) === draftNorm;
+      });
+      if (isDuplicate) {
+        showToast('동일한 번호가 이미 등록되어 있습니다.');
+        return;
+      }
+      next = [...numbers, draftNumber];
     }
     setNumbers(next);
     await saveSmsReceiveNumbers(next);
     closeAddOverlay();
-  }, [closeAddOverlay, draftNumber, editingNumber, numbers]);
+  }, [closeAddOverlay, draftNumber, editingNumber, numbers, showToast]);
 
   const removeNumber = useCallback(
     async (target: string) => {

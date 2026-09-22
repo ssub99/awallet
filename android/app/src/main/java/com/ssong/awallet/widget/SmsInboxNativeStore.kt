@@ -52,9 +52,6 @@ object SmsInboxNativeStore {
       .putBoolean(KEY_ENABLED, enabled)
       .putString(KEY_NUMBERS, JSONArray(normalized).toString())
       .apply()
-    SmsInboxDebugLog.i(
-      "syncSettings enabled=$enabled raw=$numbers normalized=$normalized",
-    )
   }
 
   fun describeSenderGate(context: Context, sender: String): SenderGateResult {
@@ -150,7 +147,6 @@ object SmsInboxNativeStore {
     val trimmedBody = body.trim()
     val trimmedSender = sender.trim()
     if (trimmedBody.isEmpty() || trimmedSender.isEmpty()) {
-      SmsInboxDebugLog.i("enqueue reject empty senderOrBody")
       return false
     }
 
@@ -159,7 +155,6 @@ object SmsInboxNativeStore {
     val fingerprint = fingerprint(trimmedSender, trimmedBody, receivedAt)
     val fingerprints = loadFingerprints(prefs.getString(KEY_FINGERPRINTS, null), now)
     if (fingerprints.any { it.first == fingerprint }) {
-      SmsInboxDebugLog.i("enqueue reject duplicate fingerprint=$fingerprint")
       return false
     }
 
@@ -181,10 +176,6 @@ object SmsInboxNativeStore {
       .putString(KEY_PENDING, pendingToJson(boundedPending).toString())
       .putString(KEY_FINGERPRINTS, fingerprintsToJson(boundedFingerprints).toString())
       .apply()
-    SmsInboxDebugLog.i(
-      "enqueue stored id=$id pendingCount=${boundedPending.size} " +
-        "senderNorm=${normalizeSender(trimmedSender)}",
-    )
     return true
   }
 

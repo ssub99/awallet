@@ -107,7 +107,6 @@ class WidgetDataSyncModule(reactContext: ReactApplicationContext) :
           numbers.getString(index)?.let(::add)
         }
       }
-      SmsInboxDebugLog.i("bridge.syncSmsReceiveSettings enabled=$enabled raw=$values")
       SmsInboxNativeStore.syncSettings(
         reactApplicationContext.applicationContext,
         enabled,

@@ -29,14 +29,9 @@ class SmsInboxNotificationListener : NotificationListenerService() {
     val extras = notification.extras ?: Bundle()
     val body = extractBody(extras).trim()
     if (body.isEmpty()) {
-      SmsInboxDebugLog.i("notif drop reason=empty-body pkg=${sbn.packageName}")
       return
     }
     if (!SmsInboxNativeStore.hasSupportedTransactionKeyword(body)) {
-      SmsInboxDebugLog.i(
-        "notif drop reason=no-keyword pkg=${sbn.packageName} " +
-          "bodyPreview=${SmsInboxDebugLog.previewBody(body)}",
-      )
       return
     }
 
@@ -55,28 +50,15 @@ class SmsInboxNotificationListener : NotificationListenerService() {
       extras = extras,
     )
     if (sender.isEmpty()) {
-      SmsInboxDebugLog.i(
-        "notif drop reason=sender-not-allowed title=$title subText=$subText " +
-          "infoText=$infoText conversationTitle=$conversationTitle " +
-          "bodyPreview=${SmsInboxDebugLog.previewBody(body)} keys=${extras.keySet()}",
-      )
       return
     }
 
-    val senderGate = SmsInboxNativeStore.describeSenderGate(context, sender)
-    SmsInboxDebugLog.i("notif gate.sender $senderGate title=$title")
-    if (!senderGate.allowed) {
-      SmsInboxDebugLog.i("notif drop reason=sender-not-allowed")
+    if (!SmsInboxNativeStore.isSenderAllowed(context, sender)) {
       return
     }
 
     val receivedAt = sbn.postTime.takeIf { it > 0L } ?: System.currentTimeMillis()
-    val enqueued = SmsInboxNativeStore.enqueue(context, sender, body, receivedAt)
-    SmsInboxDebugLog.i(
-      "notif enqueue ok=$enqueued pkg=${sbn.packageName} sender=$sender " +
-        "bodyPreview=${SmsInboxDebugLog.previewBody(body)}",
-    )
-    if (enqueued) {
+    if (SmsInboxNativeStore.enqueue(context, sender, body, receivedAt)) {
       SmsInboxNativeEventEmitter.emitPendingEnqueued()
     }
   }

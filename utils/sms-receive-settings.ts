@@ -82,12 +82,6 @@ export async function syncSmsReceiveSettingsToNative(): Promise<void> {
     loadSmsReceiveNumbers(),
   ]);
   try {
-    if (__DEV__) {
-      console.warn(
-        '[SmsInbox][android] syncSettings',
-        JSON.stringify({ enabled, numbers, count: numbers.length }),
-      );
-    }
     await fn.call(smsReceiveNative, enabled, numbers);
   } catch {
     // Expo Go처럼 네이티브 브리지가 없는 환경에서는 JS 설정만 유지한다.
