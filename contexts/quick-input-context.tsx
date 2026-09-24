@@ -52,6 +52,7 @@ import {
   replaceSmsInboxItems,
   subscribeSmsInboxItems,
 } from '@/utils/sms-inbox-store';
+import { markSmsInboxPushConverted } from '@/utils/sms-inbox-push-ledger';
 import { flushPendingSmsInboxFromNative } from '@/utils/sms-inbox-native-queue';
 import {
   loadSmsReceiveEnabled,
@@ -85,7 +86,7 @@ import { createExpensesBatch, deleteExpensesByCategory, renameExpenseCategory, t
 import { generateGroupId, generateRecordId } from '@/utils/id-generator';
 import { createIncome, deleteIncomesByCategory, type IncomeRecord } from '@/utils/incomes';
 import { deleteChallengesByCategory, renameChallengeCategory } from '@/utils/challenges';
-import { rescheduleDailyReminderIfNeeded } from '@/utils/notification-scheduler';
+import { rescheduleDailyReminderIfNeeded, setupDailyReminder } from '@/utils/notification-scheduler';
 import { resolveRelativeWeekdayDateFromMessage } from '@/utils/parse-expense-relative-date';
 import {
     hasIncomeHintInMessage,
@@ -2045,7 +2046,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }, []);
 
   const removeSmsInboxItem = useCallback(
-    (itemId: string): boolean => {
+    (itemId: string, outcome: 'converted' | 'dismissed' = 'dismissed'): boolean => {
       let emptied = false;
       setSmsInboxItems((prev) => {
         const removeAt = prev.findIndex((item) => item.id === itemId);
@@ -2063,7 +2064,13 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
           }
           return Math.min(currentIndex, next.length - 1);
         });
-        void replaceSmsInboxItems(next);
+        void (async () => {
+          await replaceSmsInboxItems(next);
+          if (outcome === 'converted') {
+            await markSmsInboxPushConverted(itemId);
+          }
+          await setupDailyReminder();
+        })();
         return next;
       });
       if (emptied) {
@@ -2100,7 +2107,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       }
       const remaining = smsInboxItemsRef.current.filter((entry) => entry.id !== item.id).length;
       if (remaining === 0) {
-        removeSmsInboxItem(item.id);
+        removeSmsInboxItem(item.id, 'converted');
         // 간편생성 메인이 그려진 뒤 토스트
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
@@ -2128,7 +2135,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
 
   const handleSmsInboxConfirmConsumed = useCallback(
     (item: SmsInboxItem) => {
-      removeSmsInboxItem(item.id);
+      removeSmsInboxItem(item.id, 'converted');
       showToast('기록 생성이 완료되었습니다.');
     },
     [removeSmsInboxItem, showToast],
@@ -2136,7 +2143,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
 
   const handleSmsInboxCancel = useCallback(
     (item: SmsInboxItem) => {
-      removeSmsInboxItem(item.id);
+      removeSmsInboxItem(item.id, 'dismissed');
     },
     [removeSmsInboxItem],
   );

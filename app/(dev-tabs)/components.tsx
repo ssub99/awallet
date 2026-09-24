@@ -340,7 +340,12 @@ function TestContent({ colors }: { colors: ColorPalette }) {
 
   const isGeneralNotification = (notification: { identifier: string; content: { data?: Record<string, unknown> } }) => {
     const type = notification.content.data?.type;
-    return notification.identifier === 'daily_expense_reminder' || type === 'expense_reminder';
+    return (
+      notification.identifier === 'daily_expense_reminder' ||
+      notification.identifier === 'daily_sms_inbox_reminder' ||
+      type === 'expense_reminder' ||
+      type === 'sms_inbox_reminder'
+    );
   };
 
   const isChallengeNotification = (notification: { content: { data?: Record<string, unknown> } }) => {
@@ -734,10 +739,13 @@ function TestContent({ colors }: { colors: ColorPalette }) {
               ]);
               const generalScheduled = scheduled.filter(isGeneralNotification);
 
-              let result = '일반 알림 (소비 유도 · 매일 20:00)\n\n';
+              let result = '일반 알림 (소비 유도 20:00 · 가기록 20:05)\n\n';
               result += `설정: ${snapshot.generalEnabled ? 'ON' : 'OFF'}\n`;
               result += `시스템 권한: ${snapshot.permissionGranted ? '허용' : '거부/미확인'}\n`;
-              result += `오늘 소비 기록: ${snapshot.hasExpenseToday ? '있음 → 당일 미스케줄' : '없음'}\n`;
+              result += `오늘 소비(레거시): ${snapshot.hasExpenseToday ? '있음' : '없음'}\n`;
+              result += `판정구간 소비생성: ${snapshot.hasExpenseCreatedInWindow ? '있음' : '없음'}\n`;
+              result += `가기록 수신/미전환: ${snapshot.smsReceivedCount}/${snapshot.smsUnconvertedCount}\n`;
+              result += `판정: ${snapshot.decisionKind}\n`;
               result += `오늘 스케줄 마킹: ${snapshot.todayScheduleMarkPresent ? '✅' : '❌'}\n`;
               result += `스케줄 조건 충족: ${snapshot.wouldSchedule ? '✅ (예약 시도 가능)' : '❌'}\n`;
               result += `OS 예약: ${generalScheduled.length}개\n\n`;
@@ -773,7 +781,7 @@ function TestContent({ colors }: { colors: ColorPalette }) {
           }}
         >
           <Text style={[styles.testButtonText, { color: colors.staticWhite }]}>
-            📝 일반 알림 확인 (20:00 소비 유도)
+            📝 일반 알림 확인 (20:00 / 가기록 20:05)
           </Text>
         </Pressable>
       </View>

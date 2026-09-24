@@ -23,6 +23,7 @@ import {
 } from '@/utils/notification-scheduler';
 import { QUICK_INPUT_TIP_BOX_EXPANDED_KEY } from '@/utils/quick-input-tip-preference';
 import { SMS_INBOX_ITEMS_KEY } from '@/utils/sms-inbox-store';
+import { SMS_INBOX_PUSH_LEDGER_KEY } from '@/utils/sms-inbox-push-ledger';
 import {
   clearSmsReceiveNativeState,
   SMS_RECEIVE_DISCLOSURE_ACCEPTED_KEY,
@@ -54,6 +55,7 @@ const KEYS_TO_REMOVE = [
   APP_STORE_REVIEW_LIFETIME_RECORD_COUNT_KEY,
   QUICK_INPUT_TIP_BOX_EXPANDED_KEY,
   SMS_INBOX_ITEMS_KEY,
+  SMS_INBOX_PUSH_LEDGER_KEY,
   SMS_RECEIVE_ENABLED_KEY,
   SMS_RECEIVE_NUMBERS_KEY,
   SMS_RECEIVE_DISCLOSURE_ACCEPTED_KEY,

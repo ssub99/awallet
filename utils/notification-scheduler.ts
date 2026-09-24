@@ -12,7 +12,18 @@ import { getExpoNotifications } from '@/utils/expo-notifications-client';
 
 import { parseCalendarDataFromJson } from '@/utils/calendar-data-parse';
 import type { CalendarData, CalendarDayData, CalendarRecord } from '@/utils/consumption-index';
+import {
+  buildSmsInboxReminderBody,
+  decideEveningGeneralPush,
+  getClosedJudgmentWindowForSmsBuffer,
+  getJudgmentWindowForNow,
+  type EveningPushWindow,
+} from '@/utils/evening-general-push-policy';
 import { getAllExpenses } from '@/utils/expenses';
+import {
+  getSmsInboxPushWindowStats,
+  recordSmsInboxPushReceived,
+} from '@/utils/sms-inbox-push-ledger';
 
 type NotificationRequest = ExpoNotifications.NotificationRequest;
 type NotificationContentData = ExpoNotifications.NotificationContent['data'];
@@ -43,6 +54,11 @@ export const GENERAL_NOTIFICATIONS_ENABLED_KEY = 'generalNotificationsEnabled';
 export const CHALLENGE_NOTIFICATIONS_ENABLED_KEY = 'challengeNotificationsEnabled';
 const DAILY_REMINDER_TITLE = '오늘은 어떤 소비들을 하셨나요?';
 const DAILY_REMINDER_BODY = '시작이 반! 소비 기록을 통해 차근차근 소비습관을 개선해 보세요!';
+const SMS_INBOX_REMINDER_TITLE = '소비 기록 수신 현황';
+const DAILY_EXPENSE_REMINDER_ID = 'daily_expense_reminder';
+const DAILY_SMS_INBOX_REMINDER_ID = 'daily_sms_inbox_reminder';
+const EXPENSE_REMINDER_TYPE = 'expense_reminder';
+const SMS_INBOX_REMINDER_TYPE = 'sms_inbox_reminder';
 let dailyReminderOperationQueue: Promise<void> = Promise.resolve();
 
 function runDailyReminderExclusive<T>(operation: () => Promise<T>): Promise<T> {
@@ -192,10 +208,19 @@ async function markChallengeOutcomeNotificationHandled(storageKey: string): Prom
 function isGeneralReminderNotification(notification: NotificationRequest): boolean {
   const notificationType = notification.content.data?.type;
   return (
-    notification.identifier === 'daily_expense_reminder' ||
-    notificationType === 'expense_reminder' ||
+    notification.identifier === DAILY_EXPENSE_REMINDER_ID ||
+    notificationType === EXPENSE_REMINDER_TYPE ||
     (notification.content.title === DAILY_REMINDER_TITLE &&
       notification.content.body === DAILY_REMINDER_BODY)
+  );
+}
+
+function isSmsInboxReminderNotification(notification: NotificationRequest): boolean {
+  const notificationType = notification.content.data?.type;
+  return (
+    notification.identifier === DAILY_SMS_INBOX_REMINDER_ID ||
+    notificationType === SMS_INBOX_REMINDER_TYPE ||
+    notification.content.title === SMS_INBOX_REMINDER_TITLE
   );
 }
 
@@ -206,6 +231,15 @@ async function getGeneralReminderNotifications(): Promise<NotificationRequest[]>
   }
   const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
   return scheduledNotifications.filter(isGeneralReminderNotification);
+}
+
+async function getSmsInboxReminderNotifications(): Promise<NotificationRequest[]> {
+  const Notifications = getExpoNotifications();
+  if (!Notifications) {
+    return [];
+  }
+  const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
+  return scheduledNotifications.filter(isSmsInboxReminderNotification);
 }
 
 async function dedupeGeneralReminderNotifications(): Promise<void> {
@@ -224,16 +258,30 @@ async function dedupeGeneralReminderNotifications(): Promise<void> {
   }
 }
 
+async function dedupeSmsInboxReminderNotifications(): Promise<void> {
+  const Notifications = getExpoNotifications();
+  if (!Notifications) {
+    return;
+  }
+  const notifications = await getSmsInboxReminderNotifications();
+  if (notifications.length <= 1) {
+    return;
+  }
+  for (let index = 1; index < notifications.length; index += 1) {
+    await Notifications.cancelScheduledNotificationAsync(notifications[index].identifier).catch(() => {});
+  }
+}
+
 async function cancelGeneralReminderNotifications(): Promise<void> {
   const Notifications = getExpoNotifications();
   if (!Notifications) {
     return;
   }
   // 1) Known fixed identifier cancellation
-  await Notifications.cancelScheduledNotificationAsync('daily_expense_reminder').catch(() => {});
+  await Notifications.cancelScheduledNotificationAsync(DAILY_EXPENSE_REMINDER_ID).catch(() => {});
 
   // 2) Defensive cleanup for legacy or orphan reminder schedules by type
-  await cancelScheduledNotificationsByTypes(['expense_reminder']);
+  await cancelScheduledNotificationsByTypes([EXPENSE_REMINDER_TYPE]);
 
   // 3) Additional defensive cleanup:
   // some legacy requests may not have the expected identifier/data.type.
@@ -256,6 +304,32 @@ async function cancelGeneralReminderNotifications(): Promise<void> {
       await Notifications.cancelScheduledNotificationAsync(notification.identifier).catch(() => {});
     }
   }
+}
+
+async function cancelSmsInboxReminderNotifications(): Promise<void> {
+  const Notifications = getExpoNotifications();
+  if (!Notifications) {
+    return;
+  }
+  await Notifications.cancelScheduledNotificationAsync(DAILY_SMS_INBOX_REMINDER_ID).catch(() => {});
+  await cancelScheduledNotificationsByTypes([SMS_INBOX_REMINDER_TYPE]);
+
+  const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
+  for (const notification of scheduledNotifications) {
+    if (isSmsInboxReminderNotification(notification)) {
+      await Notifications.cancelScheduledNotificationAsync(notification.identifier).catch(() => {});
+    }
+  }
+
+  const remaining = await getSmsInboxReminderNotifications();
+  for (const notification of remaining) {
+    await Notifications.cancelScheduledNotificationAsync(notification.identifier).catch(() => {});
+  }
+}
+
+async function cancelEveningGeneralPushNotifications(): Promise<void> {
+  await cancelGeneralReminderNotifications();
+  await cancelSmsInboxReminderNotifications();
 }
 
 export async function setGeneralNotificationsEnabled(enabled: boolean): Promise<void> {
@@ -388,21 +462,126 @@ async function hasExpenseToday(): Promise<boolean> {
   }
 }
 
-/** 개발·테스트용: 일반(소비 유도) 알림 스케줄 판단에 쓰이는 상태 */
+function parseExpenseCreatedAtMs(value: string): number | null {
+  const direct = Date.parse(value);
+  if (!Number.isNaN(direct)) {
+    return direct;
+  }
+  // `YYYY-MM-DD HH:mm:ss` — 일부 JS 엔진에서 Date.parse 실패
+  const isoish = Date.parse(value.includes('T') ? value : value.replace(' ', 'T'));
+  return Number.isNaN(isoish) ? null : isoish;
+}
+
+function expenseCreatedAtMs(expense: {
+  isDeleted?: boolean;
+  createdAt?: string;
+  timestamp: number;
+}): number | null {
+  if (expense.isDeleted) {
+    return null;
+  }
+  if (typeof expense.createdAt === 'string' && expense.createdAt.length > 0) {
+    const parsed = parseExpenseCreatedAtMs(expense.createdAt);
+    if (parsed != null) {
+      return parsed;
+    }
+  }
+  if (typeof expense.timestamp === 'number' && Number.isFinite(expense.timestamp)) {
+    return expense.timestamp;
+  }
+  return null;
+}
+
+async function hasExpenseCreatedInWindow(window: EveningPushWindow): Promise<boolean> {
+  try {
+    const expenses = await getAllExpenses();
+    return expenses.some((expense) => {
+      const createdAtMs = expenseCreatedAtMs(expense);
+      if (createdAtMs == null) {
+        return false;
+      }
+      return createdAtMs >= window.startMs && createdAtMs < window.endMs;
+    });
+  } catch {
+    return false;
+  }
+}
+
+/** 업그레이드 전 수신함 잔여 건을 원장에 보강 (동적 import로 store 순환 참조 방지) */
+async function hydrateSmsInboxPushLedgerFromStore(): Promise<void> {
+  try {
+    const { loadSmsInboxItems } = await import('@/utils/sms-inbox-store');
+    const items = await loadSmsInboxItems();
+    for (const item of items) {
+      const receivedAtMs = Date.parse(item.createdAt);
+      await recordSmsInboxPushReceived(
+        item.id,
+        Number.isNaN(receivedAtMs) ? Date.now() : receivedAtMs,
+      );
+    }
+  } catch {
+    // ignore hydrate failures
+  }
+}
+
+async function resolveEveningPushDecision(nowMs: number): Promise<{
+  window: EveningPushWindow;
+  kind: ReturnType<typeof decideEveningGeneralPush>['kind'];
+  smsCount: number;
+  hasExpenseCreatedInWindow: boolean;
+  smsReceivedCount: number;
+  smsUnconvertedCount: number;
+}> {
+  const closedForSmsBuffer = getClosedJudgmentWindowForSmsBuffer(nowMs);
+  const window = closedForSmsBuffer ?? getJudgmentWindowForNow(nowMs);
+  await hydrateSmsInboxPushLedgerFromStore();
+  const [hasExpense, smsStats] = await Promise.all([
+    hasExpenseCreatedInWindow(window),
+    getSmsInboxPushWindowStats(window.startMs, window.endMs),
+  ]);
+  const decision = decideEveningGeneralPush({
+    nowMs,
+    hasExpenseCreatedInWindow: hasExpense,
+    smsReceivedCount: smsStats.receivedCount,
+    smsUnconvertedCount: smsStats.unconvertedCount,
+  });
+  return {
+    window,
+    kind: decision.kind,
+    smsCount: decision.smsCount,
+    hasExpenseCreatedInWindow: hasExpense,
+    smsReceivedCount: smsStats.receivedCount,
+    smsUnconvertedCount: smsStats.unconvertedCount,
+  };
+}
+
+function getTodayAt(hours: number, minutes: number, fromMs: number = Date.now()): Date {
+  const date = new Date(fromMs);
+  date.setHours(hours, minutes, 0, 0);
+  return date;
+}
+
+/** 개발·테스트용: 일반(소비 유도·가기록) 알림 스케줄 판단에 쓰이는 상태 */
 export type DailyReminderDebugSnapshot = {
   generalEnabled: boolean;
   permissionGranted: boolean;
   hasExpenseToday: boolean;
+  hasExpenseCreatedInWindow: boolean;
+  smsReceivedCount: number;
+  smsUnconvertedCount: number;
+  decisionKind: string;
   todayScheduleMarkPresent: boolean;
-  /** 설정 ON + 권한 + 오늘 소비 없음 → setupDailyReminder가 예약을 시도하는 조건 */
+  /** 설정 ON + 권한 + 판정 결과 예약 대상 */
   wouldSchedule: boolean;
 };
 
 export async function getDailyReminderDebugSnapshot(): Promise<DailyReminderDebugSnapshot> {
-  const [generalEnabled, permissionGranted, hasExpense] = await Promise.all([
+  const nowMs = Date.now();
+  const [generalEnabled, permissionGranted, hasExpense, resolved] = await Promise.all([
     getGeneralNotificationsEnabled(),
     shouldSendNotification(),
     hasExpenseToday(),
+    resolveEveningPushDecision(nowMs),
   ]);
   const today = new Date().toDateString();
   const mark = await AsyncStorage.getItem(`daily_reminder_${today}`);
@@ -412,14 +591,19 @@ export async function getDailyReminderDebugSnapshot(): Promise<DailyReminderDebu
     generalEnabled,
     permissionGranted,
     hasExpenseToday: hasExpense,
+    hasExpenseCreatedInWindow: resolved.hasExpenseCreatedInWindow,
+    smsReceivedCount: resolved.smsReceivedCount,
+    smsUnconvertedCount: resolved.smsUnconvertedCount,
+    decisionKind: resolved.kind,
     todayScheduleMarkPresent: mark === 'true',
-    wouldSchedule: settingsAndPermissionOk && !hasExpense,
+    wouldSchedule: settingsAndPermissionOk && resolved.kind !== 'none',
   };
 }
 
 /**
- * 1. 소비 기록 유도 알림
- * 매일 오후 8시, 당일 소비 기록 0건일 때만
+ * 저녁 일반 푸시 동기화
+ * - 소비 기록 유도: 매일 20:00, 판정 구간 내 소비·가기록 모두 없을 때
+ * - 문자 가기록 생성 유도: 매일 20:05, 구간 내 미전환 가기록 ≥ 1
  */
 export async function setupDailyReminder(): Promise<void> {
   return runDailyReminderExclusive(async () => {
@@ -433,56 +617,82 @@ async function setupDailyReminderInternal(): Promise<void> {
     if (!Notifications) {
       return;
     }
-    // ✅ 항상 먼저 취소 → 최대 1개만 유지 (중복 푸시 방지)
     await cancelDailyReminderInternal();
 
-    // Global check: 알림 설정 + 권한
     if (!(await shouldSendGeneralNotification())) {
       return;
     }
 
-    // 소비 기록이 있으면 당일 알림 스케줄하지 않음
-    if (await hasExpenseToday()) {
-      return;
-    }
-
-    const today = new Date().toDateString();
+    const nowMs = Date.now();
+    const today2005 = getTodayAt(20, 5, nowMs);
+    const resolved = await resolveEveningPushDecision(nowMs);
+    const today = new Date(nowMs).toDateString();
     const scheduledKey = `daily_reminder_${today}`;
 
-    // Schedule notification for 8 PM daily
-    await Notifications.scheduleNotificationAsync({
-      identifier: 'daily_expense_reminder',
-      content: {
-        title: DAILY_REMINDER_TITLE,
-        body: DAILY_REMINDER_BODY,
-        data: { type: 'expense_reminder' },
-      },
-      trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.DAILY,
-        hour: 20,
-        minute: 0,
-      },
-    });
+    if (resolved.kind === 'expense_reminder') {
+      await Notifications.scheduleNotificationAsync({
+        identifier: DAILY_EXPENSE_REMINDER_ID,
+        content: {
+          title: DAILY_REMINDER_TITLE,
+          body: DAILY_REMINDER_BODY,
+          data: { type: EXPENSE_REMINDER_TYPE },
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DAILY,
+          hour: 20,
+          minute: 0,
+        },
+      });
+    } else if (resolved.kind === 'sms_inbox_reminder') {
+      const body = buildSmsInboxReminderBody(resolved.smsCount);
+      if (nowMs < today2005.getTime()) {
+        await Notifications.scheduleNotificationAsync({
+          identifier: DAILY_SMS_INBOX_REMINDER_ID,
+          content: {
+            title: SMS_INBOX_REMINDER_TITLE,
+            body,
+            data: { type: SMS_INBOX_REMINDER_TYPE, count: resolved.smsCount },
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            date: today2005,
+          },
+        });
+      } else {
+        await Notifications.scheduleNotificationAsync({
+          identifier: DAILY_SMS_INBOX_REMINDER_ID,
+          content: {
+            title: SMS_INBOX_REMINDER_TITLE,
+            body,
+            data: { type: SMS_INBOX_REMINDER_TYPE, count: resolved.smsCount },
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DAILY,
+            hour: 20,
+            minute: 5,
+          },
+        });
+      }
+    } else {
+      return;
+    }
 
-    // OFF로 바뀐 직후 stale schedule이 생기지 않도록 스케줄 직후 재검증
     if (!(await shouldSendGeneralNotification())) {
-      await cancelGeneralReminderNotifications();
+      await cancelEveningGeneralPushNotifications();
       await AsyncStorage.removeItem(scheduledKey);
       return;
     }
 
-    // 개발환경/레이스 조건에서 생길 수 있는 중복 예약 방지
     await dedupeGeneralReminderNotifications();
-    
-    // ✅ 스케줄링 완료 마킹
+    await dedupeSmsInboxReminderNotifications();
     await AsyncStorage.setItem(scheduledKey, 'true');
-    
-  } catch (error) {
+  } catch {
+    // ignore schedule failures
   }
 }
 
 /**
- * 소비 기록 저장 시 당일 알림 취소
+ * 소비 기록 저장·설정 OFF 등에서 저녁 일반 푸시 취소
  */
 export async function cancelDailyReminder(): Promise<void> {
   return runDailyReminderExclusive(async () => {
@@ -492,22 +702,18 @@ export async function cancelDailyReminder(): Promise<void> {
 
 async function cancelDailyReminderInternal(): Promise<void> {
   try {
-    // 취소는 설정/권한과 무관하게 항상 수행해야 잔여 스케줄이 남지 않음
-    // (OFF 상태, 권한 거부 상태에서도 기존 예약 정리는 필요)
-    await cancelGeneralReminderNotifications();
-    
-    // 오늘 날짜의 스케줄링 마킹 제거
+    await cancelEveningGeneralPushNotifications();
+
     const today = new Date().toDateString();
     const scheduledKey = `daily_reminder_${today}`;
     await AsyncStorage.removeItem(scheduledKey);
-    
   } catch (error) {
     console.error('[notification-scheduler] Failed to cancel daily reminder:', error);
   }
 }
 
 /**
- * 소비 기록 삭제 시 당일 알림 재스케줄링 (오후 8시 전이면)
+ * 소비 기록 삭제·가기록 변동 후 저녁 일반 푸시 재동기화
  */
 export async function rescheduleDailyReminderIfNeeded(): Promise<void> {
   return runDailyReminderExclusive(async () => {
@@ -521,62 +727,67 @@ async function rescheduleDailyReminderIfNeededInternal(): Promise<void> {
     if (!Notifications) {
       return;
     }
-    // ✅ 항상 먼저 취소 → 최대 1개만 유지 (중복 푸시 방지)
     await cancelDailyReminderInternal();
 
-    // Global check: 알림 설정 + 권한
     if (!(await shouldSendGeneralNotification())) {
       return;
     }
 
-    const now = new Date();
-    const currentHour = now.getHours();
-
-    // 오후 8시가 지났으면 스케줄링하지 않음
-    if (currentHour >= 20) {
+    const nowMs = Date.now();
+    const today2005 = getTodayAt(20, 5, nowMs);
+    // 20:05 이후면 당일 저녁 슬롯은 종료 — 다음날 DAILY만 setup 경로로
+    if (nowMs >= today2005.getTime()) {
+      await setupDailyReminderInternal();
       return;
     }
 
-    // 소비 기록이 있으면 스케줄링하지 않음
-    if (await hasExpenseToday()) {
-      return;
-    }
-
-    const today = new Date().toDateString();
+    const today20 = getTodayAt(20, 0, nowMs);
+    const resolved = await resolveEveningPushDecision(nowMs);
+    const today = new Date(nowMs).toDateString();
     const scheduledKey = `daily_reminder_${today}`;
-    const today8PM = new Date();
-    today8PM.setHours(20, 0, 0, 0);
 
-    if (today8PM.getTime() <= now.getTime()) {
+    if (resolved.kind === 'expense_reminder') {
+      if (nowMs >= today20.getTime()) {
+        return;
+      }
+      await Notifications.scheduleNotificationAsync({
+        identifier: DAILY_EXPENSE_REMINDER_ID,
+        content: {
+          title: DAILY_REMINDER_TITLE,
+          body: DAILY_REMINDER_BODY,
+          data: { type: EXPENSE_REMINDER_TYPE },
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
+          date: today20,
+        },
+      });
+    } else if (resolved.kind === 'sms_inbox_reminder') {
+      await Notifications.scheduleNotificationAsync({
+        identifier: DAILY_SMS_INBOX_REMINDER_ID,
+        content: {
+          title: SMS_INBOX_REMINDER_TITLE,
+          body: buildSmsInboxReminderBody(resolved.smsCount),
+          data: { type: SMS_INBOX_REMINDER_TYPE, count: resolved.smsCount },
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
+          date: today2005,
+        },
+      });
+    } else {
       return;
     }
 
-    await Notifications.scheduleNotificationAsync({
-      identifier: 'daily_expense_reminder',
-      content: {
-        title: DAILY_REMINDER_TITLE,
-        body: DAILY_REMINDER_BODY,
-        data: { type: 'expense_reminder' },
-      },
-      trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.DATE,
-        date: today8PM,
-      },
-    });
-
-    // OFF로 바뀐 직후 stale schedule이 생기지 않도록 스케줄 직후 재검증
     if (!(await shouldSendGeneralNotification())) {
-      await cancelGeneralReminderNotifications();
+      await cancelEveningGeneralPushNotifications();
       await AsyncStorage.removeItem(scheduledKey);
       return;
     }
 
-    // 개발환경/레이스 조건에서 생길 수 있는 중복 예약 방지
     await dedupeGeneralReminderNotifications();
-    
-    // 스케줄링 완료 마킹
+    await dedupeSmsInboxReminderNotifications();
     await AsyncStorage.setItem(scheduledKey, 'true');
-    
   } catch (error) {
     console.error('[notification-scheduler] Failed to reschedule daily reminder:', error);
   }

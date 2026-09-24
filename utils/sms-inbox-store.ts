@@ -12,7 +12,13 @@ import {
   parsedFieldsToIso,
   type SmsInboxParsedFields,
 } from '@/utils/sms-inbox-parse';
+import {
+  markSmsInboxPushConverted,
+  markSmsInboxPushInvalidated,
+  recordSmsInboxPushReceived,
+} from '@/utils/sms-inbox-push-ledger';
 import type { SmsInboxItem } from '@/utils/sms-inbox-types';
+import { setupDailyReminder } from '@/utils/notification-scheduler';
 
 export const SMS_INBOX_ITEMS_KEY = '@awallet/smsInboxItems';
 
@@ -185,6 +191,8 @@ export async function ingestParsedSms(input: {
     const item = buildItemFromApproval(sender, body, parsed);
     const next = [item, ...items];
     await writeItems(next);
+    await recordSmsInboxPushReceived(item.id, Date.parse(item.createdAt) || Date.now());
+    setupDailyReminder().catch(() => {});
     return { ok: true, action: 'appended', item };
   }
 
@@ -194,14 +202,26 @@ export async function ingestParsedSms(input: {
   }
   const next = items.filter((item) => item.id !== match.id);
   await writeItems(next);
+  await markSmsInboxPushInvalidated(match.id);
+  setupDailyReminder().catch(() => {});
   return { ok: true, action: 'removed', item: match };
 }
 
-export async function removeSmsInboxItemById(id: string): Promise<boolean> {
+export type SmsInboxRemoveOutcome = 'converted' | 'dismissed';
+
+export async function removeSmsInboxItemById(
+  id: string,
+  options?: { outcome?: SmsInboxRemoveOutcome },
+): Promise<boolean> {
   const items = await readItems();
   const next = items.filter((item) => item.id !== id);
   if (next.length === items.length) return false;
   await writeItems(next);
+  if (options?.outcome === 'converted') {
+    await markSmsInboxPushConverted(id);
+  }
+  // dismissed: 원장에는 미전환으로 남겨 가기록 푸시 대상 유지
+  setupDailyReminder().catch(() => {});
   return true;
 }
 
