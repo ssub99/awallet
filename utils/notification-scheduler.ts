@@ -529,21 +529,27 @@ async function resolveEveningPushDecision(nowMs: number): Promise<{
   kind: ReturnType<typeof decideEveningGeneralPush>['kind'];
   smsCount: number;
   hasExpenseCreatedInWindow: boolean;
+  /** 판정 구간 내 수신 건수 (보조) */
   smsReceivedCount: number;
+  /** 수신함 큐 미처리 전체 (= 가기록 푸시 N) */
   smsUnconvertedCount: number;
 }> {
   const closedForSmsBuffer = getClosedJudgmentWindowForSmsBuffer(nowMs);
   const window = closedForSmsBuffer ?? getJudgmentWindowForNow(nowMs);
   await hydrateSmsInboxPushLedgerFromStore();
-  const [hasExpense, smsStats] = await Promise.all([
+
+  const { loadSmsInboxItems } = await import('@/utils/sms-inbox-store');
+  const [hasExpense, smsStats, queueItems] = await Promise.all([
     hasExpenseCreatedInWindow(window),
     getSmsInboxPushWindowStats(window.startMs, window.endMs),
+    loadSmsInboxItems(),
   ]);
+  const pendingSmsInboxCount = queueItems.length;
   const decision = decideEveningGeneralPush({
     nowMs,
     hasExpenseCreatedInWindow: hasExpense,
-    smsReceivedCount: smsStats.receivedCount,
-    smsUnconvertedCount: smsStats.unconvertedCount,
+    smsReceivedCountInWindow: smsStats.receivedCount,
+    pendingSmsInboxCount,
   });
   return {
     window,
@@ -551,7 +557,7 @@ async function resolveEveningPushDecision(nowMs: number): Promise<{
     smsCount: decision.smsCount,
     hasExpenseCreatedInWindow: hasExpense,
     smsReceivedCount: smsStats.receivedCount,
-    smsUnconvertedCount: smsStats.unconvertedCount,
+    smsUnconvertedCount: pendingSmsInboxCount,
   };
 }
 
@@ -567,7 +573,9 @@ export type DailyReminderDebugSnapshot = {
   permissionGranted: boolean;
   hasExpenseToday: boolean;
   hasExpenseCreatedInWindow: boolean;
+  /** 판정 구간 내 가기록 수신 건수 */
   smsReceivedCount: number;
+  /** 수신함 큐 미처리 전체 건수 (= 가기록 푸시 N) */
   smsUnconvertedCount: number;
   decisionKind: string;
   todayScheduleMarkPresent: boolean;
@@ -602,8 +610,8 @@ export async function getDailyReminderDebugSnapshot(): Promise<DailyReminderDebu
 
 /**
  * 저녁 일반 푸시 동기화
- * - 소비 기록 유도: 매일 20:00, 판정 구간 내 소비·가기록 모두 없을 때
- * - 문자 가기록 생성 유도: 매일 20:05, 구간 내 미전환 가기록 ≥ 1
+ * - 소비 기록 유도: 매일 20:00, 판정 구간 내 소비 없음 AND 수신함 큐 미처리 0
+ * - 문자 가기록 생성 유도: 매일 20:05, 수신함 큐 미처리 ≥ 1 (수신일 무관 전체 건수)
  */
 export async function setupDailyReminder(): Promise<void> {
   return runDailyReminderExclusive(async () => {
@@ -612,14 +620,29 @@ export async function setupDailyReminder(): Promise<void> {
 }
 
 async function setupDailyReminderInternal(): Promise<void> {
+  const log = (step: string, extra?: Record<string, unknown>) => {
+    console.log(`[sms-inbox-push] setupDailyReminder:${step}`, extra ?? {});
+  };
+
   try {
     const Notifications = getExpoNotifications();
     if (!Notifications) {
+      log('abort', { reason: 'expo-notifications-unavailable' });
       return;
     }
     await cancelDailyReminderInternal();
 
-    if (!(await shouldSendGeneralNotification())) {
+    const generalOk = await shouldSendGeneralNotification();
+    if (!generalOk) {
+      const [enabled, permission] = await Promise.all([
+        getGeneralNotificationsEnabled(),
+        shouldSendNotification(),
+      ]);
+      log('abort', {
+        reason: 'shouldSendGeneralNotification-false',
+        generalEnabled: enabled,
+        permissionGranted: permission,
+      });
       return;
     }
 
@@ -628,6 +651,20 @@ async function setupDailyReminderInternal(): Promise<void> {
     const resolved = await resolveEveningPushDecision(nowMs);
     const today = new Date(nowMs).toDateString();
     const scheduledKey = `daily_reminder_${today}`;
+
+    log('decision', {
+      nowIso: new Date(nowMs).toISOString(),
+      today2005Iso: today2005.toISOString(),
+      before2005: nowMs < today2005.getTime(),
+      kind: resolved.kind,
+      smsCount: resolved.smsCount,
+      smsReceivedCount: resolved.smsReceivedCount,
+      smsUnconvertedCount: resolved.smsUnconvertedCount,
+      pendingSmsInboxCount: resolved.smsUnconvertedCount,
+      hasExpenseCreatedInWindow: resolved.hasExpenseCreatedInWindow,
+      windowStartIso: new Date(resolved.window.startMs).toISOString(),
+      windowEndIso: new Date(resolved.window.endMs).toISOString(),
+    });
 
     if (resolved.kind === 'expense_reminder') {
       await Notifications.scheduleNotificationAsync({
@@ -643,6 +680,7 @@ async function setupDailyReminderInternal(): Promise<void> {
           minute: 0,
         },
       });
+      log('scheduled', { kind: 'expense_reminder', trigger: 'DAILY 20:00' });
     } else if (resolved.kind === 'sms_inbox_reminder') {
       const body = buildSmsInboxReminderBody(resolved.smsCount);
       if (nowMs < today2005.getTime()) {
@@ -658,6 +696,13 @@ async function setupDailyReminderInternal(): Promise<void> {
             date: today2005,
           },
         });
+        log('scheduled', {
+          kind: 'sms_inbox_reminder',
+          trigger: 'DATE',
+          dateIso: today2005.toISOString(),
+          body,
+          count: resolved.smsCount,
+        });
       } else {
         await Notifications.scheduleNotificationAsync({
           identifier: DAILY_SMS_INBOX_REMINDER_ID,
@@ -672,22 +717,31 @@ async function setupDailyReminderInternal(): Promise<void> {
             minute: 5,
           },
         });
+        log('scheduled', {
+          kind: 'sms_inbox_reminder',
+          trigger: 'DAILY 20:05',
+          body,
+          count: resolved.smsCount,
+        });
       }
     } else {
+      log('abort', { reason: 'decision-none', kind: resolved.kind });
       return;
     }
 
     if (!(await shouldSendGeneralNotification())) {
       await cancelEveningGeneralPushNotifications();
       await AsyncStorage.removeItem(scheduledKey);
+      log('abort', { reason: 'permission-lost-after-schedule' });
       return;
     }
 
     await dedupeGeneralReminderNotifications();
     await dedupeSmsInboxReminderNotifications();
     await AsyncStorage.setItem(scheduledKey, 'true');
-  } catch {
-    // ignore schedule failures
+    log('done', { scheduledKey });
+  } catch (error) {
+    console.error('[sms-inbox-push] setupDailyReminder:error', error);
   }
 }
 

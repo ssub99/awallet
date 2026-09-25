@@ -36,11 +36,11 @@ function getClosedJudgmentWindowForSmsBuffer(nowMs) {
 }
 
 function decideEveningGeneralPush(input) {
-  const { hasExpenseCreatedInWindow, smsReceivedCount, smsUnconvertedCount } = input;
-  if (smsUnconvertedCount > 0) {
-    return { kind: 'sms_inbox_reminder', smsCount: smsUnconvertedCount };
+  const { hasExpenseCreatedInWindow, smsReceivedCountInWindow, pendingSmsInboxCount } = input;
+  if (pendingSmsInboxCount > 0) {
+    return { kind: 'sms_inbox_reminder', smsCount: pendingSmsInboxCount };
   }
-  if (smsReceivedCount > 0) {
+  if (smsReceivedCountInWindow > 0) {
     return { kind: 'none', smsCount: 0 };
   }
   if (!hasExpenseCreatedInWindow) {
@@ -82,8 +82,8 @@ assert(
   decideEveningGeneralPush({
     nowMs: before8,
     hasExpenseCreatedInWindow: false,
-    smsReceivedCount: 0,
-    smsUnconvertedCount: 0,
+    smsReceivedCountInWindow: 0,
+    pendingSmsInboxCount: 0,
   }).kind === 'expense_reminder',
   'empty',
 );
@@ -91,8 +91,8 @@ assert(
   decideEveningGeneralPush({
     nowMs: before8,
     hasExpenseCreatedInWindow: false,
-    smsReceivedCount: 2,
-    smsUnconvertedCount: 2,
+    smsReceivedCountInWindow: 2,
+    pendingSmsInboxCount: 2,
   }).kind === 'sms_inbox_reminder',
   'sms',
 );
@@ -100,8 +100,8 @@ assert(
   decideEveningGeneralPush({
     nowMs: before8,
     hasExpenseCreatedInWindow: true,
-    smsReceivedCount: 2,
-    smsUnconvertedCount: 0,
+    smsReceivedCountInWindow: 2,
+    pendingSmsInboxCount: 0,
   }).kind === 'none',
   'converted',
 );
@@ -109,10 +109,29 @@ assert(
   decideEveningGeneralPush({
     nowMs: before8,
     hasExpenseCreatedInWindow: true,
-    smsReceivedCount: 1,
-    smsUnconvertedCount: 1,
+    smsReceivedCountInWindow: 1,
+    pendingSmsInboxCount: 1,
   }).kind === 'sms_inbox_reminder',
   'expense+sms',
+);
+// 큐에 어제 잔여만 남아도 (구간 수신 0) 가기록 푸시
+assert(
+  decideEveningGeneralPush({
+    nowMs: before8,
+    hasExpenseCreatedInWindow: false,
+    smsReceivedCountInWindow: 0,
+    pendingSmsInboxCount: 3,
+  }).kind === 'sms_inbox_reminder',
+  'stale-queue-only',
+);
+assert(
+  decideEveningGeneralPush({
+    nowMs: before8,
+    hasExpenseCreatedInWindow: false,
+    smsReceivedCountInWindow: 0,
+    pendingSmsInboxCount: 3,
+  }).smsCount === 3,
+  'stale-queue-count',
 );
 assert(
   buildSmsInboxReminderBody(3) ===

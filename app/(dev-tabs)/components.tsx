@@ -51,6 +51,7 @@ import type * as ExpoNotifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
 
 import { getExpoNotifications } from '@/utils/expo-notifications-client';
+import { seedDevSmsInboxItemsForPushTest } from '@/utils/sms-inbox-store';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -744,18 +745,33 @@ function TestContent({ colors }: { colors: ColorPalette }) {
               result += `시스템 권한: ${snapshot.permissionGranted ? '허용' : '거부/미확인'}\n`;
               result += `오늘 소비(레거시): ${snapshot.hasExpenseToday ? '있음' : '없음'}\n`;
               result += `판정구간 소비생성: ${snapshot.hasExpenseCreatedInWindow ? '있음' : '없음'}\n`;
-              result += `가기록 수신/미전환: ${snapshot.smsReceivedCount}/${snapshot.smsUnconvertedCount}\n`;
+              result += `가기록 구간수신/큐잔여: ${snapshot.smsReceivedCount}/${snapshot.smsUnconvertedCount}\n`;
               result += `판정: ${snapshot.decisionKind}\n`;
               result += `오늘 스케줄 마킹: ${snapshot.todayScheduleMarkPresent ? '✅' : '❌'}\n`;
               result += `스케줄 조건 충족: ${snapshot.wouldSchedule ? '✅ (예약 시도 가능)' : '❌'}\n`;
-              result += `OS 예약: ${generalScheduled.length}개\n\n`;
+              result += `OS 예약: ${generalScheduled.length}개\n`;
+
+              const smsScheduled = generalScheduled.filter(
+                (n) =>
+                  n.identifier === 'daily_sms_inbox_reminder' ||
+                  n.content.data?.type === 'sms_inbox_reminder',
+              );
+              const expenseScheduled = generalScheduled.filter(
+                (n) =>
+                  n.identifier === 'daily_expense_reminder' ||
+                  n.content.data?.type === 'expense_reminder',
+              );
+              result += `  · 가기록 푸시: ${smsScheduled.length}개\n`;
+              result += `  · 소비 유도: ${expenseScheduled.length}개\n\n`;
 
               if (generalScheduled.length > 0) {
                 for (const notification of generalScheduled) {
                   const triggerDate = await formatTriggerDateLabel(notification.trigger);
                   const triggerType = getTriggerType(notification.trigger);
-                  result += `- ${notification.identifier}\n`;
+                  const type = String(notification.content.data?.type ?? 'unknown');
+                  result += `- ${notification.identifier} (${type})\n`;
                   result += `  제목: ${notification.content.title ?? '(없음)'}\n`;
+                  result += `  본문: ${notification.content.body ?? '(없음)'}\n`;
                   result += `  발송: ${triggerDate}\n`;
                   result += `  trigger: ${triggerType}\n\n`;
                 }
@@ -767,6 +783,10 @@ function TestContent({ colors }: { colors: ColorPalette }) {
                 result += '일반 알림 OFF — 예약 없음이 정상입니다.';
               } else if (!snapshot.permissionGranted) {
                 result += '권한 없음 — 예약 없음이 정상입니다.';
+              } else if (snapshot.decisionKind === 'none') {
+                result +=
+                  '판정 none — 가기록 미전환 0 + (소비 있음 또는 가기록만 전부전환).\n' +
+                  '가기록 푸시 테스트는 「가기록 더미 10건」을 넣으세요.';
               } else if (snapshot.hasExpenseToday) {
                 result += '오늘 소비 있음 — 당일 예약 없음이 정상입니다.';
               } else {
@@ -782,6 +802,112 @@ function TestContent({ colors }: { colors: ColorPalette }) {
         >
           <Text style={[styles.testButtonText, { color: colors.staticWhite }]}>
             📝 일반 알림 확인 (20:00 / 가기록 20:05)
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={[styles.testButton, { backgroundColor: '#00695C', marginTop: 8 }]}
+          onPress={async () => {
+            try {
+              const { seeded, total, ids } = await seedDevSmsInboxItemsForPushTest(10);
+              console.log('[sms-inbox-push][dev-ui] seed-only done', { seeded, total, ids });
+              alert(
+                `가기록 더미 ${seeded}건 추가 완료\n` +
+                  `수신함 큐 총 ${total}건\n\n` +
+                  '스케줄은 「가기록 푸시 스케줄 검증」으로 확인하세요.\n' +
+                  'Metro 로그: [sms-inbox-push]',
+              );
+            } catch (error) {
+              console.error('[sms-inbox-push][dev-ui] seed failed', error);
+              alert('가기록 더미 추가 중 오류가 발생했습니다.');
+            }
+          }}
+        >
+          <Text style={[styles.testButtonText, { color: colors.staticWhite }]}>
+            📩 가기록 더미 10건 추가
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={[styles.testButton, { backgroundColor: '#00838F', marginTop: 8 }]}
+          onPress={async () => {
+            try {
+              console.log('[sms-inbox-push][dev-ui] verify:start');
+              const beforeSnapshot = await getDailyReminderDebugSnapshot();
+              console.log('[sms-inbox-push][dev-ui] verify:before', beforeSnapshot);
+
+              await setupDailyReminder();
+
+              const [snapshot, scheduled] = await Promise.all([
+                getDailyReminderDebugSnapshot(),
+                getScheduledNotifications(),
+              ]);
+              const smsScheduled = scheduled.filter(
+                (n) =>
+                  n.identifier === 'daily_sms_inbox_reminder' ||
+                  n.content.data?.type === 'sms_inbox_reminder',
+              );
+              console.log('[sms-inbox-push][dev-ui] verify:after', {
+                snapshot,
+                smsScheduledCount: smsScheduled.length,
+                smsScheduled: smsScheduled.map((n) => ({
+                  id: n.identifier,
+                  type: n.content.data?.type,
+                  title: n.content.title,
+                  body: n.content.body,
+                })),
+                allGeneral: scheduled.filter(isGeneralNotification).map((n) => n.identifier),
+              });
+
+              let smsLines = '';
+              for (const notification of smsScheduled) {
+                const triggerDate = await formatTriggerDateLabel(notification.trigger);
+                const triggerType = getTriggerType(notification.trigger);
+                smsLines += `- ${notification.identifier}\n`;
+                smsLines += `  제목: ${notification.content.title ?? '(없음)'}\n`;
+                smsLines += `  본문: ${notification.content.body ?? '(없음)'}\n`;
+                smsLines += `  발송: ${triggerDate}\n`;
+                smsLines += `  trigger: ${triggerType}\n\n`;
+              }
+
+              let reason = '';
+              if (smsScheduled.length > 0) {
+                reason = '✅ 가기록 푸시 OS 예약 있음';
+              } else if (!snapshot.permissionGranted) {
+                reason = '❌ 원인 후보: OS 알림 권한 없음 (Expo Go면 제한될 수 있음)';
+              } else if (!snapshot.generalEnabled) {
+                reason = '❌ 원인 후보: 일반 알림 설정 OFF';
+              } else if (snapshot.decisionKind !== 'sms_inbox_reminder') {
+                reason =
+                  `❌ 원인 후보: 판정이 sms_inbox_reminder 아님 (${snapshot.decisionKind})\n` +
+                  `미전환(큐 잔여) ${snapshot.smsUnconvertedCount}건 — 더미 추가 후 확인`;
+              } else if (snapshot.wouldSchedule) {
+                reason =
+                  '⚠️ 판정은 sms_inbox_reminder인데 OS 예약 없음\n' +
+                  'Metro에서 [sms-inbox-push] setupDailyReminder 로그 확인';
+              } else {
+                reason = '❌ 스케줄 조건 미충족 — 위 판정/권한 값 확인';
+              }
+
+              alert(
+                `가기록 푸시 스케줄 검증\n\n` +
+                  `판정: ${snapshot.decisionKind}\n` +
+                  `가기록 구간수신/큐잔여: ${snapshot.smsReceivedCount}/${snapshot.smsUnconvertedCount}\n` +
+                  `설정/권한: ${snapshot.generalEnabled ? 'ON' : 'OFF'} / ${snapshot.permissionGranted ? '허용' : '거부·미확인'}\n` +
+                  `조건 충족: ${snapshot.wouldSchedule ? '✅' : '❌'}\n` +
+                  `가기록 푸시 OS 예약: ${smsScheduled.length}개\n\n` +
+                  (smsLines || '(예약 상세 없음)\n\n') +
+                  reason +
+                  '\n\nMetro 로그 키워드: [sms-inbox-push]',
+              );
+            } catch (error) {
+              console.error('[sms-inbox-push][dev-ui] verify failed', error);
+              alert('가기록 푸시 스케줄 검증 중 오류가 발생했습니다.');
+            }
+          }}
+        >
+          <Text style={[styles.testButtonText, { color: colors.staticWhite }]}>
+            🔎 가기록 푸시 스케줄 검증
           </Text>
         </Pressable>
       </View>

@@ -220,7 +220,7 @@ export async function removeSmsInboxItemById(
   if (options?.outcome === 'converted') {
     await markSmsInboxPushConverted(id);
   }
-  // dismissed: 원장에는 미전환으로 남겨 가기록 푸시 대상 유지
+  // dismissed: 큐에서 제거되면 가기록 푸시 건수(큐 잔여)에서도 제외됨
   setupDailyReminder().catch(() => {});
   return true;
 }
@@ -243,4 +243,78 @@ export async function updateSmsInboxItem(
 
 export async function replaceSmsInboxItems(items: SmsInboxItem[]): Promise<void> {
   await writeItems(items);
+}
+
+/**
+ * __DEV__ 전용: 오늘(판정 구간 안) 미전환 가기록 N건만 적재한다. (스케줄은 호출하지 않음)
+ */
+export async function seedDevSmsInboxItemsForPushTest(count: number = 10): Promise<{
+  seeded: number;
+  total: number;
+  ids: string[];
+}> {
+  if (!__DEV__) {
+    const items = await readItems();
+    return { seeded: 0, total: items.length, ids: [] };
+  }
+
+  const safeCount = Math.max(0, Math.floor(count));
+  if (safeCount === 0) {
+    const items = await readItems();
+    return { seeded: 0, total: items.length, ids: [] };
+  }
+
+  const now = Date.now();
+  const today = new Date(now);
+  const year = today.getFullYear();
+  const month = today.getMonth() + 1;
+  const day = today.getDate();
+  const existing = await readItems();
+  const seeded: SmsInboxItem[] = [];
+
+  for (let i = 0; i < safeCount; i++) {
+    const receivedAtMs = now - i * 60_000;
+    const createdAt = new Date(receivedAtMs).toISOString();
+    const amount = 1_000 * (i + 1);
+    const body = [
+      '[테스트카드]',
+      `${month}/${day} 승인`,
+      `${amount.toLocaleString('ko-KR')}원`,
+      `테스트가맹점${i + 1}`,
+    ].join('\n');
+    const item: SmsInboxItem = {
+      id: `sms-dev-${receivedAtMs}-${i}`,
+      sender: '15447200',
+      senderLabels: [formatSenderLabel('15447200')],
+      originalBody: normalizeSmsOriginalBody(body),
+      rawBody: normalizeSmsOriginalBody(body),
+      status: 'approved',
+      amount,
+      approvedAt: createdAt,
+      merchant: `테스트가맹점${i + 1}`,
+      createdAt,
+      card: buildConfirmCardFromSmsFields({
+        amount,
+        year,
+        month,
+        day,
+      }),
+    };
+    seeded.push(item);
+    await recordSmsInboxPushReceived(item.id, receivedAtMs);
+  }
+
+  await writeItems([...seeded, ...existing]);
+  console.log('[sms-inbox-push] seedDevSmsInboxItemsForPushTest', {
+    seeded: safeCount,
+    total: seeded.length + existing.length,
+    ids: seeded.map((item) => item.id),
+    firstCreatedAt: seeded[0]?.createdAt,
+    lastCreatedAt: seeded[seeded.length - 1]?.createdAt,
+  });
+  return {
+    seeded: safeCount,
+    total: seeded.length + existing.length,
+    ids: seeded.map((item) => item.id),
+  };
 }

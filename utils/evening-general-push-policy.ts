@@ -1,6 +1,7 @@
 /**
  * 저녁 일반 푸시(소비 기록 유도 · 문자 가기록 생성 유도) 판정.
- * 판정 구간: 전날 20:00:00 ~ 당일 20:00:00
+ * - 판정 구간: 전날 20:00:00 ~ 당일 20:00:00 — 소비 기록 생성·구간 내 수신 이력용
+ * - 가기록 푸시 건수: 수신함 큐 미처리 전체 (수신일 무관)
  */
 
 export type EveningPushKind = 'expense_reminder' | 'sms_inbox_reminder' | 'none';
@@ -14,15 +15,21 @@ export type EveningPushInputs = {
   nowMs: number;
   /** 판정 구간 내 소비 기록 생성 여부 */
   hasExpenseCreatedInWindow: boolean;
-  /** 판정 구간 내 가기록 수신 건수(무효화 제외) */
-  smsReceivedCount: number;
-  /** 판정 구간 내 수신 후 소비로 전환되지 않은 가기록 건수 */
-  smsUnconvertedCount: number;
+  /**
+   * 판정 구간 내 가기록 수신 건수(무효화 제외).
+   * 큐가 비었을 때 “구간 수신분을 이미 다 처리함 → 두 푸시 모두 스킵” 보조 판정용.
+   */
+  smsReceivedCountInWindow: number;
+  /**
+   * 수신함 큐에 남아 있는 미처리 가기록 전체 건수.
+   * 전날·일주일 전 잔여 + 당일 신규 합산. 수신 시각과 무관.
+   */
+  pendingSmsInboxCount: number;
 };
 
 export type EveningPushDecision = {
   kind: EveningPushKind;
-  /** sms_inbox_reminder 일 때 본문 N */
+  /** sms_inbox_reminder 일 때 본문 N (= pendingSmsInboxCount) */
   smsCount: number;
 };
 
@@ -66,14 +73,14 @@ export function getClosedJudgmentWindowForSmsBuffer(nowMs: number): EveningPushW
 }
 
 export function decideEveningGeneralPush(input: EveningPushInputs): EveningPushDecision {
-  const { hasExpenseCreatedInWindow, smsReceivedCount, smsUnconvertedCount } = input;
+  const { hasExpenseCreatedInWindow, smsReceivedCountInWindow, pendingSmsInboxCount } = input;
 
-  if (smsUnconvertedCount > 0) {
-    return { kind: 'sms_inbox_reminder', smsCount: smsUnconvertedCount };
+  if (pendingSmsInboxCount > 0) {
+    return { kind: 'sms_inbox_reminder', smsCount: pendingSmsInboxCount };
   }
 
-  // 가기록 수신 후 전부 소비로 전환 → 두 푸시 모두 미발송
-  if (smsReceivedCount > 0) {
+  // 큐는 비었고, 구간 내 수신분은 있었던 경우 → 이미 처리 완료로 보고 두 푸시 모두 미발송
+  if (smsReceivedCountInWindow > 0) {
     return { kind: 'none', smsCount: 0 };
   }
 
