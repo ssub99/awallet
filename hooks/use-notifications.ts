@@ -1,14 +1,22 @@
 /**
  * Use Notifications Hook
  *
- * - 알림 권한 OS 모달은 사용자 액션(문자 수신 ON / 알림 설정 토글)에서만 요청
- * - 첫 실행에서 미리 요청하지 않음 (undetermined 소진 방지)
+ * - 첫 실행: 알림 권한 OS 모달 요청 (ATT는 permissionChecked 이후)
+ * - 알림 설정 토글 ON 시에도 권한 확인·요청
+ * - 문자 수신은 RECEIVE_SMS / 알림 접근 등 별도 경로 (여기와 무관)
  */
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useState } from 'react';
 
 import { getExpoNotifications } from '@/utils/expo-notifications-client';
+import {
+  setChallengeNotificationsEnabled,
+  setGeneralNotificationsEnabled,
+} from '@/utils/notification-scheduler';
 import { Alert, Linking, PermissionsAndroid, Platform } from 'react-native';
+
+const HAS_REQUESTED_PERMISSION_KEY = 'hasRequestedNotificationPermission';
 
 /**
  * Request notification permission
@@ -26,6 +34,23 @@ export async function requestNotificationPermission(): Promise<boolean> {
   } catch (error) {
 
     return false;
+  }
+}
+
+async function hasRequestedPermission(): Promise<boolean> {
+  try {
+    const value = await AsyncStorage.getItem(HAS_REQUESTED_PERMISSION_KEY);
+    return value === 'true';
+  } catch {
+    return false;
+  }
+}
+
+async function markPermissionAsRequested(): Promise<void> {
+  try {
+    await AsyncStorage.setItem(HAS_REQUESTED_PERMISSION_KEY, 'true');
+  } catch {
+    // ignore
   }
 }
 
@@ -139,14 +164,46 @@ export function showSettingsAlert(): void {
 }
 
 /**
- * 부트스트랩용 — 알림 스케줄 정리 타이밍만 맞춤.
- * OS 권한 모달은 여기서 요청하지 않음 (문자 수신 ON / 알림 설정에서 요청).
+ * OS 알림 권한이 granted가 아니면 앱 안 일반/챌린지 알림을 OFF로 맞춘다.
+ * (기본 ON + 미허용 불일치 해소)
+ */
+export async function syncInAppNotificationSettingsWithOsPermission(): Promise<
+  'granted' | 'denied' | 'undetermined'
+> {
+  const status = await getNotificationPermissionStatus();
+  if (status === 'granted') {
+    return status;
+  }
+
+  await Promise.all([
+    setGeneralNotificationsEnabled(false),
+    setChallengeNotificationsEnabled(false),
+  ]);
+  return status;
+}
+
+/**
+ * 첫 실행(앱 설치 후 1회) 알림 권한 요청.
+ * 완료 후 permissionChecked → ATT·알림 스케줄 부트스트랩이 이어짐.
  */
 export function useFirstLaunchNotificationPermission() {
   const [permissionChecked, setPermissionChecked] = useState(false);
 
   useEffect(() => {
-    setPermissionChecked(true);
+    const checkAndRequestPermission = async () => {
+      try {
+        const hasRequested = await hasRequestedPermission();
+        if (!hasRequested) {
+          await requestNotificationPermission();
+          await markPermissionAsRequested();
+        }
+        await syncInAppNotificationSettingsWithOsPermission();
+      } finally {
+        setPermissionChecked(true);
+      }
+    };
+
+    void checkAndRequestPermission();
   }, []);
 
   return { permissionChecked };

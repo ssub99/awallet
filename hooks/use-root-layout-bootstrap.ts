@@ -1,6 +1,9 @@
 import { useAppFonts } from '@/hooks/use-app-fonts';
 import { useMetaFacebookAttSync } from '@/hooks/use-meta-facebook-att-sync';
-import { useFirstLaunchNotificationPermission } from '@/hooks/use-notifications';
+import {
+  syncInAppNotificationSettingsWithOsPermission,
+  useFirstLaunchNotificationPermission,
+} from '@/hooks/use-notifications';
 import { colors, type ColorPalette } from '@/constants/theme';
 import { initAmplitude, logEvent } from '@/utils/analytics';
 import { getAppVersion, isAtLeastVersion } from '@/utils/app-version';
@@ -200,6 +203,8 @@ export function useRootLayoutBootstrap() {
       const setupNotifications = async () => {
         try {
           await cleanupOldSchedules();
+          // 첫 실행 권한 요청 이후·OTA 복구: OS 미허용이면 앱 안 스위치를 OFF로 맞춤
+          await syncInAppNotificationSettingsWithOsPermission();
 
           const [generalEnabled, challengeEnabled] = await Promise.all([
             getGeneralNotificationsEnabled(),
