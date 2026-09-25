@@ -2,9 +2,10 @@
  * Android Studio(GUI)는 터미널 PATH를 못 받아 `node`를 찾지 못하는 경우가 많습니다.
  * settings.gradle / app/build.gradle 에서 이 스크립트를 apply 한 뒤 awalletNodeExecutable 을 사용합니다.
  *
- * Expo `expo-autolinking-settings` 는 bare `node`만 호출 → `.idea/gradle.xml` PATH 또는 `android/tools/node` 래퍼 필요.
+ * Expo `expo-autolinking-settings` 는 bare `node`만 호출하므로, android/tools 를 PATH 앞에 둡니다
+ * (tools/node 래퍼 → local.properties 의 node.executable).
  *
- * 우선순위: NODE_BINARY > local.properties(node.executable | nodejs.dir) > Homebrew 경로 > node
+ * 우선순위: NODE_BINARY > local.properties(node.executable | nodejs.dir) > Homebrew 경로 > tools/node
  */
 
 def resolveAndroidRootDir() {
@@ -58,7 +59,31 @@ def resolveNodeExecutable(File androidRoot) {
   return toolsNode.absolutePath
 }
 
+/**
+ * Gradle daemon / Android Studio Tooling API 는 gradlew 의 PATH export 를 건너뛸 수 있음.
+ * bare `node` 호출이 android/tools/node 래퍼로 가도록 프로세스 PATH 를 보정한다.
+ */
+def prependToolsDirToPath(File androidRoot) {
+  def toolsDir = new File(androidRoot, 'tools')
+  if (!toolsDir.isDirectory()) {
+    return
+  }
+  def toolsPath = toolsDir.absolutePath
+  def current = System.getenv('PATH') ?: ''
+  def parts = current.isEmpty() ? [] : current.split(File.pathSeparator) as List
+  if (parts.contains(toolsPath)) {
+    return
+  }
+  def newPath = toolsPath + File.pathSeparator + current
+  try {
+    new ProcessBuilder().environment().put('PATH', newPath)
+  } catch (Throwable ignored) {
+    // PATH 변경 불가 환경 — local.properties + IDE Gradle env 로 보완
+  }
+}
+
 def androidRoot = resolveAndroidRootDir()
+prependToolsDirToPath(androidRoot)
 def resolvedNode = resolveNodeExecutable(androidRoot)
 
 gradle.ext.awalletNodeExecutable = resolvedNode

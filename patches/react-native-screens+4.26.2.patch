@@ -1,0 +1,65 @@
+diff --git a/node_modules/react-native-screens/android/build.gradle b/node_modules/react-native-screens/android/build.gradle
+index 3f3b0d5..e66c002 100644
+--- a/node_modules/react-native-screens/android/build.gradle
++++ b/node_modules/react-native-screens/android/build.gradle
+@@ -38,6 +38,51 @@ def isGammaEnabled() {
+     return project.hasProperty("rnsGammaEnabled") && project.rnsGammaEnabled == "true"
+ }
+ 
++def resolveNodeExecutable() {
++    def fromRoot = safeExtGet("awalletNodeExecutable", null)
++    if (fromRoot) {
++        return fromRoot
++    }
++
++    def fromEnv = System.getenv("NODE_BINARY")?.trim()
++    if (fromEnv) {
++        return fromEnv
++    }
++
++    def localPropsFile = new File(rootProject.projectDir, "local.properties")
++    if (localPropsFile.exists()) {
++        def props = new Properties()
++        localPropsFile.withInputStream { props.load(it) }
++        def explicit = props.getProperty("node.executable")?.trim()
++        if (explicit) {
++            return explicit
++        }
++        def nodejsDir = props.getProperty("nodejs.dir")?.trim()
++        if (nodejsDir) {
++            def candidate = new File(nodejsDir, "bin/node")
++            if (candidate.canExecute()) {
++                return candidate.absolutePath
++            }
++        }
++    }
++
++    def home = System.getenv("HOME") ?: ""
++    def candidates = [
++        "/opt/homebrew/bin/node",
++        "/usr/local/bin/node",
++        "${home}/.nvm/current/bin/node",
++    ]
++    for (path in candidates) {
++        def file = new File(path)
++        if (file.canExecute()) {
++            return file.absolutePath
++        }
++    }
++    return "node"
++}
++
++def nodeExecutable = resolveNodeExecutable()
++
+ def resolveReactNativeDirectory() {
+     def userDefinedRnDirPath = safeAppExtGet("REACT_NATIVE_NODE_MODULES_DIR", null)
+     if (userDefinedRnDirPath != null) {
+@@ -59,7 +104,7 @@ def resolveReactNativeDirectory() {
+     // We're in non standard setup, e.g. monorepo - try to use node resolver to locate the react-native package.
+     String maybeRnPackagePath = providers.exec {
+         workingDir(rootDir)
+-        commandLine("node", "--print", "require.resolve('react-native/package.json')")
++        commandLine(nodeExecutable, "--print", "require.resolve('react-native/package.json')")
+     }.standardOutput.asText.get().trim()
+ 
+     File nodeResolverRnDirFile = null

@@ -1,0 +1,73 @@
+diff --git a/node_modules/react-native-worklets/android/build.gradle.kts b/node_modules/react-native-worklets/android/build.gradle.kts
+index 2e01292..bf9ee05 100644
+--- a/node_modules/react-native-worklets/android/build.gradle.kts
++++ b/node_modules/react-native-worklets/android/build.gradle.kts
+@@ -22,6 +22,50 @@ fun safeAppExtGet(prop: String, fallback: Any?): Any? {
+         fallback
+ }
+ 
++fun resolveNodeExecutable(): String {
++    val rootNode = safeExtGet("awalletNodeExecutable", null) as String?
++    if (!rootNode.isNullOrBlank()) {
++        return rootNode
++    }
++
++    val fromEnv = System.getenv("NODE_BINARY")?.trim()
++    if (!fromEnv.isNullOrEmpty()) {
++        return fromEnv
++    }
++
++    val localProps = File(rootProject.projectDir, "local.properties")
++    if (localProps.exists()) {
++        val props = Properties()
++        localProps.inputStream().use { props.load(it) }
++        val nodeExecutable = props.getProperty("node.executable")?.trim()
++        if (!nodeExecutable.isNullOrEmpty()) {
++            return nodeExecutable
++        }
++        val nodejsDir = props.getProperty("nodejs.dir")?.trim()
++        if (!nodejsDir.isNullOrEmpty()) {
++            val candidate = File(nodejsDir, "bin/node")
++            if (candidate.canExecute()) {
++                return candidate.absolutePath
++            }
++        }
++    }
++
++    val home = System.getenv("HOME") ?: ""
++    val candidates = listOf(
++        "/opt/homebrew/bin/node",
++        "/usr/local/bin/node",
++        "$home/.nvm/current/bin/node",
++    )
++    for (path in candidates) {
++        if (File(path).canExecute()) {
++            return path
++        }
++    }
++    return "node"
++}
++
++val NODE_EXECUTABLE = resolveNodeExecutable()
++
+ fun resolveReactNativeDirectory(): File {
+     val reactNativeLocation = safeAppExtGet("REACT_NATIVE_NODE_MODULES_DIR", null) as String?
+     if (reactNativeLocation != null) {
+@@ -32,7 +76,7 @@ fun resolveReactNativeDirectory(): File {
+     val reactNativePackage = file(
+         providers.exec {
+             workingDir(rootDir)
+-            commandLine("node", "--print", "require.resolve('react-native/package.json')")
++            commandLine(NODE_EXECUTABLE, "--print", "require.resolve('react-native/package.json')")
+         }.standardOutput.asText.get().trim()
+     )
+     if (reactNativePackage.exists()) {
+@@ -298,7 +342,7 @@ androidComponents {
+ 
+ val validateReactNativeVersionResult = providers.exec {
+     workingDir(projectDir.path)
+-    commandLine("node", "./../scripts/validate-react-native-version.js", REACT_NATIVE_VERSION)
++    commandLine(NODE_EXECUTABLE, "./../scripts/validate-react-native-version.js", REACT_NATIVE_VERSION)
+     isIgnoreExitValue = true
+ }
+ 

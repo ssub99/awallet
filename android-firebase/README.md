@@ -18,21 +18,16 @@ Gradle sync 시 위 오류가 나면 Android Studio가 **PATH에 node를 못 찾
 1. 터미널에서 `which node` 로 경로 확인 (예: `/usr/local/bin/node`)
 2. `android/local.properties.example` → `android/local.properties` 복사 후 `node.executable=` 에 그 경로 입력
 3. `chmod +x android/tools/node` (최초 1회, Git clone 후 실행 권한이 없을 때)
-4. Android Studio: **Settings → Build Tools → Gradle → Gradle wrapper** 사용 확인
+4. 프로젝트 루트에서 **`npm install`** (postinstall → `patch-package`가 `expo-modules-autolinking` 패치 적용)
 5. 터미널: `cd android && ./gradlew --stop` 후 Android Studio **Sync**
-6. Android Studio에서 **`android` 폴더**를 프로젝트 루트로 열었는지 확인 (상위 `awallet`만 열면 `.idea/gradle.xml` PATH가 어긋날 수 있음)
+6. Android Studio에서 **`android` 폴더**를 프로젝트 루트로 열었는지 확인
 7. 그래도 안 되면 **Settings → Build Tools → Gradle → Environment variables** 에  
    `PATH` = `<프로젝트>/android/tools:/usr/local/bin:/opt/homebrew/bin` 추가
-8. 또는 Android Studio 완전 종료 후 `open -a "Android Studio"` 로 실행
 
 프로젝트 루트에서 **`npm install`** 시 `patch-package`가 아래 패치를 적용합니다.
 
-- `patches/expo-constants+18.0.13.patch` — `get-app-config-android.gradle` bare `node` → `local.properties` / `node-path.gradle`
-- `patches/react-native-reanimated+4.1.3.patch` — Reanimated Gradle bare `node` → `rootProject.ext.awalletNodeExecutable`
-- `patches/react-native-worklets+0.5.1.patch` — Worklets Gradle bare `node` → 동일
-- `patches/expo-modules-autolinking+3.0.25.patch` — settings 플러그인 `node` → `local.properties`
-- `patches/expo+54.0.34.patch` — `expo/scripts/autolinking.gradle` 동일
-- `patches/expo-modules-core+3.0.30.patch` — stage/production flavor 시 `productionRelease` 컴포넌트
+- `patches/expo-modules-autolinking+57.0.12.patch` — settings/autolinking 플러그인 bare `node` → `local.properties` / 절대 경로
+- `patches/react-native-keyboard-controller+1.21.9.patch` — Fabric import 경로
 
 보조: `android/tools/node` 래퍼, `gradlew` PATH, `node-path.gradle`.
 

@@ -1,0 +1,52 @@
+---
+description: >-
+  Headroom token reduction (L2). Use when tool output is large — build/test
+  logs, JSON dumps, or huge grep results. Not for normal coding, design, or
+  review turns. Compress input only; never use L3/L4 or code-body crushing.
+alwaysApply: false
+---
+
+# Headroom — 토큰 절약 (awallet 커스텀)
+
+Upstream: [roman-ryzenadvanced/headroom-skill](https://github.com/roman-ryzenadvanced/headroom-skill)  
+Helpers: `.cursor/headroom/scripts/` (Python 3 stdlib only)
+
+## When to use
+
+Apply **only** when this rule is loaded (user asked, or tool output is clearly huge). Skip for normal implementation / design / review.
+
+## MUST
+
+1. **Compress before paste** — tool results ≈ **>200 tokens** only. Below that, skip.
+2. **Content routing (allowed only):**
+
+| Content | Transform | Script |
+|---|---|---|
+| JSON array / API dump | SmartCrusher | `python .cursor/headroom/scripts/smart_crusher.py <file> --query "…" --keep-first 3 --keep-last 2` |
+| Build / test logs | LogCompressor | `python .cursor/headroom/scripts/log_compressor.py <file>` |
+| grep / ripgrep output | SearchCompressor | `python .cursor/headroom/scripts/search_compressor.py <file> --query "…"` |
+
+3. **Never drop errors** — `ERROR`, `FAILED`, `Exception`, Traceback, `is_error`, exit ≠ 0, HTTP ≥ 400: keep 100%.
+4. **Keep first 3 + last 2** of ordered collections (in addition to errors / top relevance).
+5. **CCR (reversible)** — before compressing, write original under `.headroom-cache/<sha12>.txt` and cite `CCR key: <sha12>` in one short line. Retrieve if a later turn needs the full original.
+6. **Output verbosity = L2 only:**
+   - Skip preambles / postambles.
+   - Do not re-print code, diffs, or tool output already on screen — cite `path:line`.
+   - Smallest edit that conveys the change.
+   - **Do not use L3 or L4.**
+
+## MUST NOT
+
+- Compress **source code bodies** (no CodeCompressor).
+- Apply RollingWindow / drop conversation history.
+- Compress user messages, or content the user asked to see **in full**.
+- Compress when the next step needs a verbatim baseline (e.g. diff).
+- Narrate compression at length — one line max.
+
+## Hand heuristic (no script)
+
+If scripts are unavailable: keep errors → first 3 → last 2 → items matching user query tokens → small sample of the rest. Cap ~50 items. Deduplicate.
+
+## Example narration
+
+`Compressed log 4,812 → 190 lines (LogCompressor). CCR key: a3f9c1b2d4e5.`

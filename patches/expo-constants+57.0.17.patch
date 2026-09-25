@@ -1,0 +1,62 @@
+diff --git a/node_modules/expo-constants/scripts/get-app-config-android.gradle b/node_modules/expo-constants/scripts/get-app-config-android.gradle
+index 7758672..56551e8 100644
+--- a/node_modules/expo-constants/scripts/get-app-config-android.gradle
++++ b/node_modules/expo-constants/scripts/get-app-config-android.gradle
+@@ -2,14 +2,55 @@
+ 
+ import org.apache.tools.ant.taskdefs.condition.Os
+ 
++def resolveNodeExecutableAndArgs() {
++  def fromEnv = System.getenv("NODE_BINARY")?.trim()
++  if (fromEnv) {
++    return [fromEnv]
++  }
++
++  def localProps = new File(rootProject.projectDir, "local.properties")
++  if (localProps.exists()) {
++    def props = new Properties()
++    localProps.withInputStream { props.load(it) }
++    def nodeExecutable = props.getProperty("node.executable")?.trim()
++    if (nodeExecutable) {
++      return [nodeExecutable]
++    }
++
++    def nodejsDir = props.getProperty("nodejs.dir")?.trim()
++    if (nodejsDir) {
++      def candidate = new File(nodejsDir, "bin/node")
++      if (candidate.canExecute()) {
++        return [candidate.absolutePath]
++      }
++    }
++  }
++
++  def home = System.getenv("HOME") ?: ""
++  def candidates = [
++    "/opt/homebrew/bin/node",
++    "/usr/local/bin/node",
++    "${home}/.nvm/current/bin/node",
++  ]
++  for (path in candidates) {
++    def file = new File(path)
++    if (file.canExecute()) {
++      return [file.absolutePath]
++    }
++  }
++
++  return ["node"]
++}
++
++def resolvedNodeExecutableAndArgs = resolveNodeExecutableAndArgs()
+ 
+ def expoConstantsDir = project.providers.exec {
+   workingDir(projectDir)
+-  commandLine("node", "-e", "console.log(require('path').dirname(require.resolve('expo-constants/package.json')));")
++  commandLine(*resolvedNodeExecutableAndArgs, "-e", "console.log(require('path').dirname(require.resolve('expo-constants/package.json')));")
+ }.standardOutput.asText.get().trim()
+ 
+ def config = project.hasProperty("react") ? project.react : [];
+-def nodeExecutableAndArgs = config.nodeExecutableAndArgs ?: ["node"]
++def nodeExecutableAndArgs = config.nodeExecutableAndArgs ?: resolvedNodeExecutableAndArgs
+ 
+ afterEvaluate {
+   def expoGradleExtension = gradle.extensions.findByName("expoGradle")

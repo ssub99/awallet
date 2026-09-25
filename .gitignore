@@ -153,3 +153,4 @@ android/app/google-services.json
 graphify-out/
 .cursor/hooks.json
 .vercel/
+.headroom-cache/

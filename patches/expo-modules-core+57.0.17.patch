@@ -1,0 +1,97 @@
+diff --git a/node_modules/expo-modules-core/android/build.gradle b/node_modules/expo-modules-core/android/build.gradle
+index a59c9b9..a1fb39b 100644
+--- a/node_modules/expo-modules-core/android/build.gradle
++++ b/node_modules/expo-modules-core/android/build.gradle
+@@ -68,11 +68,18 @@ if (workletsProject != null) {
+   evaluationDependsOn(workletsProject.path)
+ 
+   afterEvaluate {
+-    println("Linking react-native-worklets native libs into expo-modules-core build tasks")
+-    println(workletsProject.tasks.getByName("mergeDebugNativeLibs"))
+-    println(workletsProject.tasks.getByName("mergeReleaseNativeLibs"))
+-    tasks.getByName("buildCMakeDebug").dependsOn(workletsProject.tasks.getByName("mergeDebugNativeLibs"))
+-    tasks.getByName("buildCMakeRelWithDebInfo").dependsOn(workletsProject.tasks.getByName("mergeReleaseNativeLibs"))
++    // Expo's CMake configure step consumes Worklets through Prefab. Building only
++    // mergeNativeLibs before buildCMake is too late: configureCMake can otherwise
++    // cache a header-only INTERFACE target and omit libworklets.so from the link.
++    def workletsDebugPrefab = workletsProject.tasks.getByName("prefabDebugPackage")
++    def workletsReleasePrefab = workletsProject.tasks.getByName("prefabReleasePackage")
++
++    tasks.matching { it.name.startsWith("configureCMakeDebug") }.configureEach {
++      dependsOn(workletsDebugPrefab)
++    }
++    tasks.matching { it.name.startsWith("configureCMakeRelWithDebInfo") }.configureEach {
++      dependsOn(workletsReleasePrefab)
++    }
+   }
+ }
+ 
+diff --git a/node_modules/expo-modules-core/expo-module-gradle-plugin/src/main/kotlin/expo/modules/plugin/gradle/ExpoGradleHelperExtension.kt b/node_modules/expo-modules-core/expo-module-gradle-plugin/src/main/kotlin/expo/modules/plugin/gradle/ExpoGradleHelperExtension.kt
+index 7c387ab..1bb467b 100644
+--- a/node_modules/expo-modules-core/expo-module-gradle-plugin/src/main/kotlin/expo/modules/plugin/gradle/ExpoGradleHelperExtension.kt
++++ b/node_modules/expo-modules-core/expo-module-gradle-plugin/src/main/kotlin/expo/modules/plugin/gradle/ExpoGradleHelperExtension.kt
+@@ -29,6 +29,55 @@ open class ExpoGradleHelperExtension {
+    */
+   private lateinit var reactNativeVersion: Version
+ 
++  private fun resolveNodeExecutable(project: Project): String {
++    val fromRoot = project.rootProject.extensions.extraProperties
++      .takeIf { it.has("awalletNodeExecutable") }
++      ?.get("awalletNodeExecutable")
++      ?.toString()
++      ?.trim()
++    if (!fromRoot.isNullOrEmpty()) {
++      return fromRoot
++    }
++
++    val fromEnv = System.getenv("NODE_BINARY")?.trim()
++    if (!fromEnv.isNullOrEmpty()) {
++      return fromEnv
++    }
++
++    val localPropsFile = File(project.rootDir, "local.properties")
++    if (localPropsFile.exists()) {
++      val props = Properties()
++      localPropsFile.inputStream().use { props.load(it) }
++      props.getProperty("node.executable")
++        ?.trim()
++        ?.takeIf { it.isNotEmpty() }
++        ?.let { return it }
++
++      props.getProperty("nodejs.dir")
++        ?.trim()
++        ?.takeIf { it.isNotEmpty() }
++        ?.let { nodejsDir ->
++          val candidate = File(nodejsDir, "bin/node")
++          if (candidate.canExecute()) {
++            return candidate.absolutePath
++          }
++        }
++    }
++
++    val home = System.getenv("HOME") ?: ""
++    listOf(
++      "/opt/homebrew/bin/node",
++      "/usr/local/bin/node",
++      "$home/.nvm/current/bin/node",
++    ).forEach { path ->
++      if (File(path).canExecute()) {
++        return path
++      }
++    }
++
++    return "node"
++  }
++
+   fun getReactNativeDir(project: Project): File = synchronized(this) {
+     if (::reactNativeDir.isInitialized) {
+       return reactNativeDir
+@@ -43,7 +92,7 @@ open class ExpoGradleHelperExtension {
+     reactNativeDir = reactNativeDirFromSource ?: File(
+       project.providers.exec { env ->
+         env.workingDir(project.rootDir)
+-        env.commandLine("node", "--print", "require.resolve('react-native/package.json')")
++        env.commandLine(resolveNodeExecutable(project), "--print", "require.resolve('react-native/package.json')")
+       }.standardOutput.asText.get().trim()
+     ).parentFile
+ 

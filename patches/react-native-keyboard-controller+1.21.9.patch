@@ -1,71 +1,62 @@
---- a/node_modules/react-native-keyboard-controller/ios/views/OverKeyboardViewManager.mm	1985-10-26 17:15:00
-+++ b/node_modules/react-native-keyboard-controller/ios/views/OverKeyboardViewManager.mm	2026-09-14 16:11:45
-@@ -21,7 +21,7 @@
- #import <react/renderer/components/RNKC/RCTComponentViewHelpers.h>
- #import <react/renderer/components/RNKC/RNKCOverKeyboardViewComponentDescriptor.h>
+diff --git a/node_modules/react-native-keyboard-controller/android/react-native-helpers.gradle b/node_modules/react-native-keyboard-controller/android/react-native-helpers.gradle
+index 9070efb..b4487e4 100644
+--- a/node_modules/react-native-keyboard-controller/android/react-native-helpers.gradle
++++ b/node_modules/react-native-keyboard-controller/android/react-native-helpers.gradle
+@@ -3,6 +3,41 @@ def safeAppExtGet(prop, fallback) {
+   appProject?.ext?.has(prop) ? appProject.ext.get(prop) : fallback
+ }
  
--#import "RCTFabricComponentsPlugins.h"
-+#import <React/RCTFabricComponentsPlugins.h>
- #endif
++def resolveNodeExecutable() {
++  def fromRoot = rootProject.ext.has('awalletNodeExecutable') ? rootProject.ext.get('awalletNodeExecutable') : null
++  if (fromRoot) {
++    return fromRoot
++  }
++  def fromEnv = System.getenv('NODE_BINARY')?.trim()
++  if (fromEnv) {
++    return fromEnv
++  }
++  def localPropsFile = new File(rootProject.projectDir, 'local.properties')
++  if (localPropsFile.exists()) {
++    def props = new Properties()
++    localPropsFile.withInputStream { props.load(it) }
++    def explicit = props.getProperty('node.executable')?.trim()
++    if (explicit) {
++      return explicit
++    }
++    def nodejsDir = props.getProperty('nodejs.dir')?.trim()
++    if (nodejsDir) {
++      def candidate = new File(nodejsDir, 'bin/node')
++      if (candidate.canExecute()) {
++        return candidate.absolutePath
++      }
++    }
++  }
++  def home = System.getenv('HOME') ?: ''
++  for (candidate in ['/opt/homebrew/bin/node', '/usr/local/bin/node', "${home}/.nvm/current/bin/node"]) {
++    def file = new File(candidate)
++    if (file.canExecute()) {
++      return file.absolutePath
++    }
++  }
++  return 'node'
++}
++
+ // Let's detect react-native's directory, it will be used to determine RN's version
+ // https://github.com/software-mansion/react-native-reanimated/blob/36c291a15880c78a94dd125c51484630546ceb7c/packages/react-native-reanimated/android/build.gradle#L73
+ def resolveReactNativeDirectory() {
+@@ -12,7 +47,7 @@ def resolveReactNativeDirectory() {
+   }
  
- #import <React/RCTTouchHandler.h>
---- a/node_modules/react-native-keyboard-controller/ios/views/KeyboardControllerView.mm	1985-10-26 17:15:00
-+++ b/node_modules/react-native-keyboard-controller/ios/views/KeyboardControllerView.mm	2026-09-14 16:12:01
-@@ -26,7 +26,7 @@
- #import <react/renderer/components/RNKC/RNKCKeyboardControllerViewComponentDescriptor.h>
- 
- #import "KeyboardControllerModule-Header.h"
--#import "RCTFabricComponentsPlugins.h"
-+#import <React/RCTFabricComponentsPlugins.h>
- 
- using namespace facebook::react;
- 
---- a/node_modules/react-native-keyboard-controller/ios/views/KeyboardGestureAreaManager.mm	1985-10-26 17:15:00
-+++ b/node_modules/react-native-keyboard-controller/ios/views/KeyboardGestureAreaManager.mm	2026-09-14 16:12:01
-@@ -19,7 +19,7 @@
- #import <react/renderer/components/RNKC/RCTComponentViewHelpers.h>
- #import <react/renderer/components/RNKC/RNKCKeyboardGestureAreaComponentDescriptor.h>
- 
--#import "RCTFabricComponentsPlugins.h"
-+#import <React/RCTFabricComponentsPlugins.h>
- #endif
- 
- #import <UIKit/UIKit.h>
---- a/node_modules/react-native-keyboard-controller/ios/views/KeyboardBackgroundViewManager.mm	1985-10-26 17:15:00
-+++ b/node_modules/react-native-keyboard-controller/ios/views/KeyboardBackgroundViewManager.mm	2026-09-14 16:12:01
-@@ -19,7 +19,7 @@
- #import <react/renderer/components/RNKC/RCTComponentViewHelpers.h>
- #import <react/renderer/components/RNKC/RNKCKeyboardBackgroundViewComponentDescriptor.h>
- 
--#import "RCTFabricComponentsPlugins.h"
-+#import <React/RCTFabricComponentsPlugins.h>
- #endif
- 
- #import <React/RCTView.h>
---- a/node_modules/react-native-keyboard-controller/ios/views/KeyboardToolbarGroupViewManager.mm	1985-10-26 17:15:00
-+++ b/node_modules/react-native-keyboard-controller/ios/views/KeyboardToolbarGroupViewManager.mm	2026-09-14 16:12:01
-@@ -13,7 +13,7 @@
- #import <react/renderer/components/RNKC/RCTComponentViewHelpers.h>
- #import <react/renderer/components/RNKC/RNKCKeyboardToolbarGroupViewComponentDescriptor.h>
- 
--#import "RCTFabricComponentsPlugins.h"
-+#import <React/RCTFabricComponentsPlugins.h>
- #endif
- 
- #import <UIKit/UIKit.h>
---- a/node_modules/react-native-keyboard-controller/ios/views/KeyboardExtenderManager.mm	1985-10-26 17:15:00
-+++ b/node_modules/react-native-keyboard-controller/ios/views/KeyboardExtenderManager.mm	2026-09-14 16:12:01
-@@ -21,7 +21,7 @@
- #import <react/renderer/components/RNKC/RCTComponentViewHelpers.h>
- #import <react/renderer/components/RNKC/RNKCKeyboardExtenderComponentDescriptor.h>
- 
--#import "RCTFabricComponentsPlugins.h"
-+#import <React/RCTFabricComponentsPlugins.h>
- #endif
- 
- #import <React/RCTTouchHandler.h>
---- a/node_modules/react-native-keyboard-controller/ios/views/ClippingScrollViewDecoratorViewManager.mm	1985-10-26 17:15:00
-+++ b/node_modules/react-native-keyboard-controller/ios/views/ClippingScrollViewDecoratorViewManager.mm	2026-09-14 16:12:01
+   // Fallback to node resolver for custom directory structures like monorepos.
+-  def reactNativePackage = file(["node", "--print", "require.resolve('react-native/package.json')"].execute(null, rootDir).text.trim())
++  def reactNativePackage = file([resolveNodeExecutable(), "--print", "require.resolve('react-native/package.json')"].execute(null, rootDir).text.trim())
+   if (reactNativePackage.exists()) {
+       return reactNativePackage.parentFile
+   }
+diff --git a/node_modules/react-native-keyboard-controller/ios/views/ClippingScrollViewDecoratorViewManager.mm b/node_modules/react-native-keyboard-controller/ios/views/ClippingScrollViewDecoratorViewManager.mm
+index d960900..b4abf69 100644
+--- a/node_modules/react-native-keyboard-controller/ios/views/ClippingScrollViewDecoratorViewManager.mm
++++ b/node_modules/react-native-keyboard-controller/ios/views/ClippingScrollViewDecoratorViewManager.mm
 @@ -13,7 +13,7 @@
  #import <react/renderer/components/RNKC/RCTComponentViewHelpers.h>
  #import <react/renderer/components/RNKC/RNKCClippingScrollViewDecoratorViewComponentDescriptor.h>
@@ -75,3 +66,81 @@
  #endif
  
  #import <TargetConditionals.h>
+diff --git a/node_modules/react-native-keyboard-controller/ios/views/KeyboardBackgroundViewManager.mm b/node_modules/react-native-keyboard-controller/ios/views/KeyboardBackgroundViewManager.mm
+index d407214..2bbb996 100644
+--- a/node_modules/react-native-keyboard-controller/ios/views/KeyboardBackgroundViewManager.mm
++++ b/node_modules/react-native-keyboard-controller/ios/views/KeyboardBackgroundViewManager.mm
+@@ -19,7 +19,7 @@
+ #import <react/renderer/components/RNKC/RCTComponentViewHelpers.h>
+ #import <react/renderer/components/RNKC/RNKCKeyboardBackgroundViewComponentDescriptor.h>
+ 
+-#import "RCTFabricComponentsPlugins.h"
++#import <React/RCTFabricComponentsPlugins.h>
+ #endif
+ 
+ #import <React/RCTView.h>
+diff --git a/node_modules/react-native-keyboard-controller/ios/views/KeyboardControllerView.mm b/node_modules/react-native-keyboard-controller/ios/views/KeyboardControllerView.mm
+index 51b3e32..afb4bfe 100644
+--- a/node_modules/react-native-keyboard-controller/ios/views/KeyboardControllerView.mm
++++ b/node_modules/react-native-keyboard-controller/ios/views/KeyboardControllerView.mm
+@@ -26,7 +26,7 @@
+ #import <react/renderer/components/RNKC/RNKCKeyboardControllerViewComponentDescriptor.h>
+ 
+ #import "KeyboardControllerModule-Header.h"
+-#import "RCTFabricComponentsPlugins.h"
++#import <React/RCTFabricComponentsPlugins.h>
+ 
+ using namespace facebook::react;
+ 
+diff --git a/node_modules/react-native-keyboard-controller/ios/views/KeyboardExtenderManager.mm b/node_modules/react-native-keyboard-controller/ios/views/KeyboardExtenderManager.mm
+index 18a504c..e0328a9 100644
+--- a/node_modules/react-native-keyboard-controller/ios/views/KeyboardExtenderManager.mm
++++ b/node_modules/react-native-keyboard-controller/ios/views/KeyboardExtenderManager.mm
+@@ -21,7 +21,7 @@
+ #import <react/renderer/components/RNKC/RCTComponentViewHelpers.h>
+ #import <react/renderer/components/RNKC/RNKCKeyboardExtenderComponentDescriptor.h>
+ 
+-#import "RCTFabricComponentsPlugins.h"
++#import <React/RCTFabricComponentsPlugins.h>
+ #endif
+ 
+ #import <React/RCTTouchHandler.h>
+diff --git a/node_modules/react-native-keyboard-controller/ios/views/KeyboardGestureAreaManager.mm b/node_modules/react-native-keyboard-controller/ios/views/KeyboardGestureAreaManager.mm
+index e582d3c..a528a23 100644
+--- a/node_modules/react-native-keyboard-controller/ios/views/KeyboardGestureAreaManager.mm
++++ b/node_modules/react-native-keyboard-controller/ios/views/KeyboardGestureAreaManager.mm
+@@ -19,7 +19,7 @@
+ #import <react/renderer/components/RNKC/RCTComponentViewHelpers.h>
+ #import <react/renderer/components/RNKC/RNKCKeyboardGestureAreaComponentDescriptor.h>
+ 
+-#import "RCTFabricComponentsPlugins.h"
++#import <React/RCTFabricComponentsPlugins.h>
+ #endif
+ 
+ #import <UIKit/UIKit.h>
+diff --git a/node_modules/react-native-keyboard-controller/ios/views/KeyboardToolbarGroupViewManager.mm b/node_modules/react-native-keyboard-controller/ios/views/KeyboardToolbarGroupViewManager.mm
+index 083a2fc..4512cb7 100644
+--- a/node_modules/react-native-keyboard-controller/ios/views/KeyboardToolbarGroupViewManager.mm
++++ b/node_modules/react-native-keyboard-controller/ios/views/KeyboardToolbarGroupViewManager.mm
+@@ -13,7 +13,7 @@
+ #import <react/renderer/components/RNKC/RCTComponentViewHelpers.h>
+ #import <react/renderer/components/RNKC/RNKCKeyboardToolbarGroupViewComponentDescriptor.h>
+ 
+-#import "RCTFabricComponentsPlugins.h"
++#import <React/RCTFabricComponentsPlugins.h>
+ #endif
+ 
+ #import <UIKit/UIKit.h>
+diff --git a/node_modules/react-native-keyboard-controller/ios/views/OverKeyboardViewManager.mm b/node_modules/react-native-keyboard-controller/ios/views/OverKeyboardViewManager.mm
+index 7388dee..b7c54bc 100644
+--- a/node_modules/react-native-keyboard-controller/ios/views/OverKeyboardViewManager.mm
++++ b/node_modules/react-native-keyboard-controller/ios/views/OverKeyboardViewManager.mm
+@@ -21,7 +21,7 @@
+ #import <react/renderer/components/RNKC/RCTComponentViewHelpers.h>
+ #import <react/renderer/components/RNKC/RNKCOverKeyboardViewComponentDescriptor.h>
+ 
+-#import "RCTFabricComponentsPlugins.h"
++#import <React/RCTFabricComponentsPlugins.h>
+ #endif
+ 
+ #import <React/RCTTouchHandler.h>
