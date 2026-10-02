@@ -589,6 +589,7 @@ const styles = StyleSheet.create({
   },
   skeletonValueBone: {
     width: 215,
+    flexShrink: 1,
     height: 24,
     borderRadius: 8,
   },
