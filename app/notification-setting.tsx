@@ -13,7 +13,11 @@ import { themeColors } from '@/constants/theme-colors';
 import { typography } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { handleNotificationToggle } from '@/hooks/use-notifications';
+import {
+  handleNotificationToggle,
+  hasAndroidExactAlarmPermission,
+  showExactAlarmPermissionAlert,
+} from '@/hooks/use-notifications';
 import { checkActiveChallengesNotifications, checkEndedChallenges } from '@/utils/challenge-utils';
 import {
   getChallengeNotificationsEnabled,
@@ -22,8 +26,8 @@ import {
   setGeneralNotificationsEnabled,
 } from '@/utils/notification-scheduler';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState, Platform, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function NotificationSettingScreen() {
@@ -35,16 +39,24 @@ export default function NotificationSettingScreen() {
   const [normalNotificationEnabled, setNormalNotificationEnabled] = useState(true);
   const [challengeNotificationEnabled, setChallengeNotificationEnabled] = useState(true);
 
+  /** 알람 및 리마인더 설정 화면에서 돌아오면 일반 알림 ON 이어서 처리 */
+  const exactAlarmPendingRef = useRef(false);
+
   useEffect(() => {
     const loadNotificationSettings = async () => {
       try {
         setLoading(true);
-        const [generalEnabled, challengeEnabled] = await Promise.all([
+        const [generalEnabled, challengeEnabled, exactAlarmOk] = await Promise.all([
           getGeneralNotificationsEnabled(),
           getChallengeNotificationsEnabled(),
+          hasAndroidExactAlarmPermission(),
         ]);
-        setNormalNotificationEnabled(generalEnabled);
+        const effectiveGeneral = generalEnabled && exactAlarmOk;
+        setNormalNotificationEnabled(effectiveGeneral);
         setChallengeNotificationEnabled(challengeEnabled);
+        if (generalEnabled !== effectiveGeneral) {
+          await setGeneralNotificationsEnabled(false);
+        }
       } finally {
         setLoading(false);
       }
@@ -52,6 +64,20 @@ export default function NotificationSettingScreen() {
 
     loadNotificationSettings();
   }, [setLoading]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return undefined;
+    const subscription = AppState.addEventListener('change', (next) => {
+      if (next !== 'active' || !exactAlarmPendingRef.current) return;
+      void (async () => {
+        if (!(await hasAndroidExactAlarmPermission())) return;
+        exactAlarmPendingRef.current = false;
+        setNormalNotificationEnabled(true);
+        await setGeneralNotificationsEnabled(true);
+      })();
+    });
+    return () => subscription.remove();
+  }, []);
 
   const handleBack = () => {
     router.back();
@@ -63,6 +89,14 @@ export default function NotificationSettingScreen() {
       if (!shouldEnable) {
         return;
       }
+      if (value && !(await hasAndroidExactAlarmPermission())) {
+        exactAlarmPendingRef.current = true;
+        showExactAlarmPermissionAlert(() => {
+          exactAlarmPendingRef.current = false;
+        });
+        return;
+      }
+      exactAlarmPendingRef.current = false;
       setNormalNotificationEnabled(value);
       await setGeneralNotificationsEnabled(value);
     },

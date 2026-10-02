@@ -14,9 +14,54 @@ import {
   setChallengeNotificationsEnabled,
   setGeneralNotificationsEnabled,
 } from '@/utils/notification-scheduler';
-import { Alert, Linking, PermissionsAndroid, Platform } from 'react-native';
+import { Alert, Linking, NativeModules, PermissionsAndroid, Platform } from 'react-native';
 
 const HAS_REQUESTED_PERMISSION_KEY = 'hasRequestedNotificationPermission';
+
+type ExactAlarmNativeModule = {
+  canScheduleExactAlarms?: () => Promise<boolean>;
+  openExactAlarmSettings?: () => Promise<void>;
+};
+
+const exactAlarmModule = NativeModules.WidgetDataSync as ExactAlarmNativeModule | undefined;
+
+/**
+ * Android 「알람 및 리마인더」 허용 여부.
+ * 미허용이면 expo-notifications가 정각 대신 최대 1시간 지연 예약으로 떨어진다.
+ * iOS·확인 불가는 true.
+ */
+export async function hasAndroidExactAlarmPermission(): Promise<boolean> {
+  if (Platform.OS !== 'android') return true;
+  const fn = exactAlarmModule?.canScheduleExactAlarms;
+  if (typeof fn !== 'function') return true;
+  try {
+    return (await fn.call(exactAlarmModule)) !== false;
+  } catch {
+    return true;
+  }
+}
+
+export function showExactAlarmPermissionAlert(onCancel?: () => void): void {
+  Alert.alert(
+    '알람 및 리마인더 권한 안내',
+    '정해진 시간에 알림을 보내기 위해 알람 및 리마인더 권한이 필요합니다. 권한을 허용해 주세요.',
+    [
+      { text: '취소', style: 'cancel', onPress: onCancel },
+      {
+        text: '설정으로 이동',
+        onPress: () => {
+          const fn = exactAlarmModule?.openExactAlarmSettings;
+          if (typeof fn === 'function') {
+            void fn.call(exactAlarmModule).catch(() => Linking.openSettings());
+          } else {
+            void Linking.openSettings();
+          }
+        },
+      },
+    ],
+    { cancelable: false },
+  );
+}
 
 /**
  * Request notification permission

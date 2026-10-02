@@ -43,7 +43,8 @@
       "allowBackup": false,
       "permissions": [
         "android.permission.POST_NOTIFICATIONS",
-        "android.permission.RECEIVE_SMS"
+        "android.permission.RECEIVE_SMS",
+        "android.permission.SCHEDULE_EXACT_ALARM"
       ],
       "runtimeVersion": "1.2.3"
     },

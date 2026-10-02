@@ -1,6 +1,12 @@
 package com.ssong.awallet.widget
 
+import android.app.AlarmManager
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
 import android.os.Handler
+import android.provider.Settings
 import android.os.Looper
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
@@ -214,6 +220,45 @@ class WidgetDataSyncModule(reactContext: ReactApplicationContext) :
         promise.resolve(null)
       } catch (e: Exception) {
         promise.reject("ERROR", "Failed to open SMS app notification settings: ${e.message}", e)
+      }
+    }
+  }
+
+  @ReactMethod
+  fun canScheduleExactAlarms(promise: Promise) {
+    try {
+      val enabled = Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+        (reactApplicationContext.getSystemService(Context.ALARM_SERVICE) as AlarmManager)
+          .canScheduleExactAlarms()
+      promise.resolve(enabled)
+    } catch (e: Exception) {
+      promise.reject("ERROR", "Failed to check exact alarm permission: ${e.message}", e)
+    }
+  }
+
+  @ReactMethod
+  fun openExactAlarmSettings(promise: Promise) {
+    UiThreadUtil.runOnUiThread {
+      val context = reactApplicationContext.applicationContext
+      val packageUri = Uri.parse("package:${context.packageName}")
+      try {
+        val action = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+          Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM
+        } else {
+          Settings.ACTION_APPLICATION_DETAILS_SETTINGS
+        }
+        context.startActivity(Intent(action, packageUri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        promise.resolve(null)
+      } catch (e: Exception) {
+        try {
+          context.startActivity(
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, packageUri)
+              .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+          )
+          promise.resolve(null)
+        } catch (fallbackError: Exception) {
+          promise.reject("ERROR", "Failed to open exact alarm settings: ${fallbackError.message}", fallbackError)
+        }
       }
     }
   }

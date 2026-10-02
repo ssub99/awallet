@@ -17,6 +17,11 @@ import { typography, typographyLayout } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
 import { useToast } from '@/contexts/toast-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import {
+  hasAndroidExactAlarmPermission,
+  showExactAlarmPermissionAlert,
+} from '@/hooks/use-notifications';
+import { setupDailyReminder } from '@/utils/notification-scheduler';
 import { normalizeSmsSender } from '@/utils/sms-inbox-parse';
 import {
   hasAndroidSmsReceivePermission,
@@ -124,6 +129,28 @@ export default function SettingsSmsReceiveScreen() {
     };
   }, [insets.bottom]);
 
+  const exactAlarmPendingRef = useRef(false);
+
+  const promptExactAlarmGuide = useCallback(() => {
+    exactAlarmPendingRef.current = true;
+    showExactAlarmPermissionAlert(() => {
+      exactAlarmPendingRef.current = false;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return undefined;
+    const subscription = AppState.addEventListener('change', (next) => {
+      if (next !== 'active' || !exactAlarmPendingRef.current) return;
+      void (async () => {
+        if (!(await hasAndroidExactAlarmPermission())) return;
+        exactAlarmPendingRef.current = false;
+        await setupDailyReminder();
+      })();
+    });
+    return () => subscription.remove();
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
@@ -147,6 +174,9 @@ export default function SettingsSmsReceiveScreen() {
         if (enabled !== effectiveEnabled) {
           await saveSmsReceiveEnabled(effectiveEnabled);
         }
+        if (!cancelled && !(await hasAndroidExactAlarmPermission())) {
+          promptExactAlarmGuide();
+        }
       } catch {
         if (!cancelled) {
           setSettingsReady(true);
@@ -157,13 +187,16 @@ export default function SettingsSmsReceiveScreen() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [promptExactAlarmGuide]);
 
   const finishAndroidEnable = useCallback(async () => {
     androidEnablePendingStepRef.current = null;
     setSmsReceiveEnabled(true);
     await saveSmsReceiveEnabled(true);
-  }, []);
+    if (!(await hasAndroidExactAlarmPermission())) {
+      promptExactAlarmGuide();
+    }
+  }, [promptExactAlarmGuide]);
 
   const promptMessagesNotificationGuide = useCallback(() => {
     androidEnablePendingStepRef.current = 'messages-notification';
