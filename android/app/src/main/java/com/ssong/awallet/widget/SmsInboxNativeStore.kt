@@ -3,6 +3,8 @@ package com.ssong.awallet.widget
 import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
+import java.io.RandomAccessFile
 import java.security.MessageDigest
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -10,8 +12,15 @@ import java.util.Locale
 import java.util.TimeZone
 import java.util.UUID
 
+/**
+ * 알림 리스너(:sms_listener 프로세스)와 앱 프로세스가 함께 쓰므로
+ * SharedPreferences(프로세스별 캐시) 대신 파일 + FileLock으로 매 호출 디스크에서 읽고 쓴다.
+ */
 object SmsInboxNativeStore {
+  /** 이전 버전 저장소. 최초 1회 파일로 이전 후 비운다. */
   private const val PREFS_NAME = "awallet_sms_inbox_native"
+  private const val STORE_FILE = "awallet_sms_inbox_native.json"
+  private const val LOCK_FILE = "awallet_sms_inbox_native.lock"
   private const val KEY_ENABLED = "enabled"
   private const val KEY_NUMBERS = "numbers"
   private const val KEY_PENDING = "pending"
@@ -41,24 +50,22 @@ object SmsInboxNativeStore {
     }
   }
 
-  @Synchronized
   fun syncSettings(context: Context, enabled: Boolean, numbers: List<String>) {
     val normalized = numbers
       .map(::normalizeSender)
       .filter(String::isNotEmpty)
       .distinct()
-    context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-      .edit()
-      .putBoolean(KEY_ENABLED, enabled)
-      .putString(KEY_NUMBERS, JSONArray(normalized).toString())
-      .apply()
+    transact(context) { state ->
+      state.put(KEY_ENABLED, enabled)
+      state.put(KEY_NUMBERS, JSONArray(normalized).toString())
+    }
   }
 
   fun describeSenderGate(context: Context, sender: String): SenderGateResult {
-    val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-    val enabled = prefs.getBoolean(KEY_ENABLED, false)
+    val (enabled, numbers) = transact(context) { state ->
+      state.optBoolean(KEY_ENABLED, false) to parseStringArray(state.str(KEY_NUMBERS))
+    }
     val normalizedSender = normalizeSender(sender)
-    val numbers = parseStringArray(prefs.getString(KEY_NUMBERS, null))
     if (!enabled) {
       return SenderGateResult(
         allowed = false,
@@ -128,21 +135,17 @@ object SmsInboxNativeStore {
   }
 
   fun isReceiveEnabled(context: Context): Boolean {
-    return context
-      .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-      .getBoolean(KEY_ENABLED, false)
+    return transact(context) { state -> state.optBoolean(KEY_ENABLED, false) }
   }
 
   fun allowedNumbers(context: Context): List<String> {
-    val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-    return parseStringArray(prefs.getString(KEY_NUMBERS, null))
+    return transact(context) { state -> parseStringArray(state.str(KEY_NUMBERS)) }
   }
 
   fun hasSupportedTransactionKeyword(body: String): Boolean {
     return SUPPORTED_TRANSACTION_KEYWORDS.any(body::contains)
   }
 
-  @Synchronized
   fun enqueue(context: Context, sender: String, body: String, receivedAt: Long): Boolean {
     val trimmedBody = body.trim()
     val trimmedSender = sender.trim()
@@ -150,15 +153,25 @@ object SmsInboxNativeStore {
       return false
     }
 
-    val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    return transact(context) { state ->
+      enqueueLocked(state, trimmedSender, trimmedBody, receivedAt)
+    }
+  }
+
+  private fun enqueueLocked(
+    state: JSONObject,
+    trimmedSender: String,
+    trimmedBody: String,
+    receivedAt: Long,
+  ): Boolean {
     val now = System.currentTimeMillis()
     val fingerprint = fingerprint(trimmedSender, trimmedBody, receivedAt)
-    val fingerprints = loadFingerprints(prefs.getString(KEY_FINGERPRINTS, null), now)
+    val fingerprints = loadFingerprints(state.str(KEY_FINGERPRINTS), now)
     if (fingerprints.any { it.first == fingerprint }) {
       return false
     }
 
-    val pending = loadPending(prefs.getString(KEY_PENDING, null)).toMutableList()
+    val pending = loadPending(state.str(KEY_PENDING)).toMutableList()
     val id = UUID.randomUUID().toString()
     pending.add(
       PendingItem(
@@ -172,35 +185,87 @@ object SmsInboxNativeStore {
     // ponytail: 대기 큐는 200건으로 제한한다. 실제 적체가 확인되면 파일 기반 큐로 확장한다.
     val boundedPending = pending.takeLast(MAX_PENDING_COUNT)
     val boundedFingerprints = (fingerprints + (fingerprint to now)).takeLast(MAX_FINGERPRINT_COUNT)
-    prefs.edit()
-      .putString(KEY_PENDING, pendingToJson(boundedPending).toString())
-      .putString(KEY_FINGERPRINTS, fingerprintsToJson(boundedFingerprints).toString())
-      .apply()
+    state.put(KEY_PENDING, pendingToJson(boundedPending).toString())
+    state.put(KEY_FINGERPRINTS, fingerprintsToJson(boundedFingerprints).toString())
     return true
   }
 
-  @Synchronized
   fun peek(context: Context): List<PendingItem> {
-    val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-    return loadPending(prefs.getString(KEY_PENDING, null))
+    return transact(context) { state -> loadPending(state.str(KEY_PENDING)) }
   }
 
-  @Synchronized
   fun acknowledge(context: Context, ids: Set<String>) {
     if (ids.isEmpty()) return
-    val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-    val remaining = loadPending(prefs.getString(KEY_PENDING, null))
-      .filterNot { ids.contains(it.id) }
-    prefs.edit().putString(KEY_PENDING, pendingToJson(remaining).toString()).apply()
+    transact(context) { state ->
+      val remaining = loadPending(state.str(KEY_PENDING))
+        .filterNot { ids.contains(it.id) }
+      state.put(KEY_PENDING, pendingToJson(remaining).toString())
+    }
   }
 
-  @Synchronized
   fun clear(context: Context) {
-    context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-      .edit()
-      .clear()
-      .apply()
+    transact(context) { state ->
+      state.keys().asSequence().toList().forEach(state::remove)
+    }
   }
+
+  /**
+   * 프로세스 간 FileLock + 프로세스 내 @Synchronized(같은 JVM에서 FileLock 중복 획득 시 예외) 아래에서
+   * 저장소를 디스크에서 읽고, [block]이 상태를 바꿨으면 원자적으로 다시 쓴다.
+   */
+  @Synchronized
+  private fun <T> transact(context: Context, block: (JSONObject) -> T): T {
+    val dir = context.applicationContext.filesDir
+    RandomAccessFile(File(dir, LOCK_FILE), "rw").use { lockFile ->
+      val lock = lockFile.channel.lock()
+      try {
+        val file = File(dir, STORE_FILE)
+        val existed = file.exists()
+        val state = if (existed) readState(file) else migrateLegacyPrefs(context)
+        val before = state.toString()
+        val result = block(state)
+        val after = state.toString()
+        if (!existed || after != before) {
+          writeStateAtomic(file, after)
+        }
+        if (!existed) {
+          context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().clear().commit()
+        }
+        return result
+      } finally {
+        lock.release()
+      }
+    }
+  }
+
+  private fun readState(file: File): JSONObject {
+    return try {
+      JSONObject(file.readText(Charsets.UTF_8))
+    } catch (_: Exception) {
+      JSONObject()
+    }
+  }
+
+  private fun writeStateAtomic(file: File, json: String) {
+    val tmp = File(file.parentFile, "${file.name}.tmp")
+    tmp.writeText(json, Charsets.UTF_8)
+    if (!tmp.renameTo(file)) {
+      file.writeText(json, Charsets.UTF_8)
+      tmp.delete()
+    }
+  }
+
+  private fun migrateLegacyPrefs(context: Context): JSONObject {
+    val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    val state = JSONObject()
+    if (prefs.contains(KEY_ENABLED)) state.put(KEY_ENABLED, prefs.getBoolean(KEY_ENABLED, false))
+    prefs.getString(KEY_NUMBERS, null)?.let { state.put(KEY_NUMBERS, it) }
+    prefs.getString(KEY_PENDING, null)?.let { state.put(KEY_PENDING, it) }
+    prefs.getString(KEY_FINGERPRINTS, null)?.let { state.put(KEY_FINGERPRINTS, it) }
+    return state
+  }
+
+  private fun JSONObject.str(key: String): String? = if (has(key)) optString(key) else null
 
   internal fun normalizeSender(raw: String): String {
     var digits = raw.filter(Char::isDigit)

@@ -59,7 +59,7 @@ class SmsInboxNotificationListener : NotificationListenerService() {
 
     val receivedAt = sbn.postTime.takeIf { it > 0L } ?: System.currentTimeMillis()
     if (SmsInboxNativeStore.enqueue(context, sender, body, receivedAt)) {
-      SmsInboxNativeEventEmitter.emitPendingEnqueued()
+      SmsInboxNativeEventEmitter.notifyFromOtherProcess(context)
     }
   }
 
