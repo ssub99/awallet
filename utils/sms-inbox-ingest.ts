@@ -4,6 +4,7 @@
  * 발신 필터 1차: iOS 메시지 자동화 트리거.
  * 발신 필터 2차: 앱 수신번호 allowlist — sender가 넘어온 경우에만.
  * sender가 비어 있으면 자동화 필터를 신뢰하고 본문만으로 적재한다.
+ * source가 'app'(iOS 알림 수신함 Intent)이면 앱 알림 수신 ON만 확인한다.
  */
 
 import {
@@ -18,11 +19,17 @@ import {
   normalizeSmsOriginalBody,
   type SmsInboxIngestResult,
 } from '@/utils/sms-inbox-store';
-import { loadSmsReceiveEnabled, loadSmsReceiveNumbers } from '@/utils/sms-receive-settings';
+import {
+  loadAppNotificationReceiveEnabled,
+  loadSmsReceiveEnabled,
+  loadSmsReceiveNumbers,
+} from '@/utils/sms-receive-settings';
 
 export type SmsInboxIngestInput = {
   body: string;
   sender: string;
+  /** 'app' = iOS 알림 수신함 Intent. 생략 시 문자 */
+  source?: 'sms' | 'app';
 };
 
 export type SmsInboxIngestGateResult =
@@ -38,6 +45,18 @@ export async function ingestSmsInboxMessage(
 
   if (!body) {
     return { ok: false, reason: 'empty-body' };
+  }
+
+  // 앱 알림: 단축어에서 고른 앱이 1차 필터 → 수신번호 allowlist 미사용
+  if (input.source === 'app') {
+    if (!(await loadAppNotificationReceiveEnabled())) {
+      return { ok: false, reason: 'disabled' };
+    }
+    const parsedApp = parseSmsInboxBody(body);
+    if (parsedApp.kind === 'ignore') {
+      return { ok: false, reason: parsedApp.reason };
+    }
+    return ingestParsedSms({ sender: sender || '앱 알림', body, parsed: parsedApp });
   }
 
   const enabled = await loadSmsReceiveEnabled();

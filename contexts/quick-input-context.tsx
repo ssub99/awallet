@@ -55,7 +55,7 @@ import {
 import { markSmsInboxPushConverted } from '@/utils/sms-inbox-push-ledger';
 import { flushPendingSmsInboxFromNative } from '@/utils/sms-inbox-native-queue';
 import {
-  loadSmsReceiveEnabled,
+  loadSmsInboxReceiveEnabled,
   subscribeSmsReceiveEnabled,
 } from '@/utils/sms-receive-settings';
 import {
@@ -1450,7 +1450,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
 
   useEffect(() => {
     let cancelled = false;
-    void loadSmsReceiveEnabled().then((enabled) => {
+    void loadSmsInboxReceiveEnabled().then((enabled) => {
       if (!cancelled) {
         setSmsReceiveEnabled(enabled);
       }

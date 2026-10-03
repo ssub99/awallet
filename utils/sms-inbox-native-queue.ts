@@ -9,6 +9,8 @@ export type PendingSmsInboxNativeItem = {
   id?: string;
   body?: string;
   sender?: string;
+  /** iOS: "app" = 알림 수신함 Intent. 없으면 문자 */
+  source?: string;
   enqueuedAt?: string;
 };
 
@@ -76,7 +78,11 @@ export function flushPendingSmsInboxFromNative(): Promise<number> {
       const body = normalizeSmsOriginalBody(entry.body ?? '');
       const sender = (entry.sender ?? '').trim();
       try {
-        const result = await ingestSmsInboxMessage({ body, sender });
+        const result = await ingestSmsInboxMessage({
+          body,
+          sender,
+          source: entry.source === 'app' ? 'app' : 'sms',
+        });
         if (result.ok) {
           if (entry.id) {
             await acknowledgePendingItems([entry.id]);

@@ -35,9 +35,11 @@ import {
   openAndroidSmsInboxNotificationAccessSettings,
 } from '@/utils/android-sms-inbox-notification-access';
 import {
+  loadAppNotificationReceiveEnabled,
   loadSmsReceiveDisclosureAccepted,
   loadSmsReceiveEnabled,
   loadSmsReceiveNumbers,
+  saveAppNotificationReceiveEnabled,
   saveSmsReceiveDisclosureAccepted,
   saveSmsReceiveEnabled,
   saveSmsReceiveNumbers,
@@ -84,6 +86,10 @@ const SMS_DISCLOSURE_MESSAGE =
 
 type AndroidEnablePendingStep = 'notification-access' | 'messages-notification' | null;
 
+/** 단축어「알림 수신」자동화 트리거는 iOS 27+ */
+const SUPPORTS_APP_NOTIFICATION_RECEIVE =
+  Platform.OS === 'ios' && Number.parseInt(String(Platform.Version), 10) >= 27;
+
 export default function SettingsSmsReceiveScreen() {
   const colorScheme = useColorScheme();
   const colors = themeColors[colorScheme ?? 'light'];
@@ -104,6 +110,7 @@ export default function SettingsSmsReceiveScreen() {
 
   const [settingsReady, setSettingsReady] = useState(false);
   const [smsReceiveEnabled, setSmsReceiveEnabled] = useState(false);
+  const [appNotificationReceiveEnabled, setAppNotificationReceiveEnabled] = useState(false);
   const [numbers, setNumbers] = useState<string[]>([]);
   const [addOverlayVisible, setAddOverlayVisible] = useState(false);
   /** 닫을 때 입력란만 먼저 언마운트(키패드 follow 없이 그 자리 소거) */
@@ -155,11 +162,13 @@ export default function SettingsSmsReceiveScreen() {
     let cancelled = false;
     const load = async () => {
       try {
-        const [enabled, storedNumbers] = await Promise.all([
+        const [enabled, storedNumbers, appEnabled] = await Promise.all([
           loadSmsReceiveEnabled(),
           loadSmsReceiveNumbers(),
+          loadAppNotificationReceiveEnabled(),
         ]);
         if (cancelled) return;
+        setAppNotificationReceiveEnabled(appEnabled && SUPPORTS_APP_NOTIFICATION_RECEIVE);
 
         const canReceive =
           Platform.OS !== 'android' ||
@@ -192,6 +201,7 @@ export default function SettingsSmsReceiveScreen() {
   const finishAndroidEnable = useCallback(async () => {
     androidEnablePendingStepRef.current = null;
     setSmsReceiveEnabled(true);
+    setAppNotificationReceiveEnabled(false);
     await saveSmsReceiveEnabled(true);
     if (!(await hasAndroidExactAlarmPermission())) {
       promptExactAlarmGuide();
@@ -418,6 +428,17 @@ export default function SettingsSmsReceiveScreen() {
     promptMessagesNotificationGuide,
     showSmsDisclosureAlert,
   ]);
+
+  const handleAppNotificationToggle = useCallback(
+    async (value: boolean) => {
+      setAppNotificationReceiveEnabled(value);
+      if (value && smsReceiveEnabled) {
+        await handleToggle(false);
+      }
+      await saveAppNotificationReceiveEnabled(value);
+    },
+    [handleToggle, smsReceiveEnabled],
+  );
 
   const handlePermissionGuidePress = useCallback(() => {
     Alert.alert(
@@ -695,6 +716,44 @@ export default function SettingsSmsReceiveScreen() {
             </>
           ) : null}
         </View>
+
+        {/* 임시 UI (시안 전): iOS 27+ 앱 알림 수신 — 문자 수신과 상호 배타 */}
+        {SUPPORTS_APP_NOTIFICATION_RECEIVE ? (
+          <View style={[styles.card, { backgroundColor: colors.staticWhite }]}>
+            <View style={styles.toggleBlock}>
+              <View style={styles.toggleRow}>
+                <UiLineText style={{ color: colors.text }}>앱 알림 수신</UiLineText>
+                <Switch
+                  value={appNotificationReceiveEnabled}
+                  onValueChange={(v) => void handleAppNotificationToggle(v)}
+                  accessibilityLabel="앱 알림 수신"
+                />
+              </View>
+              <UiLineText style={[styles.caption, { color: colors.textAssistive }]}>
+                카드사·은행 앱 알림을 수신하여 기록으로 생성합니다. 문자 수신과 함께 사용할 수 없습니다.
+              </UiLineText>
+            </View>
+            {appNotificationReceiveEnabled ? (
+              <>
+                <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                <Pressable
+                  style={styles.toggleBlock}
+                  onPress={() => void Linking.openURL('shortcuts://')}
+                  accessibilityRole="button"
+                  accessibilityLabel="단축어 앱 열기"
+                >
+                  <View style={styles.toggleRow}>
+                    <UiLineText style={{ color: colors.text }}>단축어 앱 열기</UiLineText>
+                    <Icon name="arrowRight" size={24} color={colors.staticBlack} />
+                  </View>
+                  <UiLineText style={[styles.caption, { color: colors.textAssistive }]}>
+                    앱 알림의 내용을 전달하여 문자 수신함에 적재합니다.
+                  </UiLineText>
+                </Pressable>
+              </>
+            ) : null}
+          </View>
+        ) : null}
 
         {smsReceiveEnabled ? (
           <>

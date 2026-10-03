@@ -6,6 +6,8 @@ import { NativeModules, Platform } from 'react-native';
 export const SMS_RECEIVE_ENABLED_KEY = '@awallet/smsReceiveEnabled';
 export const SMS_RECEIVE_NUMBERS_KEY = '@awallet/smsReceiveNumbers';
 export const SMS_RECEIVE_DISCLOSURE_ACCEPTED_KEY = '@awallet/smsReceiveDisclosureAccepted';
+/** iOS 27+ 앱 알림 수신. 문자 수신과 상호 배타. */
+export const APP_NOTIFICATION_RECEIVE_ENABLED_KEY = '@awallet/appNotificationReceiveEnabled';
 
 type SmsReceiveNativeModule = {
   syncSmsReceiveSettings?: (enabled: boolean, numbers: string[]) => Promise<void>;
@@ -17,7 +19,7 @@ const smsReceiveNative = NativeModules.WidgetDataSync as SmsReceiveNativeModule 
 type SmsReceiveEnabledListener = (enabled: boolean) => void;
 const enabledListeners = new Set<SmsReceiveEnabledListener>();
 
-/** 수신 ON/OFF 변경 구독 (간편생성 칩·숏 뱃지 즉시 반영) */
+/** 수신함 수신(문자 또는 앱 알림) ON/OFF 변경 구독 (간편생성 칩·숏 뱃지 즉시 반영) */
 export function subscribeSmsReceiveEnabled(listener: SmsReceiveEnabledListener): () => void {
   enabledListeners.add(listener);
   return () => {
@@ -31,8 +33,8 @@ function notifySmsReceiveEnabled(enabled: boolean): void {
   });
 }
 
-export async function loadSmsReceiveEnabled(): Promise<boolean> {
-  const raw = await AsyncStorage.getItem(SMS_RECEIVE_ENABLED_KEY);
+async function loadBooleanFlag(key: string): Promise<boolean> {
+  const raw = await AsyncStorage.getItem(key);
   if (raw === null) return false;
   try {
     return JSON.parse(raw) === true;
@@ -41,10 +43,39 @@ export async function loadSmsReceiveEnabled(): Promise<boolean> {
   }
 }
 
+export async function loadSmsReceiveEnabled(): Promise<boolean> {
+  return loadBooleanFlag(SMS_RECEIVE_ENABLED_KEY);
+}
+
+export async function loadAppNotificationReceiveEnabled(): Promise<boolean> {
+  return loadBooleanFlag(APP_NOTIFICATION_RECEIVE_ENABLED_KEY);
+}
+
+/** 수신함 진입 노출 기준 — 문자 또는 앱 알림 중 하나라도 ON */
+export async function loadSmsInboxReceiveEnabled(): Promise<boolean> {
+  const [sms, app] = await Promise.all([
+    loadSmsReceiveEnabled(),
+    loadAppNotificationReceiveEnabled(),
+  ]);
+  return sms || app;
+}
+
 export async function saveSmsReceiveEnabled(enabled: boolean): Promise<void> {
   await AsyncStorage.setItem(SMS_RECEIVE_ENABLED_KEY, JSON.stringify(enabled));
+  if (enabled) {
+    await AsyncStorage.setItem(APP_NOTIFICATION_RECEIVE_ENABLED_KEY, JSON.stringify(false));
+  }
   await syncSmsReceiveSettingsToNative();
-  notifySmsReceiveEnabled(enabled);
+  notifySmsReceiveEnabled(await loadSmsInboxReceiveEnabled());
+}
+
+export async function saveAppNotificationReceiveEnabled(enabled: boolean): Promise<void> {
+  await AsyncStorage.setItem(APP_NOTIFICATION_RECEIVE_ENABLED_KEY, JSON.stringify(enabled));
+  if (enabled) {
+    await AsyncStorage.setItem(SMS_RECEIVE_ENABLED_KEY, JSON.stringify(false));
+    await syncSmsReceiveSettingsToNative();
+  }
+  notifySmsReceiveEnabled(await loadSmsInboxReceiveEnabled());
 }
 
 export async function loadSmsReceiveNumbers(): Promise<string[]> {

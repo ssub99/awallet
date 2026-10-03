@@ -228,7 +228,8 @@ enum SmsInboxAppGroupQueue {
 
   static let lastIntentKey = "smsInboxLastIntent"
 
-  static func enqueue(body: String, sender: String = "") {
+  /// source: "sms"(문자 수신함 Intent) | "app"(알림 수신함 Intent) — JS가 수신 설정 분기에 사용
+  static func enqueue(body: String, sender: String = "", source: String = "sms") {
     let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else {
       recordLastIntent(ok: false, reason: "empty-body", sender: sender)
@@ -245,6 +246,7 @@ enum SmsInboxAppGroupQueue {
       "id": UUID().uuidString,
       "body": trimmed,
       "sender": senderTrimmed,
+      "source": source,
       "enqueuedAt": ISO8601DateFormatter().string(from: Date()),
     ])
     defaults.set(queue, forKey: storageKey)

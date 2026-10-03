@@ -25,6 +25,7 @@ import { QUICK_INPUT_TIP_BOX_EXPANDED_KEY } from '@/utils/quick-input-tip-prefer
 import { SMS_INBOX_ITEMS_KEY } from '@/utils/sms-inbox-store';
 import { SMS_INBOX_PUSH_LEDGER_KEY } from '@/utils/sms-inbox-push-ledger';
 import {
+  APP_NOTIFICATION_RECEIVE_ENABLED_KEY,
   clearSmsReceiveNativeState,
   SMS_RECEIVE_DISCLOSURE_ACCEPTED_KEY,
   SMS_RECEIVE_ENABLED_KEY,
@@ -59,6 +60,7 @@ const KEYS_TO_REMOVE = [
   SMS_RECEIVE_ENABLED_KEY,
   SMS_RECEIVE_NUMBERS_KEY,
   SMS_RECEIVE_DISCLOSURE_ACCEPTED_KEY,
+  APP_NOTIFICATION_RECEIVE_ENABLED_KEY,
 ];
 
 /**

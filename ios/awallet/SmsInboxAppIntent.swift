@@ -54,6 +54,54 @@ struct IngestSmsInboxIntent: AppIntent {
   }
 }
 
+/// iOS 27+ 단축어「앱에서 알림을 수신할 때」자동화용. 문자 수신함과 단축어·설정 모두 분리.
+/// 제목·본문을 합쳐 source "app"으로 같은 App Group 큐에 기록 → JS가 앱 알림 수신 설정으로 분기.
+@available(iOS 17.0, *)
+struct IngestAppNotificationIntent: AppIntent {
+  static var title: LocalizedStringResource = "알림 수신함"
+  static var description = IntentDescription(
+    "알림 자동화로 받은 카드사·은행 앱 알림을 에이월렛 문자 수신함 가기록으로 전달합니다."
+  )
+  static var openAppWhenRun: Bool = false
+
+  @Parameter(
+    title: "제목",
+    description: "알림 제목. 자동화에서「알림」의 제목을 연결하세요.",
+    default: ""
+  )
+  var notificationTitle: String
+
+  @Parameter(
+    title: "본문",
+    description: "알림 본문. 자동화에서「알림」의 본문을 연결하세요."
+  )
+  var body: String
+
+  @Parameter(
+    title: "앱 이름",
+    description: "수신함에 표시할 앱 이름 (선택).",
+    default: ""
+  )
+  var appName: String
+
+  static var parameterSummary: some ParameterSummary {
+    Summary("알림 수신함") {
+      \.$notificationTitle
+      \.$body
+      \.$appName
+    }
+  }
+
+  func perform() async throws -> some IntentResult {
+    let combined = [notificationTitle, body]
+      .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+      .filter { !$0.isEmpty }
+      .joined(separator: "\n")
+    SmsInboxAppGroupQueue.enqueue(body: combined, sender: appName, source: "app")
+    return .result()
+  }
+}
+
 @available(iOS 17.0, *)
 struct SmsInboxAppShortcuts: AppShortcutsProvider {
   static var appShortcuts: [AppShortcut] {
@@ -64,6 +112,14 @@ struct SmsInboxAppShortcuts: AppShortcutsProvider {
       ],
       shortTitle: "문자 수신함",
       systemImageName: "envelope.badge"
+    )
+    AppShortcut(
+      intent: IngestAppNotificationIntent(),
+      phrases: [
+        "\(.applicationName) 알림 수신함",
+      ],
+      shortTitle: "알림 수신함",
+      systemImageName: "bell.badge"
     )
   }
 }
