@@ -49,7 +49,7 @@ struct IngestSmsInboxIntent: AppIntent {
 
   func perform() async throws -> some IntentResult {
     // 빈 본문·App Group 실패도 enqueue 내부에서 lastIntent로 남긴다 (조용한 유실 방지).
-    SmsInboxAppGroupQueue.enqueue(body: body, sender: sender)
+    RecordInboxAppGroupQueue.enqueue(body: body, sender: sender)
     return .result()
   }
 }
@@ -97,7 +97,7 @@ struct IngestAppNotificationIntent: AppIntent {
       .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
       .filter { !$0.isEmpty }
       .joined(separator: "\n")
-    SmsInboxAppGroupQueue.enqueue(body: combined, sender: appName, source: "app")
+    RecordInboxAppGroupQueue.enqueue(body: combined, sender: appName, source: "app")
     return .result()
   }
 }

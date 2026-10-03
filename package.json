@@ -28,8 +28,8 @@
     "try:parse": "npx tsx scripts/try-parse-expense.ts",
     "verify:reviews": "npx tsx scripts/verify-parse-expense-reviews.ts",
     "verify:recurring-month": "npx tsx scripts/verify-recurring-month-anchor.ts",
-    "verify:sms-inbox-stack": "npx tsx scripts/verify-sms-inbox-stack-frame.ts",
-    "verify:sms-inbox-parse": "npx tsx scripts/verify-sms-inbox-parse.ts",
+    "verify:record-inbox-stack": "npx tsx scripts/verify-record-inbox-stack-frame.ts",
+    "verify:record-inbox-parse": "npx tsx scripts/verify-record-inbox-parse.ts",
     "eas": "eas",
     "postinstall": "bash scripts/postinstall.sh"
   },

@@ -7,10 +7,11 @@
 import { ModalBottomsheet } from '@/components/ui/modal-bottomsheet';
 import { atomicColors } from '@/constants/atomic-colors';
 import {
-  SMS_INBOX_SETUP_GUIDE_IMAGE_ASPECT,
-  SMS_INBOX_SETUP_GUIDE_IMAGE_RADIUS,
-  SMS_INBOX_SETUP_GUIDE_STEPS,
-} from '@/constants/sms-inbox-setup-guide';
+  SMS_RECEIVE_SETUP_GUIDE_IMAGE_ASPECT,
+  SMS_RECEIVE_SETUP_GUIDE_IMAGE_RADIUS,
+  SMS_RECEIVE_SETUP_GUIDE_STEPS,
+  type SmsReceiveSetupGuideStep,
+} from '@/constants/sms-receive-setup-guide';
 import { themeColors } from '@/constants/theme-colors';
 import { typography } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -27,9 +28,11 @@ import {
   type ViewToken,
 } from 'react-native';
 
-export type SmsInboxSetupGuideSheetProps = {
+export type SmsReceiveSetupGuideSheetProps = {
   visible: boolean;
   onClose: () => void;
+  title?: string;
+  steps?: readonly SmsReceiveSetupGuideStep[];
 };
 
 const DOT_SIZE = 10;
@@ -38,12 +41,18 @@ const DOT_GAP = 4;
 const IMAGE_WIDTH_RATIO = 299 / 343;
 /** 작은 기기에서 시트가 넘치지 않도록 이미지 높이 상한 */
 const IMAGE_MAX_HEIGHT_RATIO = 0.48;
+const VIEWABILITY_CONFIG = { viewAreaCoveragePercentThreshold: 60 };
 
-export function SmsInboxSetupGuideSheet({ visible, onClose }: SmsInboxSetupGuideSheetProps) {
+export function SmsReceiveSetupGuideSheet({
+  visible,
+  onClose,
+  title = '문자 수신함 설정 가이드',
+  steps = SMS_RECEIVE_SETUP_GUIDE_STEPS,
+}: SmsReceiveSetupGuideSheetProps) {
   const colorScheme = useColorScheme();
   const colors = themeColors[colorScheme ?? 'light'];
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
-  const listRef = useRef<FlatList<(typeof SMS_INBOX_SETUP_GUIDE_STEPS)[number]>>(null);
+  const listRef = useRef<FlatList<SmsReceiveSetupGuideStep>>(null);
 
   const [pageIndex, setPageIndex] = useState(0);
   /** onLayout 전에도 시트 content 폭(윈도우−패딩)으로 그려 빈 Neutral 박스가 남지 않게 함 */
@@ -56,18 +65,25 @@ export function SmsInboxSetupGuideSheet({ visible, onClose }: SmsInboxSetupGuide
     }
     const byRatio = width * IMAGE_WIDTH_RATIO;
     const maxByHeight =
-      Math.max(windowHeight, 1) * IMAGE_MAX_HEIGHT_RATIO * SMS_INBOX_SETUP_GUIDE_IMAGE_ASPECT;
+      Math.max(windowHeight, 1) * IMAGE_MAX_HEIGHT_RATIO * SMS_RECEIVE_SETUP_GUIDE_IMAGE_ASPECT;
     return Math.min(width, byRatio, maxByHeight);
   }, [pageWidth, windowHeight, windowWidth]);
 
-  const imageHeight = imageWidth > 0 ? imageWidth / SMS_INBOX_SETUP_GUIDE_IMAGE_ASPECT : 0;
+  const imageHeight = imageWidth > 0 ? imageWidth / SMS_RECEIVE_SETUP_GUIDE_IMAGE_ASPECT : 0;
   const listWidth = pageWidth > 0 ? pageWidth : Math.max(0, Math.round(windowWidth - 32));
+
+  const [prevVisible, setPrevVisible] = useState(visible);
+  if (visible !== prevVisible) {
+    setPrevVisible(visible);
+    if (visible) {
+      setPageIndex(0);
+    }
+  }
 
   useEffect(() => {
     if (!visible) {
       return;
     }
-    setPageIndex(0);
     const timer = setTimeout(() => {
       listRef.current?.scrollToOffset({ offset: 0, animated: false });
     }, 0);
@@ -78,16 +94,15 @@ export function SmsInboxSetupGuideSheet({ visible, onClose }: SmsInboxSetupGuide
     onClose();
   }, [onClose]);
 
-  const onViewableItemsChanged = useRef(
+  const onViewableItemsChanged = useCallback(
     ({ viewableItems }: { viewableItems: ViewToken[] }) => {
       const first = viewableItems[0];
       if (first?.index != null) {
         setPageIndex(first.index);
       }
     },
-  ).current;
-
-  const viewabilityConfig = useRef({ viewAreaCoveragePercentThreshold: 60 }).current;
+    [],
+  );
 
   const handleScrollEnd = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -96,19 +111,19 @@ export function SmsInboxSetupGuideSheet({ visible, onClose }: SmsInboxSetupGuide
         return;
       }
       const next = Math.round(event.nativeEvent.contentOffset.x / width);
-      if (next >= 0 && next < SMS_INBOX_SETUP_GUIDE_STEPS.length) {
+      if (next >= 0 && next < steps.length) {
         setPageIndex(next);
       }
     },
-    [pageWidth, windowWidth],
+    [pageWidth, steps.length, windowWidth],
   );
 
-  const step = SMS_INBOX_SETUP_GUIDE_STEPS[pageIndex] ?? SMS_INBOX_SETUP_GUIDE_STEPS[0];
+  const step = steps[pageIndex] ?? steps[0];
 
   return (
     <ModalBottomsheet
       visible={visible}
-      title="문자 수신함 설정 가이드"
+      title={title}
       onClose={handleClose}
       showHandle
       resizable
@@ -135,9 +150,9 @@ export function SmsInboxSetupGuideSheet({ visible, onClose }: SmsInboxSetupGuide
         <View
           style={styles.dots}
           accessibilityRole="adjustable"
-          accessibilityLabel={`가이드 ${pageIndex + 1} / ${SMS_INBOX_SETUP_GUIDE_STEPS.length}`}
+          accessibilityLabel={`가이드 ${pageIndex + 1} / ${steps.length}`}
         >
-          {SMS_INBOX_SETUP_GUIDE_STEPS.map((item, index) => (
+          {steps.map((item, index) => (
             <View
               key={item.id}
               style={[
@@ -154,7 +169,7 @@ export function SmsInboxSetupGuideSheet({ visible, onClose }: SmsInboxSetupGuide
         {listWidth > 0 && imageWidth > 0 ? (
           <FlatList
             ref={listRef}
-            data={[...SMS_INBOX_SETUP_GUIDE_STEPS]}
+            data={[...steps]}
             keyExtractor={(item) => item.id}
             horizontal
             pagingEnabled
@@ -169,7 +184,7 @@ export function SmsInboxSetupGuideSheet({ visible, onClose }: SmsInboxSetupGuide
             })}
             onMomentumScrollEnd={handleScrollEnd}
             onViewableItemsChanged={onViewableItemsChanged}
-            viewabilityConfig={viewabilityConfig}
+            viewabilityConfig={VIEWABILITY_CONFIG}
             renderItem={({ item }) => (
               <View style={[styles.page, { width: listWidth }]}>
                 <View
@@ -179,7 +194,7 @@ export function SmsInboxSetupGuideSheet({ visible, onClose }: SmsInboxSetupGuide
                       width: imageWidth,
                       height: imageHeight,
                       backgroundColor: atomicColors.neutral[200],
-                      borderRadius: SMS_INBOX_SETUP_GUIDE_IMAGE_RADIUS,
+                      borderRadius: SMS_RECEIVE_SETUP_GUIDE_IMAGE_RADIUS,
                       borderColor: atomicColors.neutral[300],
                     },
                   ]}
@@ -202,7 +217,7 @@ export function SmsInboxSetupGuideSheet({ visible, onClose }: SmsInboxSetupGuide
               styles.imageBodyPlaceholder,
               {
                 backgroundColor: atomicColors.neutral[200],
-                borderRadius: SMS_INBOX_SETUP_GUIDE_IMAGE_RADIUS,
+                borderRadius: SMS_RECEIVE_SETUP_GUIDE_IMAGE_RADIUS,
                 borderColor: atomicColors.neutral[300],
               },
             ]}
@@ -258,7 +273,7 @@ const styles = StyleSheet.create({
   },
   imageBodyPlaceholder: {
     width: '100%',
-    aspectRatio: SMS_INBOX_SETUP_GUIDE_IMAGE_ASPECT,
+    aspectRatio: SMS_RECEIVE_SETUP_GUIDE_IMAGE_ASPECT,
     overflow: 'hidden',
     borderWidth: 1,
   },

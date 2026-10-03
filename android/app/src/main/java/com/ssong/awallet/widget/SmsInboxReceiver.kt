@@ -21,7 +21,7 @@ class SmsInboxReceiver : BroadcastReceiver() {
       return
     }
 
-    if (!SmsInboxNativeStore.isSenderAllowed(context, sender)) {
+    if (!RecordInboxNativeStore.isSenderAllowed(context, sender)) {
       return
     }
 
@@ -30,13 +30,13 @@ class SmsInboxReceiver : BroadcastReceiver() {
       return
     }
 
-    if (!SmsInboxNativeStore.hasSupportedTransactionKeyword(body)) {
+    if (!RecordInboxNativeStore.hasSupportedTransactionKeyword(body)) {
       return
     }
 
     val receivedAt = messages.minOfOrNull { it.timestampMillis } ?: System.currentTimeMillis()
-    if (SmsInboxNativeStore.enqueue(context, sender, body, receivedAt)) {
-      SmsInboxNativeEventEmitter.emitPendingEnqueued()
+    if (RecordInboxNativeStore.enqueue(context, sender, body, receivedAt)) {
+      RecordInboxNativeEventEmitter.emitPendingEnqueued()
     }
   }
 }

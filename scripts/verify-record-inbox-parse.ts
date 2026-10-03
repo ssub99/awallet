@@ -8,12 +8,12 @@ import {
   formatSmsSenderDisplay,
   isSenderAllowed,
   normalizeSmsSender,
-  parseSmsInboxBody,
+  parseRecordInboxBody,
   restoreSmsSenderFromQueryParam,
-} from '../utils/sms-inbox-parse';
-import { findCancelMatch } from '../utils/sms-inbox-store';
-import type { SmsInboxItem } from '../utils/sms-inbox-types';
-import { buildConfirmCardFromSmsFields } from '../utils/sms-inbox-card';
+} from '../utils/record-inbox-parse';
+import { findCancelMatch } from '../utils/record-inbox-store';
+import type { RecordInboxItem } from '../utils/record-inbox-types';
+import { buildConfirmCardFromRecordInboxFields } from '../utils/record-inbox-card';
 
 function assert(cond: unknown, msg: string): asserts cond {
   if (!cond) throw new Error(msg);
@@ -39,7 +39,7 @@ const CHECK_WITHDRAW = `[Web발신]
 13,000`;
 
 function main(): void {
-  const approval = parseSmsInboxBody(APPROVAL_MULTILINE, new Date(2026, 8, 14));
+  const approval = parseRecordInboxBody(APPROVAL_MULTILINE, new Date(2026, 8, 14));
   assert(approval.kind === 'approval', `approval kind: ${approval.kind}`);
   if (approval.kind === 'approval') {
     assert(approval.amount === 44730, `approval amount: ${approval.amount}`);
@@ -47,17 +47,17 @@ function main(): void {
     assert(approval.cardHint === '3757', `approval hint: ${approval.cardHint}`);
   }
 
-  const cancel = parseSmsInboxBody(CANCEL_BRACKET);
+  const cancel = parseRecordInboxBody(CANCEL_BRACKET);
   assert(cancel.kind === 'cancel', `cancel kind: ${cancel.kind}`);
   if (cancel.kind === 'cancel') {
     assert(cancel.amount === 872000, `cancel amount: ${cancel.amount}`);
   }
 
   // 승인취소 → cancel (취소 우선)
-  const approveCancel = parseSmsInboxBody('에이월렛카드 승인취소 10,000원 09/10 12:00 테스트');
+  const approveCancel = parseRecordInboxBody('에이월렛카드 승인취소 10,000원 09/10 12:00 테스트');
   assert(approveCancel.kind === 'cancel', `승인취소 must be cancel: ${approveCancel.kind}`);
 
-  const check = parseSmsInboxBody(CHECK_WITHDRAW);
+  const check = parseRecordInboxBody(CHECK_WITHDRAW);
   assert(check.kind === 'approval', `check kind: ${check.kind}`);
   if (check.kind === 'approval') {
     assert(check.amount === 13000, `check amount: ${check.amount}`);
@@ -68,7 +68,7 @@ function main(): void {
   // 단축어가 개행을 붙여 한 줄로 넘기는 포맷
   const approvalOneLine =
     '[Web발신] 에이월렛카드(3757)승인 송*섭 5,190원(일시불)09/13 22:21 쿠팡 누적1,476,721원';
-  const approvalFlat = parseSmsInboxBody(approvalOneLine, new Date(2026, 8, 14));
+  const approvalFlat = parseRecordInboxBody(approvalOneLine, new Date(2026, 8, 14));
   assert(approvalFlat.kind === 'approval', `one-line kind: ${approvalFlat.kind}`);
   if (approvalFlat.kind === 'approval') {
     assert(approvalFlat.amount === 5190, `one-line amount: ${approvalFlat.amount}`);
@@ -88,7 +88,7 @@ function main(): void {
   // 해외원화 — KRW 코드 (승인·취소 공통). `…원` 없을 때.
   const overseasKrw = `[Web발신]
 에이월렛카드(3757)해외승인 송*섭 KRW 5,292        (IE)09/10 16:05 FACEBK *V7 누적1,455,351원`;
-  const overseas = parseSmsInboxBody(overseasKrw, new Date(2026, 8, 14));
+  const overseas = parseRecordInboxBody(overseasKrw, new Date(2026, 8, 14));
   assert(overseas.kind === 'approval', `overseas KRW kind: ${overseas.kind}`);
   if (overseas.kind === 'approval') {
     assert(overseas.amount === 5292, `overseas KRW amount: ${overseas.amount}`);
@@ -98,7 +98,7 @@ function main(): void {
   assert(extractPerTxnAmount('해외승인 KRW 5,292.00 FACEBK') === 5292, 'KRW with decimals');
   assert(extractPerTxnAmount('해외취소 KRW5,292 (US)') === 5292, 'KRW no space');
 
-  const overseasCancel = parseSmsInboxBody(
+  const overseasCancel = parseRecordInboxBody(
     '[Web발신]\n에이월렛카드(3757)해외취소 송*섭 KRW 5,292.00 09/10 16:10 FACEBK *V7',
     new Date(2026, 8, 14),
   );
@@ -110,7 +110,7 @@ function main(): void {
   // 외화만 — 환산 없음 → 금액 없음
   assert(extractPerTxnAmount('해외승인 USD 12.34 FACEBK') == null, 'USD only no amount');
   assert(
-    parseSmsInboxBody('에이월렛카드 해외승인 USD 12.34 09/10 16:05 X').kind === 'ignore',
+    parseRecordInboxBody('에이월렛카드 해외승인 USD 12.34 09/10 16:05 X').kind === 'ignore',
     'USD only ignore',
   );
 
@@ -137,7 +137,7 @@ function main(): void {
     'restore keeps existing +',
   );
 
-  const approvalItem: SmsInboxItem = {
+  const approvalItem: RecordInboxItem = {
     id: '1',
     sender: '1544',
     senderLabels: ['1544'],
@@ -148,14 +148,14 @@ function main(): void {
     approvedAt: new Date().toISOString(),
     merchant: 'AKPLAZA분당점',
     createdAt: new Date().toISOString(),
-    card: buildConfirmCardFromSmsFields({ amount: 872000, year: 2026, month: 9, day: 14 }),
+    card: buildConfirmCardFromRecordInboxFields({ amount: 872000, year: 2026, month: 9, day: 14 }),
   };
   if (cancel.kind === 'cancel') {
     const match = findCancelMatch([approvalItem], cancel);
     assert(match?.id === '1', 'cancel match');
   }
 
-  console.log('verify-sms-inbox-parse: ok');
+  console.log('verify-record-inbox-parse: ok');
 }
 
 main();

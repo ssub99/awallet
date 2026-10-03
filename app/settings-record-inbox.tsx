@@ -1,19 +1,24 @@
 /**
- * 문자 수신 설정
- * Figma / Fluid: settings.smsReceive.default · addNumberKeypad · setupGuide
+ * 기록 수신 설정
+ * Figma / Fluid: settings.smsReceive.default · addNumberKeypad · setupGuide · appNotification
  */
 
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { SectionTitle } from '@/components/ui/section-title';
-import { SmsInboxSetupGuideSheet } from '@/components/ui/sms-inbox-setup-guide-sheet';
+import { Input } from '@/components/ui/input';
+import { SmsReceiveSetupGuideSheet } from '@/components/ui/sms-receive-setup-guide-sheet';
+import { APP_NOTIFICATION_RECEIVE_SETUP_GUIDE_STEPS } from '@/constants/sms-receive-setup-guide';
 import { Switch } from '@/components/ui/switch';
 import { UiLineText } from '@/components/ui/ui-line-text';
 import { atomicColors } from '@/constants/atomic-colors';
-import { resolveSmsInboxShortcutInstallUrl } from '@/constants/sms-inbox-shortcut';
+import {
+  APP_NOTIFICATION_RECEIVE_SHORTCUT_ICLOUD_URL,
+  resolveSmsReceiveShortcutInstallUrl,
+} from '@/constants/sms-receive-shortcut';
 import { themeColors } from '@/constants/theme-colors';
-import { typography, typographyLayout } from '@/constants/typography';
+import { typography } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
 import { useToast } from '@/contexts/toast-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -22,7 +27,7 @@ import {
   showExactAlarmPermissionAlert,
 } from '@/hooks/use-notifications';
 import { setupDailyReminder } from '@/utils/notification-scheduler';
-import { normalizeSmsSender } from '@/utils/sms-inbox-parse';
+import { normalizeSmsSender } from '@/utils/record-inbox-parse';
 import {
   hasAndroidSmsReceivePermission,
   openAndroidAppSettings,
@@ -30,21 +35,25 @@ import {
 } from '@/utils/android-sms-permission';
 import {
   areAndroidDefaultSmsAppNotificationsEnabled,
-  hasAndroidSmsInboxNotificationAccess,
+  hasAndroidRecordInboxNotificationAccess,
   openAndroidDefaultSmsAppNotificationSettings,
-  openAndroidSmsInboxNotificationAccessSettings,
-} from '@/utils/android-sms-inbox-notification-access';
+  openAndroidRecordInboxNotificationAccessSettings,
+} from '@/utils/android-record-inbox-notification-access';
 import {
+  type AppNotificationReceiveTarget,
   loadAppNotificationReceiveEnabled,
+  loadAppNotificationReceiveTargets,
   loadSmsReceiveDisclosureAccepted,
   loadSmsReceiveEnabled,
   loadSmsReceiveNumbers,
   saveAppNotificationReceiveEnabled,
+  saveAppNotificationReceiveTargets,
   saveSmsReceiveDisclosureAccepted,
   saveSmsReceiveEnabled,
   saveSmsReceiveNumbers,
-} from '@/utils/sms-receive-settings';
-import { useRouter } from 'expo-router';
+} from '@/utils/record-inbox-receive-settings';
+import { Image } from 'expo-image';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
@@ -86,11 +95,12 @@ const SMS_DISCLOSURE_MESSAGE =
 
 type AndroidEnablePendingStep = 'notification-access' | 'messages-notification' | null;
 
-/** 단축어「알림 수신」자동화 트리거는 iOS 27+ */
+/** iOS: 단축어「알림 수신」자동화 트리거는 iOS 27+ · Android: 알림 리스너 */
 const SUPPORTS_APP_NOTIFICATION_RECEIVE =
-  Platform.OS === 'ios' && Number.parseInt(String(Platform.Version), 10) >= 27;
+  Platform.OS === 'android' ||
+  (Platform.OS === 'ios' && Number.parseInt(String(Platform.Version), 10) >= 27);
 
-export default function SettingsSmsReceiveScreen() {
+export default function SettingsRecordInboxScreen() {
   const colorScheme = useColorScheme();
   const colors = themeColors[colorScheme ?? 'light'];
   const router = useRouter();
@@ -112,6 +122,9 @@ export default function SettingsSmsReceiveScreen() {
   const [smsReceiveEnabled, setSmsReceiveEnabled] = useState(false);
   const [appNotificationReceiveEnabled, setAppNotificationReceiveEnabled] = useState(false);
   const [numbers, setNumbers] = useState<string[]>([]);
+  const [appNotificationTargets, setAppNotificationTargets] = useState<
+    AppNotificationReceiveTarget[]
+  >([]);
   const [addOverlayVisible, setAddOverlayVisible] = useState(false);
   /** 닫을 때 입력란만 먼저 언마운트(키패드 follow 없이 그 자리 소거) */
   const [addBarVisible, setAddBarVisible] = useState(false);
@@ -119,6 +132,7 @@ export default function SettingsSmsReceiveScreen() {
   const [editingNumber, setEditingNumber] = useState<string | null>(null);
   const [draftNumber, setDraftNumber] = useState('');
   const [setupGuideVisible, setSetupGuideVisible] = useState(false);
+  const [appNotificationGuideVisible, setAppNotificationGuideVisible] = useState(false);
   const androidEnablePendingStepRef = useRef<AndroidEnablePendingStep>(null);
 
   const addBackdropAnimatedStyle = useAnimatedStyle(() => ({
@@ -162,18 +176,20 @@ export default function SettingsSmsReceiveScreen() {
     let cancelled = false;
     const load = async () => {
       try {
-        const [enabled, storedNumbers, appEnabled] = await Promise.all([
+        const [enabled, storedNumbers, appEnabled, storedTargets] = await Promise.all([
           loadSmsReceiveEnabled(),
           loadSmsReceiveNumbers(),
           loadAppNotificationReceiveEnabled(),
+          loadAppNotificationReceiveTargets(),
         ]);
         if (cancelled) return;
         setAppNotificationReceiveEnabled(appEnabled && SUPPORTS_APP_NOTIFICATION_RECEIVE);
+        setAppNotificationTargets(storedTargets);
 
         const canReceive =
           Platform.OS !== 'android' ||
           ((await hasAndroidSmsReceivePermission()) &&
-            (await hasAndroidSmsInboxNotificationAccess()));
+            (await hasAndroidRecordInboxNotificationAccess()));
         if (cancelled) return;
 
         const effectiveEnabled = enabled && canReceive;
@@ -234,7 +250,7 @@ export default function SettingsSmsReceiveScreen() {
   }, []);
 
   const continueAndroidEnableAfterSms = useCallback(async () => {
-    if (await hasAndroidSmsInboxNotificationAccess()) {
+    if (await hasAndroidRecordInboxNotificationAccess()) {
       if (await areAndroidDefaultSmsAppNotificationsEnabled()) {
         await finishAndroidEnable();
         return;
@@ -259,7 +275,7 @@ export default function SettingsSmsReceiveScreen() {
         {
           text: '설정으로 이동',
           onPress: () => {
-            void openAndroidSmsInboxNotificationAccessSettings();
+            void openAndroidRecordInboxNotificationAccessSettings();
           },
         },
       ],
@@ -274,7 +290,7 @@ export default function SettingsSmsReceiveScreen() {
       void (async () => {
         const pending = androidEnablePendingStepRef.current;
         if (pending === 'notification-access') {
-          if (!(await hasAndroidSmsInboxNotificationAccess())) {
+          if (!(await hasAndroidRecordInboxNotificationAccess())) {
             return;
           }
           if (await areAndroidDefaultSmsAppNotificationsEnabled()) {
@@ -292,7 +308,7 @@ export default function SettingsSmsReceiveScreen() {
             promptMessagesNotificationGuide();
             return;
           }
-          if (!(await hasAndroidSmsInboxNotificationAccess())) {
+          if (!(await hasAndroidRecordInboxNotificationAccess())) {
             androidEnablePendingStepRef.current = 'notification-access';
             return;
           }
@@ -309,7 +325,7 @@ export default function SettingsSmsReceiveScreen() {
         if (!smsReceiveEnabled) return;
         const [smsOk, listenerOk] = await Promise.all([
           hasAndroidSmsReceivePermission(),
-          hasAndroidSmsInboxNotificationAccess(),
+          hasAndroidRecordInboxNotificationAccess(),
         ]);
         if (smsOk && listenerOk) return;
         setSmsReceiveEnabled(false);
@@ -406,7 +422,7 @@ export default function SettingsSmsReceiveScreen() {
       const [disclosureAccepted, permissionGranted, notificationAccess] = await Promise.all([
         loadSmsReceiveDisclosureAccepted(),
         hasAndroidSmsReceivePermission(),
-        hasAndroidSmsInboxNotificationAccess(),
+        hasAndroidRecordInboxNotificationAccess(),
       ]);
       if (!disclosureAccepted || !permissionGranted) {
         showSmsDisclosureAlert();
@@ -456,11 +472,19 @@ export default function SettingsSmsReceiveScreen() {
     setSetupGuideVisible(false);
   }, []);
 
+  const handleAppNotificationGuidePress = useCallback(() => {
+    setAppNotificationGuideVisible(true);
+  }, []);
+
+  const closeAppNotificationGuide = useCallback(() => {
+    setAppNotificationGuideVisible(false);
+  }, []);
+
   const handleShortcutsPress = useCallback(() => {
     void (async () => {
       try {
         setLoading(true);
-        const installUrl = await resolveSmsInboxShortcutInstallUrl();
+        const installUrl = await resolveSmsReceiveShortcutInstallUrl();
         await Linking.openURL(installUrl);
       } catch {
         await Linking.openURL('shortcuts://');
@@ -469,6 +493,12 @@ export default function SettingsSmsReceiveScreen() {
       }
     })();
   }, [setLoading]);
+
+  const handleAppNotificationShortcutsPress = useCallback(() => {
+    void Linking.openURL(APP_NOTIFICATION_RECEIVE_SHORTCUT_ICLOUD_URL).catch(() =>
+      Linking.openURL('shortcuts://'),
+    );
+  }, []);
 
   const openAddOverlay = useCallback(() => {
     if (Platform.OS === 'android') {
@@ -639,6 +669,26 @@ export default function SettingsSmsReceiveScreen() {
     [numbers],
   );
 
+  const removeAppNotificationTarget = useCallback(
+    async (packageName: string) => {
+      const next = appNotificationTargets.filter((item) => item.packageName !== packageName);
+      setAppNotificationTargets(next);
+      await saveAppNotificationReceiveTargets(next);
+    },
+    [appNotificationTargets],
+  );
+
+  const handleAddAppNotificationTargetPress = useCallback(() => {
+    router.push('/settings-record-inbox-app-targets');
+  }, [router]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS !== 'android') return;
+      void loadAppNotificationReceiveTargets().then(setAppNotificationTargets);
+    }, []),
+  );
+
   const canConfirmAdd = draftNumber.length > 0;
 
   return (
@@ -646,7 +696,7 @@ export default function SettingsSmsReceiveScreen() {
       <View style={styles.container}>
         <TopNavigation
           type="sub"
-          title="문자 수신 설정"
+          title="기록 수신 설정"
           showLeftIcon
           onLeftIconPress={handleBack}
         />
@@ -664,9 +714,9 @@ export default function SettingsSmsReceiveScreen() {
         >
         {settingsReady ? (
           <>
-        {/* Figma: 문자 수신 여부 + Android SMS 권한 안내 */}
+        {/* Figma: 기록 수신 여부 + Android SMS 권한 안내 */}
         <View style={styles.sectionHeaderRow}>
-          <SectionTitle style={{ color: colors.staticBlack }}>문자 수신 여부</SectionTitle>
+          <SectionTitle style={{ color: colors.staticBlack }}>기록 수신 여부</SectionTitle>
           {Platform.OS === 'android' ? (
             <Pressable
               onPress={handlePermissionGuidePress}
@@ -710,49 +760,120 @@ export default function SettingsSmsReceiveScreen() {
                   <Icon name="arrowRight" size={24} color={colors.staticBlack} />
                 </View>
                 <UiLineText style={[styles.caption, { color: colors.textAssistive }]}>
-                  메세지의 내용을 전달하여 문자 수신함에 적재합니다.
+                  메세지의 내용을 전달하여 기록 수신함에 적재합니다.
                 </UiLineText>
               </Pressable>
             </>
           ) : null}
         </View>
 
-        {/* 임시 UI (시안 전): iOS 27+ 앱 알림 수신 — 문자 수신과 상호 배타 */}
+        {/* Figma settings.smsReceive.appNotification · 알림 수신 카드 — iOS 27+ · Android · 문자 수신과 상호 배타 */}
         {SUPPORTS_APP_NOTIFICATION_RECEIVE ? (
           <View style={[styles.card, { backgroundColor: colors.staticWhite }]}>
             <View style={styles.toggleBlock}>
               <View style={styles.toggleRow}>
-                <UiLineText style={{ color: colors.text }}>앱 알림 수신</UiLineText>
+                <UiLineText style={{ color: colors.text }}>알림 수신</UiLineText>
                 <Switch
                   value={appNotificationReceiveEnabled}
                   onValueChange={(v) => void handleAppNotificationToggle(v)}
-                  accessibilityLabel="앱 알림 수신"
+                  accessibilityLabel="알림 수신"
                 />
               </View>
               <UiLineText style={[styles.caption, { color: colors.textAssistive }]}>
-                카드사·은행 앱 알림을 수신하여 기록으로 생성합니다. 문자 수신과 함께 사용할 수 없습니다.
+                발송되는 알림을 수신하여 기록으로 생성합니다.
               </UiLineText>
             </View>
-            {appNotificationReceiveEnabled ? (
+            {appNotificationReceiveEnabled && Platform.OS === 'ios' ? (
               <>
                 <View style={[styles.divider, { backgroundColor: colors.border }]} />
                 <Pressable
                   style={styles.toggleBlock}
-                  onPress={() => void Linking.openURL('shortcuts://')}
+                  onPress={handleAppNotificationShortcutsPress}
                   accessibilityRole="button"
-                  accessibilityLabel="단축어 앱 열기"
+                  accessibilityLabel="단축어 자동화 바로가기"
                 >
                   <View style={styles.toggleRow}>
-                    <UiLineText style={{ color: colors.text }}>단축어 앱 열기</UiLineText>
+                    <UiLineText style={{ color: colors.text }}>단축어 자동화 바로가기</UiLineText>
                     <Icon name="arrowRight" size={24} color={colors.staticBlack} />
                   </View>
                   <UiLineText style={[styles.caption, { color: colors.textAssistive }]}>
-                    앱 알림의 내용을 전달하여 문자 수신함에 적재합니다.
+                    알림 내용을 전달하여 기록 수신함에 적재합니다.
                   </UiLineText>
                 </Pressable>
               </>
             ) : null}
           </View>
+        ) : null}
+
+        {appNotificationReceiveEnabled && Platform.OS === 'ios' ? (
+          <Pressable
+            style={[styles.guideCard, { backgroundColor: colors.staticWhite }]}
+            onPress={handleAppNotificationGuidePress}
+            accessibilityRole="button"
+            accessibilityLabel="알림 수신함 설정 가이드"
+          >
+            <View style={styles.guideLeading}>
+              <View style={styles.guideIconSlot}>
+                <Icon name="tip" variant="solid" size={24} accessibilityLabel="설정 가이드" />
+              </View>
+              <UiLineText style={{ color: colors.staticBlack }}>알림 수신함 설정 가이드</UiLineText>
+            </View>
+          </Pressable>
+        ) : null}
+
+        {/* Figma settings.smsReceive.appNotification · 알림 수신 설정 — Android 전용 */}
+        {appNotificationReceiveEnabled && Platform.OS === 'android' ? (
+          <>
+            <SectionTitle style={[styles.numberSectionTitle, { color: colors.staticBlack }]}>
+              알림 수신 설정
+            </SectionTitle>
+
+            <View style={[styles.card, { backgroundColor: colors.staticWhite }]}>
+              <View style={styles.addRow}>
+                <View style={styles.addTextCol}>
+                  <UiLineText style={{ color: colors.text }}>알림 수신 대상</UiLineText>
+                  <UiLineText style={[styles.caption, { color: colors.textAssistive }]}>
+                    수신할 금융 서비스를 추가 합니다.
+                  </UiLineText>
+                </View>
+                <Button
+                  variant="assistive"
+                  type="solid"
+                  size="large"
+                  onPress={handleAddAppNotificationTargetPress}
+                  accessibilityLabel="알림 수신 대상 추가"
+                >
+                  추가
+                </Button>
+              </View>
+            </View>
+
+            {appNotificationTargets.map((target) => (
+              <View
+                key={target.packageName}
+                style={[styles.numberCard, { backgroundColor: colors.staticWhite }]}
+              >
+                <View style={styles.numberRow}>
+                  <View style={styles.targetLeading}>
+                    <View style={styles.targetLogo}>
+                      {target.icon ? (
+                        <Image source={{ uri: target.icon }} style={styles.targetLogoImage} />
+                      ) : null}
+                    </View>
+                    <UiLineText style={{ color: colors.text }}>{target.label}</UiLineText>
+                  </View>
+                  <Pressable
+                    onPress={() => void removeAppNotificationTarget(target.packageName)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${target.label} 삭제`}
+                    hitSlop={8}
+                  >
+                    <Icon name="cancel" variant="solid" size={24} color={colors.textAssistive} />
+                  </Pressable>
+                </View>
+              </View>
+            ))}
+          </>
         ) : null}
 
         {smsReceiveEnabled ? (
@@ -865,20 +986,14 @@ export default function SettingsSmsReceiveScreen() {
               <View style={styles.addEdgeContent}>
                 <View style={styles.addBar}>
                   <View style={styles.addInputShell}>
-                    <TextInput
+                    <Input
                       ref={inputRef}
                       value={draftNumber}
                       onChangeText={setDraftNumber}
                       placeholder="+82 1588-1100"
-                      placeholderTextColor={colors.textAssistive}
                       keyboardType="default"
                       showSoftInputOnFocus
-                      accessibilityLabel="수신 번호 입력"
-                      style={[
-                        styles.addInputText,
-                        typographyLayout.fieldInputLine,
-                        { color: colors.text },
-                      ]}
+                      style={styles.addInput}
                     />
                   </View>
                   <Pressable
@@ -911,7 +1026,13 @@ export default function SettingsSmsReceiveScreen() {
         </View>
       ) : null}
 
-      <SmsInboxSetupGuideSheet visible={setupGuideVisible} onClose={closeSetupGuide} />
+      <SmsReceiveSetupGuideSheet visible={setupGuideVisible} onClose={closeSetupGuide} />
+      <SmsReceiveSetupGuideSheet
+        visible={appNotificationGuideVisible}
+        onClose={closeAppNotificationGuide}
+        title="알림 수신함 설정 가이드"
+        steps={APP_NOTIFICATION_RECEIVE_SETUP_GUIDE_STEPS}
+      />
     </View>
   );
 }
@@ -1007,6 +1128,27 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 8,
   },
+  /** Figma Frame 53 · 로고 32 + gap 8 + 서비스명 */
+  targetLeading: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  /** Figma Frame 316 · 32 · radius 10 · Atomic/Neutral/200 stroke */
+  targetLogo: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: atomicColors.neutral[200],
+    overflow: 'hidden',
+  },
+  targetLogoImage: {
+    width: '100%',
+    height: '100%',
+  },
   numberPress: {
     flex: 1,
     minWidth: 0,
@@ -1048,16 +1190,9 @@ const styles = StyleSheet.create({
   /** ≡ quick-input calculatorInput */
   addInputShell: {
     flex: 1,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: atomicColors.common[0],
-    paddingHorizontal: 12,
-    justifyContent: 'center',
-    overflow: 'hidden',
   },
-  addInputText: {
-    padding: 0,
-    margin: 0,
+  addInput: {
+    borderColor: 'transparent',
   },
   /** ≡ quick-input calculatorActionButton (비활성 기본색; 활성은 primary 런타임) */
   addActionButton: {

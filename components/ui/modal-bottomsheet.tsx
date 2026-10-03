@@ -684,7 +684,6 @@ const styles = StyleSheet.create({
   grabberTouchTarget: {
     width: 96,
     height: 44,
-    paddingTop: 4,
     alignItems: 'center',
     justifyContent: 'flex-start',
   },

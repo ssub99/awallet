@@ -11,7 +11,7 @@
  */
 
 import { QuickInputConfirmCard, type QuickInputConfirmCardData } from '@/components/ui/quick-input-confirm-card';
-import { QuickInputSmsInbox, type SmsInboxConfirmResult } from '@/components/ui/quick-input-sms-inbox';
+import { QuickInputRecordInbox, type RecordInboxConfirmResult } from '@/components/ui/quick-input-record-inbox';
 import { Accordion } from '@/components/ui/accordion';
 import { CustomKeypad, getKeypadHeight, type CustomKeypadOperator, type ExpressionToken } from '@/components/ui/custom-keypad';
 import { CustomKeypadOverlay } from '@/components/ui/custom-keypad-overlay';
@@ -45,19 +45,19 @@ import { useRecordFormMemoKeyboard } from '@/hooks/use-record-form-memo-keyboard
 import { logEvent } from '@/utils/analytics';
 import { getApiSecurityHeaders } from '@/utils/api-security-headers';
 import { isAtLeastVersion, QUICK_INPUT_MIN_VERSION } from '@/utils/app-version';
-import type { SmsInboxItem } from '@/utils/sms-inbox-types';
-import { SMS_HISTORY_RECORD_ANALYTICS_SCREEN_NAME } from '@/utils/sms-inbox-types';
+import type { RecordInboxItem } from '@/utils/record-inbox-types';
+import { SMS_HISTORY_RECORD_ANALYTICS_SCREEN_NAME } from '@/utils/record-inbox-types';
 import {
-  loadSmsInboxItems,
-  replaceSmsInboxItems,
-  subscribeSmsInboxItems,
-} from '@/utils/sms-inbox-store';
-import { markSmsInboxPushConverted } from '@/utils/sms-inbox-push-ledger';
-import { flushPendingSmsInboxFromNative } from '@/utils/sms-inbox-native-queue';
+  loadRecordInboxItems,
+  replaceRecordInboxItems,
+  subscribeRecordInboxItems,
+} from '@/utils/record-inbox-store';
+import { markRecordInboxPushConverted } from '@/utils/record-inbox-push-ledger';
+import { flushPendingRecordInboxFromNative } from '@/utils/record-inbox-native-queue';
 import {
-  loadSmsInboxReceiveEnabled,
-  subscribeSmsReceiveEnabled,
-} from '@/utils/sms-receive-settings';
+  loadRecordInboxReceiveEnabled,
+  subscribeRecordInboxReceiveEnabled,
+} from '@/utils/record-inbox-receive-settings';
 import {
   EXPENSE_RECORD_SHEET_ANALYTICS_SCREEN_NAME,
   INCOME_RECORD_SHEET_ANALYTICS_SCREEN_NAME,
@@ -257,8 +257,8 @@ interface QuickInputContextValue {
   isQuickInputContentVisible: boolean;
   /** 롱 닫힘과 동시에 숏 표시 여부 (홈 z-index는 앵커 기본값 = 키패드 뒤) */
   isQuickInputShortVisible: boolean;
-  /** 문자 수신함 미처리 건수 (숏/칩 뱃지) */
-  smsInboxUnreadCount: number;
+  /** 기록 수신함 미처리 건수 (숏/칩 뱃지) */
+  recordInboxUnreadCount: number;
   showQuickInput: (
     starScale: AnimatedValue,
     starRotate: AnimatedValue,
@@ -369,7 +369,7 @@ const INCOME_RECORD_SHEET_ANALYTICS_TARGETS = new Set([
   'memo',
 ]);
 
-/** 간편입력 기록 변경 바텀시트 analytics — 소비/수입/문자수신함 screen_name 분기 */
+/** 간편입력 기록 변경 바텀시트 analytics — 소비/수입/기록 수신함 screen_name 분기 */
 function logExpenseRecordSheetEvent(
   recordType: 'income' | 'expense' | undefined,
   eventName: string,
@@ -693,7 +693,7 @@ function confirmCardAmountToNumber(amount: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-/** 문자 수신함 기록 카드 → 수정 시트 pending */
+/** 기록 수신함 기록 카드 → 수정 시트 pending */
 function confirmCardDataToPending(card: QuickInputConfirmCardData): PendingParseRecord | null {
   const amount = confirmCardAmountToNumber(card.amount);
   const date = confirmCardDateToPendingDate(card.date);
@@ -1259,15 +1259,15 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const [isQuickInputCalculatorMounted, setIsQuickInputCalculatorMounted] = useState(false);
   const [quickInputCalculatorAmount, setQuickInputCalculatorAmount] = useState('');
   const [quickInputCalculatorExpression, setQuickInputCalculatorExpression] = useState<ExpressionToken[]>([]);
-  const [isQuickInputSmsInboxVisible, setIsQuickInputSmsInboxVisible] = useState(false);
-  const [isQuickInputSmsInboxOpening, setIsQuickInputSmsInboxOpening] = useState(false);
-  const isQuickInputSmsInboxClosingRef = useRef(false);
-  const isQuickInputSmsInboxVisibleRef = useRef(false);
+  const [isQuickInputRecordInboxVisible, setIsQuickInputRecordInboxVisible] = useState(false);
+  const [isQuickInputRecordInboxOpening, setIsQuickInputRecordInboxOpening] = useState(false);
+  const isQuickInputRecordInboxClosingRef = useRef(false);
+  const isQuickInputRecordInboxVisibleRef = useRef(false);
   /** 문자 수신 설정 ON일 때만 칩·숏 뱃지 노출 */
-  const [smsReceiveEnabled, setSmsReceiveEnabled] = useState(false);
-  const [smsInboxItems, setSmsInboxItems] = useState<SmsInboxItem[]>([]);
-  const smsInboxItemsRef = useRef<SmsInboxItem[]>([]);
-  const [smsInboxIndex, setSmsInboxIndex] = useState(0);
+  const [recordInboxReceiveEnabled, setRecordInboxReceiveEnabled] = useState(false);
+  const [recordInboxItems, setRecordInboxItems] = useState<RecordInboxItem[]>([]);
+  const recordInboxItemsRef = useRef<RecordInboxItem[]>([]);
+  const [recordInboxIndex, setRecordInboxIndex] = useState(0);
   const [confirmCardData, setConfirmCardData] = useState<QuickInputConfirmCardData | null>(null);
   const [isQuickInputConfirmCardRevealPaused, setIsQuickInputConfirmCardRevealPaused] = useState(false);
   const [quickInputEditSheetVisible, setQuickInputEditSheetVisible] = useState(false);
@@ -1310,12 +1310,12 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const [quickInputPaymentSheetVisible, setQuickInputPaymentSheetVisible] = useState(false);
   const [quickInputPaymentSheetFilter, setQuickInputPaymentSheetFilter] = useState<'credit' | 'debit'>('credit');
   const [quickInputPaymentSheetItems, setQuickInputPaymentSheetItems] = useState<PaymentSubtype[]>([]);
-  const [smsInboxCategorySheetMounted, setSmsInboxCategorySheetMounted] = useState(false);
-  const [smsInboxCategorySheetVisible, setSmsInboxCategorySheetVisible] = useState(false);
-  const [smsInboxCategorySheetCategories, setSmsInboxCategorySheetCategories] = useState<Category[]>(() =>
+  const [recordInboxCategorySheetMounted, setRecordInboxCategorySheetMounted] = useState(false);
+  const [recordInboxCategorySheetVisible, setRecordInboxCategorySheetVisible] = useState(false);
+  const [recordInboxCategorySheetCategories, setRecordInboxCategorySheetCategories] = useState<Category[]>(() =>
     getCategoriesByType('expense'),
   );
-  const [smsInboxCategorySheetSelected, setSmsInboxCategorySheetSelected] = useState('');
+  const [recordInboxCategorySheetSelected, setRecordInboxCategorySheetSelected] = useState('');
   const [quickInputAmountKeypadMounted, setQuickInputAmountKeypadMounted] = useState(false);
   const [quickInputAmountKeypadVisible, setQuickInputAmountKeypadVisible] = useState(false);
   const [quickInputEditAmountExpression, setQuickInputEditAmountExpression] = useState<ExpressionToken[]>([]);
@@ -1341,10 +1341,10 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const lastShortBottomRef = useRef<number>(KEYBOARD_GAP);
   const pendingAutoFocusRef = useRef(false);
   const pendingRecordRef = useRef<PendingParseRecord | null>(null);
-  /** 문자 수신함 카드 「변경」으로 수정 시트 연 경우 — 확인 시 해당 아이템 갱신 */
-  const smsInboxEditingItemIdRef = useRef<string | null>(null);
-  /** 문자 수신함 카테고리 단독 시트에서 수정 중인 아이템 */
-  const smsInboxCategoryItemIdRef = useRef<string | null>(null);
+  /** 기록 수신함 카드 「변경」으로 수정 시트 연 경우 — 확인 시 해당 아이템 갱신 */
+  const recordInboxEditingItemIdRef = useRef<string | null>(null);
+  /** 기록 수신함 카테고리 단독 시트에서 수정 중인 아이템 */
+  const recordInboxCategoryItemIdRef = useRef<string | null>(null);
 
   /** 가기록 시트 analytics — SMS 변경이면 screen_name=/sms-history-record */
   const logRecordSheetEvent = useCallback(
@@ -1354,7 +1354,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         eventName,
         target,
         extra,
-        smsInboxEditingItemIdRef.current != null
+        recordInboxEditingItemIdRef.current != null
           ? SMS_HISTORY_RECORD_ANALYTICS_SCREEN_NAME
           : null,
       );
@@ -1377,7 +1377,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const confirmCardRevealTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dateSheetUnmountTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const paymentSheetUnmountTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const smsInboxCategorySheetUnmountTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const recordInboxCategorySheetUnmountTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const categorySettingSheetUnmountTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const categorySettingSheetRefocusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const quickInputRefocusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1441,21 +1441,21 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }, [isQuickInputVisible]);
 
   useEffect(() => {
-    isQuickInputSmsInboxVisibleRef.current = isQuickInputSmsInboxVisible;
-  }, [isQuickInputSmsInboxVisible]);
+    isQuickInputRecordInboxVisibleRef.current = isQuickInputRecordInboxVisible;
+  }, [isQuickInputRecordInboxVisible]);
 
   useEffect(() => {
-    smsInboxItemsRef.current = smsInboxItems;
-  }, [smsInboxItems]);
+    recordInboxItemsRef.current = recordInboxItems;
+  }, [recordInboxItems]);
 
   useEffect(() => {
     let cancelled = false;
-    void loadSmsInboxReceiveEnabled().then((enabled) => {
+    void loadRecordInboxReceiveEnabled().then((enabled) => {
       if (!cancelled) {
-        setSmsReceiveEnabled(enabled);
+        setRecordInboxReceiveEnabled(enabled);
       }
     });
-    const unsubscribe = subscribeSmsReceiveEnabled(setSmsReceiveEnabled);
+    const unsubscribe = subscribeRecordInboxReceiveEnabled(setRecordInboxReceiveEnabled);
     return () => {
       cancelled = true;
       unsubscribe();
@@ -1465,16 +1465,16 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   useEffect(() => {
     let cancelled = false;
     const sync = async () => {
-      await flushPendingSmsInboxFromNative();
-      const items = await loadSmsInboxItems();
+      await flushPendingRecordInboxFromNative();
+      const items = await loadRecordInboxItems();
       if (!cancelled) {
-        setSmsInboxItems(items);
+        setRecordInboxItems(items);
       }
     };
     void sync();
-    const unsubscribe = subscribeSmsInboxItems((items) => {
-      setSmsInboxItems(items);
-      setSmsInboxIndex((current) => {
+    const unsubscribe = subscribeRecordInboxItems((items) => {
+      setRecordInboxItems(items);
+      setRecordInboxIndex((current) => {
         if (items.length === 0) return 0;
         return Math.min(current, items.length - 1);
       });
@@ -1485,13 +1485,13 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     };
   }, []);
 
-  const pendingSmsInboxMainRevealRef = useRef(false);
-  const smsInboxMainRevealFallbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const maybeRevealQuickInputMainFromSmsInboxRef = useRef<() => void>(() => {});
+  const pendingRecordInboxMainRevealRef = useRef(false);
+  const recordInboxMainRevealFallbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const maybeRevealQuickInputMainFromRecordInboxRef = useRef<() => void>(() => {});
 
   const markAndroidKeyboardVisible = useCallback(() => {
     androidKeyboardWasVisibleRef.current = true;
-    maybeRevealQuickInputMainFromSmsInboxRef.current();
+    maybeRevealQuickInputMainFromRecordInboxRef.current();
   }, []);
 
   /** Android: IME가 백을 먼저 먹어 키보드만 내려갈 때 간편입력도 즉시 닫기 */
@@ -1523,14 +1523,14 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   );
 
   /** 수신함 → 간편생성 메인: 키패드가 올라오기 전 칩/입력이 공중에 뜨지 않게 숨김 유지 */
-  const revealQuickInputMainFromSmsInbox = useCallback(() => {
-    if (!pendingSmsInboxMainRevealRef.current) {
+  const revealQuickInputMainFromRecordInbox = useCallback(() => {
+    if (!pendingRecordInboxMainRevealRef.current) {
       return;
     }
-    pendingSmsInboxMainRevealRef.current = false;
-    if (smsInboxMainRevealFallbackTimeoutRef.current != null) {
-      clearTimeout(smsInboxMainRevealFallbackTimeoutRef.current);
-      smsInboxMainRevealFallbackTimeoutRef.current = null;
+    pendingRecordInboxMainRevealRef.current = false;
+    if (recordInboxMainRevealFallbackTimeoutRef.current != null) {
+      clearTimeout(recordInboxMainRevealFallbackTimeoutRef.current);
+      recordInboxMainRevealFallbackTimeoutRef.current = null;
     }
 
     setShouldFollowKeyboard(true);
@@ -1554,7 +1554,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         editSheetOpenInputTranslateY.setValue(0);
         editSheetOpenInputOpacity.setValue(1);
       }
-      isQuickInputSmsInboxClosingRef.current = false;
+      isQuickInputRecordInboxClosingRef.current = false;
     });
   }, [
     editSheetOpenInputOpacity,
@@ -1562,10 +1562,10 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     setShouldFollowKeyboard,
   ]);
 
-  maybeRevealQuickInputMainFromSmsInboxRef.current = revealQuickInputMainFromSmsInbox;
+  maybeRevealQuickInputMainFromRecordInboxRef.current = revealQuickInputMainFromRecordInbox;
 
-  const maybeRevealQuickInputMainFromSmsInbox = useCallback(() => {
-    maybeRevealQuickInputMainFromSmsInboxRef.current();
+  const maybeRevealQuickInputMainFromRecordInbox = useCallback(() => {
+    maybeRevealQuickInputMainFromRecordInboxRef.current();
   }, []);
 
   useGenericKeyboardHandler(
@@ -1574,7 +1574,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         'worklet';
         const keyboardHeight = Number.isFinite(event.height) ? event.height : 0;
         if (keyboardHeight > 0) {
-          runOnJS(maybeRevealQuickInputMainFromSmsInbox)();
+          runOnJS(maybeRevealQuickInputMainFromRecordInbox)();
         }
         if (!shouldFollowKeyboard.value) {
           animatedBottom.value = shortBottomFromScreen.value;
@@ -1608,7 +1608,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         'worklet';
         const keyboardHeight = Number.isFinite(event.height) ? event.height : 0;
         if (keyboardHeight > 0) {
-          runOnJS(maybeRevealQuickInputMainFromSmsInbox)();
+          runOnJS(maybeRevealQuickInputMainFromRecordInbox)();
         }
         if (!shouldFollowKeyboard.value) {
           return;
@@ -1682,7 +1682,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         );
       },
     },
-    [handleAndroidKeyboardDismissed, markAndroidKeyboardVisible, maybeRevealQuickInputMainFromSmsInbox]
+    [handleAndroidKeyboardDismissed, markAndroidKeyboardVisible, maybeRevealQuickInputMainFromRecordInbox]
   );
 
   /**
@@ -1738,16 +1738,16 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       setIsQuickInputCalculatorMounted(false);
       setQuickInputCalculatorAmount('');
       setQuickInputCalculatorExpression([]);
-      setIsQuickInputSmsInboxVisible(false);
-      setSmsInboxIndex(0);
-      smsInboxCategoryItemIdRef.current = null;
-      if (smsInboxCategorySheetUnmountTimeoutRef.current) {
-        clearTimeout(smsInboxCategorySheetUnmountTimeoutRef.current);
-        smsInboxCategorySheetUnmountTimeoutRef.current = null;
+      setIsQuickInputRecordInboxVisible(false);
+      setRecordInboxIndex(0);
+      recordInboxCategoryItemIdRef.current = null;
+      if (recordInboxCategorySheetUnmountTimeoutRef.current) {
+        clearTimeout(recordInboxCategorySheetUnmountTimeoutRef.current);
+        recordInboxCategorySheetUnmountTimeoutRef.current = null;
       }
-      setSmsInboxCategorySheetVisible(false);
-      setSmsInboxCategorySheetMounted(false);
-      setSmsInboxCategorySheetSelected('');
+      setRecordInboxCategorySheetVisible(false);
+      setRecordInboxCategorySheetMounted(false);
+      setRecordInboxCategorySheetSelected('');
       quickInputLongOpacity.setValue(1);
       setIsQuickInputShortVisible(false);
       setIsQuickInputContentVisible(true);
@@ -1807,8 +1807,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }, []);
 
   const handleQuickInputCalculatorPress = useCallback(() => {
-    if (isQuickInputSmsInboxVisible) {
-      setIsQuickInputSmsInboxVisible(false);
+    if (isQuickInputRecordInboxVisible) {
+      setIsQuickInputRecordInboxVisible(false);
     }
     calculatorAnimationRef.current?.stop();
     calculatorTranslateYRef.current.setValue(calculatorPanelHeightRef.current);
@@ -1831,31 +1831,31 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     });
   }, [
     animatedBottom,
-    isQuickInputSmsInboxVisible,
+    isQuickInputRecordInboxVisible,
     resetAndroidKeyboardFollowPeak,
     setShouldFollowKeyboard,
     shortBottomFromScreen,
   ]);
 
-  const closeQuickInputSmsInbox = useCallback(() => {
-    if (!isQuickInputSmsInboxVisibleRef.current || isQuickInputSmsInboxClosingRef.current) {
+  const closeQuickInputRecordInbox = useCallback(() => {
+    if (!isQuickInputRecordInboxVisibleRef.current || isQuickInputRecordInboxClosingRef.current) {
       return;
     }
-    isQuickInputSmsInboxClosingRef.current = true;
-    smsInboxEditingItemIdRef.current = null;
-    smsInboxCategoryItemIdRef.current = null;
-    if (smsInboxCategorySheetUnmountTimeoutRef.current) {
-      clearTimeout(smsInboxCategorySheetUnmountTimeoutRef.current);
-      smsInboxCategorySheetUnmountTimeoutRef.current = null;
+    isQuickInputRecordInboxClosingRef.current = true;
+    recordInboxEditingItemIdRef.current = null;
+    recordInboxCategoryItemIdRef.current = null;
+    if (recordInboxCategorySheetUnmountTimeoutRef.current) {
+      clearTimeout(recordInboxCategorySheetUnmountTimeoutRef.current);
+      recordInboxCategorySheetUnmountTimeoutRef.current = null;
     }
-    if (smsInboxMainRevealFallbackTimeoutRef.current != null) {
-      clearTimeout(smsInboxMainRevealFallbackTimeoutRef.current);
-      smsInboxMainRevealFallbackTimeoutRef.current = null;
+    if (recordInboxMainRevealFallbackTimeoutRef.current != null) {
+      clearTimeout(recordInboxMainRevealFallbackTimeoutRef.current);
+      recordInboxMainRevealFallbackTimeoutRef.current = null;
     }
     editSheetOpenAnimationRef.current?.stop();
-    setSmsInboxCategorySheetVisible(false);
-    setSmsInboxCategorySheetMounted(false);
-    setIsQuickInputSmsInboxOpening(false);
+    setRecordInboxCategorySheetVisible(false);
+    setRecordInboxCategorySheetMounted(false);
+    setIsQuickInputRecordInboxOpening(false);
 
     editSheetOpenCardTranslateY.setValue(0);
     editSheetOpenCardOpacity.setValue(1);
@@ -1871,15 +1871,15 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     // 스테일 keyboard height로 공중에 뜨지 않게 follow는 키 상승 감지 후 켠다
     setShouldFollowKeyboard(false);
 
-    pendingSmsInboxMainRevealRef.current = true;
-    isQuickInputSmsInboxVisibleRef.current = false;
-    setIsQuickInputSmsInboxVisible(false);
+    pendingRecordInboxMainRevealRef.current = true;
+    isQuickInputRecordInboxVisibleRef.current = false;
+    setIsQuickInputRecordInboxVisible(false);
 
     requestAnimationFrame(() => {
       quickInputRef.current?.focus();
       // 키보드 이벤트가 안 오면 짧게 폴백 노출
-      smsInboxMainRevealFallbackTimeoutRef.current = setTimeout(() => {
-        revealQuickInputMainFromSmsInbox();
+      recordInboxMainRevealFallbackTimeoutRef.current = setTimeout(() => {
+        revealQuickInputMainFromRecordInbox();
       }, 450);
     });
   }, [
@@ -1891,33 +1891,33 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     iosKeyboardHeightPrev,
     iosKeyboardPeakHeight,
     resetAndroidKeyboardFollowPeak,
-    revealQuickInputMainFromSmsInbox,
+    revealQuickInputMainFromRecordInbox,
     setShouldFollowKeyboard,
     shortBottomFromScreen,
   ]);
 
   // 수신함 큐가 비면 간편생성 메인으로 복귀 (마지막 건 추가/취소 후 딤만 남는 케이스 방지)
   useEffect(() => {
-    if (!isQuickInputSmsInboxVisible) {
+    if (!isQuickInputRecordInboxVisible) {
       return;
     }
-    if (smsInboxItems.length > 0) {
+    if (recordInboxItems.length > 0) {
       return;
     }
-    closeQuickInputSmsInbox();
-  }, [closeQuickInputSmsInbox, isQuickInputSmsInboxVisible, smsInboxItems.length]);
+    closeQuickInputRecordInbox();
+  }, [closeQuickInputRecordInbox, isQuickInputRecordInboxVisible, recordInboxItems.length]);
 
-  const handleQuickInputSmsInboxPress = useCallback(() => {
-    if (!smsReceiveEnabled) {
+  const handleQuickInputRecordInboxPress = useCallback(() => {
+    if (!recordInboxReceiveEnabled) {
       return;
     }
-    if (isQuickInputSmsInboxVisible || isQuickInputSmsInboxOpening) {
-      if (isQuickInputSmsInboxVisible) {
-        closeQuickInputSmsInbox();
+    if (isQuickInputRecordInboxVisible || isQuickInputRecordInboxOpening) {
+      if (isQuickInputRecordInboxVisible) {
+        closeQuickInputRecordInbox();
       }
       return;
     }
-    if (smsInboxItems.length === 0) {
+    if (recordInboxItems.length === 0) {
       showToast('수신된 기록이 존재하지 않습니다.');
       return;
     }
@@ -1929,7 +1929,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     ) {
       return;
     }
-    if (isQuickInputSmsInboxClosingRef.current) {
+    if (isQuickInputRecordInboxClosingRef.current) {
       return;
     }
     // main_quick-input_sms-receive_ui (엑셀: quick-input / sms-receive / ui)
@@ -1950,7 +1950,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     editSheetOpenCardOpacity.setValue(1);
     editSheetOpenInputTranslateY.setValue(0);
     editSheetOpenInputOpacity.setValue(1);
-    setIsQuickInputSmsInboxOpening(true);
+    setIsQuickInputRecordInboxOpening(true);
     // 키보드 높이에서 바로 bottom=0으로 점프하면 칩만 하단에 남음.
     // follow 끄기 전에 현재 키보드 위치를 shortBottom에 고정한 뒤 같이 내린다.
     const keyboardHeight = Math.abs(keyboardReanimated.height.value);
@@ -1963,7 +1963,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     quickInputRef.current?.blur();
     Keyboard.dismiss();
     // ponytail: mock until Shortcuts / NotificationListener persist unread SMS.
-    setSmsInboxIndex(0);
+    setRecordInboxIndex(0);
     editSheetOpenAnimationRef.current = RNAnimated.parallel([
       RNAnimated.timing(editSheetOpenCardTranslateY, {
         toValue: -16,
@@ -1992,7 +1992,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     ]);
     const finishOpen = (finished: boolean) => {
       if (!finished) {
-        setIsQuickInputSmsInboxOpening(false);
+        setIsQuickInputRecordInboxOpening(false);
         editSheetOpenCardTranslateY.setValue(0);
         editSheetOpenCardOpacity.setValue(1);
         editSheetOpenInputTranslateY.setValue(0);
@@ -2004,8 +2004,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       // 수신함 레이어는 card opacity를 쓰므로 먼저 복구. input은 언마운트 후 복구.
       editSheetOpenCardTranslateY.setValue(0);
       editSheetOpenCardOpacity.setValue(1);
-      setIsQuickInputSmsInboxVisible(true);
-      setIsQuickInputSmsInboxOpening(false);
+      setIsQuickInputRecordInboxVisible(true);
+      setIsQuickInputRecordInboxOpening(false);
       requestAnimationFrame(() => {
         editSheetOpenInputTranslateY.setValue(0);
         editSheetOpenInputOpacity.setValue(1);
@@ -2019,7 +2019,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     });
   }, [
     animatedBottom,
-    closeQuickInputSmsInbox,
+    closeQuickInputRecordInbox,
     editSheetOpenCardOpacity,
     editSheetOpenCardTranslateY,
     editSheetOpenInputOpacity,
@@ -2029,33 +2029,33 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     isQuickInputCategorySettingOpening,
     isQuickInputEditOpening,
     isQuickInputEditSheetClosing,
-    isQuickInputSmsInboxOpening,
-    isQuickInputSmsInboxVisible,
+    isQuickInputRecordInboxOpening,
+    isQuickInputRecordInboxVisible,
     keyboardReanimated.height,
     quickInputCategorySettingSheetMounted,
     resetAndroidKeyboardFollowPeak,
     setShouldFollowKeyboard,
     shortBottomFromScreen,
     showToast,
-    smsInboxItems.length,
-    smsReceiveEnabled,
+    recordInboxItems.length,
+    recordInboxReceiveEnabled,
   ]);
 
-  const handleSmsInboxIndexChange = useCallback((nextIndex: number) => {
-    setSmsInboxIndex(nextIndex);
+  const handleRecordInboxIndexChange = useCallback((nextIndex: number) => {
+    setRecordInboxIndex(nextIndex);
   }, []);
 
-  const removeSmsInboxItem = useCallback(
+  const removeRecordInboxItem = useCallback(
     (itemId: string, outcome: 'converted' | 'dismissed' = 'dismissed'): boolean => {
       let emptied = false;
-      setSmsInboxItems((prev) => {
+      setRecordInboxItems((prev) => {
         const removeAt = prev.findIndex((item) => item.id === itemId);
         if (removeAt < 0) {
           return prev;
         }
         const next = prev.filter((item) => item.id !== itemId);
         emptied = next.length === 0;
-        setSmsInboxIndex((currentIndex) => {
+        setRecordInboxIndex((currentIndex) => {
           if (next.length === 0) {
             return 0;
           }
@@ -2065,24 +2065,24 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
           return Math.min(currentIndex, next.length - 1);
         });
         void (async () => {
-          await replaceSmsInboxItems(next);
+          await replaceRecordInboxItems(next);
           if (outcome === 'converted') {
-            await markSmsInboxPushConverted(itemId);
+            await markRecordInboxPushConverted(itemId);
           }
           await setupDailyReminder();
         })();
         return next;
       });
       if (emptied) {
-        closeQuickInputSmsInbox();
+        closeQuickInputRecordInbox();
       }
       return emptied;
     },
-    [closeQuickInputSmsInbox],
+    [closeQuickInputRecordInbox],
   );
 
-  const handleSmsInboxConfirm = useCallback(
-    async (item: SmsInboxItem): Promise<SmsInboxConfirmResult> => {
+  const handleRecordInboxConfirm = useCallback(
+    async (item: RecordInboxItem): Promise<RecordInboxConfirmResult> => {
       // 잔여: consume 후 onConfirmConsumed에서 토스트.
       // 마지막: 간편생성 메인 전환 후 토스트.
       const category = item.card.category.trim();
@@ -2105,9 +2105,9 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       if (!saved) {
         return 'abort';
       }
-      const remaining = smsInboxItemsRef.current.filter((entry) => entry.id !== item.id).length;
+      const remaining = recordInboxItemsRef.current.filter((entry) => entry.id !== item.id).length;
       if (remaining === 0) {
-        removeSmsInboxItem(item.id, 'converted');
+        removeRecordInboxItem(item.id, 'converted');
         // 간편생성 메인이 그려진 뒤 토스트
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
@@ -2118,11 +2118,11 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       }
       return 'continue';
     },
-    [refresh, removeSmsInboxItem, showToast],
+    [refresh, removeRecordInboxItem, showToast],
   );
 
-  const handleSmsInboxBeforeConfirm = useCallback(
-    (item: SmsInboxItem) => {
+  const handleRecordInboxBeforeConfirm = useCallback(
+    (item: RecordInboxItem) => {
       const category = item.card.category.trim();
       if (!category || category === '미정') {
         showToast('카테고리를 선택해 주세요.');
@@ -2133,23 +2133,23 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     [showToast],
   );
 
-  const handleSmsInboxConfirmConsumed = useCallback(
-    (item: SmsInboxItem) => {
-      removeSmsInboxItem(item.id, 'converted');
+  const handleRecordInboxConfirmConsumed = useCallback(
+    (item: RecordInboxItem) => {
+      removeRecordInboxItem(item.id, 'converted');
       showToast('기록 생성이 완료되었습니다.');
     },
-    [removeSmsInboxItem, showToast],
+    [removeRecordInboxItem, showToast],
   );
 
-  const handleSmsInboxCancel = useCallback(
-    (item: SmsInboxItem) => {
-      removeSmsInboxItem(item.id, 'dismissed');
+  const handleRecordInboxCancel = useCallback(
+    (item: RecordInboxItem) => {
+      removeRecordInboxItem(item.id, 'dismissed');
     },
-    [removeSmsInboxItem],
+    [removeRecordInboxItem],
   );
 
-  const openSmsInboxItemEditor = useCallback(
-    (item: SmsInboxItem) => {
+  const openRecordInboxItemEditor = useCallback(
+    (item: RecordInboxItem) => {
       const pending = confirmCardDataToPending(item.card);
       if (!pending) {
         showToast('기록 정보를 확인할 수 없습니다.');
@@ -2174,7 +2174,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       editSheetOpenInputTranslateY.setValue(0);
       editSheetOpenInputOpacity.setValue(1);
 
-      smsInboxEditingItemIdRef.current = item.id;
+      recordInboxEditingItemIdRef.current = item.id;
       pendingRecordRef.current = pending;
       setIsQuickInputEditOpening(true);
       setIsQuickInputEditSheetClosing(false);
@@ -2266,46 +2266,46 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     ],
   );
 
-  const handleSmsInboxChange = useCallback(
-    (item: SmsInboxItem) => {
+  const handleRecordInboxChange = useCallback(
+    (item: RecordInboxItem) => {
       void logEvent('btn', {
         screen_name: SMS_HISTORY_RECORD_ANALYTICS_SCREEN_NAME,
         target: 'receive-cardadd-modify',
       });
-      openSmsInboxItemEditor(item);
+      openRecordInboxItemEditor(item);
     },
-    [openSmsInboxItemEditor],
+    [openRecordInboxItemEditor],
   );
 
-  const closeSmsInboxCategorySheet = useCallback(() => {
-    if (!smsInboxCategorySheetVisible && !smsInboxCategorySheetMounted) {
+  const closeRecordInboxCategorySheet = useCallback(() => {
+    if (!recordInboxCategorySheetVisible && !recordInboxCategorySheetMounted) {
       return;
     }
-    setSmsInboxCategorySheetVisible(false);
-    if (smsInboxCategorySheetUnmountTimeoutRef.current) {
-      clearTimeout(smsInboxCategorySheetUnmountTimeoutRef.current);
+    setRecordInboxCategorySheetVisible(false);
+    if (recordInboxCategorySheetUnmountTimeoutRef.current) {
+      clearTimeout(recordInboxCategorySheetUnmountTimeoutRef.current);
     }
-    smsInboxCategorySheetUnmountTimeoutRef.current = setTimeout(() => {
-      smsInboxCategorySheetUnmountTimeoutRef.current = null;
-      smsInboxCategoryItemIdRef.current = null;
-      setSmsInboxCategorySheetMounted(false);
-      setSmsInboxCategorySheetSelected('');
+    recordInboxCategorySheetUnmountTimeoutRef.current = setTimeout(() => {
+      recordInboxCategorySheetUnmountTimeoutRef.current = null;
+      recordInboxCategoryItemIdRef.current = null;
+      setRecordInboxCategorySheetMounted(false);
+      setRecordInboxCategorySheetSelected('');
     }, QUICK_INPUT_EMBEDDED_SHEET_UNMOUNT_DELAY);
-  }, [smsInboxCategorySheetMounted, smsInboxCategorySheetVisible]);
+  }, [recordInboxCategorySheetMounted, recordInboxCategorySheetVisible]);
 
-  const dismissSmsInboxCategorySheet = useCallback(() => {
-    if (!smsInboxCategorySheetVisible && !smsInboxCategorySheetMounted) {
+  const dismissRecordInboxCategorySheet = useCallback(() => {
+    if (!recordInboxCategorySheetVisible && !recordInboxCategorySheetMounted) {
       return;
     }
     void logEvent('btn', {
       screen_name: SMS_HISTORY_RECORD_ANALYTICS_SCREEN_NAME,
       target: 'receive-cardadd-category-close',
     });
-    closeSmsInboxCategorySheet();
-  }, [closeSmsInboxCategorySheet, smsInboxCategorySheetMounted, smsInboxCategorySheetVisible]);
+    closeRecordInboxCategorySheet();
+  }, [closeRecordInboxCategorySheet, recordInboxCategorySheetMounted, recordInboxCategorySheetVisible]);
 
-  const handleSmsInboxCategoryPress = useCallback(
-    (item: SmsInboxItem) => {
+  const handleRecordInboxCategoryPress = useCallback(
+    (item: RecordInboxItem) => {
       void logEvent('btn', {
         screen_name: SMS_HISTORY_RECORD_ANALYTICS_SCREEN_NAME,
         target: 'receive-cardadd-category',
@@ -2314,19 +2314,19 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       const categoryLabel = item.card.category.trim();
       const isUnset = categoryLabel.length === 0 || categoryLabel === '미정';
 
-      smsInboxCategoryItemIdRef.current = item.id;
-      setSmsInboxCategorySheetSelected(isUnset ? '' : categoryLabel);
-      setSmsInboxCategorySheetCategories(getCategoriesByType(categoryType));
-      if (smsInboxCategorySheetUnmountTimeoutRef.current) {
-        clearTimeout(smsInboxCategorySheetUnmountTimeoutRef.current);
-        smsInboxCategorySheetUnmountTimeoutRef.current = null;
+      recordInboxCategoryItemIdRef.current = item.id;
+      setRecordInboxCategorySheetSelected(isUnset ? '' : categoryLabel);
+      setRecordInboxCategorySheetCategories(getCategoriesByType(categoryType));
+      if (recordInboxCategorySheetUnmountTimeoutRef.current) {
+        clearTimeout(recordInboxCategorySheetUnmountTimeoutRef.current);
+        recordInboxCategorySheetUnmountTimeoutRef.current = null;
       }
-      setSmsInboxCategorySheetMounted(true);
-      setSmsInboxCategorySheetVisible(true);
+      setRecordInboxCategorySheetMounted(true);
+      setRecordInboxCategorySheetVisible(true);
 
       void Promise.all([loadCategories(categoryType), loadCategoryOrder(categoryType)])
         .then(([loadedCategories, savedOrder]) => {
-          setSmsInboxCategorySheetCategories(
+          setRecordInboxCategorySheetCategories(
             savedOrder && savedOrder.length > 0
               ? applySavedOrder(loadedCategories, savedOrder)
               : loadedCategories,
@@ -2337,11 +2337,11 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     [],
   );
 
-  const handleSmsInboxCategorySelect = useCallback(
+  const handleRecordInboxCategorySelect = useCallback(
     (category: Category) => {
-      const smsItemId = smsInboxCategoryItemIdRef.current;
-      if (!smsItemId) {
-        closeSmsInboxCategorySheet();
+      const recordInboxItemId = recordInboxCategoryItemIdRef.current;
+      if (!recordInboxItemId) {
+        closeRecordInboxCategorySheet();
         return;
       }
       void logEvent('list', {
@@ -2349,9 +2349,9 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         target: 'receive-cardadd-category-option',
         category: category.label,
       });
-      setSmsInboxItems((prev) => {
+      setRecordInboxItems((prev) => {
         const next = prev.map((item) =>
-          item.id === smsItemId
+          item.id === recordInboxItemId
             ? {
                 ...item,
                 card: {
@@ -2362,12 +2362,12 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
               }
             : item,
         );
-        void replaceSmsInboxItems(next);
+        void replaceRecordInboxItems(next);
         return next;
       });
-      closeSmsInboxCategorySheet();
+      closeRecordInboxCategorySheet();
     },
-    [closeSmsInboxCategorySheet],
+    [closeRecordInboxCategorySheet],
   );
 
   const formatQuickInputCalculatorAmount = useCallback((raw: string) => {
@@ -2487,18 +2487,18 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     setIsQuickInputCalculatorMounted(false);
     setQuickInputCalculatorAmount('');
     setQuickInputCalculatorExpression([]);
-    setIsQuickInputSmsInboxVisible(false);
-    setIsQuickInputSmsInboxOpening(false);
-    isQuickInputSmsInboxClosingRef.current = false;
-    setSmsInboxIndex(0);
-    smsInboxCategoryItemIdRef.current = null;
-    if (smsInboxCategorySheetUnmountTimeoutRef.current) {
-      clearTimeout(smsInboxCategorySheetUnmountTimeoutRef.current);
-      smsInboxCategorySheetUnmountTimeoutRef.current = null;
+    setIsQuickInputRecordInboxVisible(false);
+    setIsQuickInputRecordInboxOpening(false);
+    isQuickInputRecordInboxClosingRef.current = false;
+    setRecordInboxIndex(0);
+    recordInboxCategoryItemIdRef.current = null;
+    if (recordInboxCategorySheetUnmountTimeoutRef.current) {
+      clearTimeout(recordInboxCategorySheetUnmountTimeoutRef.current);
+      recordInboxCategorySheetUnmountTimeoutRef.current = null;
     }
-    setSmsInboxCategorySheetVisible(false);
-    setSmsInboxCategorySheetMounted(false);
-    setSmsInboxCategorySheetSelected('');
+    setRecordInboxCategorySheetVisible(false);
+    setRecordInboxCategorySheetMounted(false);
+    setRecordInboxCategorySheetSelected('');
     setQuickInputText('');
     setConfirmCardData(null);
     setIsQuickInputConfirmCardRevealPaused(false);
@@ -3683,7 +3683,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     if (!pending) {
       return;
     }
-    smsInboxEditingItemIdRef.current = null;
+    recordInboxEditingItemIdRef.current = null;
 
     if (editSheetCloseTimeoutRef.current) {
       clearTimeout(editSheetCloseTimeoutRef.current);
@@ -4135,14 +4135,14 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     if (isQuickInputEditOpening || isQuickInputEditSheetClosing) {
       return;
     }
-    const isSmsInboxEdit = smsInboxEditingItemIdRef.current != null;
+    const isRecordInboxEdit = recordInboxEditingItemIdRef.current != null;
     // onClose/onPress가 이벤트를 넘길 수 있어 fromConfirm만 좁게 판별
     const fromConfirm =
       options != null &&
       typeof options === 'object' &&
       'fromConfirm' in options &&
       options.fromConfirm === true;
-    if (isSmsInboxEdit && !fromConfirm) {
+    if (isRecordInboxEdit && !fromConfirm) {
       void logEvent('btn', {
         screen_name: SMS_HISTORY_RECORD_ANALYTICS_SCREEN_NAME,
         target: 'cancel',
@@ -4172,8 +4172,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       setQuickInputEditRecordType('expense');
       editSheetRestoreTimeoutRef.current = setTimeout(() => {
         editSheetRestoreTimeoutRef.current = null;
-        if (isSmsInboxEdit) {
-          smsInboxEditingItemIdRef.current = null;
+        if (isRecordInboxEdit) {
+          recordInboxEditingItemIdRef.current = null;
           editSheetOpenCardTranslateY.setValue(0);
           editSheetOpenCardOpacity.setValue(1);
           editSheetOpenInputTranslateY.setValue(0);
@@ -4252,7 +4252,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
           weekendOption: draft.isRecurring || draft.isInstallment ? draft.weekendOption : undefined,
         };
 
-    const smsItemId = smsInboxEditingItemIdRef.current;
+    const recordInboxItemId = recordInboxEditingItemIdRef.current;
     pendingRecordRef.current = updated;
     handleQuickInputEditSheetClose({ fromConfirm: true });
     void buildConfirmCardFromPending(updated, {
@@ -4261,10 +4261,10 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       getPaymentSubtypesCached,
     })
       .then((card) => {
-        if (smsItemId) {
-          setSmsInboxItems((prev) => {
-            const next = prev.map((item) => (item.id === smsItemId ? { ...item, card } : item));
-            void replaceSmsInboxItems(next);
+        if (recordInboxItemId) {
+          setRecordInboxItems((prev) => {
+            const next = prev.map((item) => (item.id === recordInboxItemId ? { ...item, card } : item));
+            void replaceRecordInboxItems(next);
             return next;
           });
           return;
@@ -4302,16 +4302,16 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         handleQuickInputEditSheetClose();
         return true;
       }
-      if (smsInboxCategorySheetMounted) {
-        dismissSmsInboxCategorySheet();
+      if (recordInboxCategorySheetMounted) {
+        dismissRecordInboxCategorySheet();
         return true;
       }
       if (quickInputCategorySettingSheetMounted || isQuickInputCategorySettingOpening) {
         handleQuickInputCategorySettingSheetClose();
         return true;
       }
-      if (isQuickInputSmsInboxVisible) {
-        closeQuickInputSmsInbox();
+      if (isQuickInputRecordInboxVisible) {
+        closeQuickInputRecordInbox();
         return true;
       }
       if (isQuickInputCalculatorVisible || isQuickInputCalculatorMounted) {
@@ -4326,8 +4326,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     return () => subscription.remove();
   }, [
     closeQuickInputCalculator,
-    closeQuickInputSmsInbox,
-    dismissSmsInboxCategorySheet,
+    closeQuickInputRecordInbox,
+    dismissRecordInboxCategorySheet,
     handleQuickInputCategorySettingSheetClose,
     handleQuickInputEditSheetClose,
     hideQuickInput,
@@ -4336,11 +4336,11 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     isQuickInputCategorySettingOpening,
     isQuickInputEditOpening,
     isQuickInputEditSheetClosing,
-    isQuickInputSmsInboxVisible,
+    isQuickInputRecordInboxVisible,
     isQuickInputVisible,
     quickInputCategorySettingSheetMounted,
     quickInputEditSheetVisible,
-    smsInboxCategorySheetMounted,
+    recordInboxCategorySheetMounted,
   ]);
 
   const handleCancel = useCallback(() => {
@@ -4352,16 +4352,16 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       handleQuickInputEditSheetClose();
       return;
     }
-    if (smsInboxCategorySheetMounted) {
-      dismissSmsInboxCategorySheet();
+    if (recordInboxCategorySheetMounted) {
+      dismissRecordInboxCategorySheet();
       return;
     }
     if (quickInputCategorySettingSheetMounted || isQuickInputCategorySettingOpening) {
       handleQuickInputCategorySettingSheetClose();
       return;
     }
-    if (isQuickInputSmsInboxVisible) {
-      closeQuickInputSmsInbox();
+    if (isQuickInputRecordInboxVisible) {
+      closeQuickInputRecordInbox();
       return;
     }
     if (isQuickInputCalculatorVisible || isQuickInputCalculatorMounted) {
@@ -4375,8 +4375,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     hideQuickInput();
   }, [
     closeQuickInputCalculator,
-    closeQuickInputSmsInbox,
-    dismissSmsInboxCategorySheet,
+    closeQuickInputRecordInbox,
+    dismissRecordInboxCategorySheet,
     handleQuickInputCategorySettingSheetClose,
     handleQuickInputEditSheetClose,
     hideQuickInput,
@@ -4385,10 +4385,10 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     isQuickInputCategorySettingOpening,
     isQuickInputEditOpening,
     isQuickInputEditSheetClosing,
-    isQuickInputSmsInboxVisible,
+    isQuickInputRecordInboxVisible,
     quickInputCategorySettingSheetMounted,
     quickInputEditSheetVisible,
-    smsInboxCategorySheetMounted,
+    recordInboxCategorySheetMounted,
   ]);
 
   // 백드롭 딤 애니메이션 (닫기 중에는 hideQuickInput에서 페이드 처리)
@@ -4512,7 +4512,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       isQuickInputVisible,
       isQuickInputContentVisible,
       isQuickInputShortVisible,
-      smsInboxUnreadCount: smsReceiveEnabled ? smsInboxItems.length : 0,
+      recordInboxUnreadCount: recordInboxReceiveEnabled ? recordInboxItems.length : 0,
       showQuickInput,
       hideQuickInput,
       quickInputText,
@@ -4526,8 +4526,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       hideQuickInput,
       quickInputText,
       setQuickInputTextTruncated,
-      smsInboxItems.length,
-      smsReceiveEnabled,
+      recordInboxItems.length,
+      recordInboxReceiveEnabled,
     ]
   );
 
@@ -4623,14 +4623,14 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                       !isQuickInputEditOpening &&
                       !quickInputCategorySettingSheetMounted &&
                       !isQuickInputCategorySettingOpening &&
-                      !isQuickInputSmsInboxVisible &&
-                      !isQuickInputSmsInboxOpening
+                      !isQuickInputRecordInboxVisible &&
+                      !isQuickInputRecordInboxOpening
                         ? handleQuickInputBackdropPress
                         : undefined
                     }
                     onPress={handleQuickInputBackdropPress}
                   />
-                  {confirmCardData != null && !isQuickInputConfirmCardRevealPaused && !quickInputEditSheetVisible && !isQuickInputEditSheetClosing && (!isQuickInputSmsInboxVisible || isQuickInputSmsInboxOpening) && (!quickInputCategorySettingSheetMounted || isQuickInputCategorySettingOpening) && (
+                  {confirmCardData != null && !isQuickInputConfirmCardRevealPaused && !quickInputEditSheetVisible && !isQuickInputEditSheetClosing && (!isQuickInputRecordInboxVisible || isQuickInputRecordInboxOpening) && (!quickInputCategorySettingSheetMounted || isQuickInputCategorySettingOpening) && (
                     <RNAnimated.View
                       style={[
                         styles.confirmCardContainer,
@@ -4650,33 +4650,33 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                       />
                     </RNAnimated.View>
                   )}
-                  {isQuickInputSmsInboxVisible &&
-                  !isQuickInputSmsInboxOpening &&
+                  {isQuickInputRecordInboxVisible &&
+                  !isQuickInputRecordInboxOpening &&
                   !quickInputEditSheetVisible &&
                   !isQuickInputEditSheetClosing ? (
                     <RNAnimated.View
                       style={[
-                        styles.smsInboxExitLayer,
+                        styles.recordInboxExitLayer,
                         {
                           opacity: editSheetOpenCardOpacity,
                           transform: [{ translateY: editSheetOpenCardTranslateY }],
                         },
                       ]}
                       pointerEvents={
-                        isQuickInputEditOpening || smsInboxCategorySheetMounted ? 'none' : 'box-none'
+                        isQuickInputEditOpening || recordInboxCategorySheetMounted ? 'none' : 'box-none'
                       }
                     >
-                      <QuickInputSmsInbox
-                        items={smsInboxItems}
-                        index={smsInboxIndex}
-                        onIndexChange={handleSmsInboxIndexChange}
-                        onConfirm={handleSmsInboxConfirm}
-                        onConfirmConsumed={handleSmsInboxConfirmConsumed}
-                        onCancel={handleSmsInboxCancel}
-                        onChange={handleSmsInboxChange}
-                        onCategoryPress={handleSmsInboxCategoryPress}
-                        onBeforeConfirm={handleSmsInboxBeforeConfirm}
-                        onDismiss={closeQuickInputSmsInbox}
+                      <QuickInputRecordInbox
+                        items={recordInboxItems}
+                        index={recordInboxIndex}
+                        onIndexChange={handleRecordInboxIndexChange}
+                        onConfirm={handleRecordInboxConfirm}
+                        onConfirmConsumed={handleRecordInboxConfirmConsumed}
+                        onCancel={handleRecordInboxCancel}
+                        onChange={handleRecordInboxChange}
+                        onCategoryPress={handleRecordInboxCategoryPress}
+                        onBeforeConfirm={handleRecordInboxBeforeConfirm}
+                        onDismiss={closeQuickInputRecordInbox}
                       />
                     </RNAnimated.View>
                   ) : null}
@@ -4687,22 +4687,22 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                           styles.normalInputStack,
                           {
                             opacity:
-                              isQuickInputSmsInboxVisible && !isQuickInputSmsInboxOpening
+                              isQuickInputRecordInboxVisible && !isQuickInputRecordInboxOpening
                                 ? 0
                                 : editSheetOpenInputOpacity,
                             transform: [{ translateY: editSheetOpenInputTranslateY }],
                           },
                         ]}
                         pointerEvents={
-                          isQuickInputSmsInboxVisible || isQuickInputSmsInboxOpening
+                          isQuickInputRecordInboxVisible || isQuickInputRecordInboxOpening
                             ? 'none'
                             : 'box-none'
                         }
                         accessibilityElementsHidden={
-                          isQuickInputSmsInboxVisible || isQuickInputSmsInboxOpening
+                          isQuickInputRecordInboxVisible || isQuickInputRecordInboxOpening
                         }
                         importantForAccessibility={
-                          isQuickInputSmsInboxVisible || isQuickInputSmsInboxOpening
+                          isQuickInputRecordInboxVisible || isQuickInputRecordInboxOpening
                             ? 'no-hide-descendants'
                             : 'auto'
                         }
@@ -4714,25 +4714,25 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                           contentContainerStyle={styles.actionRow}
                           keyboardShouldPersistTaps="handled"
                         >
-                            {smsReceiveEnabled ? (
+                            {recordInboxReceiveEnabled ? (
                               <Pressable
                                 style={styles.actionChip}
-                                onPress={handleQuickInputSmsInboxPress}
+                                onPress={handleQuickInputRecordInboxPress}
                                 accessibilityRole="button"
                                 accessibilityLabel={
-                                  smsInboxItems.length > 0
-                                    ? `문자 수신함, 미처리 ${smsInboxItems.length}건`
-                                    : '문자 수신함'
+                                  recordInboxItems.length > 0
+                                    ? `기록 수신함, 미처리 ${recordInboxItems.length}건`
+                                    : '기록 수신함'
                                 }
                               >
                                 <View style={styles.actionIconBox}>
                                   <Icon name="message" variant="solid" size={24} />
                                 </View>
-                                <Text style={styles.actionLabel}>문자 수신함</Text>
-                                {smsInboxItems.length > 0 ? (
+                                <Text style={styles.actionLabel}>기록 수신함</Text>
+                                {recordInboxItems.length > 0 ? (
                                   <View style={styles.actionBadge}>
                                     <Text style={styles.actionBadgeLabel}>
-                                      {smsInboxItems.length > 99 ? '99+' : String(smsInboxItems.length)}
+                                      {recordInboxItems.length > 99 ? '99+' : String(recordInboxItems.length)}
                                     </Text>
                                   </View>
                                 ) : null}
@@ -5635,15 +5635,15 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                 </View>
                 </ModalBottomsheet>
               ) : null}
-              {smsInboxCategorySheetMounted ? (
+              {recordInboxCategorySheetMounted ? (
                 <View
                   pointerEvents="box-none"
-                  style={styles.smsInboxCategorySheetHost}
+                  style={styles.recordInboxCategorySheetHost}
                 >
                   <ModalBottomsheet
-                    visible={smsInboxCategorySheetVisible}
+                    visible={recordInboxCategorySheetVisible}
                     title="카테고리 선택"
-                    onClose={dismissSmsInboxCategorySheet}
+                    onClose={dismissRecordInboxCategorySheet}
                     closeOnBackdrop
                     embedded
                     embeddedZIndex={1}
@@ -5652,7 +5652,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                     resizable
                     dragBehavior="sheet"
                     style={{ height: windowHeight * CATEGORY_SETTING_SHEET_HEIGHT_RATIO }}
-                    contentStyle={styles.smsInboxCategorySheetContent}
+                    contentStyle={styles.recordInboxCategorySheetContent}
                     noPaddingBottom
                   >
                     <View style={styles.categorySheetBody}>
@@ -5664,11 +5664,11 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                           bounces={false}
                           overScrollMode="never"
                         >
-                          {smsInboxCategorySheetCategories.map((category, index) => (
+                          {recordInboxCategorySheetCategories.map((category, index) => (
                             <View key={`${category.type}-${category.label}`}>
                               <Pressable
                                 style={styles.categorySheetItem}
-                                onPress={() => handleSmsInboxCategorySelect(category)}
+                                onPress={() => handleRecordInboxCategorySelect(category)}
                                 accessibilityRole="button"
                                 accessibilityLabel={`${category.label} 선택`}
                               >
@@ -5676,11 +5676,11 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                                   <Text style={styles.categorySheetEmoji}>{category.emoji}</Text>
                                   <Text style={styles.categorySheetLabel}>{category.label}</Text>
                                 </View>
-                                {smsInboxCategorySheetSelected === category.label ? (
+                                {recordInboxCategorySheetSelected === category.label ? (
                                   <Icon name="check" variant="line" size={24} color={atomicColors.blue[600]} />
                                 ) : null}
                               </Pressable>
-                              {index < smsInboxCategorySheetCategories.length - 1 ? (
+                              {index < recordInboxCategorySheetCategories.length - 1 ? (
                                 <View style={styles.categorySheetDivider} />
                               ) : null}
                             </View>
@@ -5758,7 +5758,7 @@ const styles = StyleSheet.create({
     right: 16,
     zIndex: 2,
   },
-  smsInboxExitLayer: {
+  recordInboxExitLayer: {
     ...StyleSheet.absoluteFill,
     zIndex: 2,
   },
@@ -5983,13 +5983,13 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 0,
   },
-  smsInboxCategorySheetContent: {
+  recordInboxCategorySheetContent: {
     flex: 1,
     minHeight: 0,
     padding: 0,
   },
   /** 닫힘 중 ModalBottomsheet host elevation=0이 되어도 수신함 카드 위로 유지 */
-  smsInboxCategorySheetHost: {
+  recordInboxCategorySheetHost: {
     ...StyleSheet.absoluteFill,
     zIndex: 100010,
     elevation: 100010,

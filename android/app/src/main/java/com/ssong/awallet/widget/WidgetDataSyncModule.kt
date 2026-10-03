@@ -3,7 +3,12 @@ package com.ssong.awallet.widget
 import android.app.AlarmManager
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.drawable.Drawable
 import android.net.Uri
+import android.util.Base64
+import java.io.ByteArrayOutputStream
 import android.os.Build
 import android.os.Handler
 import android.provider.Settings
@@ -17,6 +22,9 @@ import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.bridge.UiThreadUtil
 
+/** 알림 수신 대상 로고 32dp @3x */
+private const val LAUNCHER_ICON_PX = 96
+
 class WidgetDataSyncModule(reactContext: ReactApplicationContext) :
   ReactContextBaseJavaModule(reactContext) {
 
@@ -26,11 +34,11 @@ class WidgetDataSyncModule(reactContext: ReactApplicationContext) :
 
   override fun initialize() {
     super.initialize()
-    SmsInboxNativeEventEmitter.attach(reactApplicationContext)
+    RecordInboxNativeEventEmitter.attach(reactApplicationContext)
   }
 
   override fun invalidate() {
-    SmsInboxNativeEventEmitter.detach(reactApplicationContext)
+    RecordInboxNativeEventEmitter.detach(reactApplicationContext)
     super.invalidate()
   }
 
@@ -113,7 +121,7 @@ class WidgetDataSyncModule(reactContext: ReactApplicationContext) :
           numbers.getString(index)?.let(::add)
         }
       }
-      SmsInboxNativeStore.syncSettings(
+      RecordInboxNativeStore.syncSettings(
         reactApplicationContext.applicationContext,
         enabled,
         values,
@@ -128,7 +136,7 @@ class WidgetDataSyncModule(reactContext: ReactApplicationContext) :
   fun getPendingSmsInbox(promise: Promise) {
     try {
       val result = Arguments.createArray()
-      SmsInboxNativeStore.peek(reactApplicationContext.applicationContext).forEach { item ->
+      RecordInboxNativeStore.peek(reactApplicationContext.applicationContext).forEach { item ->
         result.pushMap(
           Arguments.createMap().apply {
             putString("id", item.id)
@@ -152,7 +160,7 @@ class WidgetDataSyncModule(reactContext: ReactApplicationContext) :
           ids.getString(index)?.let(::add)
         }
       }
-      SmsInboxNativeStore.acknowledge(
+      RecordInboxNativeStore.acknowledge(
         reactApplicationContext.applicationContext,
         values,
       )
@@ -165,7 +173,7 @@ class WidgetDataSyncModule(reactContext: ReactApplicationContext) :
   @ReactMethod
   fun clearSmsInboxNativeState(promise: Promise) {
     try {
-      SmsInboxNativeStore.clear(reactApplicationContext.applicationContext)
+      RecordInboxNativeStore.clear(reactApplicationContext.applicationContext)
       promise.resolve(null)
     } catch (e: Exception) {
       promise.reject("ERROR", "Failed to clear native SMS inbox state: ${e.message}", e)
@@ -222,6 +230,44 @@ class WidgetDataSyncModule(reactContext: ReactApplicationContext) :
         promise.reject("ERROR", "Failed to open SMS app notification settings: ${e.message}", e)
       }
     }
+  }
+
+  /** 홈 화면 아이콘이 있는 설치 앱 — `<queries>` LAUNCHER 선언으로 QUERY_ALL_PACKAGES 없이 조회 */
+  @ReactMethod
+  fun getLauncherApps(promise: Promise) {
+    Thread {
+      try {
+        val context = reactApplicationContext.applicationContext
+        val pm = context.packageManager
+        val launcherIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+        val seen = HashSet<String>()
+        val result = Arguments.createArray()
+        for (info in pm.queryIntentActivities(launcherIntent, 0)) {
+          val packageName = info.activityInfo.packageName
+          if (packageName == context.packageName || !seen.add(packageName)) continue
+          val app = Arguments.createMap()
+          app.putString("packageName", packageName)
+          app.putString("label", info.loadLabel(pm).toString())
+          app.putString("icon", drawableToPngDataUri(info.loadIcon(pm)))
+          result.pushMap(app)
+        }
+        promise.resolve(result)
+      } catch (e: Exception) {
+        promise.reject("ERROR", "Failed to load launcher apps: ${e.message}", e)
+      }
+    }.start()
+  }
+
+  private fun drawableToPngDataUri(drawable: Drawable): String {
+    val size = LAUNCHER_ICON_PX
+    val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bitmap)
+    drawable.setBounds(0, 0, size, size)
+    drawable.draw(canvas)
+    val out = ByteArrayOutputStream()
+    bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+    bitmap.recycle()
+    return "data:image/png;base64," + Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
   }
 
   @ReactMethod

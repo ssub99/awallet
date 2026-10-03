@@ -13,17 +13,17 @@ import { getExpoNotifications } from '@/utils/expo-notifications-client';
 import { parseCalendarDataFromJson } from '@/utils/calendar-data-parse';
 import type { CalendarData, CalendarDayData, CalendarRecord } from '@/utils/consumption-index';
 import {
-  buildSmsInboxReminderBody,
+  buildRecordInboxReminderBody,
   decideEveningGeneralPush,
-  getClosedJudgmentWindowForSmsBuffer,
+  getClosedJudgmentWindowForRecordInboxBuffer,
   getJudgmentWindowForNow,
   type EveningPushWindow,
 } from '@/utils/evening-general-push-policy';
 import { getAllExpenses } from '@/utils/expenses';
 import {
-  getSmsInboxPushWindowStats,
-  recordSmsInboxPushReceived,
-} from '@/utils/sms-inbox-push-ledger';
+  getRecordInboxPushWindowStats,
+  recordRecordInboxPushReceived,
+} from '@/utils/record-inbox-push-ledger';
 
 type NotificationRequest = ExpoNotifications.NotificationRequest;
 type NotificationContentData = ExpoNotifications.NotificationContent['data'];
@@ -54,11 +54,11 @@ export const GENERAL_NOTIFICATIONS_ENABLED_KEY = 'generalNotificationsEnabled';
 export const CHALLENGE_NOTIFICATIONS_ENABLED_KEY = 'challengeNotificationsEnabled';
 const DAILY_REMINDER_TITLE = '오늘은 어떤 소비들을 하셨나요?';
 const DAILY_REMINDER_BODY = '시작이 반! 소비 기록을 통해 차근차근 소비습관을 개선해 보세요!';
-const SMS_INBOX_REMINDER_TITLE = '소비 기록 수신 현황';
+const RECORD_INBOX_REMINDER_TITLE = '소비 기록 수신 현황';
 const DAILY_EXPENSE_REMINDER_ID = 'daily_expense_reminder';
-const DAILY_SMS_INBOX_REMINDER_ID = 'daily_sms_inbox_reminder';
+const DAILY_RECORD_INBOX_REMINDER_ID = 'daily_sms_inbox_reminder';
 const EXPENSE_REMINDER_TYPE = 'expense_reminder';
-const SMS_INBOX_REMINDER_TYPE = 'sms_inbox_reminder';
+const RECORD_INBOX_REMINDER_TYPE = 'sms_inbox_reminder';
 let dailyReminderOperationQueue: Promise<void> = Promise.resolve();
 
 function runDailyReminderExclusive<T>(operation: () => Promise<T>): Promise<T> {
@@ -215,12 +215,12 @@ function isGeneralReminderNotification(notification: NotificationRequest): boole
   );
 }
 
-function isSmsInboxReminderNotification(notification: NotificationRequest): boolean {
+function isRecordInboxReminderNotification(notification: NotificationRequest): boolean {
   const notificationType = notification.content.data?.type;
   return (
-    notification.identifier === DAILY_SMS_INBOX_REMINDER_ID ||
-    notificationType === SMS_INBOX_REMINDER_TYPE ||
-    notification.content.title === SMS_INBOX_REMINDER_TITLE
+    notification.identifier === DAILY_RECORD_INBOX_REMINDER_ID ||
+    notificationType === RECORD_INBOX_REMINDER_TYPE ||
+    notification.content.title === RECORD_INBOX_REMINDER_TITLE
   );
 }
 
@@ -233,13 +233,13 @@ async function getGeneralReminderNotifications(): Promise<NotificationRequest[]>
   return scheduledNotifications.filter(isGeneralReminderNotification);
 }
 
-async function getSmsInboxReminderNotifications(): Promise<NotificationRequest[]> {
+async function getRecordInboxReminderNotifications(): Promise<NotificationRequest[]> {
   const Notifications = getExpoNotifications();
   if (!Notifications) {
     return [];
   }
   const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
-  return scheduledNotifications.filter(isSmsInboxReminderNotification);
+  return scheduledNotifications.filter(isRecordInboxReminderNotification);
 }
 
 async function dedupeGeneralReminderNotifications(): Promise<void> {
@@ -258,12 +258,12 @@ async function dedupeGeneralReminderNotifications(): Promise<void> {
   }
 }
 
-async function dedupeSmsInboxReminderNotifications(): Promise<void> {
+async function dedupeRecordInboxReminderNotifications(): Promise<void> {
   const Notifications = getExpoNotifications();
   if (!Notifications) {
     return;
   }
-  const notifications = await getSmsInboxReminderNotifications();
+  const notifications = await getRecordInboxReminderNotifications();
   if (notifications.length <= 1) {
     return;
   }
@@ -306,22 +306,22 @@ async function cancelGeneralReminderNotifications(): Promise<void> {
   }
 }
 
-async function cancelSmsInboxReminderNotifications(): Promise<void> {
+async function cancelRecordInboxReminderNotifications(): Promise<void> {
   const Notifications = getExpoNotifications();
   if (!Notifications) {
     return;
   }
-  await Notifications.cancelScheduledNotificationAsync(DAILY_SMS_INBOX_REMINDER_ID).catch(() => {});
-  await cancelScheduledNotificationsByTypes([SMS_INBOX_REMINDER_TYPE]);
+  await Notifications.cancelScheduledNotificationAsync(DAILY_RECORD_INBOX_REMINDER_ID).catch(() => {});
+  await cancelScheduledNotificationsByTypes([RECORD_INBOX_REMINDER_TYPE]);
 
   const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
   for (const notification of scheduledNotifications) {
-    if (isSmsInboxReminderNotification(notification)) {
+    if (isRecordInboxReminderNotification(notification)) {
       await Notifications.cancelScheduledNotificationAsync(notification.identifier).catch(() => {});
     }
   }
 
-  const remaining = await getSmsInboxReminderNotifications();
+  const remaining = await getRecordInboxReminderNotifications();
   for (const notification of remaining) {
     await Notifications.cancelScheduledNotificationAsync(notification.identifier).catch(() => {});
   }
@@ -329,7 +329,7 @@ async function cancelSmsInboxReminderNotifications(): Promise<void> {
 
 async function cancelEveningGeneralPushNotifications(): Promise<void> {
   await cancelGeneralReminderNotifications();
-  await cancelSmsInboxReminderNotifications();
+  await cancelRecordInboxReminderNotifications();
 }
 
 export async function setGeneralNotificationsEnabled(enabled: boolean): Promise<void> {
@@ -508,13 +508,13 @@ async function hasExpenseCreatedInWindow(window: EveningPushWindow): Promise<boo
 }
 
 /** 업그레이드 전 수신함 잔여 건을 원장에 보강 (동적 import로 store 순환 참조 방지) */
-async function hydrateSmsInboxPushLedgerFromStore(): Promise<void> {
+async function hydrateRecordInboxPushLedgerFromStore(): Promise<void> {
   try {
-    const { loadSmsInboxItems } = await import('@/utils/sms-inbox-store');
-    const items = await loadSmsInboxItems();
+    const { loadRecordInboxItems } = await import('@/utils/record-inbox-store');
+    const items = await loadRecordInboxItems();
     for (const item of items) {
       const receivedAtMs = Date.parse(item.createdAt);
-      await recordSmsInboxPushReceived(
+      await recordRecordInboxPushReceived(
         item.id,
         Number.isNaN(receivedAtMs) ? Date.now() : receivedAtMs,
       );
@@ -527,37 +527,37 @@ async function hydrateSmsInboxPushLedgerFromStore(): Promise<void> {
 async function resolveEveningPushDecision(nowMs: number): Promise<{
   window: EveningPushWindow;
   kind: ReturnType<typeof decideEveningGeneralPush>['kind'];
-  smsCount: number;
+  recordInboxCount: number;
   hasExpenseCreatedInWindow: boolean;
   /** 판정 구간 내 수신 건수 (보조) */
-  smsReceivedCount: number;
+  recordInboxReceivedCount: number;
   /** 수신함 큐 미처리 전체 (= 가기록 푸시 N) */
-  smsUnconvertedCount: number;
+  recordInboxUnconvertedCount: number;
 }> {
-  const closedForSmsBuffer = getClosedJudgmentWindowForSmsBuffer(nowMs);
-  const window = closedForSmsBuffer ?? getJudgmentWindowForNow(nowMs);
-  await hydrateSmsInboxPushLedgerFromStore();
+  const closedForRecordInboxBuffer = getClosedJudgmentWindowForRecordInboxBuffer(nowMs);
+  const window = closedForRecordInboxBuffer ?? getJudgmentWindowForNow(nowMs);
+  await hydrateRecordInboxPushLedgerFromStore();
 
-  const { loadSmsInboxItems } = await import('@/utils/sms-inbox-store');
-  const [hasExpense, smsStats, queueItems] = await Promise.all([
+  const { loadRecordInboxItems } = await import('@/utils/record-inbox-store');
+  const [hasExpense, recordInboxStats, queueItems] = await Promise.all([
     hasExpenseCreatedInWindow(window),
-    getSmsInboxPushWindowStats(window.startMs, window.endMs),
-    loadSmsInboxItems(),
+    getRecordInboxPushWindowStats(window.startMs, window.endMs),
+    loadRecordInboxItems(),
   ]);
-  const pendingSmsInboxCount = queueItems.length;
+  const pendingRecordInboxCount = queueItems.length;
   const decision = decideEveningGeneralPush({
     nowMs,
     hasExpenseCreatedInWindow: hasExpense,
-    smsReceivedCountInWindow: smsStats.receivedCount,
-    pendingSmsInboxCount,
+    recordInboxReceivedCountInWindow: recordInboxStats.receivedCount,
+    pendingRecordInboxCount,
   });
   return {
     window,
     kind: decision.kind,
-    smsCount: decision.smsCount,
+    recordInboxCount: decision.recordInboxCount,
     hasExpenseCreatedInWindow: hasExpense,
-    smsReceivedCount: smsStats.receivedCount,
-    smsUnconvertedCount: pendingSmsInboxCount,
+    recordInboxReceivedCount: recordInboxStats.receivedCount,
+    recordInboxUnconvertedCount: pendingRecordInboxCount,
   };
 }
 
@@ -574,9 +574,9 @@ export type DailyReminderDebugSnapshot = {
   hasExpenseToday: boolean;
   hasExpenseCreatedInWindow: boolean;
   /** 판정 구간 내 가기록 수신 건수 */
-  smsReceivedCount: number;
+  recordInboxReceivedCount: number;
   /** 수신함 큐 미처리 전체 건수 (= 가기록 푸시 N) */
-  smsUnconvertedCount: number;
+  recordInboxUnconvertedCount: number;
   decisionKind: string;
   todayScheduleMarkPresent: boolean;
   /** 설정 ON + 권한 + 판정 결과 예약 대상 */
@@ -600,8 +600,8 @@ export async function getDailyReminderDebugSnapshot(): Promise<DailyReminderDebu
     permissionGranted,
     hasExpenseToday: hasExpense,
     hasExpenseCreatedInWindow: resolved.hasExpenseCreatedInWindow,
-    smsReceivedCount: resolved.smsReceivedCount,
-    smsUnconvertedCount: resolved.smsUnconvertedCount,
+    recordInboxReceivedCount: resolved.recordInboxReceivedCount,
+    recordInboxUnconvertedCount: resolved.recordInboxUnconvertedCount,
     decisionKind: resolved.kind,
     todayScheduleMarkPresent: mark === 'true',
     wouldSchedule: settingsAndPermissionOk && resolved.kind !== 'none',
@@ -621,7 +621,7 @@ export async function setupDailyReminder(): Promise<void> {
 
 async function setupDailyReminderInternal(): Promise<void> {
   const log = (step: string, extra?: Record<string, unknown>) => {
-    console.log(`[sms-inbox-push] setupDailyReminder:${step}`, extra ?? {});
+    console.log(`[record-inbox-push] setupDailyReminder:${step}`, extra ?? {});
   };
 
   try {
@@ -657,10 +657,10 @@ async function setupDailyReminderInternal(): Promise<void> {
       today2005Iso: today2005.toISOString(),
       before2005: nowMs < today2005.getTime(),
       kind: resolved.kind,
-      smsCount: resolved.smsCount,
-      smsReceivedCount: resolved.smsReceivedCount,
-      smsUnconvertedCount: resolved.smsUnconvertedCount,
-      pendingSmsInboxCount: resolved.smsUnconvertedCount,
+      recordInboxCount: resolved.recordInboxCount,
+      recordInboxReceivedCount: resolved.recordInboxReceivedCount,
+      recordInboxUnconvertedCount: resolved.recordInboxUnconvertedCount,
+      pendingRecordInboxCount: resolved.recordInboxUnconvertedCount,
       hasExpenseCreatedInWindow: resolved.hasExpenseCreatedInWindow,
       windowStartIso: new Date(resolved.window.startMs).toISOString(),
       windowEndIso: new Date(resolved.window.endMs).toISOString(),
@@ -682,14 +682,14 @@ async function setupDailyReminderInternal(): Promise<void> {
       });
       log('scheduled', { kind: 'expense_reminder', trigger: 'DAILY 20:00' });
     } else if (resolved.kind === 'sms_inbox_reminder') {
-      const body = buildSmsInboxReminderBody(resolved.smsCount);
+      const body = buildRecordInboxReminderBody(resolved.recordInboxCount);
       if (nowMs < today2005.getTime()) {
         await Notifications.scheduleNotificationAsync({
-          identifier: DAILY_SMS_INBOX_REMINDER_ID,
+          identifier: DAILY_RECORD_INBOX_REMINDER_ID,
           content: {
-            title: SMS_INBOX_REMINDER_TITLE,
+            title: RECORD_INBOX_REMINDER_TITLE,
             body,
-            data: { type: SMS_INBOX_REMINDER_TYPE, count: resolved.smsCount },
+            data: { type: RECORD_INBOX_REMINDER_TYPE, count: resolved.recordInboxCount },
           },
           trigger: {
             type: Notifications.SchedulableTriggerInputTypes.DATE,
@@ -701,15 +701,15 @@ async function setupDailyReminderInternal(): Promise<void> {
           trigger: 'DATE',
           dateIso: today2005.toISOString(),
           body,
-          count: resolved.smsCount,
+          count: resolved.recordInboxCount,
         });
       } else {
         await Notifications.scheduleNotificationAsync({
-          identifier: DAILY_SMS_INBOX_REMINDER_ID,
+          identifier: DAILY_RECORD_INBOX_REMINDER_ID,
           content: {
-            title: SMS_INBOX_REMINDER_TITLE,
+            title: RECORD_INBOX_REMINDER_TITLE,
             body,
-            data: { type: SMS_INBOX_REMINDER_TYPE, count: resolved.smsCount },
+            data: { type: RECORD_INBOX_REMINDER_TYPE, count: resolved.recordInboxCount },
           },
           trigger: {
             type: Notifications.SchedulableTriggerInputTypes.DAILY,
@@ -721,7 +721,7 @@ async function setupDailyReminderInternal(): Promise<void> {
           kind: 'sms_inbox_reminder',
           trigger: 'DAILY 20:05',
           body,
-          count: resolved.smsCount,
+          count: resolved.recordInboxCount,
         });
       }
     } else {
@@ -737,11 +737,11 @@ async function setupDailyReminderInternal(): Promise<void> {
     }
 
     await dedupeGeneralReminderNotifications();
-    await dedupeSmsInboxReminderNotifications();
+    await dedupeRecordInboxReminderNotifications();
     await AsyncStorage.setItem(scheduledKey, 'true');
     log('done', { scheduledKey });
   } catch (error) {
-    console.error('[sms-inbox-push] setupDailyReminder:error', error);
+    console.error('[record-inbox-push] setupDailyReminder:error', error);
   }
 }
 
@@ -818,11 +818,11 @@ async function rescheduleDailyReminderIfNeededInternal(): Promise<void> {
       });
     } else if (resolved.kind === 'sms_inbox_reminder') {
       await Notifications.scheduleNotificationAsync({
-        identifier: DAILY_SMS_INBOX_REMINDER_ID,
+        identifier: DAILY_RECORD_INBOX_REMINDER_ID,
         content: {
-          title: SMS_INBOX_REMINDER_TITLE,
-          body: buildSmsInboxReminderBody(resolved.smsCount),
-          data: { type: SMS_INBOX_REMINDER_TYPE, count: resolved.smsCount },
+          title: RECORD_INBOX_REMINDER_TITLE,
+          body: buildRecordInboxReminderBody(resolved.recordInboxCount),
+          data: { type: RECORD_INBOX_REMINDER_TYPE, count: resolved.recordInboxCount },
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.DATE,
@@ -840,7 +840,7 @@ async function rescheduleDailyReminderIfNeededInternal(): Promise<void> {
     }
 
     await dedupeGeneralReminderNotifications();
-    await dedupeSmsInboxReminderNotifications();
+    await dedupeRecordInboxReminderNotifications();
     await AsyncStorage.setItem(scheduledKey, 'true');
   } catch (error) {
     console.error('[notification-scheduler] Failed to reschedule daily reminder:', error);

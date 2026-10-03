@@ -22,15 +22,16 @@ import {
   CHALLENGE_NOTIFICATIONS_ENABLED_KEY,
 } from '@/utils/notification-scheduler';
 import { QUICK_INPUT_TIP_BOX_EXPANDED_KEY } from '@/utils/quick-input-tip-preference';
-import { SMS_INBOX_ITEMS_KEY } from '@/utils/sms-inbox-store';
-import { SMS_INBOX_PUSH_LEDGER_KEY } from '@/utils/sms-inbox-push-ledger';
+import { RECORD_INBOX_ITEMS_KEY } from '@/utils/record-inbox-store';
+import { RECORD_INBOX_PUSH_LEDGER_KEY } from '@/utils/record-inbox-push-ledger';
 import {
   APP_NOTIFICATION_RECEIVE_ENABLED_KEY,
+  APP_NOTIFICATION_RECEIVE_TARGETS_KEY,
   clearSmsReceiveNativeState,
   SMS_RECEIVE_DISCLOSURE_ACCEPTED_KEY,
   SMS_RECEIVE_ENABLED_KEY,
   SMS_RECEIVE_NUMBERS_KEY,
-} from '@/utils/sms-receive-settings';
+} from '@/utils/record-inbox-receive-settings';
 
 /** 전체 초기화 시 제거할 AsyncStorage 키 (데이터·설정·캐시) */
 const KEYS_TO_REMOVE = [
@@ -55,12 +56,13 @@ const KEYS_TO_REMOVE = [
   APP_STORE_WRITE_REVIEW_PROMPT_SHOWN_KEY,
   APP_STORE_REVIEW_LIFETIME_RECORD_COUNT_KEY,
   QUICK_INPUT_TIP_BOX_EXPANDED_KEY,
-  SMS_INBOX_ITEMS_KEY,
-  SMS_INBOX_PUSH_LEDGER_KEY,
+  RECORD_INBOX_ITEMS_KEY,
+  RECORD_INBOX_PUSH_LEDGER_KEY,
   SMS_RECEIVE_ENABLED_KEY,
   SMS_RECEIVE_NUMBERS_KEY,
   SMS_RECEIVE_DISCLOSURE_ACCEPTED_KEY,
   APP_NOTIFICATION_RECEIVE_ENABLED_KEY,
+  APP_NOTIFICATION_RECEIVE_TARGETS_KEY,
 ];
 
 /**

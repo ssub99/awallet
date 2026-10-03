@@ -1,16 +1,16 @@
 /**
- * 문자 수신함 적재 게이트 시뮬레이션 (실기기 Focus/DND는 OS 영역).
- * ingestSmsInboxMessage 분기와 동일하게 재현.
+ * 기록 수신함 적재 게이트 시뮬레이션 (실기기 Focus/DND는 OS 영역).
+ * ingestRecordInboxMessage 분기와 동일하게 재현.
  *
- *   npx tsx scripts/simulate-sms-inbox-gates.ts
+ *   npx tsx scripts/simulate-record-inbox-gates.ts
  */
 
 import {
   isSenderAllowed,
   normalizeSmsSender,
-  parseSmsInboxBody,
+  parseRecordInboxBody,
   restoreSmsSenderFromQueryParam,
-} from '../utils/sms-inbox-parse';
+} from '../utils/record-inbox-parse';
 
 type GateCase = {
   label: string;
@@ -38,7 +38,7 @@ function simulateGate(c: GateCase): { ok: boolean; reason: string } {
     return { ok: false, reason: 'sender-not-allowed' };
   }
 
-  const parsed = parseSmsInboxBody(body);
+  const parsed = parseRecordInboxBody(body);
   if (parsed.kind === 'ignore') {
     return { ok: false, reason: parsed.reason };
   }

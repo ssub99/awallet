@@ -19,18 +19,18 @@ export type EveningPushInputs = {
    * 판정 구간 내 가기록 수신 건수(무효화 제외).
    * 큐가 비었을 때 “구간 수신분을 이미 다 처리함 → 두 푸시 모두 스킵” 보조 판정용.
    */
-  smsReceivedCountInWindow: number;
+  recordInboxReceivedCountInWindow: number;
   /**
    * 수신함 큐에 남아 있는 미처리 가기록 전체 건수.
    * 전날·일주일 전 잔여 + 당일 신규 합산. 수신 시각과 무관.
    */
-  pendingSmsInboxCount: number;
+  pendingRecordInboxCount: number;
 };
 
 export type EveningPushDecision = {
   kind: EveningPushKind;
-  /** sms_inbox_reminder 일 때 본문 N (= pendingSmsInboxCount) */
-  smsCount: number;
+  /** sms_inbox_reminder 일 때 본문 N (= pendingRecordInboxCount) */
+  recordInboxCount: number;
 };
 
 /** 발송일 기준 판정 구간 [전날 20:00, 당일 20:00) */
@@ -60,7 +60,7 @@ export function getJudgmentWindowForNow(nowMs: number): EveningPushWindow {
 }
 
 /** 20:00~20:05 사이 SMS 푸시용: 방금 닫힌 구간(어제 20 ~ 오늘 20) */
-export function getClosedJudgmentWindowForSmsBuffer(nowMs: number): EveningPushWindow | null {
+export function getClosedJudgmentWindowForRecordInboxBuffer(nowMs: number): EveningPushWindow | null {
   const now = new Date(nowMs);
   const today20 = new Date(now);
   today20.setHours(20, 0, 0, 0);
@@ -73,25 +73,25 @@ export function getClosedJudgmentWindowForSmsBuffer(nowMs: number): EveningPushW
 }
 
 export function decideEveningGeneralPush(input: EveningPushInputs): EveningPushDecision {
-  const { hasExpenseCreatedInWindow, smsReceivedCountInWindow, pendingSmsInboxCount } = input;
+  const { hasExpenseCreatedInWindow, recordInboxReceivedCountInWindow, pendingRecordInboxCount } = input;
 
-  if (pendingSmsInboxCount > 0) {
-    return { kind: 'sms_inbox_reminder', smsCount: pendingSmsInboxCount };
+  if (pendingRecordInboxCount > 0) {
+    return { kind: 'sms_inbox_reminder', recordInboxCount: pendingRecordInboxCount };
   }
 
   // 큐는 비었고, 구간 내 수신분은 있었던 경우 → 이미 처리 완료로 보고 두 푸시 모두 미발송
-  if (smsReceivedCountInWindow > 0) {
-    return { kind: 'none', smsCount: 0 };
+  if (recordInboxReceivedCountInWindow > 0) {
+    return { kind: 'none', recordInboxCount: 0 };
   }
 
   if (!hasExpenseCreatedInWindow) {
-    return { kind: 'expense_reminder', smsCount: 0 };
+    return { kind: 'expense_reminder', recordInboxCount: 0 };
   }
 
-  return { kind: 'none', smsCount: 0 };
+  return { kind: 'none', recordInboxCount: 0 };
 }
 
-export function buildSmsInboxReminderBody(count: number): string {
+export function buildRecordInboxReminderBody(count: number): string {
   const n = Math.max(0, Math.floor(count));
   return `${n}건의 지출을 수신했습니다. 기록으로 생성하여 소비 흐름을 관리해 보세요.`;
 }

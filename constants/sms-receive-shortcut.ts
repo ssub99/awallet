@@ -1,7 +1,7 @@
 /**
  * iOS 단축어 — iCloud 공유 단축어(플로우와 동일 설치 UX).
  * 단축어 본문은 App Intent「문자 수신함」에 본문·발신번호를 연결한 형태.
- * Swift Intent: ios/awallet/SmsInboxAppIntent.swift
+ * Swift Intent: ios/awallet/RecordInboxAppIntent.swift
  *
  * 최신 공유 링크는 Vercel static `sms-inbox-shortcut.json` (깃 관리).
  * 배선 수정본(unsigned): `static/sms-inbox-shortcut-fixed.plist`
@@ -10,14 +10,18 @@
  * 앱은 fetch 후 iCloud URL을 열어 단축어 앱으로 넘긴다 (별도 웹 UI 없음).
  */
 
-import { SMS_INBOX_SHORTCUT_CONFIG_URL } from '@/constants/api';
+import { SMS_RECEIVE_SHORTCUT_CONFIG_URL } from '@/constants/api';
 
 /**
  * 번들 폴백 (원격 JSON 실패·미배포 시).
  * 예: https://www.icloud.com/shortcuts/xxxxxxxx
  */
-export const SMS_INBOX_SHORTCUT_ICLOUD_URL =
+export const SMS_RECEIVE_SHORTCUT_ICLOUD_URL =
   'https://www.icloud.com/shortcuts/d7d8ee8ea9324cfd997e353b74f02ce7';
+
+/** iOS 27+ 단축어「알림 수신함」— App Intent「알림 수신함」공유 단축어 */
+export const APP_NOTIFICATION_RECEIVE_SHORTCUT_ICLOUD_URL =
+  'https://www.icloud.com/shortcuts/d425c167b6244f51a04c6500c7468c59';
 
 function isIcloudShortcutsUrl(value: string): boolean {
   try {
@@ -36,10 +40,10 @@ function isIcloudShortcutsUrl(value: string): boolean {
  * 원격 JSON → iCloud URL. 실패 시 번들 폴백.
  * `shortcuts://import-shortcut?url=` 래핑은 일부 iOS에서 포맷 오류가 나므로 https를 그대로 연다.
  */
-export async function resolveSmsInboxShortcutInstallUrl(): Promise<string> {
-  const fallback = SMS_INBOX_SHORTCUT_ICLOUD_URL.trim();
+export async function resolveSmsReceiveShortcutInstallUrl(): Promise<string> {
+  const fallback = SMS_RECEIVE_SHORTCUT_ICLOUD_URL.trim();
   try {
-    const res = await fetch(SMS_INBOX_SHORTCUT_CONFIG_URL, {
+    const res = await fetch(SMS_RECEIVE_SHORTCUT_CONFIG_URL, {
       method: 'GET',
       headers: { Accept: 'application/json' },
     });

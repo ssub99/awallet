@@ -23,7 +23,7 @@ class SmsInboxNotificationListener : NotificationListenerService() {
     if (!MESSAGE_PACKAGES.contains(sbn.packageName)) return
 
     val context = applicationContext
-    if (!SmsInboxNativeStore.isReceiveEnabled(context)) return
+    if (!RecordInboxNativeStore.isReceiveEnabled(context)) return
 
     val notification = sbn.notification ?: return
     val extras = notification.extras ?: Bundle()
@@ -31,7 +31,7 @@ class SmsInboxNotificationListener : NotificationListenerService() {
     if (body.isEmpty()) {
       return
     }
-    if (!SmsInboxNativeStore.hasSupportedTransactionKeyword(body)) {
+    if (!RecordInboxNativeStore.hasSupportedTransactionKeyword(body)) {
       return
     }
 
@@ -53,13 +53,13 @@ class SmsInboxNotificationListener : NotificationListenerService() {
       return
     }
 
-    if (!SmsInboxNativeStore.isSenderAllowed(context, sender)) {
+    if (!RecordInboxNativeStore.isSenderAllowed(context, sender)) {
       return
     }
 
     val receivedAt = sbn.postTime.takeIf { it > 0L } ?: System.currentTimeMillis()
-    if (SmsInboxNativeStore.enqueue(context, sender, body, receivedAt)) {
-      SmsInboxNativeEventEmitter.notifyFromOtherProcess(context)
+    if (RecordInboxNativeStore.enqueue(context, sender, body, receivedAt)) {
+      RecordInboxNativeEventEmitter.notifyFromOtherProcess(context)
     }
   }
 
@@ -184,15 +184,15 @@ class SmsInboxNotificationListener : NotificationListenerService() {
       extractSenderCandidatesFromPeople(extras).forEach(candidates::add)
 
       for (candidate in candidates) {
-        if (SmsInboxNativeStore.isSenderAllowed(context, candidate)) {
+        if (RecordInboxNativeStore.isSenderAllowed(context, candidate)) {
           return candidate
         }
       }
 
-      val haystack = SmsInboxNativeStore.normalizeSender(
+      val haystack = RecordInboxNativeStore.normalizeSender(
         "$title $subText $infoText $conversationTitle $body",
       )
-      for (allowed in SmsInboxNativeStore.allowedNumbers(context)) {
+      for (allowed in RecordInboxNativeStore.allowedNumbers(context)) {
         if (allowed.isEmpty()) continue
         if (haystack.contains(allowed)) {
           return allowed
@@ -202,7 +202,7 @@ class SmsInboxNotificationListener : NotificationListenerService() {
       // 삼성 메시지 RCS: 제목이 연락처명이고 본문만 카드 문자인 경우가 많다.
       // 대표번호(4~8자리) allowlist가 하나면 카드성 본문에 한해 매칭한다.
       if (looksLikeCardOrBankSms(body)) {
-        val shortCodes = SmsInboxNativeStore.allowedNumbers(context)
+        val shortCodes = RecordInboxNativeStore.allowedNumbers(context)
           .filter { it.length in 4..8 }
           .distinct()
         if (shortCodes.size == 1) {
@@ -214,7 +214,7 @@ class SmsInboxNotificationListener : NotificationListenerService() {
     }
 
     private fun looksLikeCardOrBankSms(body: String): Boolean {
-      if (!SmsInboxNativeStore.hasSupportedTransactionKeyword(body)) return false
+      if (!RecordInboxNativeStore.hasSupportedTransactionKeyword(body)) return false
       return body.contains("카드") ||
         body.contains("은행") ||
         body.contains("Web발신") ||

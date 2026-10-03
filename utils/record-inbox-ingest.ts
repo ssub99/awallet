@@ -10,37 +10,37 @@
 import {
   isSenderAllowed,
   normalizeSmsSender,
-  parseSmsInboxBody,
+  parseRecordInboxBody,
   restoreSmsSenderFromQueryParam,
-} from '@/utils/sms-inbox-parse';
+} from '@/utils/record-inbox-parse';
 
 import {
-  ingestParsedSms,
-  normalizeSmsOriginalBody,
-  type SmsInboxIngestResult,
-} from '@/utils/sms-inbox-store';
+  ingestParsedRecordInbox,
+  normalizeRecordInboxOriginalBody,
+  type RecordInboxIngestResult,
+} from '@/utils/record-inbox-store';
 import {
   loadAppNotificationReceiveEnabled,
   loadSmsReceiveEnabled,
   loadSmsReceiveNumbers,
-} from '@/utils/sms-receive-settings';
+} from '@/utils/record-inbox-receive-settings';
 
-export type SmsInboxIngestInput = {
+export type RecordInboxIngestInput = {
   body: string;
   sender: string;
   /** 'app' = iOS 알림 수신함 Intent. 생략 시 문자 */
   source?: 'sms' | 'app';
 };
 
-export type SmsInboxIngestGateResult =
-  | SmsInboxIngestResult
+export type RecordInboxIngestGateResult =
+  | RecordInboxIngestResult
   | { ok: false; reason: string };
 
-export async function ingestSmsInboxMessage(
-  input: SmsInboxIngestInput,
-): Promise<SmsInboxIngestGateResult> {
+export async function ingestRecordInboxMessage(
+  input: RecordInboxIngestInput,
+): Promise<RecordInboxIngestGateResult> {
   // 중간 줄바꿈은 유지. 앞·뒤 빈 줄만 정리.
-  const body = normalizeSmsOriginalBody(input.body);
+  const body = normalizeRecordInboxOriginalBody(input.body);
   const sender = input.sender.trim();
 
   if (!body) {
@@ -52,11 +52,11 @@ export async function ingestSmsInboxMessage(
     if (!(await loadAppNotificationReceiveEnabled())) {
       return { ok: false, reason: 'disabled' };
     }
-    const parsedApp = parseSmsInboxBody(body);
+    const parsedApp = parseRecordInboxBody(body);
     if (parsedApp.kind === 'ignore') {
       return { ok: false, reason: parsedApp.reason };
     }
-    return ingestParsedSms({ sender: sender || '앱 알림', body, parsed: parsedApp });
+    return ingestParsedRecordInbox({ sender: sender || '앱 알림', body, parsed: parsedApp });
   }
 
   const enabled = await loadSmsReceiveEnabled();
@@ -75,18 +75,18 @@ export async function ingestSmsInboxMessage(
     return { ok: false, reason: 'sender-not-allowed' };
   }
 
-  const parsed = parseSmsInboxBody(body);
+  const parsed = parseRecordInboxBody(body);
   if (parsed.kind === 'ignore') {
     return { ok: false, reason: parsed.reason };
   }
 
-  return ingestParsedSms({ sender, body, parsed });
+  return ingestParsedRecordInbox({ sender, body, parsed });
 }
 
 export { restoreSmsSenderFromQueryParam };
 
 /** `awallet://sms-inbox?body=&sender=` */
-export function parseSmsInboxDeepLink(url: string): SmsInboxIngestInput | null {
+export function parseRecordInboxDeepLink(url: string): RecordInboxIngestInput | null {
   try {
     const normalized = url.trim();
     if (!normalized) return null;
@@ -111,10 +111,10 @@ export function parseSmsInboxDeepLink(url: string): SmsInboxIngestInput | null {
   }
 }
 
-export async function ingestSmsInboxDeepLinkUrl(url: string): Promise<SmsInboxIngestGateResult> {
-  const payload = parseSmsInboxDeepLink(url);
+export async function ingestRecordInboxDeepLinkUrl(url: string): Promise<RecordInboxIngestGateResult> {
+  const payload = parseRecordInboxDeepLink(url);
   if (!payload) {
     return { ok: false, reason: 'not-sms-inbox-url' };
   }
-  return ingestSmsInboxMessage(payload);
+  return ingestRecordInboxMessage(payload);
 }

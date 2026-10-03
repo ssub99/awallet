@@ -1,8 +1,10 @@
-/** Android 문자 수신 — 알림 접근·기본 메시지 앱 알림 설정 브리지 */
+/** Android 기록 수신 — 알림 접근·기본 메시지 앱 알림 설정·설치 앱 목록 브리지 */
 
+import type { AppNotificationReceiveTarget } from '@/utils/record-inbox-receive-settings';
 import { NativeModules, Platform } from 'react-native';
 
-type SmsInboxNotificationNativeModule = {
+type RecordInboxNotificationNativeModule = {
+  getLauncherApps?: () => Promise<unknown>;
   isSmsInboxNotificationAccessEnabled?: () => Promise<boolean>;
   openSmsInboxNotificationAccessSettings?: () => Promise<void>;
   areDefaultSmsAppNotificationsEnabled?: () => Promise<boolean>;
@@ -10,10 +12,28 @@ type SmsInboxNotificationNativeModule = {
 };
 
 const widgetDataSync = NativeModules.WidgetDataSync as
-  | SmsInboxNotificationNativeModule
+  | RecordInboxNotificationNativeModule
   | undefined;
 
-export async function hasAndroidSmsInboxNotificationAccess(): Promise<boolean> {
+/** 홈 화면 아이콘이 있는 설치 앱 (이름순). 브리지 없으면 빈 배열. */
+export async function loadAndroidLauncherApps(): Promise<AppNotificationReceiveTarget[]> {
+  if (Platform.OS !== 'android') return [];
+  const fn = widgetDataSync?.getLauncherApps;
+  if (typeof fn !== 'function') return [];
+  const raw = await fn.call(widgetDataSync);
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter(
+      (item): item is AppNotificationReceiveTarget =>
+        item != null &&
+        typeof item === 'object' &&
+        typeof (item as AppNotificationReceiveTarget).packageName === 'string' &&
+        typeof (item as AppNotificationReceiveTarget).label === 'string',
+    )
+    .sort((a, b) => a.label.localeCompare(b.label, 'ko'));
+}
+
+export async function hasAndroidRecordInboxNotificationAccess(): Promise<boolean> {
   if (Platform.OS !== 'android') return true;
   const fn = widgetDataSync?.isSmsInboxNotificationAccessEnabled;
   if (typeof fn !== 'function') return false;
@@ -24,7 +44,7 @@ export async function hasAndroidSmsInboxNotificationAccess(): Promise<boolean> {
   }
 }
 
-export async function openAndroidSmsInboxNotificationAccessSettings(): Promise<void> {
+export async function openAndroidRecordInboxNotificationAccessSettings(): Promise<void> {
   if (Platform.OS !== 'android') return;
   const fn = widgetDataSync?.openSmsInboxNotificationAccessSettings;
   if (typeof fn !== 'function') return;

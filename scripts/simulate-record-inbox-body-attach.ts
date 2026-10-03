@@ -3,14 +3,14 @@
  * 「메시지 본문이 Intent에 붙었는지」만 A/B로 비교.
  * (기기 SMS/단축어는 이 스크립트가 대신 실행할 수 없음 — 앱 enqueue 로직 미러)
  *
- *   npx tsx scripts/simulate-sms-inbox-body-attach.ts
+ *   npx tsx scripts/simulate-record-inbox-body-attach.ts
  */
 
 import {
   isSenderAllowed,
   normalizeSmsSender,
-  parseSmsInboxBody,
-} from '../utils/sms-inbox-parse';
+  parseRecordInboxBody,
+} from '../utils/record-inbox-parse';
 
 /** 사용자가 설정·단축어·카드사에 쓴 실번호 */
 const REAL_NUMBER = '+82 1544-7200';
@@ -23,7 +23,7 @@ const REAL_PAYMENT_BODY = `[Web발신]
 
 function intentEnqueue(body: string, sender: string) {
   const trimmed = body.trim();
-  // SmsInboxAppIntent.perform → enqueue 미러
+  // RecordInboxAppIntent.perform → enqueue 미러
   if (!trimmed) {
     return {
       shortcutShowsRan: true as const,
@@ -55,7 +55,7 @@ function flushIngest(body: string, sender: string) {
   if (n && !isSenderAllowed(sender, allowlist)) {
     return { stacked: false, reason: 'sender-not-allowed' };
   }
-  const p = parseSmsInboxBody(body);
+  const p = parseRecordInboxBody(body);
   if (p.kind === 'ignore') return { stacked: false, reason: p.reason };
   return { stacked: true, reason: `${p.kind}:${p.amount}` };
 }

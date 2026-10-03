@@ -1,9 +1,9 @@
 /**
- * 간편입력 · 문자 수신함 오버레이
- * Figma baseline: home.month.quickInputSmsInbox ([Awallet]Home_month 2233:22555)
+ * 간편입력 · 기록 수신함 오버레이
+ * Figma baseline: home.month.quickInputRecordInbox ([Awallet]Home_month 2233:22555)
  *
  * 레이아웃 (원문↔기록카드 스왑, 페이저 고정):
- * - 닫기   @(16, 48) 48×48 · Frame 301 / smsInboxClose
+ * - 닫기   @(16, 48) 48×48 · Frame 301 / recordInboxClose
  * - 원문   @(16, 112) h176 · 닫기 하단과 gap 16
  * - 스택   top/mid/bottom 간격 12 · 카드 h308 · 세로 스와이프
  * - 페이저 @(16, 724) h56 · 뒤 카드 최하단과 gap 16
@@ -20,18 +20,18 @@ import {
 import { atomicColors } from '@/constants/atomic-colors';
 import { colors, typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import type { SmsInboxItem } from '@/utils/sms-inbox-mock';
-import { SMS_HISTORY_RECORD_ANALYTICS_SCREEN_NAME } from '@/utils/sms-inbox-types';
+import type { RecordInboxItem } from '@/utils/record-inbox-mock';
+import { SMS_HISTORY_RECORD_ANALYTICS_SCREEN_NAME } from '@/utils/record-inbox-types';
 import { logEvent } from '@/utils/analytics';
-import { normalizeSmsOriginalBody } from '@/utils/sms-inbox-store';
-import { formatSmsSenderDisplay } from '@/utils/sms-inbox-parse';
+import { normalizeRecordInboxOriginalBody } from '@/utils/record-inbox-store';
+import { formatSmsSenderDisplay } from '@/utils/record-inbox-parse';
 import {
   buildStackFrame,
   SlotMotion,
   STACK_FRAME_CAPACITY,
   type SlotMotionValue,
   type StackTransition,
-} from '@/utils/sms-inbox-stack-frame';
+} from '@/utils/record-inbox-stack-frame';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import {
@@ -109,10 +109,10 @@ const CARD_SHADOW = Platform.select({
   default: {},
 });
 
-export type SmsInboxConfirmResult = 'last' | 'continue' | 'abort';
+export type RecordInboxConfirmResult = 'last' | 'continue' | 'abort';
 
-export type QuickInputSmsInboxProps = {
-  items: SmsInboxItem[];
+export type QuickInputRecordInboxProps = {
+  items: RecordInboxItem[];
   index: number;
   onIndexChange: (nextIndex: number) => void;
   /**
@@ -121,18 +121,18 @@ export type QuickInputSmsInboxProps = {
    * - continue: 제거·토스트는 onConfirmConsumed
    * - abort: 카드 복구
    */
-  onConfirm: (item: SmsInboxItem) => Promise<SmsInboxConfirmResult>;
+  onConfirm: (item: RecordInboxItem) => Promise<RecordInboxConfirmResult>;
   /** 잔여 건 consume(퇴장+롤업) 종료 후 큐 제거 + 완료 토스트 */
-  onConfirmConsumed: (item: SmsInboxItem) => void;
-  onCancel: (item: SmsInboxItem) => void;
-  onChange?: (item: SmsInboxItem) => void;
+  onConfirmConsumed: (item: RecordInboxItem) => void;
+  onCancel: (item: RecordInboxItem) => void;
+  onChange?: (item: RecordInboxItem) => void;
   /** 카테고리 미선택 플레이스홀더 탭 */
-  onCategoryPress?: (item: SmsInboxItem) => void;
+  onCategoryPress?: (item: RecordInboxItem) => void;
   /**
    * 추가 직전 동기 검증. false면 퇴장 모션 없이 중단.
    * 토스트 등은 호출측에서 처리.
    */
-  onBeforeConfirm?: (item: SmsInboxItem) => boolean;
+  onBeforeConfirm?: (item: RecordInboxItem) => boolean;
   /** 딤 영역 탭 → 간편입력 롱뷰로 복귀 */
   onDismiss?: () => void;
   addLoading?: boolean;
@@ -144,7 +144,7 @@ function formatPagerLabel(index: number, total: number): string {
   return `${current}/${end}`;
 }
 
-function toCardData(item: SmsInboxItem): QuickInputConfirmCardData {
+function toCardData(item: RecordInboxItem): QuickInputConfirmCardData {
   const trimmed = item.card.category.trim();
   // 예전 목업/가기록 플레이스홀더 '미정' → 빈 값 (카드에서 '선택해 주세요.' 표시)
   return { ...item.card, category: trimmed === '미정' ? '' : trimmed };
@@ -213,7 +213,7 @@ function OriginalMessageSkeleton({ boneColor, lineColor }: { boneColor: string; 
 }
 
 /**
- * 한 프레임에 그릴 카드·모션은 buildStackFrame이 확정한다 (utils/sms-inbox-stack-frame).
+ * 한 프레임에 그릴 카드·모션은 buildStackFrame이 확정한다 (utils/record-inbox-stack-frame).
  * 여기서는 motion 하나만 보고 궤적을 그리므로, 카드가 없는 슬롯의 모션은 생길 수 없다.
  *
  * progress: forward(+) = 다음·추가·취소 · backward(-) = 이전 · 0 = 정지
@@ -351,12 +351,12 @@ function useMotionStyle(
 }
 
 type StackCardProps = {
-  item: SmsInboxItem;
+  item: RecordInboxItem;
   interactive: boolean;
-  onConfirm?: (item: SmsInboxItem) => void;
-  onCancel?: (item: SmsInboxItem) => void;
-  onChange?: (item: SmsInboxItem) => void;
-  onCategoryPress?: (item: SmsInboxItem) => void;
+  onConfirm?: (item: RecordInboxItem) => void;
+  onCancel?: (item: RecordInboxItem) => void;
+  onChange?: (item: RecordInboxItem) => void;
+  onCategoryPress?: (item: RecordInboxItem) => void;
   addLoading?: boolean;
   /** 순서 전환 중 카드 콘텐츠 숨김 + 인디케이터 (원문 로딩과 동일 타이밍) */
   contentLoading?: boolean;
@@ -413,7 +413,7 @@ function MotionStackCard({
   return <StackCard {...cardProps} style={IS_ANDROID ? itemMotionStyle : slotStyle} />;
 }
 
-export function QuickInputSmsInbox({
+export function QuickInputRecordInbox({
   items,
   index,
   onIndexChange,
@@ -425,7 +425,7 @@ export function QuickInputSmsInbox({
   onBeforeConfirm,
   onDismiss,
   addLoading = false,
-}: QuickInputSmsInboxProps) {
+}: QuickInputRecordInboxProps) {
   const colorScheme = useColorScheme();
   const palette = colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
@@ -455,7 +455,7 @@ export function QuickInputSmsInbox({
   const [isConsuming, setIsConsuming] = useState(false);
   const [frozenPagerIndex, setFrozenPagerIndex] = useState<number | null>(null);
   const pendingConsumeRef = useRef<{
-    item: SmsInboxItem;
+    item: RecordInboxItem;
     action: 'confirm' | 'cancel';
   } | null>(null);
   const pendingAndroidConsumeResetItemIdRef = useRef<string | null>(null);
@@ -678,7 +678,7 @@ export function QuickInputSmsInbox({
       return;
     }
     void (async () => {
-      let result: SmsInboxConfirmResult = 'abort';
+      let result: RecordInboxConfirmResult = 'abort';
       try {
         result = await onConfirm(pending.item);
       } catch {
@@ -730,7 +730,7 @@ export function QuickInputSmsInbox({
       return;
     }
     void (async () => {
-      let result: SmsInboxConfirmResult = 'abort';
+      let result: RecordInboxConfirmResult = 'abort';
       try {
         result = await onConfirm(pending.item);
       } catch {
@@ -793,7 +793,7 @@ export function QuickInputSmsInbox({
   }, [onCancel, onDismiss, resetConsumeMotion]);
 
   const requestConsume = useCallback(
-    (item: SmsInboxItem, action: 'confirm' | 'cancel') => {
+    (item: RecordInboxItem, action: 'confirm' | 'cancel') => {
       if (isRolling.value || isConsuming) {
         return;
       }
@@ -1057,7 +1057,7 @@ export function QuickInputSmsInbox({
           style={styles.dismissHitArea}
           onPress={handleScreenPrev}
           accessibilityRole="button"
-          accessibilityLabel="문자 수신함 닫기"
+          accessibilityLabel="기록 수신함 닫기"
         />
       ) : null}
 
@@ -1143,7 +1143,7 @@ export function QuickInputSmsInbox({
                     { color: palette.textNeutral },
                   ]}
                 >
-                  {normalizeSmsOriginalBody(current.originalBody)
+                  {normalizeRecordInboxOriginalBody(current.originalBody)
                     .split('\n')
                     .map((line, index, lines) => (
                       <Text key={`sms-line-${index}`}>
@@ -1262,7 +1262,7 @@ export function QuickInputSmsInbox({
           onPress={handlePrev}
           disabled={!canGoPrev}
           accessibilityRole="button"
-          accessibilityLabel="이전 문자"
+          accessibilityLabel="이전 기록"
           hitSlop={8}
           style={styles.pagerButton}
         >
@@ -1280,7 +1280,7 @@ export function QuickInputSmsInbox({
           onPress={handleNext}
           disabled={!canGoNext}
           accessibilityRole="button"
-          accessibilityLabel="다음 문자"
+          accessibilityLabel="다음 기록"
           hitSlop={8}
           style={styles.pagerButton}
         >

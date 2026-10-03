@@ -5,9 +5,9 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export const SMS_INBOX_PUSH_LEDGER_KEY = '@awallet/smsInboxPushLedger';
+export const RECORD_INBOX_PUSH_LEDGER_KEY = '@awallet/smsInboxPushLedger';
 
-export type SmsInboxPushLedgerEntry = {
+export type RecordInboxPushLedgerEntry = {
   id: string;
   receivedAtMs: number;
   convertedAtMs?: number;
@@ -16,21 +16,21 @@ export type SmsInboxPushLedgerEntry = {
 };
 
 type LedgerFile = {
-  entries: SmsInboxPushLedgerEntry[];
+  entries: RecordInboxPushLedgerEntry[];
 };
 
 const RETENTION_MS = 1000 * 60 * 60 * 48; // 48h
 
 let writeChain: Promise<void> = Promise.resolve();
 
-function isEntry(value: unknown): value is SmsInboxPushLedgerEntry {
+function isEntry(value: unknown): value is RecordInboxPushLedgerEntry {
   if (value == null || typeof value !== 'object') return false;
   const row = value as Record<string, unknown>;
   return typeof row.id === 'string' && typeof row.receivedAtMs === 'number';
 }
 
 async function readFile(): Promise<LedgerFile> {
-  const raw = await AsyncStorage.getItem(SMS_INBOX_PUSH_LEDGER_KEY);
+  const raw = await AsyncStorage.getItem(RECORD_INBOX_PUSH_LEDGER_KEY);
   if (!raw) {
     return { entries: [] };
   }
@@ -51,17 +51,17 @@ async function readFile(): Promise<LedgerFile> {
 
 async function writeFile(file: LedgerFile): Promise<void> {
   writeChain = writeChain.then(async () => {
-    await AsyncStorage.setItem(SMS_INBOX_PUSH_LEDGER_KEY, JSON.stringify(file));
+    await AsyncStorage.setItem(RECORD_INBOX_PUSH_LEDGER_KEY, JSON.stringify(file));
   });
   await writeChain;
 }
 
-function prune(entries: SmsInboxPushLedgerEntry[], nowMs: number): SmsInboxPushLedgerEntry[] {
+function prune(entries: RecordInboxPushLedgerEntry[], nowMs: number): RecordInboxPushLedgerEntry[] {
   const cutoff = nowMs - RETENTION_MS;
   return entries.filter((entry) => entry.receivedAtMs >= cutoff);
 }
 
-export async function recordSmsInboxPushReceived(
+export async function recordRecordInboxPushReceived(
   id: string,
   receivedAtMs: number = Date.now(),
 ): Promise<void> {
@@ -73,7 +73,7 @@ export async function recordSmsInboxPushReceived(
   await writeFile({ entries: prune(next, receivedAtMs) });
 }
 
-export async function markSmsInboxPushConverted(
+export async function markRecordInboxPushConverted(
   id: string,
   convertedAtMs: number = Date.now(),
 ): Promise<void> {
@@ -90,7 +90,7 @@ export async function markSmsInboxPushConverted(
   await writeFile({ entries: prune(next, convertedAtMs) });
 }
 
-export async function markSmsInboxPushInvalidated(
+export async function markRecordInboxPushInvalidated(
   id: string,
   invalidatedAtMs: number = Date.now(),
 ): Promise<void> {
@@ -107,16 +107,16 @@ export async function markSmsInboxPushInvalidated(
   await writeFile({ entries: prune(next, invalidatedAtMs) });
 }
 
-export type SmsInboxPushWindowStats = {
+export type RecordInboxPushWindowStats = {
   receivedCount: number;
   unconvertedCount: number;
   convertedCount: number;
 };
 
-export async function getSmsInboxPushWindowStats(
+export async function getRecordInboxPushWindowStats(
   startMs: number,
   endMs: number,
-): Promise<SmsInboxPushWindowStats> {
+): Promise<RecordInboxPushWindowStats> {
   const file = await readFile();
   let receivedCount = 0;
   let unconvertedCount = 0;
@@ -140,6 +140,6 @@ export async function getSmsInboxPushWindowStats(
   return { receivedCount, unconvertedCount, convertedCount };
 }
 
-export async function clearSmsInboxPushLedger(): Promise<void> {
-  await AsyncStorage.removeItem(SMS_INBOX_PUSH_LEDGER_KEY);
+export async function clearRecordInboxPushLedger(): Promise<void> {
+  await AsyncStorage.removeItem(RECORD_INBOX_PUSH_LEDGER_KEY);
 }

@@ -1,12 +1,12 @@
 /**
- * 카드사 SMS 파서 — §9 정책.
+ * 카드사 문자·앱 알림 파서 — §9 정책. 지출만 다룸.
  * allowlist는 ingest에서 검사. 여기선 본문만.
- * 키워드: 취소/입금 우선 → 승인/출금. 부분취소 미지원.
+ * 키워드: 입금 단독 무시 → 취소 우선 → 승인/출금. 부분취소 미지원.
  */
 
-export type SmsInboxParseKind = 'approval' | 'cancel' | 'ignore';
+export type RecordInboxParseKind = 'approval' | 'cancel' | 'ignore';
 
-export type SmsInboxParsedFields = {
+export type RecordInboxParsedFields = {
   amount: number;
   year: number;
   month: number;
@@ -17,12 +17,14 @@ export type SmsInboxParsedFields = {
   cardHint?: string;
 };
 
-export type SmsInboxParseResult =
-  | ({ kind: 'approval' | 'cancel' } & SmsInboxParsedFields)
+export type RecordInboxParseResult =
+  | ({ kind: 'approval' | 'cancel' } & RecordInboxParsedFields)
   | { kind: 'ignore'; reason: string };
 
-const CANCEL_KEYWORDS = ['취소', '입금'] as const;
+const CANCEL_KEYWORDS = ['취소'] as const;
 const APPROVAL_KEYWORDS = ['승인', '출금'] as const;
+/** 지출만 다룸 — 승인·출금 없이 입금만 있으면 무시 (같은 금액 지출 오삭제 방지) */
+const INCOME_KEYWORDS = ['입금'] as const;
 
 /** 숫자만 남겨 발신번호 비교 (국가코드·선행 0 제거) */
 export function normalizeSmsSender(raw: string): string {
@@ -105,14 +107,15 @@ export function restoreSmsSenderFromQueryParam(raw: string): string {
 }
 
 function detectKind(body: string): 'approval' | 'cancel' | null {
+  const hasApproval = APPROVAL_KEYWORDS.some((kw) => body.includes(kw));
+  if (!hasApproval && INCOME_KEYWORDS.some((kw) => body.includes(kw))) {
+    return null;
+  }
   // 취소 먼저 (승인취소)
   if (CANCEL_KEYWORDS.some((kw) => body.includes(kw))) {
     return 'cancel';
   }
-  if (APPROVAL_KEYWORDS.some((kw) => body.includes(kw))) {
-    return 'approval';
-  }
-  return null;
+  return hasApproval ? 'approval' : null;
 }
 
 /**
@@ -188,10 +191,10 @@ export function extractPerTxnAmount(body: string): number | null {
   return null;
 }
 
-export function extractSmsDateTime(
+export function extractRecordInboxDateTime(
   body: string,
   now: Date = new Date(),
-): Pick<SmsInboxParsedFields, 'year' | 'month' | 'day' | 'hour' | 'minute'> {
+): Pick<RecordInboxParsedFields, 'year' | 'month' | 'day' | 'hour' | 'minute'> {
   // MM/DD HH:mm or M/D H:mm
   const withTime = body.match(/(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})/);
   if (withTime) {
@@ -260,12 +263,12 @@ export function extractMerchant(body: string): string | undefined {
   return undefined;
 }
 
-export function parsedFieldsToIso(fields: SmsInboxParsedFields): string {
+export function parsedFieldsToIso(fields: RecordInboxParsedFields): string {
   const d = new Date(fields.year, fields.month - 1, fields.day, fields.hour, fields.minute, 0, 0);
   return d.toISOString();
 }
 
-export function parseSmsInboxBody(body: string, now: Date = new Date()): SmsInboxParseResult {
+export function parseRecordInboxBody(body: string, now: Date = new Date()): RecordInboxParseResult {
   const trimmed = body.trim();
   if (!trimmed) {
     return { kind: 'ignore', reason: 'empty' };
@@ -281,7 +284,7 @@ export function parseSmsInboxBody(body: string, now: Date = new Date()): SmsInbo
     return { kind: 'ignore', reason: 'no-amount' };
   }
 
-  const dateTime = extractSmsDateTime(trimmed, now);
+  const dateTime = extractRecordInboxDateTime(trimmed, now);
   const merchant = extractMerchant(trimmed);
   const cardHint = extractCardHint(trimmed);
 

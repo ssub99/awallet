@@ -10,11 +10,11 @@ import {
   getDefaultSubtypeIdByMethod,
 } from '@/utils/payment-types';
 
-export function formatSmsAmountLabel(amount: number): string {
+export function formatRecordInboxAmountLabel(amount: number): string {
   return `${amount.toLocaleString('ko-KR')}원`;
 }
 
-export function formatSmsConfirmCardDate(year: number, month: number, day: number): string {
+export function formatRecordInboxConfirmCardDate(year: number, month: number, day: number): string {
   const dayLabel = getDayOfWeekLabel(year, month, day);
   return `${year}년 ${month}월 ${day}일(${dayLabel})`;
 }
@@ -35,7 +35,7 @@ function defaultCreditPaymentType(): Pick<
 }
 
 /** 원문 파싱 결과로 카드 생성 (금액·날짜는 호출측에서 확정) */
-export function buildConfirmCardFromSmsFields(fields: {
+export function buildConfirmCardFromRecordInboxFields(fields: {
   amount: number;
   year: number;
   month: number;
@@ -45,8 +45,8 @@ export function buildConfirmCardFromSmsFields(fields: {
   return {
     recordType: 'expense',
     category: '',
-    date: formatSmsConfirmCardDate(fields.year, fields.month, fields.day),
-    amount: formatSmsAmountLabel(fields.amount),
+    date: formatRecordInboxConfirmCardDate(fields.year, fields.month, fields.day),
+    amount: formatRecordInboxAmountLabel(fields.amount),
     paymentType: payment.paymentType,
     paymentTypeColor: payment.paymentTypeColor,
     memo: '',

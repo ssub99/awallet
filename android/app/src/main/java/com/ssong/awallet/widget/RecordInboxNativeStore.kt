@@ -16,7 +16,7 @@ import java.util.UUID
  * 알림 리스너(:sms_listener 프로세스)와 앱 프로세스가 함께 쓰므로
  * SharedPreferences(프로세스별 캐시) 대신 파일 + FileLock으로 매 호출 디스크에서 읽고 쓴다.
  */
-object SmsInboxNativeStore {
+object RecordInboxNativeStore {
   /** 이전 버전 저장소. 최초 1회 파일로 이전 후 비운다. */
   private const val PREFS_NAME = "awallet_sms_inbox_native"
   private const val STORE_FILE = "awallet_sms_inbox_native.json"
@@ -373,5 +373,5 @@ object SmsInboxNativeStore {
     }.format(Date(timestamp))
   }
 
-  private val SUPPORTED_TRANSACTION_KEYWORDS = listOf("취소", "입금", "승인", "출금")
+  private val SUPPORTED_TRANSACTION_KEYWORDS = listOf("취소", "승인", "출금")
 }

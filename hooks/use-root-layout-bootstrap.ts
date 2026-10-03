@@ -32,8 +32,8 @@ import {
   refreshWidgetWithCurrentMonth,
   resetMonthlyExpenseMaskInWidget,
 } from '@/utils/widget-data-sync';
-import { flushPendingSmsInboxFromNative } from '@/utils/sms-inbox-native-queue';
-import { syncSmsReceiveSettingsToNative } from '@/utils/sms-receive-settings';
+import { flushPendingRecordInboxFromNative } from '@/utils/record-inbox-native-queue';
+import { syncSmsReceiveSettingsToNative } from '@/utils/record-inbox-receive-settings';
 import Constants from 'expo-constants';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Updates from 'expo-updates';
@@ -261,7 +261,7 @@ export function useRootLayoutBootstrap() {
     }
     const syncAndFlush = async () => {
       await syncSmsReceiveSettingsToNative();
-      await flushPendingSmsInboxFromNative();
+      await flushPendingRecordInboxFromNative();
     };
     void syncAndFlush();
     const sub = AppState.addEventListener('change', (next: AppStateStatus) => {

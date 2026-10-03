@@ -20,17 +20,17 @@ class WidgetDataSync: RCTEventEmitter {
   }
 
   override func supportedEvents() -> [String]! {
-    [SmsInboxPendingDarwin.eventName]
+    [RecordInboxPendingDarwin.eventName]
   }
 
   override func startObserving() {
-    SmsInboxPendingDarwinObserver.shared.attach { [weak self] in
-      self?.sendEvent(withName: SmsInboxPendingDarwin.eventName, body: nil)
+    RecordInboxPendingDarwinObserver.shared.attach { [weak self] in
+      self?.sendEvent(withName: RecordInboxPendingDarwin.eventName, body: nil)
     }
   }
 
   override func stopObserving() {
-    SmsInboxPendingDarwinObserver.shared.detach()
+    RecordInboxPendingDarwinObserver.shared.detach()
   }
 
   @objc
@@ -111,13 +111,13 @@ class WidgetDataSync: RCTEventEmitter {
     resolve("sms-inbox-3")
   }
 
-  /// App Intent가 쌓아 둔 문자 수신함 대기 큐를 읽고 비운다. (레거시·진단용)
+  /// App Intent가 쌓아 둔 기록 수신함 대기 큐를 읽고 비운다. (레거시·진단용)
   @objc(drainPendingSmsInbox:rejecter:)
   func drainPendingSmsInbox(
     _ resolve: @escaping RCTPromiseResolveBlock,
     rejecter reject: @escaping RCTPromiseRejectBlock
   ) {
-    resolve(SmsInboxAppGroupQueue.drain())
+    resolve(RecordInboxAppGroupQueue.drain())
   }
 
   /// 대기 큐만 조회 (비우지 않음).
@@ -126,7 +126,7 @@ class WidgetDataSync: RCTEventEmitter {
     _ resolve: @escaping RCTPromiseResolveBlock,
     rejecter reject: @escaping RCTPromiseRejectBlock
   ) {
-    resolve(SmsInboxAppGroupQueue.peek())
+    resolve(RecordInboxAppGroupQueue.peek())
   }
 
   /// 처리 성공한 대기 항목만 id로 제거한다.
@@ -136,7 +136,7 @@ class WidgetDataSync: RCTEventEmitter {
     resolver resolve: @escaping RCTPromiseResolveBlock,
     rejecter reject: @escaping RCTPromiseRejectBlock
   ) {
-    SmsInboxAppGroupQueue.acknowledge(ids: ids)
+    RecordInboxAppGroupQueue.acknowledge(ids: ids)
     resolve(nil)
   }
 
@@ -146,7 +146,7 @@ class WidgetDataSync: RCTEventEmitter {
     _ resolve: @escaping RCTPromiseResolveBlock,
     rejecter reject: @escaping RCTPromiseRejectBlock
   ) {
-    resolve(SmsInboxAppGroupQueue.lastIntent() ?? NSNull())
+    resolve(RecordInboxAppGroupQueue.lastIntent() ?? NSNull())
   }
 
   @objc
@@ -162,7 +162,7 @@ class WidgetDataSync: RCTEventEmitter {
 
 // MARK: - Darwin notify (App Intent process → foreground RN)
 
-enum SmsInboxPendingDarwin {
+enum RecordInboxPendingDarwin {
   static let eventName = "SmsInboxPendingEnqueued"
 
   static var notifyName: CFNotificationName {
@@ -181,8 +181,8 @@ enum SmsInboxPendingDarwin {
   }
 }
 
-final class SmsInboxPendingDarwinObserver {
-  static let shared = SmsInboxPendingDarwinObserver()
+final class RecordInboxPendingDarwinObserver {
+  static let shared = RecordInboxPendingDarwinObserver()
 
   private var handler: (() -> Void)?
   private var registered = false
@@ -191,13 +191,13 @@ final class SmsInboxPendingDarwinObserver {
     self.handler = handler
     guard !registered else { return }
     registered = true
-    let name = SmsInboxPendingDarwin.notifyName
+    let name = RecordInboxPendingDarwin.notifyName
     CFNotificationCenterAddObserver(
       CFNotificationCenterGetDarwinNotifyCenter(),
       Unmanaged.passUnretained(self).toOpaque(),
       { _, observer, _, _, _ in
         guard let observer else { return }
-        let box = Unmanaged<SmsInboxPendingDarwinObserver>.fromOpaque(observer).takeUnretainedValue()
+        let box = Unmanaged<RecordInboxPendingDarwinObserver>.fromOpaque(observer).takeUnretainedValue()
         DispatchQueue.main.async {
           box.handler?()
         }
@@ -215,7 +215,7 @@ final class SmsInboxPendingDarwinObserver {
 
 // MARK: - SMS inbox pending queue (App Intent → JS)
 
-enum SmsInboxAppGroupQueue {
+enum RecordInboxAppGroupQueue {
   static let storageKey = "smsInboxPendingQueue"
 
   private static var appGroupIdentifier: String {
@@ -253,7 +253,7 @@ enum SmsInboxAppGroupQueue {
     defaults.synchronize()
     recordLastIntent(ok: true, reason: "enqueued", sender: senderTrimmed, bodyPreview: String(trimmed.prefix(80)))
     // 포그라운드 RN이 flush할 수 있게 프로세스 간 신호
-    SmsInboxPendingDarwin.post()
+    RecordInboxPendingDarwin.post()
   }
 
   /// 대기 항목을 반환하고 큐를 비운다. (레거시·진단용)

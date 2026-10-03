@@ -2,14 +2,14 @@
  * 전제: 수신 ON · allowlist에 +82 1544-7200 · 사용자가 “본문 비움/수신OFF/번호빼기”를 안 함.
  * 그래도 남는 유실 빈틈만 시뮬.
  *
- *   npx tsx scripts/simulate-sms-inbox-remaining-gaps.ts
+ *   npx tsx scripts/simulate-record-inbox-remaining-gaps.ts
  */
 
 import {
   isSenderAllowed,
   normalizeSmsSender,
-  parseSmsInboxBody,
-} from '../utils/sms-inbox-parse';
+  parseRecordInboxBody,
+} from '../utils/record-inbox-parse';
 
 const ALLOW = '+82 1544-7200';
 const PAYMENT = `[Web발신]
@@ -50,7 +50,7 @@ function ingest(body: string, sender: string, enabled: boolean, allowlist: strin
   if (n && !isSenderAllowed(sender, allowlist)) {
     return { ok: false as const, reason: 'sender-not-allowed' };
   }
-  const p = parseSmsInboxBody(b);
+  const p = parseRecordInboxBody(b);
   if (p.kind === 'ignore') return { ok: false as const, reason: p.reason };
   return { ok: true as const, reason: `${p.kind}:${p.amount}` };
 }

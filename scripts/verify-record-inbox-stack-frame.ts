@@ -1,5 +1,5 @@
 /**
- * 문자 수신함 카드 스택 프레임 회귀.
+ * 기록 수신함 카드 스택 프레임 회귀.
  * 스택이 짧아질 때 없는 카드의 모션(유입·퇴장)이 남지 않아야 함.
  */
 
@@ -8,7 +8,7 @@ import {
   SlotMotion,
   STACK_FRAME_CAPACITY,
   type StackTransition,
-} from '../utils/sms-inbox-stack-frame';
+} from '../utils/record-inbox-stack-frame';
 
 function assert(cond: unknown, msg: string): asserts cond {
   if (!cond) throw new Error(msg);
@@ -136,7 +136,7 @@ function main(): void {
     }
   }
 
-  console.log('sms-inbox stack frame OK');
+  console.log('record-inbox stack frame OK');
 }
 
 main();

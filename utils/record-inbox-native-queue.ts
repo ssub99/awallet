@@ -2,10 +2,10 @@
 
 import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
 
-import { ingestSmsInboxMessage } from '@/utils/sms-inbox-ingest';
-import { normalizeSmsOriginalBody } from '@/utils/sms-inbox-store';
+import { ingestRecordInboxMessage } from '@/utils/record-inbox-ingest';
+import { normalizeRecordInboxOriginalBody } from '@/utils/record-inbox-store';
 
-export type PendingSmsInboxNativeItem = {
+export type PendingRecordInboxNativeItem = {
   id?: string;
   body?: string;
   sender?: string;
@@ -14,27 +14,27 @@ export type PendingSmsInboxNativeItem = {
   enqueuedAt?: string;
 };
 
-type WidgetDataSyncSmsInboxModule = {
-  drainPendingSmsInbox?: () => Promise<PendingSmsInboxNativeItem[]>;
-  peekPendingSmsInbox?: () => Promise<PendingSmsInboxNativeItem[]>;
-  getPendingSmsInbox?: () => Promise<PendingSmsInboxNativeItem[]>;
+type WidgetDataSyncRecordInboxModule = {
+  drainPendingSmsInbox?: () => Promise<PendingRecordInboxNativeItem[]>;
+  peekPendingSmsInbox?: () => Promise<PendingRecordInboxNativeItem[]>;
+  getPendingSmsInbox?: () => Promise<PendingRecordInboxNativeItem[]>;
   acknowledgePendingSmsInbox?: (ids: string[]) => Promise<void>;
 };
 
-const SMS_INBOX_PENDING_ENQUEUED_EVENT = 'SmsInboxPendingEnqueued';
+const RECORD_INBOX_PENDING_ENQUEUED_EVENT = 'SmsInboxPendingEnqueued';
 
-const widgetDataSync = NativeModules.WidgetDataSync as WidgetDataSyncSmsInboxModule | undefined;
+const widgetDataSync = NativeModules.WidgetDataSync as WidgetDataSyncRecordInboxModule | undefined;
 
 let flushChain: Promise<void> = Promise.resolve();
 
-function isPendingItem(value: unknown): value is PendingSmsInboxNativeItem {
+function isPendingItem(value: unknown): value is PendingRecordInboxNativeItem {
   if (value == null || typeof value !== 'object') return false;
-  const body = (value as PendingSmsInboxNativeItem).body;
+  const body = (value as PendingRecordInboxNativeItem).body;
   return typeof body === 'string' && body.trim().length > 0;
 }
 
 /** 큐를 비우지 않고 조회. iOS peek / Android getPending. */
-async function peekPendingList(): Promise<PendingSmsInboxNativeItem[]> {
+async function peekPendingList(): Promise<PendingRecordInboxNativeItem[]> {
   if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
     return [];
   }
@@ -67,7 +67,7 @@ async function acknowledgePendingItems(ids: string[]): Promise<void> {
  * 네이티브 대기 큐를 기존 ingest 파이프라인으로 적재한다.
  * peek → 항목별 ingest → 성공(ok)한 id만 ack. 실패는 큐에 남겨 재시도.
  */
-export function flushPendingSmsInboxFromNative(): Promise<number> {
+export function flushPendingRecordInboxFromNative(): Promise<number> {
   const run = flushChain.then(async () => {
     if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
       return 0;
@@ -75,10 +75,10 @@ export function flushPendingSmsInboxFromNative(): Promise<number> {
     const items = await peekPendingList();
 
     for (const entry of items) {
-      const body = normalizeSmsOriginalBody(entry.body ?? '');
+      const body = normalizeRecordInboxOriginalBody(entry.body ?? '');
       const sender = (entry.sender ?? '').trim();
       try {
-        const result = await ingestSmsInboxMessage({
+        const result = await ingestRecordInboxMessage({
           body,
           sender,
           source: entry.source === 'app' ? 'app' : 'sms',
@@ -118,7 +118,7 @@ export function flushPendingSmsInboxFromNative(): Promise<number> {
 }
 
 /** 네이티브 enqueue → RN. 구독 해제 함수 반환. */
-export function subscribeSmsInboxPendingEnqueued(listener: () => void): () => void {
+export function subscribeRecordInboxPendingEnqueued(listener: () => void): () => void {
   if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
     return () => {};
   }
@@ -127,7 +127,7 @@ export function subscribeSmsInboxPendingEnqueued(listener: () => void): () => vo
     return () => {};
   }
   const emitter = new NativeEventEmitter(mod);
-  const subscription = emitter.addListener(SMS_INBOX_PENDING_ENQUEUED_EVENT, listener);
+  const subscription = emitter.addListener(RECORD_INBOX_PENDING_ENQUEUED_EVENT, listener);
   return () => {
     subscription.remove();
   };

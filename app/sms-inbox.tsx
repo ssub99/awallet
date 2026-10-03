@@ -1,13 +1,13 @@
 /**
  * 딥링크 트램폴린 (수동/레거시).
- * 기본 경로는 App Intent → App Group → flushPendingSmsInboxFromNative.
+ * 기본 경로는 App Intent → App Group → flushPendingRecordInboxFromNative.
  * awallet://sms-inbox?body= 도 동일 ingest로 적재한다.
  */
 
 import {
-  ingestSmsInboxDeepLinkUrl,
+  ingestRecordInboxDeepLinkUrl,
   restoreSmsSenderFromQueryParam,
-} from '@/utils/sms-inbox-ingest';
+} from '@/utils/record-inbox-ingest';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import { View } from 'react-native';
@@ -17,7 +17,7 @@ function firstParam(value: string | string[] | undefined): string {
   return value ?? '';
 }
 
-export default function SmsInboxDeepLinkScreen() {
+export default function RecordInboxDeepLinkScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ body?: string | string[]; sender?: string | string[]; text?: string | string[]; from?: string | string[] }>();
   const ranRef = useRef(false);
@@ -35,7 +35,7 @@ export default function SmsInboxDeepLinkScreen() {
       try {
         if (body) {
           const query = new URLSearchParams({ body, sender }).toString();
-          await ingestSmsInboxDeepLinkUrl(`awallet://sms-inbox?${query}`);
+          await ingestRecordInboxDeepLinkUrl(`awallet://sms-inbox?${query}`);
         }
       } finally {
         if (router.canGoBack()) {

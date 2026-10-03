@@ -6,8 +6,17 @@ import { NativeModules, Platform } from 'react-native';
 export const SMS_RECEIVE_ENABLED_KEY = '@awallet/smsReceiveEnabled';
 export const SMS_RECEIVE_NUMBERS_KEY = '@awallet/smsReceiveNumbers';
 export const SMS_RECEIVE_DISCLOSURE_ACCEPTED_KEY = '@awallet/smsReceiveDisclosureAccepted';
-/** iOS 27+ 앱 알림 수신. 문자 수신과 상호 배타. */
+/** 앱 알림 수신(iOS 27+ 단축어 · Android 알림 리스너). 문자 수신과 상호 배타. */
 export const APP_NOTIFICATION_RECEIVE_ENABLED_KEY = '@awallet/appNotificationReceiveEnabled';
+/** Android 알림 수신 대상 금융 앱 */
+export const APP_NOTIFICATION_RECEIVE_TARGETS_KEY = '@awallet/appNotificationReceiveTargets';
+
+export type AppNotificationReceiveTarget = {
+  packageName: string;
+  label: string;
+  /** 기기 런처 아이콘 PNG data URI */
+  icon?: string;
+};
 
 type SmsReceiveNativeModule = {
   syncSmsReceiveSettings?: (enabled: boolean, numbers: string[]) => Promise<void>;
@@ -16,18 +25,18 @@ type SmsReceiveNativeModule = {
 
 const smsReceiveNative = NativeModules.WidgetDataSync as SmsReceiveNativeModule | undefined;
 
-type SmsReceiveEnabledListener = (enabled: boolean) => void;
-const enabledListeners = new Set<SmsReceiveEnabledListener>();
+type RecordInboxReceiveEnabledListener = (enabled: boolean) => void;
+const enabledListeners = new Set<RecordInboxReceiveEnabledListener>();
 
 /** 수신함 수신(문자 또는 앱 알림) ON/OFF 변경 구독 (간편생성 칩·숏 뱃지 즉시 반영) */
-export function subscribeSmsReceiveEnabled(listener: SmsReceiveEnabledListener): () => void {
+export function subscribeRecordInboxReceiveEnabled(listener: RecordInboxReceiveEnabledListener): () => void {
   enabledListeners.add(listener);
   return () => {
     enabledListeners.delete(listener);
   };
 }
 
-function notifySmsReceiveEnabled(enabled: boolean): void {
+function notifyRecordInboxReceiveEnabled(enabled: boolean): void {
   enabledListeners.forEach((listener) => {
     listener(enabled);
   });
@@ -52,7 +61,7 @@ export async function loadAppNotificationReceiveEnabled(): Promise<boolean> {
 }
 
 /** 수신함 진입 노출 기준 — 문자 또는 앱 알림 중 하나라도 ON */
-export async function loadSmsInboxReceiveEnabled(): Promise<boolean> {
+export async function loadRecordInboxReceiveEnabled(): Promise<boolean> {
   const [sms, app] = await Promise.all([
     loadSmsReceiveEnabled(),
     loadAppNotificationReceiveEnabled(),
@@ -66,7 +75,7 @@ export async function saveSmsReceiveEnabled(enabled: boolean): Promise<void> {
     await AsyncStorage.setItem(APP_NOTIFICATION_RECEIVE_ENABLED_KEY, JSON.stringify(false));
   }
   await syncSmsReceiveSettingsToNative();
-  notifySmsReceiveEnabled(await loadSmsInboxReceiveEnabled());
+  notifyRecordInboxReceiveEnabled(await loadRecordInboxReceiveEnabled());
 }
 
 export async function saveAppNotificationReceiveEnabled(enabled: boolean): Promise<void> {
@@ -75,7 +84,7 @@ export async function saveAppNotificationReceiveEnabled(enabled: boolean): Promi
     await AsyncStorage.setItem(SMS_RECEIVE_ENABLED_KEY, JSON.stringify(false));
     await syncSmsReceiveSettingsToNative();
   }
-  notifySmsReceiveEnabled(await loadSmsInboxReceiveEnabled());
+  notifyRecordInboxReceiveEnabled(await loadRecordInboxReceiveEnabled());
 }
 
 export async function loadSmsReceiveNumbers(): Promise<string[]> {
@@ -93,6 +102,30 @@ export async function loadSmsReceiveNumbers(): Promise<string[]> {
 export async function saveSmsReceiveNumbers(numbers: string[]): Promise<void> {
   await AsyncStorage.setItem(SMS_RECEIVE_NUMBERS_KEY, JSON.stringify(numbers));
   await syncSmsReceiveSettingsToNative();
+}
+
+export async function loadAppNotificationReceiveTargets(): Promise<AppNotificationReceiveTarget[]> {
+  const raw = await AsyncStorage.getItem(APP_NOTIFICATION_RECEIVE_TARGETS_KEY);
+  if (!raw) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (item): item is AppNotificationReceiveTarget =>
+        item != null &&
+        typeof item === 'object' &&
+        typeof (item as AppNotificationReceiveTarget).packageName === 'string' &&
+        typeof (item as AppNotificationReceiveTarget).label === 'string',
+    );
+  } catch {
+    return [];
+  }
+}
+
+export async function saveAppNotificationReceiveTargets(
+  targets: AppNotificationReceiveTarget[],
+): Promise<void> {
+  await AsyncStorage.setItem(APP_NOTIFICATION_RECEIVE_TARGETS_KEY, JSON.stringify(targets));
 }
 
 export async function loadSmsReceiveDisclosureAccepted(): Promise<boolean> {

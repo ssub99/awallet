@@ -51,19 +51,19 @@ export interface QuickInputConfirmCardProps {
   onConfirm: () => void;
   onCancel: () => void;
   onChange?: () => void;
-  /** 카테고리 미선택 플레이스홀더 탭 (문자 수신함 등) */
+  /** 카테고리 미선택 플레이스홀더 탭 (기록 수신함 등) */
   onCategoryPress?: () => void;
   /** 추가 버튼 로딩 여부. true면 추가 버튼에 인디케이터, 취소 버튼 비활성화 */
   addLoading?: boolean;
-  /** false면 등장 슬라이드/페이드 생략 (문자 수신함 스택 등) */
+  /** false면 등장 슬라이드/페이드 생략 (기록 수신함 스택 등) */
   animateEntrance?: boolean;
-  /** 하단 추가/취소 버튼 높이. 시안 기본 40, 문자 수신함 카드는 48 */
+  /** 하단 추가/취소 버튼 높이. 시안 기본 40, 기록 수신함 카드는 48 */
   actionButtonHeight?: number;
   /** true면 카드 콘텐츠 대신 스켈레톤 표기 */
   contentLoading?: boolean;
   /**
    * true면 추가/취소 탭 시 카드 자체 퇴장 모션 없이 콜백만 호출.
-   * 문자 수신함처럼 부모 스택이 퇴장+롤업을 담당할 때 사용.
+   * 기록 수신함처럼 부모 스택이 퇴장+롤업을 담당할 때 사용.
    */
   deferExitAnimation?: boolean;
 }

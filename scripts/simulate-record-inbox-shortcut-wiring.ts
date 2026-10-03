@@ -2,10 +2,10 @@
  * 「단축어는 돌았는데 안 쌓임 → 단축어 재설정하면 됨」 가설 체크.
  * Intent는 빈 본문도 perform() 성공(.result()) → OS는 실행됨으로 보임.
  *
- *   npx tsx scripts/simulate-sms-inbox-shortcut-wiring.ts
+ *   npx tsx scripts/simulate-record-inbox-shortcut-wiring.ts
  */
 
-import { parseSmsInboxBody, normalizeSmsSender, isSenderAllowed } from '../utils/sms-inbox-parse';
+import { parseRecordInboxBody, normalizeSmsSender, isSenderAllowed } from '../utils/record-inbox-parse';
 
 const ALLOW = '+82 1544-7200';
 const PAYMENT = `[Web발신]
@@ -23,7 +23,7 @@ type Wiring = {
   afterResets?: boolean;
 };
 
-/** Intent.perform → enqueue 미러 (Swift SmsInboxAppGroupQueue.enqueue) */
+/** Intent.perform → enqueue 미러 (Swift RecordInboxAppGroupQueue.enqueue) */
 function intentEnqueue(body: string, sender: string): {
   osShowsRan: true;
   enqueued: boolean;
@@ -43,7 +43,7 @@ function flushIngest(body: string, sender: string): { stacked: boolean; reason: 
   if (norm && !isSenderAllowed(sender, allowlist)) {
     return { stacked: false, reason: 'sender-not-allowed' };
   }
-  const parsed = parseSmsInboxBody(body);
+  const parsed = parseRecordInboxBody(body);
   if (parsed.kind === 'ignore') return { stacked: false, reason: parsed.reason };
   return { stacked: true, reason: `${parsed.kind}:${parsed.amount}` };
 }
@@ -109,7 +109,7 @@ const cases: Wiring[] = [
 console.log('=== Shortcut wiring loss (matches “ran but empty inbox, reset fixes”) ===\n');
 for (const c of cases) run(c);
 console.log(`
-코드 근거 (SmsInboxAppIntent.swift):
+코드 근거 (RecordInboxAppIntent.swift):
   - perform()은 빈 본문에도 throw 없이 .result() → 단축어「실행됨」
   - enqueue는 빈 본문이면 lastIntent=empty-body 만 기록, 큐 미적재
 → 사용자 증상과 W1/W2가 일치. 파싱 실패(W0 본문)와는 무관.`);

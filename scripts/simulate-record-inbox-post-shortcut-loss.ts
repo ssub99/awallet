@@ -2,14 +2,14 @@
  * 가설 시뮬레이션: 단축어는 돌았는데 수신함 UI에 안 쌓임.
  * iOS 경로: Intent enqueue(allowlist 없음) → flush → ingest → (영구실패면 ack)
  *
- *   npx tsx scripts/simulate-sms-inbox-post-shortcut-loss.ts
+ *   npx tsx scripts/simulate-record-inbox-post-shortcut-loss.ts
  */
 
 import {
   isSenderAllowed,
   normalizeSmsSender,
-  parseSmsInboxBody,
-} from '../utils/sms-inbox-parse';
+  parseRecordInboxBody,
+} from '../utils/record-inbox-parse';
 
 const ALLOW = '+82 1544-7200';
 const REAL_PAYMENT_BODY = `[Web발신]
@@ -63,7 +63,7 @@ function ingestOnly(c: Pick<Case, 'body' | 'intentSender' | 'enabled' | 'allowli
   if (norm && !isSenderAllowed(c.intentSender, c.allowlist)) {
     return { ok: false, reason: 'sender-not-allowed' };
   }
-  const parsed = parseSmsInboxBody(body);
+  const parsed = parseRecordInboxBody(body);
   if (parsed.kind === 'ignore') return { ok: false, reason: parsed.reason };
   return { ok: true, reason: `${parsed.kind}:${parsed.amount}` };
 }

@@ -9,7 +9,7 @@ import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.modules.core.DeviceEventManagerModule
 import java.lang.ref.WeakReference
 
-object SmsInboxNativeEventEmitter {
+object RecordInboxNativeEventEmitter {
   const val EVENT_PENDING_ENQUEUED = "SmsInboxPendingEnqueued"
   private const val ACTION_PENDING_ENQUEUED = "com.ssong.awallet.action.SMS_INBOX_PENDING_ENQUEUED"
 

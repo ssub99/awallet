@@ -62,7 +62,7 @@ export function QuickInputShort({
 }: QuickInputShortProps) {
   const colorScheme = useColorScheme();
   const palette = colors[colorScheme ?? 'light'] as ColorPalette;
-  const { smsInboxUnreadCount } = useQuickInputContext();
+  const { recordInboxUnreadCount } = useQuickInputContext();
   const containerRef = useRef<ComponentRef<typeof Pressable>>(null);
   const lastShortBottomRef = useRef<number | null>(null);
 
@@ -98,7 +98,7 @@ export function QuickInputShort({
 
   const fillOverlay = shouldApplyReactBlurOverlay() ? palette.fill : undefined;
   const badgeLabel =
-    smsInboxUnreadCount > 99 ? '99+' : String(smsInboxUnreadCount);
+    recordInboxUnreadCount > 99 ? '99+' : String(recordInboxUnreadCount);
 
   return (
     <Pressable
@@ -115,8 +115,8 @@ export function QuickInputShort({
       }}
       accessibilityRole="button"
       accessibilityLabel={
-        smsInboxUnreadCount > 0
-          ? `기록 간편입력, 미처리 문자 ${smsInboxUnreadCount}건`
+        recordInboxUnreadCount > 0
+          ? `기록 간편입력, 미처리 기록 ${recordInboxUnreadCount}건`
           : '기록 간편입력'
       }
     >
@@ -132,13 +132,13 @@ export function QuickInputShort({
           <View style={styles.quickInputLeft}>
             <QuickInputStar size={20} starScale={starScale} starRotate={starRotate} />
             <Text style={[styles.quickInputText, { color: palette.textNeutral }]}>기록 간편입력</Text>
-            {smsInboxUnreadCount > 0 ? (
+            {recordInboxUnreadCount > 0 ? (
               <View style={styles.actionBadge} accessibilityElementsHidden>
                 <Text style={styles.actionBadgeLabel}>{badgeLabel}</Text>
               </View>
             ) : null}
           </View>
-          {smsInboxUnreadCount === 0 ? (
+          {recordInboxUnreadCount === 0 ? (
             <View style={styles.quickInputArrow}>
               <Icon name="arrowRight" variant="line" size={16} color={palette.textAssistive} />
             </View>
@@ -181,7 +181,7 @@ const styles = StyleSheet.create({
   quickInputText: {
     ...typographyLayout.uiLineBody02Medium,
   },
-  /** 문자 수신함 칩 actionBadge와 동일 */
+  /** 기록 수신함 칩 actionBadge와 동일 */
   actionBadge: {
     minHeight: 18,
     borderRadius: 6,

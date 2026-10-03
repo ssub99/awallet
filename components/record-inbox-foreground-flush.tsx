@@ -2,13 +2,13 @@
 
 import { useLoading } from '@/contexts/loading-context';
 import {
-  flushPendingSmsInboxFromNative,
-  subscribeSmsInboxPendingEnqueued,
-} from '@/utils/sms-inbox-native-queue';
+  flushPendingRecordInboxFromNative,
+  subscribeRecordInboxPendingEnqueued,
+} from '@/utils/record-inbox-native-queue';
 import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 
-export function SmsInboxForegroundFlush() {
+export function RecordInboxForegroundFlush() {
   const { setLoading } = useLoading();
   const generationRef = useRef(0);
 
@@ -17,12 +17,12 @@ export function SmsInboxForegroundFlush() {
       return undefined;
     }
 
-    return subscribeSmsInboxPendingEnqueued(() => {
+    return subscribeRecordInboxPendingEnqueued(() => {
       const generation = ++generationRef.current;
       void (async () => {
         setLoading(true);
         try {
-          await flushPendingSmsInboxFromNative();
+          await flushPendingRecordInboxFromNative();
         } finally {
           if (generation === generationRef.current) {
             setLoading(false);

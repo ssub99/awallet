@@ -48,4 +48,4 @@ assert.equal(shouldAckAfterIngest({ ok: true }), true);
 assert.equal(shouldAckAfterIngest({ ok: false, reason: 'sender-not-allowed' }), true);
 assert.equal(shouldAckAfterIngest({ ok: false, reason: 'ingest-throw' }), false);
 
-console.log('sms-inbox-native-queue pending filter + ack policy OK');
+console.log('record-inbox-native-queue pending filter + ack policy OK');

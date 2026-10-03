@@ -1,47 +1,47 @@
 /**
- * 문자 수신함 persist 큐.
+ * 기록 수신함 persist 큐.
  * 승인 append / 취소 매칭 제거 / UI 구독.
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { buildConfirmCardFromSmsFields } from '@/utils/sms-inbox-card';
+import { buildConfirmCardFromRecordInboxFields } from '@/utils/record-inbox-card';
 import {
   formatSmsSenderDisplay,
-  parseSmsInboxBody,
+  parseRecordInboxBody,
   parsedFieldsToIso,
-  type SmsInboxParsedFields,
-} from '@/utils/sms-inbox-parse';
+  type RecordInboxParsedFields,
+} from '@/utils/record-inbox-parse';
 import {
-  markSmsInboxPushConverted,
-  markSmsInboxPushInvalidated,
-  recordSmsInboxPushReceived,
-} from '@/utils/sms-inbox-push-ledger';
-import type { SmsInboxItem } from '@/utils/sms-inbox-types';
+  markRecordInboxPushConverted,
+  markRecordInboxPushInvalidated,
+  recordRecordInboxPushReceived,
+} from '@/utils/record-inbox-push-ledger';
+import type { RecordInboxItem } from '@/utils/record-inbox-types';
 import { setupDailyReminder } from '@/utils/notification-scheduler';
 
-export const SMS_INBOX_ITEMS_KEY = '@awallet/smsInboxItems';
+export const RECORD_INBOX_ITEMS_KEY = '@awallet/smsInboxItems';
 
-type SmsInboxListener = (items: SmsInboxItem[]) => void;
-const listeners = new Set<SmsInboxListener>();
+type RecordInboxListener = (items: RecordInboxItem[]) => void;
+const listeners = new Set<RecordInboxListener>();
 
-let memoryCache: SmsInboxItem[] | null = null;
+let memoryCache: RecordInboxItem[] | null = null;
 let writeChain: Promise<void> = Promise.resolve();
 
-function notify(items: SmsInboxItem[]): void {
+function notify(items: RecordInboxItem[]): void {
   listeners.forEach((listener) => {
     listener(items);
   });
 }
 
-export function subscribeSmsInboxItems(listener: SmsInboxListener): () => void {
+export function subscribeRecordInboxItems(listener: RecordInboxListener): () => void {
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
   };
 }
 
-function isSmsInboxItem(value: unknown): value is SmsInboxItem {
+function isRecordInboxItem(value: unknown): value is RecordInboxItem {
   if (value == null || typeof value !== 'object') return false;
   const item = value as Record<string, unknown>;
   return (
@@ -54,11 +54,11 @@ function isSmsInboxItem(value: unknown): value is SmsInboxItem {
   );
 }
 
-async function readItems(): Promise<SmsInboxItem[]> {
+async function readItems(): Promise<RecordInboxItem[]> {
   if (memoryCache) {
     return memoryCache;
   }
-  const raw = await AsyncStorage.getItem(SMS_INBOX_ITEMS_KEY);
+  const raw = await AsyncStorage.getItem(RECORD_INBOX_ITEMS_KEY);
   if (!raw) {
     memoryCache = [];
     return memoryCache;
@@ -69,10 +69,10 @@ async function readItems(): Promise<SmsInboxItem[]> {
       memoryCache = [];
       return memoryCache;
     }
-    memoryCache = parsed.filter(isSmsInboxItem).map((item) => ({
+    memoryCache = parsed.filter(isRecordInboxItem).map((item) => ({
       ...item,
-      originalBody: normalizeSmsOriginalBody(item.originalBody),
-      rawBody: normalizeSmsOriginalBody(item.rawBody ?? item.originalBody),
+      originalBody: normalizeRecordInboxOriginalBody(item.originalBody),
+      rawBody: normalizeRecordInboxOriginalBody(item.rawBody ?? item.originalBody),
     }));
     return memoryCache;
   } catch {
@@ -81,20 +81,20 @@ async function readItems(): Promise<SmsInboxItem[]> {
   }
 }
 
-async function writeItems(items: SmsInboxItem[]): Promise<void> {
+async function writeItems(items: RecordInboxItem[]): Promise<void> {
   memoryCache = items;
   writeChain = writeChain.then(async () => {
-    await AsyncStorage.setItem(SMS_INBOX_ITEMS_KEY, JSON.stringify(items));
+    await AsyncStorage.setItem(RECORD_INBOX_ITEMS_KEY, JSON.stringify(items));
   });
   await writeChain;
   notify(items);
 }
 
-export async function loadSmsInboxItems(): Promise<SmsInboxItem[]> {
+export async function loadRecordInboxItems(): Promise<RecordInboxItem[]> {
   return readItems();
 }
 
-export async function clearSmsInboxItems(): Promise<void> {
+export async function clearRecordInboxItems(): Promise<void> {
   await writeItems([]);
 }
 
@@ -107,7 +107,7 @@ function createId(): string {
 }
 
 /** 원문 줄바꿈 유지. 끝·맨앞 빈 줄만 제거하고 본문 중간의 \\n 은 그대로 둔다. */
-export function normalizeSmsOriginalBody(body: string): string {
+export function normalizeRecordInboxOriginalBody(body: string): string {
   return body
     .replace(/\r\n/g, '\n')
     .replace(/\r/g, '\n')
@@ -120,11 +120,11 @@ export function normalizeSmsOriginalBody(body: string): string {
 function buildItemFromApproval(
   sender: string,
   body: string,
-  fields: SmsInboxParsedFields,
-): SmsInboxItem {
+  fields: RecordInboxParsedFields,
+): RecordInboxItem {
   const approvedAt = parsedFieldsToIso(fields);
   const createdAt = new Date().toISOString();
-  const normalizedBody = normalizeSmsOriginalBody(body);
+  const normalizedBody = normalizeRecordInboxOriginalBody(body);
   return {
     id: createId(),
     sender,
@@ -137,7 +137,7 @@ function buildItemFromApproval(
     merchant: fields.merchant,
     cardHint: fields.cardHint,
     createdAt,
-    card: buildConfirmCardFromSmsFields({
+    card: buildConfirmCardFromRecordInboxFields({
       amount: fields.amount,
       year: fields.year,
       month: fields.month,
@@ -148,9 +148,9 @@ function buildItemFromApproval(
 
 /** 취소 → 미처리 승인 중 최적 건 (금액 필수, 가맹점/카드힌트 가산) */
 export function findCancelMatch(
-  items: SmsInboxItem[],
-  fields: SmsInboxParsedFields,
-): SmsInboxItem | null {
+  items: RecordInboxItem[],
+  fields: RecordInboxParsedFields,
+): RecordInboxItem | null {
   const sameAmount = items.filter((item) => item.amount === fields.amount);
   if (sameAmount.length === 0) return null;
 
@@ -173,17 +173,17 @@ export function findCancelMatch(
   return scored[0]?.item ?? null;
 }
 
-export type SmsInboxIngestResult =
-  | { ok: true; action: 'appended'; item: SmsInboxItem }
-  | { ok: true; action: 'removed'; item: SmsInboxItem }
+export type RecordInboxIngestResult =
+  | { ok: true; action: 'appended'; item: RecordInboxItem }
+  | { ok: true; action: 'removed'; item: RecordInboxItem }
   | { ok: false; reason: string };
 
 /** 파싱된 승인/취소만 처리. allowlist는 호출 전. */
-export async function ingestParsedSms(input: {
+export async function ingestParsedRecordInbox(input: {
   sender: string;
   body: string;
-  parsed: Exclude<ReturnType<typeof parseSmsInboxBody>, { kind: 'ignore' }>;
-}): Promise<SmsInboxIngestResult> {
+  parsed: Exclude<ReturnType<typeof parseRecordInboxBody>, { kind: 'ignore' }>;
+}): Promise<RecordInboxIngestResult> {
   const { sender, body, parsed } = input;
   const items = await readItems();
 
@@ -191,7 +191,7 @@ export async function ingestParsedSms(input: {
     const item = buildItemFromApproval(sender, body, parsed);
     const next = [item, ...items];
     await writeItems(next);
-    await recordSmsInboxPushReceived(item.id, Date.parse(item.createdAt) || Date.now());
+    await recordRecordInboxPushReceived(item.id, Date.parse(item.createdAt) || Date.now());
     setupDailyReminder().catch(() => {});
     return { ok: true, action: 'appended', item };
   }
@@ -202,35 +202,35 @@ export async function ingestParsedSms(input: {
   }
   const next = items.filter((item) => item.id !== match.id);
   await writeItems(next);
-  await markSmsInboxPushInvalidated(match.id);
+  await markRecordInboxPushInvalidated(match.id);
   setupDailyReminder().catch(() => {});
   return { ok: true, action: 'removed', item: match };
 }
 
-export type SmsInboxRemoveOutcome = 'converted' | 'dismissed';
+export type RecordInboxRemoveOutcome = 'converted' | 'dismissed';
 
-export async function removeSmsInboxItemById(
+export async function removeRecordInboxItemById(
   id: string,
-  options?: { outcome?: SmsInboxRemoveOutcome },
+  options?: { outcome?: RecordInboxRemoveOutcome },
 ): Promise<boolean> {
   const items = await readItems();
   const next = items.filter((item) => item.id !== id);
   if (next.length === items.length) return false;
   await writeItems(next);
   if (options?.outcome === 'converted') {
-    await markSmsInboxPushConverted(id);
+    await markRecordInboxPushConverted(id);
   }
   // dismissed: 큐에서 제거되면 가기록 푸시 건수(큐 잔여)에서도 제외됨
   setupDailyReminder().catch(() => {});
   return true;
 }
 
-export async function updateSmsInboxItem(
+export async function updateRecordInboxItem(
   id: string,
-  updater: (item: SmsInboxItem) => SmsInboxItem,
-): Promise<SmsInboxItem | null> {
+  updater: (item: RecordInboxItem) => RecordInboxItem,
+): Promise<RecordInboxItem | null> {
   const items = await readItems();
-  let updated: SmsInboxItem | null = null;
+  let updated: RecordInboxItem | null = null;
   const next = items.map((item) => {
     if (item.id !== id) return item;
     updated = updater(item);
@@ -241,14 +241,14 @@ export async function updateSmsInboxItem(
   return updated;
 }
 
-export async function replaceSmsInboxItems(items: SmsInboxItem[]): Promise<void> {
+export async function replaceRecordInboxItems(items: RecordInboxItem[]): Promise<void> {
   await writeItems(items);
 }
 
 /**
  * __DEV__ 전용: 오늘(판정 구간 안) 미전환 가기록 N건만 적재한다. (스케줄은 호출하지 않음)
  */
-export async function seedDevSmsInboxItemsForPushTest(count: number = 10): Promise<{
+export async function seedDevRecordInboxItemsForPushTest(count: number = 10): Promise<{
   seeded: number;
   total: number;
   ids: string[];
@@ -270,7 +270,7 @@ export async function seedDevSmsInboxItemsForPushTest(count: number = 10): Promi
   const month = today.getMonth() + 1;
   const day = today.getDate();
   const existing = await readItems();
-  const seeded: SmsInboxItem[] = [];
+  const seeded: RecordInboxItem[] = [];
 
   for (let i = 0; i < safeCount; i++) {
     const receivedAtMs = now - i * 60_000;
@@ -282,18 +282,18 @@ export async function seedDevSmsInboxItemsForPushTest(count: number = 10): Promi
       `${amount.toLocaleString('ko-KR')}원`,
       `테스트가맹점${i + 1}`,
     ].join('\n');
-    const item: SmsInboxItem = {
+    const item: RecordInboxItem = {
       id: `sms-dev-${receivedAtMs}-${i}`,
       sender: '15447200',
       senderLabels: [formatSenderLabel('15447200')],
-      originalBody: normalizeSmsOriginalBody(body),
-      rawBody: normalizeSmsOriginalBody(body),
+      originalBody: normalizeRecordInboxOriginalBody(body),
+      rawBody: normalizeRecordInboxOriginalBody(body),
       status: 'approved',
       amount,
       approvedAt: createdAt,
       merchant: `테스트가맹점${i + 1}`,
       createdAt,
-      card: buildConfirmCardFromSmsFields({
+      card: buildConfirmCardFromRecordInboxFields({
         amount,
         year,
         month,
@@ -301,11 +301,11 @@ export async function seedDevSmsInboxItemsForPushTest(count: number = 10): Promi
       }),
     };
     seeded.push(item);
-    await recordSmsInboxPushReceived(item.id, receivedAtMs);
+    await recordRecordInboxPushReceived(item.id, receivedAtMs);
   }
 
   await writeItems([...seeded, ...existing]);
-  console.log('[sms-inbox-push] seedDevSmsInboxItemsForPushTest', {
+  console.log('[record-inbox-push] seedDevRecordInboxItemsForPushTest', {
     seeded: safeCount,
     total: seeded.length + existing.length,
     ids: seeded.map((item) => item.id),

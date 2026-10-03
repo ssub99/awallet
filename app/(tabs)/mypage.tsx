@@ -383,12 +383,12 @@ export default function MyPageScreen() {
             <Pressable
               style={styles.menuRow}
               onPress={() => {
-                router.push('/settings-sms-receive');
+                router.push('/settings-record-inbox');
               }}
               accessibilityRole="button"
-              accessibilityLabel="문자 수신 설정"
+              accessibilityLabel="기록 수신 설정"
             >
-              <UiLineText style={[styles.menuLabel, { color: colors.text }]}>문자 수신 설정</UiLineText>
+              <UiLineText style={[styles.menuLabel, { color: colors.text }]}>기록 수신 설정</UiLineText>
               <Icon name="arrowRight" size={24} color={colors.text} />
             </Pressable>
 
