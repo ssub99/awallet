@@ -96,6 +96,7 @@ struct MonthlyExpenseProvider: TimelineProvider {
 @available(iOS 17.0, *)
 struct RevealMonthlyExpenseIntent: AppIntent {
   static var title: LocalizedStringResource = "Reveal Monthly Expense"
+  static var isDiscoverable: Bool = false
 
   func perform() async throws -> some IntentResult {
     guard let defaults = UserDefaults(suiteName: appGroupIdentifier) else {
