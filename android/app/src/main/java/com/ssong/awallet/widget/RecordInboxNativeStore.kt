@@ -25,6 +25,9 @@ object RecordInboxNativeStore {
   private const val KEY_NUMBERS = "numbers"
   private const val KEY_PENDING = "pending"
   private const val KEY_FINGERPRINTS = "fingerprints"
+  private const val KEY_APP_ENABLED = "appEnabled"
+  private const val KEY_APP_PACKAGES = "appPackages"
+  const val SOURCE_APP = "app"
   private const val MAX_PENDING_COUNT = 200
   private const val MAX_FINGERPRINT_COUNT = 400
   private const val FINGERPRINT_TTL_MS = 7L * 24L * 60L * 60L * 1000L
@@ -34,6 +37,8 @@ object RecordInboxNativeStore {
     val sender: String,
     val body: String,
     val enqueuedAt: String,
+    /** "app" = 앱 알림 수신. 빈 값은 문자 */
+    val source: String = "",
   )
 
   data class SenderGateResult(
@@ -58,6 +63,20 @@ object RecordInboxNativeStore {
     transact(context) { state ->
       state.put(KEY_ENABLED, enabled)
       state.put(KEY_NUMBERS, JSONArray(normalized).toString())
+    }
+  }
+
+  fun syncAppNotificationSettings(context: Context, enabled: Boolean, packages: List<String>) {
+    transact(context) { state ->
+      state.put(KEY_APP_ENABLED, enabled)
+      state.put(KEY_APP_PACKAGES, JSONArray(packages.filter(String::isNotBlank).distinct()).toString())
+    }
+  }
+
+  fun isAppNotificationTarget(context: Context, packageName: String): Boolean {
+    return transact(context) { state ->
+      state.optBoolean(KEY_APP_ENABLED, false) &&
+        parseStringArray(state.str(KEY_APP_PACKAGES)).contains(packageName)
     }
   }
 
@@ -146,7 +165,13 @@ object RecordInboxNativeStore {
     return SUPPORTED_TRANSACTION_KEYWORDS.any(body::contains)
   }
 
-  fun enqueue(context: Context, sender: String, body: String, receivedAt: Long): Boolean {
+  fun enqueue(
+    context: Context,
+    sender: String,
+    body: String,
+    receivedAt: Long,
+    source: String = "",
+  ): Boolean {
     val trimmedBody = body.trim()
     val trimmedSender = sender.trim()
     if (trimmedBody.isEmpty() || trimmedSender.isEmpty()) {
@@ -154,7 +179,7 @@ object RecordInboxNativeStore {
     }
 
     return transact(context) { state ->
-      enqueueLocked(state, trimmedSender, trimmedBody, receivedAt)
+      enqueueLocked(state, trimmedSender, trimmedBody, receivedAt, source)
     }
   }
 
@@ -163,9 +188,14 @@ object RecordInboxNativeStore {
     trimmedSender: String,
     trimmedBody: String,
     receivedAt: Long,
+    source: String,
   ): Boolean {
     val now = System.currentTimeMillis()
-    val fingerprint = fingerprint(trimmedSender, trimmedBody, receivedAt)
+    val fingerprint = if (source == SOURCE_APP) {
+      fingerprint("$SOURCE_APP:$trimmedSender", trimmedBody, receivedAt, rawSender = true)
+    } else {
+      fingerprint(trimmedSender, trimmedBody, receivedAt)
+    }
     val fingerprints = loadFingerprints(state.str(KEY_FINGERPRINTS), now)
     if (fingerprints.any { it.first == fingerprint }) {
       return false
@@ -179,6 +209,7 @@ object RecordInboxNativeStore {
         sender = trimmedSender,
         body = trimmedBody,
         enqueuedAt = iso8601(receivedAt),
+        source = source,
       ),
     )
 
@@ -295,6 +326,7 @@ object RecordInboxNativeStore {
               sender = sender,
               body = body,
               enqueuedAt = item.optString("enqueuedAt"),
+              source = item.optString("source"),
             ),
           )
         }
@@ -312,7 +344,8 @@ object RecordInboxNativeStore {
             .put("id", item.id)
             .put("sender", item.sender)
             .put("body", item.body)
-            .put("enqueuedAt", item.enqueuedAt),
+            .put("enqueuedAt", item.enqueuedAt)
+            .apply { if (item.source.isNotEmpty()) put("source", item.source) },
         )
       }
     }
@@ -360,8 +393,13 @@ object RecordInboxNativeStore {
     }
   }
 
-  private fun fingerprint(sender: String, body: String, @Suppress("UNUSED_PARAMETER") receivedAt: Long): String {
-    val source = "${normalizeSender(sender)}\u0000$body"
+  private fun fingerprint(
+    sender: String,
+    body: String,
+    @Suppress("UNUSED_PARAMETER") receivedAt: Long,
+    rawSender: Boolean = false,
+  ): String {
+    val source = "${if (rawSender) sender else normalizeSender(sender)}\u0000$body"
     return MessageDigest.getInstance("SHA-256")
       .digest(source.toByteArray(Charsets.UTF_8))
       .joinToString("") { "%02x".format(it) }

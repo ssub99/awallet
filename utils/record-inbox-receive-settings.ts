@@ -20,6 +20,7 @@ export type AppNotificationReceiveTarget = {
 
 type SmsReceiveNativeModule = {
   syncSmsReceiveSettings?: (enabled: boolean, numbers: string[]) => Promise<void>;
+  syncAppNotificationReceiveSettings?: (enabled: boolean, packages: string[]) => Promise<void>;
   clearSmsInboxNativeState?: () => Promise<void>;
 };
 
@@ -82,8 +83,8 @@ export async function saveAppNotificationReceiveEnabled(enabled: boolean): Promi
   await AsyncStorage.setItem(APP_NOTIFICATION_RECEIVE_ENABLED_KEY, JSON.stringify(enabled));
   if (enabled) {
     await AsyncStorage.setItem(SMS_RECEIVE_ENABLED_KEY, JSON.stringify(false));
-    await syncSmsReceiveSettingsToNative();
   }
+  await syncSmsReceiveSettingsToNative();
   notifyRecordInboxReceiveEnabled(await loadRecordInboxReceiveEnabled());
 }
 
@@ -126,6 +127,7 @@ export async function saveAppNotificationReceiveTargets(
   targets: AppNotificationReceiveTarget[],
 ): Promise<void> {
   await AsyncStorage.setItem(APP_NOTIFICATION_RECEIVE_TARGETS_KEY, JSON.stringify(targets));
+  await syncSmsReceiveSettingsToNative();
 }
 
 export async function loadSmsReceiveDisclosureAccepted(): Promise<boolean> {
@@ -136,17 +138,21 @@ export async function saveSmsReceiveDisclosureAccepted(): Promise<void> {
   await AsyncStorage.setItem(SMS_RECEIVE_DISCLOSURE_ACCEPTED_KEY, 'true');
 }
 
-/** 앱 시작·설정 변경 시 종료 상태 Receiver가 읽을 Android 설정을 갱신한다. */
+/** 앱 시작·설정 변경 시 종료 상태 Receiver·알림 리스너가 읽을 Android 설정(문자 + 앱 알림)을 갱신한다. */
 export async function syncSmsReceiveSettingsToNative(): Promise<void> {
   if (Platform.OS !== 'android') return;
-  const fn = smsReceiveNative?.syncSmsReceiveSettings;
-  if (typeof fn !== 'function') return;
-  const [enabled, numbers] = await Promise.all([
+  const [enabled, numbers, appEnabled, targets] = await Promise.all([
     loadSmsReceiveEnabled(),
     loadSmsReceiveNumbers(),
+    loadAppNotificationReceiveEnabled(),
+    loadAppNotificationReceiveTargets(),
   ]);
   try {
-    await fn.call(smsReceiveNative, enabled, numbers);
+    await smsReceiveNative?.syncSmsReceiveSettings?.(enabled, numbers);
+    await smsReceiveNative?.syncAppNotificationReceiveSettings?.(
+      appEnabled,
+      targets.map((target) => target.packageName),
+    );
   } catch {
     // Expo Go처럼 네이티브 브리지가 없는 환경에서는 JS 설정만 유지한다.
   }

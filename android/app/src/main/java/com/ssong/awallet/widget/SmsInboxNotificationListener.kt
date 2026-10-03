@@ -20,9 +20,13 @@ import android.service.notification.StatusBarNotification
 class SmsInboxNotificationListener : NotificationListenerService() {
   override fun onNotificationPosted(sbn: StatusBarNotification?) {
     if (sbn == null) return
+    val context = applicationContext
+    if (RecordInboxNativeStore.isAppNotificationTarget(context, sbn.packageName)) {
+      handleAppNotification(context, sbn)
+      return
+    }
     if (!MESSAGE_PACKAGES.contains(sbn.packageName)) return
 
-    val context = applicationContext
     if (!RecordInboxNativeStore.isReceiveEnabled(context)) return
 
     val notification = sbn.notification ?: return
@@ -59,6 +63,36 @@ class SmsInboxNotificationListener : NotificationListenerService() {
 
     val receivedAt = sbn.postTime.takeIf { it > 0L } ?: System.currentTimeMillis()
     if (RecordInboxNativeStore.enqueue(context, sender, body, receivedAt)) {
+      RecordInboxNativeEventEmitter.notifyFromOtherProcess(context)
+    }
+  }
+
+  /** iOS 알림 수신함 Intent와 동일: 제목+본문 · 보낸 곳 = 앱 이름 · source "app" */
+  private fun handleAppNotification(context: Context, sbn: StatusBarNotification) {
+    val notification = sbn.notification ?: return
+    if (notification.flags and Notification.FLAG_GROUP_SUMMARY != 0) return
+    val extras = notification.extras ?: Bundle()
+    val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()?.trim().orEmpty()
+    val combined = listOf(title, extractBody(extras).trim())
+      .filter(String::isNotEmpty)
+      .joinToString("\n")
+    if (!RecordInboxNativeStore.hasSupportedTransactionKeyword(combined)) return
+
+    val appName = try {
+      val pm = context.packageManager
+      pm.getApplicationLabel(pm.getApplicationInfo(sbn.packageName, 0)).toString()
+    } catch (_: Exception) {
+      sbn.packageName
+    }
+    val receivedAt = sbn.postTime.takeIf { it > 0L } ?: System.currentTimeMillis()
+    if (RecordInboxNativeStore.enqueue(
+        context,
+        appName,
+        combined,
+        receivedAt,
+        RecordInboxNativeStore.SOURCE_APP,
+      )
+    ) {
       RecordInboxNativeEventEmitter.notifyFromOtherProcess(context)
     }
   }

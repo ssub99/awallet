@@ -133,6 +133,7 @@ export default function SettingsRecordInboxScreen() {
   const [draftNumber, setDraftNumber] = useState('');
   const [setupGuideVisible, setSetupGuideVisible] = useState(false);
   const [appNotificationGuideVisible, setAppNotificationGuideVisible] = useState(false);
+  const appNotificationAccessPendingRef = useRef(false);
   const androidEnablePendingStepRef = useRef<AndroidEnablePendingStep>(null);
 
   const addBackdropAnimatedStyle = useAnimatedStyle(() => ({
@@ -183,14 +184,21 @@ export default function SettingsRecordInboxScreen() {
           loadAppNotificationReceiveTargets(),
         ]);
         if (cancelled) return;
-        setAppNotificationReceiveEnabled(appEnabled && SUPPORTS_APP_NOTIFICATION_RECEIVE);
         setAppNotificationTargets(storedTargets);
 
+        const notificationAccess =
+          Platform.OS !== 'android' || (await hasAndroidRecordInboxNotificationAccess());
         const canReceive =
           Platform.OS !== 'android' ||
-          ((await hasAndroidSmsReceivePermission()) &&
-            (await hasAndroidRecordInboxNotificationAccess()));
+          ((await hasAndroidSmsReceivePermission()) && notificationAccess);
         if (cancelled) return;
+
+        const effectiveAppEnabled =
+          appEnabled && SUPPORTS_APP_NOTIFICATION_RECEIVE && notificationAccess;
+        setAppNotificationReceiveEnabled(effectiveAppEnabled);
+        if (appEnabled !== effectiveAppEnabled) {
+          await saveAppNotificationReceiveEnabled(effectiveAppEnabled);
+        }
 
         const effectiveEnabled = enabled && canReceive;
         setSmsReceiveEnabled(effectiveEnabled);
@@ -219,6 +227,7 @@ export default function SettingsRecordInboxScreen() {
     setSmsReceiveEnabled(true);
     setAppNotificationReceiveEnabled(false);
     await saveSmsReceiveEnabled(true);
+    await saveAppNotificationReceiveEnabled(false);
     if (!(await hasAndroidExactAlarmPermission())) {
       promptExactAlarmGuide();
     }
@@ -445,16 +454,72 @@ export default function SettingsRecordInboxScreen() {
     showSmsDisclosureAlert,
   ]);
 
+  const enableAppNotificationReceive = useCallback(async () => {
+    appNotificationAccessPendingRef.current = false;
+    setAppNotificationReceiveEnabled(true);
+    if (smsReceiveEnabled) {
+      await handleToggle(false);
+    }
+    await saveAppNotificationReceiveEnabled(true);
+  }, [handleToggle, smsReceiveEnabled]);
+
   const handleAppNotificationToggle = useCallback(
     async (value: boolean) => {
-      setAppNotificationReceiveEnabled(value);
-      if (value && smsReceiveEnabled) {
-        await handleToggle(false);
+      if (!value) {
+        appNotificationAccessPendingRef.current = false;
+        setAppNotificationReceiveEnabled(false);
+        await saveAppNotificationReceiveEnabled(false);
+        return;
       }
-      await saveAppNotificationReceiveEnabled(value);
+      if (Platform.OS === 'android' && !(await hasAndroidRecordInboxNotificationAccess())) {
+        appNotificationAccessPendingRef.current = true;
+        Alert.alert(
+          '알림 접근 권한 안내',
+          '수신되는 알림에 대해 접근을 허용해 주세요.',
+          [
+            {
+              text: '취소',
+              style: 'cancel',
+              onPress: () => {
+                appNotificationAccessPendingRef.current = false;
+              },
+            },
+            {
+              text: '설정으로 이동',
+              onPress: () => {
+                void openAndroidRecordInboxNotificationAccessSettings();
+              },
+            },
+          ],
+          { cancelable: false },
+        );
+        return;
+      }
+      await enableAppNotificationReceive();
     },
-    [handleToggle, smsReceiveEnabled],
+    [enableAppNotificationReceive],
   );
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return undefined;
+    const subscription = AppState.addEventListener('change', (next) => {
+      if (next !== 'active') return;
+      void (async () => {
+        const pending = appNotificationAccessPendingRef.current;
+        if (!pending && !appNotificationReceiveEnabled) return;
+        const granted = await hasAndroidRecordInboxNotificationAccess();
+        if (pending) {
+          if (granted) await enableAppNotificationReceive();
+          return;
+        }
+        if (!granted) {
+          setAppNotificationReceiveEnabled(false);
+          await saveAppNotificationReceiveEnabled(false);
+        }
+      })();
+    });
+    return () => subscription.remove();
+  }, [appNotificationReceiveEnabled, enableAppNotificationReceive]);
 
   const handlePermissionGuidePress = useCallback(() => {
     Alert.alert(

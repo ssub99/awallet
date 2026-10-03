@@ -133,6 +133,25 @@ class WidgetDataSyncModule(reactContext: ReactApplicationContext) :
   }
 
   @ReactMethod
+  fun syncAppNotificationReceiveSettings(enabled: Boolean, packages: ReadableArray, promise: Promise) {
+    try {
+      val values = buildList {
+        for (index in 0 until packages.size()) {
+          packages.getString(index)?.let(::add)
+        }
+      }
+      RecordInboxNativeStore.syncAppNotificationSettings(
+        reactApplicationContext.applicationContext,
+        enabled,
+        values,
+      )
+      promise.resolve(null)
+    } catch (e: Exception) {
+      promise.reject("ERROR", "Failed to sync app notification receive settings: ${e.message}", e)
+    }
+  }
+
+  @ReactMethod
   fun getPendingSmsInbox(promise: Promise) {
     try {
       val result = Arguments.createArray()
@@ -143,6 +162,7 @@ class WidgetDataSyncModule(reactContext: ReactApplicationContext) :
             putString("sender", item.sender)
             putString("body", item.body)
             putString("enqueuedAt", item.enqueuedAt)
+            if (item.source.isNotEmpty()) putString("source", item.source)
           },
         )
       }

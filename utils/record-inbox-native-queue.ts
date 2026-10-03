@@ -9,7 +9,7 @@ export type PendingRecordInboxNativeItem = {
   id?: string;
   body?: string;
   sender?: string;
-  /** iOS: "app" = 알림 수신함 Intent. 없으면 문자 */
+  /** "app" = 앱 알림(iOS Intent · Android 리스너). 없으면 문자 */
   source?: string;
   enqueuedAt?: string;
 };
