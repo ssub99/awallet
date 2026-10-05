@@ -11,6 +11,11 @@ export const APP_NOTIFICATION_RECEIVE_ENABLED_KEY = '@awallet/appNotificationRec
 /** Android 알림 수신 대상 금융 앱 */
 export const APP_NOTIFICATION_RECEIVE_TARGETS_KEY = '@awallet/appNotificationReceiveTargets';
 
+/** iOS: 단축어「알림 수신」자동화 트리거는 iOS 27+ · Android: 알림 리스너 */
+export const SUPPORTS_APP_NOTIFICATION_RECEIVE =
+  Platform.OS === 'android' ||
+  (Platform.OS === 'ios' && Number.parseInt(String(Platform.Version), 10) >= 27);
+
 export type AppNotificationReceiveTarget = {
   packageName: string;
   label: string;
@@ -58,6 +63,7 @@ export async function loadSmsReceiveEnabled(): Promise<boolean> {
 }
 
 export async function loadAppNotificationReceiveEnabled(): Promise<boolean> {
+  if (!SUPPORTS_APP_NOTIFICATION_RECEIVE) return false;
   return loadBooleanFlag(APP_NOTIFICATION_RECEIVE_ENABLED_KEY);
 }
 

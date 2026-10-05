@@ -51,6 +51,7 @@ import {
   saveSmsReceiveDisclosureAccepted,
   saveSmsReceiveEnabled,
   saveSmsReceiveNumbers,
+  SUPPORTS_APP_NOTIFICATION_RECEIVE,
 } from '@/utils/record-inbox-receive-settings';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -94,11 +95,6 @@ const SMS_DISCLOSURE_MESSAGE =
   '설정한 발신번호의 메세지 내용을 확인하기 위해 SMS 접근 권한과 알림 접근 권한이 필요합니다. 수신된 문자를 인식하기 위함이며 별도로 SMS/알림은 저장하지 않습니다.';
 
 type AndroidEnablePendingStep = 'notification-access' | 'messages-notification' | null;
-
-/** iOS: 단축어「알림 수신」자동화 트리거는 iOS 27+ · Android: 알림 리스너 */
-const SUPPORTS_APP_NOTIFICATION_RECEIVE =
-  Platform.OS === 'android' ||
-  (Platform.OS === 'ios' && Number.parseInt(String(Platform.Version), 10) >= 27);
 
 export default function SettingsRecordInboxScreen() {
   const colorScheme = useColorScheme();
@@ -471,6 +467,10 @@ export default function SettingsRecordInboxScreen() {
         await saveAppNotificationReceiveEnabled(false);
         return;
       }
+      if (!SUPPORTS_APP_NOTIFICATION_RECEIVE) {
+        showToast('OS를 업데이트해 주세요.(iOS 27 이상 필요)');
+        return;
+      }
       if (Platform.OS === 'android' && !(await hasAndroidRecordInboxNotificationAccess())) {
         appNotificationAccessPendingRef.current = true;
         Alert.alert(
@@ -497,7 +497,7 @@ export default function SettingsRecordInboxScreen() {
       }
       await enableAppNotificationReceive();
     },
-    [enableAppNotificationReceive],
+    [enableAppNotificationReceive, showToast],
   );
 
   useEffect(() => {
@@ -832,43 +832,41 @@ export default function SettingsRecordInboxScreen() {
           ) : null}
         </View>
 
-        {/* Figma settings.smsReceive.appNotification · 알림 수신 카드 — iOS 27+ · Android · 문자 수신과 상호 배타 */}
-        {SUPPORTS_APP_NOTIFICATION_RECEIVE ? (
-          <View style={[styles.card, { backgroundColor: colors.staticWhite }]}>
-            <View style={styles.toggleBlock}>
-              <View style={styles.toggleRow}>
-                <UiLineText style={{ color: colors.text }}>알림 수신</UiLineText>
-                <Switch
-                  value={appNotificationReceiveEnabled}
-                  onValueChange={(v) => void handleAppNotificationToggle(v)}
-                  accessibilityLabel="알림 수신"
-                />
-              </View>
-              <UiLineText style={[styles.caption, { color: colors.textAssistive }]}>
-                발송되는 알림을 수신하여 기록으로 생성합니다.
-              </UiLineText>
+        {/* Figma settings.smsReceive.appNotification · 알림 수신 카드 — iOS 27 미만은 켤 때 OS 업데이트 토스트 · 문자 수신과 상호 배타 */}
+        <View style={[styles.card, { backgroundColor: colors.staticWhite }]}>
+          <View style={styles.toggleBlock}>
+            <View style={styles.toggleRow}>
+              <UiLineText style={{ color: colors.text }}>알림 수신</UiLineText>
+              <Switch
+                value={appNotificationReceiveEnabled}
+                onValueChange={(v) => void handleAppNotificationToggle(v)}
+                accessibilityLabel="알림 수신"
+              />
             </View>
-            {appNotificationReceiveEnabled && Platform.OS === 'ios' ? (
-              <>
-                <View style={[styles.divider, { backgroundColor: colors.border }]} />
-                <Pressable
-                  style={styles.toggleBlock}
-                  onPress={handleAppNotificationShortcutsPress}
-                  accessibilityRole="button"
-                  accessibilityLabel="단축어 자동화 바로가기"
-                >
-                  <View style={styles.toggleRow}>
-                    <UiLineText style={{ color: colors.text }}>단축어 자동화 바로가기</UiLineText>
-                    <Icon name="arrowRight" size={24} color={colors.staticBlack} />
-                  </View>
-                  <UiLineText style={[styles.caption, { color: colors.textAssistive }]}>
-                    알림 내용을 전달하여 기록 수신함에 적재합니다.
-                  </UiLineText>
-                </Pressable>
-              </>
-            ) : null}
+            <UiLineText style={[styles.caption, { color: colors.textAssistive }]}>
+              발송되는 알림을 수신하여 기록으로 생성합니다.
+            </UiLineText>
           </View>
-        ) : null}
+          {appNotificationReceiveEnabled && Platform.OS === 'ios' ? (
+            <>
+              <View style={[styles.divider, { backgroundColor: colors.border }]} />
+              <Pressable
+                style={styles.toggleBlock}
+                onPress={handleAppNotificationShortcutsPress}
+                accessibilityRole="button"
+                accessibilityLabel="단축어 자동화 바로가기"
+              >
+                <View style={styles.toggleRow}>
+                  <UiLineText style={{ color: colors.text }}>단축어 자동화 바로가기</UiLineText>
+                  <Icon name="arrowRight" size={24} color={colors.staticBlack} />
+                </View>
+                <UiLineText style={[styles.caption, { color: colors.textAssistive }]}>
+                  알림 내용을 전달하여 기록 수신함에 적재합니다.
+                </UiLineText>
+              </Pressable>
+            </>
+          ) : null}
+        </View>
 
         {appNotificationReceiveEnabled && Platform.OS === 'ios' ? (
           <Pressable
