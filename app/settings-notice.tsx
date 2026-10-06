@@ -233,7 +233,6 @@ export default function SettingsNoticeScreen() {
   const [isAndroidViewerDismissing, setIsAndroidViewerDismissing] = useState(false);
   const [androidViewerStatusBarStyle, setAndroidViewerStatusBarStyleState] =
     useState<'light' | 'dark'>('dark');
-  const noticesRef = useRef<AppNotice[]>([]);
   const skipNextFocusLoadRef = useRef(false);
   const contentOpacity = useRef(new Animated.Value(0)).current;
   const androidViewerTranslateY = useRef(new Animated.Value(0)).current;
@@ -275,9 +274,12 @@ export default function SettingsNoticeScreen() {
         fetchAppNotices(),
         loadDevAppNotices(),
       ]);
-      noticesRef.current = items;
       setNotices(items);
       setDevNoticeIds(new Set(devItems.map((notice) => notice.id)));
+      // 빈 목록(불러오기 실패 포함)이면 watermark가 now로 덮여 미열람 공지까지 읽음 처리되므로 건너뛴다.
+      if (items.length > 0) {
+        void markNoticesViewed(items);
+      }
       void prefetchNoticesMedia(items);
     } finally {
       setLoading(false);
@@ -297,10 +299,6 @@ export default function SettingsNoticeScreen() {
       } else {
         void loadNotices();
       }
-
-      return () => {
-        void markNoticesViewed(noticesRef.current);
-      };
     }, [loadNotices]),
   );
 

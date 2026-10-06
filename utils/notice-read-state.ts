@@ -3,6 +3,8 @@ import type { AppNotice } from '@/utils/fetch-app-notices';
 
 export const NOTICE_INSTALL_BASELINE_KEY = 'noticeInstallBaselineAt';
 export const NOTICE_LAST_VIEWED_WATERMARK_KEY = 'noticeLastViewedWatermark';
+/** __DEV__ 전용: 뱃지 숫자 확인용으로 unread 개수에 더하는 값 */
+export const DEV_NOTICE_UNREAD_BONUS_KEY = 'devNoticeUnreadBonus';
 
 type NoticeUnreadListener = () => void;
 const noticeUnreadListeners = new Set<NoticeUnreadListener>();
@@ -62,5 +64,20 @@ export async function markNoticesViewed(notices: AppNotice[]): Promise<void> {
       ? Math.max(...notices.map((notice) => notice.publishedAt))
       : Date.now();
   await AsyncStorage.setItem(NOTICE_LAST_VIEWED_WATERMARK_KEY, String(watermark));
+  if (__DEV__) {
+    await AsyncStorage.removeItem(DEV_NOTICE_UNREAD_BONUS_KEY);
+  }
   noticeUnreadEvent.emit();
+}
+
+export async function getDevNoticeUnreadBonus(): Promise<number> {
+  if (!__DEV__) return 0;
+  return parseTimestamp(await AsyncStorage.getItem(DEV_NOTICE_UNREAD_BONUS_KEY)) ?? 0;
+}
+
+export async function incrementDevNoticeUnreadBonus(): Promise<number> {
+  const next = (await getDevNoticeUnreadBonus()) + 1;
+  await AsyncStorage.setItem(DEV_NOTICE_UNREAD_BONUS_KEY, String(next));
+  noticeUnreadEvent.emit();
+  return next;
 }

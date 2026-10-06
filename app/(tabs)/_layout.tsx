@@ -8,10 +8,13 @@ import { colors } from '@/constants/theme';
 import { CreateSheetProvider } from '@/contexts/create-sheet-context';
 import { QuickInputProvider } from '@/contexts/quick-input-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useNoticeUnreadCount } from '@/hooks/use-notice-unread-count';
+import { atomicColors } from '@/constants/atomic-colors';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const palette = colors[colorScheme ?? 'light'];
+  const hasUnreadNotice = useNoticeUnreadCount() > 0;
 
   return (
     <QuickInputProvider>
@@ -59,8 +62,12 @@ export default function TabLayout() {
           name="mypage"
           options={{
             title: '설정',
+            tabBarAccessibilityLabel: hasUnreadNotice ? '설정, 새 공지 있음' : '설정',
             tabBarIcon: ({ focused }) => (
-              <Icon name="setting" variant={focused ? 'solid' : 'line'} size={28} color={palette.staticBlack} />
+              <View>
+                <Icon name="setting" variant={focused ? 'solid' : 'line'} size={28} color={palette.staticBlack} />
+                {hasUnreadNotice ? <View style={styles.noticeDot} /> : null}
+              </View>
             ),
           }}
         />
@@ -112,5 +119,14 @@ export default function TabLayout() {
 const styles = StyleSheet.create({
   wrapper: {
     flex: 1,
+  },
+  noticeDot: {
+    position: 'absolute',
+    top: 0,
+    right: -4,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: atomicColors.red[600],
   },
 });

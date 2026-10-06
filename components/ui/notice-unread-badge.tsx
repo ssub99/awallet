@@ -3,12 +3,14 @@
  */
 
 import { atomicColors } from '@/constants/atomic-colors';
-import { typography } from '@/constants/typography';
+import { typographyLayout } from '@/constants/typography';
 import { Text, View, StyleSheet } from 'react-native';
 
 interface NoticeUnreadBadgeProps {
   count: number;
 }
+
+const BADGE_SIZE = 20;
 
 export function NoticeUnreadBadge({ count }: NoticeUnreadBadgeProps) {
   if (count <= 0) {
@@ -34,25 +36,26 @@ export function NoticeUnreadBadge({ count }: NoticeUnreadBadgeProps) {
 
 const styles = StyleSheet.create({
   badge: {
-    minHeight: 16,
-    borderRadius: 12,
+    height: BADGE_SIZE,
+    borderRadius: BADGE_SIZE / 2,
     backgroundColor: atomicColors.red[600],
     alignItems: 'center',
     justifyContent: 'center',
   },
   badgeSingle: {
-    width: 16,
-    height: 16,
+    width: BADGE_SIZE,
   },
   badgeWide: {
-    minWidth: 16,
-    height: 16,
+    minWidth: BADGE_SIZE,
     paddingHorizontal: 4,
   },
+  // 토큰 lineHeight가 뱃지 높이보다 크면 iOS에서 글자가 아래로 밀린다.
   badgeText: {
-    ...typography.detail.bold,
+    ...typographyLayout.uiLineBody02Bold,
+    lineHeight: BADGE_SIZE,
     color: atomicColors.common[0],
     textAlign: 'center',
     includeFontPadding: false,
+    textAlignVertical: 'center',
   },
 });

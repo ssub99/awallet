@@ -52,6 +52,7 @@ import { useRouter } from 'expo-router';
 
 import { getExpoNotifications } from '@/utils/expo-notifications-client';
 import { clearRecordInboxItems, seedDevRecordInboxItemsForPushTest } from '@/utils/record-inbox-store';
+import { incrementDevNoticeUnreadBonus } from '@/utils/notice-read-state';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -842,6 +843,23 @@ function TestContent({ colors }: { colors: ColorPalette }) {
         >
           <Text style={[styles.testButtonText, { color: colors.staticWhite }]}>
             🗑️ 가기록 전체 삭제
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={[styles.testButton, { backgroundColor: '#E65100', marginTop: 8 }]}
+          onPress={async () => {
+            try {
+              const bonus = await incrementDevNoticeUnreadBonus();
+              alert(`공지 뱃지 테스트 +1 (추가분 ${bonus}건)\n공지사항 화면을 열면 초기화됩니다.`);
+            } catch (error) {
+              console.error('[notice][dev-ui] unread reset failed', error);
+              alert('공지 뱃지 초기화 중 오류가 발생했습니다.');
+            }
+          }}
+        >
+          <Text style={[styles.testButtonText, { color: colors.staticWhite }]}>
+            🔔 공지 뱃지 +1
           </Text>
         </Pressable>
 
