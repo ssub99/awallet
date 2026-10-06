@@ -22,7 +22,7 @@ import {
   CHALLENGE_NOTIFICATIONS_ENABLED_KEY,
 } from '@/utils/notification-scheduler';
 import { QUICK_INPUT_TIP_BOX_EXPANDED_KEY } from '@/utils/quick-input-tip-preference';
-import { RECORD_INBOX_ITEMS_KEY } from '@/utils/record-inbox-store';
+import { clearRecordInboxItems, RECORD_INBOX_ITEMS_KEY } from '@/utils/record-inbox-store';
 import { RECORD_INBOX_PUSH_LEDGER_KEY } from '@/utils/record-inbox-push-ledger';
 import {
   APP_NOTIFICATION_RECEIVE_ENABLED_KEY,
@@ -100,6 +100,7 @@ export async function resetAppData(): Promise<void> {
   await clearAllExpenses();
   await clearAllIncomes();
   await clearAllChallenges();
+  await clearRecordInboxItems();
   await AsyncStorage.multiRemove(resolveKeysToRemove());
   await clearSmsReceiveNativeState();
 
