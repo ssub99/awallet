@@ -51,7 +51,7 @@ import type * as ExpoNotifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
 
 import { getExpoNotifications } from '@/utils/expo-notifications-client';
-import { seedDevRecordInboxItemsForPushTest } from '@/utils/record-inbox-store';
+import { clearRecordInboxItems, seedDevRecordInboxItemsForPushTest } from '@/utils/record-inbox-store';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -825,6 +825,23 @@ function TestContent({ colors }: { colors: ColorPalette }) {
         >
           <Text style={[styles.testButtonText, { color: colors.staticWhite }]}>
             📩 가기록 더미 10건 추가
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={[styles.testButton, { backgroundColor: '#B71C1C', marginTop: 8 }]}
+          onPress={async () => {
+            try {
+              await clearRecordInboxItems();
+              alert('가기록 전체 삭제 완료');
+            } catch (error) {
+              console.error('[record-inbox][dev-ui] clear failed', error);
+              alert('가기록 삭제 중 오류가 발생했습니다.');
+            }
+          }}
+        >
+          <Text style={[styles.testButtonText, { color: colors.staticWhite }]}>
+            🗑️ 가기록 전체 삭제
           </Text>
         </Pressable>
 
