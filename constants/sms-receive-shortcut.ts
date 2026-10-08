@@ -17,7 +17,7 @@ const IS_STAGE_APP = isStageBuildProfile();
 
 /**
  * 번들 폴백 (원격 JSON 실패·미배포 시).
- * 원격 JSON 키: 스테이지 `url`, 정식 `productionUrl`.
+ * 원격 JSON 키: 스테이지 `stageUrl`, 정식 `productionUrl`.
  */
 export const SMS_RECEIVE_SHORTCUT_ICLOUD_URL = IS_STAGE_APP
   ? 'https://www.icloud.com/shortcuts/d7d8ee8ea9324cfd997e353b74f02ce7'
@@ -28,7 +28,7 @@ export const APP_NOTIFICATION_RECEIVE_SHORTCUT_ICLOUD_URL = IS_STAGE_APP
   ? 'https://www.icloud.com/shortcuts/d425c167b6244f51a04c6500c7468c59'
   : 'https://www.icloud.com/shortcuts/1ab2185798264ead9cf9308cd4c5e9a1';
 
-const SMS_RECEIVE_SHORTCUT_CONFIG_KEY = IS_STAGE_APP ? 'url' : 'productionUrl';
+const SMS_RECEIVE_SHORTCUT_CONFIG_KEY = IS_STAGE_APP ? 'stageUrl' : 'productionUrl';
 
 function isIcloudShortcutsUrl(value: string): boolean {
   try {
