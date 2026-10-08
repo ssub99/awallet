@@ -64,7 +64,7 @@ export const SMS_RECEIVE_SETUP_GUIDE_STEPS: readonly SmsReceiveSetupGuideStep[] 
   },
 ] as const;
 
-/** 알림 수신함 설정 가이드 — Figma 2423:25611(01) · 2423:27140(02) · 2423:27303(03) · 2423:27463(04) */
+/** 알림 수신함 설정 가이드 — Figma 2423:25611(01) · 2423:27140(02) · 2423:27303(03) · 2423:27463(04) · 2485:52486(05) */
 export const APP_NOTIFICATION_RECEIVE_SETUP_GUIDE_STEPS: readonly SmsReceiveSetupGuideStep[] = [
   {
     id: '01',
@@ -86,8 +86,14 @@ export const APP_NOTIFICATION_RECEIVE_SETUP_GUIDE_STEPS: readonly SmsReceiveSetu
   },
   {
     id: '04',
-    title: 'Step 04. 알림 수신함 설정 완료',
-    description: '수신할 대상들을 설정을 완료 후\n자동화를 통해 기록들을 생성하세요.',
+    title: 'Step 04. 자동화 기능 활성화',
+    description: '수신할 대상들을 선택 후\n알림 수신 시 자동실행 기능을 활성화 하세요.',
     image: require('../assets/images/notification_receive-setting-guide04.png'),
+  },
+  {
+    id: '05',
+    title: 'Step 05. 알림 수신함 설정 완료',
+    description: '수신할 대상들을 설정을 완료 후\n자동화를 통해 기록들을 생성하세요.',
+    image: require('../assets/images/notification_receive-setting-guide05.png'),
   },
 ] as const;
