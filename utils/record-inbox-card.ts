@@ -34,7 +34,7 @@ function defaultCreditPaymentType(): Pick<
   };
 }
 
-/** 원문 파싱 결과로 카드 생성 (금액·날짜는 호출측에서 확정) */
+/** 원문 파싱 결과로 카드 생성 (금액·날짜는 호출측에서 확정) — 지출 전용 */
 export function buildConfirmCardFromRecordInboxFields(fields: {
   amount: number;
   year: number;

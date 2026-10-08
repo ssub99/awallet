@@ -1,7 +1,8 @@
 /**
- * 카드사 문자·앱 알림 파서 — §9 정책. 지출만 다룸.
+ * 카드사 문자·앱 알림 파서 — §9 정책.
  * allowlist는 ingest에서 검사. 여기선 본문만.
- * 키워드: 입금 단독 무시 → 취소 우선 → 승인/출금. 부분취소 미지원.
+ * 취소 우선 → 지출(승인·출금). 입금·입금형 알림은 미적재(ignore).
+ * `입출금` 등 상품명은 출금 키워드에서 제외. 부분취소 미지원.
  */
 
 export type RecordInboxParseKind = 'approval' | 'cancel' | 'ignore';
@@ -22,9 +23,11 @@ export type RecordInboxParseResult =
   | { kind: 'ignore'; reason: string };
 
 const CANCEL_KEYWORDS = ['취소'] as const;
-const APPROVAL_KEYWORDS = ['승인', '출금'] as const;
-/** 지출만 다룸 — 승인·출금 없이 입금만 있으면 무시 (같은 금액 지출 오삭제 방지) */
-const INCOME_KEYWORDS = ['입금'] as const;
+
+/** `출금` 부분 문자열 오탐 방지 (계좌·상품명). 긴 구문부터 치환 */
+const WITHDRAW_FALSE_POSITIVE_PHRASES = ['입출금통장', '자동입출금', '입출금'] as const;
+
+const MEANINGFUL_LINE_SKIP = /^\[?Web발신\]?$/;
 
 /** 숫자만 남겨 발신번호 비교 (국가코드·선행 0 제거) */
 export function normalizeSmsSender(raw: string): string {
@@ -106,16 +109,86 @@ export function restoreSmsSenderFromQueryParam(raw: string): string {
   return trimmed;
 }
 
-function detectKind(body: string): 'approval' | 'cancel' | null {
-  const hasApproval = APPROVAL_KEYWORDS.some((kw) => body.includes(kw));
-  if (!hasApproval && INCOME_KEYWORDS.some((kw) => body.includes(kw))) {
-    return null;
+function meaningfulLines(body: string): string[] {
+  return body
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !MEANINGFUL_LINE_SKIP.test(line));
+}
+
+/** 계좌 상품명 등 — 이 구간의 `출금`은 지출 키워드로 쓰지 않음 */
+export function maskWithdrawFalsePositives(body: string): string {
+  let masked = body;
+  for (const phrase of WITHDRAW_FALSE_POSITIVE_PHRASES) {
+    masked = masked.split(phrase).join('\uFFFD'.repeat(phrase.length));
   }
+  return masked;
+}
+
+function hasWithdrawKeyword(maskedBody: string): boolean {
+  if (maskedBody.includes('체크카드출금')) return true;
+  // KB `인터넷출금10,000` · `ATM출금` 등
+  if (/[0-9A-Za-z가-힣]+출금/.test(maskedBody)) return true;
+  if (/출금\s*[\d,]/.test(maskedBody)) return true;
+  if (/^출금$/m.test(maskedBody)) return true;
+  if (/(?:^|\s)출금(?:\s|$)/m.test(maskedBody)) return true;
+  return false;
+}
+
+function hasExpenseKeyword(body: string): boolean {
+  const masked = maskWithdrawFalsePositives(body);
+  if (masked.includes('승인')) return true;
+  return hasWithdrawKeyword(masked);
+}
+
+/** 입금 거래 알림 — 수신함에는 쌓지 않음 (오탐·취소 매칭 방지용 판별) */
+export function isIncomeTransactionBody(body: string): boolean {
+  const lines = meaningfulLines(body);
+  if (lines.length === 0) return false;
+
+  const first = lines[0]!;
+  if (first === '입금' || /^입금[\s([]/.test(first) || /^입금\d/.test(first)) {
+    return true;
+  }
+  if (/^NH입금/.test(first)) return true;
+  if (/^입금[:：]/.test(first)) return true;
+  if (/입금\s+\d/.test(first)) return true;
+  if (/\d\s+입금\b/.test(first)) return true;
+
+  // 알림: "토스" 다음 줄 / 한 줄 "입금 N원"
+  if (lines.length >= 2 && lines[1]!.includes('입금') && !hasExpenseKeyword(body)) {
+    return true;
+  }
+  if (lines.some((line, index) => index < 2 && line === '입금')) {
+    return true;
+  }
+
+  if (/입금/.test(first) && !first.includes('승인') && !hasWithdrawKeyword(maskWithdrawFalsePositives(first))) {
+    return true;
+  }
+
+  return false;
+}
+
+function detectKind(body: string): 'approval' | 'cancel' | null {
   // 취소 먼저 (승인취소)
   if (CANCEL_KEYWORDS.some((kw) => body.includes(kw))) {
     return 'cancel';
   }
-  return hasApproval ? 'approval' : null;
+
+  if (isIncomeTransactionBody(body)) {
+    return null;
+  }
+
+  if (hasExpenseKeyword(body)) {
+    return 'approval';
+  }
+
+  if (body.includes('입금') && !body.includes('승인')) {
+    return null;
+  }
+
+  return null;
 }
 
 /**
@@ -151,6 +224,50 @@ export function extractPerTxnAmount(body: string): number | null {
   if (candidates.length > 0) {
     // 건별이 누적보다 앞에 오는 경우가 대부분
     return candidates[0] ?? null;
+  }
+
+  // 1b) KB 입출금통지 등 — `1,000,000 입금` (원 없음, 쉼표 필수 — 계좌 끝자리 오탐 방지)
+  for (const match of body.matchAll(/(\d{1,3}(?:,\d{3})+)\s+입금(?=\s|$|잔액)/g)) {
+    const index = match.index ?? 0;
+    const prefix = body.slice(Math.max(0, index - 8), index);
+    if (/(?:누적|잔액|합계)\s*:?\s*$/.test(prefix)) continue;
+    const amount = Number(match[1]!.replace(/,/g, ''));
+    if (Number.isFinite(amount) && amount > 0) {
+      candidates.push(amount);
+    }
+  }
+  if (candidates.length > 0) {
+    return candidates[0] ?? null;
+  }
+
+  // 1b-2) `입금 120,000` · `입금:25,000` (원 없음 — `입금1644` 고객센터 번호 제외)
+  for (const match of body.matchAll(/입금(?:\s*[:：]\s*|\s+)(\d{1,3}(?:,\d{3})*|\d+)(?=\s|$|원|잔액)/g)) {
+    const index = match.index ?? 0;
+    const prefix = body.slice(Math.max(0, index - 8), index);
+    if (/(?:누적|잔액|합계)\s*:?\s*$/.test(prefix)) continue;
+    const amount = Number(match[1]!.replace(/,/g, ''));
+    if (Number.isFinite(amount) && amount > 0) {
+      candidates.push(amount);
+    }
+  }
+  if (candidates.length > 0) {
+    return candidates[0] ?? null;
+  }
+
+  // 1c) 은행 출금 — `인터넷출금10,000` · `출금 10,000`
+  for (const match of body.matchAll(
+    /(?:인터넷|ATM|창구|스마트|폰)?출금\s*[:：]?\s*(\d{1,3}(?:,\d{3})*|\d+)/g,
+  )) {
+    const amount = Number(match[1]!.replace(/,/g, ''));
+    if (Number.isFinite(amount) && amount > 0) {
+      return amount;
+    }
+  }
+  for (const match of body.matchAll(/출금\s+(\d{1,3}(?:,\d{3})*|\d+)\b/g)) {
+    const amount = Number(match[1]!.replace(/,/g, ''));
+    if (Number.isFinite(amount) && amount > 0) {
+      return amount;
+    }
   }
 
   // 2) 해외원화 등 — `KRW 5,292` / `KRW5,292.00` (승인·취소 공통)
@@ -214,6 +331,18 @@ export function extractRecordInboxDateTime(
     const day = parseInt(dateOnly[2], 10);
     if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
       return { year: now.getFullYear(), month, day, hour: 0, minute: 0 };
+    }
+  }
+
+  // MM.DD HH:mm (은행 SMS)
+  const withTimeDot = body.match(/(\d{1,2})\.(\d{1,2})\s+(\d{1,2}):(\d{2})/);
+  if (withTimeDot) {
+    const month = parseInt(withTimeDot[1], 10);
+    const day = parseInt(withTimeDot[2], 10);
+    const hour = parseInt(withTimeDot[3], 10);
+    const minute = parseInt(withTimeDot[4], 10);
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31 && hour <= 23 && minute <= 59) {
+      return { year: now.getFullYear(), month, day, hour, minute };
     }
   }
 

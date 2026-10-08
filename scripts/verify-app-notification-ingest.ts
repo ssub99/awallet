@@ -27,7 +27,7 @@ const bodyOnly = parseRecordInboxBody(combine('', '체크카드출금 8,500원 �
 assert(bodyOnly.kind === 'approval' && bodyOnly.amount === 8500, 'body only');
 const marketing = parseRecordInboxBody(combine('혜택 안내', '이번 달 5,000원 쿠폰을 확인하세요'));
 assert(marketing.kind === 'ignore', 'marketing push ignored');
-// 지출만 다룸 — 입금 단독은 무시, 승인취소와 함께면 취소
+// 입금만 → 미적재, 승인취소와 함께면 취소
 const deposit = parseRecordInboxBody(combine('입금 안내', '30,000원 홍길동'));
 assert(deposit.kind === 'ignore', 'deposit ignored');
 const cancelDeposit = parseRecordInboxBody(combine('승인취소', '30,000원 입금 스타벅스'));
