@@ -20,12 +20,12 @@ const IS_STAGE_APP = isStageBuildProfile();
  * 원격 JSON 키: 스테이지 `stageUrl`, 정식 `productionUrl`.
  */
 export const SMS_RECEIVE_SHORTCUT_ICLOUD_URL = IS_STAGE_APP
-  ? 'https://www.icloud.com/shortcuts/d7d8ee8ea9324cfd997e353b74f02ce7'
+  ? 'https://www.icloud.com/shortcuts/6d11773653d5425e90d745394c0eff9a'
   : 'https://www.icloud.com/shortcuts/510dcef1f34e42549fc76fd2486c5bf2';
 
 /** iOS 27+ 단축어「알림 수신함」— App Intent「알림 수신함」공유 단축어 */
 export const APP_NOTIFICATION_RECEIVE_SHORTCUT_ICLOUD_URL = IS_STAGE_APP
-  ? 'https://www.icloud.com/shortcuts/d425c167b6244f51a04c6500c7468c59'
+  ? 'https://www.icloud.com/shortcuts/34795f74b1ac41c18103a88f99027559'
   : 'https://www.icloud.com/shortcuts/1ab2185798264ead9cf9308cd4c5e9a1';
 
 const SMS_RECEIVE_SHORTCUT_CONFIG_KEY = IS_STAGE_APP ? 'stageUrl' : 'productionUrl';
