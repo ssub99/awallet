@@ -39,7 +39,7 @@ function normalizeApiBaseUrl(raw: string | undefined): string | null {
   }
 }
 
-function isStageBuildProfile(): boolean {
+export function isStageBuildProfile(): boolean {
   return (
     Updates.channel === 'stage' || Application.applicationId?.includes('.stage') === true
   );

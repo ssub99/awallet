@@ -10,18 +10,25 @@
  * 앱은 fetch 후 iCloud URL을 열어 단축어 앱으로 넘긴다 (별도 웹 UI 없음).
  */
 
-import { SMS_RECEIVE_SHORTCUT_CONFIG_URL } from '@/constants/api';
+import { SMS_RECEIVE_SHORTCUT_CONFIG_URL, isStageBuildProfile } from '@/constants/api';
+
+/** 단축어는 App Intent 번들 ID에 묶이므로 스테이지(`.stage`)·정식 앱 링크를 따로 둔다. */
+const IS_STAGE_APP = isStageBuildProfile();
 
 /**
  * 번들 폴백 (원격 JSON 실패·미배포 시).
- * 예: https://www.icloud.com/shortcuts/xxxxxxxx
+ * 원격 JSON 키: 스테이지 `url`, 정식 `productionUrl`.
  */
-export const SMS_RECEIVE_SHORTCUT_ICLOUD_URL =
-  'https://www.icloud.com/shortcuts/d7d8ee8ea9324cfd997e353b74f02ce7';
+export const SMS_RECEIVE_SHORTCUT_ICLOUD_URL = IS_STAGE_APP
+  ? 'https://www.icloud.com/shortcuts/d7d8ee8ea9324cfd997e353b74f02ce7'
+  : 'https://www.icloud.com/shortcuts/510dcef1f34e42549fc76fd2486c5bf2';
 
 /** iOS 27+ 단축어「알림 수신함」— App Intent「알림 수신함」공유 단축어 */
-export const APP_NOTIFICATION_RECEIVE_SHORTCUT_ICLOUD_URL =
-  'https://www.icloud.com/shortcuts/d425c167b6244f51a04c6500c7468c59';
+export const APP_NOTIFICATION_RECEIVE_SHORTCUT_ICLOUD_URL = IS_STAGE_APP
+  ? 'https://www.icloud.com/shortcuts/d425c167b6244f51a04c6500c7468c59'
+  : 'https://www.icloud.com/shortcuts/1ab2185798264ead9cf9308cd4c5e9a1';
+
+const SMS_RECEIVE_SHORTCUT_CONFIG_KEY = IS_STAGE_APP ? 'url' : 'productionUrl';
 
 function isIcloudShortcutsUrl(value: string): boolean {
   try {
@@ -54,7 +61,7 @@ export async function resolveSmsReceiveShortcutInstallUrl(): Promise<string> {
     if (payload == null || typeof payload !== 'object') {
       return fallback.length > 0 ? fallback : 'shortcuts://';
     }
-    const url = (payload as { url?: unknown }).url;
+    const url = (payload as Record<string, unknown>)[SMS_RECEIVE_SHORTCUT_CONFIG_KEY];
     if (typeof url !== 'string') {
       return fallback.length > 0 ? fallback : 'shortcuts://';
     }
