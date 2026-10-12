@@ -9,11 +9,28 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { shouldApplyReactBlurOverlay } from '@/utils/expo-blur-platform';
 import { logEvent } from '@/utils/analytics';
 import type { ComponentRef } from 'react';
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Dimensions, LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-native';
+import Reanimated, {
+  cancelAnimation,
+  Easing,
+  type SharedValue,
+  useAnimatedProps,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated';
+import { Path, Svg } from 'react-native-svg';
 import { QuickInputStar } from '@/components/ui/quick-input-star';
 
 const QUICK_INPUT_HEIGHT = 48;
+/** 테두리 빛이 둘레를 따라 움직이는 속도 (px/s) */
+const BORDER_GLOW_SPEED = 150;
+/** 빛 전체 길이(px). 가운데가 진하고 앞뒤 끝으로 흐려지도록 가운데를 맞춘 구간을 겹친다 */
+const BORDER_GLOW_LENGTH = 128;
+/** 겹침 수가 많을수록 진하기 단계가 촘촘해진다 */
+const BORDER_GLOW_LAYERS = 32;
+const AnimatedPath = Reanimated.createAnimatedComponent(Path);
 const FALLBACK_ESTIMATE = 64;
 const MIN_BOTTOM = 16;
 const MAX_BOTTOM_OFFSET = 80;
@@ -47,6 +64,95 @@ function resolveShortBottom(
   return Math.max(MIN_BOTTOM, Math.min(screenHeight - MAX_BOTTOM_OFFSET, fallbackBottom));
 }
 
+/** 9시 방향에서 출발해 시계 방향으로 한 바퀴 도는 알약 테두리 경로 (1px 선 중심) */
+function pillBorderPath(width: number) {
+  const x0 = 0.5;
+  const x1 = width - 0.5;
+  const y0 = 0.5;
+  const y1 = QUICK_INPUT_HEIGHT - 0.5;
+  const r = (y1 - y0) / 2;
+  const cy = QUICK_INPUT_HEIGHT / 2;
+  const d = [
+    `M ${x0} ${cy}`,
+    `A ${r} ${r} 0 0 1 ${x0 + r} ${y0}`,
+    `H ${x1 - r}`,
+    `A ${r} ${r} 0 0 1 ${x1 - r} ${y1}`,
+    `H ${x0 + r}`,
+    `A ${r} ${r} 0 0 1 ${x0} ${cy}`,
+    'Z',
+  ].join(' ');
+  return { d, length: 2 * (x1 - x0 - 2 * r) + 2 * Math.PI * r };
+}
+
+/** 빛 가운데 위치(head)를 중심으로 앞뒤 length/2씩 칠한 구간 */
+function GlowSegment({
+  d,
+  perimeter,
+  length,
+  opacity,
+  head,
+}: {
+  d: string;
+  perimeter: number;
+  length: number;
+  opacity: number;
+  head: SharedValue<number>;
+}) {
+  const animatedProps = useAnimatedProps(() => ({ strokeDashoffset: length / 2 - head.value }));
+  return (
+    <AnimatedPath
+      d={d}
+      fill="none"
+      stroke={atomicColors.blue[700]}
+      strokeOpacity={opacity}
+      strokeWidth={1}
+      strokeDasharray={[length, perimeter - length]}
+      animatedProps={animatedProps}
+    />
+  );
+}
+
+/** 1px 테두리. 파란 빛이 9시 방향에서 출발해 시계 방향으로 일정한 속도로 계속 돈다 */
+function RotatingGradientBorder({ width }: { width: number }) {
+  const head = useSharedValue(0);
+  const { d, length: perimeter } = pillBorderPath(width);
+
+  useEffect(() => {
+    head.value = 0;
+    head.value = withRepeat(
+      withTiming(perimeter, {
+        duration: (perimeter / BORDER_GLOW_SPEED) * 1000,
+        easing: Easing.linear,
+      }),
+      -1,
+    );
+    return () => cancelAnimation(head);
+  }, [head, perimeter]);
+
+  return (
+    <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
+      <Path
+        d={d}
+        fill="none"
+        stroke={atomicColors.coolNeutral[500]}
+        strokeOpacity={0.16}
+        strokeWidth={1}
+      />
+      {/* i번째로 짧은 구간 투명도 1/(i+1) → 겹친 결과 진하기가 양 끝 0에서 가운데 1까지 직선으로 오른다 */}
+      {Array.from({ length: BORDER_GLOW_LAYERS }, (_, i) => (
+        <GlowSegment
+          key={i}
+          d={d}
+          perimeter={perimeter}
+          length={(BORDER_GLOW_LENGTH * (i + 1)) / BORDER_GLOW_LAYERS}
+          opacity={1 / (i + 1)}
+          head={head}
+        />
+      ))}
+    </Svg>
+  );
+}
+
 interface QuickInputShortProps {
   bottom: number;
   onPress: (shortBottomFromScreen: number) => void;
@@ -65,8 +171,10 @@ export function QuickInputShort({
   const { recordInboxUnreadCount } = useQuickInputContext();
   const containerRef = useRef<ComponentRef<typeof Pressable>>(null);
   const lastShortBottomRef = useRef<number | null>(null);
+  const [width, setWidth] = useState(0);
 
-  const handleLayout = useCallback((_e: LayoutChangeEvent) => {
+  const handleLayout = useCallback((e: LayoutChangeEvent) => {
+    setWidth(e.nativeEvent.layout.width);
     containerRef.current?.measureInWindow((_x, y, _width, height) => {
       const screenHeight = Dimensions.get('window').height;
       const shortBottomFromScreen = screenHeight - (y + height);
@@ -145,6 +253,7 @@ export function QuickInputShort({
           ) : null}
         </View>
       </GlassSurface>
+      {width > 0 ? <RotatingGradientBorder width={width} /> : null}
     </Pressable>
   );
 }
