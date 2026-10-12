@@ -1,6 +1,6 @@
 import type { IconName } from '@/components/ui/icon';
 
-export interface FeatureLaunchNotice {
+export interface NoticeCardContent {
   id: string;
   icon: IconName;
   title: string;
@@ -11,8 +11,8 @@ export interface FeatureLaunchNotice {
   endDate: string;
 }
 
-/** 홈 상단 기능 런칭 카드. 노출할 기능이 없으면 null */
-export const FEATURE_LAUNCH_NOTICE: FeatureLaunchNotice | null = {
+/** 홈 상단 안내 카드. 노출할 내용이 없으면 null */
+export const NOTICE_CARD: NoticeCardContent | null = {
   id: 'record-inbox-receive',
   icon: 'notification',
   title: '문자/알림 수신 기능 업데이트',
