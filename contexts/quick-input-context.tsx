@@ -108,7 +108,7 @@ import Constants from 'expo-constants';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
 import {
   ActivityIndicator,
   BackHandler,
@@ -1242,10 +1242,12 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const androidKeypadSafeBottom = Platform.OS === 'android' ? insets.bottom : 0;
   const calculatorPanelHeight = getCalculatorPanelHeight(windowWidth, androidKeypadSafeBottom);
   const calculatorPanelHeightRef = useRef(calculatorPanelHeight);
-  calculatorPanelHeightRef.current = calculatorPanelHeight;
   const editAmountKeypadHeight = getKeypadHeight(windowWidth);
   const editAmountKeypadHeightRef = useRef(editAmountKeypadHeight);
-  editAmountKeypadHeightRef.current = editAmountKeypadHeight;
+  useLayoutEffect(() => {
+    calculatorPanelHeightRef.current = calculatorPanelHeight;
+    editAmountKeypadHeightRef.current = editAmountKeypadHeight;
+  }, [calculatorPanelHeight, editAmountKeypadHeight]);
   const router = useRouter();
   const { showToast } = useToast();
   const { refresh } = useAppData();
@@ -1412,6 +1414,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const paymentSubtypesCacheRef = useRef<PaymentSubtype[]>([]);
   const expenseCategoriesCacheRef = useRef<{ label: string; emoji: string }[]>([]);
   const incomeCategoriesCacheRef = useRef<{ label: string; emoji: string }[]>([]);
+  const [expenseCategoriesCache, setExpenseCategoriesCache] = useState<{ label: string; emoji: string }[]>([]);
+  const [incomeCategoriesCache, setIncomeCategoriesCache] = useState<{ label: string; emoji: string }[]>([]);
   const [quickInputBackdropOpacity] = useState(() => new RNAnimated.Value(0));
   /** 롱·팁: React 커밋 전에도 즉시 숨김 (딤 페이드와 분리) */
   const [quickInputLongOpacity] = useState(() => new RNAnimated.Value(1));
@@ -1563,7 +1567,9 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     setShouldFollowKeyboard,
   ]);
 
-  maybeRevealQuickInputMainFromRecordInboxRef.current = revealQuickInputMainFromRecordInbox;
+  useLayoutEffect(() => {
+    maybeRevealQuickInputMainFromRecordInboxRef.current = revealQuickInputMainFromRecordInbox;
+  }, [revealQuickInputMainFromRecordInbox]);
 
   const maybeRevealQuickInputMainFromRecordInbox = useCallback(() => {
     maybeRevealQuickInputMainFromRecordInboxRef.current();
@@ -2605,7 +2611,9 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     });
   }, [animatedBottom, finishHideQuickInput, iosKeyboardHeightPrev, iosKeyboardPeakHeight, isQuickInputVisible, quickInputBackdropOpacity, quickInputLongOpacity, setShouldFollowKeyboard, shortBottomFromScreen]);
 
-  hideQuickInputRef.current = hideQuickInput;
+  useLayoutEffect(() => {
+    hideQuickInputRef.current = hideQuickInput;
+  }, [hideQuickInput]);
 
   const applyQuickInputCategorySettingCategories = useCallback((nextCategories: QuickInputCategorySettingItem[]) => {
     quickInputCategorySettingCategoriesRef.current = nextCategories;
@@ -3359,6 +3367,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     }
     const loaded = await loadCategories('expense');
     expenseCategoriesCacheRef.current = loaded;
+    setExpenseCategoriesCache(loaded);
     return loaded;
   }, []);
 
@@ -3368,6 +3377,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     }
     const loaded = await loadCategories('income');
     incomeCategoriesCacheRef.current = loaded;
+    setIncomeCategoriesCache(loaded);
     return loaded;
   }, []);
 
@@ -3726,9 +3736,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       return undefined;
     }
     const cachedList =
-      quickInputEditRecordType === 'income'
-        ? incomeCategoriesCacheRef.current
-        : expenseCategoriesCacheRef.current;
+      quickInputEditRecordType === 'income' ? incomeCategoriesCache : expenseCategoriesCache;
     return (
       cachedList.find((category) => category.label === categoryLabel)?.emoji ??
       quickInputCategorySheetCategories.find((category) => category.label === categoryLabel)?.emoji ??
@@ -3739,6 +3747,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     quickInputEditDraft?.categoryEmoji,
     quickInputEditRecordType,
     quickInputCategorySheetCategories,
+    incomeCategoriesCache,
+    expenseCategoriesCache,
   ]);
 
   const quickInputEditRepeatLabel = useMemo(() => {

@@ -21,7 +21,6 @@ import {
   GENERAL_NOTIFICATIONS_ENABLED_KEY,
   CHALLENGE_NOTIFICATIONS_ENABLED_KEY,
 } from '@/utils/notification-scheduler';
-import { QUICK_INPUT_TIP_BOX_EXPANDED_KEY } from '@/utils/quick-input-tip-preference';
 import { clearRecordInboxItems, RECORD_INBOX_ITEMS_KEY } from '@/utils/record-inbox-store';
 import { RECORD_INBOX_PUSH_LEDGER_KEY } from '@/utils/record-inbox-push-ledger';
 import {
@@ -55,7 +54,8 @@ const KEYS_TO_REMOVE = [
   KEYPAD_HAPTICS_ENABLED_KEY,
   APP_STORE_WRITE_REVIEW_PROMPT_SHOWN_KEY,
   APP_STORE_REVIEW_LIFETIME_RECORD_COUNT_KEY,
-  QUICK_INPUT_TIP_BOX_EXPANDED_KEY,
+  /** 삭제된 간편입력 팁 박스의 접힘 상태 — 기존 기기 잔여값 정리용 */
+  'quickInputTipBoxExpanded',
   RECORD_INBOX_ITEMS_KEY,
   RECORD_INBOX_PUSH_LEDGER_KEY,
   SMS_RECEIVE_ENABLED_KEY,

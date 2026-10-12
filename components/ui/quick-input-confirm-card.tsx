@@ -300,15 +300,15 @@ export function QuickInputConfirmCard({
     });
   }, [animateEntrance, opacity, translateY]);
 
-  useEffect(() => {
+  const memoTooltipResetKey = `${data.memo}|${data.category}|${data.amount}|${data.date}`;
+  const [prevMemoTooltipResetKey, setPrevMemoTooltipResetKey] = useState(memoTooltipResetKey);
+  if (prevMemoTooltipResetKey !== memoTooltipResetKey) {
+    setPrevMemoTooltipResetKey(memoTooltipResetKey);
     setMemoTooltipVisible(false);
-  }, [data.memo, data.category, data.amount, data.date]);
-
-  useEffect(() => {
-    if (contentLoading) {
-      setMemoTooltipVisible(false);
-    }
-  }, [contentLoading]);
+  }
+  if (contentLoading && memoTooltipVisible) {
+    setMemoTooltipVisible(false);
+  }
 
   const buttonsDisabled = isExiting || addLoading || contentLoading;
 
