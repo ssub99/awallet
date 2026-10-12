@@ -30,12 +30,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Animated, BackHandler, Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { initialWindowMetrics, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function MyPageScreen() {
   const colorScheme = useColorScheme();
   const colors = themeColors[colorScheme ?? 'light'];
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  /** Android 첫 포커스 직후 insets.top=0 → 실값 점프 방지 */
+  const topInset = insets.top > 0 ? insets.top : (initialWindowMetrics?.insets.top ?? 0);
   const { setLoading } = useLoading();
   const hasInitializedRef = useRef(false);   // 마이페이지 최초 진입 1회만 로드
   const [isContentReady, setIsContentReady] = useState(false);
@@ -268,8 +271,8 @@ export default function MyPageScreen() {
 
   return (
     <SafeAreaView 
-      style={[styles.container, { backgroundColor: colors.background }]} 
-      edges={['top']}
+      style={[styles.container, { backgroundColor: colors.background, paddingTop: topInset }]} 
+      edges={[]}
     >
       <Stack.Screen options={{ gestureEnabled: false }} />
 
