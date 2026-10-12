@@ -1905,7 +1905,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
 
   const handleQuickInputRecordInboxPress = useCallback(() => {
     if (!recordInboxReceiveEnabled) {
-      showToast('수신 기능을 사용 결정해 주세요.', {
+      showToast('수신 기능을 사용 설정해 주세요.', {
         label: '바로가기',
         onPress: () => {
           hideQuickInputRef.current({ simultaneous: true });
