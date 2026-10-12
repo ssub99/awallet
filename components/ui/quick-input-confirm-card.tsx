@@ -12,7 +12,7 @@ import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { spacing } from '@/constants/spacing';
 import { typographyLayout } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useCallback, useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Animated as RNAnimated,
@@ -198,7 +198,7 @@ function ConfirmCardSkeleton({
   lineColor: string;
   actionButtonHeight: number;
 }) {
-  const pulse = useRef(new RNAnimated.Value(0.45)).current;
+  const [pulse] = useState(() => new RNAnimated.Value(0.45));
 
   useEffect(() => {
     // RN Animated.loop — Reanimated withRepeat는 ReduceMotion.System이면 1회 후 종료됨
@@ -321,22 +321,26 @@ export function QuickInputConfirmCard({
       if (isExiting || addLoading || contentLoading) return;
       setIsExiting(true);
       setMemoTooltipVisible(false);
-      translateY.value = withTiming(
-        -CARD_SLIDE_OFFSET,
-        {
+      translateY.set(
+        withTiming(
+          -CARD_SLIDE_OFFSET,
+          {
+            duration: CARD_ANIMATION_DURATION,
+            easing: Easing.inOut(Easing.cubic),
+          },
+          (finished) => {
+            if (finished) {
+              runOnJS(then)();
+            }
+          },
+        ),
+      );
+      opacity.set(
+        withTiming(0, {
           duration: CARD_ANIMATION_DURATION,
           easing: Easing.inOut(Easing.cubic),
-        },
-        (finished) => {
-          if (finished) {
-            runOnJS(then)();
-          }
-        },
+        }),
       );
-      opacity.value = withTiming(0, {
-        duration: CARD_ANIMATION_DURATION,
-        easing: Easing.inOut(Easing.cubic),
-      });
     },
     [addLoading, contentLoading, isExiting, opacity, translateY],
   );

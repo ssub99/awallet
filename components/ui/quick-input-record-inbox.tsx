@@ -154,7 +154,7 @@ const SKELETON_PULSE_HALF_MS = 500;
 
 /** 원문 로딩 — Figma Frame 296 스켈레톤 (2241:31037 / 2250:31703) */
 function OriginalMessageSkeleton({ boneColor, lineColor }: { boneColor: string; lineColor: string }) {
-  const pulse = useRef(new RNAnimated.Value(0.45)).current;
+  const [pulse] = useState(() => new RNAnimated.Value(0.45));
 
   useEffect(() => {
     // RN Animated.loop — Reanimated withRepeat는 ReduceMotion.System이면 1회 후 종료됨
@@ -633,7 +633,7 @@ export function QuickInputRecordInbox({
       setTransition('idle');
       commitNext();
     });
-    progress.value = 0;
+    progress.set(0);
     revealSettledStack();
   }, [commitNext, progress, revealSettledStack, safeIndex]);
 
@@ -652,13 +652,13 @@ export function QuickInputRecordInbox({
       setTransition('idle');
       commitPrev();
     });
-    progress.value = 0;
+    progress.set(0);
     revealSettledStack();
   }, [commitPrev, progress, revealSettledStack, safeIndex]);
 
   const resetConsumeMotion = useCallback(() => {
-    progress.value = 0;
-    isRolling.value = false;
+    progress.set(0);
+    isRolling.set(false);
     setIsConsuming(false);
     setTransition('idle');
   }, [isRolling, progress]);
@@ -667,8 +667,8 @@ export function QuickInputRecordInbox({
     if (IS_ANDROID) {
       return;
     }
-    progress.value = 0;
-    isRolling.value = false;
+    progress.set(0);
+    isRolling.set(false);
   }, [isRolling, progress]);
 
   /** 잔여 추가: consume(퇴장+롤업) 종료 → 저장 훅 → 제거+토스트 */
@@ -823,21 +823,23 @@ export function QuickInputRecordInbox({
       }
 
       setTransition('forward');
-      isRolling.value = true;
-      progress.value = 0;
+      isRolling.set(true);
+      progress.set(0);
       setFrozenPagerIndex(safeIndex);
       setOriginalLoading(true);
 
       const onFinished = action === 'confirm' ? finishConfirmConsume : finishCancelConsume;
 
-      progress.value = withTiming(
-        1,
-        { duration: ROLL_DURATION_MS, easing: ROLL_EASING },
-        (finished) => {
-          if (finished) {
-            runOnJS(onFinished)();
-          }
-        },
+      progress.set(
+        withTiming(
+          1,
+          { duration: ROLL_DURATION_MS, easing: ROLL_EASING },
+          (finished) => {
+            if (finished) {
+              runOnJS(onFinished)();
+            }
+          },
+        ),
       );
     },
     [
@@ -858,17 +860,19 @@ export function QuickInputRecordInbox({
     if (!canGoPrev || isRolling.value) return;
     startOriginalLoading();
     setTransition('backward');
-    isRolling.value = true;
-    progress.value = 0;
-    progress.value = withTiming(-1, { duration: ROLL_DURATION_MS, easing: ROLL_EASING }, (finished) => {
-      if (finished) {
-        if (!IS_ANDROID) {
-          prevSettledOpacity.value = 1;
-          stackOpacity.value = 0;
+    isRolling.set(true);
+    progress.set(0);
+    progress.set(
+      withTiming(-1, { duration: ROLL_DURATION_MS, easing: ROLL_EASING }, (finished) => {
+        if (finished) {
+          if (!IS_ANDROID) {
+            prevSettledOpacity.value = 1;
+            stackOpacity.value = 0;
+          }
+          runOnJS(finishPrevScrub)();
         }
-        runOnJS(finishPrevScrub)();
-      }
-    });
+      }),
+    );
   }, [
     canGoPrev,
     finishPrevScrub,
@@ -883,17 +887,19 @@ export function QuickInputRecordInbox({
     if (!canGoNext || isRolling.value) return;
     startOriginalLoading();
     setTransition('forward');
-    isRolling.value = true;
-    progress.value = 0;
-    progress.value = withTiming(1, { duration: ROLL_DURATION_MS, easing: ROLL_EASING }, (finished) => {
-      if (finished) {
-        if (!IS_ANDROID) {
-          nextSettledOpacity.value = 1;
-          stackOpacity.value = 0;
+    isRolling.set(true);
+    progress.set(0);
+    progress.set(
+      withTiming(1, { duration: ROLL_DURATION_MS, easing: ROLL_EASING }, (finished) => {
+        if (finished) {
+          if (!IS_ANDROID) {
+            nextSettledOpacity.value = 1;
+            stackOpacity.value = 0;
+          }
+          runOnJS(finishNextRoll)();
         }
-        runOnJS(finishNextRoll)();
-      }
-    });
+      }),
+    );
   }, [
     canGoNext,
     finishNextRoll,
@@ -926,62 +932,68 @@ export function QuickInputRecordInbox({
           } else {
             runOnJS(setTransition)('idle');
           }
-          progress.value = nextProgress;
+          progress.set(nextProgress);
         })
         .onEnd((event) => {
-          if (isRolling.value) return;
+          if (isRolling.get()) return;
           const shouldNext =
-            canGoNextSV.value &&
-            (progress.value > 0.35 ||
-              (event.velocityY < -SWIPE_COMMIT_VELOCITY && progress.value > 0.1));
+            canGoNextSV.get() &&
+            (progress.get() > 0.35 ||
+              (event.velocityY < -SWIPE_COMMIT_VELOCITY && progress.get() > 0.1));
           const shouldPrev =
-            canGoPrevSV.value &&
-            (progress.value < -0.35 ||
-              (event.velocityY > SWIPE_COMMIT_VELOCITY && progress.value < -0.1));
+            canGoPrevSV.get() &&
+            (progress.get() < -0.35 ||
+              (event.velocityY > SWIPE_COMMIT_VELOCITY && progress.get() < -0.1));
 
           if (shouldNext) {
-            isRolling.value = true;
+            isRolling.set(true);
             runOnJS(startOriginalLoading)();
             runOnJS(setTransition)('forward');
-            progress.value = withTiming(
-              1,
-              { duration: ROLL_DURATION_MS, easing: ROLL_EASING },
-              (finished) => {
-                if (finished) {
-                  if (!IS_ANDROID) {
-                    nextSettledOpacity.value = 1;
-                    stackOpacity.value = 0;
+            progress.set(
+              withTiming(
+                1,
+                { duration: ROLL_DURATION_MS, easing: ROLL_EASING },
+                (finished) => {
+                  if (finished) {
+                    if (!IS_ANDROID) {
+                      nextSettledOpacity.set(1);
+                      stackOpacity.set(0);
+                    }
+                    runOnJS(finishNextRoll)();
                   }
-                  runOnJS(finishNextRoll)();
-                }
-              },
+                },
+              ),
             );
             return;
           }
           if (shouldPrev) {
-            isRolling.value = true;
+            isRolling.set(true);
             runOnJS(startOriginalLoading)();
             runOnJS(setTransition)('backward');
-            progress.value = withTiming(
-              -1,
-              { duration: ROLL_DURATION_MS, easing: ROLL_EASING },
-              (finished) => {
-                if (finished) {
-                  if (!IS_ANDROID) {
-                    prevSettledOpacity.value = 1;
-                    stackOpacity.value = 0;
+            progress.set(
+              withTiming(
+                -1,
+                { duration: ROLL_DURATION_MS, easing: ROLL_EASING },
+                (finished) => {
+                  if (finished) {
+                    if (!IS_ANDROID) {
+                      prevSettledOpacity.set(1);
+                      stackOpacity.set(0);
+                    }
+                    runOnJS(finishPrevScrub)();
                   }
-                  runOnJS(finishPrevScrub)();
-                }
-              },
+                },
+              ),
             );
             return;
           }
-          progress.value = withTiming(0, { duration: 180, easing: ROLL_EASING }, (finished) => {
-            if (finished) {
-              runOnJS(setTransition)('idle');
-            }
-          });
+          progress.set(
+            withTiming(0, { duration: 180, easing: ROLL_EASING }, (finished) => {
+              if (finished) {
+                runOnJS(setTransition)('idle');
+              }
+            }),
+          );
         }),
     [
         canGoNextSV,

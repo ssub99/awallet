@@ -404,7 +404,7 @@ function logExpenseRecordSheetEvent(
   });
 }
 
-const QUICK_INPUT_WEEKEND_OPTIONS: Array<{ value: 'weekend' | 'friday' | 'monday'; label: string }> = [
+const QUICK_INPUT_WEEKEND_OPTIONS: { value: 'weekend' | 'friday' | 'monday'; label: string }[] = [
   { value: 'weekend', label: '관계없이 주말 기록' },
   { value: 'friday', label: '금주 금요일 기록' },
   { value: 'monday', label: '차주 월요일 기록' },
@@ -420,6 +420,7 @@ type QuickInputEditDraft = {
   amount: string;
   memo: string;
   paymentSubtypeLabel: string;
+  paymentSubtypeColor?: string;
   paymentMethod: 'credit' | 'debit' | 'cash';
   isRecurring: boolean;
   isInstallment: boolean;
@@ -1318,7 +1319,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const [recordInboxCategorySheetSelected, setRecordInboxCategorySheetSelected] = useState('');
   const [quickInputAmountKeypadMounted, setQuickInputAmountKeypadMounted] = useState(false);
   const [quickInputAmountKeypadVisible, setQuickInputAmountKeypadVisible] = useState(false);
-  const [quickInputEditAmountExpression, setQuickInputEditAmountExpression] = useState<ExpressionToken[]>([]);
+  const [, setQuickInputEditAmountExpression] = useState<ExpressionToken[]>([]);
   const [quickInputRecurringDraftIsRecurring, setQuickInputRecurringDraftIsRecurring] = useState(false);
   const [quickInputRecurringDraftIsInstallment, setQuickInputRecurringDraftIsInstallment] = useState(false);
   const [quickInputRecurringDraftHasSelectedInstallment, setQuickInputRecurringDraftHasSelectedInstallment] = useState(false);
@@ -1329,7 +1330,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const [isQuickInputSendLoading, setIsQuickInputSendLoading] = useState(false);
   const [isQuickInputConfirmAdding, setIsQuickInputConfirmAdding] = useState(false);
   /** 소비 기록 생성(변경) 화면 진입 중 오버레이 숨김 */
-  const [isQuickInputOverlaySuppressed, setIsQuickInputOverlaySuppressed] = useState(false);
+  const [isQuickInputOverlaySuppressed] = useState(false);
   const shortBottomFromScreen = useSharedValue(KEYBOARD_GAP);
   const animatedBottom = useSharedValue(KEYBOARD_GAP);
   const shouldFollowKeyboard = useSharedValue(false);
@@ -1392,13 +1393,13 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const quickInputCategoryEmojiScrollViewRef = useRef<FlashListRef<{ category: EmojiCategory; columns: string[][] }> | null>(null);
   const editSheetOpenAnimationRef = useRef<RNAnimated.CompositeAnimation | null>(null);
   const androidBlurTargetRef = useRef<View | null>(null);
-  const editSheetOpenCardTranslateY = useRef(new RNAnimated.Value(0)).current;
-  const editSheetOpenCardOpacity = useRef(new RNAnimated.Value(1)).current;
-  const editSheetOpenInputTranslateY = useRef(new RNAnimated.Value(0)).current;
-  const editSheetOpenInputOpacity = useRef(new RNAnimated.Value(1)).current;
-  const calculatorTranslateYRef = useRef(new RNAnimated.Value(calculatorPanelHeight));
+  const [editSheetOpenCardTranslateY] = useState(() => new RNAnimated.Value(0));
+  const [editSheetOpenCardOpacity] = useState(() => new RNAnimated.Value(1));
+  const [editSheetOpenInputTranslateY] = useState(() => new RNAnimated.Value(0));
+  const [editSheetOpenInputOpacity] = useState(() => new RNAnimated.Value(1));
+  const [calculatorTranslateY] = useState(() => new RNAnimated.Value(calculatorPanelHeight));
   const calculatorAnimationRef = useRef<RNAnimated.CompositeAnimation | null>(null);
-  const amountKeypadTranslateYRef = useRef(new RNAnimated.Value(editAmountKeypadHeight));
+  const [amountKeypadTranslateY] = useState(() => new RNAnimated.Value(editAmountKeypadHeight));
   const amountKeypadAnimationRef = useRef<RNAnimated.CompositeAnimation | null>(null);
   const isQuickInputVisibleRef = useRef(false);
   const androidKeyboardWasVisibleRef = useRef(false);
@@ -1411,13 +1412,13 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const paymentSubtypesCacheRef = useRef<PaymentSubtype[]>([]);
   const expenseCategoriesCacheRef = useRef<{ label: string; emoji: string }[]>([]);
   const incomeCategoriesCacheRef = useRef<{ label: string; emoji: string }[]>([]);
-  const quickInputBackdropOpacity = useRef(new RNAnimated.Value(0)).current;
+  const [quickInputBackdropOpacity] = useState(() => new RNAnimated.Value(0));
   /** 롱·팁: React 커밋 전에도 즉시 숨김 (딤 페이드와 분리) */
-  const quickInputLongOpacity = useRef(new RNAnimated.Value(1)).current;
+  const [quickInputLongOpacity] = useState(() => new RNAnimated.Value(1));
   /** 숏/롱 동일 애니메이션: 부모 starScale/starRotate 공유. 새로고침 시 크래시 방지를 위해 fallback 보유 */
   const starRefs = useRef<{ starScale: AnimatedValue; starRotate: AnimatedValue } | null>(null);
-  const overlayStarScale = useRef(new RNAnimated.Value(1)).current;
-  const overlayStarRotate = useRef(new RNAnimated.Value(0)).current;
+  const [overlayStarScale] = useState(() => new RNAnimated.Value(1));
+  const [overlayStarRotate] = useState(() => new RNAnimated.Value(0));
   const { reanimated: keyboardReanimated } = useKeyboardContext();
 
   const {
@@ -1517,7 +1518,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const setShouldFollowKeyboard = useCallback(
     (follow: boolean) => {
       shouldFollowKeyboardRef.current = follow;
-      shouldFollowKeyboard.value = follow;
+      shouldFollowKeyboard.set(follow);
     },
     [shouldFollowKeyboard]
   );
@@ -1726,14 +1727,14 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
           ? Math.max(KEYBOARD_GAP, shortBottom)
           : KEYBOARD_GAP;
       lastShortBottomRef.current = bottom;
-      iosKeyboardHeightPrev.value = 0;
-      iosKeyboardPeakHeight.value = 0;
-      shortBottomFromScreen.value = bottom;
-      animatedBottom.value = bottom;
+      iosKeyboardHeightPrev.set(0);
+      iosKeyboardPeakHeight.set(0);
+      shortBottomFromScreen.set(bottom);
+      animatedBottom.set(bottom);
       applyAndroidQuickInputKeyboardMode();
       setQuickInputPlaceholder(getRandomQuickInputPlaceholder());
       calculatorAnimationRef.current?.stop();
-      calculatorTranslateYRef.current.setValue(calculatorPanelHeightRef.current);
+      calculatorTranslateY.setValue(calculatorPanelHeightRef.current);
       setIsQuickInputCalculatorVisible(false);
       setIsQuickInputCalculatorMounted(false);
       setQuickInputCalculatorAmount('');
@@ -1753,13 +1754,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       setIsQuickInputContentVisible(true);
       setIsQuickInputVisible(true);
     },
-    [
-      animatedBottom,
-      iosKeyboardHeightPrev,
-      iosKeyboardPeakHeight,
-      setShouldFollowKeyboard,
-      shortBottomFromScreen,
-    ]
+    [animatedBottom, calculatorTranslateY, iosKeyboardHeightPrev, iosKeyboardPeakHeight, quickInputLongOpacity, setShouldFollowKeyboard, shortBottomFromScreen]
   );
 
   const handleQuickInputFieldFocus = useCallback(() => {
@@ -1811,17 +1806,17 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       setIsQuickInputRecordInboxVisible(false);
     }
     calculatorAnimationRef.current?.stop();
-    calculatorTranslateYRef.current.setValue(calculatorPanelHeightRef.current);
+    calculatorTranslateY.setValue(calculatorPanelHeightRef.current);
     setIsQuickInputCalculatorMounted(true);
     setIsQuickInputCalculatorVisible(true);
     setShouldFollowKeyboard(false);
     resetAndroidKeyboardFollowPeak();
-    shortBottomFromScreen.value = 0;
-    animatedBottom.value = 0;
+    shortBottomFromScreen.set(0);
+    animatedBottom.set(0);
     quickInputRef.current?.blur();
     Keyboard.dismiss();
     requestAnimationFrame(() => {
-      calculatorAnimationRef.current = RNAnimated.timing(calculatorTranslateYRef.current, {
+      calculatorAnimationRef.current = RNAnimated.timing(calculatorTranslateY, {
         toValue: 0,
         duration: CALCULATOR_ANIMATION_DURATION,
         easing: CALCULATOR_ANIMATION_EASING,
@@ -1829,13 +1824,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       });
       calculatorAnimationRef.current.start();
     });
-  }, [
-    animatedBottom,
-    isQuickInputRecordInboxVisible,
-    resetAndroidKeyboardFollowPeak,
-    setShouldFollowKeyboard,
-    shortBottomFromScreen,
-  ]);
+  }, [animatedBottom, calculatorTranslateY, isQuickInputRecordInboxVisible, resetAndroidKeyboardFollowPeak, setShouldFollowKeyboard, shortBottomFromScreen]);
 
   const closeQuickInputRecordInbox = useCallback(() => {
     if (!isQuickInputRecordInboxVisibleRef.current || isQuickInputRecordInboxClosingRef.current) {
@@ -1863,10 +1852,10 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     editSheetOpenInputTranslateY.setValue(160);
     editSheetOpenInputOpacity.setValue(0);
 
-    iosKeyboardHeightPrev.value = 0;
-    iosKeyboardPeakHeight.value = 0;
-    shortBottomFromScreen.value = KEYBOARD_GAP;
-    animatedBottom.value = KEYBOARD_GAP;
+    iosKeyboardHeightPrev.set(0);
+    iosKeyboardPeakHeight.set(0);
+    shortBottomFromScreen.set(KEYBOARD_GAP);
+    animatedBottom.set(KEYBOARD_GAP);
     resetAndroidKeyboardFollowPeak();
     // 스테일 keyboard height로 공중에 뜨지 않게 follow는 키 상승 감지 후 켠다
     setShouldFollowKeyboard(false);
@@ -1946,7 +1935,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     });
     if (isQuickInputCalculatorMounted || isQuickInputCalculatorVisible) {
       calculatorAnimationRef.current?.stop();
-      calculatorTranslateYRef.current.setValue(calculatorPanelHeightRef.current);
+      calculatorTranslateY.setValue(calculatorPanelHeightRef.current);
       setIsQuickInputCalculatorMounted(false);
       setIsQuickInputCalculatorVisible(false);
       setQuickInputCalculatorAmount('');
@@ -1963,8 +1952,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     const keyboardHeight = Math.abs(keyboardReanimated.height.value);
     const parkedBottom =
       keyboardHeight > 0 ? keyboardHeight + KEYBOARD_GAP : lastShortBottomRef.current;
-    shortBottomFromScreen.value = parkedBottom;
-    animatedBottom.value = parkedBottom;
+    shortBottomFromScreen.set(parkedBottom);
+    animatedBottom.set(parkedBottom);
     setShouldFollowKeyboard(false);
     resetAndroidKeyboardFollowPeak();
     quickInputRef.current?.blur();
@@ -2024,30 +2013,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         finishOpen(finished);
       });
     });
-  }, [
-    animatedBottom,
-    closeQuickInputRecordInbox,
-    editSheetOpenCardOpacity,
-    editSheetOpenCardTranslateY,
-    editSheetOpenInputOpacity,
-    editSheetOpenInputTranslateY,
-    isQuickInputCalculatorMounted,
-    isQuickInputCalculatorVisible,
-    isQuickInputCategorySettingOpening,
-    isQuickInputEditOpening,
-    isQuickInputEditSheetClosing,
-    isQuickInputRecordInboxOpening,
-    isQuickInputRecordInboxVisible,
-    keyboardReanimated.height,
-    quickInputCategorySettingSheetMounted,
-    resetAndroidKeyboardFollowPeak,
-    setShouldFollowKeyboard,
-    shortBottomFromScreen,
-    showToast,
-    recordInboxItems.length,
-    recordInboxReceiveEnabled,
-    router,
-  ]);
+  }, [recordInboxReceiveEnabled, isQuickInputRecordInboxVisible, isQuickInputRecordInboxOpening, recordInboxItems.length, isQuickInputEditOpening, isQuickInputEditSheetClosing, isQuickInputCategorySettingOpening, quickInputCategorySettingSheetMounted, isQuickInputCalculatorMounted, isQuickInputCalculatorVisible, editSheetOpenCardTranslateY, editSheetOpenCardOpacity, editSheetOpenInputTranslateY, editSheetOpenInputOpacity, keyboardReanimated.height.value, shortBottomFromScreen, animatedBottom, setShouldFollowKeyboard, resetAndroidKeyboardFollowPeak, showToast, router, closeQuickInputRecordInbox, calculatorTranslateY]);
 
   const handleRecordInboxIndexChange = useCallback((nextIndex: number) => {
     setRecordInboxIndex(nextIndex);
@@ -2191,7 +2157,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       quickInputRef.current?.blur();
       Keyboard.dismiss();
       calculatorAnimationRef.current?.stop();
-      calculatorTranslateYRef.current.setValue(calculatorPanelHeightRef.current);
+      calculatorTranslateY.setValue(calculatorPanelHeightRef.current);
       setIsQuickInputCalculatorVisible(false);
       setIsQuickInputCalculatorMounted(false);
       setQuickInputCalculatorAmount('');
@@ -2218,6 +2184,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         memo: pending.memo ?? '',
         paymentMethod: pending.paymentMethod ?? 'credit',
         paymentSubtypeLabel: pending.paymentSubtypeLabel ?? paymentMethodToLabel(pending.paymentMethod),
+        paymentSubtypeColor: pending.paymentSubtypeColor,
         isRecurring: pending.isRecurring === true,
         isInstallment: pending.isInstallment === true,
         recurringType: pending.recurringType ?? '매월',
@@ -2263,15 +2230,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         setIsQuickInputEditOpening(false);
       });
     },
-    [
-      editSheetOpenCardOpacity,
-      editSheetOpenCardTranslateY,
-      editSheetOpenInputOpacity,
-      editSheetOpenInputTranslateY,
-      resetAndroidKeyboardFollowPeak,
-      setShouldFollowKeyboard,
-      showToast,
-    ],
+    [calculatorTranslateY, editSheetOpenCardOpacity, editSheetOpenCardTranslateY, editSheetOpenInputOpacity, editSheetOpenInputTranslateY, resetAndroidKeyboardFollowPeak, setShouldFollowKeyboard, showToast],
   );
 
   const handleRecordInboxChange = useCallback(
@@ -2419,7 +2378,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
 
   const closeQuickInputCalculator = useCallback(() => {
     calculatorAnimationRef.current?.stop();
-    calculatorAnimationRef.current = RNAnimated.timing(calculatorTranslateYRef.current, {
+    calculatorAnimationRef.current = RNAnimated.timing(calculatorTranslateY, {
       toValue: calculatorPanelHeightRef.current,
       duration: CALCULATOR_ANIMATION_DURATION,
       easing: CALCULATOR_ANIMATION_EASING,
@@ -2437,13 +2396,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       setShouldFollowKeyboard(true);
       focusQuickInputField();
     });
-  }, [
-    animatedBottom,
-    focusQuickInputField,
-    resetAndroidKeyboardFollowPeak,
-    setShouldFollowKeyboard,
-    shortBottomFromScreen,
-  ]);
+  }, [animatedBottom, calculatorTranslateY, focusQuickInputField, resetAndroidKeyboardFollowPeak, setShouldFollowKeyboard, shortBottomFromScreen]);
 
   const handleQuickInputCalculatorCopy = useCallback(() => {
     const amountText = `${quickInputCalculatorAmount.trim() || '0'}원`;
@@ -2478,8 +2431,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     }
     // 4) 오버레이 정리 (숏은 3단계에서 이미 표시됨)
     isClosingRef.current = false;
-    iosKeyboardHeightPrev.value = 0;
-    iosKeyboardPeakHeight.value = 0;
+    iosKeyboardHeightPrev.set(0);
+    iosKeyboardPeakHeight.set(0);
     restoreAndroidQuickInputKeyboardMode();
     setShouldFollowKeyboard(false);
     pendingAutoFocusRef.current = false;
@@ -2490,7 +2443,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     setIsQuickInputContentVisible(false);
     setIsQuickInputShortVisible(false);
     calculatorAnimationRef.current?.stop();
-    calculatorTranslateYRef.current.setValue(calculatorPanelHeightRef.current);
+    calculatorTranslateY.setValue(calculatorPanelHeightRef.current);
     setIsQuickInputCalculatorVisible(false);
     setIsQuickInputCalculatorMounted(false);
     setQuickInputCalculatorAmount('');
@@ -2545,7 +2498,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     setQuickInputPaymentSheetMounted(false);
     setQuickInputPaymentSheetVisible(false);
     amountKeypadAnimationRef.current?.stop();
-    amountKeypadTranslateYRef.current.setValue(editAmountKeypadHeightRef.current);
+    amountKeypadTranslateY.setValue(editAmountKeypadHeightRef.current);
     setQuickInputAmountKeypadMounted(false);
     setQuickInputAmountKeypadVisible(false);
     setQuickInputEditAmountExpression([]);
@@ -2585,7 +2538,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     pendingRecordRef.current = null;
     setIsQuickInputSendLoading(false);
     setIsQuickInputConfirmAdding(false);
-  }, [overlayStarScale, overlayStarRotate, setShouldFollowKeyboard]);
+  }, [iosKeyboardHeightPrev, iosKeyboardPeakHeight, setShouldFollowKeyboard, overlayStarScale, overlayStarRotate, calculatorTranslateY, amountKeypadTranslateY, editSheetOpenCardTranslateY, editSheetOpenCardOpacity, editSheetOpenInputTranslateY, editSheetOpenInputOpacity]);
 
   const hideQuickInput = useCallback((options?: HideQuickInputOptions) => {
     if (isClosingRef.current || !isQuickInputVisible) {
@@ -2601,9 +2554,9 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         clearTimeout(hideFinishTimeoutRef.current);
         hideFinishTimeoutRef.current = null;
       }
-        animatedBottom.value = shortBottomFromScreen.value;
-      iosKeyboardHeightPrev.value = 0;
-      iosKeyboardPeakHeight.value = 0;
+        animatedBottom.set(shortBottomFromScreen.get());
+      iosKeyboardHeightPrev.set(0);
+      iosKeyboardPeakHeight.set(0);
       quickInputLongOpacity.setValue(0);
       quickInputBackdropOpacity.setValue(0);
       setIsQuickInputShortVisible(false);
@@ -2650,15 +2603,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         finishHideQuickInput();
       }, 600);
     });
-  }, [
-    animatedBottom,
-    finishHideQuickInput,
-    isQuickInputVisible,
-    quickInputBackdropOpacity,
-    quickInputLongOpacity,
-    setShouldFollowKeyboard,
-    shortBottomFromScreen,
-  ]);
+  }, [animatedBottom, finishHideQuickInput, iosKeyboardHeightPrev, iosKeyboardPeakHeight, isQuickInputVisible, quickInputBackdropOpacity, quickInputLongOpacity, setShouldFollowKeyboard, shortBottomFromScreen]);
 
   hideQuickInputRef.current = hideQuickInput;
 
@@ -2814,7 +2759,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       return;
     }
 
-    const calendarData = JSON.parse(storedData) as Record<string, { records?: Array<Record<string, unknown>> }>;
+    const calendarData = JSON.parse(storedData) as Record<string, { records?: Record<string, unknown>[] }>;
     let hasChanges = false;
 
     Object.keys(calendarData).forEach((dateKey) => {
@@ -2843,7 +2788,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     }
 
     const calendarData = JSON.parse(storedData) as Record<string, {
-      records?: Array<Record<string, unknown>>;
+          records?: Record<string, unknown>[];
       totalExpense?: number;
       totalIncome?: number;
     }>;
@@ -3001,7 +2946,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     editSheetOpenInputTranslateY.setValue(0);
     editSheetOpenInputOpacity.setValue(1);
     calculatorAnimationRef.current?.stop();
-    calculatorTranslateYRef.current.setValue(calculatorPanelHeightRef.current);
+    calculatorTranslateY.setValue(calculatorPanelHeightRef.current);
     setIsQuickInputCalculatorMounted(false);
     setIsQuickInputCalculatorVisible(false);
     setQuickInputCalculatorAmount('');
@@ -3017,8 +2962,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     setIsQuickInputCategorySettingClosing(false);
     setShouldFollowKeyboard(false);
     resetAndroidKeyboardFollowPeak();
-    shortBottomFromScreen.value = 0;
-    animatedBottom.value = 0;
+    shortBottomFromScreen.set(0);
+    animatedBottom.set(0);
     quickInputRef.current?.blur();
     Keyboard.dismiss();
     editSheetOpenAnimationRef.current = RNAnimated.parallel([
@@ -3057,21 +3002,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         setIsQuickInputCategorySettingOpening(false);
       });
     });
-  }, [
-    animatedBottom,
-    applyQuickInputCategorySettingCategories,
-    editSheetOpenCardOpacity,
-    editSheetOpenCardTranslateY,
-    editSheetOpenInputOpacity,
-    editSheetOpenInputTranslateY,
-    isQuickInputCategorySettingOpening,
-    isQuickInputEditOpening,
-    isQuickInputEditSheetClosing,
-    quickInputCategorySettingSheetMounted,
-    resetAndroidKeyboardFollowPeak,
-    setShouldFollowKeyboard,
-    shortBottomFromScreen,
-  ]);
+  }, [animatedBottom, applyQuickInputCategorySettingCategories, calculatorTranslateY, editSheetOpenCardOpacity, editSheetOpenCardTranslateY, editSheetOpenInputOpacity, editSheetOpenInputTranslateY, isQuickInputCategorySettingOpening, isQuickInputEditOpening, isQuickInputEditSheetClosing, quickInputCategorySettingSheetMounted, resetAndroidKeyboardFollowPeak, setShouldFollowKeyboard, shortBottomFromScreen]);
 
   const handleQuickInputCategorySettingSheetClose = useCallback(() => {
     if (
@@ -3717,7 +3648,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     quickInputRef.current?.blur();
     Keyboard.dismiss();
     calculatorAnimationRef.current?.stop();
-    calculatorTranslateYRef.current.setValue(calculatorPanelHeightRef.current);
+    calculatorTranslateY.setValue(calculatorPanelHeightRef.current);
     setIsQuickInputCalculatorVisible(false);
     setIsQuickInputCalculatorMounted(false);
     setQuickInputCalculatorAmount('');
@@ -3740,6 +3671,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       memo: pending.memo ?? '',
       paymentMethod: pending.paymentMethod ?? 'credit',
       paymentSubtypeLabel: pending.paymentSubtypeLabel ?? paymentMethodToLabel(pending.paymentMethod),
+      paymentSubtypeColor: pending.paymentSubtypeColor,
       isRecurring: pending.isRecurring === true,
       isInstallment: pending.isInstallment === true,
       recurringType: pending.recurringType ?? '매월',
@@ -3779,15 +3711,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       setQuickInputEditSheetVisible(true);
       setIsQuickInputEditOpening(false);
     });
-  }, [
-    confirmCardData?.categoryEmoji,
-    editSheetOpenCardOpacity,
-    editSheetOpenCardTranslateY,
-    editSheetOpenInputOpacity,
-    editSheetOpenInputTranslateY,
-    resetAndroidKeyboardFollowPeak,
-    setShouldFollowKeyboard,
-  ]);
+  }, [calculatorTranslateY, confirmCardData?.categoryEmoji, editSheetOpenCardOpacity, editSheetOpenCardTranslateY, editSheetOpenInputOpacity, editSheetOpenInputTranslateY, resetAndroidKeyboardFollowPeak, setShouldFollowKeyboard]);
 
   const updateQuickInputEditDraft = useCallback((patch: Partial<QuickInputEditDraft>) => {
     setQuickInputEditDraft((current) => (current ? { ...current, ...patch } : current));
@@ -3859,12 +3783,12 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     setQuickInputEditAmountExpression([]);
 
     if (options?.immediate) {
-      amountKeypadTranslateYRef.current.setValue(editAmountKeypadHeightRef.current);
+      amountKeypadTranslateY.setValue(editAmountKeypadHeightRef.current);
       setQuickInputAmountKeypadMounted(false);
       return;
     }
 
-    amountKeypadAnimationRef.current = RNAnimated.timing(amountKeypadTranslateYRef.current, {
+    amountKeypadAnimationRef.current = RNAnimated.timing(amountKeypadTranslateY, {
       toValue: editAmountKeypadHeightRef.current,
       duration: CALCULATOR_ANIMATION_DURATION,
       easing: CALCULATOR_ANIMATION_EASING,
@@ -3875,7 +3799,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         setQuickInputAmountKeypadMounted(false);
       }
     });
-  }, []);
+  }, [amountKeypadTranslateY]);
 
   const closeQuickInputDateSheet = useCallback(() => {
     if (!quickInputDateSheetVisible) {
@@ -3925,12 +3849,12 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         );
       })
       .catch(() => {});
-  }, [closeQuickInputEditAmountKeypad, quickInputEditDraft?.category]);
+  }, [closeQuickInputEditAmountKeypad, logRecordSheetEvent, quickInputEditDraft?.category]);
 
   const handleQuickInputCategorySheetClose = useCallback(() => {
     logRecordSheetEvent('btn', 'category-option-prev');
     setQuickInputEditView('form');
-  }, []);
+  }, [logRecordSheetEvent]);
 
   const handleQuickInputCategorySheetConfirm = useCallback(() => {
     if (!quickInputCategorySheetSelected) {
@@ -3948,14 +3872,14 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       categoryEmoji: selectedCategory?.emoji,
     });
     setQuickInputEditView('form');
-  }, [quickInputCategorySheetCategories, quickInputCategorySheetSelected, showToast, updateQuickInputEditDraft]);
+  }, [logRecordSheetEvent, quickInputCategorySheetCategories, quickInputCategorySheetSelected, showToast, updateQuickInputEditDraft]);
 
   const handleQuickInputCategoryOptionPress = useCallback((category: Category) => {
     logRecordSheetEvent('list', 'category-option', {
       category: category.label,
     });
     setQuickInputCategorySheetSelected(category.label);
-  }, []);
+  }, [logRecordSheetEvent]);
 
   const handleQuickInputEditDatePress = useCallback(() => {
     logRecordSheetEvent('ui', 'calendar');
@@ -3971,18 +3895,18 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     void loadMonthStartDay()
       .then(setQuickInputDateSheetMonthStartDay)
       .catch(() => {});
-  }, [closeQuickInputEditAmountKeypad, quickInputEditDraft?.date]);
+  }, [closeQuickInputEditAmountKeypad, logRecordSheetEvent, quickInputEditDraft?.date]);
 
   const handleQuickInputDateSheetClose = useCallback(() => {
     logRecordSheetEvent('btn', 'calendar-close');
     closeQuickInputDateSheet();
-  }, [closeQuickInputDateSheet]);
+  }, [closeQuickInputDateSheet, logRecordSheetEvent]);
 
   const handleQuickInputDateSheetConfirm = useCallback((isoDate: string) => {
     logRecordSheetEvent('btn', 'calendar-confirm');
     updateQuickInputEditDraft({ date: isoDateToQuickInputDisplayDate(isoDate) });
     closeQuickInputDateSheet();
-  }, [closeQuickInputDateSheet, updateQuickInputEditDraft]);
+  }, [closeQuickInputDateSheet, logRecordSheetEvent, updateQuickInputEditDraft]);
 
   const handleQuickInputEditPaymentPress = useCallback(() => {
     if (pendingRecordRef.current?.recordType === 'income') {
@@ -4003,12 +3927,12 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     void getPaymentSubtypesCached()
       .then(setQuickInputPaymentSheetItems)
       .catch(() => {});
-  }, [closeQuickInputEditAmountKeypad, getPaymentSubtypesCached, quickInputEditDraft?.paymentMethod]);
+  }, [closeQuickInputEditAmountKeypad, getPaymentSubtypesCached, logRecordSheetEvent, quickInputEditDraft?.paymentMethod]);
 
   const handleQuickInputPaymentSheetClose = useCallback(() => {
     logRecordSheetEvent('btn', 'payment-close');
     closeQuickInputPaymentSheet();
-  }, [closeQuickInputPaymentSheet]);
+  }, [closeQuickInputPaymentSheet, logRecordSheetEvent]);
 
   const handleQuickInputPaymentSelect = useCallback((method: 'credit' | 'debit' | 'cash', subtype?: PaymentSubtype) => {
     if (method === 'cash') {
@@ -4019,6 +3943,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     updateQuickInputEditDraft({
       paymentMethod: method,
       paymentSubtypeLabel: method === 'cash' ? '현금' : subtype?.label ?? paymentMethodToLabel(method),
+      paymentSubtypeColor: method === 'cash' ? undefined : subtype?.color,
     });
     if (pendingRecordRef.current) {
       pendingRecordRef.current = {
@@ -4030,7 +3955,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       };
     }
     closeQuickInputPaymentSheet();
-  }, [closeQuickInputPaymentSheet, updateQuickInputEditDraft]);
+  }, [closeQuickInputPaymentSheet, logRecordSheetEvent, updateQuickInputEditDraft]);
 
   const handleQuickInputEditAmountPress = useCallback(() => {
     logRecordSheetEvent('ui', 'amount');
@@ -4039,17 +3964,17 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     closeQuickInputDateSheet();
     closeQuickInputPaymentSheet();
     amountKeypadAnimationRef.current?.stop();
-    amountKeypadTranslateYRef.current.setValue(editAmountKeypadHeightRef.current);
+    amountKeypadTranslateY.setValue(editAmountKeypadHeightRef.current);
     setQuickInputAmountKeypadMounted(true);
     setQuickInputAmountKeypadVisible(true);
-    amountKeypadAnimationRef.current = RNAnimated.timing(amountKeypadTranslateYRef.current, {
+    amountKeypadAnimationRef.current = RNAnimated.timing(amountKeypadTranslateY, {
       toValue: 0,
       duration: CALCULATOR_ANIMATION_DURATION,
       easing: CALCULATOR_ANIMATION_EASING,
       useNativeDriver: true,
     });
     amountKeypadAnimationRef.current.start();
-  }, [closeQuickInputDateSheet, closeQuickInputPaymentSheet]);
+  }, [amountKeypadTranslateY, closeQuickInputDateSheet, closeQuickInputPaymentSheet, logRecordSheetEvent]);
 
   const handleQuickInputAmountKeypadClose = useCallback(() => {
     closeQuickInputEditAmountKeypad();
@@ -4064,7 +3989,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     logRecordSheetEvent('ui', 'memo');
     closeQuickInputEditAmountKeypad({ immediate: true });
     handleQuickInputEditMemoKeyboardFocus();
-  }, [closeQuickInputEditAmountKeypad, handleQuickInputEditMemoKeyboardFocus]);
+  }, [closeQuickInputEditAmountKeypad, handleQuickInputEditMemoKeyboardFocus, logRecordSheetEvent]);
 
   const handleQuickInputEditMemoBlur = useCallback(() => {
     handleQuickInputEditMemoKeyboardBlur();
@@ -4086,12 +4011,12 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     setQuickInputRecurringDraftIsPeriodExpanded(false);
     setQuickInputEditView('recurring');
     logRecordSheetEvent('sheet_view', 'recurring-installment-sheet');
-  }, [closeQuickInputEditAmountKeypad, quickInputEditDraft]);
+  }, [closeQuickInputEditAmountKeypad, logRecordSheetEvent, quickInputEditDraft]);
 
   const handleQuickInputRecurringSheetClose = useCallback(() => {
     logRecordSheetEvent('btn', 'recurring-installment-sheet-close');
     setQuickInputEditView('form');
-  }, []);
+  }, [logRecordSheetEvent]);
 
   const handleQuickInputRecurringConfirm = useCallback(() => {
     logRecordSheetEvent('btn', 'recurring-installment-sheet-confirm');
@@ -4106,14 +4031,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
           : quickInputRecurringDraftWeekendOption,
     });
     setQuickInputEditView('form');
-  }, [
-        quickInputRecurringDraftIsInstallment,
-    quickInputRecurringDraftIsRecurring,
-    quickInputRecurringDraftTotalMonths,
-    quickInputRecurringDraftType,
-    quickInputRecurringDraftWeekendOption,
-    updateQuickInputEditDraft,
-  ]);
+  }, [logRecordSheetEvent, quickInputRecurringDraftIsInstallment, quickInputRecurringDraftIsRecurring, quickInputRecurringDraftTotalMonths, quickInputRecurringDraftType, quickInputRecurringDraftWeekendOption, updateQuickInputEditDraft]);
 
   const handleQuickInputRecurringToggle = useCallback((value: boolean) => {
     logRecordSheetEvent('ui', 'recurring-toggle');
@@ -4128,7 +4046,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     setQuickInputRecurringDraftIsInstallment(false);
     setQuickInputRecurringDraftHasSelectedInstallment(false);
     setQuickInputRecurringDraftType('매일');
-  }, [quickInputRecurringDraftHasSelectedInstallment]);
+  }, [logRecordSheetEvent, quickInputRecurringDraftHasSelectedInstallment]);
 
   const handleQuickInputInstallmentToggle = useCallback((value: boolean) => {
     logRecordSheetEvent('ui', 'installment-toggle');
@@ -4137,7 +4055,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       setQuickInputRecurringDraftIsRecurring(false);
       setQuickInputRecurringDraftHasSelectedInstallment(true);
     }
-  }, []);
+  }, [logRecordSheetEvent]);
 
   const handleQuickInputEditSheetClose = useCallback((options?: { fromConfirm?: boolean }) => {
     if (isQuickInputEditOpening || isQuickInputEditSheetClosing) {
@@ -4280,14 +4198,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         setConfirmCardData(card);
       })
       .catch(() => {});
-  }, [
-    getExpenseCategoriesCached,
-    getIncomeCategoriesCached,
-    getPaymentSubtypesCached,
-    handleQuickInputEditSheetClose,
-    quickInputEditDraft,
-    showToast,
-  ]);
+  }, [getExpenseCategoriesCached, getIncomeCategoriesCached, getPaymentSubtypesCached, handleQuickInputEditSheetClose, logRecordSheetEvent, quickInputEditDraft, showToast]);
 
   useEffect(() => {
     if (!confirmCardData) {
@@ -4791,7 +4702,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                           styles.calculatorPanel,
                           {
                             paddingBottom: androidKeypadSafeBottom,
-                            transform: [{ translateY: calculatorTranslateYRef.current }],
+                            transform: [{ translateY: calculatorTranslateY }],
                           },
                         ]}
                       >
@@ -4972,7 +4883,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                                     shortver
                                     sortation
                                     showSortationDot={quickInputEditDraft.paymentMethod !== 'cash'}
-                                    sortationColor={pendingRecordRef.current?.paymentSubtypeColor}
+                                    sortationColor={quickInputEditDraft.paymentSubtypeColor}
                                     sortationEmoji={quickInputEditDraft.paymentMethod === 'cash' ? '💰' : undefined}
                                     rightIcon="arrowDown"
                                     showRightArrow
@@ -5708,7 +5619,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                     accessibilityLabel="금액 키패드 닫기"
                   />
                   <RNAnimated.View
-                    style={{ transform: [{ translateY: amountKeypadTranslateYRef.current }] }}
+                    style={{ transform: [{ translateY: amountKeypadTranslateY }] }}
                     pointerEvents={quickInputAmountKeypadVisible ? 'auto' : 'none'}
                   >
                     <CustomKeypad

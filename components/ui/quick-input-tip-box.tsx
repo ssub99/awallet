@@ -112,7 +112,7 @@ function TipFlowingSentence({
   onUserInteract,
   onBindStopFlow,
 }: TipFlowingSentenceProps) {
-  const translateX = useRef(new Animated.Value(0)).current;
+  const [translateX] = useState(() => new Animated.Value(0));
   const autoAnimRef = useRef<Animated.CompositeAnimation | null>(null);
   const panStartXRef = useRef(0);
   const currentXRef = useRef(0);
@@ -414,8 +414,8 @@ export function QuickInputTipBox() {
   const [autoEnabled, setAutoEnabled] = useState(true);
   const [isTransitioning, setIsTransitioning] = useState(false);
 
-  const slideY = useRef(new Animated.Value(0)).current;
-  const expandAnim = useRef(new Animated.Value(1)).current;
+  const [slideY] = useState(() => new Animated.Value(0));
+  const [expandAnim] = useState(() => new Animated.Value(1));
   const isExpandAnimatingRef = useRef(false);
   const pendingCollapseRef = useRef(false);
   const stopFlowRef = useRef<(() => void) | null>(null);
