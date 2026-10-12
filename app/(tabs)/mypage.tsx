@@ -20,6 +20,7 @@ import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useNoticeUnreadCount } from '@/hooks/use-notice-unread-count';
 import { isLocalDevOnlyUIEnabled } from '@/utils/dev-only-ui';
+import { consumeSettingsTabPendingPush } from '@/utils/settings-tab-pending-push';
 import {
   loadKeypadHapticsEnabled,
   saveKeypadHapticsEnabled,
@@ -87,6 +88,8 @@ export default function MyPageScreen() {
           hasInitializedRef.current = true;
           setIsContentReady(true);
           setLoading(false);
+          const pendingHref = consumeSettingsTabPendingPush();
+          if (pendingHref) router.push(pendingHref);
         }
       };
 

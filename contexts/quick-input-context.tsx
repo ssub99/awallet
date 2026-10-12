@@ -100,6 +100,7 @@ import {
     resolveIosQuickInputBottomAboveAnchor,
 } from '@/utils/quick-input-keyboard-position';
 import type { QuickInputPendingRecord } from '@/utils/quick-input-pending-record';
+import { setSettingsTabPendingPush } from '@/utils/settings-tab-pending-push';
 import { refreshWidgetWithCurrentMonth } from '@/utils/widget-data-sync';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { FlashListRef } from '@shopify/flash-list';
@@ -1908,8 +1909,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         label: '바로가기',
         onPress: () => {
           hideQuickInputRef.current({ simultaneous: true });
+          setSettingsTabPendingPush('/settings-record-inbox');
           router.navigate('/mypage');
-          router.push('/settings-record-inbox');
         },
       });
       return;
