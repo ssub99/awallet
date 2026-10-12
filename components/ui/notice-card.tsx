@@ -3,6 +3,7 @@ import { atomicColors } from '@/constants/atomic-colors';
 import { NOTICE_CARD } from '@/constants/notice-card';
 import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { logEvent } from '@/utils/analytics';
 import { setSettingsTabPendingPush } from '@/utils/settings-tab-pending-push';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -144,6 +145,7 @@ export function NoticeCard() {
   }, [motion, visible]);
 
   const handlePress = useCallback(() => {
+    void logEvent('ui', { screen_name: '/home', target: 'noticecard' });
     setVisible(false);
     setSettingsTabPendingPush('/settings-notice');
     router.navigate('/mypage');
