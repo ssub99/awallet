@@ -154,3 +154,6 @@ graphify-out/
 .cursor/hooks.json
 .vercel/
 .headroom-cache/
+
+# QA 증상 포착 결과물 (녹화·프레임·덤프·로그)
+qa/captures/
