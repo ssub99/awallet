@@ -66,6 +66,7 @@ import ImageSolid from '@/assets/images/icons/solid/image.svg';
 import ChallengeSolid from '@/assets/images/icons/solid/challenge.svg';
 import MessageSolid from '@/assets/images/icons/solid/message.svg';
 import MypageSolid from '@/assets/images/icons/solid/mypage.svg';
+import NotificationSolid from '@/assets/images/icons/solid/notification.svg';
 import PauseSolid from '@/assets/images/icons/solid/pause.svg';
 import PlaySolid from '@/assets/images/icons/solid/play.svg';
 import SettingSolid from '@/assets/images/icons/solid/setting.svg';
@@ -168,6 +169,7 @@ const iconComponents = {
     image: ImageSolid,
     message: MessageSolid,
     mypage: MypageSolid,
+    notification: NotificationSolid,
     pause: PauseSolid,
     play: PlaySolid,
     setting: SettingSolid,

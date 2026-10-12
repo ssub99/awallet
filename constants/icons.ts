@@ -137,6 +137,7 @@ export const IconDescriptions: Record<IconName, string> = {
   memo: 'Memo or note',
   message: 'SMS inbox or message',
   mypage: 'My page or profile',
+  notification: 'Notification or announcement',
   pause: 'Pause',
   play: 'Play',
   operationAddition: 'Addition operator',

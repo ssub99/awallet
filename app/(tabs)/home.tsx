@@ -6,6 +6,7 @@
 
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { CalendarMain, type CalendarExternalView } from '@/components/ui/calendar-main';
+import { FeatureLaunchNoticeCard } from '@/components/ui/feature-launch-notice-card';
 import { HomeMonthStatusCard } from '@/components/ui/home-month-status-card';
 import { Icon } from '@/components/ui/icon';
 import { QuickInputShort } from '@/components/ui/quick-input-short';
@@ -1060,6 +1061,8 @@ export default function HomeScreen() {
       >
         <Icon name="addTaskFab" variant="line" size={24} color={iconWhite} />
       </Pressable>
+
+      {isContentReady && <FeatureLaunchNoticeCard />}
     </View>
   );
 }
