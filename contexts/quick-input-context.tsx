@@ -1263,7 +1263,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const [isQuickInputRecordInboxOpening, setIsQuickInputRecordInboxOpening] = useState(false);
   const isQuickInputRecordInboxClosingRef = useRef(false);
   const isQuickInputRecordInboxVisibleRef = useRef(false);
-  /** 문자 수신 설정 ON일 때만 칩·숏 뱃지 노출 */
+  /** 문자 수신 설정 ON일 때만 뱃지 노출 · 칩 탭 시 OFF면 설정 바로가기 토스트 */
   const [recordInboxReceiveEnabled, setRecordInboxReceiveEnabled] = useState(false);
   const [recordInboxItems, setRecordInboxItems] = useState<RecordInboxItem[]>([]);
   const recordInboxItemsRef = useRef<RecordInboxItem[]>([]);
@@ -1909,6 +1909,13 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
 
   const handleQuickInputRecordInboxPress = useCallback(() => {
     if (!recordInboxReceiveEnabled) {
+      showToast('수신 기능을 사용 결정해 주세요.', {
+        label: '바로가기',
+        onPress: () => {
+          hideQuickInputRef.current({ simultaneous: true });
+          router.push('/settings-record-inbox');
+        },
+      });
       return;
     }
     if (isQuickInputRecordInboxVisible || isQuickInputRecordInboxOpening) {
@@ -2039,6 +2046,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     showToast,
     recordInboxItems.length,
     recordInboxReceiveEnabled,
+    router,
   ]);
 
   const handleRecordInboxIndexChange = useCallback((nextIndex: number) => {
@@ -4714,30 +4722,28 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                           contentContainerStyle={styles.actionRow}
                           keyboardShouldPersistTaps="handled"
                         >
-                            {recordInboxReceiveEnabled ? (
-                              <Pressable
-                                style={styles.actionChip}
-                                onPress={handleQuickInputRecordInboxPress}
-                                accessibilityRole="button"
-                                accessibilityLabel={
-                                  recordInboxItems.length > 0
-                                    ? `기록 수신함, 미처리 ${recordInboxItems.length}건`
-                                    : '기록 수신함'
-                                }
-                              >
-                                <View style={styles.actionIconBox}>
-                                  <Icon name="message" variant="solid" size={24} />
+                            <Pressable
+                              style={styles.actionChip}
+                              onPress={handleQuickInputRecordInboxPress}
+                              accessibilityRole="button"
+                              accessibilityLabel={
+                                recordInboxReceiveEnabled && recordInboxItems.length > 0
+                                  ? `기록 수신함, 미처리 ${recordInboxItems.length}건`
+                                  : '기록 수신함'
+                              }
+                            >
+                              <View style={styles.actionIconBox}>
+                                <Icon name="message" variant="solid" size={24} />
+                              </View>
+                              <Text style={styles.actionLabel}>기록 수신함</Text>
+                              {recordInboxReceiveEnabled && recordInboxItems.length > 0 ? (
+                                <View style={styles.actionBadge}>
+                                  <Text style={styles.actionBadgeLabel}>
+                                    {recordInboxItems.length > 99 ? '99+' : String(recordInboxItems.length)}
+                                  </Text>
                                 </View>
-                                <Text style={styles.actionLabel}>기록 수신함</Text>
-                                {recordInboxItems.length > 0 ? (
-                                  <View style={styles.actionBadge}>
-                                    <Text style={styles.actionBadgeLabel}>
-                                      {recordInboxItems.length > 99 ? '99+' : String(recordInboxItems.length)}
-                                    </Text>
-                                  </View>
-                                ) : null}
-                              </Pressable>
-                            ) : null}
+                              ) : null}
+                            </Pressable>
                             <Pressable
                               style={styles.actionChip}
                               onPress={handleQuickInputCalculatorPress}

@@ -4,10 +4,16 @@
  * A simple toast notification component for displaying temporary messages.
  */
 
-import { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, Text, ViewStyle } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Animated, Pressable, StyleSheet, Text, ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { atomicColors } from '@/constants/atomic-colors';
+import { colors, type ColorPalette } from '@/constants/theme';
 import { typography } from '@/constants/typography';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+
+/** Figma toast 컴포넌트 레이어 opacity */
+const TOAST_OPACITY = 0.8;
 
 export interface ToastProps {
   /**
@@ -33,6 +39,14 @@ export interface ToastProps {
    * Optional zIndex to control stacking (e.g., above embedded overlays)
    */
   zIndex?: number;
+  /**
+   * 우측 액션 버튼 라벨 (예: '바로가기'). 없으면 버튼 숨김
+   */
+  actionLabel?: string;
+  /**
+   * 액션 버튼 탭 콜백. 탭 후 토스트는 닫힘
+   */
+  onActionPress?: () => void;
 }
 
 /**
@@ -44,16 +58,25 @@ export function Toast({
   onHide,
   style,
   zIndex = 100010,
+  actionLabel,
+  onActionPress,
 }: ToastProps) {
-  const opacity = useRef(new Animated.Value(0)).current;
+  const [opacity] = useState(() => new Animated.Value(0));
+  const [isHidden, setIsHidden] = useState(!visible);
+  if (visible && isHidden) {
+    setIsHidden(false);
+  }
   const insets = useSafeAreaInsets();
+  const colorScheme = useColorScheme();
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
+  const hasAction = Boolean(actionLabel);
   const DURATION = 2000; // 2초 고정
 
   useEffect(() => {
     if (visible) {
       // Fade in
       Animated.timing(opacity, {
-        toValue: 1,
+        toValue: TOAST_OPACITY,
         duration: 200,
         useNativeDriver: true,
       }).start();
@@ -76,13 +99,15 @@ export function Toast({
         toValue: 0,
         duration: 200,
         useNativeDriver: true,
-      }).start();
+      }).start(({ finished }) => {
+        if (finished) {
+          setIsHidden(true);
+        }
+      });
     }
   }, [visible, onHide, opacity]);
 
-  const shouldRender = visible || (opacity as any)._value > 0;
-
-  if (!shouldRender) {
+  if (isHidden) {
     return null;
   }
 
@@ -97,9 +122,22 @@ export function Toast({
         },
         style,
       ]}
-      pointerEvents="none"
+      pointerEvents={hasAction ? 'auto' : 'none'}
     >
-      <Text style={styles.text}>{message}</Text>
+      <Text style={[styles.text, { color: palette.staticWhite }]}>{message}</Text>
+      {hasAction ? (
+        <Pressable
+          onPress={() => {
+            onActionPress?.();
+            onHide?.();
+          }}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel={actionLabel}
+        >
+          <Text style={[styles.actionText, { color: palette.primary }]}>{actionLabel}</Text>
+        </Pressable>
+      ) : null}
     </Animated.View>
   );
 }
@@ -110,13 +148,15 @@ const styles = StyleSheet.create({
     // top은 동적으로 계산됨 (SafeArea top + 16px)
     left: 16,
     right: 16,
-    backgroundColor: '#424242', // Figma design
+    backgroundColor: atomicColors.neutral[900],
     borderRadius: 16,
     paddingHorizontal: 16,
     paddingVertical: 16,
     minHeight: 56,
-    justifyContent: 'center',
-    alignItems: 'flex-start',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 8,
     // Shadow
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -125,8 +165,11 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   text: {
-    color: '#ffffff', // Figma design
+    flexShrink: 1,
     ...typography.body01.regular,
+  },
+  actionText: {
+    ...typography.body01.bold,
   },
 });
 

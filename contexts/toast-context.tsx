@@ -1,16 +1,22 @@
 import { Toast } from '@/components/ui/toast';
-import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useId, useMemo, useRef, useState } from 'react';
+
+export interface ToastAction {
+  label: string;
+  onPress: () => void;
+}
 
 interface ToastContextValue {
-  showToast: (message: string) => void;
-  activeHostId: number | null;
-  registerHost: () => number;
-  unregisterHost: (hostId: number) => void;
-  markToastHandledByHost: (hostId: number, toastKey: number) => void;
+  showToast: (message: string, action?: ToastAction) => void;
+  action: ToastAction | null;
+  activeHostId: string | null;
+  registerHost: (hostId: string) => void;
+  unregisterHost: (hostId: string) => void;
+  markToastHandledByHost: (hostId: string, toastKey: number) => void;
   message: string;
   visible: boolean;
   toastKey: number;
-  toastTargetHostId: number | null;
+  toastTargetHostId: string | null;
   hideToast: () => void;
 }
 
@@ -30,18 +36,19 @@ interface ToastProviderProps {
 
 export const ToastProvider: React.FC<ToastProviderProps> = ({ children }) => {
   const [message, setMessage] = useState<string>('');
+  const [action, setAction] = useState<ToastAction | null>(null);
   const [visible, setVisible] = useState<boolean>(false);
   const [toastKey, setToastKey] = useState<number>(0);
-  const [activeHostId, setActiveHostId] = useState<number | null>(null);
-  const [toastTargetHostId, setToastTargetHostId] = useState<number | null>(null);
+  const [activeHostId, setActiveHostId] = useState<string | null>(null);
+  const [toastTargetHostId, setToastTargetHostId] = useState<string | null>(null);
   const [hostedToastKey, setHostedToastKey] = useState<number | null>(null);
-  const hostIdRef = useRef(0);
-  const hostStackRef = useRef<number[]>([]);
+  const hostStackRef = useRef<string[]>([]);
 
-  const showToast = useCallback((nextMessage: string) => {
+  const showToast = useCallback((nextMessage: string, nextAction?: ToastAction) => {
     setToastTargetHostId(activeHostId);
     setHostedToastKey(null);
     setMessage(nextMessage);
+    setAction(nextAction ?? null);
     setToastKey((prev) => prev + 1);
     setVisible(true);
   }, [activeHostId]);
@@ -50,21 +57,18 @@ export const ToastProvider: React.FC<ToastProviderProps> = ({ children }) => {
     setVisible(false);
   }, []);
 
-  const registerHost = useCallback(() => {
-    hostIdRef.current += 1;
-    const hostId = hostIdRef.current;
+  const registerHost = useCallback((hostId: string) => {
     hostStackRef.current = [...hostStackRef.current, hostId];
     setActiveHostId(hostId);
-    return hostId;
   }, []);
 
-  const unregisterHost = useCallback((hostId: number) => {
+  const unregisterHost = useCallback((hostId: string) => {
     hostStackRef.current = hostStackRef.current.filter((id) => id !== hostId);
     const nextActive = hostStackRef.current[hostStackRef.current.length - 1] ?? null;
     setActiveHostId(nextActive);
   }, []);
 
-  const markToastHandledByHost = useCallback((hostId: number, handledToastKey: number) => {
+  const markToastHandledByHost = useCallback((hostId: string, handledToastKey: number) => {
     setHostedToastKey((prev) => {
       if (hostId !== toastTargetHostId || prev === handledToastKey) {
         return prev;
@@ -81,6 +85,7 @@ export const ToastProvider: React.FC<ToastProviderProps> = ({ children }) => {
   const value = useMemo(
     () => ({
       showToast,
+      action,
       activeHostId,
       registerHost,
       unregisterHost,
@@ -92,6 +97,7 @@ export const ToastProvider: React.FC<ToastProviderProps> = ({ children }) => {
       hideToast,
     }),
     [
+      action,
       activeHostId,
       hideToast,
       markToastHandledByHost,
@@ -109,7 +115,14 @@ export const ToastProvider: React.FC<ToastProviderProps> = ({ children }) => {
     <ToastContext.Provider value={value}>
       {children}
       {shouldRenderGlobalToast ? (
-        <Toast key={toastKey} visible={visible} message={message} onHide={hideToast} />
+        <Toast
+          key={toastKey}
+          visible={visible}
+          message={message}
+          onHide={hideToast}
+          actionLabel={action?.label}
+          onActionPress={action?.onPress}
+        />
       ) : null}
     </ToastContext.Provider>
   );
@@ -121,36 +134,43 @@ export const ToastHost: React.FC = () => {
     unregisterHost,
     markToastHandledByHost,
     activeHostId,
+    action,
     message,
     visible,
     toastKey,
     toastTargetHostId,
     hideToast,
   } = useToast();
-  const hostIdRef = useRef<number | null>(null);
+  const hostId = useId();
 
   React.useEffect(() => {
-    const hostId = registerHost();
-    hostIdRef.current = hostId;
+    registerHost(hostId);
     return () => {
       unregisterHost(hostId);
     };
-  }, [registerHost, unregisterHost]);
+  }, [hostId, registerHost, unregisterHost]);
 
-  const isActive = activeHostId === hostIdRef.current;
-  const isTargetHost = toastTargetHostId === hostIdRef.current;
+  const isActive = activeHostId === hostId;
+  const isTargetHost = toastTargetHostId === hostId;
 
   React.useEffect(() => {
-    if (isActive && isTargetHost && message && visible && hostIdRef.current !== null) {
-      markToastHandledByHost(hostIdRef.current, toastKey);
+    if (isActive && isTargetHost && message && visible) {
+      markToastHandledByHost(hostId, toastKey);
     }
-  }, [isActive, isTargetHost, markToastHandledByHost, message, toastKey, visible]);
+  }, [hostId, isActive, isTargetHost, markToastHandledByHost, message, toastKey, visible]);
 
   if (!isActive || !isTargetHost || !message) {
     return null;
   }
 
   return (
-    <Toast key={toastKey} visible={visible} message={message} onHide={hideToast} />
+    <Toast
+      key={toastKey}
+      visible={visible}
+      message={message}
+      onHide={hideToast}
+      actionLabel={action?.label}
+      onActionPress={action?.onPress}
+    />
   );
 };
