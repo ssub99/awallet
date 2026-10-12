@@ -459,7 +459,7 @@ export function QuickInputRecordInbox({
     action: 'confirm' | 'cancel';
   } | null>(null);
   const pendingAndroidConsumeResetItemIdRef = useRef<string | null>(null);
-  const pendingAndroidSettledIndexRef = useRef<number | null>(null);
+  const [pendingAndroidSettledIndex, setPendingAndroidSettledIndex] = useState<number | null>(null);
 
   const startOriginalLoading = useCallback(() => {
     setFrozenPagerIndex(safeIndex);
@@ -471,7 +471,9 @@ export function QuickInputRecordInbox({
     setFrozenPagerIndex(null);
   }, []);
 
-  useLayoutEffect(() => {
+  // layout effect에서 리셋하면 카드 매퍼가 아직 이전 모션(midToFront 등)이라 progress 0이
+  // 한 프레임 뒤 슬롯 포즈로 그려져 튄다. 부모 passive effect는 자식 매퍼 교체 이후에 돈다.
+  useEffect(() => {
     const consumedItemId = pendingAndroidConsumeResetItemIdRef.current;
     if (
       !IS_ANDROID ||
@@ -486,22 +488,22 @@ export function QuickInputRecordInbox({
   }, [isRolling, items, progress]);
 
   useLayoutEffect(() => {
-    const settledIndex = pendingAndroidSettledIndexRef.current;
     if (
       !IS_ANDROID ||
-      settledIndex == null ||
+      pendingAndroidSettledIndex == null ||
       transition !== 'idle' ||
-      safeIndex !== settledIndex
+      safeIndex !== pendingAndroidSettledIndex
     ) {
       return;
     }
-    pendingAndroidSettledIndexRef.current = null;
     requestAnimationFrame(() => {
+      setPendingAndroidSettledIndex(null);
       isRolling.set(false);
       stopOriginalLoading();
     });
   }, [
     isRolling,
+    pendingAndroidSettledIndex,
     safeIndex,
     stopOriginalLoading,
     transition,
@@ -624,7 +626,7 @@ export function QuickInputRecordInbox({
       target: 'receive-cardadd-order-next',
     });
     if (IS_ANDROID) {
-      pendingAndroidSettledIndexRef.current = safeIndex + 1;
+      setPendingAndroidSettledIndex(safeIndex + 1);
       setTransition('idle');
       commitNext();
       return;
@@ -643,7 +645,7 @@ export function QuickInputRecordInbox({
       target: 'receive-cardadd-order-prev',
     });
     if (IS_ANDROID) {
-      pendingAndroidSettledIndexRef.current = safeIndex - 1;
+      setPendingAndroidSettledIndex(safeIndex - 1);
       setTransition('idle');
       commitPrev();
       return;
