@@ -45,7 +45,12 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import {
+  initialWindowMetrics,
+  SafeAreaProvider,
+  SafeAreaView,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 
 const NOTICE_EMPTY_MESSAGE = '등록된 공지사항이 없습니다.';
 const NOTICE_CONTENT_FADE_IN_MS = 200;
@@ -214,6 +219,10 @@ export default function SettingsNoticeScreen() {
   const colorScheme = useColorScheme();
   const colors = themeColors[colorScheme ?? 'light'];
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  /** Android push 직후 insets.top=0 → 실값 점프 방지 */
+  const topInset =
+    insets.top > 0 ? insets.top : (initialWindowMetrics?.insets.top ?? 0);
   const { height: windowHeight } = useWindowDimensions();
   const { setLoading } = useLoading();
   const { setAndroidStatusBarStyle } = useAppStatusBar();
@@ -405,8 +414,8 @@ export default function SettingsNoticeScreen() {
 
   return (
     <SafeAreaView
-      style={[styles.container, { backgroundColor: colors.staticWhite }]}
-      edges={['top', 'bottom']}
+      style={[styles.container, { backgroundColor: colors.staticWhite, paddingTop: topInset }]}
+      edges={['bottom']}
     >
       <TopNavigation
         type="sub"
