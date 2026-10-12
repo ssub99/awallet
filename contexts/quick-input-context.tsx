@@ -1908,6 +1908,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         label: '바로가기',
         onPress: () => {
           hideQuickInputRef.current({ simultaneous: true });
+          router.navigate('/mypage');
           router.push('/settings-record-inbox');
         },
       });
