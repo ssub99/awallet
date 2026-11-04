@@ -45,6 +45,7 @@ import {
   consumeHomePendingOpenRecordInbox,
   subscribeHomePendingOpenRecordInbox,
 } from '@/utils/home-open-record-inbox-pending';
+import { releaseFirstScreenSplash } from '@/utils/first-screen-splash';
 import { saveMonthlyExpenseToWidget } from '@/utils/widget-data-sync';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
@@ -78,6 +79,11 @@ export default function HomeScreen() {
   const { updateCalendarContext } = useCreateSheetContext();
   const { setLoading } = useLoading();
   const pendingOpsRef = useRef(0);
+
+  // 온보딩 스킵·완료 후 진입 시 스플래시 안전 해제
+  useEffect(() => {
+    releaseFirstScreenSplash();
+  }, []);
   const appState = useRef<AppStateStatus>(
     (AppState.currentState as AppStateStatus | null | undefined) ?? 'active',
   );

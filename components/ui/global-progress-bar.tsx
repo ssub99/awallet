@@ -1,6 +1,6 @@
 import { colors, spacing } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useLoading } from '@/contexts/loading-context';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import React from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 

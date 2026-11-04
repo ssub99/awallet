@@ -1,6 +1,7 @@
 /**
  * 온보딩 — Figma onboarding.default
- * 검증: ONBOARDING_SHOW_EVERY_LAUNCH=true 이면 매 실행마다 진입.
+ * 루트 `unstable_settings.anchor = 'onboarding'` 으로 앱이 여기서 시작.
+ * 불필요하면 홈으로 replace (탭을 먼저 띄우지 않음).
  */
 
 import { OnboardingDeviceMock } from '@/components/onboarding/onboarding-device-mock';
@@ -13,9 +14,13 @@ import {
 } from '@/constants/onboarding-steps';
 import { colors, spacing, typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { markOnboardingCompleted } from '@/utils/onboarding-settings';
+import { releaseFirstScreenSplash } from '@/utils/first-screen-splash';
+import {
+  markOnboardingCompleted,
+  shouldShowOnboarding,
+} from '@/utils/onboarding-settings';
 import { useRouter } from 'expo-router';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   FlatList,
   type ListRenderItem,
@@ -27,6 +32,15 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+function releaseSplashAfterFirstPaint(): void {
+  // RN 신버전에서 InteractionManager 제거됨 — 두 프레임 뒤 첫 페인트 이후 hide
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      releaseFirstScreenSplash();
+    });
+  });
+}
 
 const FIGMA_WIDTH = 375;
 const FIGMA_MOCK_WIDTH = 280;
@@ -53,6 +67,7 @@ export default function OnboardingScreen() {
   const palette = colors[colorScheme ?? 'light'];
   const listRef = useRef<FlatList<OnboardingStep>>(null);
   const [index, setIndex] = useState(0);
+  const [ready, setReady] = useState(false);
 
   const { width: windowWidth } = useWindowDimensions();
   const layoutScale = windowWidth / FIGMA_WIDTH;
@@ -65,13 +80,36 @@ export default function OnboardingScreen() {
 
   const step = ONBOARDING_STEPS[index] ?? ONBOARDING_STEPS[0];
 
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const show = await shouldShowOnboarding();
+      if (cancelled) {
+        return;
+      }
+      if (!show) {
+        router.replace('/home');
+        // 홈 마운트 전에도 스플래시가 고착되지 않게 — 홈에서도 한 번 더 release
+        releaseSplashAfterFirstPaint();
+        return;
+      }
+      setReady(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
+
+  useEffect(() => {
+    if (!ready) {
+      return;
+    }
+    releaseSplashAfterFirstPaint();
+  }, [ready]);
+
   const finish = useCallback(async () => {
     await markOnboardingCompleted();
-    if (router.canDismiss()) {
-      router.dismissTo('/home');
-    } else {
-      router.replace('/home');
-    }
+    router.replace('/home');
   }, [router]);
 
   const goNext = useCallback(() => {
@@ -113,6 +151,10 @@ export default function OnboardingScreen() {
   );
 
   const ctaLabel = step?.ctaLabel ?? ONBOARDING_CTA_NEXT;
+
+  if (!ready) {
+    return <View style={[styles.root, { backgroundColor: palette.background }]} />;
+  }
 
   return (
     <View

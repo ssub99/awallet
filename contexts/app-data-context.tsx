@@ -358,7 +358,8 @@ export const AppDataProvider: React.FC<AppDataProviderProps> = ({ children, enab
       return;
     }
     initializedRef.current = true;
-    refresh().catch(() => {});
+    // 콜드스타트·온보딩 진입 시 GlobalProgressBar 스피너가 끼지 않게
+    refresh({ showLoading: false }).catch(() => {});
   }, [enabled, refresh]);
 
   useEffect(() => {

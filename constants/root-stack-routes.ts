@@ -1,7 +1,7 @@
 export const ROOT_STACK_ROUTE_NAMES = [
+  'onboarding',
   '(tabs)',
   '(dev-tabs)',
-  'onboarding',
   'expense-category',
   'expense-record',
   'expense-edit',

@@ -32,7 +32,7 @@ export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
   {
     id: 'quickInput',
     title: '한 문장으로 소비 기록 간편생성',
-    body: '문장 하나로 번거로운 가계 기록을\n손 쉽게 생성해 보세요.',
+    body: '문장 하나로 번거로운 소비 기록을\n손쉽게 생성해 보세요.',
     motion: { kind: 'lottie', source: quickInputLottie },
   },
   {
