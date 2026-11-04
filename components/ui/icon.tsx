@@ -64,12 +64,15 @@ import CopyLine from '@/assets/images/icons/line/copy.svg';
 import HomeSolid from '@/assets/images/icons/solid/home.svg';
 import ImageSolid from '@/assets/images/icons/solid/image.svg';
 import ChallengeSolid from '@/assets/images/icons/solid/challenge.svg';
+import CompleteSolid from '@/assets/images/icons/solid/complete.svg';
 import MessageSolid from '@/assets/images/icons/solid/message.svg';
 import MypageSolid from '@/assets/images/icons/solid/mypage.svg';
 import NotificationSolid from '@/assets/images/icons/solid/notification.svg';
 import PauseSolid from '@/assets/images/icons/solid/pause.svg';
 import PlaySolid from '@/assets/images/icons/solid/play.svg';
+import ReceiveSolid from '@/assets/images/icons/solid/receive.svg';
 import SettingSolid from '@/assets/images/icons/solid/setting.svg';
+import SimplicitySolid from '@/assets/images/icons/solid/simplicity.svg';
 import TipSolid from '@/assets/images/icons/solid/tip.svg';
 
 /**
@@ -164,6 +167,7 @@ const iconComponents = {
     cancel: CancelSolid,
     categorySetting: CategorySettingSolid,
     challenge: ChallengeSolid,
+    complete: CompleteSolid,
     delete: DeleteSolid,
     home: HomeSolid,
     image: ImageSolid,
@@ -172,7 +176,9 @@ const iconComponents = {
     notification: NotificationSolid,
     pause: PauseSolid,
     play: PlaySolid,
+    receive: ReceiveSolid,
     setting: SettingSolid,
+    simplicity: SimplicitySolid,
     tip: TipSolid,
   },
 } as const;

@@ -31,6 +31,7 @@ import {
   SMS_RECEIVE_ENABLED_KEY,
   SMS_RECEIVE_NUMBERS_KEY,
 } from '@/utils/record-inbox-receive-settings';
+import { QUICK_INPUT_TUTORIAL_ENTRY_EXPANDED_KEY } from '@/utils/quick-input-tutorial-entry-settings';
 
 /** 전체 초기화 시 제거할 AsyncStorage 키 (데이터·설정·캐시) */
 const KEYS_TO_REMOVE = [
@@ -56,6 +57,7 @@ const KEYS_TO_REMOVE = [
   APP_STORE_REVIEW_LIFETIME_RECORD_COUNT_KEY,
   /** 삭제된 간편입력 팁 박스의 접힘 상태 — 기존 기기 잔여값 정리용 */
   'quickInputTipBoxExpanded',
+  QUICK_INPUT_TUTORIAL_ENTRY_EXPANDED_KEY,
   RECORD_INBOX_ITEMS_KEY,
   RECORD_INBOX_PUSH_LEDGER_KEY,
   SMS_RECEIVE_ENABLED_KEY,

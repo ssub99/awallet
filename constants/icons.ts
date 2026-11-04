@@ -45,7 +45,10 @@ export const IconCategories = {
     'send',
     'calculator',
     'categorySetting',
+    'complete',
     'message',
+    'receive',
+    'simplicity',
   ] as const,
   
   /**
@@ -125,6 +128,7 @@ export const IconDescriptions: Record<IconName, string> = {
   check: 'Checkmark',
   checkboxIcon: 'Checkbox checkmark icon',
   close: 'Close or dismiss',
+  complete: 'Complete or success',
   copy: 'Copy',
   delete: 'Delete or remove',
   filter: 'Filter',
@@ -148,9 +152,11 @@ export const IconDescriptions: Record<IconName, string> = {
   operationEqual: 'Calculate result',
   person: 'Person or user',
   profile: 'User profile',
+  receive: 'Record receive inbox',
   search: 'Search',
   send: 'Send message',
   setting: 'Settings or configuration',
+  simplicity: 'Quick / simple record',
   star: 'Star',
   tip: 'Tip or guide',
 };
@@ -203,13 +209,19 @@ export function getIconMetadata(name: IconName): IconMetadata {
     'arrowRight',
     'cancel',
     'challenge',
+    'complete',
     'delete',
     'home',
     'image',
+    'message',
     'mypage',
+    'notification',
     'pause',
     'play',
+    'receive',
     'setting',
+    'simplicity',
+    'tip',
   ];
   const hasSolid = solidIcons.includes(name);
   
