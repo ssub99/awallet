@@ -38,9 +38,9 @@ const styles = StyleSheet.create({
     elevation: 100020,
   },
   indicatorContainer: {
-    width: spacing[1100],
-    height: spacing[1100],
-    borderRadius: spacing[1100] / 2,
+    width: spacing[900],
+    height: spacing[900],
+    borderRadius: spacing[900] / 2,
     alignItems: 'center',
     justifyContent: 'center',
   },

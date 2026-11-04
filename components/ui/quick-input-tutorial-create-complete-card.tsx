@@ -2,14 +2,14 @@
  * 간편입력 · 간편 기록 생성 체험 완료 카드
  * Figma: home.month.quickInputEntry.tutorialCreateComplete / tutorialCreateCompleteCard
  *
- * @(16, 448) 343×348 · complete 아이콘 + 제목/본문 + 「소비 기록 시작하기」
+ * @(16, 474) 343×322 · complete 아이콘 + 제목/본문 + 「소비 기록 시작하기」
  * 하단: 기록 수신함 페이저와 동일 — homeIndicator(safeBottom) 기준 앵커
  * CTA: 완료 카드·딤만 닫고 간편입력 유지 (수신 체험 완료와 동일)
  */
 
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
-import { colors, typography } from '@/constants/theme';
+import { colors, spacing, typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useEffect } from 'react';
 import { Platform, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
@@ -22,12 +22,12 @@ import Animated, {
 import { initialWindowMetrics, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const FIGMA_SCREEN_HEIGHT = 812;
-/** 시안 카드 top 448 (프레임 기준, statusBar 44 포함) */
-const FIGMA_CARD = { left: 16, top: 448, height: 348 } as const;
-/** Figma 812 기준 카드 하단~스크린 하단 (448+348=796 → 16) */
+/** complete 아이콘 80 기준 — 하단 여백 32 확보 (구 106·348 → 26 축소) */
+const FIGMA_CARD = { left: 16, top: 474, height: 322 } as const;
+/** Figma 812 기준 카드 하단~스크린 하단 (474+322=796 → 16) */
 const FIGMA_CARD_BOTTOM_GAP = FIGMA_SCREEN_HEIGHT - (FIGMA_CARD.top + FIGMA_CARD.height);
 const CARD_RADIUS = 16;
-const ICON_SIZE = 106;
+const ICON_SIZE = 80;
 const BUTTON_WIDTH = 160;
 
 const ENTER_SLIDE_OFFSET = 16;
@@ -125,8 +125,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     height: FIGMA_CARD.height,
     borderRadius: CARD_RADIUS,
-    paddingTop: 32,
-    paddingHorizontal: 16,
+    paddingTop: spacing[800],
+    paddingBottom: spacing[800],
+    paddingHorizontal: spacing[400],
     alignItems: 'center',
   },
   icon: {
