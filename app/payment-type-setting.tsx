@@ -198,7 +198,7 @@ export default function PaymentTypeSettingScreen() {
       setPaymentSubtypes((current) =>
         arePaymentSubtypesSame(current, nextSubtypes) ? current : nextSubtypes,
       );
-    });
+    }, undefined);
   }, []);
 
   const applyLoadedSubtypes = useCallback((loaded: PaymentSubtype[]) => {
@@ -206,7 +206,7 @@ export default function PaymentTypeSettingScreen() {
     unstable_batchedUpdates(() => {
       setPaymentSubtypes((current) => (arePaymentSubtypesSame(current, loaded) ? current : loaded));
       setIsListDataReady(true);
-    });
+    }, undefined);
     previousIndexRef.current = null;
     hasTriggeredStartHapticRef.current = false;
     dragStartIndexRef.current = null;

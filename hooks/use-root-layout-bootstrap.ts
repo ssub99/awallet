@@ -58,11 +58,10 @@ export function useRootLayoutBootstrap() {
   const storeGateResumeFromBackgroundRef = useRef(false);
   const palette = colors[colorScheme] as ColorPalette;
 
-  SplashScreen.preventAutoHideAsync().catch(() => {});
-
   useLayoutEffect(() => {
     async function prepare() {
       try {
+        // 엔트리(`utils/prevent-splash-autohide`)에서 이미 선제 호출. 여기서는 확인만.
         await SplashScreen.preventAutoHideAsync();
 
         const isExpoGo = Constants.appOwnership === 'expo';

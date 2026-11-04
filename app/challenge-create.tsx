@@ -32,16 +32,15 @@ import { loadCategories } from '@/utils/categories';
 import { createChallenges, type ChallengeRecord } from '@/utils/challenges';
 import { generateGroupId, generateRecordId } from '@/utils/id-generator';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Dimensions, Easing, Keyboard, Pressable, ScrollView, StyleSheet, Text, TouchableWithoutFeedback, useWindowDimensions, View } from 'react-native';
+import { Animated, Dimensions, Easing, Keyboard, Pressable, ScrollView, type ScrollViewInstance, StyleSheet, Text, TouchableWithoutFeedback, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function ChallengeCreateScreen() {
   const colorScheme = useColorScheme();
   const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   const router = useRouter();
-  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
   const KEYPAD_HEIGHT = getKeypadHeight(windowWidth);
@@ -105,7 +104,7 @@ export default function ChallengeCreateScreen() {
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [amountSectionY, setAmountSectionY] = useState(0);
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<ScrollViewInstance>(null);
   const isScrollingRef = useRef(false);
   const dismissTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ignoreNextTouchEndRef = useRef(false);
@@ -437,20 +436,12 @@ export default function ChallengeCreateScreen() {
       // 키패드·언마운트와 reset 타이밍 분리: 키패드 닫고 짧은 지연 후 reset
       Keyboard.dismiss();
       setTimeout(() => {
-        (navigation as any).reset({
-          index: 0,
-          routes: [
-            {
-              name: '(tabs)',
-              params: {
-                screen: 'challenge',
-                params: {
-                  year: targetYear.toString(),
-                  month: targetMonth.toString(),
-                },
-              },
-            },
-          ],
+        router.replace({
+          pathname: '/(tabs)/challenge',
+          params: {
+            year: targetYear.toString(),
+            month: targetMonth.toString(),
+          },
         });
       }, 50);
     } catch (error) {

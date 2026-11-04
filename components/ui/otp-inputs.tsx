@@ -2,7 +2,7 @@ import { colors, type ColorPalette } from '@/constants/theme';
 import { typography, typographyLayout } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, TextInputProps, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, type TextInputInstance, TextInputProps, View } from 'react-native';
 
 interface OtpInputsProps {
   length?: 6 | 4;
@@ -33,7 +33,7 @@ export function OtpInputs({
   const colorScheme = useColorScheme();
   const palette = colors[colorScheme ?? 'light'] as ColorPalette;
 
-  const refs = useRef<(TextInput | null)[]>(Array.from({ length }, () => null));
+  const refs = useRef<(TextInputInstance | null)[]>(Array.from({ length }, () => null));
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
 
   const safeValue = useMemo(() => value.replace(/\D/g, '').slice(0, length), [value, length]);

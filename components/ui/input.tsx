@@ -26,6 +26,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  type TextInputInstance,
   TextInputProps,
   TouchableWithoutFeedback,
   View,
@@ -153,7 +154,7 @@ export interface InputProps extends Omit<TextInputProps, 'style'> {
 /**
  * Input Component
  */
-export const Input = forwardRef<TextInput, InputProps>(function Input({
+export const Input = forwardRef<TextInputInstance, InputProps>(function Input({
   variant = 'line',
   inputType = 'text',
   icon,
@@ -193,14 +194,14 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({
   const colorScheme = useColorScheme();
   const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<TextInputInstance>(null);
 
   // Figma DS: calendar · dayselect(rightText) · righticon(showRightArrow) variants use buttonmode=true
   const resolvedButtonMode =
     buttonMode || calendar || !!rightText || showRightArrow;
 
   // 외부 ref를 내부 inputRef에 연결
-  useImperativeHandle(ref, () => inputRef.current as TextInput);
+  useImperativeHandle(ref, () => inputRef.current as TextInputInstance);
   const [isFocused, setIsFocused] = useState(false);
   const hasValue = value && value.length > 0;
   const hasCalendarDate = calendar && calendarDate;

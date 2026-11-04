@@ -19,13 +19,13 @@ import { Image } from 'expo-image';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
+  type ListViewToken,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   StyleSheet,
   Text,
   useWindowDimensions,
   View,
-  type ViewToken,
 } from 'react-native';
 
 export type SmsReceiveSetupGuideSheetProps = {
@@ -95,7 +95,7 @@ export function SmsReceiveSetupGuideSheet({
   }, [onClose]);
 
   const onViewableItemsChanged = useCallback(
-    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
+    ({ viewableItems }: { viewableItems: ListViewToken[]; changed: ListViewToken[] }) => {
       const first = viewableItems[0];
       if (first?.index != null) {
         setPageIndex(first.index);

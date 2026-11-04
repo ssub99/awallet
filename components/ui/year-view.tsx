@@ -9,7 +9,7 @@ import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { logEvent } from '@/utils/analytics';
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, type ScrollViewInstance, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
 export interface MonthData {
@@ -38,7 +38,7 @@ export const YearView = forwardRef<YearViewRef, YearViewProps>(
   ({ year, monthsData, initialMonth, onMonthPress, yearCardAnalyticsScreenName }, ref) => {
     const colorScheme = useColorScheme();
     const palette = colors[colorScheme ?? 'light'] as ColorPalette;
-    const scrollViewRef = useRef<ScrollView>(null);
+    const scrollViewRef = useRef<ScrollViewInstance>(null);
 
     // 1월부터 12월까지 정렬
     const sortedData = [...monthsData].sort((a, b) => a.month - b.month);

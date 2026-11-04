@@ -32,9 +32,11 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  type ScrollViewInstance,
   StyleSheet,
   Text,
   TextInput,
+  type TextInputInstance,
   TouchableWithoutFeedback,
   View,
 } from 'react-native';
@@ -75,8 +77,8 @@ export default function PaymentTypeEditScreen() {
   const colorPickerOpacity = useRef(new Animated.Value(0)).current;
   const colorPickerScale = useRef(new Animated.Value(0.94)).current;
   const openDelayTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const scrollViewRef = useRef<ScrollView | null>(null);
-  const descriptionInputRef = useRef<TextInput>(null);
+  const scrollViewRef = useRef<ScrollViewInstance | null>(null);
+  const descriptionInputRef = useRef<TextInputInstance>(null);
   const descriptionSectionYRef = useRef(0);
   const descriptionSectionHeightRef = useRef(0);
   const scrollYRef = useRef(0);

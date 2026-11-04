@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { BackHandler, Keyboard, Platform, type TextInput } from 'react-native';
+import { BackHandler, Keyboard, Platform, type TextInputInstance } from 'react-native';
 
 /**
  * Android(resize): 텍스트 입력 포커스 시 하단 CTA를 키보드 애니 전에 숨김.
  * 키보드 open 상태와 hide 플래그를 연동하지 않아 frame flicker로 CTA가 튀는 것을 방지.
  */
 export function useAndroidKeyboardBottomCtaHide() {
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<TextInputInstance>(null);
   const isInputFocusedRef = useRef(false);
   const androidKeyboardVisibleRef = useRef(false);
   const [hideBottomCta, setHideBottomCta] = useState(false);

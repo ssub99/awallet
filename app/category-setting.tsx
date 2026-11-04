@@ -261,7 +261,7 @@ export default function CategorySettingScreen() {
         setCategories((current) =>
           areCategoriesSame(current, nextCategories) ? current : nextCategories,
         );
-      });
+      }, undefined);
     },
     [],
   );
@@ -287,7 +287,7 @@ export default function CategorySettingScreen() {
           areCategoriesSame(current, finalCategories) ? current : finalCategories,
         );
         setIsListDataReady(true);
-      });
+      }, undefined);
       requestAnimationFrame(startContentFadeIn);
       previousIndexRef.current = null;
       hasTriggeredStartHapticRef.current = false;

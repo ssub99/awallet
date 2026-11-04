@@ -11,6 +11,10 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useNoticeUnreadCount } from '@/hooks/use-notice-unread-count';
 import { atomicColors } from '@/constants/atomic-colors';
 
+export const unstable_settings = {
+  initialRouteName: 'home',
+};
+
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const palette = colors[colorScheme ?? 'light'];
@@ -21,7 +25,6 @@ export default function TabLayout() {
       <CreateSheetProvider>
         <View style={styles.wrapper}>
         <Tabs
-        initialRouteName="home"
         tabBar={(props) => <TabBar {...props} />}
         screenOptions={{
           tabBarActiveTintColor: palette.tint,

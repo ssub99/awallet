@@ -8,18 +8,15 @@
 import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { createSheetEvent } from '@/utils/create-sheet-event';
-import { Tabs } from 'expo-router';
-import { useRef, type ComponentProps } from 'react';
+import type { BottomTabBarProps } from 'expo-router/js-tabs';
+import { useRef } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-/** expo-router Tabs tabBar props (avoids duplicate @react-navigation/bottom-tabs type identity mismatch). */
-type TabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>['tabBar']>>[0];
 
 /**
  * Tab Bar matching Figma design
  */
-export function TabBar({ state, descriptors, navigation }: TabBarProps) {
+export function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTabBarProps) {
   const colorScheme = useColorScheme();
   const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   const insets = useSafeAreaInsets();
@@ -73,7 +70,7 @@ export function TabBar({ state, descriptors, navigation }: TabBarProps) {
             // Check for double tap on already focused tab
             if (isFocused && timeSinceLastTap < DOUBLE_TAP_DELAY) {
               // Double tap detected on focused tab
-              navigation.emit({
+              emitter.emit({
                 type: 'tabDoubleTap' as any,
                 target: route.key,
                 data: { routeName: route.name },
@@ -81,14 +78,14 @@ export function TabBar({ state, descriptors, navigation }: TabBarProps) {
               lastTapTime.current[route.name] = 0; // Reset to prevent triple tap
             } else {
               // Regular tap
-              const event = navigation.emit({
+              const event = emitter.emit({
                 type: 'tabPress',
                 target: route.key,
                 canPreventDefault: true,
               });
 
               if (!isFocused && !event.defaultPrevented) {
-                navigation.navigate(route.name);
+                navigateToTab(route.key);
               }
               
               lastTapTime.current[route.name] = now;
@@ -96,7 +93,7 @@ export function TabBar({ state, descriptors, navigation }: TabBarProps) {
           };
 
           const onLongPress = () => {
-            navigation.emit({
+            emitter.emit({
               type: 'tabLongPress',
               target: route.key,
             });

@@ -1,6 +1,6 @@
 import { BlurView, type BlurTint } from 'expo-blur';
 import { memo, useMemo, type ReactNode, type RefObject } from 'react';
-import { Platform, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Platform, StyleSheet, View, type StyleProp, type ViewInstance, type ViewStyle } from 'react-native';
 
 import { useAndroidBlurTarget } from '@/contexts/android-blur-target-context';
 import { getAndroidBlurProps, resolveBlurTintCached } from '@/utils/expo-blur-platform';
@@ -24,7 +24,7 @@ export type GlassSurfaceProps = {
   /** Android only: dimezis BlurView (기본 false — 커스텀 키패드 등 명시적 사용처만 true) */
   enableAndroidBlur?: boolean;
   /** Android: BlurTargetView ref (미지정 시 AndroidBlurTargetProvider context) */
-  blurTarget?: RefObject<View | null>;
+  blurTarget?: RefObject<ViewInstance | null>;
 };
 
 function GlassSurfaceInner({

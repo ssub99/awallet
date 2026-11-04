@@ -13,12 +13,17 @@
 import { QuickInputConfirmCard, type QuickInputConfirmCardData } from '@/components/ui/quick-input-confirm-card';
 import { QuickInputRecordInbox, type RecordInboxConfirmResult } from '@/components/ui/quick-input-record-inbox';
 import { QuickInputTutorialEntry } from '@/components/ui/quick-input-tutorial-entry';
+import { QuickInputTutorialCreateCompleteCard } from '@/components/ui/quick-input-tutorial-create-complete-card';
 import { QuickInputTutorialReceiveCompleteCard } from '@/components/ui/quick-input-tutorial-receive-complete-card';
 import { QuickInputTutorialReceiveConfirmCard } from '@/components/ui/quick-input-tutorial-receive-confirm-card';
 import { QuickInputSmsInboxFocusDim } from '@/components/ui/quick-input-sms-inbox-focus-dim';
 import type { SmsInboxFocusCutout } from '@/components/ui/quick-input-sms-inbox-focus-dim';
 import { QuickInputTutorialCategoryHintDim } from '@/components/ui/quick-input-tutorial-category-hint-dim';
 import type { CategoryHintCutout } from '@/components/ui/quick-input-tutorial-category-hint-dim';
+import { QuickInputTutorialCreateSendHintDim } from '@/components/ui/quick-input-tutorial-create-send-hint-dim';
+import type { CreateSendHintCutout } from '@/components/ui/quick-input-tutorial-create-send-hint-dim';
+import { QuickInputTutorialCreateRecordAddHintDim } from '@/components/ui/quick-input-tutorial-create-record-add-hint-dim';
+import type { CreateRecordAddHintCutout } from '@/components/ui/quick-input-tutorial-create-record-add-hint-dim';
 import { Accordion } from '@/components/ui/accordion';
 import { CustomKeypad, getKeypadHeight, type CustomKeypadOperator, type ExpressionToken } from '@/components/ui/custom-keypad';
 import { CustomKeypadOverlay } from '@/components/ui/custom-keypad-overlay';
@@ -66,9 +71,12 @@ import {
   subscribeRecordInboxReceiveEnabled,
 } from '@/utils/record-inbox-receive-settings';
 import {
+  createTutorialCreateConfirmCard,
+  createTutorialCreatePendingRecord,
   loadQuickInputTutorialEntryExpanded,
   QUICK_INPUT_TUTORIAL_ENTRY_EXPANDED_DEFAULT,
   saveQuickInputTutorialEntryExpanded,
+  TUTORIAL_CREATE_SAMPLE_MESSAGE,
 } from '@/utils/quick-input-tutorial-entry-settings';
 import { createTutorialReceiveRecordInboxItem } from '@/utils/record-inbox-mock';
 import {
@@ -199,6 +207,16 @@ const ANDROID_QUICK_INPUT_REFOCUS_RETRY_MS = 50;
 const ANDROID_QUICK_INPUT_REFOCUS_MAX_ATTEMPTS = 6;
 /** 튜토리얼: 키패드 dismiss와 별도로 간편입력을 rest까지 직접 하강 후 딤 */
 const TUTORIAL_QUICK_INPUT_DESCEND_MS = 280;
+/** 생성 체험 전송 — 전송 버튼 인디케이터 후 가상 카드 */
+const TUTORIAL_CREATE_SEND_INDICATOR_MS = 2000;
+/** 생성 체험 — 카드 노출 후 키패드 하강까지 */
+const TUTORIAL_CREATE_KEYBOARD_HIDE_AFTER_CARD_MS = 1000;
+/** 생성 체험 — 키패드 하강 후 추가 컷아웃 딤까지 */
+const TUTORIAL_CREATE_ADD_HINT_AFTER_KEYBOARD_MS = 1000;
+/** 생성 체험 — 추가 버튼 인디케이터 후 완료 */
+const TUTORIAL_CREATE_ADD_INDICATOR_MS = 1000;
+/** 수신 체험 — 수신함 원문·카드 등장 후 카테고리/추가 딤까지 */
+const TUTORIAL_RECEIVE_DIM_AFTER_ENTER_MS = 1000;
 /** 튜토리얼: 수신함 가상 뱃지 등장 */
 const TUTORIAL_VIRTUAL_BADGE_ENTER_MS = 180;
 const TUTORIAL_VIRTUAL_BADGE_ENTER = ZoomIn.duration(TUTORIAL_VIRTUAL_BADGE_ENTER_MS).easing(
@@ -1306,6 +1324,25 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   /** 기록 수신 체험 완료 카드 (추가 후 간편입력 메인) */
   const [tutorialReceiveCompleteVisible, setTutorialReceiveCompleteVisible] = useState(false);
   const tutorialReceiveCompleteVisibleRef = useRef(false);
+  /** 간편 기록 생성 체험 완료 카드 (추가 후 간편입력 메인) */
+  const [tutorialCreateCompleteVisible, setTutorialCreateCompleteVisible] = useState(false);
+  const tutorialCreateCompleteVisibleRef = useRef(false);
+  /** 간편 기록 생성 체험 — 샘플 문장 고정 + 딤 */
+  /** 샘플 문장 기입·입력 잠금 (생성 체험 시작부터) */
+  const [tutorialCreateSession, setTutorialCreateSession] = useState(false);
+  const tutorialCreateSessionRef = useRef(false);
+  /** 컷아웃 stacked 딤 — 전송 힌트 */
+  const [tutorialCreateActive, setTutorialCreateActive] = useState(false);
+  const tutorialCreateActiveRef = useRef(false);
+  /** 컷아웃 stacked 딤 — 기록 카드 추가 힌트 */
+  const [tutorialCreateRecordAddHintVisible, setTutorialCreateRecordAddHintVisible] =
+    useState(false);
+  const [tutorialCreateRecordAddCutout, setTutorialCreateRecordAddCutout] =
+    useState<CreateRecordAddHintCutout | null>(null);
+  const tutorialCreateFlowTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tutorialCreateTypewriterIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
+    null,
+  );
   /** 체험 완료로 수신함 닫을 때 키패드 복원 생략 */
   const tutorialCloseInboxWithoutKeyboardRef = useRef(false);
   /**
@@ -1323,6 +1360,9 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   );
   const [smsInboxChipCutout, setSmsInboxChipCutout] = useState<SmsInboxFocusCutout | null>(null);
   const smsInboxChipRef = useRef<ViewInstance>(null);
+  const tutorialCreateBarAnchorRef = useRef<ViewInstance | null>(null);
+  const [tutorialCreateBarCutout, setTutorialCreateBarCutout] =
+    useState<CreateSendHintCutout | null>(null);
   const tutorialCategoryValueAnchorRef = useRef<ViewInstance | null>(null);
   const [tutorialCategoryHintCutout, setTutorialCategoryHintCutout] =
     useState<CategoryHintCutout | null>(null);
@@ -1333,6 +1373,10 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const [tutorialRecordInboxEnterSettled, setTutorialRecordInboxEnterSettled] =
     useState(false);
   const tutorialReceiveFlowTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** 수신함 등장 완료 → 딤 노출 지연 */
+  const tutorialRecordInboxDimDelayTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const tutorialSmsInboxFocusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** 안내 카드 후: 키패드 하강 완료를 기다렸다가 smsInboxFocus 딤 */
   const tutorialAwaitingKeyboardHideForDimRef = useRef(false);
@@ -1532,6 +1576,10 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     tutorialReceiveCompleteVisibleRef.current = tutorialReceiveCompleteVisible;
   }, [tutorialReceiveCompleteVisible]);
 
+  useEffect(() => {
+    tutorialCreateCompleteVisibleRef.current = tutorialCreateCompleteVisible;
+  }, [tutorialCreateCompleteVisible]);
+
   const displayedRecordInboxItems = tutorialRecordInboxItems ?? recordInboxItems;
 
   const tutorialCategoryHintVisible = useMemo(() => {
@@ -1583,12 +1631,32 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
 
   useEffect(() => {
     if (!isQuickInputRecordInboxVisible || isQuickInputRecordInboxOpening) {
+      if (tutorialRecordInboxDimDelayTimeoutRef.current != null) {
+        clearTimeout(tutorialRecordInboxDimDelayTimeoutRef.current);
+        tutorialRecordInboxDimDelayTimeoutRef.current = null;
+      }
       setTutorialRecordInboxEnterSettled(false);
     }
   }, [isQuickInputRecordInboxOpening, isQuickInputRecordInboxVisible]);
 
   const handleRecordInboxEnterAnimationComplete = useCallback(() => {
-    setTutorialRecordInboxEnterSettled(true);
+    if (tutorialRecordInboxDimDelayTimeoutRef.current != null) {
+      clearTimeout(tutorialRecordInboxDimDelayTimeoutRef.current);
+      tutorialRecordInboxDimDelayTimeoutRef.current = null;
+    }
+    // 실데이터 수신함: 딤 없음 → 즉시 settled
+    if (tutorialRecordInboxItemsRef.current == null) {
+      setTutorialRecordInboxEnterSettled(true);
+      return;
+    }
+    // 수신 체험: 원문·카드 노출 후 1초 뒤 카테고리/추가 컷아웃 딤
+    tutorialRecordInboxDimDelayTimeoutRef.current = setTimeout(() => {
+      tutorialRecordInboxDimDelayTimeoutRef.current = null;
+      if (tutorialRecordInboxItemsRef.current == null) {
+        return;
+      }
+      setTutorialRecordInboxEnterSettled(true);
+    }, TUTORIAL_RECEIVE_DIM_AFTER_ENTER_MS);
   }, []);
 
   const measureTutorialCategoryHintCutout = useCallback(() => {
@@ -1686,6 +1754,10 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       clearTimeout(tutorialSmsInboxFocusTimeoutRef.current);
       tutorialSmsInboxFocusTimeoutRef.current = null;
     }
+    if (tutorialRecordInboxDimDelayTimeoutRef.current != null) {
+      clearTimeout(tutorialRecordInboxDimDelayTimeoutRef.current);
+      tutorialRecordInboxDimDelayTimeoutRef.current = null;
+    }
     cancelAnimation(shortBottomFromScreen);
     cancelAnimation(animatedBottom);
     tutorialAwaitingKeyboardHideForDimRef.current = false;
@@ -1693,6 +1765,64 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }, [animatedBottom, shortBottomFromScreen]);
 
   const tutorialSmsInboxFocusVisibleRef = useRef(false);
+
+  const clearTutorialCreate = useCallback(() => {
+    if (tutorialCreateFlowTimeoutRef.current != null) {
+      clearTimeout(tutorialCreateFlowTimeoutRef.current);
+      tutorialCreateFlowTimeoutRef.current = null;
+      setLoading(false);
+    }
+    if (tutorialCreateTypewriterIntervalRef.current != null) {
+      clearInterval(tutorialCreateTypewriterIntervalRef.current);
+      tutorialCreateTypewriterIntervalRef.current = null;
+    }
+    tutorialCreateActiveRef.current = false;
+    setTutorialCreateActive(false);
+    tutorialCreateSessionRef.current = false;
+    setTutorialCreateSession(false);
+    setTutorialCreateBarCutout(null);
+    setTutorialCreateRecordAddHintVisible(false);
+    setTutorialCreateRecordAddCutout(null);
+    tutorialCreateCompleteVisibleRef.current = false;
+    setTutorialCreateCompleteVisible(false);
+  }, [setLoading]);
+
+  /** 전송 힌트 딤만 걷음 (세션·추가 힌트 예약은 유지) */
+  const clearTutorialCreateSendHint = useCallback(() => {
+    if (tutorialCreateTypewriterIntervalRef.current != null) {
+      clearInterval(tutorialCreateTypewriterIntervalRef.current);
+      tutorialCreateTypewriterIntervalRef.current = null;
+    }
+    tutorialCreateActiveRef.current = false;
+    setTutorialCreateActive(false);
+    setTutorialCreateBarCutout(null);
+  }, []);
+
+  const measureTutorialCreateRecordAddCutout = useCallback(() => {
+    const node = tutorialConfirmAddButtonAnchorRef.current;
+    if (!node || typeof node.measureInWindow !== 'function') {
+      return;
+    }
+    node.measureInWindow((x, y, width, height) => {
+      if (width <= 0 || height <= 0) {
+        return;
+      }
+      setTutorialCreateRecordAddCutout({ x, y, width, height });
+    });
+  }, []);
+
+  const measureTutorialCreateBarCutout = useCallback(() => {
+    const node = tutorialCreateBarAnchorRef.current;
+    if (!node || typeof node.measureInWindow !== 'function') {
+      return;
+    }
+    node.measureInWindow((x, y, width, height) => {
+      if (width <= 0 || height <= 0) {
+        return;
+      }
+      setTutorialCreateBarCutout({ x, y, width, height });
+    });
+  }, []);
 
   const clearTutorialReceiveFocus = useCallback(() => {
     clearTutorialReceiveFlowTimers();
@@ -1708,7 +1838,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     setTutorialCategoryHintCutout(null);
     setTutorialAddFocusCutout(null);
     setTutorialRecordInboxEnterSettled(false);
-  }, [clearTutorialReceiveFlowTimers, setLoading]);
+    clearTutorialCreate();
+  }, [clearTutorialCreate, clearTutorialReceiveFlowTimers, setLoading]);
 
   const measureSmsInboxChipCutout = useCallback(() => {
     const node = smsInboxChipRef.current;
@@ -1745,48 +1876,55 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
    * 키패드 follow를 끊고 현재 위치→rest로 직접 하강.
    * (keyboard height 레이스에 맡기면 중도 딤 후 한 번 더 내려감)
    */
+  const descendQuickInputToRestAfterKeyboardHide = useCallback(
+    (onRest?: () => void) => {
+      const keyboardHeight = Math.abs(keyboardReanimated.height.value);
+      const restBottom = lastShortBottomRef.current;
+      const parkedBottom =
+        keyboardHeight > 0 ? keyboardHeight + KEYBOARD_GAP : restBottom;
+
+      cancelAnimation(shortBottomFromScreen);
+      cancelAnimation(animatedBottom);
+      shortBottomFromScreen.set(parkedBottom);
+      animatedBottom.set(parkedBottom);
+      shouldFollowKeyboardRef.current = false;
+      shouldFollowKeyboard.set(false);
+      if (Platform.OS === 'android') {
+        androidKeyboardWasVisibleRef.current = false;
+      }
+
+      quickInputRef.current?.blur();
+      Keyboard.dismiss();
+
+      if (Math.abs(parkedBottom - restBottom) < 1) {
+        onRest?.();
+        return;
+      }
+
+      const duration = TUTORIAL_QUICK_INPUT_DESCEND_MS;
+      shortBottomFromScreen.value = withTiming(restBottom, { duration }, (finished) => {
+        if (!finished) {
+          return;
+        }
+        if (onRest) {
+          runOnJS(onRest)();
+        }
+      });
+      animatedBottom.value = withTiming(restBottom, { duration });
+    },
+    [
+      animatedBottom,
+      keyboardReanimated.height,
+      shouldFollowKeyboard,
+      shortBottomFromScreen,
+    ],
+  );
+
   const beginTutorialSmsInboxFocusAfterKeyboardHide = useCallback(() => {
     tutorialSuppressAndroidKeyboardHideRef.current = true;
     tutorialAwaitingKeyboardHideForDimRef.current = true;
-
-    const keyboardHeight = Math.abs(keyboardReanimated.height.value);
-    const restBottom = lastShortBottomRef.current;
-    const parkedBottom =
-      keyboardHeight > 0 ? keyboardHeight + KEYBOARD_GAP : restBottom;
-
-    cancelAnimation(shortBottomFromScreen);
-    cancelAnimation(animatedBottom);
-    shortBottomFromScreen.set(parkedBottom);
-    animatedBottom.set(parkedBottom);
-    shouldFollowKeyboardRef.current = false;
-    shouldFollowKeyboard.set(false);
-    if (Platform.OS === 'android') {
-      androidKeyboardWasVisibleRef.current = false;
-    }
-
-    quickInputRef.current?.blur();
-    Keyboard.dismiss();
-
-    if (Math.abs(parkedBottom - restBottom) < 1) {
-      revealTutorialSmsInboxFocusDim();
-      return;
-    }
-
-    const duration = TUTORIAL_QUICK_INPUT_DESCEND_MS;
-    shortBottomFromScreen.value = withTiming(restBottom, { duration }, (finished) => {
-      if (!finished) {
-        return;
-      }
-      runOnJS(revealTutorialSmsInboxFocusDim)();
-    });
-    animatedBottom.value = withTiming(restBottom, { duration });
-  }, [
-    animatedBottom,
-    keyboardReanimated.height,
-    revealTutorialSmsInboxFocusDim,
-    shouldFollowKeyboard,
-    shortBottomFromScreen,
-  ]);
+    descendQuickInputToRestAfterKeyboardHide(revealTutorialSmsInboxFocusDim);
+  }, [descendQuickInputToRestAfterKeyboardHide, revealTutorialSmsInboxFocusDim]);
 
   const handleTutorialEntryToggleExpanded = useCallback(() => {
     clearTutorialReceiveFocus();
@@ -1799,6 +1937,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
 
   const handleTutorialReceivePress = useCallback(() => {
     clearTutorialReceiveFlowTimers();
+    clearTutorialCreate();
     tutorialSmsInboxFocusVisibleRef.current = false;
     setTutorialSmsInboxFocusVisible(false);
     setSmsInboxChipCutout(null);
@@ -1817,11 +1956,83 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         beginTutorialSmsInboxFocusAfterKeyboardHide();
       }, 1000);
     }, 1000);
-  }, [beginTutorialSmsInboxFocusAfterKeyboardHide, clearTutorialReceiveFlowTimers, setLoading]);
+  }, [
+    beginTutorialSmsInboxFocusAfterKeyboardHide,
+    clearTutorialCreate,
+    clearTutorialReceiveFlowTimers,
+    setLoading,
+  ]);
 
   const handleTutorialReceiveConfirmDismiss = useCallback(() => {
     setTutorialReceiveConfirmVisible(false);
   }, []);
+
+  /**
+   * 간편 기록 생성 체험하기
+   * 1) 입력 잠금 + 글로벌 인디케이터 1s (이전·체험하기 유지)
+   * 2) 컷아웃 stacked 딤
+   * 3) 잠금 상태에서 샘플 문장 타이핑 연출 (키패드는 유지)
+   */
+  const handleTutorialCreatePress = useCallback(() => {
+    clearTutorialReceiveFlowTimers();
+    clearTutorialCreate();
+    setTutorialReceiveConfirmVisible(false);
+    setTutorialReceiveCompleteVisible(false);
+    setTutorialReceiveVirtualBadgeVisible(false);
+    tutorialSmsInboxFocusVisibleRef.current = false;
+    setTutorialSmsInboxFocusVisible(false);
+    setSmsInboxChipCutout(null);
+    setQuickInputText('');
+    tutorialCreateSessionRef.current = true;
+    setTutorialCreateSession(true);
+    setTutorialCreateRecordAddHintVisible(false);
+    setTutorialCreateRecordAddCutout(null);
+    setLoading(true);
+    // 수신 체험과 달리 키패드를 내리지 않음 — 포커스 유지
+    requestAnimationFrame(() => {
+      quickInputRef.current?.focus();
+    });
+    tutorialCreateFlowTimeoutRef.current = setTimeout(() => {
+      setLoading(false);
+      // 딤 구간에도 플레이스홀더(빈 입력) 유지
+      setQuickInputText('');
+      tutorialCreateActiveRef.current = true;
+      setTutorialCreateActive(true);
+      requestAnimationFrame(() => {
+        measureTutorialCreateBarCutout();
+      });
+      // 딤 노출 후 1초 대기 → 플레이스홀더에서 샘플 타이핑 (2초)
+      tutorialCreateFlowTimeoutRef.current = setTimeout(() => {
+        tutorialCreateFlowTimeoutRef.current = null;
+        setQuickInputText('');
+        const sample = TUTORIAL_CREATE_SAMPLE_MESSAGE;
+        const typewriterDurationMs = 2000;
+        const intervalMs = Math.max(
+          1,
+          Math.round(typewriterDurationMs / sample.length),
+        );
+        let typedLength = 0;
+        if (tutorialCreateTypewriterIntervalRef.current != null) {
+          clearInterval(tutorialCreateTypewriterIntervalRef.current);
+        }
+        tutorialCreateTypewriterIntervalRef.current = setInterval(() => {
+          typedLength += 1;
+          setQuickInputText(sample.slice(0, typedLength));
+          if (typedLength >= sample.length) {
+            if (tutorialCreateTypewriterIntervalRef.current != null) {
+              clearInterval(tutorialCreateTypewriterIntervalRef.current);
+              tutorialCreateTypewriterIntervalRef.current = null;
+            }
+          }
+        }, intervalMs);
+      }, 1000);
+    }, 1000);
+  }, [
+    clearTutorialCreate,
+    clearTutorialReceiveFlowTimers,
+    measureTutorialCreateBarCutout,
+    setLoading,
+  ]);
 
   useEffect(() => {
     if (!tutorialSmsInboxFocusVisible) {
@@ -1840,17 +2051,53 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     };
   }, [tutorialSmsInboxFocusVisible, measureSmsInboxChipCutout]);
 
-  // 딤 중 레이아웃 변화 시 수신함 칩 cutout 추적
+  useEffect(() => {
+    if (!tutorialCreateActive) {
+      setTutorialCreateBarCutout(null);
+      return;
+    }
+    const frame = requestAnimationFrame(() => {
+      measureTutorialCreateBarCutout();
+    });
+    const retry = setTimeout(() => {
+      measureTutorialCreateBarCutout();
+    }, 50);
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(retry);
+    };
+  }, [tutorialCreateActive, measureTutorialCreateBarCutout]);
+
+  useEffect(() => {
+    if (!tutorialCreateRecordAddHintVisible) {
+      setTutorialCreateRecordAddCutout(null);
+      return;
+    }
+    const frame = requestAnimationFrame(() => {
+      measureTutorialCreateRecordAddCutout();
+    });
+    const retry = setTimeout(() => {
+      measureTutorialCreateRecordAddCutout();
+    }, 80);
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(retry);
+    };
+  }, [tutorialCreateRecordAddHintVisible, measureTutorialCreateRecordAddCutout, confirmCardData]);
+
+  // 딤 중 레이아웃 변화 시 수신함 칩 / 생성 바 cutout 추적
   useAnimatedReaction(
     () => Math.abs(keyboardReanimated.height.value),
     (height, previous) => {
-      if (!tutorialSmsInboxFocusVisibleRef.current) {
-        return;
-      }
       if (previous !== null && height === previous) {
         return;
       }
-      runOnJS(measureSmsInboxChipCutout)();
+      if (tutorialSmsInboxFocusVisibleRef.current) {
+        runOnJS(measureSmsInboxChipCutout)();
+      }
+      if (tutorialCreateActiveRef.current) {
+        runOnJS(measureTutorialCreateBarCutout)();
+      }
     },
   );
 
@@ -2243,6 +2490,15 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     setTutorialReceiveCompleteVisible(false);
     setTutorialRecordInboxItems(null);
     tutorialRecordInboxItemsRef.current = null;
+    setShouldFollowKeyboard(true);
+    focusQuickInputField();
+  }, [focusQuickInputField, setShouldFollowKeyboard]);
+
+  /** 생성 체험 완료 CTA → 완료 카드·딤만 걷고 간편입력 유지 */
+  const handleTutorialCreateCompleteStart = useCallback(() => {
+    tutorialSuppressAndroidKeyboardHideRef.current = false;
+    tutorialCreateCompleteVisibleRef.current = false;
+    setTutorialCreateCompleteVisible(false);
     setShouldFollowKeyboard(true);
     focusQuickInputField();
   }, [focusQuickInputField, setShouldFollowKeyboard]);
@@ -3043,6 +3299,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     setSmsInboxChipCutout(null);
     tutorialRecordInboxItemsRef.current = null;
     setTutorialRecordInboxItems(null);
+    clearTutorialCreate();
     clearTutorialReceiveFlowTimers();
     setLoading(false);
     setRecordInboxIndex(0);
@@ -3132,7 +3389,21 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     pendingRecordRef.current = null;
     setIsQuickInputSendLoading(false);
     setIsQuickInputConfirmAdding(false);
-  }, [iosKeyboardHeightPrev, iosKeyboardPeakHeight, setShouldFollowKeyboard, overlayStarScale, overlayStarRotate, calculatorTranslateY, amountKeypadTranslateY, editSheetOpenCardTranslateY, editSheetOpenCardOpacity, editSheetOpenInputTranslateY, editSheetOpenInputOpacity]);
+  }, [
+    clearTutorialCreate,
+    clearTutorialReceiveFlowTimers,
+    iosKeyboardHeightPrev,
+    iosKeyboardPeakHeight,
+    setShouldFollowKeyboard,
+    overlayStarScale,
+    overlayStarRotate,
+    calculatorTranslateY,
+    amountKeypadTranslateY,
+    editSheetOpenCardTranslateY,
+    editSheetOpenCardOpacity,
+    editSheetOpenInputTranslateY,
+    editSheetOpenInputOpacity,
+  ]);
 
   const hideQuickInput = useCallback((options?: HideQuickInputOptions) => {
     if (isClosingRef.current || !isQuickInputVisible) {
@@ -3976,11 +4247,71 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       showToast('먼저 생성한 기록을 확인해 주세요.');
       return;
     }
-    const message = quickInputText.trim();
+
     void logEvent('ui', {
       screen_name: '/home',
       target: 'sentence',
     });
+
+    /**
+     * 간편 기록 생성 체험 전송 흐름
+     * 1) 전송 버튼 인디케이터 (키패드 유지)
+     * 2) 가상 기록 카드 노출 → 1초 후 키패드 하강
+     * 3) 추가 버튼 컷아웃 딤
+     */
+    if (tutorialCreateSessionRef.current) {
+      clearTutorialCreateSendHint();
+      setIsQuickInputSendLoading(true);
+      // 전송 Pressable이 포커스를 뺏어도 키패드 유지
+      requestAnimationFrame(() => {
+        quickInputRef.current?.focus();
+      });
+      try {
+        await new Promise<void>((resolve) => {
+          if (tutorialCreateFlowTimeoutRef.current != null) {
+            clearTimeout(tutorialCreateFlowTimeoutRef.current);
+          }
+          tutorialCreateFlowTimeoutRef.current = setTimeout(() => {
+            tutorialCreateFlowTimeoutRef.current = null;
+            resolve();
+          }, TUTORIAL_CREATE_SEND_INDICATOR_MS);
+        });
+        if (!tutorialCreateSessionRef.current) {
+          setIsQuickInputSendLoading(false);
+          return;
+        }
+        setIsQuickInputSendLoading(false);
+        const executedAt = new Date();
+        pendingRecordRef.current = createTutorialCreatePendingRecord(executedAt);
+        setConfirmCardData(createTutorialCreateConfirmCard(executedAt));
+        // 카드 노출 직후 1초간 키패드 유지
+        requestAnimationFrame(() => {
+          quickInputRef.current?.focus();
+        });
+        tutorialCreateFlowTimeoutRef.current = setTimeout(() => {
+          tutorialCreateFlowTimeoutRef.current = null;
+          if (!tutorialCreateSessionRef.current) {
+            return;
+          }
+          descendQuickInputToRestAfterKeyboardHide();
+          tutorialCreateFlowTimeoutRef.current = setTimeout(() => {
+            tutorialCreateFlowTimeoutRef.current = null;
+            if (!tutorialCreateSessionRef.current) {
+              return;
+            }
+            setTutorialCreateRecordAddHintVisible(true);
+            requestAnimationFrame(() => {
+              measureTutorialCreateRecordAddCutout();
+            });
+          }, TUTORIAL_CREATE_ADD_HINT_AFTER_KEYBOARD_MS);
+        }, TUTORIAL_CREATE_KEYBOARD_HIDE_AFTER_CARD_MS);
+      } catch {
+        setIsQuickInputSendLoading(false);
+      }
+      return;
+    }
+
+    const message = quickInputText.trim();
 
     const now = Date.now();
     if (lockEndTimeRef.current > now) {
@@ -4157,11 +4488,14 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       setIsQuickInputSendLoading(false);
     }
   }, [
+    clearTutorialCreateSendHint,
+    descendQuickInputToRestAfterKeyboardHide,
     quickInputText,
     confirmCardData,
     getExpenseCategoriesCached,
     getIncomeCategoriesCached,
     getPaymentSubtypesCached,
+    measureTutorialCreateRecordAddCutout,
     showToast,
   ]);
 
@@ -4184,6 +4518,51 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     setIsQuickInputConfirmAdding(true);
 
     try {
+      /**
+       * 생성 체험: 추가 버튼 인디케이터 1s → 실기록 없이 완료 카드·토스트
+       * (카드·컷아웃 유지한 채 버튼 내 스피너 노출)
+       */
+      if (tutorialCreateSessionRef.current) {
+        await new Promise<void>((resolve) => {
+          if (tutorialCreateFlowTimeoutRef.current != null) {
+            clearTimeout(tutorialCreateFlowTimeoutRef.current);
+          }
+          tutorialCreateFlowTimeoutRef.current = setTimeout(() => {
+            tutorialCreateFlowTimeoutRef.current = null;
+            resolve();
+          }, TUTORIAL_CREATE_ADD_INDICATOR_MS);
+        });
+        if (!tutorialCreateSessionRef.current) {
+          return;
+        }
+        pendingRecordRef.current = null;
+        setConfirmCardData(null);
+        setQuickInputText('');
+        if (tutorialCreateTypewriterIntervalRef.current != null) {
+          clearInterval(tutorialCreateTypewriterIntervalRef.current);
+          tutorialCreateTypewriterIntervalRef.current = null;
+        }
+        tutorialCreateActiveRef.current = false;
+        setTutorialCreateActive(false);
+        tutorialCreateSessionRef.current = false;
+        setTutorialCreateSession(false);
+        setTutorialCreateBarCutout(null);
+        setTutorialCreateRecordAddHintVisible(false);
+        setTutorialCreateRecordAddCutout(null);
+        tutorialSuppressAndroidKeyboardHideRef.current = true;
+        setShouldFollowKeyboard(false);
+        quickInputRef.current?.blur();
+        Keyboard.dismiss();
+        tutorialCreateCompleteVisibleRef.current = true;
+        setTutorialCreateCompleteVisible(true);
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            showToast('기록 생성이 완료되었습니다.');
+          });
+        });
+        return;
+      }
+
       const saved = await persistPendingParseRecord(pending, {
         getPaymentSubtypesCached,
         refresh,
@@ -4194,13 +4573,22 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       }
       pendingRecordRef.current = null;
       setConfirmCardData(null);
+      clearTutorialCreate();
       hideQuickInput();
       showToast('기록 생성이 완료되었습니다.');
     } finally {
       setIsQuickInputConfirmAdding(false);
       isConfirmAddInFlightRef.current = false;
     }
-  }, [getPaymentSubtypesCached, hideQuickInput, isQuickInputConfirmAdding, refresh, showToast]);
+  }, [
+    clearTutorialCreate,
+    getPaymentSubtypesCached,
+    hideQuickInput,
+    isQuickInputConfirmAdding,
+    refresh,
+    setShouldFollowKeyboard,
+    showToast,
+  ]);
 
   const handleConfirmCardCancel = useCallback(() => {
     void logEvent('btn', {
@@ -4210,7 +4598,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     pendingRecordRef.current = null;
     setConfirmCardData(null);
     setIsQuickInputConfirmCardRevealPaused(false);
-  }, []);
+    clearTutorialCreate();
+  }, [clearTutorialCreate]);
 
   const handleConfirmCardChange = useCallback(() => {
     void logEvent('btn', {
@@ -4221,6 +4610,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     if (!pending) {
       return;
     }
+    clearTutorialCreate();
     recordInboxEditingItemIdRef.current = null;
 
     if (editSheetCloseTimeoutRef.current) {
@@ -4310,7 +4700,17 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       setQuickInputEditSheetVisible(true);
       setIsQuickInputEditOpening(false);
     });
-  }, [calculatorTranslateY, confirmCardData?.categoryEmoji, editSheetOpenCardOpacity, editSheetOpenCardTranslateY, editSheetOpenInputOpacity, editSheetOpenInputTranslateY, resetAndroidKeyboardFollowPeak, setShouldFollowKeyboard]);
+  }, [
+    calculatorTranslateY,
+    clearTutorialCreate,
+    confirmCardData?.categoryEmoji,
+    editSheetOpenCardOpacity,
+    editSheetOpenCardTranslateY,
+    editSheetOpenInputOpacity,
+    editSheetOpenInputTranslateY,
+    resetAndroidKeyboardFollowPeak,
+    setShouldFollowKeyboard,
+  ]);
 
   const updateQuickInputEditDraft = useCallback((patch: Partial<QuickInputEditDraft>) => {
     setQuickInputEditDraft((current) => (current ? { ...current, ...patch } : current));
@@ -4883,8 +5283,15 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     if (tutorialSmsInboxFocusVisibleRef.current) {
       return;
     }
+    // 간편 기록 생성 체험(전송·추가 힌트): 바깥 탭으로 닫지 않음
+    if (tutorialCreateSessionRef.current) {
+      return;
+    }
     // 체험 완료 카드: CTA로만 종료
-    if (tutorialReceiveCompleteVisibleRef.current) {
+    if (
+      tutorialReceiveCompleteVisibleRef.current ||
+      tutorialCreateCompleteVisibleRef.current
+    ) {
       return;
     }
     if (quickInputEditSheetVisible || isQuickInputEditSheetClosing || isQuickInputEditOpening) {
@@ -5159,7 +5566,11 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                 <View
                   style={styles.tutorialEntryLayer}
                   pointerEvents={
-                    tutorialSmsInboxFocusVisible || tutorialReceiveCompleteVisible
+                    tutorialSmsInboxFocusVisible ||
+                    tutorialReceiveCompleteVisible ||
+                    tutorialCreateCompleteVisible ||
+                    tutorialCreateActive ||
+                    tutorialCreateSession
                       ? 'none'
                       : 'box-none'
                   }
@@ -5170,6 +5581,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                     onToggleExpanded={handleTutorialEntryToggleExpanded}
                     onClose={handleQuickInputBackdropPress}
                     onReceivePress={handleTutorialReceivePress}
+                    onCreatePress={handleTutorialCreatePress}
                   />
                   {tutorialReceiveConfirmVisible && !tutorialReceiveCompleteVisible ? (
                     <QuickInputTutorialReceiveConfirmCard
@@ -5181,21 +5593,45 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
               {tutorialSmsInboxFocusVisible ? (
                 <QuickInputSmsInboxFocusDim chipBounds={smsInboxChipCutout} />
               ) : null}
+              {/*
+                Figma tutorialCreateSendHint.overlayDimStacked — 칩·키패드 위,
+                create bar 컷아웃. tip/pointer 포함. (1차 overlayDim은 backdrop)
+              */}
+              {tutorialCreateActive ? (
+                <QuickInputTutorialCreateSendHintDim
+                  createBarBounds={tutorialCreateBarCutout}
+                />
+              ) : null}
+              {tutorialCreateRecordAddHintVisible ? (
+                <QuickInputTutorialCreateRecordAddHintDim
+                  addButtonBounds={tutorialCreateRecordAddCutout}
+                />
+              ) : null}
               {isQuickInputContentVisible && (
                 <RNAnimated.View
                   pointerEvents="box-none"
-                  style={[styles.longContentLayer, { opacity: quickInputLongOpacity }]}
+                  style={[
+                    styles.longContentLayer,
+                    { opacity: quickInputLongOpacity },
+                  ]}
                 >
                   <Pressable
                     style={styles.backdropTouchArea}
                     pointerEvents={
-                      tutorialSmsInboxFocusVisible || tutorialReceiveCompleteVisible
+                      tutorialSmsInboxFocusVisible ||
+                      tutorialReceiveCompleteVisible ||
+                      tutorialCreateCompleteVisible ||
+                      tutorialCreateActive ||
+                      tutorialCreateRecordAddHintVisible
                         ? 'none'
                         : 'auto'
                     }
                     onPressIn={
                       tutorialSmsInboxFocusVisible ||
                       tutorialReceiveCompleteVisible ||
+                      tutorialCreateCompleteVisible ||
+                      tutorialCreateActive ||
+                      tutorialCreateRecordAddHintVisible ||
                       !(
                         Platform.OS === 'android' &&
                         !quickInputEditSheetVisible &&
@@ -5210,7 +5646,11 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                         : handleQuickInputBackdropPress
                     }
                     onPress={
-                      tutorialSmsInboxFocusVisible || tutorialReceiveCompleteVisible
+                      tutorialSmsInboxFocusVisible ||
+                      tutorialReceiveCompleteVisible ||
+                      tutorialCreateCompleteVisible ||
+                      tutorialCreateActive ||
+                      tutorialCreateRecordAddHintVisible
                         ? undefined
                         : handleQuickInputBackdropPress
                     }
@@ -5232,6 +5672,16 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                         onCancel={handleConfirmCardCancel}
                         onChange={handleConfirmCardChange}
                         addLoading={isQuickInputConfirmAdding}
+                        confirmAddButtonAnchorRef={
+                          tutorialCreateSession
+                            ? tutorialConfirmAddButtonAnchorRef
+                            : undefined
+                        }
+                        onConfirmAddButtonLayout={
+                          tutorialCreateRecordAddHintVisible
+                            ? measureTutorialCreateRecordAddCutout
+                            : undefined
+                        }
                       />
                     </RNAnimated.View>
                   )}
@@ -5331,7 +5781,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                           style={styles.actionRowScroll}
                           contentContainerStyle={styles.actionRow}
                           keyboardShouldPersistTaps="handled"
-                          scrollEnabled={!tutorialSmsInboxFocusVisible}
+                          scrollEnabled={!tutorialSmsInboxFocusVisible && !tutorialCreateActive}
                         >
                             <Pressable
                               ref={smsInboxChipRef}
@@ -5342,6 +5792,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                                   ? measureSmsInboxChipCutout
                                   : undefined
                               }
+                              disabled={tutorialCreateActive}
+                              pointerEvents={tutorialCreateActive ? 'none' : 'auto'}
                               accessibilityRole="button"
                               accessibilityLabel={
                                 tutorialReceiveVirtualBadgeVisible
@@ -5350,6 +5802,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                                     ? `기록 수신함, 미처리 ${recordInboxItems.length}건`
                                     : '기록 수신함'
                               }
+                              accessibilityState={{ disabled: tutorialCreateActive }}
                             >
                               <View style={styles.actionIconBox}>
                                 <Icon name="message" variant="solid" size={24} />
@@ -5373,11 +5826,17 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                             <Pressable
                               style={styles.actionChip}
                               onPress={handleQuickInputCalculatorPress}
-                              disabled={tutorialSmsInboxFocusVisible}
-                              pointerEvents={tutorialSmsInboxFocusVisible ? 'none' : 'auto'}
+                              disabled={tutorialSmsInboxFocusVisible || tutorialCreateActive}
+                              pointerEvents={
+                                tutorialSmsInboxFocusVisible || tutorialCreateActive
+                                  ? 'none'
+                                  : 'auto'
+                              }
                               accessibilityRole="button"
                               accessibilityLabel="계산기"
-                              accessibilityState={{ disabled: tutorialSmsInboxFocusVisible }}
+                              accessibilityState={{
+                                disabled: tutorialSmsInboxFocusVisible || tutorialCreateActive,
+                              }}
                             >
                               <View style={styles.actionIconBox}>
                                 <Icon name="calculator" variant="solid" size={24} />
@@ -5387,11 +5846,17 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                             <Pressable
                               style={styles.actionChip}
                               onPress={handleQuickInputCategorySettingPress}
-                              disabled={tutorialSmsInboxFocusVisible}
-                              pointerEvents={tutorialSmsInboxFocusVisible ? 'none' : 'auto'}
+                              disabled={tutorialSmsInboxFocusVisible || tutorialCreateActive}
+                              pointerEvents={
+                                tutorialSmsInboxFocusVisible || tutorialCreateActive
+                                  ? 'none'
+                                  : 'auto'
+                              }
                               accessibilityRole="button"
                               accessibilityLabel="카테고리 설정"
-                              accessibilityState={{ disabled: tutorialSmsInboxFocusVisible }}
+                              accessibilityState={{
+                                disabled: tutorialSmsInboxFocusVisible || tutorialCreateActive,
+                              }}
                             >
                               <View style={styles.actionIconBox}>
                                 <Icon name="categorySetting" variant="solid" size={24} />
@@ -5399,7 +5864,14 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                               <Text style={styles.actionLabel}>카테고리 설정</Text>
                             </Pressable>
                         </ScrollView>
-                        <View style={styles.edgeContent}>
+                        <View
+                          ref={tutorialCreateBarAnchorRef}
+                          style={styles.edgeContent}
+                          collapsable={false}
+                          onLayout={
+                            tutorialCreateActive ? measureTutorialCreateBarCutout : undefined
+                          }
+                        >
                           <QuickInputField
                             ref={quickInputRef}
                             value={quickInputText}
@@ -5413,8 +5885,12 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                             onCancel={handleCancel}
                             sendLoading={isQuickInputSendLoading}
                             sendDisabled={
-                              confirmCardData != null || tutorialSmsInboxFocusVisible
+                              confirmCardData != null ||
+                              tutorialSmsInboxFocusVisible ||
+                              (tutorialCreateSession &&
+                                quickInputText !== TUTORIAL_CREATE_SAMPLE_MESSAGE)
                             }
+                            inputLocked={tutorialCreateSession}
                           />
                         </View>
                       </RNAnimated.View>
@@ -5465,7 +5941,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                 완료 추가 딤: entry(z4)·메인 위, 완료 카드(z6) 아래.
                 Reanimated 딤 루트는 형제 zIndex를 깨서 plain View + overlayDim 사용.
               */}
-              {tutorialReceiveCompleteVisible ? (
+              {tutorialReceiveCompleteVisible || tutorialCreateCompleteVisible ? (
                 <View
                   style={[
                     styles.tutorialStackedDimLayer,
@@ -5480,6 +5956,13 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                 <View style={styles.tutorialAboveDimLayer} pointerEvents="box-none">
                   <QuickInputTutorialReceiveCompleteCard
                     onStartPress={handleTutorialReceiveCompleteStart}
+                  />
+                </View>
+              ) : null}
+              {tutorialCreateCompleteVisible ? (
+                <View style={styles.tutorialAboveDimLayer} pointerEvents="box-none">
+                  <QuickInputTutorialCreateCompleteCard
+                    onStartPress={handleTutorialCreateCompleteStart}
                   />
                 </View>
               ) : null}
@@ -6453,6 +6936,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     zIndex: 1,
+    elevation: 1,
   },
   normalInputStack: {
     gap: 12,

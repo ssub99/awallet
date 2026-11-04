@@ -10,12 +10,12 @@ import {
   type KeyboardEvent,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
-  type ScrollView,
-  type TextInput,
+  type ScrollViewInstance,
+  type TextInputInstance,
 } from 'react-native';
 
 type UseRecordFormMemoKeyboardParams = {
-  scrollViewRef: RefObject<ScrollView | null>;
+  scrollViewRef: RefObject<ScrollViewInstance | null>;
   memoSectionYRef: RefObject<number>;
   memoSectionHeightRef: RefObject<number>;
   windowHeight: number;
@@ -44,7 +44,7 @@ export function useRecordFormMemoKeyboard({
   safeAreaBottom,
 }: UseRecordFormMemoKeyboardParams) {
   const debugLog = (_event: string, _payload?: Record<string, unknown>) => {};
-  const memoInputRef = useRef<TextInput>(null);
+  const memoInputRef = useRef<TextInputInstance>(null);
   const scrollYRef = useRef(0);
   const isMemoFocusedRef = useRef(false);
   const suppressKeyboardHideBlurRef = useRef(false);

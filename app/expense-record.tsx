@@ -109,11 +109,13 @@ import {
     Platform,
     Pressable,
     ScrollView,
+    type ScrollViewInstance,
     StyleSheet,
     Text,
-    TextInputKeyPressEventData,
+    type TextInputKeyPressEvent,
     useWindowDimensions,
-    View
+    View,
+    type ViewInstance,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -381,7 +383,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
   const screenFunnelSaveIntentRef = useRef<ScreenFunnelSaveIntent>('complete');
   const screenFunnelSavedCountRef = useRef(0);
   const analyticsScreenName = resolveExpenseRecordAnalyticsScreenName(creationContext);
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<ScrollViewInstance>(null);
 
   // Form state
   const today = new Date();
@@ -992,7 +994,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     width: number;
     height: number;
   } | null>(null);
-  const settlementButtonRef = useRef<View>(null);
+  const settlementButtonRef = useRef<ViewInstance>(null);
   const settlementActionLockRef = useRef<boolean>(false);
   const settlementMenuOpacity = useRef(new Animated.Value(0)).current;
   const settlementMenuScale = useRef(new Animated.Value(0.94)).current;
@@ -1235,8 +1237,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     setMemo(text.replace(/[\r\n]/g, ''));
   }, []);
 
-  const handleMemoKeyPress = useCallback((event: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
-    if (event.nativeEvent.key === 'Enter') {
+  const handleMemoKeyPress = useCallback((event: TextInputKeyPressEvent) => {
+    const key = event.nativeEvent.key;
+    if (key === 'Enter') {
       Keyboard.dismiss();
     }
   }, []);
@@ -1679,7 +1682,9 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
       return;
     }
 
-    const unsubscribe = navigation.addListener('beforeRemove', () => {
+    const unsubscribe = (navigation as unknown as {
+      addListener: (event: 'beforeRemove', callback: () => void) => () => void;
+    }).addListener('beforeRemove', () => {
       if (!quickInputDraftCompletedRef.current) {
         cancelQuickInputExpenseEdit();
       }

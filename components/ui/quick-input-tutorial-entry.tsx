@@ -31,7 +31,7 @@ const FIGMA_STATUS_BAR = 44;
 const FIGMA_CLOSE = { left: 16, top: 48, width: 48, height: 48 } as const;
 const FIGMA_CHIP = { top: 48, height: 48, right: 16 } as const;
 const FIGMA_CARDS = { left: 16, top: 104, height: 124, gap: 8 } as const;
-const CARD_RADIUS = 20;
+const CARD_RADIUS = 24;
 const CARD_PAD = 16;
 const CARD_ICON_SIZE = 36;
 

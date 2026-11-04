@@ -43,6 +43,7 @@ import {
   NativeSyntheticEvent,
   Platform,
   ScrollView,
+  type ScrollViewInstance,
   StyleSheet,
   Text,
   View,
@@ -339,7 +340,7 @@ function CalendarMainInner({
     return Math.floor(remainingHeight / weeks);
   }, [weeksForDayCellHeight, insets.bottom, containerHeight, showTitle]);
 
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<ScrollViewInstance>(null);
   const scrollOffsetRef = useRef(CALENDAR_CENTER_SCROLL_X);
   const [scrollInitialized, setScrollInitialized] = useState(false);
 

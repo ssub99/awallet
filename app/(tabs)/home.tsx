@@ -74,7 +74,9 @@ export default function HomeScreen() {
   const { updateCalendarContext } = useCreateSheetContext();
   const { setLoading } = useLoading();
   const pendingOpsRef = useRef(0);
-  const appState = useRef<AppStateStatus>(AppState.currentState);
+  const appState = useRef<AppStateStatus>(
+    (AppState.currentState as AppStateStatus | null | undefined) ?? 'active',
+  );
   const insets = useSafeAreaInsets();
   void insets;
   

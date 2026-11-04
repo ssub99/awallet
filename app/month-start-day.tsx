@@ -25,10 +25,9 @@ import { rebuildCalendarDataFromStores } from '@/utils/rebuild-calendar-data';
 import { cancelChallengeProgressNotifications, cancelChallengeSuccessNotification, notifyChallengeFailure, notifyChallengeProgress, notifyChallengeSuccess } from '@/utils/notification-scheduler';
 import { refreshWidgetWithCurrentMonth } from '@/utils/widget-data-sync';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation } from "expo-router/react-navigation";
-import { useRouter } from 'expo-router';
+import { useNavigation, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, type ScrollViewInstance, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const MONTH_START_DAY_UPDATED_AT_KEY = 'monthStartDayUpdatedAt';
@@ -41,7 +40,7 @@ export default function MonthStartDayScreen() {
   
   const [selectedDay, setSelectedDay] = useState(1);
   const [initialDay, setInitialDay] = useState(1); // 원래 값 저장
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const [viewportHeight, setViewportHeight] = useState(0);
 
   // 챌린지 재생성 로직
@@ -284,7 +283,12 @@ export default function MonthStartDayScreen() {
 
   // Save on screen exit (hardware back button or gesture)
   useEffect(() => {
-    const unsubscribe = navigation.addListener('beforeRemove', async (e) => {
+    const unsubscribe = (navigation as unknown as {
+      addListener: (
+        event: 'beforeRemove',
+        callback: (event: { preventDefault: () => void }) => Promise<void>,
+      ) => () => void;
+    }).addListener('beforeRemove', async (e) => {
       // 변경이 있으면 저장
       if (selectedDay !== initialDay) {
         try {

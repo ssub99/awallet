@@ -26,7 +26,7 @@ import {
   StyleSheet,
   TouchableWithoutFeedback,
   View,
-  type TextInput,
+  type TextInputInstance,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -81,7 +81,7 @@ export function NoticeFormScreen({
     onInputFocus,
     onInputBlur,
   } = useAndroidKeyboardBottomCtaHide();
-  const contentInputRef = useRef<TextInput>(null);
+  const contentInputRef = useRef<TextInputInstance>(null);
 
   const [title, setTitle] = useState(initialValues.title);
   const [content, setContent] = useState(initialValues.content);

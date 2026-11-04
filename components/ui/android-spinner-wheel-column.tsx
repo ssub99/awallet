@@ -11,6 +11,7 @@ import {
   NativeScrollEvent,
   NativeSyntheticEvent,
   ScrollView,
+  type ScrollViewInstance,
   StyleSheet,
   Text,
   View,
@@ -41,7 +42,7 @@ export function AndroidSpinnerWheelColumn({
 }: AndroidSpinnerWheelColumnProps) {
   const colorScheme = useColorScheme();
   const palette = colors[colorScheme ?? 'light'] as ColorPalette;
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const isUserScrollingRef = useRef(false);
   const isInitializedRef = useRef(false);
   const lastSyncedValueRef = useRef<number | undefined>(undefined);

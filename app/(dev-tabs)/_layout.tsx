@@ -6,12 +6,15 @@ import { Icon } from '@/components/ui/icon';
 import { colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
+export const unstable_settings = {
+  initialRouteName: 'components',
+};
+
 export default function DevTabLayout() {
   const colorScheme = useColorScheme();
 
   return (
     <Tabs
-      initialRouteName="components"
       tabBar={(props) => <TabBar {...props} />}
       screenOptions={{
         tabBarActiveTintColor: colors[colorScheme ?? 'light'].tint,

@@ -48,8 +48,7 @@ import {
   type ScreenFunnelSaveIntent,
 } from '@/utils/expense-record-creation-mode';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation } from "expo-router/react-navigation";
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     Animated,
@@ -59,9 +58,10 @@ import {
     NativeSyntheticEvent,
     Pressable,
     ScrollView,
+    type ScrollViewInstance,
     StyleSheet,
     Text,
-    TextInputKeyPressEventData,
+    type TextInputKeyPressEvent,
     useWindowDimensions,
     View,
 } from 'react-native';
@@ -311,8 +311,9 @@ export default function IncomeRecordScreen() {
     }
   }, []);
 
-  const handleMemoKeyPress = useCallback((event: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
-    if (event.nativeEvent.key === 'Enter') {
+  const handleMemoKeyPress = useCallback((event: TextInputKeyPressEvent) => {
+    const key = event.nativeEvent.key;
+    if (key === 'Enter') {
       Keyboard.dismiss();
     }
   }, []);
@@ -364,7 +365,9 @@ export default function IncomeRecordScreen() {
       return;
     }
 
-    const unsubscribe = navigation.addListener('beforeRemove', () => {
+    const unsubscribe = (navigation as unknown as {
+      addListener: (event: 'beforeRemove', callback: () => void) => () => void;
+    }).addListener('beforeRemove', () => {
       if (!quickInputDraftCompletedRef.current) {
         cancelQuickInputRecordEdit();
       }
@@ -378,7 +381,7 @@ export default function IncomeRecordScreen() {
   const [showCategoryAlert, setShowCategoryAlert] = useState<boolean>(false);
 
   // Scroll reference
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<ScrollViewInstance>(null);
   
   // Section position tracking
   const [amountSectionY, setAmountSectionY] = useState(0);

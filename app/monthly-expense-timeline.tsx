@@ -35,12 +35,12 @@ import {
   Animated,
   Dimensions,
   GestureResponderEvent,
-  InteractionManager,
   Platform,
   PanResponder,
   PanResponderGestureState,
   Pressable,
   ScrollView,
+  type ScrollViewInstance,
   StyleSheet,
   Text,
   useWindowDimensions,
@@ -50,6 +50,29 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /** dateStripContent paddingHorizontal과 동일 — 스크롤 오프셋·레이아웃 일치 */
 const DATE_STRIP_PADDING_HORIZONTAL = 8;
+
+type IdleCallbackToken = number | ReturnType<typeof setTimeout>;
+
+function runWhenIdle(task: () => void): IdleCallbackToken {
+  const requestIdle = (globalThis as {
+    requestIdleCallback?: (callback: () => void) => number;
+  }).requestIdleCallback;
+  if (requestIdle) {
+    return requestIdle(task);
+  }
+  return setTimeout(task, 0);
+}
+
+function cancelIdleTask(token: IdleCallbackToken): void {
+  const cancelIdle = (globalThis as {
+    cancelIdleCallback?: (handle: number) => void;
+  }).cancelIdleCallback;
+  if (cancelIdle && typeof token === 'number') {
+    cancelIdle(token);
+    return;
+  }
+  clearTimeout(token as ReturnType<typeof setTimeout>);
+}
 
 // 카테고리별 이모지 매핑 (통합 카테고리 로드)
 const useCategoryEmojiMap = () => {
@@ -389,7 +412,7 @@ export default function MonthlyExpenseTimelineScreen() {
   const monthTransitionFadeInRef = useRef(false);
   /** 합계·날짜 스트립 chrome 고정 (ref만으로는 첫 페인트에 새 월이 잠깐 노출됨) */
   const [monthTransitionActive, setMonthTransitionActive] = useState(false);
-  const dateStripScrollRef = useRef<ScrollView>(null);
+  const dateStripScrollRef = useRef<ScrollViewInstance>(null);
   const dateStripScrollXRef = useRef(0);
   /** 월 전환 직후 contentSize 확정 시 스트립 스냅 (말일 레이아웃 지연 대비) */
   const shouldSnapDateStripRef = useRef(false);
@@ -464,7 +487,7 @@ export default function MonthlyExpenseTimelineScreen() {
 
   const weekDayLabels = ['일', '월', '화', '수', '목', '금', '토'];
 
-  const timelineScrollRef = useRef<ScrollView>(null);
+  const timelineScrollRef = useRef<ScrollViewInstance>(null);
   const DATE_CELL_WIDTH = 42;
   /** 날짜 스트립 선택 원형 (calendar-day-select와 동일한 Android 클리핑 패턴) */
   const WEEK_DAY_CIRCLE_SIZE = 36;
@@ -596,13 +619,13 @@ export default function MonthlyExpenseTimelineScreen() {
     };
 
     if (Platform.OS === 'android') {
-      const interaction = InteractionManager.runAfterInteractions(runScroll);
+      const idleHandle = runWhenIdle(runScroll);
       return () => {
         cancelled = true;
         if (timeoutId) {
           clearTimeout(timeoutId);
         }
-        interaction.cancel();
+        cancelIdleTask(idleHandle);
       };
     }
 
@@ -638,8 +661,13 @@ export default function MonthlyExpenseTimelineScreen() {
   }, [buildHomeCalendarTarget]);
 
   useEffect(() => {
-    const unsubBlur = navigation.addListener('blur', () => pushHomeCalendarTarget());
-    const unsubBeforeRemove = navigation.addListener('beforeRemove', () => pushHomeCalendarTarget());
+    const navWithListeners = navigation as unknown as {
+      addListener: (event: 'blur' | 'beforeRemove', callback: () => void) => () => void;
+    };
+    const unsubBlur = navWithListeners.addListener('blur', () => pushHomeCalendarTarget());
+    const unsubBeforeRemove = navWithListeners.addListener('beforeRemove', () =>
+      pushHomeCalendarTarget(),
+    );
     return () => {
       unsubBlur();
       unsubBeforeRemove();

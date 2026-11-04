@@ -1,3 +1,5 @@
+import { colors, spacing } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useLoading } from '@/contexts/loading-context';
 import React from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
@@ -5,6 +7,8 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 /** Root overlay (not RN Modal) — iOS present/pop crash with 기록 시트. */
 export const GlobalProgressBar: React.FC = () => {
   const { isLoading } = useLoading();
+  const colorScheme = useColorScheme();
+  const palette = colors[colorScheme ?? 'light'];
 
   if (!isLoading) {
     return null;
@@ -12,8 +16,13 @@ export const GlobalProgressBar: React.FC = () => {
 
   return (
     <View style={styles.overlay} pointerEvents="auto">
-      <View style={styles.indicatorContainer}>
-        <ActivityIndicator size="small" />
+      <View
+        style={[
+          styles.indicatorContainer,
+          { backgroundColor: palette.overlayDim },
+        ]}
+      >
+        <ActivityIndicator size="small" color={palette.staticWhite} />
       </View>
     </View>
   );
@@ -28,5 +37,11 @@ const styles = StyleSheet.create({
     zIndex: 100020,
     elevation: 100020,
   },
-  indicatorContainer: {},
+  indicatorContainer: {
+    width: spacing[1100],
+    height: spacing[1100],
+    borderRadius: spacing[1100] / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

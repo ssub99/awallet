@@ -61,9 +61,12 @@ function applyAndroidNoticeViewerStatusBar(style: 'light' | 'dark') {
     return;
   }
 
-  // SDK 57+: translucent/backgroundColor moved off expo-status-bar; use RN StatusBar.
-  StatusBar.setTranslucent(true);
-  StatusBar.setBackgroundColor('transparent', true);
+  const androidStatusBar = StatusBar as unknown as {
+    setTranslucent?: (translucent: boolean) => void;
+    setBackgroundColor?: (color: string, animated?: boolean) => void;
+  };
+  androidStatusBar.setTranslucent?.(true);
+  androidStatusBar.setBackgroundColor?.('transparent', true);
   ExpoStatusBar.setStatusBarStyle(style, true);
 }
 

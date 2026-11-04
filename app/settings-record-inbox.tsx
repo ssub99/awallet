@@ -67,6 +67,7 @@ import {
   ScrollView,
   StyleSheet,
   TextInput,
+  type TextInputInstance,
   View,
 } from 'react-native';
 import {
@@ -106,7 +107,7 @@ export default function SettingsRecordInboxScreen() {
     insets.top > 0 ? insets.top : (initialWindowMetrics?.insets.top ?? 0);
   const { setLoading } = useLoading();
   const { showToast } = useToast();
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<TextInputInstance>(null);
   const addOverlayVisibleRef = useRef(false);
   const addKeyboardWasVisibleRef = useRef(false);
   const isAddClosingRef = useRef(false);

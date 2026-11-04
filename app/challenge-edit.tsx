@@ -27,16 +27,15 @@ import { loadCategories } from '@/utils/categories';
 import { cancelChallengeFailureNotification, cancelChallengeProgressNotifications, cancelChallengeSuccessNotification } from '@/utils/notification-scheduler';
 import { getChallengeById, getChallengesByRecurringId, softDeleteChallengesByRecurringId, updateChallengesByRecurringId, type ChallengeRecord } from '@/utils/challenges';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, Dimensions, Easing, Keyboard, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Alert, Animated, Dimensions, Easing, Keyboard, Pressable, ScrollView, type ScrollViewInstance, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function ChallengeEditScreen() {
   const colorScheme = useColorScheme();
   const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   const router = useRouter();
-  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
   const KEYPAD_HEIGHT = getKeypadHeight(windowWidth);
@@ -62,7 +61,7 @@ export default function ChallengeEditScreen() {
   const [recurringCount, setRecurringCount] = useState<number>(1);
   const [monthStartDay, setMonthStartDay] = useState<number>(1);
   const [amountSectionY, setAmountSectionY] = useState(0);
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<ScrollViewInstance>(null);
   const dismissTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Delete confirmation modal state
@@ -393,20 +392,12 @@ export default function ChallengeEditScreen() {
       Keyboard.dismiss();
       const now = new Date();
       setTimeout(() => {
-        (navigation as any).reset({
-          index: 0,
-          routes: [
-            {
-              name: '(tabs)',
-              params: {
-                screen: 'challenge',
-                params: {
-                  year: now.getFullYear().toString(),
-                  month: (now.getMonth() + 1).toString(),
-                },
-              },
-            },
-          ],
+        router.replace({
+          pathname: '/(tabs)/challenge',
+          params: {
+            year: now.getFullYear().toString(),
+            month: (now.getMonth() + 1).toString(),
+          },
         });
       }, 50);
     } catch (error) {
@@ -449,20 +440,12 @@ export default function ChallengeEditScreen() {
       Keyboard.dismiss();
       const now = new Date();
       setTimeout(() => {
-        (navigation as any).reset({
-          index: 0,
-          routes: [
-            {
-              name: '(tabs)',
-              params: {
-                screen: 'challenge',
-                params: {
-                  year: now.getFullYear().toString(),
-                  month: (now.getMonth() + 1).toString(),
-                },
-              },
-            },
-          ],
+        router.replace({
+          pathname: '/(tabs)/challenge',
+          params: {
+            year: now.getFullYear().toString(),
+            month: (now.getMonth() + 1).toString(),
+          },
         });
       }, 50);
     } catch (error) {

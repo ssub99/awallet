@@ -1,11 +1,10 @@
 import type { RefObject } from 'react';
 import {
   Dimensions,
-  InteractionManager,
   Platform,
   type KeyboardEvent,
-  type ScrollView,
-  type TextInput,
+  type ScrollViewInstance,
+  type TextInputInstance,
 } from 'react-native';
 
 import {
@@ -94,12 +93,12 @@ export function getDescriptionKeyboardScrollPaddingBottom(
 }
 
 type ScrollScrollViewSectionParams = {
-  scrollViewRef: RefObject<ScrollView | null>;
+  scrollViewRef: RefObject<ScrollViewInstance | null>;
   sectionYRef: RefObject<number>;
   sectionHeightRef: RefObject<number>;
   scrollYRef: RefObject<number>;
   keyboardEnd: KeyboardEndCoordinates;
-  inputRef?: RefObject<TextInput | null>;
+  inputRef?: RefObject<TextInputInstance | null>;
   windowHeight?: number;
   onScrollAttemptResult?: (result: {
     moved: boolean;
@@ -109,8 +108,19 @@ type ScrollScrollViewSectionParams = {
   }) => void;
 };
 
+function runWhenIdle(task: () => void): void {
+  const requestIdle = (globalThis as {
+    requestIdleCallback?: (callback: () => void) => number;
+  }).requestIdleCallback;
+  if (requestIdle) {
+    requestIdle(task);
+    return;
+  }
+  setTimeout(task, 0);
+}
+
 function runAfterAndroidKeyboardLayout(task: () => void): void {
-  InteractionManager.runAfterInteractions(() => {
+  runWhenIdle(() => {
     requestAnimationFrame(() => {
       requestAnimationFrame(task);
     });
@@ -146,7 +156,7 @@ export function scrollScrollViewSectionAboveKeyboard({
     };
 
     if (inputRef?.current) {
-      inputRef.current.measureInWindow((_x, inputTop, _w, inputHeight) => {
+      inputRef.current.measureInWindow((_x: number, inputTop: number, _w: number, inputHeight: number) => {
         const overflow = inputTop + inputHeight - targetMeasuredInputBottom;
         if (overflow <= 0) {
           onScrollAttemptResult?.({ moved: false, overflow, scrollYBefore, targetY: scrollYBefore });

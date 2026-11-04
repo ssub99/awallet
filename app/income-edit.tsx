@@ -33,19 +33,18 @@ import {
   Animated,
   Dimensions,
   Easing,
-  InteractionManager,
   Keyboard,
   NativeSyntheticEvent,
   Pressable,
   ScrollView,
+  type ScrollViewInstance,
   StyleSheet,
   Text,
-  TextInputKeyPressEventData,
+  type TextInputKeyPressEvent,
   useWindowDimensions,
   View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from "expo-router/react-navigation";
 
 /**
  * 요일 계산 함수
@@ -64,11 +63,25 @@ interface IncomeRecordData {
   timestamp: number;
 }
 
+function emitCalendarRefreshWhenIdle(): void {
+  const requestIdle = (globalThis as {
+    requestIdleCallback?: (callback: () => void) => number;
+  }).requestIdleCallback;
+  if (requestIdle) {
+    requestIdle(() => {
+      calendarRefreshEvent.emit();
+    });
+    return;
+  }
+  setTimeout(() => {
+    calendarRefreshEvent.emit();
+  }, 0);
+}
+
 export default function IncomeEditScreen() {
   const colorScheme = useColorScheme();
   const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   const router = useRouter();
-  const navigation = useNavigation();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const KEYPAD_HEIGHT = getKeypadHeight(windowWidth);
   interface GoHomeOptions {
@@ -86,31 +99,21 @@ export default function IncomeEditScreen() {
         console.warn('[income-edit] Failed to store pending target:', error);
       }
 
-      (navigation as any).reset({
-        index: 0,
-        routes: [
-          {
-            name: '(tabs)',
-            params: {
-              screen: 'home',
-              params: {
-                targetYear: year.toString(),
-                targetMonth: month.toString(),
-                targetDate,
-                periodType: 'month',
-              },
-            },
-          },
-        ],
+      router.replace({
+        pathname: '/(tabs)/home',
+        params: {
+          targetYear: year.toString(),
+          targetMonth: month.toString(),
+          targetDate,
+          periodType: 'month',
+        },
       });
 
       if (refresh) {
-        InteractionManager.runAfterInteractions(() => {
-          calendarRefreshEvent.emit();
-        });
+        emitCalendarRefreshWhenIdle();
       }
     },
-    [navigation]
+    [router]
   );
   const insets = useSafeAreaInsets();
   const { setLoading } = useLoading();
@@ -150,8 +153,9 @@ export default function IncomeEditScreen() {
     }
   }, []);
 
-  const handleMemoKeyPress = useCallback((event: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
-    if (event.nativeEvent.key === 'Enter') {
+  const handleMemoKeyPress = useCallback((event: TextInputKeyPressEvent) => {
+    const key = event.nativeEvent.key;
+    if (key === 'Enter') {
       Keyboard.dismiss();
     }
   }, []);
@@ -203,7 +207,7 @@ export default function IncomeEditScreen() {
   }, [showNoChangesModal]);
 
   // Scroll reference
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<ScrollViewInstance>(null);
   
   // Section position tracking
   const [amountSectionY, setAmountSectionY] = useState(0);

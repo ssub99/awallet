@@ -1,12 +1,12 @@
 <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Figma categoryHintPointer: dashed curve + down arrowhead (tip centered, not left-flush) -->
+  <!-- Figma categoryHintPointer — dash 전송/추가 힌트와 동일 (5 4) -->
   <path
     d="M31.5 0.8C21.8 0.8 12.2 1.4 7.2 5.2C4.2 7.5 2.3 11.8 1.5 17.8V22.5"
     stroke="#FFFFFF"
     stroke-width="1.75"
     stroke-linecap="round"
     stroke-linejoin="round"
-    stroke-dasharray="3.4 0.9"
+    stroke-dasharray="3 2"
   />
   <path d="M0.1 22.5H4.3L2.2 31.6Z" fill="#FFFFFF"/>
 </svg>

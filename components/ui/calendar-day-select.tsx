@@ -27,6 +27,7 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  type ScrollViewInstance,
   StyleSheet,
   Text,
   View,
@@ -214,7 +215,7 @@ function CalendarDaySelectInner({
   const pendingSwipeSlotsRef = useRef<CalendarMonthSlot[] | null>(null);
   const pendingSwipeMonthChangeRef = useRef<{ year: number; month: number } | null>(null);
 
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<ScrollViewInstance>(null);
   const scrollOffsetRef = useRef(CALENDAR_CENTER_SCROLL_X);
   const suppressMomentumUntilRef = useRef(0);
   const swipeCooldownUntilRef = useRef(0);

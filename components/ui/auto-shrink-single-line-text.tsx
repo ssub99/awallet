@@ -6,11 +6,10 @@ import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { resolveTextStyleMetrics } from '@/constants/typography/merge';
 import {
   LayoutChangeEvent,
-  NativeSyntheticEvent,
   StyleSheet,
   Text,
+  type TextLayoutEvent,
   type TextStyle,
-  TextLayoutEventData,
   View,
   type ViewStyle,
 } from 'react-native';
@@ -174,7 +173,7 @@ export const AutoShrinkSingleLineText = memo(function AutoShrinkSingleLineText({
   );
 
   const onVisibleTextLayout = useCallback(
-    (event: NativeSyntheticEvent<TextLayoutEventData>) => {
+    (event: TextLayoutEvent) => {
       if (availableWidth <= 0) return;
       const lineWidth = event.nativeEvent.lines[0]?.width ?? 0;
       if (lineWidth <= 0) {
