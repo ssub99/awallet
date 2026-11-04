@@ -5,6 +5,9 @@
  *
  * 히트: 컷아웃 밖만 차단 → 아래 수신함 칩만 탭 가능
  * 컷아웃 밖 탭은 흡수만 하고 딤/오버레이를 닫지 않는다 (튜토리얼 전용).
+ *
+ * 스택: zIndex/elevation은 plain View 루트에만 둔다.
+ * Reanimated opacity를 루트에 붙이면 형제 overlay(underDim/aboveDim) zIndex가 깨진다.
  */
 
 import { colors } from '@/constants/theme';
@@ -38,8 +41,10 @@ export type QuickInputSmsInboxFocusDimProps = {
   /** window 좌표 칩 bounds (measureInWindow). null이면 전체 딤만 */
   chipBounds: SmsInboxFocusCutout | null;
   cutoutPad?: number;
-  /** 칩 cornerRadius (기본 24) */
+  /** 칩 cornerRadius (기본 24) — cutoutCornerRadius 미지정 시 pad와 합산 */
   chipRadius?: number;
+  /** 컷아웃 코너 반경 고정값 (지정 시 chipRadius+pad 대신 사용) */
+  cutoutCornerRadius?: number;
 };
 
 function roundedRectPath(
@@ -71,6 +76,7 @@ export function QuickInputSmsInboxFocusDim({
   chipBounds,
   cutoutPad = SMS_INBOX_FOCUS_CUTOUT_PAD,
   chipRadius = SMS_INBOX_CHIP_RADIUS,
+  cutoutCornerRadius,
 }: QuickInputSmsInboxFocusDimProps) {
   const colorScheme = useColorScheme();
   const palette = colors[colorScheme ?? 'light'];
@@ -96,7 +102,11 @@ export function QuickInputSmsInboxFocusDim({
     : null;
 
   const cutoutRadius = cutout
-    ? Math.min(chipRadius + cutoutPad, cutout.width / 2, cutout.height / 2)
+    ? Math.min(
+        cutoutCornerRadius ?? chipRadius + cutoutPad,
+        cutout.width / 2,
+        cutout.height / 2,
+      )
     : 0;
 
   const dimColor = palette.overlayDim;
@@ -118,12 +128,17 @@ export function QuickInputSmsInboxFocusDim({
 
   if (!cutout) {
     return (
-      <Animated.View
-        style={[styles.root, fadeStyle, { backgroundColor: dimColor }]}
+      <View
+        style={styles.root}
         pointerEvents="auto"
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
-      />
+      >
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.fadeFill, fadeStyle, { backgroundColor: dimColor }]}
+        />
+      </View>
     );
   }
 
@@ -134,21 +149,22 @@ export function QuickInputSmsInboxFocusDim({
   const rightW = Math.max(0, screenW - (cutout.x + cutout.width));
 
   return (
-    <Animated.View
-      style={[styles.root, fadeStyle]}
+    <View
+      style={styles.root}
       pointerEvents="box-none"
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
     >
-      {/* 시각: evenodd 라운드 컷아웃 */}
-      <Svg
-        width={screenW}
-        height={screenH}
-        style={StyleSheet.absoluteFill}
-        pointerEvents="none"
-      >
-        <Path d={dimPath} fill={dimColor} fillRule="evenodd" />
-      </Svg>
+      <Animated.View style={[styles.fadeFill, fadeStyle]} pointerEvents="none">
+        <Svg
+          width={screenW}
+          height={screenH}
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+        >
+          <Path d={dimPath} fill={dimColor} fillRule="evenodd" />
+        </Svg>
+      </Animated.View>
 
       {/* 히트: 컷아웃 밖만 차단 (사각 — 라운드 모서리는 통과) */}
       <View
@@ -183,15 +199,19 @@ export function QuickInputSmsInboxFocusDim({
           },
         ]}
       />
-    </Animated.View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  /** 형제 overlay와 zIndex를 맞추는 스택 셸 — opacity/native-drive 금지 */
   root: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 5,
     elevation: 5,
+  },
+  fadeFill: {
+    ...StyleSheet.absoluteFillObject,
   },
   block: {
     position: 'absolute',

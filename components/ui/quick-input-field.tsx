@@ -20,6 +20,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  type TextInputInstance,
   TextInputProps,
   View,
 } from 'react-native';
@@ -78,7 +79,7 @@ export interface QuickInputFieldProps extends Omit<TextInputProps, 'style'> {
 /**
  * Quick Input Field Component
  */
-export const QuickInputField = forwardRef<TextInput, QuickInputFieldProps>(
+export const QuickInputField = forwardRef<TextInputInstance, QuickInputFieldProps>(
   function QuickInputField(
     {
       value = '',
@@ -98,10 +99,10 @@ export const QuickInputField = forwardRef<TextInput, QuickInputFieldProps>(
     const colorScheme = useColorScheme();
     const palette = colors[colorScheme ?? 'light'] as ColorPalette;
 
-    const inputRef = useRef<TextInput>(null);
+    const inputRef = useRef<TextInputInstance>(null);
     
     // 외부 ref를 내부 inputRef에 연결
-    useImperativeHandle(ref, () => inputRef.current as TextInput);
+    useImperativeHandle(ref, () => inputRef.current as TextInputInstance);
     
     const hasValue = value && value.length > 0;
     

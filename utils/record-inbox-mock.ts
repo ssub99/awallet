@@ -34,6 +34,52 @@ function buildOriginalBody(amount: number, month: number, day: number): string {
   ].join('\n');
 }
 
+/** 기록 수신 체험용 가상 1건 id (스토어에 쓰지 않음) */
+export const TUTORIAL_RECEIVE_RECORD_INBOX_ITEM_ID = 'sms-tutorial-receive-1';
+
+/**
+ * Figma Home_month_quickInputSmsInbox_categoryHint 시안 가상 데이터
+ * 원문·카드 날짜 = 체험 실행 시점 (로컬 달력일)
+ */
+export function createTutorialReceiveRecordInboxItem(
+  executedAt: Date = new Date(),
+): RecordInboxItem {
+  const year = executedAt.getFullYear();
+  const month = executedAt.getMonth() + 1;
+  const day = executedAt.getDate();
+  const amount = 7_300;
+  const mm = String(month).padStart(2, '0');
+  const dd = String(day).padStart(2, '0');
+  const originalBody = [
+    '[Web발신]',
+    '신한카드(1928)승인 김*렛',
+    `7,300원(일시불)${mm}/${dd} 21:46 쿠팡`,
+    '누적 530,300원',
+  ].join('\n');
+  const createdAt = executedAt.toISOString();
+  const approvedAt = new Date(year, month - 1, day, 21, 46).toISOString();
+  const card = buildConfirmCardFromRecordInboxFields({ amount, year, month, day });
+  return {
+    id: TUTORIAL_RECEIVE_RECORD_INBOX_ITEM_ID,
+    senderLabels: ['+82 1544-7200'],
+    sender: '+82 1544-7200',
+    originalBody,
+    rawBody: originalBody,
+    status: 'approved',
+    amount,
+    approvedAt,
+    merchant: '쿠팡',
+    cardHint: '1928',
+    createdAt,
+    card: {
+      ...card,
+      // Figma recordCardPaymentIconWrap fill ≈ #2170FF · 라벨 신한카드
+      paymentType: '신한카드',
+      paymentTypeColor: '#2170FF',
+    },
+  };
+}
+
 /** 시안 배지(10) · 페이저(01/10)에 맞춘 목업 목록 */
 export function createRecordInboxMockItems(): RecordInboxItem[] {
   const year = new Date().getFullYear();
