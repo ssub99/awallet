@@ -21,17 +21,31 @@ configureForegroundNotificationHandler();
 export const unstable_settings = rootLayoutUnstableSettings;
 
 export default function RootLayout() {
-  const { palette, onLayoutRootView, showApp } = useRootLayoutBootstrap();
+  const { palette, onLayoutRootView, showApp, needsOnboarding, markRouteGateReady } =
+    useRootLayoutBootstrap();
+
+  const stackRouteNames =
+    needsOnboarding === true
+      ? ([
+          'onboarding',
+          ...ROOT_STACK_ROUTE_NAMES.filter((name) => name !== 'onboarding'),
+        ] as unknown as typeof ROOT_STACK_ROUTE_NAMES)
+      : ROOT_STACK_ROUTE_NAMES;
 
   return (
     <RootLayoutShell
       backgroundColor={palette.background}
       onLayoutRootView={onLayoutRootView}
       showApp={showApp}
+      needsOnboarding={needsOnboarding}
+      onOnboardingGateSettled={markRouteGateReady}
       navigation={
         showApp ? (
-          <Stack screenOptions={ROOT_STACK_SCREEN_OPTIONS}>
-            {ROOT_STACK_ROUTE_NAMES.map((name) => (
+          <Stack
+            initialRouteName={needsOnboarding === true ? 'onboarding' : '(tabs)'}
+            screenOptions={ROOT_STACK_SCREEN_OPTIONS}
+          >
+            {stackRouteNames.map((name) => (
               <Stack.Screen
                 key={name}
                 name={name}

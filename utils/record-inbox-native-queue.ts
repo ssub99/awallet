@@ -66,6 +66,7 @@ async function acknowledgePendingItems(ids: string[]): Promise<void> {
 /**
  * 네이티브 대기 큐를 기존 ingest 파이프라인으로 적재한다.
  * peek → 항목별 ingest → 성공(ok)한 id만 ack. 실패는 큐에 남겨 재시도.
+ * @returns 새로 append된 건수 (안내 카드 스케줄용). cancel 제거는 제외.
  */
 export function flushPendingRecordInboxFromNative(): Promise<number> {
   const run = flushChain.then(async () => {
@@ -73,6 +74,7 @@ export function flushPendingRecordInboxFromNative(): Promise<number> {
       return 0;
     }
     const items = await peekPendingList();
+    let appended = 0;
 
     for (const entry of items) {
       const body = normalizeRecordInboxOriginalBody(entry.body ?? '');
@@ -84,6 +86,9 @@ export function flushPendingRecordInboxFromNative(): Promise<number> {
           source: entry.source === 'app' ? 'app' : 'sms',
         });
         if (result.ok) {
+          if (result.action === 'appended') {
+            appended += 1;
+          }
           if (entry.id) {
             await acknowledgePendingItems([entry.id]);
           }
@@ -106,7 +111,7 @@ export function flushPendingRecordInboxFromNative(): Promise<number> {
       }
     }
 
-    return items.length;
+    return appended;
   });
 
   flushChain = run.then(

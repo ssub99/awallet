@@ -25,6 +25,7 @@ import {
 } from '@/utils/notification-scheduler';
 import { initializePaymentSubtypes } from '@/utils/payment-types';
 import { ensureNoticeInstallBaseline } from '@/utils/notice-read-state';
+import { shouldShowOnboarding } from '@/utils/onboarding-settings';
 import { showStoreUpdateAlert } from '@/utils/show-store-update-alert';
 import {
   consumeWidgetTrampolineSplashOnAndroid,
@@ -53,6 +54,10 @@ export function useRootLayoutBootstrap() {
   const colorScheme: 'light' = 'light';
   const [splashFinished, setSplashFinished] = useState(false);
   const [appIsReady, setAppIsReady] = useState(false);
+  /** null = 아직 판정 전. Stack 마운트 전에 채워 홈 선렌더를 막음 */
+  const [needsOnboarding, setNeedsOnboarding] = useState<boolean | null>(null);
+  /** 온보딩 화면 확정(또는 스킵) 전엔 스플래시 유지 */
+  const [routeGateReady, setRouteGateReady] = useState(false);
   const [storeUpdateGate, setStoreUpdateGate] = useState<StoreUpdateGateState | null>(null);
   const storeAlertPresentedRef = useRef(false);
   const storeGateResumeFromBackgroundRef = useRef(false);
@@ -109,10 +114,19 @@ export function useRootLayoutBootstrap() {
           app_version: getAppVersion() ?? 'unknown',
         });
 
+        // Stack 마운트 전에 온보딩 여부 확정 — 이후 initialRouteName/커버에 사용
+        const showOnboarding = await shouldShowOnboarding();
+        setNeedsOnboarding(showOnboarding);
+        if (!showOnboarding) {
+          setRouteGateReady(true);
+        }
+
         setSplashFinished(true);
         setAppIsReady(true);
       } catch (e) {
         console.warn('스플래시 처리 중 오류:', e);
+        setNeedsOnboarding(false);
+        setRouteGateReady(true);
         setSplashFinished(true);
         setAppIsReady(true);
       }
@@ -170,12 +184,16 @@ export function useRootLayoutBootstrap() {
     appIsReady &&
     fontsReady &&
     splashFinished &&
+    needsOnboarding != null &&
     !(storeUpdateGate?.forceUpdate === true);
 
   const splashHiddenRef = useRef(false);
+  const markRouteGateReady = useCallback(() => {
+    setRouteGateReady(true);
+  }, []);
 
   const hideSplashWhenReady = useCallback(async () => {
-    if (!showApp || splashHiddenRef.current) {
+    if (!showApp || !routeGateReady || splashHiddenRef.current) {
       return;
     }
     splashHiddenRef.current = true;
@@ -183,7 +201,7 @@ export function useRootLayoutBootstrap() {
       await dismissWidgetMainSplashOverlayOnAndroid();
     }
     await SplashScreen.hideAsync();
-  }, [showApp]);
+  }, [routeGateReady, showApp]);
 
   useEffect(() => {
     hideSplashWhenReady().catch(() => {});
@@ -285,5 +303,11 @@ export function useRootLayoutBootstrap() {
     return () => sub.remove();
   }, []);
 
-  return { palette, onLayoutRootView, showApp };
+  return {
+    palette,
+    onLayoutRootView,
+    showApp,
+    needsOnboarding,
+    markRouteGateReady,
+  };
 }

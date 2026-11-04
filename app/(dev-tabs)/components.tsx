@@ -53,6 +53,10 @@ import { useRouter } from 'expo-router';
 import { getExpoNotifications } from '@/utils/expo-notifications-client';
 import { clearRecordInboxItems, seedDevRecordInboxItemsForPushTest } from '@/utils/record-inbox-store';
 import { incrementDevNoticeUnreadBonus } from '@/utils/notice-read-state';
+import {
+  RECORD_RECEIVE_GUIDE_CARD_DELAY_MS,
+  scheduleRecordReceiveGuideCard,
+} from '@/utils/record-receive-guide-card-event';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -826,6 +830,43 @@ function TestContent({ colors }: { colors: ColorPalette }) {
         >
           <Text style={[styles.testButtonText, { color: colors.staticWhite }]}>
             📩 가기록 더미 10건 추가
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={[styles.testButton, { backgroundColor: '#1565C0', marginTop: 8 }]}
+          onPress={async () => {
+            try {
+              const { seeded, total } = await seedDevRecordInboxItemsForPushTest(1);
+              scheduleRecordReceiveGuideCard(Math.max(1, seeded), RECORD_RECEIVE_GUIDE_CARD_DELAY_MS);
+              alert(
+                `가기록 ${seeded}건 시드 · 큐 ${total}건\n` +
+                  `${RECORD_RECEIVE_GUIDE_CARD_DELAY_MS / 1000}초 후 현재 화면 위에 「기록 수신 안내」카드가 표시됩니다.\n` +
+                  '탭하면 홈 → 간편입력 → 수신함 순으로 열립니다.',
+              );
+            } catch (error) {
+              console.error('[record-receive-guide][dev-ui] schedule failed', error);
+              alert('기록 수신 안내 카드 테스트 예약 중 오류가 발생했습니다.');
+            }
+          }}
+        >
+          <Text style={[styles.testButtonText, { color: colors.staticWhite }]}>
+            📬 기록 수신 안내 카드 (3초)
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={[styles.testButton, { backgroundColor: '#0D47A1', marginTop: 8 }]}
+          onPress={() => {
+            scheduleRecordReceiveGuideCard(1, 0);
+            alert(
+              '「기록 수신 안내」카드를 즉시 표시합니다. (시드 없음)\n' +
+                '탭하면 홈 → 간편입력 → 수신함 순으로 열립니다.',
+            );
+          }}
+        >
+          <Text style={[styles.testButtonText, { color: colors.staticWhite }]}>
+            📬 기록 수신 안내 카드 (즉시·시드없음)
           </Text>
         </Pressable>
 

@@ -41,6 +41,10 @@ import {
   isDateInCustomMonth,
   parseCalendarDateKeyLocal,
 } from '@/utils/custom-month';
+import {
+  consumeHomePendingOpenRecordInbox,
+  subscribeHomePendingOpenRecordInbox,
+} from '@/utils/home-open-record-inbox-pending';
 import { saveMonthlyExpenseToWidget } from '@/utils/widget-data-sync';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
@@ -80,8 +84,15 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   void insets;
   
-  const { isQuickInputContentVisible, isQuickInputShortVisible, showQuickInput } =
-    useQuickInputContext();
+  const {
+    isQuickInputContentVisible,
+    isQuickInputShortVisible,
+    showQuickInput,
+    openQuickInputRecordInboxFromGuide,
+  } = useQuickInputContext();
+  const openQuickInputRecordInboxFromGuideRef = useRef(openQuickInputRecordInboxFromGuide);
+  openQuickInputRecordInboxFromGuideRef.current = openQuickInputRecordInboxFromGuide;
+  const isHomeFocusedRef = useRef(false);
 
   const isQuickInputShortHidden = isQuickInputContentVisible && !isQuickInputShortVisible;
   const beginLoad = useCallback(() => {
@@ -718,6 +729,43 @@ export default function HomeScreen() {
     [showQuickInput, starScale, starRotate]
   );
 
+  /**
+   * 기록 수신 안내 카드 → 홈 포커스 후에만 pending 소비.
+   * (백그라운드 마운트 홈이 먼저 소비해 버리는 레이스 방지)
+   */
+  const tryConsumeOpenRecordInboxPending = useCallback(() => {
+    if (!isContentReady || !isHomeFocusedRef.current) {
+      return;
+    }
+    if (!consumeHomePendingOpenRecordInbox()) {
+      return;
+    }
+    openQuickInputRecordInboxFromGuideRef.current(starScale, starRotate);
+  }, [isContentReady, starRotate, starScale]);
+
+  useFocusEffect(
+    useCallback(() => {
+      isHomeFocusedRef.current = true;
+      tryConsumeOpenRecordInboxPending();
+      return () => {
+        isHomeFocusedRef.current = false;
+      };
+    }, [tryConsumeOpenRecordInboxPending]),
+  );
+
+  useEffect(() => {
+    return subscribeHomePendingOpenRecordInbox(() => {
+      tryConsumeOpenRecordInboxPending();
+    });
+  }, [tryConsumeOpenRecordInboxPending]);
+
+  useEffect(() => {
+    if (!isContentReady || !isHomeFocusedRef.current) {
+      return;
+    }
+    tryConsumeOpenRecordInboxPending();
+  }, [isContentReady, tryConsumeOpenRecordInboxPending]);
+
   useEffect(() => {
     if (!isContentReady) {
       contentOpacity.setValue(0);
@@ -1064,6 +1112,7 @@ export default function HomeScreen() {
         <Icon name="addTaskFab" variant="line" size={24} color={iconWhite} />
       </Pressable>
 
+      {/* 기록 수신 안내 카드는 root-layout-shell 전역 마운트 */}
       {isContentReady && <NoticeCard />}
     </View>
   );

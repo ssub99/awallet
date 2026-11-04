@@ -313,6 +313,14 @@ interface QuickInputContextValue {
     options?: ShowQuickInputOptions
   ) => void;
   hideQuickInput: (options?: HideQuickInputOptions) => void;
+  /**
+   * 홈 「기록 수신 안내」카드 → 간편입력 표시 직후 기록 수신함 오픈.
+   * (키패드 자동 포커스 없음)
+   */
+  openQuickInputRecordInboxFromGuide: (
+    starScale: AnimatedValue,
+    starRotate: AnimatedValue,
+  ) => void;
   quickInputText: string;
   setQuickInputText: (text: string) => void;
 }
@@ -2737,6 +2745,75 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     shortBottomFromScreen,
   ]);
 
+  const pendingOpenRecordInboxRef = useRef(false);
+
+  const openRecordInboxIfReady = useCallback(() => {
+    clearTutorialReceiveFocus();
+    if (!recordInboxReceiveEnabled) {
+      showToast('수신 기능을 사용 설정해 주세요.', {
+        label: '바로가기',
+        onPress: () => {
+          hideQuickInputRef.current({ simultaneous: true });
+          setSettingsTabPendingPush('/settings-record-inbox');
+          router.navigate('/mypage');
+        },
+      });
+      return false;
+    }
+    if (recordInboxItemsRef.current.length === 0) {
+      showToast('수신된 기록이 존재하지 않습니다.');
+      return false;
+    }
+    return beginOpenQuickInputRecordInbox();
+  }, [
+    beginOpenQuickInputRecordInbox,
+    clearTutorialReceiveFocus,
+    recordInboxReceiveEnabled,
+    router,
+    showToast,
+  ]);
+
+  const flushPendingOpenRecordInbox = useCallback(() => {
+    if (!pendingOpenRecordInboxRef.current) {
+      return;
+    }
+    if (!isQuickInputVisibleRef.current) {
+      return;
+    }
+    pendingOpenRecordInboxRef.current = false;
+    void openRecordInboxIfReady();
+  }, [openRecordInboxIfReady]);
+
+  /**
+   * 안내 카드용: 간편입력 연 뒤 기록 수신함까지 한 경로로 연다.
+   */
+  const openQuickInputRecordInboxFromGuide = useCallback(
+    (starScale: AnimatedValue, starRotate: AnimatedValue) => {
+      pendingOpenRecordInboxRef.current = true;
+      showQuickInput(starScale, starRotate, undefined, { autoFocus: false });
+      // 이미 열려 있으면 visible effect가 안 도므로 레이아웃 후 직접 flush
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          flushPendingOpenRecordInbox();
+        });
+      });
+    },
+    [flushPendingOpenRecordInbox, showQuickInput],
+  );
+
+  useEffect(() => {
+    if (!isQuickInputVisible || !pendingOpenRecordInboxRef.current) {
+      return;
+    }
+    // 간편입력 레이어 커밋 후 수신함 오픈
+    const frame = requestAnimationFrame(() => {
+      flushPendingOpenRecordInbox();
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+    };
+  }, [flushPendingOpenRecordInbox, isQuickInputVisible]);
+
   const handleQuickInputRecordInboxPress = useCallback(() => {
     const isTutorialReceiveFocus =
       tutorialSmsInboxFocusVisibleRef.current || tutorialReceiveVirtualBadgeVisible;
@@ -2757,32 +2834,12 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       return;
     }
 
-    clearTutorialReceiveFocus();
-    if (!recordInboxReceiveEnabled) {
-      showToast('수신 기능을 사용 설정해 주세요.', {
-        label: '바로가기',
-        onPress: () => {
-          hideQuickInputRef.current({ simultaneous: true });
-          setSettingsTabPendingPush('/settings-record-inbox');
-          router.navigate('/mypage');
-        },
-      });
-      return;
-    }
-    if (recordInboxItems.length === 0) {
-      showToast('수신된 기록이 존재하지 않습니다.');
-      return;
-    }
-    beginOpenQuickInputRecordInbox();
+    void openRecordInboxIfReady();
   }, [
     beginOpenQuickInputRecordInbox,
     clearTutorialReceiveFlowTimers,
-    clearTutorialReceiveFocus,
-    recordInboxItems.length,
-    recordInboxReceiveEnabled,
-    router,
+    openRecordInboxIfReady,
     setLoading,
-    showToast,
     tutorialReceiveVirtualBadgeVisible,
   ]);
 
@@ -5461,6 +5518,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       recordInboxUnreadCount: recordInboxReceiveEnabled ? recordInboxItems.length : 0,
       showQuickInput,
       hideQuickInput,
+      openQuickInputRecordInboxFromGuide,
       quickInputText,
       setQuickInputText: setQuickInputTextTruncated,
     }),
@@ -5470,6 +5528,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       isQuickInputVisible,
       showQuickInput,
       hideQuickInput,
+      openQuickInputRecordInboxFromGuide,
       quickInputText,
       setQuickInputTextTruncated,
       recordInboxItems.length,

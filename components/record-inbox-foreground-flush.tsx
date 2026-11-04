@@ -1,10 +1,13 @@
-/** 포그라운드 네이티브 큐 enqueue → flush. 화면은 열지 않고 인디케이터만 표시. */
+/** 포그라운드 네이티브 큐 enqueue → flush. 화면은 열지 않고 인디케이터만 표시.
+ *  append 성공 시 홈 「기록 수신 안내」카드 3초 예약.
+ */
 
 import { useLoading } from '@/contexts/loading-context';
 import {
   flushPendingRecordInboxFromNative,
   subscribeRecordInboxPendingEnqueued,
 } from '@/utils/record-inbox-native-queue';
+import { scheduleRecordReceiveGuideCard } from '@/utils/record-receive-guide-card-event';
 import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 
@@ -22,7 +25,10 @@ export function RecordInboxForegroundFlush() {
       void (async () => {
         setLoading(true);
         try {
-          await flushPendingRecordInboxFromNative();
+          const appended = await flushPendingRecordInboxFromNative();
+          if (appended > 0 && generation === generationRef.current) {
+            scheduleRecordReceiveGuideCard(appended);
+          }
         } finally {
           if (generation === generationRef.current) {
             setLoading(false);
