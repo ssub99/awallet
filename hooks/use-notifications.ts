@@ -74,7 +74,14 @@ export async function requestNotificationPermission(): Promise<boolean> {
       return false;
     }
     // 항상 request 호출 — 이미 granted/denied면 OS가 모달 없이 즉시 반환
-    const { status } = await Notifications.requestPermissionsAsync();
+    // iOS badge: 기록 수신함 앱 아이콘 뱃지용
+    const { status } = await Notifications.requestPermissionsAsync({
+      ios: {
+        allowAlert: true,
+        allowBadge: true,
+        allowSound: true,
+      },
+    });
     return status === 'granted';
   } catch (error) {
 
@@ -179,7 +186,13 @@ export async function requestNotificationPermissionThenOpenSettings(): Promise<S
   // undetermined / canAskAgain → OS 시스템 모달
   // denied + 다시 못 물음 → 모달 스킵 후 설정
   if (before.status !== 'denied' || before.canAskAgain === true) {
-    await Notifications.requestPermissionsAsync();
+    await Notifications.requestPermissionsAsync({
+      ios: {
+        allowAlert: true,
+        allowBadge: true,
+        allowSound: true,
+      },
+    });
   }
 
   openAppNotificationSettings();

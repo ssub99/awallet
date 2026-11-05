@@ -15,6 +15,9 @@ import com.ssong.awallet.R
 import com.ssong.awallet.widget.ExpoSplashScreenReset
 import com.ssong.awallet.widget.MainActivityHolder
 import com.ssong.awallet.widget.MainActivityLifecycle
+import com.ssong.awallet.widget.RecordInboxLaunchExtras
+import com.ssong.awallet.widget.RecordInboxNativeEventEmitter
+import com.ssong.awallet.widget.RecordInboxNativeStore
 import com.ssong.awallet.widget.WidgetDebugLog
 import com.ssong.awallet.widget.WidgetLaunchExtras
 import com.ssong.awallet.widget.WidgetLaunchPrefs
@@ -46,6 +49,7 @@ class MainActivity : ReactActivity() {
     supportFragmentManager.fragmentFactory = RNScreensFragmentFactory()
     super.onCreate(null)
     MainActivityHolder.attach(this)
+    captureOpenRecordInboxExtra(intent)
     if (!shouldShowWidgetColdSplash(intent)) {
       WidgetLaunchPrefs.clearTrampolineSplashPending(applicationContext)
     }
@@ -64,7 +68,18 @@ class MainActivity : ReactActivity() {
     WidgetDebugLog.d("MainActivity.onNewIntent")
     super.onNewIntent(intent)
     setIntent(intent)
+    captureOpenRecordInboxExtra(intent)
     applyWidgetColdSplashIfNeeded(intent)
+  }
+
+  /** 기록 수신함 뱃지 알림 탭 → JS가 flush 후 수신함 오픈하도록 pending 기록 */
+  private fun captureOpenRecordInboxExtra(intent: Intent?) {
+    if (intent?.getBooleanExtra(RecordInboxLaunchExtras.EXTRA_OPEN_RECORD_INBOX, false) != true) {
+      return
+    }
+    RecordInboxNativeStore.markOpenRecordInboxPending(applicationContext)
+    intent.removeExtra(RecordInboxLaunchExtras.EXTRA_OPEN_RECORD_INBOX)
+    RecordInboxNativeEventEmitter.emitOpenRecordInboxPending()
   }
 
   override fun getMainComponentName(): String = "main"

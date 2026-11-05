@@ -200,6 +200,33 @@ class WidgetDataSyncModule(reactContext: ReactApplicationContext) :
     }
   }
 
+  /** JS 수신함 실건수 → lastSynced + 아이콘 뱃지(조용한 알림) 재맞춤 */
+  @ReactMethod
+  fun setRecordInboxSyncedCount(count: Int, promise: Promise) {
+    try {
+      RecordInboxNativeStore.setLastSyncedInboxCount(
+        reactApplicationContext.applicationContext,
+        count,
+      )
+      promise.resolve(null)
+    } catch (e: Exception) {
+      promise.reject("ERROR", "Failed to sync record inbox badge count: ${e.message}", e)
+    }
+  }
+
+  /** 뱃지 알림 탭 등 → 수신함 오픈 pending 1회 소비 */
+  @ReactMethod
+  fun consumeOpenRecordInboxPending(promise: Promise) {
+    try {
+      val pending = RecordInboxNativeStore.consumeOpenRecordInboxPending(
+        reactApplicationContext.applicationContext,
+      )
+      promise.resolve(pending)
+    } catch (e: Exception) {
+      promise.reject("ERROR", "Failed to consume open-record-inbox pending: ${e.message}", e)
+    }
+  }
+
   @ReactMethod
   fun isSmsInboxNotificationAccessEnabled(promise: Promise) {
     try {

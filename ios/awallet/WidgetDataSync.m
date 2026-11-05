@@ -26,4 +26,11 @@ RCT_EXTERN_METHOD(acknowledgePendingSmsInbox:(NSArray *)ids
 RCT_EXTERN_METHOD(getSmsInboxLastIntent:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
+RCT_EXTERN_METHOD(setRecordInboxSyncedCount:(nonnull NSNumber *)count
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+
+RCT_EXTERN_METHOD(clearSmsInboxNativeState:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+
 @end

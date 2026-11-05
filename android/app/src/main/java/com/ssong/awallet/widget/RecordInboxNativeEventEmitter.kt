@@ -11,6 +11,7 @@ import java.lang.ref.WeakReference
 
 object RecordInboxNativeEventEmitter {
   const val EVENT_PENDING_ENQUEUED = "SmsInboxPendingEnqueued"
+  const val EVENT_OPEN_RECORD_INBOX = "RecordInboxOpenPending"
   private const val ACTION_PENDING_ENQUEUED = "com.ssong.awallet.action.SMS_INBOX_PENDING_ENQUEUED"
 
   private var reactContextRef: WeakReference<ReactApplicationContext>? = null
@@ -49,11 +50,20 @@ object RecordInboxNativeEventEmitter {
   }
 
   fun emitPendingEnqueued() {
+    emit(EVENT_PENDING_ENQUEUED)
+  }
+
+  /** 뱃지 알림 탭 (앱 이미 떠 있을 때) → JS flush 후 수신함 오픈 */
+  fun emitOpenRecordInboxPending() {
+    emit(EVENT_OPEN_RECORD_INBOX)
+  }
+
+  private fun emit(eventName: String) {
     val reactContext = reactContextRef?.get() ?: return
     if (!reactContext.hasActiveReactInstance()) return
     reactContext
       .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-      .emit(EVENT_PENDING_ENQUEUED, null)
+      .emit(eventName, null)
   }
 
   /** :sms_listener 프로세스에서 호출 — 앱 프로세스의 [attach] 리시버로 전달한다. */

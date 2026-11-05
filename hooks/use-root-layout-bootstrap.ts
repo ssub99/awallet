@@ -32,6 +32,7 @@ import {
   refreshWidgetWithCurrentMonth,
   resetMonthlyExpenseMaskInWidget,
 } from '@/utils/widget-data-sync';
+import { consumeRecordInboxBadgeOpenPendingAfterFlush } from '@/utils/record-inbox-badge-open';
 import { flushPendingRecordInboxFromNative } from '@/utils/record-inbox-native-queue';
 import { syncSmsReceiveSettingsToNative } from '@/utils/record-inbox-receive-settings';
 import {
@@ -273,7 +274,7 @@ export function useRootLayoutBootstrap() {
     return () => sub.remove();
   }, [appIsReady]);
 
-  /** iOS App Intent / Android SMS Receiver 대기 큐 → 기존 ingest */
+  /** iOS App Intent / Android SMS Receiver 대기 큐 → 기존 ingest · 뱃지 알림 탭 pending */
   useEffect(() => {
     if (
       !appIsReady ||
@@ -284,6 +285,8 @@ export function useRootLayoutBootstrap() {
     const syncAndFlush = async () => {
       await syncSmsReceiveSettingsToNative();
       await flushPendingRecordInboxFromNative();
+      // cold start: MainActivity가 남긴 뱃지 탭 pending 소비 (구독 전 emit 대비)
+      await consumeRecordInboxBadgeOpenPendingAfterFlush();
     };
     void syncAndFlush();
     const sub = AppState.addEventListener('change', (next: AppStateStatus) => {

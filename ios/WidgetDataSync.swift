@@ -1,5 +1,7 @@
 import Foundation
 import React
+import UIKit
+import UserNotifications
 import WidgetKit
 
 @objc(WidgetDataSync)
@@ -149,6 +151,28 @@ class WidgetDataSync: RCTEventEmitter {
     resolve(RecordInboxAppGroupQueue.lastIntent() ?? NSNull())
   }
 
+  /// JS 수신함 실건수 → App Group lastSynced + 아이콘 뱃지 재맞춤.
+  @objc(setRecordInboxSyncedCount:resolver:rejecter:)
+  func setRecordInboxSyncedCount(
+    _ count: NSNumber,
+    resolver resolve: @escaping RCTPromiseResolveBlock,
+    rejecter reject: @escaping RCTPromiseRejectBlock
+  ) {
+    RecordInboxIconBadge.setLastSynced(count.intValue)
+    resolve(nil)
+  }
+
+  /// 리셋·수신함 비우기 — 큐/lastSynced/아이콘 뱃지 제거.
+  @objc(clearSmsInboxNativeState:rejecter:)
+  func clearSmsInboxNativeState(
+    _ resolve: @escaping RCTPromiseResolveBlock,
+    rejecter reject: @escaping RCTPromiseRejectBlock
+  ) {
+    RecordInboxAppGroupQueue.clearAll()
+    RecordInboxIconBadge.clear()
+    resolve(nil)
+  }
+
   @objc
   override static func requiresMainQueueSetup() -> Bool {
     return true
@@ -218,7 +242,7 @@ final class RecordInboxPendingDarwinObserver {
 enum RecordInboxAppGroupQueue {
   static let storageKey = "smsInboxPendingQueue"
 
-  private static var appGroupIdentifier: String {
+  static var appGroupIdentifier: String {
     let bundleId = Bundle.main.bundleIdentifier ?? ""
     if bundleId.contains(".stage") {
       return "group.com.ssong.awallet.stage"
@@ -252,6 +276,8 @@ enum RecordInboxAppGroupQueue {
     defaults.set(queue, forKey: storageKey)
     defaults.synchronize()
     recordLastIntent(ok: true, reason: "enqueued", sender: senderTrimmed, bodyPreview: String(trimmed.prefix(80)))
+    // 앱 아이콘 뱃지: lastSynced + pending (앱 꺼진 상태에서도 Intent 프로세스에서 갱신)
+    RecordInboxIconBadge.refresh(using: defaults)
     // 포그라운드 RN이 flush할 수 있게 프로세스 간 신호
     RecordInboxPendingDarwin.post()
   }
@@ -264,6 +290,7 @@ enum RecordInboxAppGroupQueue {
     let queue = loadQueue(from: defaults)
     defaults.removeObject(forKey: storageKey)
     defaults.synchronize()
+    RecordInboxIconBadge.refresh(using: defaults)
     return queue
   }
 
@@ -285,6 +312,15 @@ enum RecordInboxAppGroupQueue {
       return !remove.contains(id)
     }
     defaults.set(next, forKey: storageKey)
+    defaults.synchronize()
+  }
+
+  /// 리셋: pending 큐·lastIntent 제거 (뱃지는 RecordInboxIconBadge.clear).
+  static func clearAll() {
+    guard let defaults = UserDefaults(suiteName: appGroupIdentifier) else { return }
+    defaults.removeObject(forKey: storageKey)
+    defaults.removeObject(forKey: lastIntentKey)
+    defaults.removeObject(forKey: RecordInboxIconBadge.lastSyncedKey)
     defaults.synchronize()
   }
 
@@ -313,7 +349,7 @@ enum RecordInboxAppGroupQueue {
     defaults.synchronize()
   }
 
-  private static func loadQueue(from defaults: UserDefaults) -> [[String: Any]] {
+  static func loadQueue(from defaults: UserDefaults) -> [[String: Any]] {
     guard let raw = defaults.array(forKey: storageKey) else {
       return []
     }
@@ -325,6 +361,51 @@ enum RecordInboxAppGroupQueue {
         return nil
       }
       return dict
+    }
+  }
+}
+
+// MARK: - App icon badge (기록 수신함 미확인 = lastSynced + pending)
+
+enum RecordInboxIconBadge {
+  static let lastSyncedKey = "recordInboxLastSyncedCount"
+
+  /// JS 확정 실건수. 뱃지는 count만 (flush 중 pending 이중 집계 방지).
+  static func setLastSynced(_ count: Int) {
+    guard let defaults = UserDefaults(suiteName: RecordInboxAppGroupQueue.appGroupIdentifier) else {
+      return
+    }
+    let safe = max(0, count)
+    defaults.set(safe, forKey: lastSyncedKey)
+    defaults.synchronize()
+    apply(safe)
+  }
+
+  /// enqueue 직후: lastSynced + pending
+  static func refresh(using defaults: UserDefaults) {
+    let synced = max(0, defaults.integer(forKey: lastSyncedKey))
+    let pending = RecordInboxAppGroupQueue.loadQueue(from: defaults).count
+    apply(synced + pending)
+  }
+
+  static func clear() {
+    guard let defaults = UserDefaults(suiteName: RecordInboxAppGroupQueue.appGroupIdentifier) else {
+      apply(0)
+      return
+    }
+    defaults.set(0, forKey: lastSyncedKey)
+    defaults.synchronize()
+    apply(0)
+  }
+
+  private static func apply(_ count: Int) {
+    let value = max(0, count)
+    if #available(iOS 16.0, *) {
+      UNUserNotificationCenter.current().setBadgeCount(value) { _ in }
+    } else {
+      DispatchQueue.main.async {
+        UIApplication.shared.applicationIconBadgeNumber = value
+      }
     }
   }
 }

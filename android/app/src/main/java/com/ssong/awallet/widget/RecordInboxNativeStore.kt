@@ -27,6 +27,10 @@ object RecordInboxNativeStore {
   private const val KEY_FINGERPRINTS = "fingerprints"
   private const val KEY_APP_ENABLED = "appEnabled"
   private const val KEY_APP_PACKAGES = "appPackages"
+  /** JS가 확정한 수신함 실건수. 아이콘 뱃지 = lastSynced + pending.size */
+  private const val KEY_LAST_SYNCED = "lastSyncedInboxCount"
+  /** 뱃지 알림 탭 → 앱 기동 후 수신함 오픈 1회 소비 */
+  private const val KEY_OPEN_RECORD_INBOX_PENDING = "openRecordInboxPending"
   const val SOURCE_APP = "app"
   private const val MAX_PENDING_COUNT = 200
   private const val MAX_FINGERPRINT_COUNT = 400
@@ -178,8 +182,49 @@ object RecordInboxNativeStore {
       return false
     }
 
-    return transact(context) { state ->
+    val enqueued = transact(context) { state ->
       enqueueLocked(state, trimmedSender, trimmedBody, receivedAt, source)
+    }
+    if (enqueued) {
+      RecordInboxBadgeNotifier.refreshFromStore(context)
+    }
+    return enqueued
+  }
+
+  /** 아이콘 뱃지 힌트: JS 확정 건수 + 아직 flush 안 된 pending */
+  fun iconBadgeCount(context: Context): Int {
+    return transact(context) { state ->
+      val synced = state.optInt(KEY_LAST_SYNCED, 0).coerceAtLeast(0)
+      synced + loadPending(state.str(KEY_PENDING)).size
+    }
+  }
+
+  /**
+   * JS가 확정한 수신함 실건수.
+   * 뱃지는 [count]만 반영 (flush 중 write→ack 사이에 pending이 남아도 이중 집계하지 않음).
+   * 앱 종료 후 enqueue 시는 [iconBadgeCount] = lastSynced + pending.
+   */
+  fun setLastSyncedInboxCount(context: Context, count: Int) {
+    val safe = count.coerceAtLeast(0)
+    transact(context) { state ->
+      state.put(KEY_LAST_SYNCED, safe)
+    }
+    RecordInboxBadgeNotifier.update(context, safe)
+  }
+
+  fun markOpenRecordInboxPending(context: Context) {
+    transact(context) { state ->
+      state.put(KEY_OPEN_RECORD_INBOX_PENDING, true)
+    }
+  }
+
+  fun consumeOpenRecordInboxPending(context: Context): Boolean {
+    return transact(context) { state ->
+      val pending = state.optBoolean(KEY_OPEN_RECORD_INBOX_PENDING, false)
+      if (pending) {
+        state.put(KEY_OPEN_RECORD_INBOX_PENDING, false)
+      }
+      pending
     }
   }
 
@@ -238,6 +283,7 @@ object RecordInboxNativeStore {
     transact(context) { state ->
       state.keys().asSequence().toList().forEach(state::remove)
     }
+    RecordInboxBadgeNotifier.cancel(context)
   }
 
   /**

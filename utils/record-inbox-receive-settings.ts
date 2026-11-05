@@ -165,10 +165,11 @@ export async function syncSmsReceiveSettingsToNative(): Promise<void> {
 }
 
 export async function clearSmsReceiveNativeState(): Promise<void> {
-  if (Platform.OS !== 'android') return;
+  if (Platform.OS !== 'android' && Platform.OS !== 'ios') return;
   const fn = smsReceiveNative?.clearSmsInboxNativeState;
   if (typeof fn !== 'function') return;
   try {
+    // Android: pending·설정·뱃지 알림 / iOS: App Group 큐·lastSynced·아이콘 뱃지
     await fn.call(smsReceiveNative);
   } catch {
     // 전체 초기화는 네이티브 정리 실패만으로 중단하지 않는다.

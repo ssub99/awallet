@@ -1,8 +1,13 @@
 /** 포그라운드 네이티브 큐 enqueue → flush. 화면은 열지 않고 인디케이터만 표시.
  *  append 성공 시 홈 「기록 수신 안내」카드 3초 예약.
+ *  Android 아이콘 뱃지 알림 탭 → flush 후 수신함 오픈.
  */
 
 import { useLoading } from '@/contexts/loading-context';
+import {
+  handleRecordInboxBadgeNotificationOpen,
+  subscribeRecordInboxBadgeNotificationOpen,
+} from '@/utils/record-inbox-badge-open';
 import {
   flushPendingRecordInboxFromNative,
   subscribeRecordInboxPendingEnqueued,
@@ -37,6 +42,15 @@ export function RecordInboxForegroundFlush() {
       })();
     });
   }, [setLoading]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') {
+      return undefined;
+    }
+    return subscribeRecordInboxBadgeNotificationOpen(() => {
+      void handleRecordInboxBadgeNotificationOpen();
+    });
+  }, []);
 
   return null;
 }

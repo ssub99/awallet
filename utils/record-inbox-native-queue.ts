@@ -3,7 +3,11 @@
 import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
 
 import { ingestRecordInboxMessage } from '@/utils/record-inbox-ingest';
-import { normalizeRecordInboxOriginalBody } from '@/utils/record-inbox-store';
+import { syncRecordInboxIconBadge } from '@/utils/record-inbox-icon-badge';
+import {
+  loadRecordInboxItems,
+  normalizeRecordInboxOriginalBody,
+} from '@/utils/record-inbox-store';
 
 export type PendingRecordInboxNativeItem = {
   id?: string;
@@ -109,6 +113,14 @@ export function flushPendingRecordInboxFromNative(): Promise<number> {
       } catch {
         // ingest 예외는 큐에 남겨 다음 flush에서 재시도.
       }
+    }
+
+    // discard/ack 만으로 writeItems가 안 탄 경우에도 아이콘 뱃지를 실건수에 맞춤
+    try {
+      const stored = await loadRecordInboxItems();
+      await syncRecordInboxIconBadge(stored.length);
+    } catch {
+      // ignore
     }
 
     return appended;

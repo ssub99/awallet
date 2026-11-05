@@ -18,6 +18,7 @@ import {
   recordRecordInboxPushReceived,
 } from '@/utils/record-inbox-push-ledger';
 import type { RecordInboxItem } from '@/utils/record-inbox-types';
+import { syncRecordInboxIconBadge } from '@/utils/record-inbox-icon-badge';
 import { setupDailyReminder } from '@/utils/notification-scheduler';
 
 export const RECORD_INBOX_ITEMS_KEY = '@awallet/smsInboxItems';
@@ -88,6 +89,8 @@ async function writeItems(items: RecordInboxItem[]): Promise<void> {
   });
   await writeChain;
   notify(items);
+  // OS 아이콘 뱃지 = 수신함 실건수 (네이티브 lastSynced 갱신)
+  void syncRecordInboxIconBadge(items.length);
 }
 
 export async function loadRecordInboxItems(): Promise<RecordInboxItem[]> {
