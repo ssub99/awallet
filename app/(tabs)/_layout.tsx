@@ -12,7 +12,7 @@ import { useNoticeUnreadCount } from '@/hooks/use-notice-unread-count';
 import { atomicColors } from '@/constants/atomic-colors';
 
 export const unstable_settings = {
-  initialRouteName: 'home',
+  anchor: 'home',
 };
 
 export default function TabLayout() {

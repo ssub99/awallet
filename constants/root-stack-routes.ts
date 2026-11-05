@@ -1,5 +1,4 @@
 export const ROOT_STACK_ROUTE_NAMES = [
-  'onboarding',
   '(tabs)',
   '(dev-tabs)',
   'expense-category',

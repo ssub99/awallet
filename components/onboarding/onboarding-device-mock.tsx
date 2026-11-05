@@ -21,7 +21,7 @@ type OnboardingDeviceMockProps = {
   motionKey: string;
   width: number;
   height: number;
-  /** 현재 보이는 페이지일 때만 재생 */
+  /** 현재 페이지일 때만 재생 — 비활성도 UI는 그대로 두어 스와이프 중 보이게 */
   active: boolean;
 };
 
@@ -48,10 +48,8 @@ export function OnboardingDeviceMock({
     }
     if (!active) {
       lottieRef.current?.pause();
-      lottieRef.current?.reset();
       return;
     }
-    // 마운트 직후 ref가 아직 없을 수 있어 한 프레임 뒤 재생
     const raf = requestAnimationFrame(() => {
       lottieRef.current?.reset();
       lottieRef.current?.play();
@@ -121,7 +119,6 @@ export function OnboardingDeviceMock({
 }
 
 const styles = StyleSheet.create({
-  // 쉐도우는 이 호스트에만 — 부모 overflow:hidden 금지(사각 박스로 보임)
   shadowHost: {
     shadowOpacity: 0.22,
     elevation: 10,

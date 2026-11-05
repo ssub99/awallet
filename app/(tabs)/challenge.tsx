@@ -213,15 +213,16 @@ function buildReportContext(year: number, month: number, monthStartDay: number):
   };
 }
 
+/**
+ * 월 단위 안정 키. asOfDate / isMonthClosed / elapsedDays / monthStartUpdatedAt 은
+ * 날짜·로드 타이밍에 따라 바뀌어 캐시가 갈라지고 UI가 `?`로 초기화되므로 키에 넣지 않는다.
+ * (월 시작일 변경은 monthStartDay, 정책 변경은 policyFingerprint 로 무효화)
+ */
 function buildReportCacheKey(context: ReportContext): string {
   const source = [
     context.year,
     context.month,
     context.monthStartDay,
-    context.monthStartUpdatedAt,
-    context.asOfDate,
-    context.isMonthClosed ? '1' : '0',
-    context.elapsedDaysInMonth,
     context.timezone,
     context.policyFingerprint,
   ].join('|');
@@ -871,23 +872,14 @@ export default function ChallengeTabScreen() {
           asOfDate?: string;
           monthStartUpdatedAt?: number;
         };
-        const canReuseByAsOfDate =
-          reportScoreContext.isMonthClosed || parsed.asOfDate === reportScoreContext.asOfDate;
-        const canReuseByMonthStartVersion =
-          Number(parsed.monthStartUpdatedAt ?? 0) === reportScoreContext.monthStartUpdatedAt;
         const canReuseByPolicyFingerprint =
           typeof parsed.policyFingerprint === 'string' &&
           parsed.policyFingerprint === reportScoreContext.policyFingerprint;
-        // 맥락(as-of, 월 시작일 설정 버전, 리포트 정책 지문)이 같으면 캐시 본문을 UI에 복원한다.
+        // 정책 지문이 같으면 캐시 본문을 UI에 복원한다.
+        // asOfDate·monthStartUpdatedAt 불일치는 복원을 막지 않는다(일자/로드 타이밍으로 `?` 초기화되던 원인).
         // 지출 기록이 이후 추가·수정되어도 이전에 확정한 리포트 문구는 유지한다(handleCheckScore의
         // "변경 없음 → API 스킵" 판정은 dataRevision으로 별도 유지).
-        if (
-          canReuseByAsOfDate &&
-          canReuseByMonthStartVersion &&
-          canReuseByPolicyFingerprint &&
-          parsed.summary &&
-          parsed.challenge
-        ) {
+        if (canReuseByPolicyFingerprint && parsed.summary && parsed.challenge) {
           if (!cancelled) {
             const summaryLines = splitLines(
               Array.isArray(parsed.summary) ? parsed.summary.join('\n') : parsed.summary.trim(),
@@ -1939,38 +1931,30 @@ export default function ChallengeTabScreen() {
               ratioPercent?: number;
             };
           };
-          const canReuseByAsOfDate =
-            reportScoreContext.isMonthClosed ||
-            parsed.asOfDate === reportScoreContext.asOfDate;
-        const canReuseByMonthStartVersion =
-          Number(parsed.monthStartUpdatedAt ?? 0) === reportScoreContext.monthStartUpdatedAt;
-        const canReuseByPolicyFingerprint =
-          typeof parsed.policyFingerprint === 'string' &&
-          parsed.policyFingerprint === reportScoreContext.policyFingerprint;
+          const canReuseByPolicyFingerprint =
+            typeof parsed.policyFingerprint === 'string' &&
+            parsed.policyFingerprint === reportScoreContext.policyFingerprint;
 
           // (1) 이미 이 월에서 한 번 이상 분석했고, 월간 지출 데이터 지문도 동일하면 → 분석 중단
           // (레거시 캐시에 dataRevision 없음 → 스킵하지 않고 재분석 허용)
-        if (
-          typeof parsed.dataRevision === 'string' &&
-          parsed.dataRevision === dataRevision &&
-          hasCheckedScore &&
-          canReuseByAsOfDate &&
-          canReuseByMonthStartVersion &&
-          canReuseByPolicyFingerprint
-        ) {
+          // asOfDate는 판정에 쓰지 않음: 날짜만 바뀌었을 때 불필요 API 재호출 방지
+          if (
+            typeof parsed.dataRevision === 'string' &&
+            parsed.dataRevision === dataRevision &&
+            hasCheckedScore &&
+            canReuseByPolicyFingerprint
+          ) {
             showToast('변경내역이 없어 분석을 중단합니다.');
             return;
           }
 
           // (2) 이번 세션에서 아직 점수 확인 전 → 캐시에서 화면만 채움(syncReportFromCache와 동일하게 기록 버전 불일치여도 허용)
-        if (
-          !hasCheckedScore &&
-          canReuseByAsOfDate &&
-          canReuseByMonthStartVersion &&
-          canReuseByPolicyFingerprint &&
-          parsed.summary &&
-          parsed.challenge
-        ) {
+          if (
+            !hasCheckedScore &&
+            canReuseByPolicyFingerprint &&
+            parsed.summary &&
+            parsed.challenge
+          ) {
             nextSummary = splitLines(
               Array.isArray(parsed.summary) ? parsed.summary.join('\n') : parsed.summary.trim(),
             );

@@ -1,8 +1,7 @@
 /**
- * Expo Router 진입 앵커.
- * 온보딩이 앱의 첫 화면 — `(tabs)`로 시작한 뒤 replace 하지 않는다.
- * 온보딩 불필요 시 `app/onboarding.tsx`가 /home 으로 넘긴다.
+ * 앱 Stack 앵커 = 탭.
+ * 온보딩은 라우트가 아니라 루트 게이트에서만 표시한다 (`RootAppNavigation`).
  */
 export const rootLayoutUnstableSettings = {
-  anchor: 'onboarding',
+  anchor: '(tabs)',
 } as const;

@@ -17,6 +17,8 @@ interface RootLayoutShellProps {
   backgroundColor: string;
   onLayoutRootView: () => void;
   showApp: boolean;
+  /** 온보딩 단독 구간에서는 false — 캘린더/지출 로드가 Lottie와 경쟁하지 않게 */
+  appDataEnabled: boolean;
   navigation: ReactNode;
 }
 
@@ -24,6 +26,7 @@ export function RootLayoutShell({
   backgroundColor,
   onLayoutRootView,
   showApp,
+  appDataEnabled,
   navigation,
 }: RootLayoutShellProps) {
   return (
@@ -34,15 +37,19 @@ export function RootLayoutShell({
             <View style={{ flex: 1, backgroundColor }} onLayout={onLayoutRootView}>
               <ThemeProvider value={DefaultTheme}>
                 <AppStatusBarProvider>
-                  <AppDataProvider enabled={showApp}>
+                  <AppDataProvider enabled={showApp && appDataEnabled}>
                     <ToastProvider>
                       {showApp ? (
                         <>
                           <AnalyticsRouteListener />
-                          <RecordInboxForegroundFlush />
+                          {appDataEnabled ? <RecordInboxForegroundFlush /> : null}
                           {navigation}
-                          <GlobalProgressBar />
-                          <RecordReceiveGuideCard />
+                          {appDataEnabled ? (
+                            <>
+                              <GlobalProgressBar />
+                              <RecordReceiveGuideCard />
+                            </>
+                          ) : null}
                         </>
                       ) : null}
                     </ToastProvider>

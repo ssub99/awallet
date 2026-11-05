@@ -39,6 +39,7 @@ import {
   onFirstScreenSplashRelease,
   releaseFirstScreenSplash,
 } from '@/utils/first-screen-splash';
+import { shouldShowOnboarding } from '@/utils/onboarding-settings';
 import Constants from 'expo-constants';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Updates from 'expo-updates';
@@ -61,6 +62,7 @@ export function useRootLayoutBootstrap() {
   const colorScheme: 'light' = 'light';
   const [splashFinished, setSplashFinished] = useState(false);
   const [appIsReady, setAppIsReady] = useState(false);
+  const [initialNeedsOnboarding, setInitialNeedsOnboarding] = useState(false);
   const [storeUpdateGate, setStoreUpdateGate] = useState<StoreUpdateGateState | null>(null);
   const storeAlertPresentedRef = useRef(false);
   const storeGateResumeFromBackgroundRef = useRef(false);
@@ -117,10 +119,18 @@ export function useRootLayoutBootstrap() {
           app_version: getAppVersion() ?? 'unknown',
         });
 
+        // 스플래시 유지한 채 온보딩 여부만 확정 — 홈 깜빡임 없이 게이트 분기
+        setInitialNeedsOnboarding(await shouldShowOnboarding());
+
         setSplashFinished(true);
         setAppIsReady(true);
       } catch (e) {
         console.warn('스플래시 처리 중 오류:', e);
+        try {
+          setInitialNeedsOnboarding(await shouldShowOnboarding());
+        } catch {
+          // ignore
+        }
         setSplashFinished(true);
         setAppIsReady(true);
       }
@@ -311,5 +321,5 @@ export function useRootLayoutBootstrap() {
     return () => sub.remove();
   }, []);
 
-  return { palette, onLayoutRootView, showApp };
+  return { palette, onLayoutRootView, showApp, initialNeedsOnboarding };
 }
