@@ -67,6 +67,8 @@ export function OnboardingDeviceMock({
         {
           width,
           height,
+          borderRadius: bezelRadius,
+          backgroundColor: BEZEL_COLOR,
           shadowColor: palette.staticBlack,
           shadowOffset: { width: 0, height: shadowOffsetY },
           shadowRadius,
@@ -122,7 +124,6 @@ const styles = StyleSheet.create({
   shadowHost: {
     shadowOpacity: 0.22,
     elevation: 10,
-    backgroundColor: 'transparent',
   },
   screen: {
     flex: 1,

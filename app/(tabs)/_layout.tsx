@@ -25,6 +25,7 @@ export default function TabLayout() {
       <CreateSheetProvider>
         <View style={styles.wrapper}>
         <Tabs
+        backBehavior="initialRoute"
         tabBar={(props) => <TabBar {...props} />}
         screenOptions={{
           tabBarActiveTintColor: palette.tint,

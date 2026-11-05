@@ -1,10 +1,9 @@
 /**
- * 루트 게이트 — 온보딩은 네비 스택에 넣지 않는다.
+ * 루트 게이트 — 온보딩은 네비 스택에 넣지 않는다. (구조 유지)
  *
- * 레이아웃:
- * - 온보딩: 항상 flex:1 (absolute 전환 금지 — CTA 붕괴 방지)
- * - Stack: 온보딩과 겹칠 때만 absoluteFill, 단독(main)일 때는 flex:1
- *   (absolute만 남으면 부모 높이 0 → 시작하기 후 빈 화면)
+ * 「시작하기」 순서:
+ * 1) 온보딩 페이드아웃
+ * 2) 이후 홈 Stack 마운트 → 글로벌 인디케이터 + 홈 렌더
  */
 
 import { OnboardingScreen } from '@/components/onboarding/onboarding-screen';
@@ -18,11 +17,15 @@ import {
   ROOT_STACK_ROUTE_NAMES,
 } from '@/constants/root-stack-routes';
 import { ROOT_STACK_SCREEN_OPTIONS } from '@/constants/sub-stack-screen-options';
+import { colors } from '@/constants/theme';
+import { useLoading } from '@/contexts/loading-context';
 import { Stack } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 
 type GatePhase = 'onboarding' | 'warming' | 'fading' | 'main';
+
+const screenBackground = colors.light.background;
 
 function rootStackScreenOptions(name: (typeof ROOT_STACK_ROUTE_NAMES)[number]) {
   if (name === NOTICE_IMAGE_VIEWER_ROUTE_NAME) {
@@ -54,11 +57,15 @@ export function RootAppNavigation({
   initialNeedsOnboarding,
   onMainAppActive,
 }: RootAppNavigationProps) {
+  const { setLoading } = useLoading();
   const [phase, setPhase] = useState<GatePhase>(
     initialNeedsOnboarding ? 'onboarding' : 'main',
   );
-  const homeOpacity = useRef(new Animated.Value(initialNeedsOnboarding ? 0 : 1)).current;
+  const onboardingOpacity = useRef(
+    new Animated.Value(initialNeedsOnboarding ? 1 : 0),
+  ).current;
   const mainActiveSentRef = useRef(!initialNeedsOnboarding);
+  const fadeAnimRef = useRef<Animated.CompositeAnimation | null>(null);
 
   useEffect(() => {
     if (!initialNeedsOnboarding) {
@@ -73,67 +80,77 @@ export function RootAppNavigation({
   }, [onMainAppActive]);
 
   const handleReadyToPrewarmMain = useCallback(() => {
-    setPhase((prev) => {
-      if (prev !== 'onboarding') return prev;
-      return 'warming';
-    });
+    setPhase((prev) => (prev === 'onboarding' ? 'warming' : prev));
   }, []);
 
   useEffect(() => {
     if (phase !== 'warming') return;
+    // AppData만 미리 워밍 — 홈 UI/인디케이터는 페이드 후에
     activateMain();
-    homeOpacity.setValue(0);
-  }, [activateMain, homeOpacity, phase]);
+  }, [activateMain, phase]);
 
   const handleOnboardingFinished = useCallback(() => {
     activateMain();
-    homeOpacity.setValue(0);
     setPhase((prev) => (prev === 'fading' || prev === 'main' ? prev : 'fading'));
-  }, [activateMain, homeOpacity]);
+  }, [activateMain]);
 
   useEffect(() => {
     if (phase !== 'fading') return undefined;
-    homeOpacity.setValue(0);
-    const anim = Animated.timing(homeOpacity, {
-      toValue: 1,
-      duration: ONBOARDING_TO_HOME_FADE_MS,
-      useNativeDriver: true,
+
+    let cancelled = false;
+    onboardingOpacity.setValue(1);
+
+    const raf = requestAnimationFrame(() => {
+      if (cancelled) return;
+      fadeAnimRef.current?.stop();
+      const anim = Animated.timing(onboardingOpacity, {
+        toValue: 0,
+        duration: ONBOARDING_TO_HOME_FADE_MS,
+        useNativeDriver: true,
+      });
+      fadeAnimRef.current = anim;
+      anim.start(({ finished }) => {
+        if (cancelled || !finished) return;
+        onboardingOpacity.setValue(0);
+        // 페이드 끝난 뒤에야 홈 마운트 + 인디케이터
+        setLoading(true);
+        setPhase('main');
+      });
     });
-    anim.start(({ finished }) => {
-      if (!finished) return;
-      homeOpacity.setValue(1);
-      setPhase('main');
-    });
+
     return () => {
-      anim.stop();
+      cancelled = true;
+      cancelAnimationFrame(raf);
+      fadeAnimRef.current?.stop();
+      fadeAnimRef.current = null;
     };
-  }, [homeOpacity, phase]);
+  }, [onboardingOpacity, phase, setLoading]);
 
   const showOnboarding = phase === 'onboarding' || phase === 'warming' || phase === 'fading';
-  const showStack = phase === 'warming' || phase === 'fading' || phase === 'main';
-  /** 온보딩과 겹칠 때만 absolute — main 단독은 flex:1 로 높이 유지 */
-  const stackOverlapping = showOnboarding && showStack;
+  const showStack = phase === 'main';
 
   return (
-    <View style={styles.fill}>
+    <View style={[styles.fill, styles.screenSurface]}>
+      {showStack ? (
+        <View style={styles.fill}>
+          <AppStack />
+        </View>
+      ) : null}
+
       {showOnboarding ? (
-        <View
-          style={styles.fill}
-          pointerEvents={phase === 'onboarding' || phase === 'warming' ? 'auto' : 'none'}
+        <Animated.View
+          collapsable={false}
+          style={[
+            showStack ? styles.overlay : styles.fill,
+            styles.screenSurface,
+            { opacity: onboardingOpacity },
+          ]}
+          pointerEvents={phase === 'fading' ? 'none' : 'auto'}
         >
           <OnboardingScreen
             onFinished={handleOnboardingFinished}
             onReadyToPrewarmMain={handleReadyToPrewarmMain}
           />
-        </View>
-      ) : null}
-
-      {showStack ? (
-        <Animated.View
-          style={[stackOverlapping ? styles.stackLayer : styles.fill, { opacity: homeOpacity }]}
-          pointerEvents={phase === 'main' || phase === 'fading' ? 'auto' : 'none'}
-        >
-          <AppStack />
         </Animated.View>
       ) : null}
     </View>
@@ -144,7 +161,10 @@ const styles = StyleSheet.create({
   fill: {
     flex: 1,
   },
-  stackLayer: {
+  overlay: {
     ...StyleSheet.absoluteFillObject,
+  },
+  screenSurface: {
+    backgroundColor: screenBackground,
   },
 });

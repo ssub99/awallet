@@ -44,12 +44,9 @@ export function RootLayoutShell({
                           <AnalyticsRouteListener />
                           {appDataEnabled ? <RecordInboxForegroundFlush /> : null}
                           {navigation}
-                          {appDataEnabled ? (
-                            <>
-                              <GlobalProgressBar />
-                              <RecordReceiveGuideCard />
-                            </>
-                          ) : null}
+                          {/* 인디케이터는 항상 마운트 — 홈 첫 로드 beginLoad 를 온보딩 전환 때 보여야 함 */}
+                          <GlobalProgressBar />
+                          {appDataEnabled ? <RecordReceiveGuideCard /> : null}
                         </>
                       ) : null}
                     </ToastProvider>
