@@ -1,5 +1,6 @@
 /**
  * 온보딩 UI — 네비 스택 밖(루트 게이트)에서만 마운트.
+ * 카피·목업을 페이지 안에 두어 스와이프 중 setState 레이아웃 경합을 줄인다.
  */
 
 import { OnboardingDeviceMock } from '@/components/onboarding/onboarding-device-mock';
@@ -19,7 +20,7 @@ import { colors, spacing, typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { releaseFirstScreenSplash } from '@/utils/first-screen-splash';
 import { markOnboardingCompleted } from '@/utils/onboarding-settings';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   FlatList,
@@ -50,6 +51,9 @@ const CTA_PAD_H = spacing[400];
 const CTA_PAD_V = spacing[400];
 const PAGE_PAD_H = spacing[400];
 
+/** FlatList data 참조 고정 — 매 렌더 새 배열 만들지 않음 */
+const ONBOARDING_STEPS_DATA: OnboardingStep[] = [...ONBOARDING_STEPS];
+
 function mockSizeForWidth(width: number): { width: number; height: number } {
   const scale = width / FIGMA_MOCK_WIDTH;
   const inset = FIGMA_BEZEL_INSET * scale;
@@ -58,9 +62,56 @@ function mockSizeForWidth(width: number): { width: number; height: number } {
   return { width, height };
 }
 
+type StepPageProps = {
+  step: OnboardingStep;
+  pageWidth: number;
+  mockWidth: number;
+  mockHeight: number;
+  active: boolean;
+  titleColor: string;
+  bodyColor: string;
+};
+
+const OnboardingStepPage = memo(function OnboardingStepPage({
+  step,
+  pageWidth,
+  mockWidth,
+  mockHeight,
+  active,
+  titleColor,
+  bodyColor,
+}: StepPageProps) {
+  const motion = useMemo(() => getOnboardingMotion(step.id), [step.id]);
+
+  return (
+    <View style={[styles.page, { width: pageWidth }]}>
+      <View style={styles.copyBlock}>
+        <Text
+          style={[typography.headline04.bold, styles.title, { color: titleColor }]}
+          accessibilityRole="header"
+        >
+          {step.title}
+        </Text>
+        <Text style={[typography.body01.regular, styles.body, { color: bodyColor }]}>
+          {step.body}
+        </Text>
+      </View>
+      <View style={styles.mockSlot}>
+        <OnboardingDeviceMock
+          motion={motion}
+          motionKey={step.id}
+          width={mockWidth}
+          height={mockHeight}
+          active={active}
+        />
+      </View>
+    </View>
+  );
+});
+
 export type OnboardingScreenProps = {
   onFinished: () => void;
-  /** 컨텐츠 페이드 후 — 홈 Stack 프리워밍 시작 */
+  /** 컨텐츠 페이드 후 — AppData 등 가벼운 워밍만 (홈 UI 마운트 아님) */
   onReadyToPrewarmMain?: () => void;
 };
 
@@ -71,8 +122,10 @@ export function OnboardingScreen({ onFinished, onReadyToPrewarmMain }: Onboardin
   const listRef = useRef<FlatList<OnboardingStep>>(null);
   const contentOpacity = useRef(new Animated.Value(0)).current;
   const [index, setIndex] = useState(0);
+  const indexRef = useRef(0);
   const finishingRef = useRef(false);
   const prewarmSentRef = useRef(false);
+  const scrollingRef = useRef(false);
 
   const { width: windowWidth } = useWindowDimensions();
   const layoutScale = windowWidth / FIGMA_WIDTH;
@@ -83,7 +136,14 @@ export function OnboardingScreen({ onFinished, onReadyToPrewarmMain }: Onboardin
   );
   const { width: mockWidth, height: mockHeight } = mockSizeForWidth(scaledMockWidth);
 
-  const step = ONBOARDING_STEPS[index] ?? ONBOARDING_STEPS[0];
+  const step = ONBOARDING_STEPS_DATA[index] ?? ONBOARDING_STEPS_DATA[0];
+
+  useEffect(() => {
+    // Lottie JSON 선행 로드 — 스와이프 중 require 방지
+    for (const s of ONBOARDING_STEPS_DATA) {
+      getOnboardingMotion(s.id);
+    }
+  }, []);
 
   useEffect(() => {
     releaseSplashAfterFirstPaint();
@@ -108,6 +168,13 @@ export function OnboardingScreen({ onFinished, onReadyToPrewarmMain }: Onboardin
     };
   }, [contentOpacity, onReadyToPrewarmMain]);
 
+  const commitIndex = useCallback((next: number) => {
+    if (next < 0 || next >= ONBOARDING_STEPS_DATA.length) return;
+    if (indexRef.current === next) return;
+    indexRef.current = next;
+    setIndex(next);
+  }, []);
+
   const finish = useCallback(async () => {
     if (finishingRef.current) return;
     finishingRef.current = true;
@@ -116,48 +183,44 @@ export function OnboardingScreen({ onFinished, onReadyToPrewarmMain }: Onboardin
   }, [onFinished]);
 
   const goNext = useCallback(() => {
-    if (index >= ONBOARDING_STEPS.length - 1) {
+    if (indexRef.current >= ONBOARDING_STEPS_DATA.length - 1) {
       void finish();
       return;
     }
-    const next = index + 1;
+    if (scrollingRef.current) return;
+    const next = indexRef.current + 1;
+    scrollingRef.current = true;
     listRef.current?.scrollToIndex({ index: next, animated: true });
-    setIndex(next);
-  }, [finish, index]);
+    // 인덱스는 스크롤 종료 시 반영 — 스크롤 중 전 페이지 remount 방지
+  }, [finish]);
 
   const onMomentumScrollEnd = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      scrollingRef.current = false;
       const x = event.nativeEvent.contentOffset.x;
       const next = Math.round(x / windowWidth);
-      if (next >= 0 && next < ONBOARDING_STEPS.length) {
-        setIndex(next);
-      }
+      commitIndex(next);
     },
-    [windowWidth],
+    [commitIndex, windowWidth],
   );
 
-  // 스와이프 중에도 옆 페이지 목업이 보이도록 전 스텝 동일 레벨로 마운트 (3장뿐)
-  useEffect(() => {
-    for (const s of ONBOARDING_STEPS) {
-      getOnboardingMotion(s.id);
-    }
+  const onScrollBeginDrag = useCallback(() => {
+    scrollingRef.current = true;
   }, []);
 
   const renderItem: ListRenderItem<OnboardingStep> = useCallback(
     ({ item, index: itemIndex }) => (
-      <View style={[styles.page, { width: windowWidth }]}>
-        <View style={styles.mockSlot}>
-          <OnboardingDeviceMock
-            motion={getOnboardingMotion(item.id)}
-            motionKey={item.id}
-            width={mockWidth}
-            height={mockHeight}
-            active={itemIndex === index}
-          />
-        </View>
-      </View>
+      <OnboardingStepPage
+        step={item}
+        pageWidth={windowWidth}
+        mockWidth={mockWidth}
+        mockHeight={mockHeight}
+        active={itemIndex === index}
+        titleColor={palette.text}
+        bodyColor={palette.textNeutral}
+      />
     ),
-    [index, mockHeight, mockWidth, windowWidth],
+    [index, mockHeight, mockWidth, palette.text, palette.textNeutral, windowWidth],
   );
 
   const ctaLabel = step?.ctaLabel ?? ONBOARDING_CTA_NEXT;
@@ -168,35 +231,26 @@ export function OnboardingScreen({ onFinished, onReadyToPrewarmMain }: Onboardin
       accessibilityLabel="온보딩"
     >
       <View style={[styles.dotsWrap, { paddingTop: FIGMA_DOTS_TOP * layoutScale }]}>
-        <OnboardingPageIndicator count={ONBOARDING_STEPS.length} index={index} />
+        <OnboardingPageIndicator count={ONBOARDING_STEPS_DATA.length} index={index} />
       </View>
 
       <Animated.View style={[styles.contentArea, { opacity: contentOpacity }]}>
-        <View style={styles.copyBlock}>
-          <Text
-            style={[typography.headline04.bold, styles.title, { color: palette.text }]}
-            accessibilityRole="header"
-          >
-            {step.title}
-          </Text>
-          <Text style={[typography.body01.regular, styles.body, { color: palette.textNeutral }]}>
-            {step.body}
-          </Text>
-        </View>
-
         <FlatList
           ref={listRef}
-          data={[...ONBOARDING_STEPS]}
+          data={ONBOARDING_STEPS_DATA}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
+          extraData={index}
           horizontal
           pagingEnabled
           showsHorizontalScrollIndicator={false}
           bounces={false}
+          decelerationRate="fast"
           removeClippedSubviews={false}
-          initialNumToRender={ONBOARDING_STEPS.length}
-          maxToRenderPerBatch={ONBOARDING_STEPS.length}
-          windowSize={ONBOARDING_STEPS.length}
+          initialNumToRender={ONBOARDING_STEPS_DATA.length}
+          maxToRenderPerBatch={ONBOARDING_STEPS_DATA.length}
+          windowSize={ONBOARDING_STEPS_DATA.length}
+          onScrollBeginDrag={onScrollBeginDrag}
           onMomentumScrollEnd={onMomentumScrollEnd}
           getItemLayout={(_, i) => ({
             length: windowWidth,

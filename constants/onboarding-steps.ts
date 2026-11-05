@@ -62,7 +62,7 @@ export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
   {
     id: 'recordReceive',
     title: '결제를 인식하여 기록 자동 생성',
-    body: '카드·문자 알림을 받아\n기록이 자동으로 쌓여요.',
+    body: '결제 알림·문자를 받아\n기록을 간편하게 생성할 수 있어요.',
     ctaLabel: '시작하기',
   },
 ] as const;

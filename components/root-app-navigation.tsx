@@ -83,11 +83,7 @@ export function RootAppNavigation({
     setPhase((prev) => (prev === 'onboarding' ? 'warming' : prev));
   }, []);
 
-  useEffect(() => {
-    if (phase !== 'warming') return;
-    // AppData만 미리 워밍 — 홈 UI/인디케이터는 페이드 후에
-    activateMain();
-  }, [activateMain, phase]);
+  // warming: 홈/AppData 올리지 않음 — 온보딩 스와이프 중 JS·렌더 경합 방지
 
   const handleOnboardingFinished = useCallback(() => {
     activateMain();
