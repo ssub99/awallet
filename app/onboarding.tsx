@@ -22,6 +22,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Animated,
   FlatList,
   type ListRenderItem,
   type NativeScrollEvent,
@@ -32,6 +33,9 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+/** 첫 진입 시에만 컨텐츠(카피·목업) 페이드 — 스텝 전환에는 미적용 */
+const CONTENT_LANDING_FADE_MS = 280;
 
 function releaseSplashAfterFirstPaint(): void {
   // RN 신버전에서 InteractionManager 제거됨 — 두 프레임 뒤 첫 페인트 이후 hide
@@ -66,6 +70,7 @@ export default function OnboardingScreen() {
   const colorScheme = useColorScheme();
   const palette = colors[colorScheme ?? 'light'];
   const listRef = useRef<FlatList<OnboardingStep>>(null);
+  const contentOpacity = useRef(new Animated.Value(0)).current;
   const [index, setIndex] = useState(0);
   const [ready, setReady] = useState(false);
 
@@ -105,7 +110,17 @@ export default function OnboardingScreen() {
       return;
     }
     releaseSplashAfterFirstPaint();
-  }, [ready]);
+    contentOpacity.setValue(0);
+    const fade = Animated.timing(contentOpacity, {
+      toValue: 1,
+      duration: CONTENT_LANDING_FADE_MS,
+      useNativeDriver: true,
+    });
+    fade.start();
+    return () => {
+      fade.stop();
+    };
+  }, [contentOpacity, ready]);
 
   const finish = useCallback(async () => {
     await markOnboardingCompleted();
@@ -165,38 +180,40 @@ export default function OnboardingScreen() {
         <OnboardingPageIndicator count={ONBOARDING_STEPS.length} index={index} />
       </View>
 
-      <View style={styles.copyBlock}>
-        <Text
-          style={[typography.headline04.bold, styles.title, { color: palette.text }]}
-          accessibilityRole="header"
-        >
-          {step.title}
-        </Text>
-        <Text style={[typography.body01.regular, styles.body, { color: palette.textNeutral }]}>
-          {step.body}
-        </Text>
-      </View>
+      <Animated.View style={[styles.contentArea, { opacity: contentOpacity }]}>
+        <View style={styles.copyBlock}>
+          <Text
+            style={[typography.headline04.bold, styles.title, { color: palette.text }]}
+            accessibilityRole="header"
+          >
+            {step.title}
+          </Text>
+          <Text style={[typography.body01.regular, styles.body, { color: palette.textNeutral }]}>
+            {step.body}
+          </Text>
+        </View>
 
-      <FlatList
-        ref={listRef}
-        data={[...ONBOARDING_STEPS]}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        bounces={false}
-        // 드롭쉐도우가 FlatList 클립에 사각 박스로 보이지 않게
-        removeClippedSubviews={false}
-        onMomentumScrollEnd={onMomentumScrollEnd}
-        getItemLayout={(_, i) => ({
-          length: windowWidth,
-          offset: windowWidth * i,
-          index: i,
-        })}
-        style={styles.list}
-        contentContainerStyle={styles.listContent}
-      />
+        <FlatList
+          ref={listRef}
+          data={[...ONBOARDING_STEPS]}
+          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          bounces={false}
+          // 드롭쉐도우가 FlatList 클립에 사각 박스로 보이지 않게
+          removeClippedSubviews={false}
+          onMomentumScrollEnd={onMomentumScrollEnd}
+          getItemLayout={(_, i) => ({
+            length: windowWidth,
+            offset: windowWidth * i,
+            index: i,
+          })}
+          style={styles.list}
+          contentContainerStyle={styles.listContent}
+        />
+      </Animated.View>
 
       <View
         style={[
@@ -231,6 +248,9 @@ const styles = StyleSheet.create({
   dotsWrap: {
     alignItems: 'center',
     zIndex: 2,
+  },
+  contentArea: {
+    flex: 1,
   },
   copyBlock: {
     alignItems: 'center',

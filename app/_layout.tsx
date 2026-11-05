@@ -5,7 +5,11 @@ import {
   NOTICE_IMAGE_VIEWER_NAVIGATION_OPTIONS,
   NOTICE_IMAGE_VIEWER_ROUTE_NAME,
 } from '@/constants/notice-image-viewer-navigation-options';
-import { ROOT_STACK_SCREEN_OPTIONS } from '@/constants/sub-stack-screen-options';
+import {
+  ONBOARDING_STACK_SCREEN_OPTIONS,
+  ROOT_STACK_SCREEN_OPTIONS,
+  TABS_STACK_SCREEN_OPTIONS,
+} from '@/constants/sub-stack-screen-options';
 import { rootLayoutUnstableSettings } from '@/constants/root-layout-unstable-settings';
 import {
   ROOT_STACK_MODAL_ROUTE_NAME,
@@ -20,6 +24,19 @@ configureForegroundNotificationHandler();
 
 export const unstable_settings = rootLayoutUnstableSettings;
 
+function rootStackScreenOptions(name: (typeof ROOT_STACK_ROUTE_NAMES)[number]) {
+  if (name === NOTICE_IMAGE_VIEWER_ROUTE_NAME) {
+    return NOTICE_IMAGE_VIEWER_NAVIGATION_OPTIONS;
+  }
+  if (name === 'onboarding') {
+    return ONBOARDING_STACK_SCREEN_OPTIONS;
+  }
+  if (name === '(tabs)') {
+    return TABS_STACK_SCREEN_OPTIONS;
+  }
+  return undefined;
+}
+
 export default function RootLayout() {
   const { palette, onLayoutRootView, showApp } = useRootLayoutBootstrap();
 
@@ -32,15 +49,7 @@ export default function RootLayout() {
         showApp ? (
           <Stack screenOptions={ROOT_STACK_SCREEN_OPTIONS}>
             {ROOT_STACK_ROUTE_NAMES.map((name) => (
-              <Stack.Screen
-                key={name}
-                name={name}
-                options={
-                  name === NOTICE_IMAGE_VIEWER_ROUTE_NAME
-                    ? NOTICE_IMAGE_VIEWER_NAVIGATION_OPTIONS
-                    : undefined
-                }
-              />
+              <Stack.Screen key={name} name={name} options={rootStackScreenOptions(name)} />
             ))}
             <Stack.Screen
               name={ROOT_STACK_MODAL_ROUTE_NAME}
