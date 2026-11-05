@@ -630,10 +630,11 @@ async function setupDailyReminderInternal(): Promise<void> {
       log('abort', { reason: 'expo-notifications-unavailable' });
       return;
     }
-    await cancelDailyReminderInternal();
 
     const generalOk = await shouldSendGeneralNotification();
     if (!generalOk) {
+      // 설정/권한 OFF일 때만 기존 예약을 지운다
+      await cancelDailyReminderInternal();
       const [enabled, permission] = await Promise.all([
         getGeneralNotificationsEnabled(),
         shouldSendNotification(),
@@ -665,6 +666,9 @@ async function setupDailyReminderInternal(): Promise<void> {
       windowStartIso: new Date(resolved.window.startMs).toISOString(),
       windowEndIso: new Date(resolved.window.endMs).toISOString(),
     });
+
+    // 판정 후에 cancel — none이면 취소만, 예약 대상이면 교체
+    await cancelDailyReminderInternal();
 
     if (resolved.kind === 'expense_reminder') {
       await Notifications.scheduleNotificationAsync({
@@ -781,9 +785,9 @@ async function rescheduleDailyReminderIfNeededInternal(): Promise<void> {
     if (!Notifications) {
       return;
     }
-    await cancelDailyReminderInternal();
 
     if (!(await shouldSendGeneralNotification())) {
+      await cancelDailyReminderInternal();
       return;
     }
 
@@ -800,10 +804,16 @@ async function rescheduleDailyReminderIfNeededInternal(): Promise<void> {
     const today = new Date(nowMs).toDateString();
     const scheduledKey = `daily_reminder_${today}`;
 
+    // 당일 20:00 슬롯이 지난 소비 유도 → setup의 DAILY(다음 슬롯)로 위임
+    if (resolved.kind === 'expense_reminder' && nowMs >= today20.getTime()) {
+      await setupDailyReminderInternal();
+      return;
+    }
+
+    // 판정 후에 cancel — none이면 취소만, 예약 대상이면 교체
+    await cancelDailyReminderInternal();
+
     if (resolved.kind === 'expense_reminder') {
-      if (nowMs >= today20.getTime()) {
-        return;
-      }
       await Notifications.scheduleNotificationAsync({
         identifier: DAILY_EXPENSE_REMINDER_ID,
         content: {

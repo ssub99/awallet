@@ -750,7 +750,8 @@ function TestContent({ colors }: { colors: ColorPalette }) {
               result += `시스템 권한: ${snapshot.permissionGranted ? '허용' : '거부/미확인'}\n`;
               result += `오늘 소비(레거시): ${snapshot.hasExpenseToday ? '있음' : '없음'}\n`;
               result += `판정구간 소비생성: ${snapshot.hasExpenseCreatedInWindow ? '있음' : '없음'}\n`;
-              result += `가기록 구간수신/큐잔여: ${snapshot.recordInboxReceivedCount}/${snapshot.recordInboxUnconvertedCount}\n`;
+              result += `어제20시~오늘20시 사이 수신 이력: ${snapshot.recordInboxReceivedCount}건\n`;
+              result += `지금 수신함에 남은 건수: ${snapshot.recordInboxUnconvertedCount}건 (푸시 문구)\n`;
               result += `판정: ${snapshot.decisionKind}\n`;
               result += `오늘 스케줄 마킹: ${snapshot.todayScheduleMarkPresent ? '✅' : '❌'}\n`;
               result += `스케줄 조건 충족: ${snapshot.wouldSchedule ? '✅ (예약 시도 가능)' : '❌'}\n`;
@@ -968,7 +969,8 @@ function TestContent({ colors }: { colors: ColorPalette }) {
               alert(
                 `가기록 푸시 스케줄 검증\n\n` +
                   `판정: ${snapshot.decisionKind}\n` +
-                  `가기록 구간수신/큐잔여: ${snapshot.recordInboxReceivedCount}/${snapshot.recordInboxUnconvertedCount}\n` +
+                  `어제20시~오늘20시 사이 수신 이력: ${snapshot.recordInboxReceivedCount}건\n` +
+                  `지금 수신함에 남은 건수: ${snapshot.recordInboxUnconvertedCount}건 (푸시 문구)\n` +
                   `설정/권한: ${snapshot.generalEnabled ? 'ON' : 'OFF'} / ${snapshot.permissionGranted ? '허용' : '거부·미확인'}\n` +
                   `조건 충족: ${snapshot.wouldSchedule ? '✅' : '❌'}\n` +
                   `가기록 푸시 OS 예약: ${recordInboxScheduled.length}개\n\n` +

@@ -192,7 +192,9 @@ export async function ingestParsedRecordInbox(input: {
     const next = [item, ...items];
     await writeItems(next);
     await recordRecordInboxPushReceived(item.id, Date.parse(item.createdAt) || Date.now());
-    setupDailyReminder().catch(() => {});
+    setupDailyReminder().catch((error) => {
+      console.error('[record-inbox-push] setupDailyReminder after append failed', error);
+    });
     return { ok: true, action: 'appended', item };
   }
 
@@ -203,7 +205,9 @@ export async function ingestParsedRecordInbox(input: {
   const next = items.filter((item) => item.id !== match.id);
   await writeItems(next);
   await markRecordInboxPushInvalidated(match.id);
-  setupDailyReminder().catch(() => {});
+  setupDailyReminder().catch((error) => {
+    console.error('[record-inbox-push] setupDailyReminder after cancel-match failed', error);
+  });
   return { ok: true, action: 'removed', item: match };
 }
 
@@ -221,7 +225,9 @@ export async function removeRecordInboxItemById(
     await markRecordInboxPushConverted(id);
   }
   // dismissed: 큐에서 제거되면 가기록 푸시 건수(큐 잔여)에서도 제외됨
-  setupDailyReminder().catch(() => {});
+  setupDailyReminder().catch((error) => {
+    console.error('[record-inbox-push] setupDailyReminder after remove failed', error);
+  });
   return true;
 }
 

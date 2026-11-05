@@ -61,10 +61,10 @@ import type { RecordInboxItem } from '@/utils/record-inbox-types';
 import { SMS_HISTORY_RECORD_ANALYTICS_SCREEN_NAME } from '@/utils/record-inbox-types';
 import {
   loadRecordInboxItems,
-  replaceRecordInboxItems,
+  removeRecordInboxItemById,
   subscribeRecordInboxItems,
+  updateRecordInboxItem,
 } from '@/utils/record-inbox-store';
-import { markRecordInboxPushConverted } from '@/utils/record-inbox-push-ledger';
 import { flushPendingRecordInboxFromNative } from '@/utils/record-inbox-native-queue';
 import {
   loadRecordInboxReceiveEnabled,
@@ -107,7 +107,7 @@ import { createExpensesBatch, deleteExpensesByCategory, renameExpenseCategory, t
 import { generateGroupId, generateRecordId } from '@/utils/id-generator';
 import { createIncome, deleteIncomesByCategory, type IncomeRecord } from '@/utils/incomes';
 import { deleteChallengesByCategory, renameChallengeCategory } from '@/utils/challenges';
-import { rescheduleDailyReminderIfNeeded, setupDailyReminder } from '@/utils/notification-scheduler';
+import { rescheduleDailyReminderIfNeeded } from '@/utils/notification-scheduler';
 import { resolveRelativeWeekdayDateFromMessage } from '@/utils/parse-expense-relative-date';
 import {
     hasIncomeHintInMessage,
@@ -2891,13 +2891,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         const next = prev.filter((item) => item.id !== itemId);
         emptied = next.length === 0;
         adjustIndex(removeAt, next.length);
-        void (async () => {
-          await replaceRecordInboxItems(next);
-          if (outcome === 'converted') {
-            await markRecordInboxPushConverted(itemId);
-          }
-          await setupDailyReminder();
-        })();
+        // persist는 스토어에서 id만 제거 (스냅샷 전체 replace는 동시 ingest를 덮어씀)
+        void removeRecordInboxItemById(itemId, { outcome });
         return next;
       });
       if (emptied) {
@@ -3220,11 +3215,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
           return next;
         });
       } else {
-        setRecordInboxItems((prev) => {
-          const next = prev.map(patchItem);
-          void replaceRecordInboxItems(next);
-          return next;
-        });
+        setRecordInboxItems((prev) => prev.map(patchItem));
+        void updateRecordInboxItem(recordInboxItemId, patchItem);
       }
       closeRecordInboxCategorySheet();
     },
@@ -5257,11 +5249,10 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
             });
             return;
           }
-          setRecordInboxItems((prev) => {
-            const next = prev.map((item) => (item.id === recordInboxItemId ? { ...item, card } : item));
-            void replaceRecordInboxItems(next);
-            return next;
-          });
+          setRecordInboxItems((prev) =>
+            prev.map((item) => (item.id === recordInboxItemId ? { ...item, card } : item)),
+          );
+          void updateRecordInboxItem(recordInboxItemId, (item) => ({ ...item, card }));
           return;
         }
         setConfirmCardData(card);
