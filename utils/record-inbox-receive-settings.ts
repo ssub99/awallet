@@ -26,6 +26,8 @@ export type AppNotificationReceiveTarget = {
 type SmsReceiveNativeModule = {
   syncSmsReceiveSettings?: (enabled: boolean, numbers: string[]) => Promise<void>;
   syncAppNotificationReceiveSettings?: (enabled: boolean, packages: string[]) => Promise<void>;
+  /** iOS: App Group 수신 ON 게이트 (Intent enqueue·아이콘 뱃지) */
+  syncRecordInboxReceiveEnabled?: (smsEnabled: boolean, appEnabled: boolean) => Promise<void>;
   clearSmsInboxNativeState?: () => Promise<void>;
 };
 
@@ -144,9 +146,14 @@ export async function saveSmsReceiveDisclosureAccepted(): Promise<void> {
   await AsyncStorage.setItem(SMS_RECEIVE_DISCLOSURE_ACCEPTED_KEY, 'true');
 }
 
-/** 앱 시작·설정 변경 시 종료 상태 Receiver·알림 리스너가 읽을 Android 설정(문자 + 앱 알림)을 갱신한다. */
+/**
+ * 앱 시작·설정 변경 시 네이티브 수신 게이트를 갱신한다.
+ * - Android: Receiver/알림 리스너 설정 파일
+ * - iOS: App Group 수신 ON (Intent enqueue·아이콘 뱃지). 키 없음=OFF(재설치 잔재 뱃지 방지)
+ * 수신 OFF면 아이콘 뱃지도 0으로 맞춤.
+ */
 export async function syncSmsReceiveSettingsToNative(): Promise<void> {
-  if (Platform.OS !== 'android') return;
+  if (Platform.OS !== 'android' && Platform.OS !== 'ios') return;
   const [enabled, numbers, appEnabled, targets] = await Promise.all([
     loadSmsReceiveEnabled(),
     loadSmsReceiveNumbers(),
@@ -154,13 +161,30 @@ export async function syncSmsReceiveSettingsToNative(): Promise<void> {
     loadAppNotificationReceiveTargets(),
   ]);
   try {
-    await smsReceiveNative?.syncSmsReceiveSettings?.(enabled, numbers);
-    await smsReceiveNative?.syncAppNotificationReceiveSettings?.(
-      appEnabled,
-      targets.map((target) => target.packageName),
-    );
+    if (Platform.OS === 'android') {
+      await smsReceiveNative?.syncSmsReceiveSettings?.(enabled, numbers);
+      await smsReceiveNative?.syncAppNotificationReceiveSettings?.(
+        appEnabled,
+        targets.map((target) => target.packageName),
+      );
+    } else {
+      const syncEnabled = smsReceiveNative?.syncRecordInboxReceiveEnabled;
+      if (typeof syncEnabled === 'function') {
+        await syncEnabled.call(smsReceiveNative, enabled, appEnabled);
+      }
+    }
   } catch {
     // Expo Go처럼 네이티브 브리지가 없는 환경에서는 JS 설정만 유지한다.
+  }
+
+  try {
+    const { loadRecordInboxItems } = await import('@/utils/record-inbox-store');
+    const { syncRecordInboxIconBadge } = await import('@/utils/record-inbox-icon-badge');
+    const receiveOn = enabled || appEnabled;
+    const count = receiveOn ? (await loadRecordInboxItems()).length : 0;
+    await syncRecordInboxIconBadge(count);
+  } catch {
+    // 뱃지 동기화 실패는 설정 저장을 막지 않음
   }
 }
 

@@ -30,6 +30,11 @@ RCT_EXTERN_METHOD(setRecordInboxSyncedCount:(nonnull NSNumber *)count
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
+RCT_EXTERN_METHOD(syncRecordInboxReceiveEnabled:(BOOL)smsEnabled
+                  appEnabled:(BOOL)appEnabled
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+
 RCT_EXTERN_METHOD(clearSmsInboxNativeState:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 

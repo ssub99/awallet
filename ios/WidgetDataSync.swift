@@ -105,13 +105,30 @@ class WidgetDataSync: RCTEventEmitter {
     resolve(nil)
   }
 
-  /// 재설치 검증용. `sms-inbox-3` = peek + id ack (성공 시에만 삭제).
+  /// 재설치 검증용. `sms-inbox-4` = 수신 ON 게이트(App Group) + peek/ack.
   @objc(getSmsInboxBridgeVersion:rejecter:)
   func getSmsInboxBridgeVersion(
     _ resolve: @escaping RCTPromiseResolveBlock,
     rejecter reject: @escaping RCTPromiseRejectBlock
   ) {
-    resolve("sms-inbox-3")
+    resolve("sms-inbox-4")
+  }
+
+  /// JS 문자/앱알림 수신 ON → App Group. Intent enqueue·아이콘 뱃지 게이트.
+  @objc(syncRecordInboxReceiveEnabled:appEnabled:resolver:rejecter:)
+  func syncRecordInboxReceiveEnabled(
+    _ smsEnabled: Bool,
+    appEnabled: Bool,
+    resolver resolve: @escaping RCTPromiseResolveBlock,
+    rejecter reject: @escaping RCTPromiseRejectBlock
+  ) {
+    RecordInboxReceiveGate.set(smsEnabled: smsEnabled, appEnabled: appEnabled)
+    if RecordInboxReceiveGate.isAnyEnabled() {
+      RecordInboxIconBadge.refresh()
+    } else {
+      RecordInboxIconBadge.applyVisibleCount(0)
+    }
+    resolve(nil)
   }
 
   /// App Intent가 쌓아 둔 기록 수신함 대기 큐를 읽고 비운다. (레거시·진단용)
@@ -273,6 +290,18 @@ enum RecordInboxAppGroupQueue {
       return
     }
     let senderTrimmed = sender.trimmingCharacters(in: .whitespacesAndNewlines)
+    let receiveAllowed =
+      source == "app" ? RecordInboxReceiveGate.isAppEnabled() : RecordInboxReceiveGate.isSmsEnabled()
+    // Android 리스너와 동일: 해당 수신 경로 OFF면 큐·뱃지 미반영 (재설치 후 기본 OFF).
+    guard receiveAllowed else {
+      recordLastIntent(
+        ok: false,
+        reason: "receive-disabled",
+        sender: senderTrimmed,
+        bodyPreview: String(trimmed.prefix(80))
+      )
+      return
+    }
     // 결제 후보만 큐·뱃지 반영. 마케팅 등은 lastIntent만 남기고 스킵 (Android 리스너와 동일).
     guard hasSupportedTransactionKeyword(trimmed) else {
       recordLastIntent(
@@ -341,7 +370,7 @@ enum RecordInboxAppGroupQueue {
     }
   }
 
-  /// 리셋: pending 큐·lastIntent 제거 (뱃지는 RecordInboxIconBadge.clear).
+  /// 리셋: pending 큐·lastIntent·수신 게이트·lastSynced 제거 (뱃지는 RecordInboxIconBadge.clear).
   static func clearAll() {
     withQueueLock {
       writeQueueUnlocked([])
@@ -349,6 +378,8 @@ enum RecordInboxAppGroupQueue {
         defaults.removeObject(forKey: storageKey)
         defaults.removeObject(forKey: lastIntentKey)
         defaults.removeObject(forKey: RecordInboxIconBadge.lastSyncedKey)
+        defaults.removeObject(forKey: RecordInboxReceiveGate.smsEnabledKey)
+        defaults.removeObject(forKey: RecordInboxReceiveGate.appEnabledKey)
         defaults.synchronize()
       }
     }
@@ -461,12 +492,52 @@ enum RecordInboxAppGroupQueue {
   }
 }
 
+// MARK: - Receive enabled gate (JS → App Group, Intent/뱃지와 동일 맥락)
+
+enum RecordInboxReceiveGate {
+  static let smsEnabledKey = "recordInboxSmsReceiveEnabled"
+  static let appEnabledKey = "recordInboxAppNotificationReceiveEnabled"
+
+  static func isSmsEnabled() -> Bool {
+    bool(forKey: smsEnabledKey)
+  }
+
+  static func isAppEnabled() -> Bool {
+    bool(forKey: appEnabledKey)
+  }
+
+  static func isAnyEnabled() -> Bool {
+    isSmsEnabled() || isAppEnabled()
+  }
+
+  static func set(smsEnabled: Bool, appEnabled: Bool) {
+    guard let defaults = UserDefaults(suiteName: RecordInboxAppGroupQueue.appGroupIdentifier) else {
+      return
+    }
+    defaults.set(smsEnabled, forKey: smsEnabledKey)
+    defaults.set(appEnabled, forKey: appEnabledKey)
+    defaults.synchronize()
+  }
+
+  /// 키 없음(재설치·미동기화) = OFF. Android 기본값과 동일.
+  private static func bool(forKey key: String) -> Bool {
+    guard let defaults = UserDefaults(suiteName: RecordInboxAppGroupQueue.appGroupIdentifier) else {
+      return false
+    }
+    guard defaults.object(forKey: key) != nil else {
+      return false
+    }
+    return defaults.bool(forKey: key)
+  }
+}
+
 // MARK: - App icon badge (기록 수신함 미확인 = lastSynced + pending)
 
 enum RecordInboxIconBadge {
   static let lastSyncedKey = "recordInboxLastSyncedCount"
 
   /// JS 확정 실건수. 뱃지는 count만 (flush 중 pending 이중 집계 방지).
+  /// 수신 OFF면 lastSynced만 저장하고 아이콘은 0 (수신함 노출 조건과 동일).
   static func setLastSynced(_ count: Int) {
     guard let defaults = UserDefaults(suiteName: RecordInboxAppGroupQueue.appGroupIdentifier) else {
       return
@@ -474,28 +545,32 @@ enum RecordInboxIconBadge {
     let safe = max(0, count)
     defaults.set(safe, forKey: lastSyncedKey)
     defaults.synchronize()
-    apply(safe)
+    applyVisibleCount(RecordInboxReceiveGate.isAnyEnabled() ? safe : 0)
   }
 
-  /// enqueue 직후: lastSynced + pending (파일 큐 건수)
+  /// enqueue 직후: lastSynced + pending (파일 큐 건수). 수신 OFF면 아이콘 0.
   static func refresh(using defaults: UserDefaults? = nil) {
+    guard RecordInboxReceiveGate.isAnyEnabled() else {
+      applyVisibleCount(0)
+      return
+    }
     let suite = defaults ?? UserDefaults(suiteName: RecordInboxAppGroupQueue.appGroupIdentifier)
     let synced = max(0, suite?.integer(forKey: lastSyncedKey) ?? 0)
     let pending = RecordInboxAppGroupQueue.pendingCount()
-    apply(synced + pending)
+    applyVisibleCount(synced + pending)
   }
 
   static func clear() {
     guard let defaults = UserDefaults(suiteName: RecordInboxAppGroupQueue.appGroupIdentifier) else {
-      apply(0)
+      applyVisibleCount(0)
       return
     }
     defaults.set(0, forKey: lastSyncedKey)
     defaults.synchronize()
-    apply(0)
+    applyVisibleCount(0)
   }
 
-  private static func apply(_ count: Int) {
+  static func applyVisibleCount(_ count: Int) {
     let value = max(0, count)
     if #available(iOS 16.0, *) {
       UNUserNotificationCenter.current().setBadgeCount(value) { _ in }
