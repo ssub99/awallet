@@ -15,6 +15,7 @@ import { useAppData } from '@/contexts/app-data-context';
 import { useCreateSheetContext } from '@/contexts/create-sheet-context';
 import { useLoading } from '@/contexts/loading-context';
 import { useQuickInputContext } from '@/contexts/quick-input-context';
+import { HOME_STACK_PATHS } from '@/constants/navigation/route-ownership';
 import {
   getHomeBottomContentInset,
   getQuickInputBottomAboveTabBar,
@@ -468,17 +469,20 @@ export default function HomeScreen() {
     }
   }, [periodType, syncCalendarDatesToToday, setPeriodType]);
   
-  // 홈 탭이 이미 선택된 상태에서 다시 탭 → 오늘로 리셋 (NativeTabs 재선택)
+  // 홈 탭이 이미 선택된 상태에서 다시 탭 → 중첩 화면 닫고 오늘로 리셋 (NativeTabs 재선택)
   useEffect(() => {
     return tabReselectEvent.subscribe((tabName) => {
       if (tabName !== 'home') {
         return;
       }
+      if (router.canDismiss()) {
+        router.dismissTo(HOME_STACK_PATHS.index);
+      }
       resetToToday().catch((error) => {
         console.error('Error resetting to today:', error);
       });
     });
-  }, [resetToToday]);
+  }, [resetToToday, router]);
   
   // Listen for create tab press (only when focused)
   const effectiveSelectedDate = useMemo(() => {

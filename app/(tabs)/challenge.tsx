@@ -3291,7 +3291,7 @@ const styles = StyleSheet.create({
     borderRadius: 2.5,
   },
   trendCategoryList: {
-    paddingBottom: 20,
+    gap: 8,
   },
   trendCategoryItem: {
     flexDirection: 'row',
@@ -3300,7 +3300,6 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 16,
     borderRadius: 16,
-    marginBottom: 8,
   },
   trendCategorySection: {
     flexDirection: 'row',
@@ -3317,12 +3316,11 @@ const styles = StyleSheet.create({
   },
   challengeList: {
     paddingHorizontal: 16,
-    paddingBottom: 16,
+    gap: 16,
   },
   challengeCard: {
     borderRadius: 16,
     padding: 16,
-    marginBottom: 16,
   },
   challengeHeader: {
     flexDirection: 'row',
