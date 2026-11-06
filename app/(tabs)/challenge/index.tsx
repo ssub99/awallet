@@ -13,6 +13,7 @@ import { Icon } from '@/components/ui/icon';
 import { ModalBottomsheet, ModalBottomsheetBottomInset } from '@/components/ui/modal-bottomsheet';
 import { UiLineText } from '@/components/ui/ui-line-text';
 import { CONSUMPTION_REPORT_API_URL } from '@/constants/api';
+import { CHALLENGE_STACK_PATHS } from '@/constants/navigation/route-ownership';
 import { getTabScreenScrollPaddingBottom } from '@/constants/navigation/tab-bar-metrics';
 import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';
@@ -1525,17 +1526,20 @@ export default function ChallengeTabScreen() {
     }
   }, []);
 
-  // 챌린지 탭이 이미 선택된 상태에서 다시 탭 → 이번 달로 리셋 (NativeTabs 재선택)
+  // 챌린지 탭이 이미 선택된 상태에서 다시 탭 → 중첩 화면 닫고 이번 달로 리셋 (NativeTabs 재선택)
   useEffect(() => {
     return tabReselectEvent.subscribe((tabName) => {
       if (tabName !== 'challenge') {
         return;
       }
+      if (router.canDismiss()) {
+        router.dismissTo(CHALLENGE_STACK_PATHS.index);
+      }
       resetToCurrentMonth().catch((error) => {
         console.error('[challenge-tab] Failed to reset to today:', error);
       });
     });
-  }, [resetToCurrentMonth]);
+  }, [resetToCurrentMonth, router]);
 
   const handlePrevMonth = useCallback(() => {
     if (activeTopTabRef.current === 'report') {
