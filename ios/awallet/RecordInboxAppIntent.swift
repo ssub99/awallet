@@ -20,7 +20,7 @@ import Foundation
 
 @available(iOS 17.0, *)
 struct IngestSmsInboxIntent: AppIntent {
-  static var title: LocalizedStringResource = "문자 수신함"
+  static var title: LocalizedStringResource = "에이월렛 문자 수신함"
   static var description = IntentDescription(
     "메시지 자동화로 받은 문자 원문을 에이월렛 문자 수신함 가기록으로 전달합니다."
   )
@@ -41,7 +41,7 @@ struct IngestSmsInboxIntent: AppIntent {
   var sender: String
 
   static var parameterSummary: some ParameterSummary {
-    Summary("문자 수신함") {
+    Summary("에이월렛 문자 수신함") {
       \.$body
       \.$sender
     }
@@ -58,9 +58,9 @@ struct IngestSmsInboxIntent: AppIntent {
 /// 제목·본문을 합쳐 source "app"으로 같은 App Group 큐에 기록 → JS가 앱 알림 수신 설정으로 분기.
 @available(iOS 17.0, *)
 struct IngestAppNotificationIntent: AppIntent {
-  static var title: LocalizedStringResource = "알림 수신함"
+  static var title: LocalizedStringResource = "에이월렛 알림 수신함"
   static var description = IntentDescription(
-    "알림 자동화로 받은 카드사·은행 앱 알림을 에이월렛 문자 수신함 가기록으로 전달합니다."
+    "알림 자동화로 받은 카드사·은행 앱 알림을 에이월렛 기록 수신함 가기록으로 전달합니다."
   )
   static var openAppWhenRun: Bool = false
 
@@ -85,7 +85,7 @@ struct IngestAppNotificationIntent: AppIntent {
   var appName: String
 
   static var parameterSummary: some ParameterSummary {
-    Summary("알림 수신함") {
+    Summary("에이월렛 알림 수신함") {
       \.$notificationTitle
       \.$body
       \.$appName
@@ -108,17 +108,19 @@ struct RecordInboxAppShortcuts: AppShortcutsProvider {
     AppShortcut(
       intent: IngestSmsInboxIntent(),
       phrases: [
+        "에이월렛 문자 수신함",
         "\(.applicationName) 문자 수신함",
       ],
-      shortTitle: "문자 수신함",
+      shortTitle: "에이월렛 문자 수신함",
       systemImageName: "envelope.badge"
     )
     AppShortcut(
       intent: IngestAppNotificationIntent(),
       phrases: [
+        "에이월렛 알림 수신함",
         "\(.applicationName) 알림 수신함",
       ],
-      shortTitle: "알림 수신함",
+      shortTitle: "에이월렛 알림 수신함",
       systemImageName: "bell.badge"
     )
   }

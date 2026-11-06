@@ -1,6 +1,7 @@
 /**
  * iOS 단축어 — iCloud 공유 단축어(플로우와 동일 설치 UX).
- * 단축어 본문은 App Intent「문자 수신함」에 본문·발신번호를 연결한 형태.
+ * 단축어 본문은 App Intent「에이월렛 문자 수신함」에 본문·발신번호를 연결한 형태.
+ * (1.2.4+ 표시명. 구버전 앱 Intent 표시명은 「문자 수신함」.)
  * Swift Intent: ios/awallet/RecordInboxAppIntent.swift
  *
  * 앱은 fetch 후 iCloud URL을 열어 단축어 앱으로 넘긴다 (별도 웹 UI 없음).
