@@ -175,6 +175,8 @@ object RecordInboxNativeStore {
     body: String,
     receivedAt: Long,
     source: String = "",
+    /** 앱 알림 등 게시 건별 고유키 (StatusBarNotification.key). 동일 본문 연속 결제 유실 방지. */
+    eventKey: String? = null,
   ): Boolean {
     val trimmedBody = body.trim()
     val trimmedSender = sender.trim()
@@ -183,7 +185,7 @@ object RecordInboxNativeStore {
     }
 
     val enqueued = transact(context) { state ->
-      enqueueLocked(state, trimmedSender, trimmedBody, receivedAt, source)
+      enqueueLocked(state, trimmedSender, trimmedBody, receivedAt, source, eventKey)
     }
     if (enqueued) {
       RecordInboxBadgeNotifier.refreshFromStore(context)
@@ -234,12 +236,15 @@ object RecordInboxNativeStore {
     trimmedBody: String,
     receivedAt: Long,
     source: String,
+    eventKey: String? = null,
   ): Boolean {
     val now = System.currentTimeMillis()
-    val fingerprint = if (source == SOURCE_APP) {
-      fingerprint("$SOURCE_APP:$trimmedSender", trimmedBody, receivedAt, rawSender = true)
-    } else {
-      fingerprint(trimmedSender, trimmedBody, receivedAt)
+    // 앱 알림: sbn.key 우선 — 본문이 같아도 연속 결제 2건을 각각 적재.
+    // 문자: sender+body (재전달 중복 방지). receivedAt은 지문 미사용(의도적).
+    val fingerprint = when {
+      !eventKey.isNullOrBlank() -> fingerprint("event:$eventKey", "", receivedAt, rawSender = true)
+      source == SOURCE_APP -> fingerprint("$SOURCE_APP:$trimmedSender", trimmedBody, receivedAt, rawSender = true)
+      else -> fingerprint(trimmedSender, trimmedBody, receivedAt)
     }
     val fingerprints = loadFingerprints(state.str(KEY_FINGERPRINTS), now)
     if (fingerprints.any { it.first == fingerprint }) {

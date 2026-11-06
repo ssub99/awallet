@@ -95,7 +95,7 @@ function resolveKeysToRemove(): string[] {
 
 /**
  * 전체 초기화를 수행합니다.
- * 소비·입금·챌린지 데이터와 카테고리/알림/캐시 등 설정을 모두 제거합니다.
+ * 소비·입금·챌린지·기록 수신함 데이터와 카테고리/알림/캐시 등 설정을 모두 제거합니다.
  * __DEV__에서는 작성·편집한 로컬 공지(`devPublishedAppNotices`)는 보존합니다.
  */
 export async function resetAppData(): Promise<void> {

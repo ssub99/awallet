@@ -4,9 +4,9 @@ export const ONBOARDING_COMPLETED_KEY = 'onboardingCompleted';
 
 /**
  * true면 앱 킬·리로드마다 온보딩 재노출(검증용).
- * false면 3단계 「시작하기」로 `markOnboardingCompleted` 된 뒤부터 미노출.
+ * false면 3단계 「시작하기」로 `markOnboardingCompleted` 된 뒤부터 미노출(최초 1회).
  */
-export const ONBOARDING_SHOW_EVERY_LAUNCH = true;
+export const ONBOARDING_SHOW_EVERY_LAUNCH = false;
 
 /** JS 컨텍스트가 살아 있는 동안(같은 세션) 온보딩을 다시 안 띄움. 리로드 시 리셋. */
 let dismissedThisLaunch = false;

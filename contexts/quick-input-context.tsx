@@ -1327,6 +1327,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const [tutorialEntryExpanded, setTutorialEntryExpanded] = useState(
     QUICK_INPUT_TUTORIAL_ENTRY_EXPANDED_DEFAULT,
   );
+  /** 이전·체험하기 퇴장 모션 중 — 수신함/계산기/카테고리 설정 전환 시 */
+  const [tutorialEntryExiting, setTutorialEntryExiting] = useState(false);
   /** 기록 수신 기능 체험하기 → 기록 수신 안내 카드 */
   const [tutorialReceiveConfirmVisible, setTutorialReceiveConfirmVisible] = useState(false);
   /** 기록 수신 체험 완료 카드 (추가 후 간편입력 메인) */
@@ -1934,6 +1936,10 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     descendQuickInputToRestAfterKeyboardHide(revealTutorialSmsInboxFocusDim);
   }, [descendQuickInputToRestAfterKeyboardHide, revealTutorialSmsInboxFocusDim]);
 
+  const handleTutorialEntryExitComplete = useCallback(() => {
+    setTutorialEntryExiting(false);
+  }, []);
+
   const handleTutorialEntryToggleExpanded = useCallback(() => {
     clearTutorialReceiveFocus();
     setTutorialEntryExpanded((prev) => {
@@ -2512,8 +2518,16 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }, [focusQuickInputField, setShouldFollowKeyboard]);
 
   const handleQuickInputCalculatorPress = useCallback(() => {
+    const fromMainChrome =
+      !isQuickInputRecordInboxVisible &&
+      !isQuickInputRecordInboxOpening &&
+      !quickInputCategorySettingSheetMounted &&
+      !isQuickInputCategorySettingOpening;
     if (isQuickInputRecordInboxVisible) {
       setIsQuickInputRecordInboxVisible(false);
+    }
+    if (fromMainChrome) {
+      setTutorialEntryExiting(true);
     }
     calculatorAnimationRef.current?.stop();
     calculatorTranslateY.setValue(calculatorPanelHeightRef.current);
@@ -2534,7 +2548,17 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       });
       calculatorAnimationRef.current.start();
     });
-  }, [animatedBottom, calculatorTranslateY, isQuickInputRecordInboxVisible, resetAndroidKeyboardFollowPeak, setShouldFollowKeyboard, shortBottomFromScreen]);
+  }, [
+    animatedBottom,
+    calculatorTranslateY,
+    isQuickInputCategorySettingOpening,
+    isQuickInputRecordInboxOpening,
+    isQuickInputRecordInboxVisible,
+    quickInputCategorySettingSheetMounted,
+    resetAndroidKeyboardFollowPeak,
+    setShouldFollowKeyboard,
+    shortBottomFromScreen,
+  ]);
 
   const closeQuickInputRecordInbox = useCallback(() => {
     if (!isQuickInputRecordInboxVisibleRef.current || isQuickInputRecordInboxClosingRef.current) {
@@ -2554,6 +2578,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     editSheetOpenAnimationRef.current?.stop();
     setRecordInboxCategorySheetVisible(false);
     setRecordInboxCategorySheetMounted(false);
+    setTutorialEntryExiting(false);
     setIsQuickInputRecordInboxOpening(false);
 
     editSheetOpenCardTranslateY.setValue(0);
@@ -2656,6 +2681,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     editSheetOpenCardOpacity.setValue(1);
     editSheetOpenInputTranslateY.setValue(0);
     editSheetOpenInputOpacity.setValue(1);
+    setTutorialEntryExiting(true);
     setIsQuickInputRecordInboxOpening(true);
     // 키보드 높이에서 바로 bottom=0으로 점프하면 칩만 하단에 남음.
     // follow 끄기 전에 현재 키보드 위치를 shortBottom에 고정한 뒤 같이 내린다.
@@ -2697,6 +2723,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     ]);
     const finishOpen = (finished: boolean) => {
       if (!finished) {
+        setTutorialEntryExiting(false);
         setIsQuickInputRecordInboxOpening(false);
         editSheetOpenCardTranslateY.setValue(0);
         editSheetOpenCardOpacity.setValue(1);
@@ -3340,6 +3367,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     setIsQuickInputRecordInboxVisible(false);
     setIsQuickInputRecordInboxOpening(false);
     isQuickInputRecordInboxClosingRef.current = false;
+    setTutorialEntryExiting(false);
     setTutorialReceiveConfirmVisible(false);
     setTutorialReceiveCompleteVisible(false);
     setTutorialReceiveVirtualBadgeVisible(false);
@@ -3874,6 +3902,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     } else {
       setIsQuickInputCategorySettingListReady(false);
     }
+    setTutorialEntryExiting(true);
     setIsQuickInputCategorySettingOpening(true);
     setIsQuickInputCategorySettingClosing(false);
     setShouldFollowKeyboard(false);
@@ -3910,6 +3939,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     ]);
     editSheetOpenAnimationRef.current.start(({ finished }) => {
       if (!finished) {
+        setTutorialEntryExiting(false);
+        setIsQuickInputCategorySettingOpening(false);
         return;
       }
       setQuickInputCategorySettingSheetMounted(true);
@@ -5608,14 +5639,17 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
               {isQuickInputContentVisible &&
               !quickInputEditSheetVisible &&
               !isQuickInputEditSheetClosing &&
-              !isQuickInputCalculatorVisible &&
-              !isQuickInputRecordInboxVisible &&
-              !isQuickInputRecordInboxOpening &&
               confirmCardData == null &&
-              (!quickInputCategorySettingSheetMounted || isQuickInputCategorySettingOpening) ? (
+              (tutorialEntryExiting ||
+                (!isQuickInputCalculatorVisible &&
+                  !isQuickInputRecordInboxVisible &&
+                  !isQuickInputRecordInboxOpening &&
+                  !quickInputCategorySettingSheetMounted &&
+                  !isQuickInputCategorySettingOpening)) ? (
                 <View
                   style={styles.tutorialEntryLayer}
                   pointerEvents={
+                    tutorialEntryExiting ||
                     tutorialSmsInboxFocusVisible ||
                     tutorialReceiveCompleteVisible ||
                     tutorialCreateCompleteVisible ||
@@ -5632,6 +5666,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                     onClose={handleQuickInputBackdropPress}
                     onReceivePress={handleTutorialReceivePress}
                     onCreatePress={handleTutorialCreatePress}
+                    exiting={tutorialEntryExiting}
+                    onExitComplete={handleTutorialEntryExitComplete}
                   />
                   {tutorialReceiveConfirmVisible && !tutorialReceiveCompleteVisible ? (
                     <QuickInputTutorialReceiveConfirmCard

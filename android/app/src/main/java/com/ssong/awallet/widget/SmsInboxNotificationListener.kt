@@ -62,7 +62,14 @@ class SmsInboxNotificationListener : NotificationListenerService() {
     }
 
     val receivedAt = sbn.postTime.takeIf { it > 0L } ?: System.currentTimeMillis()
-    if (RecordInboxNativeStore.enqueue(context, sender, body, receivedAt)) {
+    if (RecordInboxNativeStore.enqueue(
+        context,
+        sender,
+        body,
+        receivedAt,
+        eventKey = sbn.key,
+      )
+    ) {
       RecordInboxNativeEventEmitter.notifyFromOtherProcess(context)
     }
   }
@@ -91,6 +98,7 @@ class SmsInboxNotificationListener : NotificationListenerService() {
         combined,
         receivedAt,
         RecordInboxNativeStore.SOURCE_APP,
+        eventKey = sbn.key,
       )
     ) {
       RecordInboxNativeEventEmitter.notifyFromOtherProcess(context)

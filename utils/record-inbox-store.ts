@@ -101,6 +101,16 @@ export async function clearRecordInboxItems(): Promise<void> {
   await writeItems([]);
 }
 
+/** 백업 복원 등 — 수신함 큐 전체 교체 (유효 아이템만 유지) */
+export async function replaceAllRecordInboxItems(items: RecordInboxItem[]): Promise<void> {
+  const next = items.filter(isRecordInboxItem).map((item) => ({
+    ...item,
+    originalBody: normalizeRecordInboxOriginalBody(item.originalBody),
+    rawBody: normalizeRecordInboxOriginalBody(item.rawBody ?? item.originalBody),
+  }));
+  await writeItems(next);
+}
+
 function formatSenderLabel(sender: string): string {
   return formatSmsSenderDisplay(sender);
 }

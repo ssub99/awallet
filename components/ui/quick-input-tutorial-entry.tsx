@@ -8,6 +8,7 @@
  * - 카드   @(16, 104) 343×124 · 기록수신 / 간편기록생성 (펼침일 때만)
  *
  * 등장 모션: 기록 수신함 상단(이전+원문)과 동일 — 위→아래 16px + fade 180ms
+ * 퇴장 모션: 등장 역방향 — 아래→위 16px + fade out 180ms (수신함·계산기·카테고리 설정 동일)
  * (quick-input-record-inbox ENTER_* / originalEnterStyle)
  *
  * 「기록 수신 기능 체험하기」→ onReceivePress (안내 카드).
@@ -17,10 +18,11 @@
 import { Icon } from '@/components/ui/icon';
 import { colors, typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
+  runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
@@ -35,9 +37,10 @@ const CARD_RADIUS = 24;
 const CARD_PAD = 16;
 const CARD_ICON_SIZE = 36;
 
-/** 기록 수신함 상단 등장과 동일 */
+/** 기록 수신함 상단 등장과 동일 · 퇴장은 역방향 */
 const ENTER_SLIDE_OFFSET = 16;
-const ENTER_DURATION_MS = 180;
+export const TUTORIAL_ENTRY_MOTION_DURATION_MS = 180;
+const ENTER_DURATION_MS = TUTORIAL_ENTRY_MOTION_DURATION_MS;
 const ENTER_EASING = Easing.inOut(Easing.cubic);
 
 export type QuickInputTutorialEntryProps = {
@@ -46,6 +49,9 @@ export type QuickInputTutorialEntryProps = {
   onClose: () => void;
   onReceivePress?: () => void;
   onCreatePress?: () => void;
+  /** true면 등장 역방향 퇴장 후 onExitComplete */
+  exiting?: boolean;
+  onExitComplete?: () => void;
 };
 
 export function QuickInputTutorialEntry({
@@ -54,11 +60,15 @@ export function QuickInputTutorialEntry({
   onClose,
   onReceivePress,
   onCreatePress,
+  exiting = false,
+  onExitComplete,
 }: QuickInputTutorialEntryProps) {
   const colorScheme = useColorScheme();
   const palette = colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
   const topOffset = insets.top;
+  const onExitCompleteRef = useRef(onExitComplete);
+  onExitCompleteRef.current = onExitComplete;
 
   const enterTranslateY = useSharedValue(-ENTER_SLIDE_OFFSET);
   const enterOpacity = useSharedValue(0);
@@ -76,14 +86,41 @@ export function QuickInputTutorialEntry({
     });
   }, [enterOpacity, enterTranslateY]);
 
+  useEffect(() => {
+    if (!exiting) {
+      return;
+    }
+    const notifyExitComplete = () => {
+      onExitCompleteRef.current?.();
+    };
+    const timing = {
+      duration: ENTER_DURATION_MS,
+      easing: ENTER_EASING,
+    } as const;
+    enterTranslateY.value = withTiming(-ENTER_SLIDE_OFFSET, timing, (finished) => {
+      if (finished) {
+        runOnJS(notifyExitComplete)();
+      }
+    });
+    enterOpacity.value = withTiming(0, timing);
+  }, [enterOpacity, enterTranslateY, exiting]);
+
   const enterStyle = useAnimatedStyle(() => ({
     opacity: enterOpacity.value,
     transform: [{ translateY: enterTranslateY.value }],
   }));
 
   return (
-    <View style={styles.root} pointerEvents="box-none" collapsable={false}>
-      <Animated.View style={[styles.bundle, enterStyle]} pointerEvents="box-none" collapsable={false}>
+    <View
+      style={styles.root}
+      pointerEvents={exiting ? 'none' : 'box-none'}
+      collapsable={false}
+    >
+      <Animated.View
+        style={[styles.bundle, enterStyle]}
+        pointerEvents={exiting ? 'none' : 'box-none'}
+        collapsable={false}
+      >
         <View
           style={[
             styles.closeButton,

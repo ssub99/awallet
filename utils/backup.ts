@@ -1,11 +1,11 @@
 /**
  * AWallet 백업/복원
  *
- * - 전용 파일(.awbak): JSON (version, exportedAt, expenses, incomes, challenges)
+ * - 전용 파일(.awbak): JSON (version, exportedAt, expenses, incomes, challenges, recordInboxItems?)
  *   소비/입금 레코드 전체 필드를 포함해 서비스 기능을 온전히 백업·복원합니다.
  *   포함 항목: (1) 날짜 (2) 카테고리 (3) 수입/소비 (4) 금액 (5) 자산유형(신용/체크/현금)
  *   (6) 반복여부(일반/정기/할부) (7) 정산여부(선결제, 환불, 결산) (8) 주말옵션 (9) 메모
- *   및 관련 ID·원본금액·타임스탬프 등.
+ *   및 관련 ID·원본금액·타임스탬프 등. 기록 수신함 미처리 큐도 .awbak에 포함.
  *
  * - CSV: 날짜,카테고리,수입/소비,금액,유형,메모 (엑셀 양식 호환)
  * - XLSX: 년도별 시트 + 카테고리 시트(이름만, 이모지 제외). 복원 시 기본 카테고리는 내장 이모지, 사용자 카테고리는 ✅
@@ -38,6 +38,11 @@ import {
 } from '@/utils/payment-types';
 import { rebuildCalendarDataFromStores } from '@/utils/rebuild-calendar-data';
 import { clearChallengeNotificationSchedulesForRestore } from '@/utils/notification-scheduler';
+import {
+  loadRecordInboxItems,
+  replaceAllRecordInboxItems,
+} from '@/utils/record-inbox-store';
+import type { RecordInboxItem } from '@/utils/record-inbox-types';
 /** 복원(사용자 파일 파싱): 패치된 SheetJS. 백업(스타일 출력): xlsx-js-style. */
 import * as XLSX from 'xlsx';
 import * as XLSXStyle from 'xlsx-js-style';
@@ -102,6 +107,8 @@ export interface BackupPayload {
   incomes: IncomeRecord[];
   /** 생성된 챌린지 목록. 없으면 구버전 백업으로 간주 */
   challenges?: ChallengeRecord[];
+  /** 기록 수신함 미처리 큐. 없으면 구버전 백업 → 복원 시 빈 큐로 교체 */
+  recordInboxItems?: RecordInboxItem[];
   /** 수입/소비 카테고리 설정 (복원 시 초기화된 카테고리를 덮어씀). 없으면 기존 .awbak 호환 */
   categoriesExpense?: Category[];
   categoriesIncome?: Category[];
@@ -153,12 +160,14 @@ export async function createBackupPayload(): Promise<BackupPayload> {
     expenses,
     incomes,
     challenges,
+    recordInboxItems,
     { categoriesExpense, categoriesIncome },
     paymentSubtypes,
   ] = await Promise.all([
     getAllExpenses(),
     getAllIncomes(),
     getAllChallenges(),
+    loadRecordInboxItems(),
     loadOrderedCategoriesForBackup(),
     loadPaymentSubtypes(),
   ]);
@@ -168,6 +177,7 @@ export async function createBackupPayload(): Promise<BackupPayload> {
     expenses,
     incomes,
     challenges,
+    recordInboxItems,
     categoriesExpense,
     categoriesIncome,
     paymentSubtypes,
@@ -224,6 +234,7 @@ export function parseBackupPayload(json: string): BackupPayload | null {
     ) {
       const payload = raw as BackupPayload;
       if (payload.challenges !== undefined && !Array.isArray(payload.challenges)) return null;
+      if (payload.recordInboxItems !== undefined && !Array.isArray(payload.recordInboxItems)) return null;
       if (payload.categoriesExpense !== undefined && !isCategoryArray(payload.categoriesExpense)) return null;
       if (payload.categoriesIncome !== undefined && !isCategoryArray(payload.categoriesIncome)) return null;
       if (payload.paymentSubtypes !== undefined && !Array.isArray(payload.paymentSubtypes)) return null;
@@ -275,6 +286,7 @@ export async function restoreFromBackupFile(fileUri: string): Promise<void> {
   const expenses = Array.isArray(payload.expenses) ? payload.expenses : [];
   const incomes = Array.isArray(payload.incomes) ? payload.incomes : [];
   const challenges = Array.isArray(payload.challenges) ? payload.challenges : [];
+  const recordInboxItems = Array.isArray(payload.recordInboxItems) ? payload.recordInboxItems : [];
 
   if (payload.categoriesExpense?.length) {
     await saveCategories('expense', payload.categoriesExpense);
@@ -297,6 +309,7 @@ export async function restoreFromBackupFile(fileUri: string): Promise<void> {
     replaceAllExpenses(migratedExpenses),
     replaceAllIncomes(incomes),
     replaceAllChallenges(challenges),
+    replaceAllRecordInboxItems(recordInboxItems),
   ]);
   await suppressChallengeResultAnalyticsForRestoredEndedChallenges(challenges);
   await finalizeRestoreSideEffects();
@@ -1097,6 +1110,9 @@ export async function restoreFromFile(fileUri: string): Promise<void> {
         await savePaymentSubtypes(payload.paymentSubtypes);
       }
       const restoredChallenges = Array.isArray(payload.challenges) ? payload.challenges : [];
+      const restoredRecordInboxItems = Array.isArray(payload.recordInboxItems)
+        ? payload.recordInboxItems
+        : [];
       const resolvedPaymentSubtypes = await loadPaymentSubtypes();
       const migratedExpenses = (Array.isArray(payload.expenses) ? payload.expenses : []).map((record) =>
         migrateExpensePaymentSubtypeId(record, resolvedPaymentSubtypes)
@@ -1105,6 +1121,7 @@ export async function restoreFromFile(fileUri: string): Promise<void> {
         replaceAllExpenses(migratedExpenses),
         replaceAllIncomes(Array.isArray(payload.incomes) ? payload.incomes : []),
         replaceAllChallenges(restoredChallenges),
+        replaceAllRecordInboxItems(restoredRecordInboxItems),
       ]);
       await suppressChallengeResultAnalyticsForRestoredEndedChallenges(restoredChallenges);
       await finalizeRestoreSideEffects();

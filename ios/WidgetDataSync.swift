@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import React
 import UIKit
@@ -240,7 +241,11 @@ final class RecordInboxPendingDarwinObserver {
 // MARK: - SMS inbox pending queue (App Intent → JS)
 
 enum RecordInboxAppGroupQueue {
+  /// 레거시 UserDefaults 키 — 파일 큐로 이전 후 제거
   static let storageKey = "smsInboxPendingQueue"
+  private static let queueFileName = "smsInboxPendingQueue.json"
+  private static let lockFileName = "smsInboxPendingQueue.lock"
+  private static let maxPendingCount = 200
 
   static var appGroupIdentifier: String {
     let bundleId = Bundle.main.bundleIdentifier ?? ""
@@ -252,76 +257,101 @@ enum RecordInboxAppGroupQueue {
 
   static let lastIntentKey = "smsInboxLastIntent"
 
+  /// Android `SUPPORTED_TRANSACTION_KEYWORDS`와 동일
+  private static let supportedTransactionKeywords = ["취소", "승인", "출금"]
+
+  static func hasSupportedTransactionKeyword(_ body: String) -> Bool {
+    supportedTransactionKeywords.contains { body.contains($0) }
+  }
+
   /// source: "sms"(문자 수신함 Intent) | "app"(알림 수신함 Intent) — JS가 수신 설정 분기에 사용
+  /// 동시 Intent(보험 결제 2건 등)는 App Group 파일 + flock으로 직렬화해 유실 방지.
   static func enqueue(body: String, sender: String = "", source: String = "sms") {
     let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else {
       recordLastIntent(ok: false, reason: "empty-body", sender: sender)
       return
     }
-    guard let defaults = UserDefaults(suiteName: appGroupIdentifier) else {
-      recordLastIntent(ok: false, reason: "app-group-unavailable", sender: sender)
+    let senderTrimmed = sender.trimmingCharacters(in: .whitespacesAndNewlines)
+    // 결제 후보만 큐·뱃지 반영. 마케팅 등은 lastIntent만 남기고 스킵 (Android 리스너와 동일).
+    guard hasSupportedTransactionKeyword(trimmed) else {
+      recordLastIntent(
+        ok: false,
+        reason: "no-keyword",
+        sender: senderTrimmed,
+        bodyPreview: String(trimmed.prefix(80))
+      )
+      return
+    }
+    guard UserDefaults(suiteName: appGroupIdentifier) != nil else {
+      recordLastIntent(ok: false, reason: "app-group-unavailable", sender: senderTrimmed)
       return
     }
 
-    let senderTrimmed = sender.trimmingCharacters(in: .whitespacesAndNewlines)
-    var queue = loadQueue(from: defaults)
-    queue.append([
+    let entry: [String: Any] = [
       "id": UUID().uuidString,
       "body": trimmed,
       "sender": senderTrimmed,
       "source": source,
       "enqueuedAt": ISO8601DateFormatter().string(from: Date()),
-    ])
-    defaults.set(queue, forKey: storageKey)
-    defaults.synchronize()
+    ]
+    withQueueLock {
+      var queue = readQueueUnlocked()
+      queue.append(entry)
+      if queue.count > maxPendingCount {
+        queue = Array(queue.suffix(maxPendingCount))
+      }
+      writeQueueUnlocked(queue)
+    }
     recordLastIntent(ok: true, reason: "enqueued", sender: senderTrimmed, bodyPreview: String(trimmed.prefix(80)))
-    // 앱 아이콘 뱃지: lastSynced + pending (앱 꺼진 상태에서도 Intent 프로세스에서 갱신)
-    RecordInboxIconBadge.refresh(using: defaults)
-    // 포그라운드 RN이 flush할 수 있게 프로세스 간 신호
+    RecordInboxIconBadge.refresh()
     RecordInboxPendingDarwin.post()
   }
 
   /// 대기 항목을 반환하고 큐를 비운다. (레거시·진단용)
   static func drain() -> [[String: Any]] {
-    guard let defaults = UserDefaults(suiteName: appGroupIdentifier) else {
-      return []
+    var drained: [[String: Any]] = []
+    withQueueLock {
+      drained = readQueueUnlocked()
+      writeQueueUnlocked([])
     }
-    let queue = loadQueue(from: defaults)
-    defaults.removeObject(forKey: storageKey)
-    defaults.synchronize()
-    RecordInboxIconBadge.refresh(using: defaults)
-    return queue
+    RecordInboxIconBadge.refresh()
+    return drained
   }
 
   /// 대기 항목만 조회 (큐 유지).
   static func peek() -> [[String: Any]] {
-    guard let defaults = UserDefaults(suiteName: appGroupIdentifier) else {
-      return []
+    var queue: [[String: Any]] = []
+    withQueueLock {
+      queue = readQueueUnlocked()
     }
-    return loadQueue(from: defaults)
+    return queue
   }
 
   /// 처리 성공 id만 제거. 실패 항목은 다음 flush에서 재시도.
   static func acknowledge(ids: [String]) {
     guard !ids.isEmpty else { return }
-    guard let defaults = UserDefaults(suiteName: appGroupIdentifier) else { return }
     let remove = Set(ids)
-    let next = loadQueue(from: defaults).filter { entry in
-      guard let id = entry["id"] as? String else { return true }
-      return !remove.contains(id)
+    withQueueLock {
+      let next = readQueueUnlocked().filter { entry in
+        guard let id = entry["id"] as? String else { return true }
+        return !remove.contains(id)
+      }
+      writeQueueUnlocked(next)
     }
-    defaults.set(next, forKey: storageKey)
-    defaults.synchronize()
   }
 
   /// 리셋: pending 큐·lastIntent 제거 (뱃지는 RecordInboxIconBadge.clear).
   static func clearAll() {
-    guard let defaults = UserDefaults(suiteName: appGroupIdentifier) else { return }
-    defaults.removeObject(forKey: storageKey)
-    defaults.removeObject(forKey: lastIntentKey)
-    defaults.removeObject(forKey: RecordInboxIconBadge.lastSyncedKey)
-    defaults.synchronize()
+    withQueueLock {
+      writeQueueUnlocked([])
+      if let defaults = UserDefaults(suiteName: appGroupIdentifier) {
+        defaults.removeObject(forKey: storageKey)
+        defaults.removeObject(forKey: lastIntentKey)
+        defaults.removeObject(forKey: RecordInboxIconBadge.lastSyncedKey)
+        defaults.synchronize()
+      }
+    }
   }
 
   static func lastIntent() -> [String: Any]? {
@@ -349,11 +379,35 @@ enum RecordInboxAppGroupQueue {
     defaults.synchronize()
   }
 
-  static func loadQueue(from defaults: UserDefaults) -> [[String: Any]] {
-    guard let raw = defaults.array(forKey: storageKey) else {
-      return []
+  // MARK: - File queue + cross-process lock (Android FileLock과 동일 목적)
+
+  private static func containerDirectory() -> URL? {
+    FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier)
+  }
+
+  private static func queueFileURL() -> URL? {
+    containerDirectory()?.appendingPathComponent(queueFileName)
+  }
+
+  private static func withQueueLock(_ body: () -> Void) {
+    guard let dir = containerDirectory() else {
+      body()
+      return
     }
-    return raw.compactMap { entry in
+    let lockPath = dir.appendingPathComponent(lockFileName).path
+    let fd = open(lockPath, O_CREAT | O_RDWR, 0o644)
+    guard fd >= 0 else {
+      body()
+      return
+    }
+    defer { close(fd) }
+    flock(fd, LOCK_EX)
+    defer { flock(fd, LOCK_UN) }
+    body()
+  }
+
+  private static func normalizeQueueEntries(_ raw: [Any]) -> [[String: Any]] {
+    raw.compactMap { entry in
       guard let dict = entry as? [String: Any],
             let body = dict["body"] as? String,
             !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -362,6 +416,48 @@ enum RecordInboxAppGroupQueue {
       }
       return dict
     }
+  }
+
+  private static func readQueueUnlocked() -> [[String: Any]] {
+    if let url = queueFileURL(),
+       let data = try? Data(contentsOf: url),
+       let json = try? JSONSerialization.jsonObject(with: data),
+       let array = json as? [Any]
+    {
+      return normalizeQueueEntries(array)
+    }
+
+    // 레거시 UserDefaults → 파일 이전 (한 번)
+    if let defaults = UserDefaults(suiteName: appGroupIdentifier),
+       let legacy = defaults.array(forKey: storageKey)
+    {
+      let migrated = normalizeQueueEntries(legacy)
+      writeQueueUnlocked(migrated)
+      defaults.removeObject(forKey: storageKey)
+      defaults.synchronize()
+      return migrated
+    }
+    return []
+  }
+
+  private static func writeQueueUnlocked(_ queue: [[String: Any]]) {
+    guard let url = queueFileURL() else { return }
+    let tmp = url.appendingPathExtension("tmp")
+    do {
+      let data = try JSONSerialization.data(withJSONObject: queue, options: [])
+      try data.write(to: tmp, options: [.atomic])
+      if FileManager.default.fileExists(atPath: url.path) {
+        try FileManager.default.removeItem(at: url)
+      }
+      try FileManager.default.moveItem(at: tmp, to: url)
+    } catch {
+      try? FileManager.default.removeItem(at: tmp)
+    }
+  }
+
+  /// 뱃지 갱신용 pending 건수 (락 포함)
+  static func pendingCount() -> Int {
+    peek().count
   }
 }
 
@@ -381,10 +477,11 @@ enum RecordInboxIconBadge {
     apply(safe)
   }
 
-  /// enqueue 직후: lastSynced + pending
-  static func refresh(using defaults: UserDefaults) {
-    let synced = max(0, defaults.integer(forKey: lastSyncedKey))
-    let pending = RecordInboxAppGroupQueue.loadQueue(from: defaults).count
+  /// enqueue 직후: lastSynced + pending (파일 큐 건수)
+  static func refresh(using defaults: UserDefaults? = nil) {
+    let suite = defaults ?? UserDefaults(suiteName: RecordInboxAppGroupQueue.appGroupIdentifier)
+    let synced = max(0, suite?.integer(forKey: lastSyncedKey) ?? 0)
+    let pending = RecordInboxAppGroupQueue.pendingCount()
     apply(synced + pending)
   }
 
