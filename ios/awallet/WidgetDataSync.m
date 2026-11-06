@@ -12,14 +12,23 @@ RCT_EXTERN_METHOD(clearMonthlyExpenseRevealState:(RCTPromiseResolveBlock)resolve
 
 RCT_EXTERN_METHOD(getSmsInboxBridgeVersion:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
+RCT_EXTERN_METHOD(getRecordInboxBridgeVersion:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
 
 RCT_EXTERN_METHOD(drainPendingSmsInbox:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+RCT_EXTERN_METHOD(drainPendingRecordInbox:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
 RCT_EXTERN_METHOD(peekPendingSmsInbox:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
+RCT_EXTERN_METHOD(peekPendingRecordInbox:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
 
 RCT_EXTERN_METHOD(acknowledgePendingSmsInbox:(NSArray *)ids
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+RCT_EXTERN_METHOD(acknowledgePendingRecordInbox:(NSArray *)ids
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
@@ -36,6 +45,8 @@ RCT_EXTERN_METHOD(syncRecordInboxReceiveEnabled:(BOOL)smsEnabled
                   rejecter:(RCTPromiseRejectBlock)reject)
 
 RCT_EXTERN_METHOD(clearSmsInboxNativeState:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+RCT_EXTERN_METHOD(clearRecordInboxNativeState:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
 @end

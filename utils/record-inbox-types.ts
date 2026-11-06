@@ -5,8 +5,8 @@
 
 import type { QuickInputConfirmCardData } from '@/components/ui/quick-input-confirm-card';
 
-/** Amplitude screen_name — 엑셀 세부위치 `sms-history-record` */
-export const SMS_HISTORY_RECORD_ANALYTICS_SCREEN_NAME = '/sms-history-record';
+/** Amplitude screen_name — 기록 수신함 (구 `/sms-history-record`) */
+export const RECORD_INBOX_ANALYTICS_SCREEN_NAME = '/record-inbox';
 
 export type RecordInboxStatus = 'approved';
 

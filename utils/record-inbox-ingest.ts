@@ -85,14 +85,14 @@ export async function ingestRecordInboxMessage(
 
 export { restoreSmsSenderFromQueryParam };
 
-/** `awallet://sms-inbox?body=&sender=` */
+/** `awallet://record-inbox?body=&sender=` (`sms-inbox` 별칭 지원) */
 export function parseRecordInboxDeepLink(url: string): RecordInboxIngestInput | null {
   try {
     const normalized = url.trim();
     if (!normalized) return null;
 
-    // awallet://sms-inbox?... | awallet:///sms-inbox?... | exp+...
-    const match = normalized.match(/(?:^|[^\w])sms-inbox(?:\?|#|$)/i);
+    // awallet://record-inbox?... | awallet://sms-inbox?... | exp+...
+    const match = normalized.match(/(?:^|[^\w])(record-inbox|sms-inbox)(?:\?|#|$)/i);
     if (!match) return null;
 
     const queryIndex = normalized.indexOf('?');
@@ -114,7 +114,7 @@ export function parseRecordInboxDeepLink(url: string): RecordInboxIngestInput | 
 export async function ingestRecordInboxDeepLinkUrl(url: string): Promise<RecordInboxIngestGateResult> {
   const payload = parseRecordInboxDeepLink(url);
   if (!payload) {
-    return { ok: false, reason: 'not-sms-inbox-url' };
+    return { ok: false, reason: 'not-record-inbox-url' };
   }
   return ingestRecordInboxMessage(payload);
 }

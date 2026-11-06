@@ -18,6 +18,7 @@ export const ROOT_STACK_ROUTE_NAMES = [
   'notification-setting',
   'settings-record-inbox',
   'settings-record-inbox-app-targets',
+  'record-inbox',
   'sms-inbox',
   'settings-notice',
   'settings-notice-compose',

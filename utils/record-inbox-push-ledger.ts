@@ -5,7 +5,8 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export const RECORD_INBOX_PUSH_LEDGER_KEY = '@awallet/smsInboxPushLedger';
+export const RECORD_INBOX_PUSH_LEDGER_KEY = '@awallet/recordInboxPushLedger';
+export const LEGACY_RECORD_INBOX_PUSH_LEDGER_KEY = '@awallet/smsInboxPushLedger';
 
 export type RecordInboxPushLedgerEntry = {
   id: string;
@@ -30,7 +31,11 @@ function isEntry(value: unknown): value is RecordInboxPushLedgerEntry {
 }
 
 async function readFile(): Promise<LedgerFile> {
-  const raw = await AsyncStorage.getItem(RECORD_INBOX_PUSH_LEDGER_KEY);
+  const [nextRaw, legacyRaw] = await Promise.all([
+    AsyncStorage.getItem(RECORD_INBOX_PUSH_LEDGER_KEY),
+    AsyncStorage.getItem(LEGACY_RECORD_INBOX_PUSH_LEDGER_KEY),
+  ]);
+  const raw = nextRaw ?? legacyRaw;
   if (!raw) {
     return { entries: [] };
   }
@@ -43,7 +48,12 @@ async function readFile(): Promise<LedgerFile> {
     if (!Array.isArray(entriesUnknown)) {
       return { entries: [] };
     }
-    return { entries: entriesUnknown.filter(isEntry) };
+    const file = { entries: entriesUnknown.filter(isEntry) };
+    if (nextRaw == null && legacyRaw != null) {
+      await AsyncStorage.setItem(RECORD_INBOX_PUSH_LEDGER_KEY, JSON.stringify(file));
+      await AsyncStorage.removeItem(LEGACY_RECORD_INBOX_PUSH_LEDGER_KEY);
+    }
+    return file;
   } catch {
     return { entries: [] };
   }
@@ -52,6 +62,7 @@ async function readFile(): Promise<LedgerFile> {
 async function writeFile(file: LedgerFile): Promise<void> {
   writeChain = writeChain.then(async () => {
     await AsyncStorage.setItem(RECORD_INBOX_PUSH_LEDGER_KEY, JSON.stringify(file));
+    await AsyncStorage.removeItem(LEGACY_RECORD_INBOX_PUSH_LEDGER_KEY);
   });
   await writeChain;
 }
@@ -141,5 +152,8 @@ export async function getRecordInboxPushWindowStats(
 }
 
 export async function clearRecordInboxPushLedger(): Promise<void> {
-  await AsyncStorage.removeItem(RECORD_INBOX_PUSH_LEDGER_KEY);
+  await AsyncStorage.multiRemove([
+    RECORD_INBOX_PUSH_LEDGER_KEY,
+    LEGACY_RECORD_INBOX_PUSH_LEDGER_KEY,
+  ]);
 }

@@ -59,7 +59,7 @@ export function getJudgmentWindowForNow(nowMs: number): EveningPushWindow {
   return getJudgmentWindowEndingAt(tomorrow20.getTime());
 }
 
-/** 20:00~20:05 사이 SMS 푸시용: 방금 닫힌 구간(어제 20 ~ 오늘 20) */
+/** 20:00~20:05 사이 기록 수신함 푸시용: 방금 닫힌 구간(어제 20 ~ 오늘 20) */
 export function getClosedJudgmentWindowForRecordInboxBuffer(nowMs: number): EveningPushWindow | null {
   const now = new Date(nowMs);
   const today20 = new Date(now);

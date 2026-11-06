@@ -21,7 +21,8 @@ import type { RecordInboxItem } from '@/utils/record-inbox-types';
 import { syncRecordInboxIconBadge } from '@/utils/record-inbox-icon-badge';
 import { setupDailyReminder } from '@/utils/notification-scheduler';
 
-export const RECORD_INBOX_ITEMS_KEY = '@awallet/smsInboxItems';
+export const RECORD_INBOX_ITEMS_KEY = '@awallet/recordInboxItems';
+export const LEGACY_RECORD_INBOX_ITEMS_KEY = '@awallet/smsInboxItems';
 
 type RecordInboxListener = (items: RecordInboxItem[]) => void;
 const listeners = new Set<RecordInboxListener>();
@@ -59,7 +60,11 @@ async function readItems(): Promise<RecordInboxItem[]> {
   if (memoryCache) {
     return memoryCache;
   }
-  const raw = await AsyncStorage.getItem(RECORD_INBOX_ITEMS_KEY);
+  const [nextRaw, legacyRaw] = await Promise.all([
+    AsyncStorage.getItem(RECORD_INBOX_ITEMS_KEY),
+    AsyncStorage.getItem(LEGACY_RECORD_INBOX_ITEMS_KEY),
+  ]);
+  const raw = nextRaw ?? legacyRaw;
   if (!raw) {
     memoryCache = [];
     return memoryCache;
@@ -75,6 +80,11 @@ async function readItems(): Promise<RecordInboxItem[]> {
       originalBody: normalizeRecordInboxOriginalBody(item.originalBody),
       rawBody: normalizeRecordInboxOriginalBody(item.rawBody ?? item.originalBody),
     }));
+    // 신규 키 우선 저장소로 일원화(옛 키 존재 시 1회 이관).
+    if (nextRaw == null && legacyRaw != null) {
+      await AsyncStorage.setItem(RECORD_INBOX_ITEMS_KEY, JSON.stringify(memoryCache));
+      await AsyncStorage.removeItem(LEGACY_RECORD_INBOX_ITEMS_KEY);
+    }
     return memoryCache;
   } catch {
     memoryCache = [];
@@ -86,6 +96,7 @@ async function writeItems(items: RecordInboxItem[]): Promise<void> {
   memoryCache = items;
   writeChain = writeChain.then(async () => {
     await AsyncStorage.setItem(RECORD_INBOX_ITEMS_KEY, JSON.stringify(items));
+    await AsyncStorage.removeItem(LEGACY_RECORD_INBOX_ITEMS_KEY);
   });
   await writeChain;
   notify(items);

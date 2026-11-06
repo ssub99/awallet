@@ -5,8 +5,10 @@ import { NativeModules, Platform } from 'react-native';
 
 type RecordInboxNotificationNativeModule = {
   getLauncherApps?: () => Promise<unknown>;
-  isSmsInboxNotificationAccessEnabled?: () => Promise<boolean>;
-  openSmsInboxNotificationAccessSettings?: () => Promise<void>;
+  /** [신] */ isRecordInboxNotificationAccessEnabled?: () => Promise<boolean>;
+  /** [구] */ isSmsInboxNotificationAccessEnabled?: () => Promise<boolean>;
+  /** [신] */ openRecordInboxNotificationAccessSettings?: () => Promise<void>;
+  /** [구] */ openSmsInboxNotificationAccessSettings?: () => Promise<void>;
   areDefaultSmsAppNotificationsEnabled?: () => Promise<boolean>;
   openDefaultSmsAppNotificationSettings?: () => Promise<void>;
 };
@@ -35,7 +37,9 @@ export async function loadAndroidLauncherApps(): Promise<AppNotificationReceiveT
 
 export async function hasAndroidRecordInboxNotificationAccess(): Promise<boolean> {
   if (Platform.OS !== 'android') return true;
-  const fn = widgetDataSync?.isSmsInboxNotificationAccessEnabled;
+  const fn =
+    widgetDataSync?.isRecordInboxNotificationAccessEnabled ??
+    widgetDataSync?.isSmsInboxNotificationAccessEnabled;
   if (typeof fn !== 'function') return false;
   try {
     return (await fn.call(widgetDataSync)) === true;
@@ -46,7 +50,9 @@ export async function hasAndroidRecordInboxNotificationAccess(): Promise<boolean
 
 export async function openAndroidRecordInboxNotificationAccessSettings(): Promise<void> {
   if (Platform.OS !== 'android') return;
-  const fn = widgetDataSync?.openSmsInboxNotificationAccessSettings;
+  const fn =
+    widgetDataSync?.openRecordInboxNotificationAccessSettings ??
+    widgetDataSync?.openSmsInboxNotificationAccessSettings;
   if (typeof fn !== 'function') return;
   try {
     await fn.call(widgetDataSync);

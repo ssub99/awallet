@@ -21,8 +21,15 @@ import {
   GENERAL_NOTIFICATIONS_ENABLED_KEY,
   CHALLENGE_NOTIFICATIONS_ENABLED_KEY,
 } from '@/utils/notification-scheduler';
-import { clearRecordInboxItems, RECORD_INBOX_ITEMS_KEY } from '@/utils/record-inbox-store';
-import { RECORD_INBOX_PUSH_LEDGER_KEY } from '@/utils/record-inbox-push-ledger';
+import {
+  LEGACY_RECORD_INBOX_ITEMS_KEY,
+  clearRecordInboxItems,
+  RECORD_INBOX_ITEMS_KEY,
+} from '@/utils/record-inbox-store';
+import {
+  LEGACY_RECORD_INBOX_PUSH_LEDGER_KEY,
+  RECORD_INBOX_PUSH_LEDGER_KEY,
+} from '@/utils/record-inbox-push-ledger';
 import {
   APP_NOTIFICATION_RECEIVE_ENABLED_KEY,
   APP_NOTIFICATION_RECEIVE_TARGETS_KEY,
@@ -31,6 +38,7 @@ import {
   SMS_RECEIVE_ENABLED_KEY,
   SMS_RECEIVE_NUMBERS_KEY,
 } from '@/utils/record-inbox-receive-settings';
+import { RECORD_INBOX_SHORTCUT_RESYNC_DONE_KEY } from '@/utils/record-inbox-shortcut-resync';
 import { QUICK_INPUT_TUTORIAL_ENTRY_EXPANDED_KEY } from '@/utils/quick-input-tutorial-entry-settings';
 import { ONBOARDING_COMPLETED_KEY } from '@/utils/onboarding-settings';
 
@@ -61,12 +69,15 @@ const KEYS_TO_REMOVE = [
   QUICK_INPUT_TUTORIAL_ENTRY_EXPANDED_KEY,
   ONBOARDING_COMPLETED_KEY,
   RECORD_INBOX_ITEMS_KEY,
+  LEGACY_RECORD_INBOX_ITEMS_KEY,
   RECORD_INBOX_PUSH_LEDGER_KEY,
+  LEGACY_RECORD_INBOX_PUSH_LEDGER_KEY,
   SMS_RECEIVE_ENABLED_KEY,
   SMS_RECEIVE_NUMBERS_KEY,
   SMS_RECEIVE_DISCLOSURE_ACCEPTED_KEY,
   APP_NOTIFICATION_RECEIVE_ENABLED_KEY,
   APP_NOTIFICATION_RECEIVE_TARGETS_KEY,
+  RECORD_INBOX_SHORTCUT_RESYNC_DONE_KEY,
 ];
 
 /**

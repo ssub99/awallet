@@ -1,6 +1,7 @@
 /**
  * evening-general-push-policy 판정 셀프체크.
  *   node scripts/verify-evening-general-push-policy.mjs
+ * utils/evening-general-push-policy.ts 와 동일 이름·판정.
  */
 
 function getJudgmentWindowEndingAt(endMs) {
@@ -23,7 +24,7 @@ function getJudgmentWindowForNow(nowMs) {
   return getJudgmentWindowEndingAt(tomorrow20.getTime());
 }
 
-function getClosedJudgmentWindowForSmsBuffer(nowMs) {
+function getClosedJudgmentWindowForRecordInboxBuffer(nowMs) {
   const now = new Date(nowMs);
   const today20 = new Date(now);
   today20.setHours(20, 0, 0, 0);
@@ -36,20 +37,21 @@ function getClosedJudgmentWindowForSmsBuffer(nowMs) {
 }
 
 function decideEveningGeneralPush(input) {
-  const { hasExpenseCreatedInWindow, smsReceivedCountInWindow, pendingSmsInboxCount } = input;
-  if (pendingSmsInboxCount > 0) {
-    return { kind: 'sms_inbox_reminder', smsCount: pendingSmsInboxCount };
+  const { hasExpenseCreatedInWindow, recordInboxReceivedCountInWindow, pendingRecordInboxCount } =
+    input;
+  if (pendingRecordInboxCount > 0) {
+    return { kind: 'sms_inbox_reminder', recordInboxCount: pendingRecordInboxCount };
   }
-  if (smsReceivedCountInWindow > 0) {
-    return { kind: 'none', smsCount: 0 };
+  if (recordInboxReceivedCountInWindow > 0) {
+    return { kind: 'none', recordInboxCount: 0 };
   }
   if (!hasExpenseCreatedInWindow) {
-    return { kind: 'expense_reminder', smsCount: 0 };
+    return { kind: 'expense_reminder', recordInboxCount: 0 };
   }
-  return { kind: 'none', smsCount: 0 };
+  return { kind: 'none', recordInboxCount: 0 };
 }
 
-function buildSmsInboxReminderBody(count) {
+function buildRecordInboxReminderBody(count) {
   const n = Math.max(0, Math.floor(count));
   return `${n}건의 지출을 수신했습니다. 기록으로 생성하여 소비 흐름을 관리해 보세요.`;
 }
@@ -72,18 +74,18 @@ assert(getJudgmentWindowForNow(before8).endMs === end, 'before 20:00 window');
 const after8 = new Date('2026-09-24T20:30:00+09:00').getTime();
 assert(getJudgmentWindowForNow(after8).startMs === end, 'after 20:00 window');
 
-const buffer = getClosedJudgmentWindowForSmsBuffer(
+const buffer = getClosedJudgmentWindowForRecordInboxBuffer(
   new Date('2026-09-24T20:02:00+09:00').getTime(),
 );
 assert(buffer != null && buffer.endMs === end, '20:02 closed window');
-assert(getClosedJudgmentWindowForSmsBuffer(before8) == null, 'no buffer before 20');
+assert(getClosedJudgmentWindowForRecordInboxBuffer(before8) == null, 'no buffer before 20');
 
 assert(
   decideEveningGeneralPush({
     nowMs: before8,
     hasExpenseCreatedInWindow: false,
-    smsReceivedCountInWindow: 0,
-    pendingSmsInboxCount: 0,
+    recordInboxReceivedCountInWindow: 0,
+    pendingRecordInboxCount: 0,
   }).kind === 'expense_reminder',
   'empty',
 );
@@ -91,17 +93,17 @@ assert(
   decideEveningGeneralPush({
     nowMs: before8,
     hasExpenseCreatedInWindow: false,
-    smsReceivedCountInWindow: 2,
-    pendingSmsInboxCount: 2,
+    recordInboxReceivedCountInWindow: 2,
+    pendingRecordInboxCount: 2,
   }).kind === 'sms_inbox_reminder',
-  'sms',
+  'record-inbox',
 );
 assert(
   decideEveningGeneralPush({
     nowMs: before8,
     hasExpenseCreatedInWindow: true,
-    smsReceivedCountInWindow: 2,
-    pendingSmsInboxCount: 0,
+    recordInboxReceivedCountInWindow: 2,
+    pendingRecordInboxCount: 0,
   }).kind === 'none',
   'converted',
 );
@@ -109,18 +111,18 @@ assert(
   decideEveningGeneralPush({
     nowMs: before8,
     hasExpenseCreatedInWindow: true,
-    smsReceivedCountInWindow: 1,
-    pendingSmsInboxCount: 1,
+    recordInboxReceivedCountInWindow: 1,
+    pendingRecordInboxCount: 1,
   }).kind === 'sms_inbox_reminder',
-  'expense+sms',
+  'expense+record-inbox',
 );
 // 큐에 어제 잔여만 남아도 (구간 수신 0) 가기록 푸시
 assert(
   decideEveningGeneralPush({
     nowMs: before8,
     hasExpenseCreatedInWindow: false,
-    smsReceivedCountInWindow: 0,
-    pendingSmsInboxCount: 3,
+    recordInboxReceivedCountInWindow: 0,
+    pendingRecordInboxCount: 3,
   }).kind === 'sms_inbox_reminder',
   'stale-queue-only',
 );
@@ -128,13 +130,13 @@ assert(
   decideEveningGeneralPush({
     nowMs: before8,
     hasExpenseCreatedInWindow: false,
-    smsReceivedCountInWindow: 0,
-    pendingSmsInboxCount: 3,
-  }).smsCount === 3,
+    recordInboxReceivedCountInWindow: 0,
+    pendingRecordInboxCount: 3,
+  }).recordInboxCount === 3,
   'stale-queue-count',
 );
 assert(
-  buildSmsInboxReminderBody(3) ===
+  buildRecordInboxReminderBody(3) ===
     '3건의 지출을 수신했습니다. 기록으로 생성하여 소비 흐름을 관리해 보세요.',
   'body',
 );

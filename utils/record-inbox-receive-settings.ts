@@ -28,6 +28,7 @@ type SmsReceiveNativeModule = {
   syncAppNotificationReceiveSettings?: (enabled: boolean, packages: string[]) => Promise<void>;
   /** iOS: App Group 수신 ON 게이트 (Intent enqueue·아이콘 뱃지) */
   syncRecordInboxReceiveEnabled?: (smsEnabled: boolean, appEnabled: boolean) => Promise<void>;
+  clearRecordInboxNativeState?: () => Promise<void>;
   clearSmsInboxNativeState?: () => Promise<void>;
 };
 
@@ -190,7 +191,7 @@ export async function syncSmsReceiveSettingsToNative(): Promise<void> {
 
 export async function clearSmsReceiveNativeState(): Promise<void> {
   if (Platform.OS !== 'android' && Platform.OS !== 'ios') return;
-  const fn = smsReceiveNative?.clearSmsInboxNativeState;
+  const fn = smsReceiveNative?.clearRecordInboxNativeState ?? smsReceiveNative?.clearSmsInboxNativeState;
   if (typeof fn !== 'function') return;
   try {
     // Android: pending·설정·뱃지 알림 / iOS: App Group 큐·lastSynced·아이콘 뱃지

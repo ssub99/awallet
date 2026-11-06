@@ -18,9 +18,11 @@ import java.util.UUID
  */
 object RecordInboxNativeStore {
   /** 이전 버전 저장소. 최초 1회 파일로 이전 후 비운다. */
-  private const val PREFS_NAME = "awallet_sms_inbox_native"
-  private const val STORE_FILE = "awallet_sms_inbox_native.json"
-  private const val LOCK_FILE = "awallet_sms_inbox_native.lock"
+  private const val PREFS_NAME = "awallet_record_inbox_native"
+  private const val LEGACY_PREFS_NAME = "awallet_sms_inbox_native"
+  private const val STORE_FILE = "awallet_record_inbox_native.json"
+  private const val LEGACY_STORE_FILE = "awallet_sms_inbox_native.json"
+  private const val LOCK_FILE = "awallet_record_inbox_native.lock"
   private const val KEY_ENABLED = "enabled"
   private const val KEY_NUMBERS = "numbers"
   private const val KEY_PENDING = "pending"
@@ -302,8 +304,13 @@ object RecordInboxNativeStore {
       val lock = lockFile.channel.lock()
       try {
         val file = File(dir, STORE_FILE)
+        val legacyFile = File(dir, LEGACY_STORE_FILE)
         val existed = file.exists()
-        val state = if (existed) readState(file) else migrateLegacyPrefs(context)
+        val state = when {
+          existed -> readState(file)
+          legacyFile.exists() -> readState(legacyFile)
+          else -> migrateLegacyPrefs(context)
+        }
         val before = state.toString()
         val result = block(state)
         val after = state.toString()
@@ -311,7 +318,9 @@ object RecordInboxNativeStore {
           writeStateAtomic(file, after)
         }
         if (!existed) {
+          legacyFile.delete()
           context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().clear().commit()
+          context.getSharedPreferences(LEGACY_PREFS_NAME, Context.MODE_PRIVATE).edit().clear().commit()
         }
         return result
       } finally {
@@ -339,11 +348,13 @@ object RecordInboxNativeStore {
 
   private fun migrateLegacyPrefs(context: Context): JSONObject {
     val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    val legacyPrefs = context.getSharedPreferences(LEGACY_PREFS_NAME, Context.MODE_PRIVATE)
+    val source = if (prefs.all.isNotEmpty()) prefs else legacyPrefs
     val state = JSONObject()
-    if (prefs.contains(KEY_ENABLED)) state.put(KEY_ENABLED, prefs.getBoolean(KEY_ENABLED, false))
-    prefs.getString(KEY_NUMBERS, null)?.let { state.put(KEY_NUMBERS, it) }
-    prefs.getString(KEY_PENDING, null)?.let { state.put(KEY_PENDING, it) }
-    prefs.getString(KEY_FINGERPRINTS, null)?.let { state.put(KEY_FINGERPRINTS, it) }
+    if (source.contains(KEY_ENABLED)) state.put(KEY_ENABLED, source.getBoolean(KEY_ENABLED, false))
+    source.getString(KEY_NUMBERS, null)?.let { state.put(KEY_NUMBERS, it) }
+    source.getString(KEY_PENDING, null)?.let { state.put(KEY_PENDING, it) }
+    source.getString(KEY_FINGERPRINTS, null)?.let { state.put(KEY_FINGERPRINTS, it) }
     return state
   }
 

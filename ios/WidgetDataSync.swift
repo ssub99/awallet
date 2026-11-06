@@ -23,7 +23,7 @@ class WidgetDataSync: RCTEventEmitter {
   }
 
   override func supportedEvents() -> [String]! {
-    [RecordInboxPendingDarwin.eventName]
+    [RecordInboxPendingDarwin.eventName, RecordInboxPendingDarwin.legacyEventName]
   }
 
   override func startObserving() {
@@ -105,13 +105,22 @@ class WidgetDataSync: RCTEventEmitter {
     resolve(nil)
   }
 
-  /// 재설치 검증용. `sms-inbox-4` = 수신 ON 게이트(App Group) + peek/ack.
+  /// 재설치 검증용. `record-inbox-4` = 수신 ON 게이트(App Group) + peek/ack.
   @objc(getSmsInboxBridgeVersion:rejecter:)
   func getSmsInboxBridgeVersion(
     _ resolve: @escaping RCTPromiseResolveBlock,
     rejecter reject: @escaping RCTPromiseRejectBlock
   ) {
-    resolve("sms-inbox-4")
+    // [구] 메서드명 — 값은 신 식별자와 동일
+    resolve("record-inbox-4")
+  }
+
+  @objc(getRecordInboxBridgeVersion:rejecter:)
+  func getRecordInboxBridgeVersion(
+    _ resolve: @escaping RCTPromiseResolveBlock,
+    rejecter reject: @escaping RCTPromiseRejectBlock
+  ) {
+    resolve("record-inbox-4")
   }
 
   /// JS 문자/앱알림 수신 ON → App Group. Intent enqueue·아이콘 뱃지 게이트.
@@ -140,6 +149,14 @@ class WidgetDataSync: RCTEventEmitter {
     resolve(RecordInboxAppGroupQueue.drain())
   }
 
+  @objc(drainPendingRecordInbox:rejecter:)
+  func drainPendingRecordInbox(
+    _ resolve: @escaping RCTPromiseResolveBlock,
+    rejecter reject: @escaping RCTPromiseRejectBlock
+  ) {
+    drainPendingSmsInbox(resolve, rejecter: reject)
+  }
+
   /// 대기 큐만 조회 (비우지 않음).
   @objc(peekPendingSmsInbox:rejecter:)
   func peekPendingSmsInbox(
@@ -147,6 +164,14 @@ class WidgetDataSync: RCTEventEmitter {
     rejecter reject: @escaping RCTPromiseRejectBlock
   ) {
     resolve(RecordInboxAppGroupQueue.peek())
+  }
+
+  @objc(peekPendingRecordInbox:rejecter:)
+  func peekPendingRecordInbox(
+    _ resolve: @escaping RCTPromiseResolveBlock,
+    rejecter reject: @escaping RCTPromiseRejectBlock
+  ) {
+    peekPendingSmsInbox(resolve, rejecter: reject)
   }
 
   /// 처리 성공한 대기 항목만 id로 제거한다.
@@ -158,6 +183,15 @@ class WidgetDataSync: RCTEventEmitter {
   ) {
     RecordInboxAppGroupQueue.acknowledge(ids: ids)
     resolve(nil)
+  }
+
+  @objc(acknowledgePendingRecordInbox:resolver:rejecter:)
+  func acknowledgePendingRecordInbox(
+    _ ids: [String],
+    resolver resolve: @escaping RCTPromiseResolveBlock,
+    rejecter reject: @escaping RCTPromiseRejectBlock
+  ) {
+    acknowledgePendingSmsInbox(ids, resolver: resolve, rejecter: reject)
   }
 
   /// App Intent 마지막 enqueue/skip 기록 (진단용).
@@ -191,6 +225,14 @@ class WidgetDataSync: RCTEventEmitter {
     resolve(nil)
   }
 
+  @objc(clearRecordInboxNativeState:rejecter:)
+  func clearRecordInboxNativeState(
+    _ resolve: @escaping RCTPromiseResolveBlock,
+    rejecter reject: @escaping RCTPromiseRejectBlock
+  ) {
+    clearSmsInboxNativeState(resolve, rejecter: reject)
+  }
+
   @objc
   override static func requiresMainQueueSetup() -> Bool {
     return true
@@ -205,21 +247,24 @@ class WidgetDataSync: RCTEventEmitter {
 // MARK: - Darwin notify (App Intent process → foreground RN)
 
 enum RecordInboxPendingDarwin {
-  static let eventName = "SmsInboxPendingEnqueued"
+  static let eventName = "RecordInboxPendingEnqueued"
+  static let legacyEventName = "SmsInboxPendingEnqueued"
 
   static var notifyName: CFNotificationName {
+    let bundleId = Bundle.main.bundleIdentifier ?? "com.ssong.awallet"
+    return CFNotificationName("\(bundleId).recordInboxPendingEnqueued" as CFString)
+  }
+
+  static var legacyNotifyName: CFNotificationName {
     let bundleId = Bundle.main.bundleIdentifier ?? "com.ssong.awallet"
     return CFNotificationName("\(bundleId).smsInboxPendingEnqueued" as CFString)
   }
 
   static func post() {
-    CFNotificationCenterPostNotification(
-      CFNotificationCenterGetDarwinNotifyCenter(),
-      notifyName,
-      nil,
-      nil,
-      true
-    )
+    let center = CFNotificationCenterGetDarwinNotifyCenter()
+    CFNotificationCenterPostNotification(center, notifyName, nil, nil, true)
+    // 레거시 빌드가 수신하는 notify name도 병행 발행.
+    CFNotificationCenterPostNotification(center, legacyNotifyName, nil, nil, true)
   }
 }
 
@@ -233,18 +278,27 @@ final class RecordInboxPendingDarwinObserver {
     self.handler = handler
     guard !registered else { return }
     registered = true
-    let name = RecordInboxPendingDarwin.notifyName
+    let center = CFNotificationCenterGetDarwinNotifyCenter()
+    let callback: CFNotificationCallback = { _, observer, _, _, _ in
+      guard let observer else { return }
+      let box = Unmanaged<RecordInboxPendingDarwinObserver>.fromOpaque(observer).takeUnretainedValue()
+      DispatchQueue.main.async {
+        box.handler?()
+      }
+    }
     CFNotificationCenterAddObserver(
-      CFNotificationCenterGetDarwinNotifyCenter(),
+      center,
       Unmanaged.passUnretained(self).toOpaque(),
-      { _, observer, _, _, _ in
-        guard let observer else { return }
-        let box = Unmanaged<RecordInboxPendingDarwinObserver>.fromOpaque(observer).takeUnretainedValue()
-        DispatchQueue.main.async {
-          box.handler?()
-        }
-      },
-      name.rawValue,
+      callback,
+      RecordInboxPendingDarwin.notifyName.rawValue,
+      nil,
+      .deliverImmediately
+    )
+    CFNotificationCenterAddObserver(
+      center,
+      Unmanaged.passUnretained(self).toOpaque(),
+      callback,
+      RecordInboxPendingDarwin.legacyNotifyName.rawValue,
       nil,
       .deliverImmediately
     )
@@ -259,9 +313,11 @@ final class RecordInboxPendingDarwinObserver {
 
 enum RecordInboxAppGroupQueue {
   /// 레거시 UserDefaults 키 — 파일 큐로 이전 후 제거
-  static let storageKey = "smsInboxPendingQueue"
-  private static let queueFileName = "smsInboxPendingQueue.json"
-  private static let lockFileName = "smsInboxPendingQueue.lock"
+  static let storageKey = "recordInboxPendingQueue"
+  private static let legacyStorageKey = "smsInboxPendingQueue"
+  private static let queueFileName = "recordInboxPendingQueue.json"
+  private static let legacyQueueFileName = "smsInboxPendingQueue.json"
+  private static let lockFileName = "recordInboxPendingQueue.lock"
   private static let maxPendingCount = 200
 
   static var appGroupIdentifier: String {
@@ -272,7 +328,8 @@ enum RecordInboxAppGroupQueue {
     return "group.com.ssong.awallet"
   }
 
-  static let lastIntentKey = "smsInboxLastIntent"
+  static let lastIntentKey = "recordInboxLastIntent"
+  private static let legacyLastIntentKey = "smsInboxLastIntent"
 
   /// Android `SUPPORTED_TRANSACTION_KEYWORDS`와 동일
   private static let supportedTransactionKeywords = ["취소", "승인", "출금"]
@@ -376,18 +433,24 @@ enum RecordInboxAppGroupQueue {
       writeQueueUnlocked([])
       if let defaults = UserDefaults(suiteName: appGroupIdentifier) {
         defaults.removeObject(forKey: storageKey)
+        defaults.removeObject(forKey: legacyStorageKey)
         defaults.removeObject(forKey: lastIntentKey)
+        defaults.removeObject(forKey: legacyLastIntentKey)
         defaults.removeObject(forKey: RecordInboxIconBadge.lastSyncedKey)
         defaults.removeObject(forKey: RecordInboxReceiveGate.smsEnabledKey)
         defaults.removeObject(forKey: RecordInboxReceiveGate.appEnabledKey)
         defaults.synchronize()
+      }
+      if let legacyURL = legacyQueueFileURL() {
+        try? FileManager.default.removeItem(at: legacyURL)
       }
     }
   }
 
   static func lastIntent() -> [String: Any]? {
     guard let defaults = UserDefaults(suiteName: appGroupIdentifier) else { return nil }
-    return defaults.dictionary(forKey: lastIntentKey)
+    return defaults.dictionary(forKey: lastIntentKey) ??
+      defaults.dictionary(forKey: legacyLastIntentKey)
   }
 
   private static func recordLastIntent(
@@ -407,6 +470,7 @@ enum RecordInboxAppGroupQueue {
       ] as [String: Any],
       forKey: lastIntentKey
     )
+    defaults.removeObject(forKey: legacyLastIntentKey)
     defaults.synchronize()
   }
 
@@ -418,6 +482,10 @@ enum RecordInboxAppGroupQueue {
 
   private static func queueFileURL() -> URL? {
     containerDirectory()?.appendingPathComponent(queueFileName)
+  }
+
+  private static func legacyQueueFileURL() -> URL? {
+    containerDirectory()?.appendingPathComponent(legacyQueueFileName)
   }
 
   private static func withQueueLock(_ body: () -> Void) {
@@ -458,13 +526,25 @@ enum RecordInboxAppGroupQueue {
       return normalizeQueueEntries(array)
     }
 
+    if let url = legacyQueueFileURL(),
+       let data = try? Data(contentsOf: url),
+       let json = try? JSONSerialization.jsonObject(with: data),
+       let array = json as? [Any]
+    {
+      let migrated = normalizeQueueEntries(array)
+      writeQueueUnlocked(migrated)
+      try? FileManager.default.removeItem(at: url)
+      return migrated
+    }
+
     // 레거시 UserDefaults → 파일 이전 (한 번)
     if let defaults = UserDefaults(suiteName: appGroupIdentifier),
-       let legacy = defaults.array(forKey: storageKey)
+       let legacy = defaults.array(forKey: storageKey) ?? defaults.array(forKey: legacyStorageKey)
     {
       let migrated = normalizeQueueEntries(legacy)
       writeQueueUnlocked(migrated)
       defaults.removeObject(forKey: storageKey)
+      defaults.removeObject(forKey: legacyStorageKey)
       defaults.synchronize()
       return migrated
     }

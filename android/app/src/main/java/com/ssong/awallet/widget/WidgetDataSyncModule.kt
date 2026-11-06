@@ -173,6 +173,11 @@ class WidgetDataSyncModule(reactContext: ReactApplicationContext) :
   }
 
   @ReactMethod
+  fun getPendingRecordInbox(promise: Promise) {
+    getPendingSmsInbox(promise)
+  }
+
+  @ReactMethod
   fun acknowledgePendingSmsInbox(ids: ReadableArray, promise: Promise) {
     try {
       val values = buildSet {
@@ -191,6 +196,11 @@ class WidgetDataSyncModule(reactContext: ReactApplicationContext) :
   }
 
   @ReactMethod
+  fun acknowledgePendingRecordInbox(ids: ReadableArray, promise: Promise) {
+    acknowledgePendingSmsInbox(ids, promise)
+  }
+
+  @ReactMethod
   fun clearSmsInboxNativeState(promise: Promise) {
     try {
       RecordInboxNativeStore.clear(reactApplicationContext.applicationContext)
@@ -198,6 +208,11 @@ class WidgetDataSyncModule(reactContext: ReactApplicationContext) :
     } catch (e: Exception) {
       promise.reject("ERROR", "Failed to clear native SMS inbox state: ${e.message}", e)
     }
+  }
+
+  @ReactMethod
+  fun clearRecordInboxNativeState(promise: Promise) {
+    clearSmsInboxNativeState(promise)
   }
 
   /** JS 수신함 실건수 → lastSynced + 아이콘 뱃지(조용한 알림) 재맞춤 */
@@ -239,6 +254,12 @@ class WidgetDataSyncModule(reactContext: ReactApplicationContext) :
     }
   }
 
+  /** [신] 알림 접근 — 구 `isSmsInboxNotificationAccessEnabled` 별칭 */
+  @ReactMethod
+  fun isRecordInboxNotificationAccessEnabled(promise: Promise) {
+    isSmsInboxNotificationAccessEnabled(promise)
+  }
+
   @ReactMethod
   fun openSmsInboxNotificationAccessSettings(promise: Promise) {
     UiThreadUtil.runOnUiThread {
@@ -251,6 +272,12 @@ class WidgetDataSyncModule(reactContext: ReactApplicationContext) :
         promise.reject("ERROR", "Failed to open notification access settings: ${e.message}", e)
       }
     }
+  }
+
+  /** [신] 알림 접근 설정 — 구 `openSmsInboxNotificationAccessSettings` 별칭 */
+  @ReactMethod
+  fun openRecordInboxNotificationAccessSettings(promise: Promise) {
+    openSmsInboxNotificationAccessSettings(promise)
   }
 
   @ReactMethod

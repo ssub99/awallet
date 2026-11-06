@@ -12,7 +12,7 @@ import * as Updates from 'expo-updates';
  *   EXPO_PUBLIC_APP_VERSION_POLICY_URL 로 분리 URL 가능(빌드 시 박힘·비밀 아님). 신뢰하는 호스트만 사용.
  * - 공지사항 JSON: `{VERCEL_API_BASE_URL}/app-notices.json` (Vercel static 배포분만 표시).
  *   EXPO_PUBLIC_APP_NOTICES_URL 로 분리 URL 가능.
- * - 기록 수신함 공유 단축어: `{VERCEL_API_BASE_URL}/sms-inbox-shortcut.json`
+ * - 기록 수신함 공유 단축어: `{VERCEL_API_BASE_URL}/record-inbox-shortcut.json` (구 `/sms-inbox-shortcut.json` 병행)
  * - 그 밖의 프로덕션 빌드: EXPO_PUBLIC 이 있으면 우선, 없으면 프로덕션 기본 도메인.
  */
 
@@ -79,8 +79,17 @@ export const APP_NOTICES_URL =
   normalizeApiBaseUrl(process.env.EXPO_PUBLIC_APP_NOTICES_URL) ??
   `${VERCEL_API_BASE_URL}/app-notices.json`;
 
-/** 기록 수신함 iCloud 공유 단축어 최신 URL (`static/sms-inbox-shortcut.json`) */
-export const SMS_RECEIVE_SHORTCUT_CONFIG_URL =
+/**
+ * [신] 1.2.4+ 단축어 설정 JSON — iCloud URL 본문은 static/record-inbox-shortcut.json
+ * (신규 단축어 링크 교체 지점: 그 JSON + constants/sms-receive-shortcut.ts 의 NEW_*)
+ */
+export const RECORD_INBOX_SHORTCUT_CONFIG_URL =
+  `${VERCEL_API_BASE_URL}/record-inbox-shortcut.json`;
+/**
+ * [구] 1.2.4 미만 앱용 단축어 설정 JSON — static/sms-inbox-shortcut.json
+ * 미업데이트 단말 재다운로드용. 삭제·신 링크로만 교체 금지.
+ */
+export const LEGACY_SMS_INBOX_SHORTCUT_CONFIG_URL =
   `${VERCEL_API_BASE_URL}/sms-inbox-shortcut.json`;
 
 export const PARSE_EXPENSE_API_URL = `${VERCEL_API_BASE_URL}/api/parse-expense`;

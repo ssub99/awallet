@@ -16,8 +16,8 @@ import { QuickInputTutorialEntry } from '@/components/ui/quick-input-tutorial-en
 import { QuickInputTutorialCreateCompleteCard } from '@/components/ui/quick-input-tutorial-create-complete-card';
 import { QuickInputTutorialReceiveCompleteCard } from '@/components/ui/quick-input-tutorial-receive-complete-card';
 import { QuickInputTutorialReceiveConfirmCard } from '@/components/ui/quick-input-tutorial-receive-confirm-card';
-import { QuickInputSmsInboxFocusDim } from '@/components/ui/quick-input-sms-inbox-focus-dim';
-import type { SmsInboxFocusCutout } from '@/components/ui/quick-input-sms-inbox-focus-dim';
+import { QuickInputRecordInboxFocusDim } from '@/components/ui/quick-input-record-inbox-focus-dim';
+import type { RecordInboxFocusCutout } from '@/components/ui/quick-input-record-inbox-focus-dim';
 import { QuickInputTutorialCategoryHintDim } from '@/components/ui/quick-input-tutorial-category-hint-dim';
 import type { CategoryHintCutout } from '@/components/ui/quick-input-tutorial-category-hint-dim';
 import { QuickInputTutorialCreateSendHintDim } from '@/components/ui/quick-input-tutorial-create-send-hint-dim';
@@ -58,7 +58,7 @@ import { logEvent } from '@/utils/analytics';
 import { getApiSecurityHeaders } from '@/utils/api-security-headers';
 import { isAtLeastVersion, QUICK_INPUT_MIN_VERSION } from '@/utils/app-version';
 import type { RecordInboxItem } from '@/utils/record-inbox-types';
-import { SMS_HISTORY_RECORD_ANALYTICS_SCREEN_NAME } from '@/utils/record-inbox-types';
+import { RECORD_INBOX_ANALYTICS_SCREEN_NAME } from '@/utils/record-inbox-types';
 import {
   loadRecordInboxItems,
   removeRecordInboxItemById,
@@ -121,6 +121,7 @@ import {
     resolveIosQuickInputBottomAboveAnchor,
 } from '@/utils/quick-input-keyboard-position';
 import type { QuickInputPendingRecord } from '@/utils/quick-input-pending-record';
+import { shouldBlockRecordInboxForShortcutResync } from '@/utils/record-inbox-shortcut-resync';
 import { setSettingsTabPendingPush } from '@/utils/settings-tab-pending-push';
 import { refreshWidgetWithCurrentMonth } from '@/utils/widget-data-sync';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -1360,16 +1361,16 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
    * 실데이터·수신 설정과 무관 — 실뱃지는 숨기고 가상 1만 표시.
    */
   const [tutorialReceiveVirtualBadgeVisible, setTutorialReceiveVirtualBadgeVisible] = useState(false);
-  /** 안내 카드 후 수신함 칩 포커스 딤 (smsInboxFocus) */
-  const [tutorialSmsInboxFocusVisible, setTutorialSmsInboxFocusVisible] = useState(false);
+  /** 안내 카드 후 수신함 칩 포커스 딤 (recordInboxFocus · Figma smsInboxFocus) */
+  const [tutorialRecordInboxFocusVisible, setTutorialRecordInboxFocusVisible] = useState(false);
   /**
    * 체험용 수신함 큐 (스토어와 분리). null이면 실데이터 `recordInboxItems` 사용.
    */
   const [tutorialRecordInboxItems, setTutorialRecordInboxItems] = useState<RecordInboxItem[] | null>(
     null,
   );
-  const [smsInboxChipCutout, setSmsInboxChipCutout] = useState<SmsInboxFocusCutout | null>(null);
-  const smsInboxChipRef = useRef<ViewInstance>(null);
+  const [recordInboxChipCutout, setRecordInboxChipCutout] = useState<RecordInboxFocusCutout | null>(null);
+  const recordInboxChipRef = useRef<ViewInstance>(null);
   const tutorialCreateBarAnchorRef = useRef<ViewInstance | null>(null);
   const [tutorialCreateBarCutout, setTutorialCreateBarCutout] =
     useState<CreateSendHintCutout | null>(null);
@@ -1378,7 +1379,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     useState<CategoryHintCutout | null>(null);
   const tutorialConfirmAddButtonAnchorRef = useRef<ViewInstance | null>(null);
   const [tutorialAddFocusCutout, setTutorialAddFocusCutout] =
-    useState<SmsInboxFocusCutout | null>(null);
+    useState<RecordInboxFocusCutout | null>(null);
   /** 수신함 등장 모션 완료 후에만 튜토리얼 딤 */
   const [tutorialRecordInboxEnterSettled, setTutorialRecordInboxEnterSettled] =
     useState(false);
@@ -1387,8 +1388,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const tutorialRecordInboxDimDelayTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
-  const tutorialSmsInboxFocusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  /** 안내 카드 후: 키패드 하강 완료를 기다렸다가 smsInboxFocus 딤 */
+  const tutorialRecordInboxFocusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** 안내 카드 후: 키패드 하강 완료를 기다렸다가 recordInboxFocus 딤 */
   const tutorialAwaitingKeyboardHideForDimRef = useRef(false);
   /** 그 구간 Android가 키보드 dismiss로 간편입력을 닫지 않게 */
   const tutorialSuppressAndroidKeyboardHideRef = useRef(false);
@@ -1474,7 +1475,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   /** 기록 수신함 카테고리 단독 시트에서 수정 중인 아이템 */
   const recordInboxCategoryItemIdRef = useRef<string | null>(null);
 
-  /** 가기록 시트 analytics — SMS 변경이면 screen_name=/sms-history-record */
+  /** 가기록 시트 analytics — 기록 수신함이면 screen_name=/record-inbox */
   const logRecordSheetEvent = useCallback(
     (eventName: string, target: string, extra?: Record<string, unknown>) => {
       logExpenseRecordSheetEvent(
@@ -1483,7 +1484,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         target,
         extra,
         recordInboxEditingItemIdRef.current != null
-          ? SMS_HISTORY_RECORD_ANALYTICS_SCREEN_NAME
+          ? RECORD_INBOX_ANALYTICS_SCREEN_NAME
           : null,
       );
     },
@@ -1760,9 +1761,9 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       clearTimeout(tutorialReceiveFlowTimeoutRef.current);
       tutorialReceiveFlowTimeoutRef.current = null;
     }
-    if (tutorialSmsInboxFocusTimeoutRef.current != null) {
-      clearTimeout(tutorialSmsInboxFocusTimeoutRef.current);
-      tutorialSmsInboxFocusTimeoutRef.current = null;
+    if (tutorialRecordInboxFocusTimeoutRef.current != null) {
+      clearTimeout(tutorialRecordInboxFocusTimeoutRef.current);
+      tutorialRecordInboxFocusTimeoutRef.current = null;
     }
     if (tutorialRecordInboxDimDelayTimeoutRef.current != null) {
       clearTimeout(tutorialRecordInboxDimDelayTimeoutRef.current);
@@ -1774,7 +1775,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     tutorialSuppressAndroidKeyboardHideRef.current = false;
   }, [animatedBottom, shortBottomFromScreen]);
 
-  const tutorialSmsInboxFocusVisibleRef = useRef(false);
+  const tutorialRecordInboxFocusVisibleRef = useRef(false);
 
   const clearTutorialCreate = useCallback(() => {
     if (tutorialCreateFlowTimeoutRef.current != null) {
@@ -1840,9 +1841,9 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     setTutorialReceiveConfirmVisible(false);
     setTutorialReceiveCompleteVisible(false);
     setTutorialReceiveVirtualBadgeVisible(false);
-    tutorialSmsInboxFocusVisibleRef.current = false;
-    setTutorialSmsInboxFocusVisible(false);
-    setSmsInboxChipCutout(null);
+    tutorialRecordInboxFocusVisibleRef.current = false;
+    setTutorialRecordInboxFocusVisible(false);
+    setRecordInboxChipCutout(null);
     tutorialRecordInboxItemsRef.current = null;
     setTutorialRecordInboxItems(null);
     setTutorialCategoryHintCutout(null);
@@ -1851,8 +1852,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     clearTutorialCreate();
   }, [clearTutorialCreate, clearTutorialReceiveFlowTimers, setLoading]);
 
-  const measureSmsInboxChipCutout = useCallback(() => {
-    const node = smsInboxChipRef.current;
+  const measureRecordInboxChipCutout = useCallback(() => {
+    const node = recordInboxChipRef.current;
     if (!node || typeof node.measureInWindow !== 'function') {
       return;
     }
@@ -1860,27 +1861,27 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       if (width <= 0 || height <= 0) {
         return;
       }
-      setSmsInboxChipCutout({ x, y, width, height });
+      setRecordInboxChipCutout({ x, y, width, height });
     });
   }, []);
 
   /** 간편입력 rest 하강 완료 후에만 수신함 칩 딤 */
-  const revealTutorialSmsInboxFocusDim = useCallback(() => {
+  const revealTutorialRecordInboxFocusDim = useCallback(() => {
     if (!tutorialAwaitingKeyboardHideForDimRef.current) {
       return;
     }
     tutorialAwaitingKeyboardHideForDimRef.current = false;
-    if (tutorialSmsInboxFocusTimeoutRef.current != null) {
-      clearTimeout(tutorialSmsInboxFocusTimeoutRef.current);
-      tutorialSmsInboxFocusTimeoutRef.current = null;
+    if (tutorialRecordInboxFocusTimeoutRef.current != null) {
+      clearTimeout(tutorialRecordInboxFocusTimeoutRef.current);
+      tutorialRecordInboxFocusTimeoutRef.current = null;
     }
     tutorialSuppressAndroidKeyboardHideRef.current = false;
-    tutorialSmsInboxFocusVisibleRef.current = true;
-    setTutorialSmsInboxFocusVisible(true);
+    tutorialRecordInboxFocusVisibleRef.current = true;
+    setTutorialRecordInboxFocusVisible(true);
     requestAnimationFrame(() => {
-      measureSmsInboxChipCutout();
+      measureRecordInboxChipCutout();
     });
-  }, [measureSmsInboxChipCutout]);
+  }, [measureRecordInboxChipCutout]);
 
   /**
    * 키패드 follow를 끊고 현재 위치→rest로 직접 하강.
@@ -1930,11 +1931,11 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     ],
   );
 
-  const beginTutorialSmsInboxFocusAfterKeyboardHide = useCallback(() => {
+  const beginTutorialRecordInboxFocusAfterKeyboardHide = useCallback(() => {
     tutorialSuppressAndroidKeyboardHideRef.current = true;
     tutorialAwaitingKeyboardHideForDimRef.current = true;
-    descendQuickInputToRestAfterKeyboardHide(revealTutorialSmsInboxFocusDim);
-  }, [descendQuickInputToRestAfterKeyboardHide, revealTutorialSmsInboxFocusDim]);
+    descendQuickInputToRestAfterKeyboardHide(revealTutorialRecordInboxFocusDim);
+  }, [descendQuickInputToRestAfterKeyboardHide, revealTutorialRecordInboxFocusDim]);
 
   const handleTutorialEntryExitComplete = useCallback(() => {
     setTutorialEntryExiting(false);
@@ -1952,9 +1953,9 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const handleTutorialReceivePress = useCallback(() => {
     clearTutorialReceiveFlowTimers();
     clearTutorialCreate();
-    tutorialSmsInboxFocusVisibleRef.current = false;
-    setTutorialSmsInboxFocusVisible(false);
-    setSmsInboxChipCutout(null);
+    tutorialRecordInboxFocusVisibleRef.current = false;
+    setTutorialRecordInboxFocusVisible(false);
+    setRecordInboxChipCutout(null);
     setTutorialReceiveConfirmVisible(false);
     setTutorialReceiveCompleteVisible(false);
     setTutorialReceiveVirtualBadgeVisible(false);
@@ -1965,13 +1966,13 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       setLoading(false);
       setTutorialReceiveConfirmVisible(true);
       setTutorialReceiveVirtualBadgeVisible(true);
-      tutorialSmsInboxFocusTimeoutRef.current = setTimeout(() => {
-        tutorialSmsInboxFocusTimeoutRef.current = null;
-        beginTutorialSmsInboxFocusAfterKeyboardHide();
+      tutorialRecordInboxFocusTimeoutRef.current = setTimeout(() => {
+        tutorialRecordInboxFocusTimeoutRef.current = null;
+        beginTutorialRecordInboxFocusAfterKeyboardHide();
       }, 1000);
     }, 1000);
   }, [
-    beginTutorialSmsInboxFocusAfterKeyboardHide,
+    beginTutorialRecordInboxFocusAfterKeyboardHide,
     clearTutorialCreate,
     clearTutorialReceiveFlowTimers,
     setLoading,
@@ -1993,9 +1994,9 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     setTutorialReceiveConfirmVisible(false);
     setTutorialReceiveCompleteVisible(false);
     setTutorialReceiveVirtualBadgeVisible(false);
-    tutorialSmsInboxFocusVisibleRef.current = false;
-    setTutorialSmsInboxFocusVisible(false);
-    setSmsInboxChipCutout(null);
+    tutorialRecordInboxFocusVisibleRef.current = false;
+    setTutorialRecordInboxFocusVisible(false);
+    setRecordInboxChipCutout(null);
     setQuickInputText('');
     tutorialCreateSessionRef.current = true;
     setTutorialCreateSession(true);
@@ -2049,21 +2050,21 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   ]);
 
   useEffect(() => {
-    if (!tutorialSmsInboxFocusVisible) {
-      setSmsInboxChipCutout(null);
+    if (!tutorialRecordInboxFocusVisible) {
+      setRecordInboxChipCutout(null);
       return;
     }
     const frame = requestAnimationFrame(() => {
-      measureSmsInboxChipCutout();
+      measureRecordInboxChipCutout();
     });
     const retry = setTimeout(() => {
-      measureSmsInboxChipCutout();
+      measureRecordInboxChipCutout();
     }, 50);
     return () => {
       cancelAnimationFrame(frame);
       clearTimeout(retry);
     };
-  }, [tutorialSmsInboxFocusVisible, measureSmsInboxChipCutout]);
+  }, [tutorialRecordInboxFocusVisible, measureRecordInboxChipCutout]);
 
   useEffect(() => {
     if (!tutorialCreateActive) {
@@ -2106,8 +2107,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       if (previous !== null && height === previous) {
         return;
       }
-      if (tutorialSmsInboxFocusVisibleRef.current) {
-        runOnJS(measureSmsInboxChipCutout)();
+      if (tutorialRecordInboxFocusVisibleRef.current) {
+        runOnJS(measureRecordInboxChipCutout)();
       }
       if (tutorialCreateActiveRef.current) {
         runOnJS(measureTutorialCreateBarCutout)();
@@ -2663,10 +2664,10 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       }
       return false;
     }
-    // main_quick-input_sms-receive_ui (엑셀: quick-input / sms-receive / ui)
+    // main_quick-input_record-inbox_ui (엑셀: quick-input / record-inbox / ui)
     void logEvent('ui', {
       screen_name: '/home',
-      target: 'sms-receive',
+      target: 'record-inbox',
     });
     if (isQuickInputCalculatorMounted || isQuickInputCalculatorVisible) {
       calculatorAnimationRef.current?.stop();
@@ -2774,16 +2775,24 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
 
   const pendingOpenRecordInboxRef = useRef(false);
 
-  const openRecordInboxIfReady = useCallback(() => {
+  const openRecordInboxIfReady = useCallback(async () => {
     clearTutorialReceiveFocus();
+    const goSettingsRecordInbox = () => {
+      hideQuickInputRef.current({ simultaneous: true });
+      setSettingsTabPendingPush('/settings-record-inbox');
+      router.navigate('/mypage');
+    };
+    if (await shouldBlockRecordInboxForShortcutResync()) {
+      showToast('단축어를 새로 설정해 주세요.', {
+        label: '설정하기',
+        onPress: goSettingsRecordInbox,
+      });
+      return false;
+    }
     if (!recordInboxReceiveEnabled) {
       showToast('수신 기능을 사용 설정해 주세요.', {
         label: '바로가기',
-        onPress: () => {
-          hideQuickInputRef.current({ simultaneous: true });
-          setSettingsTabPendingPush('/settings-record-inbox');
-          router.navigate('/mypage');
-        },
+        onPress: goSettingsRecordInbox,
       });
       return false;
     }
@@ -2843,7 +2852,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
 
   const handleQuickInputRecordInboxPress = useCallback(() => {
     const isTutorialReceiveFocus =
-      tutorialSmsInboxFocusVisibleRef.current || tutorialReceiveVirtualBadgeVisible;
+      tutorialRecordInboxFocusVisibleRef.current || tutorialReceiveVirtualBadgeVisible;
 
     if (isTutorialReceiveFocus) {
       // 딤/가상 뱃지 UI만 걷고, 수신함은 체험 큐로 연다 (설정·실데이터 무관)
@@ -2851,9 +2860,9 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       setLoading(false);
       setTutorialReceiveConfirmVisible(false);
       setTutorialReceiveVirtualBadgeVisible(false);
-      tutorialSmsInboxFocusVisibleRef.current = false;
-      setTutorialSmsInboxFocusVisible(false);
-      setSmsInboxChipCutout(null);
+      tutorialRecordInboxFocusVisibleRef.current = false;
+      setTutorialRecordInboxFocusVisible(false);
+      setRecordInboxChipCutout(null);
       const tutorialItems = [createTutorialReceiveRecordInboxItem()];
       tutorialRecordInboxItemsRef.current = tutorialItems;
       setTutorialRecordInboxItems(tutorialItems);
@@ -2947,11 +2956,11 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
           (entry) => entry.id !== item.id,
         ).length;
         if (remaining === 0) {
-          tutorialSmsInboxFocusVisibleRef.current = false;
-          setTutorialSmsInboxFocusVisible(false);
+          tutorialRecordInboxFocusVisibleRef.current = false;
+          setTutorialRecordInboxFocusVisible(false);
           setTutorialReceiveVirtualBadgeVisible(false);
           setTutorialReceiveConfirmVisible(false);
-          setSmsInboxChipCutout(null);
+          setRecordInboxChipCutout(null);
           setTutorialCategoryHintCutout(null);
           setTutorialAddFocusCutout(null);
           // 키패드 복원 없이 rest 복귀 → 완료 카드 + 딤
@@ -3140,7 +3149,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const handleRecordInboxChange = useCallback(
     (item: RecordInboxItem) => {
       void logEvent('btn', {
-        screen_name: SMS_HISTORY_RECORD_ANALYTICS_SCREEN_NAME,
+        screen_name: RECORD_INBOX_ANALYTICS_SCREEN_NAME,
         target: 'receive-cardadd-modify',
       });
       openRecordInboxItemEditor(item);
@@ -3169,7 +3178,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       return;
     }
     void logEvent('btn', {
-      screen_name: SMS_HISTORY_RECORD_ANALYTICS_SCREEN_NAME,
+      screen_name: RECORD_INBOX_ANALYTICS_SCREEN_NAME,
       target: 'receive-cardadd-category-close',
     });
     closeRecordInboxCategorySheet();
@@ -3178,7 +3187,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const handleRecordInboxCategoryPress = useCallback(
     (item: RecordInboxItem) => {
       void logEvent('btn', {
-        screen_name: SMS_HISTORY_RECORD_ANALYTICS_SCREEN_NAME,
+        screen_name: RECORD_INBOX_ANALYTICS_SCREEN_NAME,
         target: 'receive-cardadd-category',
       });
       const categoryType = item.card.recordType === 'income' ? 'income' : 'expense';
@@ -3216,7 +3225,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         return;
       }
       void logEvent('list', {
-        screen_name: SMS_HISTORY_RECORD_ANALYTICS_SCREEN_NAME,
+        screen_name: RECORD_INBOX_ANALYTICS_SCREEN_NAME,
         target: 'receive-cardadd-category-option',
         category: category.label,
       });
@@ -3331,7 +3340,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   );
 
   const setQuickInputTextTruncated = useCallback((text: string) => {
-    if (tutorialSmsInboxFocusVisibleRef.current) {
+    if (tutorialRecordInboxFocusVisibleRef.current) {
       return;
     }
     setQuickInputText(text.slice(0, MAX_MESSAGE_LENGTH));
@@ -3371,9 +3380,9 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     setTutorialReceiveConfirmVisible(false);
     setTutorialReceiveCompleteVisible(false);
     setTutorialReceiveVirtualBadgeVisible(false);
-    tutorialSmsInboxFocusVisibleRef.current = false;
-    setTutorialSmsInboxFocusVisible(false);
-    setSmsInboxChipCutout(null);
+    tutorialRecordInboxFocusVisibleRef.current = false;
+    setTutorialRecordInboxFocusVisible(false);
+    setRecordInboxChipCutout(null);
     tutorialRecordInboxItemsRef.current = null;
     setTutorialRecordInboxItems(null);
     clearTutorialCreate();
@@ -4322,7 +4331,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
 
   const handleSend = useCallback(async () => {
     if (!quickInputText.trim()) return;
-    if (tutorialSmsInboxFocusVisibleRef.current) return;
+    if (tutorialRecordInboxFocusVisibleRef.current) return;
     if (confirmCardData != null) {
       showToast('먼저 생성한 기록을 확인해 주세요.');
       return;
@@ -5149,7 +5158,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       options.fromConfirm === true;
     if (isRecordInboxEdit && !fromConfirm) {
       void logEvent('btn', {
-        screen_name: SMS_HISTORY_RECORD_ANALYTICS_SCREEN_NAME,
+        screen_name: RECORD_INBOX_ANALYTICS_SCREEN_NAME,
         target: 'cancel',
       });
     }
@@ -5358,8 +5367,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }, []);
 
   const handleQuickInputBackdropPress = useCallback(() => {
-    // 튜토리얼 smsInboxFocus 딤: 바깥 탭으로 닫지 않음 (수신함 칩만 허용)
-    if (tutorialSmsInboxFocusVisibleRef.current) {
+    // 튜토리얼 recordInboxFocus 딤: 바깥 탭으로 닫지 않음 (수신함 칩만 허용)
+    if (tutorialRecordInboxFocusVisibleRef.current) {
       return;
     }
     // 간편 기록 생성 체험(전송·추가 힌트): 바깥 탭으로 닫지 않음
@@ -5650,7 +5659,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                   style={styles.tutorialEntryLayer}
                   pointerEvents={
                     tutorialEntryExiting ||
-                    tutorialSmsInboxFocusVisible ||
+                    tutorialRecordInboxFocusVisible ||
                     tutorialReceiveCompleteVisible ||
                     tutorialCreateCompleteVisible ||
                     tutorialCreateActive ||
@@ -5676,8 +5685,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                   ) : null}
                 </View>
               ) : null}
-              {tutorialSmsInboxFocusVisible ? (
-                <QuickInputSmsInboxFocusDim chipBounds={smsInboxChipCutout} />
+              {tutorialRecordInboxFocusVisible ? (
+                <QuickInputRecordInboxFocusDim chipBounds={recordInboxChipCutout} />
               ) : null}
               {/*
                 Figma tutorialCreateSendHint.overlayDimStacked — 칩·키패드 위,
@@ -5704,7 +5713,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                   <Pressable
                     style={styles.backdropTouchArea}
                     pointerEvents={
-                      tutorialSmsInboxFocusVisible ||
+                      tutorialRecordInboxFocusVisible ||
                       tutorialReceiveCompleteVisible ||
                       tutorialCreateCompleteVisible ||
                       tutorialCreateActive ||
@@ -5713,7 +5722,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                         : 'auto'
                     }
                     onPressIn={
-                      tutorialSmsInboxFocusVisible ||
+                      tutorialRecordInboxFocusVisible ||
                       tutorialReceiveCompleteVisible ||
                       tutorialCreateCompleteVisible ||
                       tutorialCreateActive ||
@@ -5732,7 +5741,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                         : handleQuickInputBackdropPress
                     }
                     onPress={
-                      tutorialSmsInboxFocusVisible ||
+                      tutorialRecordInboxFocusVisible ||
                       tutorialReceiveCompleteVisible ||
                       tutorialCreateCompleteVisible ||
                       tutorialCreateActive ||
@@ -5826,7 +5835,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                         />
                       ) : null}
                       {tutorialAddFocusVisible ? (
-                        <QuickInputSmsInboxFocusDim
+                        <QuickInputRecordInboxFocusDim
                           chipBounds={tutorialAddFocusCutout}
                           cutoutPad={6}
                           cutoutCornerRadius={16}
@@ -5867,15 +5876,15 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                           style={styles.actionRowScroll}
                           contentContainerStyle={styles.actionRow}
                           keyboardShouldPersistTaps="handled"
-                          scrollEnabled={!tutorialSmsInboxFocusVisible && !tutorialCreateActive}
+                          scrollEnabled={!tutorialRecordInboxFocusVisible && !tutorialCreateActive}
                         >
                             <Pressable
-                              ref={smsInboxChipRef}
+                              ref={recordInboxChipRef}
                               style={styles.actionChip}
                               onPress={handleQuickInputRecordInboxPress}
                               onLayout={
-                                tutorialSmsInboxFocusVisible
-                                  ? measureSmsInboxChipCutout
+                                tutorialRecordInboxFocusVisible
+                                  ? measureRecordInboxChipCutout
                                   : undefined
                               }
                               disabled={tutorialCreateActive}
@@ -5912,16 +5921,16 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                             <Pressable
                               style={styles.actionChip}
                               onPress={handleQuickInputCalculatorPress}
-                              disabled={tutorialSmsInboxFocusVisible || tutorialCreateActive}
+                              disabled={tutorialRecordInboxFocusVisible || tutorialCreateActive}
                               pointerEvents={
-                                tutorialSmsInboxFocusVisible || tutorialCreateActive
+                                tutorialRecordInboxFocusVisible || tutorialCreateActive
                                   ? 'none'
                                   : 'auto'
                               }
                               accessibilityRole="button"
                               accessibilityLabel="계산기"
                               accessibilityState={{
-                                disabled: tutorialSmsInboxFocusVisible || tutorialCreateActive,
+                                disabled: tutorialRecordInboxFocusVisible || tutorialCreateActive,
                               }}
                             >
                               <View style={styles.actionIconBox}>
@@ -5932,16 +5941,16 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                             <Pressable
                               style={styles.actionChip}
                               onPress={handleQuickInputCategorySettingPress}
-                              disabled={tutorialSmsInboxFocusVisible || tutorialCreateActive}
+                              disabled={tutorialRecordInboxFocusVisible || tutorialCreateActive}
                               pointerEvents={
-                                tutorialSmsInboxFocusVisible || tutorialCreateActive
+                                tutorialRecordInboxFocusVisible || tutorialCreateActive
                                   ? 'none'
                                   : 'auto'
                               }
                               accessibilityRole="button"
                               accessibilityLabel="카테고리 설정"
                               accessibilityState={{
-                                disabled: tutorialSmsInboxFocusVisible || tutorialCreateActive,
+                                disabled: tutorialRecordInboxFocusVisible || tutorialCreateActive,
                               }}
                             >
                               <View style={styles.actionIconBox}>
@@ -5972,7 +5981,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                             sendLoading={isQuickInputSendLoading}
                             sendDisabled={
                               confirmCardData != null ||
-                              tutorialSmsInboxFocusVisible ||
+                              tutorialRecordInboxFocusVisible ||
                               (tutorialCreateSession &&
                                 quickInputText !== TUTORIAL_CREATE_SAMPLE_MESSAGE)
                             }

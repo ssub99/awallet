@@ -19,13 +19,18 @@ export type PendingRecordInboxNativeItem = {
 };
 
 type WidgetDataSyncRecordInboxModule = {
+  drainPendingRecordInbox?: () => Promise<PendingRecordInboxNativeItem[]>;
+  peekPendingRecordInbox?: () => Promise<PendingRecordInboxNativeItem[]>;
+  getPendingRecordInbox?: () => Promise<PendingRecordInboxNativeItem[]>;
+  acknowledgePendingRecordInbox?: (ids: string[]) => Promise<void>;
   drainPendingSmsInbox?: () => Promise<PendingRecordInboxNativeItem[]>;
   peekPendingSmsInbox?: () => Promise<PendingRecordInboxNativeItem[]>;
   getPendingSmsInbox?: () => Promise<PendingRecordInboxNativeItem[]>;
   acknowledgePendingSmsInbox?: (ids: string[]) => Promise<void>;
 };
 
-const RECORD_INBOX_PENDING_ENQUEUED_EVENT = 'SmsInboxPendingEnqueued';
+const RECORD_INBOX_PENDING_ENQUEUED_EVENT = 'RecordInboxPendingEnqueued';
+const LEGACY_RECORD_INBOX_PENDING_ENQUEUED_EVENT = 'SmsInboxPendingEnqueued';
 
 const widgetDataSync = NativeModules.WidgetDataSync as WidgetDataSyncRecordInboxModule | undefined;
 
@@ -44,8 +49,8 @@ async function peekPendingList(): Promise<PendingRecordInboxNativeItem[]> {
   }
   const fn =
     Platform.OS === 'android'
-      ? widgetDataSync?.getPendingSmsInbox
-      : widgetDataSync?.peekPendingSmsInbox;
+      ? widgetDataSync?.getPendingRecordInbox ?? widgetDataSync?.getPendingSmsInbox
+      : widgetDataSync?.peekPendingRecordInbox ?? widgetDataSync?.peekPendingSmsInbox;
   if (typeof fn !== 'function') {
     return [];
   }
@@ -63,8 +68,9 @@ async function peekPendingList(): Promise<PendingRecordInboxNativeItem[]> {
 async function acknowledgePendingItems(ids: string[]): Promise<void> {
   if (ids.length === 0) return;
   const fn = widgetDataSync?.acknowledgePendingSmsInbox;
-  if (typeof fn !== 'function') return;
-  await fn.call(widgetDataSync, ids);
+  const ack = widgetDataSync?.acknowledgePendingRecordInbox ?? fn;
+  if (typeof ack !== 'function') return;
+  await ack.call(widgetDataSync, ids);
 }
 
 /**
@@ -145,7 +151,12 @@ export function subscribeRecordInboxPendingEnqueued(listener: () => void): () =>
   }
   const emitter = new NativeEventEmitter(mod);
   const subscription = emitter.addListener(RECORD_INBOX_PENDING_ENQUEUED_EVENT, listener);
+  const legacySubscription = emitter.addListener(
+    LEGACY_RECORD_INBOX_PENDING_ENQUEUED_EVENT,
+    listener,
+  );
   return () => {
     subscription.remove();
+    legacySubscription.remove();
   };
 }

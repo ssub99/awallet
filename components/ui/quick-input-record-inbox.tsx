@@ -21,7 +21,7 @@ import { atomicColors } from '@/constants/atomic-colors';
 import { colors, typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import type { RecordInboxItem } from '@/utils/record-inbox-mock';
-import { SMS_HISTORY_RECORD_ANALYTICS_SCREEN_NAME } from '@/utils/record-inbox-types';
+import { RECORD_INBOX_ANALYTICS_SCREEN_NAME } from '@/utils/record-inbox-types';
 import { logEvent } from '@/utils/analytics';
 import { normalizeRecordInboxOriginalBody } from '@/utils/record-inbox-store';
 import { formatSmsSenderDisplay } from '@/utils/record-inbox-parse';
@@ -669,7 +669,7 @@ export function QuickInputRecordInbox({
    */
   const finishNextRoll = useCallback(() => {
     void logEvent('btn', {
-      screen_name: SMS_HISTORY_RECORD_ANALYTICS_SCREEN_NAME,
+      screen_name: RECORD_INBOX_ANALYTICS_SCREEN_NAME,
       target: 'receive-cardadd-order-next',
     });
     if (IS_ANDROID) {
@@ -688,7 +688,7 @@ export function QuickInputRecordInbox({
 
   const finishPrevScrub = useCallback(() => {
     void logEvent('btn', {
-      screen_name: SMS_HISTORY_RECORD_ANALYTICS_SCREEN_NAME,
+      screen_name: RECORD_INBOX_ANALYTICS_SCREEN_NAME,
       target: 'receive-cardadd-order-prev',
     });
     if (IS_ANDROID) {
@@ -850,7 +850,7 @@ export function QuickInputRecordInbox({
         return;
       }
       void logEvent('btn', {
-        screen_name: SMS_HISTORY_RECORD_ANALYTICS_SCREEN_NAME,
+        screen_name: RECORD_INBOX_ANALYTICS_SCREEN_NAME,
         target:
           action === 'confirm' ? 'receive-cardadd-confirm' : 'receive-cardadd-cancel',
       });
@@ -1070,7 +1070,7 @@ export function QuickInputRecordInbox({
   // Android: 내비 inset 위에 시안 32를 더해 핸들↔OS 인디케이터 여백을 시안과 동일하게.
   const handleScreenPrev = useCallback(() => {
     void logEvent('btn', {
-      screen_name: SMS_HISTORY_RECORD_ANALYTICS_SCREEN_NAME,
+      screen_name: RECORD_INBOX_ANALYTICS_SCREEN_NAME,
       target: 'receive-cardadd-screen-prev',
     });
     onDismiss?.();

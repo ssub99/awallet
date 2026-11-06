@@ -1,6 +1,6 @@
 /**
  * 기록 수신 체험 · 수신함 칩 포커스 딤
- * Figma: home.month.quickInputEntry.tutorialReceiveConfirm.smsInboxFocus
+ * Figma: home.month.quickInputEntry.tutorialReceiveConfirm.smsInboxFocus (디자인 노드명)
  * overlayDimStacked = full dim − chip cutout (칩 주변 균일 패딩 + 라운드)
  *
  * 히트: 컷아웃 밖만 차단 → 아래 수신함 칩만 탭 가능
@@ -23,23 +23,23 @@ import Animated, {
 } from 'react-native-reanimated';
 
 /** Figma: chip (16,404,146×40) → cutout (10,398,158×52) = 6px inset */
-export const SMS_INBOX_FOCUS_CUTOUT_PAD = 6;
+export const RECORD_INBOX_FOCUS_CUTOUT_PAD = 6;
 /** actionChip borderRadius 24 — 패딩만큼 키운 라운드 */
-export const SMS_INBOX_CHIP_RADIUS = 24;
+export const RECORD_INBOX_CHIP_RADIUS = 24;
 
 const FADE_MS = 180;
 const FADE_EASING = Easing.inOut(Easing.cubic);
 
-export type SmsInboxFocusCutout = {
+export type RecordInboxFocusCutout = {
   x: number;
   y: number;
   width: number;
   height: number;
 };
 
-export type QuickInputSmsInboxFocusDimProps = {
+export type QuickInputRecordInboxFocusDimProps = {
   /** window 좌표 칩 bounds (measureInWindow). null이면 전체 딤만 */
-  chipBounds: SmsInboxFocusCutout | null;
+  chipBounds: RecordInboxFocusCutout | null;
   cutoutPad?: number;
   /** 칩 cornerRadius (기본 24) — cutoutCornerRadius 미지정 시 pad와 합산 */
   chipRadius?: number;
@@ -72,12 +72,12 @@ function roundedRectPath(
   ].join(' ');
 }
 
-export function QuickInputSmsInboxFocusDim({
+export function QuickInputRecordInboxFocusDim({
   chipBounds,
-  cutoutPad = SMS_INBOX_FOCUS_CUTOUT_PAD,
-  chipRadius = SMS_INBOX_CHIP_RADIUS,
+  cutoutPad = RECORD_INBOX_FOCUS_CUTOUT_PAD,
+  chipRadius = RECORD_INBOX_CHIP_RADIUS,
   cutoutCornerRadius,
-}: QuickInputSmsInboxFocusDimProps) {
+}: QuickInputRecordInboxFocusDimProps) {
   const colorScheme = useColorScheme();
   const palette = colors[colorScheme ?? 'light'];
   const { width: screenW, height: screenH } = useWindowDimensions();

@@ -103,7 +103,7 @@ struct IngestAppNotificationIntent: AppIntent {
 }
 
 @available(iOS 17.0, *)
-struct SmsInboxAppShortcuts: AppShortcutsProvider {
+struct RecordInboxAppShortcuts: AppShortcutsProvider {
   static var appShortcuts: [AppShortcut] {
     AppShortcut(
       intent: IngestSmsInboxIntent(),
