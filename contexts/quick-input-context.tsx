@@ -2101,18 +2101,23 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }, [tutorialCreateRecordAddHintVisible, measureTutorialCreateRecordAddCutout, confirmCardData]);
 
   // 딤 중 레이아웃 변화 시 수신함 칩 / 생성 바 cutout 추적
+  // ref.current는 worklet에서 읽지 않음 — serializable 캡처 후 JS에서 .current 수정 시 WARN 발생
+  const remeasureTutorialCutoutsOnKeyboard = useCallback(() => {
+    if (tutorialRecordInboxFocusVisibleRef.current) {
+      measureRecordInboxChipCutout();
+    }
+    if (tutorialCreateActiveRef.current) {
+      measureTutorialCreateBarCutout();
+    }
+  }, [measureRecordInboxChipCutout, measureTutorialCreateBarCutout]);
+
   useAnimatedReaction(
     () => Math.abs(keyboardReanimated.height.value),
     (height, previous) => {
       if (previous !== null && height === previous) {
         return;
       }
-      if (tutorialRecordInboxFocusVisibleRef.current) {
-        runOnJS(measureRecordInboxChipCutout)();
-      }
-      if (tutorialCreateActiveRef.current) {
-        runOnJS(measureTutorialCreateBarCutout)();
-      }
+      runOnJS(remeasureTutorialCutoutsOnKeyboard)();
     },
   );
 

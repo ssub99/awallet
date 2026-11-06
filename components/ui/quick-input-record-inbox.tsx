@@ -395,7 +395,13 @@ function StackCard({
   return (
     <Animated.View
       pointerEvents={interactive ? 'box-none' : 'none'}
-      style={[styles.cardSlot, CARD_SHADOW, style]}
+      style={[
+        styles.cardSlot,
+        CARD_SHADOW,
+        // iOS shadow는 불투명 background 필요 (슬롯에 그림자, 카드 본문은 자식)
+        { backgroundColor: colors.light.staticWhite },
+        style,
+      ]}
     >
       <QuickInputConfirmCard
         data={toCardData(item)}

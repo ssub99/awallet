@@ -138,16 +138,21 @@ export default function SettingsRecordInboxScreen() {
     opacity: addBackdropOpacity.value,
   }));
 
+  const addBarRestBottom = useSharedValue(insets.bottom);
+  useEffect(() => {
+    addBarRestBottom.value = insets.bottom;
+  }, [addBarRestBottom, insets.bottom]);
+
   const addBarAnimatedStyle = useAnimatedStyle(() => {
     const keyboardHeight = Math.abs(keyboardReanimated.height.value);
-    const restBottom = insets.bottom;
+    const restBottom = addBarRestBottom.value;
     return {
       bottom:
         keyboardHeight > 0
           ? keyboardHeight + ADD_BAR_GAP_ABOVE_KEYBOARD
           : restBottom + ADD_BAR_GAP_ABOVE_KEYBOARD,
     };
-  }, [insets.bottom]);
+  });
 
   const exactAlarmPendingRef = useRef(false);
 

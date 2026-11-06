@@ -227,6 +227,8 @@ const styles = StyleSheet.create({
     height: FIGMA_CARD.height,
     borderRadius: CARD_RADIUS,
     zIndex: 4,
+    // iOS shadow 효율 — 불투명 배경을 그림자 뷰에 고정
+    backgroundColor: colors.light.staticWhite,
   },
   press: {
     flex: 1,
