@@ -1,12 +1,10 @@
 /**
- * Create Screen Placeholder
- * 
- * This file exists only to register the 'create' route for the tab bar.
- * Actual functionality is handled by bottom sheet in each screen.
+ * Create tab placeholder (NativeTabs route 등록용).
+ * 기록하기 탭 터치는 AppTabs `CreateTabHitTarget`이 가로채므로 이 화면으로 오면 안 된다.
  */
 
+import { View } from 'react-native';
+
 export default function CreateScreen() {
-  // This screen should never be rendered
-  // TabBar intercepts the navigation and triggers bottom sheet instead
-  return null;
+  return <View />;
 }

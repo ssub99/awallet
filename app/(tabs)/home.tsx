@@ -8,14 +8,17 @@ import { TopNavigation } from '@/components/navigation/top-navigation';
 import { CalendarMain, type CalendarExternalView } from '@/components/ui/calendar-main';
 import { NoticeCard } from '@/components/ui/notice-card';
 import { HomeMonthStatusCard } from '@/components/ui/home-month-status-card';
-import { Icon } from '@/components/ui/icon';
 import { QuickInputShort } from '@/components/ui/quick-input-short';
 import { MonthData, YearView, YearViewRef } from '@/components/ui/year-view';
 import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';
 import { useCreateSheetContext } from '@/contexts/create-sheet-context';
 import { useLoading } from '@/contexts/loading-context';
-import { FAB_OFFSET_ABOVE_TABS, useQuickInputContext } from '@/contexts/quick-input-context';
+import { useQuickInputContext } from '@/contexts/quick-input-context';
+import {
+  getHomeBottomContentInset,
+  getQuickInputBottomAboveTabBar,
+} from '@/constants/navigation/tab-bar-metrics';
 import {
   applyPendingCalendarTargetEvent,
   calendarRefreshEvent,
@@ -27,14 +30,12 @@ import {
 } from '@/hooks/calendar-events';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
-import { useThemeColor } from '@/hooks/use-theme-color';
 import { logEvent } from '@/utils/analytics';
 import { isAtLeastVersion, QUICK_INPUT_MIN_VERSION } from '@/utils/app-version';
 import {
   buildCalendarMonthTotalsIndex,
   getCalendarMonthTotalsFromIndex,
 } from '@/utils/calendar-month-totals';
-import { createSheetEvent } from '@/utils/create-sheet-event';
 import { tabReselectEvent } from '@/utils/tab-reselect-event';
 import {
   getCustomMonthInfo,
@@ -61,19 +62,15 @@ import {
   PanResponder,
   PanResponderGestureState,
   Platform,
-  Pressable,
   StyleSheet,
-  View
+  View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-
-const FAB_SIZE = 48;
 
 export default function HomeScreen() {
   const initialPendingTarget = getLatestPendingCalendarTarget();
   const colorScheme = useColorScheme();
   const palette = colors[colorScheme ?? 'light'] as ColorPalette;
-  const iconWhite = useThemeColor({}, 'staticWhite');
   const navigation = useNavigation();
   const router = useRouter();
   const { calendarData, monthStartDay, refresh, isReady } = useAppData();
@@ -89,8 +86,9 @@ export default function HomeScreen() {
     (AppState.currentState as AppStateStatus | null | undefined) ?? 'active',
   );
   const insets = useSafeAreaInsets();
-  void insets;
-  
+  const quickInputBottom = getQuickInputBottomAboveTabBar(insets.bottom);
+  const bottomContentInset = getHomeBottomContentInset(insets.bottom);
+
   const {
     isQuickInputContentVisible,
     isQuickInputShortVisible,
@@ -115,10 +113,15 @@ export default function HomeScreen() {
   const hasAnimatedRef = useRef(false);
   const hasContentFadedInRef = useRef(false);
 
-  // Star 아이콘 애니메이션: isContentReady 후 2초 대기 → (스케일 다운·업 → 2초 대기 → 회전 2바퀴 → 5초 대기 → 리셋) 루프
+  // Star 아이콘 애니메이션 (포커스 중에만 — 블러 시 정지해 pop 제스처 부담 제거)
   const starScale = useRef(new Animated.Value(1)).current;
   const starRotate = useRef(new Animated.Value(0)).current;
-  const starAnimationRunRef = useRef(false);
+  const starAnimRef = useRef<Animated.CompositeAnimation | null>(null);
+
+  /** flex 캘린더 영역 실측 → dayCellHeight. 자체 onLayout만 쓰면 inset 변경 후 높이가 굳을 수 있음 */
+  const [calendarContainerHeight, setCalendarContainerHeight] = useState<number | undefined>(
+    undefined,
+  );
 
   // 소비 기록 완료 후 전달된 params 받기
   const params = useLocalSearchParams<{
@@ -135,13 +138,10 @@ export default function HomeScreen() {
   // Navigation lock to prevent duplicate navigation
   const isNavigating = useRef(false);
 
-  // 캘린더가 차지할 수 있는 높이 (FAB/간편입력과 겹치지 않게 flex로 남은 영역만 사용)
-  const [calendarContainerHeight, setCalendarContainerHeight] = useState<number | undefined>(undefined);
-  
   // Top Navigation state
   const [periodType, setPeriodType] = useState<'year' | 'month'>('month');
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
-  
+
   // Shared year/month state for both TopNavigation and Calendar
   const [currentYear, setCurrentYear] = useState<number>(
     initialPendingTarget?.year ?? new Date().getFullYear(),
@@ -289,7 +289,6 @@ export default function HomeScreen() {
   const homeCalendarElement = useMemo(
     () => (
       <CalendarMain
-        containerHeight={calendarContainerHeight}
         selectedDate={selectedDate}
         onDayPress={handleCalendarDayPress}
         dayData={calendarData}
@@ -300,10 +299,11 @@ export default function HomeScreen() {
         onExternalViewApplied={handleCalendarExternalViewApplied}
         monthStartDay={monthStartDay}
         onMonthChange={handleCalendarMonthChange}
+        containerHeight={calendarContainerHeight}
+        style={styles.calendarFill}
       />
     ),
     [
-      calendarContainerHeight,
       selectedDate,
       handleCalendarDayPress,
       calendarData,
@@ -311,6 +311,7 @@ export default function HomeScreen() {
       handleCalendarExternalViewApplied,
       monthStartDay,
       handleCalendarMonthChange,
+      calendarContainerHeight,
     ],
   );
 
@@ -753,10 +754,48 @@ export default function HomeScreen() {
     useCallback(() => {
       isHomeFocusedRef.current = true;
       tryConsumeOpenRecordInboxPending();
+
+      let startDelay: ReturnType<typeof setTimeout> | null = null;
+      const stopStar = () => {
+        if (startDelay != null) {
+          clearTimeout(startDelay);
+          startDelay = null;
+        }
+        starAnimRef.current?.stop();
+        starAnimRef.current = null;
+        starScale.setValue(1);
+        starRotate.setValue(0);
+      };
+
+      if (isContentReady) {
+        startDelay = setTimeout(() => {
+          starAnimRef.current = Animated.sequence([
+            Animated.loop(
+              Animated.sequence([
+                Animated.timing(starScale, { toValue: 0.6, duration: 200, useNativeDriver: true }),
+                Animated.timing(starScale, { toValue: 1.35, duration: 200, useNativeDriver: true }),
+                Animated.timing(starScale, { toValue: 1, duration: 200, useNativeDriver: true }),
+                Animated.delay(1500),
+                Animated.timing(starRotate, {
+                  toValue: 720,
+                  duration: 3000,
+                  easing: Easing.inOut(Easing.cubic),
+                  useNativeDriver: true,
+                }),
+                Animated.delay(5000),
+                Animated.timing(starRotate, { toValue: 0, duration: 0, useNativeDriver: true }),
+              ]),
+            ),
+          ]);
+          starAnimRef.current.start();
+        }, 2500);
+      }
+
       return () => {
         isHomeFocusedRef.current = false;
+        stopStar();
       };
-    }, [tryConsumeOpenRecordInboxPending]),
+    }, [tryConsumeOpenRecordInboxPending, isContentReady, starScale, starRotate]),
   );
 
   useEffect(() => {
@@ -789,32 +828,6 @@ export default function HomeScreen() {
       useNativeDriver: true,
     }).start();
   }, [isContentReady, contentOpacity]);
-
-  // Star 애니메이션: 홈 로딩 2초 후 → (스케일 다운·업 → 2초 대기 → 회전 2바퀴 → 5초 대기 → 리셋) 루프 반복
-  useEffect(() => {
-    if (!isContentReady || starAnimationRunRef.current) return;
-    starAnimationRunRef.current = true;
-
-    Animated.sequence([
-      Animated.delay(2500),
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(starScale, { toValue: 0.6, duration: 200, useNativeDriver: true }),
-          Animated.timing(starScale, { toValue: 1.35, duration: 200, useNativeDriver: true }),
-          Animated.timing(starScale, { toValue: 1, duration: 200, useNativeDriver: true }),
-          Animated.delay(1500),
-          Animated.timing(starRotate, {
-            toValue: 720,
-            duration: 3000,
-            easing: Easing.inOut(Easing.cubic),
-            useNativeDriver: true,
-          }),
-          Animated.delay(5000),
-          Animated.timing(starRotate, { toValue: 0, duration: 0, useNativeDriver: true }),
-        ])
-      ),
-    ]).start();
-  }, [isContentReady, starScale, starRotate]);
 
   // 년 뷰에서만 집계 (월 뷰·피커 확인 시 O(n×12) 스캔 방지)
   const yearData: MonthData[] = useMemo(() => {
@@ -1051,10 +1064,14 @@ export default function HomeScreen() {
 
       {/* Conditional Content: Month View or Year View */}
       {periodType === 'month' ? (
-        <Animated.View style={[styles.monthViewContent, { opacity: isContentReady ? contentOpacity : 0 }]}>
+        // inset은 Animated 바깥 — padding/opacity가 flex 높이를 삼키지 않게 분리
+        <View style={[styles.monthViewContent, { paddingBottom: bottomContentInset }]}>
+          <Animated.View
+            style={[styles.monthViewInner, { opacity: isContentReady ? contentOpacity : 0 }]}
+          >
             {homeMonthStatusElement}
 
-            {/* Calendar: flex 1로 남은 영역만 쓰고, 측정한 높이를 넘겨 FAB/간편입력과 겹치지 않게 함 */}
+            {/* flex 남은 높이 측정 → containerHeight로 dayCell 확장 (숏·탭바와 겹치지 않게) */}
             <View
               style={styles.calendarContainer}
               onLayout={(e) => {
@@ -1066,9 +1083,13 @@ export default function HomeScreen() {
             >
               {homeCalendarElement}
             </View>
-        </Animated.View>
+          </Animated.View>
+        </View>
       ) : (
-        <View style={styles.yearViewContent} {...yearPanResponder.panHandlers}>
+        <View
+          style={[styles.yearViewContent, { paddingBottom: bottomContentInset }]}
+          {...yearPanResponder.panHandlers}
+        >
           <YearView
             ref={yearViewRef}
             year={currentYear}
@@ -1079,8 +1100,8 @@ export default function HomeScreen() {
         </View>
       )}
 
-      {/* 간편입력: SafeAreaView 안에 두어 홈 레이아웃과 겹침 처리 */}
-      {periodType === 'month' && isAtLeastVersion(Constants.expoConfig?.version, QUICK_INPUT_MIN_VERSION) && (
+      {periodType === 'month' &&
+        isAtLeastVersion(Constants.expoConfig?.version, QUICK_INPUT_MIN_VERSION) && (
         <View
           collapsable={false}
           style={[
@@ -1090,7 +1111,7 @@ export default function HomeScreen() {
           pointerEvents={isQuickInputShortHidden ? 'none' : 'box-none'}
         >
           <QuickInputShort
-            bottom={FAB_OFFSET_ABOVE_TABS}
+            bottom={quickInputBottom}
             onPress={handleQuickInputPress}
             starScale={starScale}
             starRotate={starRotate}
@@ -1099,24 +1120,6 @@ export default function HomeScreen() {
       )}
 
     </SafeAreaView>
-
-      {/* FAB: 홈에서만 노출, 기록/챌린지 선택 바텀시트 오픈 */}
-      <Pressable
-        style={[
-          styles.fab,
-          styles.fabShadow,
-          {
-            backgroundColor: palette.primary,
-            // 탭 콘텐츠 영역 기준이므로 탭바 위 12px만 적용 (레이아웃에 둘 때와 동일한 시각 위치)
-            bottom: FAB_OFFSET_ABOVE_TABS,
-          },
-        ]}
-        onPress={() => createSheetEvent.emit()}
-        accessibilityRole="button"
-        accessibilityLabel="기록 또는 챌린지 선택"
-      >
-        <Icon name="addTaskFab" variant="line" size={24} color={iconWhite} />
-      </Pressable>
 
       {/* 기록 수신 안내 카드는 root-layout-shell 전역 마운트 */}
       {isContentReady && <NoticeCard />}
@@ -1131,22 +1134,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  fab: {
-    position: 'absolute',
-    right: 16,
-    width: FAB_SIZE,
-    height: FAB_SIZE,
-    borderRadius: FAB_SIZE / 2,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  fabShadow: {
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 8,
-  },
   quickInputAnchor: {
     ...StyleSheet.absoluteFill,
     alignItems: 'center',
@@ -1159,10 +1146,18 @@ const styles = StyleSheet.create({
   monthViewContent: {
     flex: 1,
   },
+  monthViewInner: {
+    flex: 1,
+  },
   yearViewContent: {
     flex: 1,
   },
   calendarContainer: {
+    flex: 1,
+    minHeight: 0,
+    overflow: 'hidden',
+  },
+  calendarFill: {
     flex: 1,
   },
   summaryContainer: {

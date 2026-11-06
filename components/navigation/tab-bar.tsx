@@ -1,55 +1,42 @@
 /**
- * Tab Bar Component
- * 
- * Bottom navigation bar matching Figma design system.
- * Used as the main navigation for the app.
+ * Tab Bar — Figma `tabBar` COMPONENT_SET (홈 · 챌린지∙통계 · 기록하기 · 설정)
  */
 
 import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { createSheetEvent } from '@/utils/create-sheet-event';
+import { tabReselectEvent, type TabReselectName } from '@/utils/tab-reselect-event';
 import type { BottomTabBarProps } from 'expo-router/js-tabs';
-import { useRef } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-/**
- * Tab Bar matching Figma design
- */
+function isReselectTab(name: string): name is TabReselectName {
+  return name === 'home' || name === 'challenge';
+}
+
 export function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTabBarProps) {
   const colorScheme = useColorScheme();
   const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   const insets = useSafeAreaInsets();
-  
-  // Track last tap time for double tap detection
-  const lastTapTime = useRef<Record<string, number>>({});
-  const DOUBLE_TAP_DELAY = 500; // ms
 
-  // Only show specific routes
-  // Production: home, challenge, mypage
-  // Development: home, challenge, mypage, components, icons
-  const allowedRoutes = __DEV__ 
-    ? ['home', 'challenge', 'mypage', 'components', 'icons']
-    : ['home', 'challenge', 'mypage'];
-  
-  const visibleRoutes = state.routes.filter((route) => {
-    return allowedRoutes.includes(route.name);
-  });
+  const allowedRoutes = __DEV__
+    ? ['home', 'challenge', 'create', 'mypage', 'components', 'icons']
+    : ['home', 'challenge', 'create', 'mypage'];
+
+  const visibleRoutes = state.routes.filter((route) => allowedRoutes.includes(route.name));
 
   return (
-    <View 
+    <View
       style={[
-        styles.container, 
-        { 
+        styles.container,
+        {
           backgroundColor: palette.staticWhite,
-          paddingBottom: insets.bottom, // Auto adjusts for home indicator (34pt on iPhone X+, 0pt otherwise)
-        }
+          paddingBottom: insets.bottom,
+        },
       ]}
     >
-      {/* Top Divider */}
       <View style={[styles.divider, { backgroundColor: palette.border }]} />
 
-      {/* Tab Items */}
       <View style={styles.tabsContainer}>
         {visibleRoutes.map((route) => {
           const index = state.routes.indexOf(route);
@@ -57,38 +44,24 @@ export function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTab
           const isFocused = state.index === index;
 
           const onPress = () => {
-            // Special handling for 'create' tab - trigger bottom sheet instead of navigation
             if (route.name === 'create') {
               createSheetEvent.emit();
-              return; // Don't navigate
+              return;
             }
-            
-            const now = Date.now();
-            const lastTap = lastTapTime.current[route.name] || 0;
-            const timeSinceLastTap = now - lastTap;
-            
-            // Check for double tap on already focused tab
-            if (isFocused && timeSinceLastTap < DOUBLE_TAP_DELAY) {
-              // Double tap detected on focused tab
-              emitter.emit({
-                type: 'tabDoubleTap' as any,
-                target: route.key,
-                data: { routeName: route.name },
-              });
-              lastTapTime.current[route.name] = 0; // Reset to prevent triple tap
-            } else {
-              // Regular tap
-              const event = emitter.emit({
-                type: 'tabPress',
-                target: route.key,
-                canPreventDefault: true,
-              });
 
-              if (!isFocused && !event.defaultPrevented) {
-                navigateToTab(route.key);
-              }
-              
-              lastTapTime.current[route.name] = now;
+            if (isFocused && isReselectTab(route.name)) {
+              tabReselectEvent.emit(route.name);
+              return;
+            }
+
+            const event = emitter.emit({
+              type: 'tabPress',
+              target: route.key,
+              canPreventDefault: true,
+            });
+
+            if (!isFocused && !event.defaultPrevented) {
+              navigateToTab(route.key);
             }
           };
 
@@ -99,19 +72,18 @@ export function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTab
             });
           };
 
-          // Get icon (28px as defined in _layout.tsx)
           const iconElement = options.tabBarIcon?.({
             focused: isFocused,
             color: isFocused ? palette.text : palette.textAssistive,
-            size: 28,
+            size: 24,
           });
 
-          // Get label (ensure it's a string)
-          const label = typeof options.tabBarLabel === 'string'
-            ? options.tabBarLabel
-            : typeof options.title === 'string'
-            ? options.title
-            : route.name;
+          const label =
+            typeof options.tabBarLabel === 'string'
+              ? options.tabBarLabel
+              : typeof options.title === 'string'
+                ? options.title
+                : route.name;
 
           return (
             <Pressable
@@ -123,12 +95,7 @@ export function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTab
               onLongPress={onLongPress}
               style={styles.tabItem}
             >
-              {/* Icon */}
-              <View style={styles.iconContainer}>
-                {iconElement}
-              </View>
-
-              {/* Label */}
+              <View style={styles.iconContainer}>{iconElement}</View>
               <Text
                 style={[
                   isFocused ? styles.labelActive : styles.labelDefault,
@@ -148,16 +115,14 @@ export function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTab
 }
 
 const styles = StyleSheet.create({
-  container: {
-    // Height auto-adjusts with safe area insets
-  },
+  container: {},
   divider: {
     height: 1,
     width: '100%',
   },
   tabsContainer: {
     flexDirection: 'row',
-    height: 64, // Tab content height
+    height: 64,
   },
   tabItem: {
     flex: 1,
@@ -166,8 +131,8 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   iconContainer: {
-    width: 28,
-    height: 28,
+    width: 24,
+    height: 24,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -180,4 +145,3 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
-

@@ -1,5 +1,5 @@
 /**
- * Emitted when the user taps an already-selected main tab (NativeTabs reselect).
+ * Emitted when the user taps an already-selected main tab (home / challenge).
  */
 
 export type TabReselectName = 'home' | 'challenge';

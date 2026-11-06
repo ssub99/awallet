@@ -44,6 +44,7 @@ import { Switch } from '@/components/ui/switch';
 import { UiLineText } from '@/components/ui/ui-line-text';
 import { PARSE_EXPENSE_API_URL } from '@/constants/api';
 import { atomicColors } from '@/constants/atomic-colors';
+import { FAB_GAP_ABOVE_TAB_BAR as FAB_OFFSET_ABOVE_TABS } from '@/constants/navigation/tab-bar-metrics';
 import { colors } from '@/constants/theme';
 import { getCategoriesByType, type Category, type CategoryType } from '@/constants/categories';
 import { CATEGORY_LABELS, EMOJI_CATEGORIES, type EmojiCategory } from '@/app/category-create';
@@ -179,7 +180,6 @@ import Sortable, {
 
 type AnimatedValue = RNAnimated.Value;
 
-const FAB_OFFSET_ABOVE_TABS = 16;
 const CALCULATOR_BAR_HEIGHT = 64;
 const CALCULATOR_PANEL_GAP = 12;
 const CALCULATOR_ANIMATION_DURATION = 360;

@@ -39,6 +39,7 @@ import {
 import { flushSync } from 'react-dom';
 import {
   Dimensions,
+  type LayoutChangeEvent,
   NativeScrollEvent,
   NativeSyntheticEvent,
   Platform,
@@ -51,11 +52,12 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { getHomeBottomContentInset } from '@/constants/navigation/tab-bar-metrics';
+
 const STATUS_BAR_HEIGHT = 44;
 const TOP_NAV_HEIGHT = 56;
 const AMOUNT_SECTION_HEIGHT = 128;
 const DAY_HEADER_HEIGHT = 40;
-const TAB_BAR_BASE_HEIGHT = 64;
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 /** prev(0) · current(1) · next(2) */
@@ -303,6 +305,23 @@ function CalendarMainInner({
 
   const TITLE_HEIGHT = 48;
 
+  /**
+   * 부모 flex 공간을 스스로 측정한다.
+   * 부모 onLayout → prop 경로는 inset 리셋 후 onLayout 미재발화 시 undefined에 굳어
+   * fallback(압축 셀) + 하단 여백이 남는다.
+   */
+  const [measuredHeight, setMeasuredHeight] = useState<number | undefined>(undefined);
+  const resolvedHeight =
+    containerHeight != null && containerHeight > 0 ? containerHeight : measuredHeight;
+
+  const handleRootLayout = useCallback((e: LayoutChangeEvent) => {
+    const height = e.nativeEvent.layout.height;
+    if (height <= 0) return;
+    setMeasuredHeight((prev) =>
+      prev != null && Math.abs(prev - height) < 2 ? prev : height,
+    );
+  }, []);
+
   const centerSlot = monthSlots[CALENDAR_CENTER_PAGE_INDEX];
   const centerWeekCount = centerSlot ? countWeeksInGrid(centerSlot.grid) : 5;
   const centerWeekCountRef = useRef(centerWeekCount);
@@ -321,9 +340,10 @@ function CalendarMainInner({
 
   const dayCellHeight = useMemo(() => {
     const weeks = weeksForDayCellHeight;
+    const titleH = showTitle ? TITLE_HEIGHT : 0;
 
-    if (containerHeight != null && containerHeight > 0) {
-      const forGrid = containerHeight - (showTitle ? TITLE_HEIGHT : 0) - DAY_HEADER_HEIGHT;
+    if (resolvedHeight != null && resolvedHeight > 0) {
+      const forGrid = resolvedHeight - titleH - DAY_HEADER_HEIGHT;
       return Math.max(32, Math.floor(forGrid / weeks));
     }
 
@@ -332,13 +352,12 @@ function CalendarMainInner({
       STATUS_BAR_HEIGHT +
       TOP_NAV_HEIGHT +
       AMOUNT_SECTION_HEIGHT +
-      TITLE_HEIGHT +
+      titleH +
       DAY_HEADER_HEIGHT +
-      TAB_BAR_BASE_HEIGHT +
-      insets.bottom;
+      getHomeBottomContentInset(insets.bottom);
     const remainingHeight = screenHeight - fixedHeight;
-    return Math.floor(remainingHeight / weeks);
-  }, [weeksForDayCellHeight, insets.bottom, containerHeight, showTitle]);
+    return Math.max(32, Math.floor(remainingHeight / weeks));
+  }, [weeksForDayCellHeight, insets.bottom, resolvedHeight, showTitle]);
 
   const scrollViewRef = useRef<ScrollViewInstance>(null);
   const scrollOffsetRef = useRef(CALENDAR_CENTER_SCROLL_X);
@@ -780,7 +799,16 @@ function CalendarMainInner({
   );
 
   return (
-    <View style={[styles.container, { width: SCREEN_WIDTH }, style]}>
+    <View
+      style={[
+        styles.container,
+        { width: SCREEN_WIDTH, flex: 1 },
+        // prop으로 명시된 경우만 고정 높이. 자체 측정값은 dayCell에만 쓰고 flex로 부모를 따름.
+        containerHeight != null && containerHeight > 0 ? { height: containerHeight } : null,
+        style,
+      ]}
+      onLayout={handleRootLayout}
+    >
       {showTitle && (
         <View style={styles.titleContainer}>
           <Text style={[styles.titleText, { color: palette.text }]}>
@@ -942,6 +970,7 @@ const styles = StyleSheet.create({
     ...typography.detail.medium,
   },
   pagerViewport: {
+    flex: 1,
     width: '100%',
     overflow: 'hidden',
   },

@@ -99,6 +99,19 @@ function svgToAndroidVectorXml(svg) {
 }
 
 /**
+ * Template xcasset SVGs need an explicit fill or iOS may render a blank icon.
+ * @param {string} svg
+ */
+function ensureSvgPathFills(svg) {
+  return svg.replace(/<path\b([^>]*?)(\/?)>/gi, (full, attrs, selfClose) => {
+    if (/\bfill\s*=/i.test(attrs)) {
+      return full;
+    }
+    return `<path${attrs} fill="black"${selfClose}>`;
+  });
+}
+
+/**
  * @param {string} assetName
  * @param {string} svgFileName
  */
@@ -160,7 +173,12 @@ function writeIosTabIcons(projectRoot, iosProjectRoot, sources) {
     const imagesetDir = path.join(xcassetsDir, `${assetName}.imageset`);
     fs.mkdirSync(imagesetDir, { recursive: true });
     const svgFileName = `${assetName}.svg`;
-    fs.copyFileSync(absSvg, path.join(imagesetDir, svgFileName));
+    const svgSource = fs.readFileSync(absSvg, 'utf8');
+    fs.writeFileSync(
+      path.join(imagesetDir, svgFileName),
+      ensureSvgPathFills(svgSource),
+      'utf8',
+    );
     fs.writeFileSync(
       path.join(imagesetDir, 'Contents.json'),
       iosImagesetContentsJson(assetName, svgFileName),
@@ -208,6 +226,7 @@ function defaultTabIconSources() {
     { assetName: 'tab_challenge_solid', svgPath: 'assets/images/icons/solid/challenge.svg' },
     { assetName: 'tab_setting_line', svgPath: 'assets/images/icons/line/setting.svg' },
     { assetName: 'tab_setting_solid', svgPath: 'assets/images/icons/solid/setting.svg' },
+    { assetName: 'tab_add_task_line', svgPath: 'assets/images/icons/line/addTask.svg' },
   ];
 }
 

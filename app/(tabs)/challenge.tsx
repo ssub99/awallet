@@ -13,6 +13,7 @@ import { Icon } from '@/components/ui/icon';
 import { ModalBottomsheet, ModalBottomsheetBottomInset } from '@/components/ui/modal-bottomsheet';
 import { UiLineText } from '@/components/ui/ui-line-text';
 import { CONSUMPTION_REPORT_API_URL } from '@/constants/api';
+import { getTabScreenScrollPaddingBottom } from '@/constants/navigation/tab-bar-metrics';
 import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';
 import { useCreateSheetContext } from '@/contexts/create-sheet-context';
@@ -20,7 +21,6 @@ import { useLoading } from '@/contexts/loading-context';
 import { useToast } from '@/contexts/toast-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
-import { useThemeColor } from '@/hooks/use-theme-color';
 import { getApiSecurityHeaders } from '@/utils/api-security-headers';
 import { logEvent } from '@/utils/analytics';
 import { loadCategories } from '@/utils/categories';
@@ -30,7 +30,6 @@ import {
     type CalendarData,
     type ConsumptionIndexResult,
 } from '@/utils/consumption-index';
-import { createSheetEvent } from '@/utils/create-sheet-event';
 import { tabReselectEvent } from '@/utils/tab-reselect-event';
 import {
   getCustomMonthInfo,
@@ -55,9 +54,6 @@ import {
     View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-
-const FAB_SIZE = 48;
-const FAB_OFFSET_ABOVE_TABS = 16;
 
 /** 월 변경 시 페이드 아웃/인 애니메이션 (챌린지·리포트·타임라인 동일) */
 const MONTH_CHANGE_FADE_OUT_DURATION = 150;
@@ -535,11 +531,10 @@ const REPORT_SCORE_CARD_MAX = 454;
 export default function ChallengeTabScreen() {
   const { height: windowHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  void insets;
+  const bottomContentInset = getTabScreenScrollPaddingBottom(insets.bottom);
   const trendPaymentFilterSheetHeight = windowHeight * 0.8;
   const colorScheme = useColorScheme();
   const palette = colors[colorScheme ?? 'light'] as ColorPalette;
-  const iconWhite = useThemeColor({}, 'staticWhite');
   const [activeTopTab, setActiveTopTab] = useState<TopTabId>('challenge');
   const [reportSubTab, setReportSubTab] = useState<ReportSubTabId>('score');
   const [trendTimelineData, setTrendTimelineData] = useState<TrendTimelineItem[]>([]);
@@ -2316,7 +2311,10 @@ export default function ChallengeTabScreen() {
         <Animated.View
           style={[
             styles.content,
-            { backgroundColor: palette.fill, opacity: screenOpacity },
+            {
+              backgroundColor: palette.fill,
+              opacity: screenOpacity,
+            },
           ]}
           {...panResponder.panHandlers}
         >
@@ -2370,7 +2368,10 @@ export default function ChallengeTabScreen() {
               {reportSubTab === 'score' ? (
                 <ScrollView
                   style={[styles.reportScroll, { backgroundColor: palette.fill }]}
-                  contentContainerStyle={styles.reportScrollContent}
+                  contentContainerStyle={[
+                    styles.reportScrollContent,
+                    { paddingBottom: bottomContentInset },
+                  ]}
                   showsVerticalScrollIndicator={false}
                   bounces={false}
                   overScrollMode="never"
@@ -2580,7 +2581,10 @@ export default function ChallengeTabScreen() {
               ) : (
                 <ScrollView
                   style={[styles.reportScroll, { backgroundColor: palette.fill }]}
-                  contentContainerStyle={styles.reportScrollContent}
+                  contentContainerStyle={[
+                    styles.reportScrollContent,
+                    { paddingBottom: bottomContentInset },
+                  ]}
                   showsVerticalScrollIndicator={false}
                   bounces={false}
                   overScrollMode="never"
@@ -2730,7 +2734,10 @@ export default function ChallengeTabScreen() {
           <Animated.View style={{ flex: 1, opacity: isContentReady ? contentOpacity : 0 }}>
           <ScrollView
             style={styles.scrollContainer}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[
+              styles.scrollContent,
+              { paddingBottom: bottomContentInset },
+            ]}
             bounces={false}
             overScrollMode="never"
           >
@@ -3000,22 +3007,6 @@ export default function ChallengeTabScreen() {
           }}
         />
       </SafeAreaView>
-
-      <Pressable
-        style={[
-          styles.fab,
-          styles.fabShadow,
-          {
-            backgroundColor: palette.primary,
-            bottom: FAB_OFFSET_ABOVE_TABS,
-          },
-        ]}
-        onPress={() => createSheetEvent.emit()}
-        accessibilityRole="button"
-        accessibilityLabel="기록 또는 챌린지 선택"
-      >
-        <Icon name="addTaskFab" variant="line" size={24} color={iconWhite} />
-      </Pressable>
     </View>
   );
 }
@@ -3029,22 +3020,6 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-  },
-  fab: {
-    position: 'absolute',
-    right: 16,
-    width: FAB_SIZE,
-    height: FAB_SIZE,
-    borderRadius: FAB_SIZE / 2,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  fabShadow: {
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 8,
   },
   periodRow: {
     flexDirection: 'row',
@@ -3078,7 +3053,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: 24,
   },
   emptyContainer: {
     flex: 1,
@@ -3142,7 +3116,6 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: 16,
     paddingTop: 16,
-    paddingBottom: 24,
   },
   reportMonthCard: {
     flexDirection: 'row',

@@ -1008,8 +1008,15 @@ export default function MonthlyExpenseTimelineScreen() {
 
   const timelinePanResponder = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponder: (_evt: GestureResponderEvent, gestureState: PanResponderGestureState) => {
-        const { dx, dy } = gestureState;
+      onMoveShouldSetPanResponder: (
+        _evt: GestureResponderEvent,
+        gestureState: PanResponderGestureState,
+      ) => {
+        const { dx, dy, x0 } = gestureState;
+        // 좌측 엣지에서 시작하는 우→ 스와이프는 iOS interactive pop에 양보
+        if (x0 < 40 && dx > 0) {
+          return false;
+        }
         return Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy);
       },
       onPanResponderRelease: (_evt: GestureResponderEvent, gestureState: PanResponderGestureState) => {

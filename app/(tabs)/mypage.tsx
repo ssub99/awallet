@@ -15,6 +15,7 @@ import {
   getPlayStoreWriteReviewHttpsUrl,
   getPlayStoreWriteReviewIntentUrl,
 } from '@/constants/app-store';
+import { getTabScreenScrollPaddingBottom } from '@/constants/navigation/tab-bar-metrics';
 import { themeColors } from '@/constants/theme-colors';
 import { useLoading } from '@/contexts/loading-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -289,7 +290,10 @@ export default function MyPageScreen() {
           <View style={[styles.background, { backgroundColor: colors.fill }]}>
           <ScrollView
             style={styles.scrollView}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[
+              styles.scrollContent,
+              { paddingBottom: getTabScreenScrollPaddingBottom(insets.bottom) },
+            ]}
             bounces={false}
             overScrollMode="never"
             showsVerticalScrollIndicator={false}
@@ -571,7 +575,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingTop: 16,
-    paddingBottom: 16,
     gap: 16,
   },
 
