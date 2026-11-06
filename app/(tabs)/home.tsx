@@ -35,6 +35,7 @@ import {
   getCalendarMonthTotalsFromIndex,
 } from '@/utils/calendar-month-totals';
 import { createSheetEvent } from '@/utils/create-sheet-event';
+import { tabReselectEvent } from '@/utils/tab-reselect-event';
 import {
   getCustomMonthInfo,
   getCustomMonthRange,
@@ -466,18 +467,17 @@ export default function HomeScreen() {
     }
   }, [periodType, syncCalendarDatesToToday, setPeriodType]);
   
-  // Listen for double tap on home tab
+  // 홈 탭이 이미 선택된 상태에서 다시 탭 → 오늘로 리셋 (NativeTabs 재선택)
   useEffect(() => {
-    const unsubscribe = navigation.addListener('tabDoubleTap' as any, (e: any) => {
-      if (e.data?.routeName === 'home') {
-        resetToToday().catch((error) => {
-          console.error('Error resetting to today:', error);
-        });
+    return tabReselectEvent.subscribe((tabName) => {
+      if (tabName !== 'home') {
+        return;
       }
+      resetToToday().catch((error) => {
+        console.error('Error resetting to today:', error);
+      });
     });
-    
-    return unsubscribe;
-  }, [navigation, resetToToday]);
+  }, [resetToToday]);
   
   // Listen for create tab press (only when focused)
   const effectiveSelectedDate = useMemo(() => {

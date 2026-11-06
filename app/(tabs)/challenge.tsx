@@ -31,6 +31,7 @@ import {
     type ConsumptionIndexResult,
 } from '@/utils/consumption-index';
 import { createSheetEvent } from '@/utils/create-sheet-event';
+import { tabReselectEvent } from '@/utils/tab-reselect-event';
 import {
   getCustomMonthInfo,
   getCustomMonthRange,
@@ -1529,18 +1530,17 @@ export default function ChallengeTabScreen() {
     }
   }, []);
 
-  // Handle double-tap on challenge tab: reset to today's custom month
+  // 챌린지 탭이 이미 선택된 상태에서 다시 탭 → 이번 달로 리셋 (NativeTabs 재선택)
   useEffect(() => {
-    const unsubscribe = navigation.addListener('tabDoubleTap' as any, (e: any) => {
-      if (e.data?.routeName === 'challenge') {
-        resetToCurrentMonth().catch((error) => {
-          console.error('[challenge-tab] Failed to reset to today:', error);
-        });
+    return tabReselectEvent.subscribe((tabName) => {
+      if (tabName !== 'challenge') {
+        return;
       }
+      resetToCurrentMonth().catch((error) => {
+        console.error('[challenge-tab] Failed to reset to today:', error);
+      });
     });
-
-    return unsubscribe;
-  }, [navigation, resetToCurrentMonth]);
+  }, [resetToCurrentMonth]);
 
   const handlePrevMonth = useCallback(() => {
     if (activeTopTabRef.current === 'report') {

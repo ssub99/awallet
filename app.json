@@ -64,6 +64,7 @@
     },
     "plugins": [
       "expo-router",
+      "./plugins/with-native-tab-icons",
       "expo-video",
       [
         "expo-splash-screen",
