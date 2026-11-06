@@ -108,7 +108,6 @@ struct RecordInboxAppShortcuts: AppShortcutsProvider {
     AppShortcut(
       intent: IngestSmsInboxIntent(),
       phrases: [
-        "에이월렛 문자 수신함",
         "\(.applicationName) 문자 수신함",
       ],
       shortTitle: "에이월렛 문자 수신함",
@@ -117,7 +116,6 @@ struct RecordInboxAppShortcuts: AppShortcutsProvider {
     AppShortcut(
       intent: IngestAppNotificationIntent(),
       phrases: [
-        "에이월렛 알림 수신함",
         "\(.applicationName) 알림 수신함",
       ],
       shortTitle: "에이월렛 알림 수신함",

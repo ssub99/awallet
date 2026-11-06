@@ -22,6 +22,7 @@ import { typography } from '@/constants/typography';
 import { useLoading } from '@/contexts/loading-context';
 import { useToast } from '@/contexts/toast-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { markRecordInboxShortcutResyncDone } from '@/utils/record-inbox-shortcut-resync';
 import {
   hasAndroidExactAlarmPermission,
   showExactAlarmPermissionAlert,
@@ -53,11 +54,6 @@ import {
   saveSmsReceiveNumbers,
   SUPPORTS_APP_NOTIFICATION_RECEIVE,
 } from '@/utils/record-inbox-receive-settings';
-import {
-  isRecordInboxShortcutResyncVersion,
-  markRecordInboxShortcutResyncDone,
-  shouldBlockRecordInboxForShortcutResync,
-} from '@/utils/record-inbox-shortcut-resync';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -135,8 +131,6 @@ export default function SettingsRecordInboxScreen() {
   const [draftNumber, setDraftNumber] = useState('');
   const [setupGuideVisible, setSetupGuideVisible] = useState(false);
   const [appNotificationGuideVisible, setAppNotificationGuideVisible] = useState(false);
-  /** iOS 1.2.4+ 단축어 재설정 게이트 — 완료 전 true */
-  const [shortcutResyncRequired, setShortcutResyncRequired] = useState(false);
   const appNotificationAccessPendingRef = useRef(false);
   const androidEnablePendingStepRef = useRef<AndroidEnablePendingStep>(null);
 
@@ -207,11 +201,6 @@ export default function SettingsRecordInboxScreen() {
         const effectiveEnabled = enabled && canReceive;
         setSmsReceiveEnabled(effectiveEnabled);
         setNumbers(storedNumbers);
-        if (Platform.OS === 'ios' && isRecordInboxShortcutResyncVersion()) {
-          setShortcutResyncRequired(await shouldBlockRecordInboxForShortcutResync());
-        } else {
-          setShortcutResyncRequired(false);
-        }
         setSettingsReady(true);
         if (enabled !== effectiveEnabled) {
           await saveSmsReceiveEnabled(effectiveEnabled);
@@ -558,28 +547,14 @@ export default function SettingsRecordInboxScreen() {
     setAppNotificationGuideVisible(false);
   }, []);
 
-  const refreshShortcutResyncRequired = useCallback(async () => {
-    if (Platform.OS !== 'ios' || !isRecordInboxShortcutResyncVersion()) {
-      setShortcutResyncRequired(false);
-      return;
-    }
-    setShortcutResyncRequired(await shouldBlockRecordInboxForShortcutResync());
-  }, []);
-
-  const handleMarkShortcutResyncDone = useCallback(() => {
-    void (async () => {
-      await markRecordInboxShortcutResyncDone();
-      setShortcutResyncRequired(false);
-      showToast('단축어 재설정이 반영되었습니다. 기록 수신함을 다시 열어 주세요.');
-    })();
-  }, [showToast]);
-
   const handleShortcutsPress = useCallback(() => {
     void (async () => {
       try {
         setLoading(true);
         const installUrl = await resolveSmsReceiveShortcutInstallUrl();
         await Linking.openURL(installUrl);
+        // 기존 단축어 바로가기가 버전별 링크를 연다. 별도 재설정 카드 없이 게이트 해제.
+        await markRecordInboxShortcutResyncDone();
       } catch {
         await Linking.openURL('shortcuts://');
       } finally {
@@ -590,9 +565,14 @@ export default function SettingsRecordInboxScreen() {
 
   const handleAppNotificationShortcutsPress = useCallback(() => {
     // [신] 1.2.4+ 알림 단축어 — NEW_* (발행 전엔 구와 동일 URL)
-    void Linking.openURL(NEW_APP_NOTIFICATION_RECEIVE_SHORTCUT_ICLOUD_URL).catch(() =>
-      Linking.openURL('shortcuts://'),
-    );
+    void (async () => {
+      try {
+        await Linking.openURL(NEW_APP_NOTIFICATION_RECEIVE_SHORTCUT_ICLOUD_URL);
+        await markRecordInboxShortcutResyncDone();
+      } catch {
+        await Linking.openURL('shortcuts://');
+      }
+    })();
   }, []);
 
   const openAddOverlay = useCallback(() => {
@@ -782,8 +762,7 @@ export default function SettingsRecordInboxScreen() {
       if (Platform.OS === 'android') {
         void loadAppNotificationReceiveTargets().then(setAppNotificationTargets);
       }
-      void refreshShortcutResyncRequired();
-    }, [refreshShortcutResyncRequired]),
+    }, []),
   );
 
   const canConfirmAdd = draftNumber.length > 0;
@@ -811,41 +790,6 @@ export default function SettingsRecordInboxScreen() {
         >
         {settingsReady ? (
           <>
-        {shortcutResyncRequired ? (
-          <View style={[styles.card, { backgroundColor: colors.staticWhite }]}>
-            <View style={styles.toggleBlock}>
-              <UiLineText style={{ color: colors.text }}>단축어를 새로 설정해 주세요</UiLineText>
-              <UiLineText style={[styles.caption, { color: colors.textAssistive }]}>
-                앱 업데이트 후 단축어를 다시 연결해야 기록 수신함을 열 수 있습니다. 이미 받아 둔
-                기록은 그대로 유지됩니다.
-              </UiLineText>
-            </View>
-            <View style={[styles.divider, { backgroundColor: colors.border }]} />
-            <Pressable
-              style={styles.toggleBlock}
-              onPress={handleShortcutsPress}
-              accessibilityRole="button"
-              accessibilityLabel="신규 단축어 설치"
-            >
-              <View style={styles.toggleRow}>
-                <UiLineText style={{ color: colors.text }}>신규 단축어 설치</UiLineText>
-                <Icon name="arrowRight" size={24} color={colors.staticBlack} />
-              </View>
-            </Pressable>
-            <View style={[styles.divider, { backgroundColor: colors.border }]} />
-            <Pressable
-              style={styles.toggleBlock}
-              onPress={handleMarkShortcutResyncDone}
-              accessibilityRole="button"
-              accessibilityLabel="단축어 재설정 완료"
-            >
-              <View style={styles.toggleRow}>
-                <UiLineText style={{ color: colors.primary }}>설정 완료했어요</UiLineText>
-              </View>
-            </Pressable>
-          </View>
-        ) : null}
-
         {/* Figma: 기록 수신 여부 + Android SMS 권한 안내 */}
         <View style={styles.sectionHeaderRow}>
           <SectionTitle style={{ color: colors.staticBlack }}>기록 수신 여부</SectionTitle>
