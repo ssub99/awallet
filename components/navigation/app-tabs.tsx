@@ -7,6 +7,8 @@
  * 기록하기: 네이티브 탭 `disabled`(preventNativeSelection)만으로는 Liquid Glass가
  * 선택 인디케이터를 한 번 움직였다 되돌리는 것처럼 보인다.
  * → 기록하기 슬롯 위에 JS hit target을 올려 네이티브 터치를 가로채고 시트만 연다.
+ * → 다른 탭에서 스크럽해 기록하기에서 손을 뗄 때 네이티브가 tabPress를내도
+ *    시트는 열지 않는다(시작 탭으로 복귀만). 실제 탭은 hit target onPress만.
  *
  * 간편입력은 홈 화면 absolute + GlassSurface (BottomAccessory 미사용).
  *
@@ -126,8 +128,9 @@ export function AppTabs() {
                   }
                 },
                 tabPress: () => {
+                  // disabled(create)도 Liquid Glass 스크럽 종료 시 tabPress가 온다.
+                  // 시트는 CreateTabHitTarget(슬롯에서 시작한 탭)만 연다.
                   if (isActionOnly) {
-                    createSheetEvent.emit();
                     return;
                   }
                   if (!isReselectTab(tab.name)) {
