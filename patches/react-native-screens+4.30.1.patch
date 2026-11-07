@@ -1,5 +1,5 @@
 diff --git a/node_modules/react-native-screens/android/build.gradle b/node_modules/react-native-screens/android/build.gradle
-index 3f3b0d5..e66c002 100644
+index fb16bb0..198aac3 100644
 --- a/node_modules/react-native-screens/android/build.gradle
 +++ b/node_modules/react-native-screens/android/build.gradle
 @@ -38,6 +38,51 @@ def isGammaEnabled() {
@@ -63,3 +63,110 @@ index 3f3b0d5..e66c002 100644
      }.standardOutput.asText.get().trim()
  
      File nodeResolverRnDirFile = null
+diff --git a/node_modules/react-native-screens/ios/tabs/RNSTabBarAppearanceCoordinator.mm b/node_modules/react-native-screens/ios/tabs/RNSTabBarAppearanceCoordinator.mm
+index b3bc98d..1e03427 100644
+--- a/node_modules/react-native-screens/ios/tabs/RNSTabBarAppearanceCoordinator.mm
++++ b/node_modules/react-native-screens/ios/tabs/RNSTabBarAppearanceCoordinator.mm
+@@ -47,6 +47,8 @@ - (void)updateAppearanceOfTabBar:(nullable UITabBar *)tabBar
+   }
+ 
+   // Step 2 - configure screen-specific appearance
++  UITabBarAppearance *_Nullable barAppearance = nil;
++  UITabBarAppearance *_Nullable barScrollEdgeAppearance = nil;
+   for (RNSTabsScreenViewController *tabScreenCtrl in tabScreenCtrls) {
+     if (tabScreenCtrl == nil) {
+       // It should not be null here, something went wrong.
+@@ -55,6 +57,20 @@ - (void)updateAppearanceOfTabBar:(nullable UITabBar *)tabBar
+     }
+ 
+     [self configureTabBarItemForTabScreenController:tabScreenCtrl imageLoader:imageLoader];
++
++    // titleTextAttributes on UITabBarItem alone are ignored on some iOS versions unless
++    // UITabBar.standardAppearance is also set (awallet: NativeTabs labelStyle color/weight).
++    if (tabScreenCtrl.tabScreenComponentView.standardAppearance != nil) {
++      barAppearance = tabScreenCtrl.tabScreenComponentView.standardAppearance;
++      barScrollEdgeAppearance = tabScreenCtrl.tabScreenComponentView.scrollEdgeAppearance;
++    }
++  }
++
++  if (barAppearance != nil) {
++    tabBar.standardAppearance = barAppearance;
++    if (@available(iOS 15.0, *)) {
++      tabBar.scrollEdgeAppearance = barScrollEdgeAppearance ?: barAppearance;
++    }
+   }
+ }
+ 
+@@ -263,6 +279,10 @@ - (void)updateTabBarItem:(nullable UITabBarItem *)tabBarItem
+ + (void)configureTabBarAppearance:(nonnull UITabBarAppearance *)tabBarAppearance
+               fromAppearanceProps:(nonnull NSDictionary *)appearanceProps
+ {
++  // Fresh UITabBarAppearance() without this leaves stacked item styles in an
++  // incomplete state where titleTextAttributes / iconColor often do not stick.
++  [tabBarAppearance configureWithDefaultBackground];
++
+   if (appearanceProps[@"tabBarBackgroundColor"] != nil) {
+     tabBarAppearance.backgroundColor = [RCTConvert UIColor:appearanceProps[@"tabBarBackgroundColor"]];
+   }
+@@ -324,13 +344,14 @@ + (void)configureTabBarItemAppearance:(nonnull UITabBarItemAppearance *)tabBarIt
+ + (void)configureTabBarItemStateAppearance:(nonnull UITabBarItemStateAppearance *)tabBarItemStateAppearance
+               fromItemStateAppearanceProps:(nonnull NSDictionary *)itemStateAppearanceProps
+ {
+-  NSMutableDictionary *titleTextAttributes = [[NSMutableDictionary alloc] init];
++  NSMutableDictionary *titleTextAttributes =
++      [tabBarItemStateAppearance.titleTextAttributes mutableCopy] ?: [[NSMutableDictionary alloc] init];
+ 
+   if (itemStateAppearanceProps[@"tabBarItemTitleFontFamily"] != nil ||
+       itemStateAppearanceProps[@"tabBarItemTitleFontSize"] != nil ||
+       itemStateAppearanceProps[@"tabBarItemTitleFontWeight"] != nil ||
+       itemStateAppearanceProps[@"tabBarItemTitleFontStyle"] != nil) {
+-    titleTextAttributes[NSFontAttributeName] =
++    UIFont *_Nullable updatedFont =
+         [RCTFont updateFont:tabBarItemStateAppearance.titleTextAttributes[NSFontAttributeName]
+                  withFamily:itemStateAppearanceProps[@"tabBarItemTitleFontFamily"]
+                        size:itemStateAppearanceProps[@"tabBarItemTitleFontSize"]
+@@ -338,11 +359,42 @@ + (void)configureTabBarItemStateAppearance:(nonnull UITabBarItemStateAppearance
+                       style:itemStateAppearanceProps[@"tabBarItemTitleFontStyle"]
+                     variant:nil
+             scaleMultiplier:1.0];
++    // RCTFont can return nil when family is missing; fall back to system font + weight so
++    // color/weight from NativeTabs labelStyle still apply (awallet).
++    if (updatedFont == nil) {
++      CGFloat size = 10.0;
++      if ([itemStateAppearanceProps[@"tabBarItemTitleFontSize"] isKindOfClass:[NSNumber class]]) {
++        size = [itemStateAppearanceProps[@"tabBarItemTitleFontSize"] doubleValue];
++      }
++      UIFontWeight fontWeight = UIFontWeightRegular;
++      id weightValue = itemStateAppearanceProps[@"tabBarItemTitleFontWeight"];
++      if ([weightValue isKindOfClass:[NSString class]]) {
++        NSString *weightString = (NSString *)weightValue;
++        if ([weightString isEqualToString:@"700"] || [weightString isEqualToString:@"bold"] ||
++            [weightString isEqualToString:@"600"] || [weightString isEqualToString:@"semibold"]) {
++          fontWeight = UIFontWeightBold;
++        } else if ([weightString isEqualToString:@"500"] || [weightString isEqualToString:@"medium"]) {
++          fontWeight = UIFontWeightMedium;
++        }
++      } else if ([weightValue isKindOfClass:[NSNumber class]]) {
++        if ([weightValue doubleValue] >= 600.0) {
++          fontWeight = UIFontWeightBold;
++        } else if ([weightValue doubleValue] >= 500.0) {
++          fontWeight = UIFontWeightMedium;
++        }
++      }
++      updatedFont = [UIFont systemFontOfSize:size weight:fontWeight];
++    }
++    if (updatedFont != nil) {
++      titleTextAttributes[NSFontAttributeName] = updatedFont;
++    }
+   }
+ 
+   if (itemStateAppearanceProps[@"tabBarItemTitleFontColor"] != nil) {
+-    titleTextAttributes[NSForegroundColorAttributeName] =
+-        [RCTConvert UIColor:itemStateAppearanceProps[@"tabBarItemTitleFontColor"]];
++    UIColor *_Nullable titleColor = [RCTConvert UIColor:itemStateAppearanceProps[@"tabBarItemTitleFontColor"]];
++    if (titleColor != nil) {
++      titleTextAttributes[NSForegroundColorAttributeName] = titleColor;
++    }
+   }
+ 
+   if ([titleTextAttributes count] > 0) {

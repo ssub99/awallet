@@ -2,6 +2,9 @@
  * Shared helpers: SVG → iOS Images.xcassets + Android vector drawable.
  * Used by `with-native-tab-icons.js` (prebuild) and local sync script.
  *
+ * iOS: black-filled template images → tinted by NativeTabs `iconColor`.
+ * Android: black vector paths → tinted by Material `iconColor`.
+ *
  * @typedef {{ assetName: string, svgPath: string }} TabIconSource
  */
 
@@ -62,11 +65,9 @@ function fillToAndroidColor(fill) {
   if (v === 'white' || v === '#fff' || v === '#ffffff') {
     return '#FFFFFFFF';
   }
-  // #RRGGBB → #FFRRGGBB
   if (/^#[0-9a-f]{6}$/i.test(fill)) {
     return `#FF${fill.slice(1).toUpperCase()}`;
   }
-  // Already #AARRGGBB
   if (/^#[0-9a-f]{8}$/i.test(fill)) {
     return `#${fill.slice(1).toUpperCase()}`;
   }
@@ -179,6 +180,11 @@ function writeIosTabIcons(projectRoot, iosProjectRoot, sources) {
       ensureSvgPathFills(svgSource),
       'utf8',
     );
+    // Drop stale dark bake variants from the iOS26 workaround.
+    const staleDark = path.join(imagesetDir, `${assetName}_dark.svg`);
+    if (fs.existsSync(staleDark)) {
+      fs.unlinkSync(staleDark);
+    }
     fs.writeFileSync(
       path.join(imagesetDir, 'Contents.json'),
       iosImagesetContentsJson(assetName, svgFileName),

@@ -74,7 +74,7 @@ export function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTab
 
           const iconElement = options.tabBarIcon?.({
             focused: isFocused,
-            color: isFocused ? palette.text : palette.textAssistive,
+            color: palette.staticBlack,
             size: 24,
           });
 
@@ -99,9 +99,7 @@ export function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTab
               <Text
                 style={[
                   isFocused ? styles.labelActive : styles.labelDefault,
-                  {
-                    color: isFocused ? palette.text : palette.textAssistive,
-                  },
+                  { color: palette.text },
                 ]}
               >
                 {label}

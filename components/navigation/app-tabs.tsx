@@ -4,6 +4,10 @@
  *
  * Figma tabBar 순서: 홈 · 챌린지∙통계 · 기록하기 · 설정
  *
+ * 색·타이포 계약 (구현은 NativeTabs):
+ * - 아이콘: 활성/비활성 모두 staticBlack — 상태는 line ↔ solid 로만 구분
+ * - 라벨: 활성/비활성 모두 text — 상태는 detail.bold ↔ detail.regular 로만 구분
+ *
  * 기록하기: 네이티브 탭 `disabled`(preventNativeSelection)만으로는 Liquid Glass가
  * 선택 인디케이터를 한 번 움직였다 되돌리는 것처럼 보인다.
  * → 기록하기 슬롯 위에 JS hit target을 올려 네이티브 터치를 가로채고 시트만 연다.
@@ -22,7 +26,7 @@ import {
   TAB_BAR_CONTENT_HEIGHT,
   assertTabBarMetricsConsistent,
 } from '@/constants/navigation/tab-bar-metrics';
-import { colors, type ColorPalette } from '@/constants/theme';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useNoticeUnreadCount } from '@/hooks/use-notice-unread-count';
 import { createSheetEvent } from '@/utils/create-sheet-event';
@@ -32,6 +36,22 @@ import { NativeTabs } from 'expo-router/native-tabs';
 import { useRef } from 'react';
 import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+/**
+ * NativeTabs 라벨: 색·size·weight만 전달 (Pretendard family는 UITabBar에서 무시/실패하기 쉬움).
+ * titleTextAttributes가 탭바에 붙도록 RNS 패치 필요 — patches/react-native-screens+4.30.1.patch
+ * (네이티브 재빌드 필수)
+ */
+function nativeTabLabelStyle(
+  color: string,
+  textStyle: Pick<typeof typography.detail.regular, 'fontSize' | 'fontWeight'>,
+) {
+  return {
+    color,
+    fontSize: textStyle.fontSize,
+    fontWeight: textStyle.fontWeight,
+  } as const;
+}
 
 function isReselectTab(name: MainTabName): name is TabReselectName {
   return name === 'home' || name === 'challenge';
@@ -77,6 +97,9 @@ export function AppTabs() {
   const hasUnreadNotice = useNoticeUnreadCount() > 0;
   const focusedTabRef = useRef<MainTabName>('home');
 
+  const labelStyleDefault = nativeTabLabelStyle(palette.text, typography.detail.regular);
+  const labelStyleSelected = nativeTabLabelStyle(palette.text, typography.detail.bold);
+
   if (__DEV__) {
     assertTabBarMetricsConsistent();
   }
@@ -85,14 +108,14 @@ export function AppTabs() {
     <View style={styles.root}>
       <NativeTabs
         minimizeBehavior="automatic"
-        tintColor={palette.staticBlack}
+        tintColor={palette.text}
         iconColor={{
-          default: palette.textAssistive,
+          default: palette.staticBlack,
           selected: palette.staticBlack,
         }}
         labelStyle={{
-          default: { color: palette.textAssistive },
-          selected: { color: palette.staticBlack },
+          default: labelStyleDefault,
+          selected: labelStyleSelected,
         }}
         badgeBackgroundColor={atomicColors.red[600]}
         disableTransparentOnScrollEdge
@@ -128,8 +151,6 @@ export function AppTabs() {
                   }
                 },
                 tabPress: () => {
-                  // disabled(create)도 Liquid Glass 스크럽 종료 시 tabPress가 온다.
-                  // 시트는 CreateTabHitTarget(슬롯에서 시작한 탭)만 연다.
                   if (isActionOnly) {
                     return;
                   }
@@ -143,31 +164,19 @@ export function AppTabs() {
                 },
               }}
             >
-              <NativeTabs.Trigger.Label>{tab.label}</NativeTabs.Trigger.Label>
-              {isActionOnly ? (
-                <NativeTabs.Trigger.Icon
-                  sf="plus.circle"
-                  xcasset={{
-                    default: tab.icons.default,
-                    selected: tab.icons.selected,
-                  }}
-                  drawable={{
-                    default: tab.icons.default,
-                    selected: tab.icons.selected,
-                  }}
-                />
-              ) : (
-                <NativeTabs.Trigger.Icon
-                  xcasset={{
-                    default: tab.icons.default,
-                    selected: tab.icons.selected,
-                  }}
-                  drawable={{
-                    default: tab.icons.default,
-                    selected: tab.icons.selected,
-                  }}
-                />
-              )}
+              <NativeTabs.Trigger.Label selectedStyle={labelStyleSelected}>
+                {tab.label}
+              </NativeTabs.Trigger.Label>
+              <NativeTabs.Trigger.Icon
+                xcasset={{
+                  default: tab.icons.default,
+                  selected: tab.icons.selected,
+                }}
+                drawable={{
+                  default: tab.icons.default,
+                  selected: tab.icons.selected,
+                }}
+              />
               {showBadge ? <NativeTabs.Trigger.Badge> </NativeTabs.Trigger.Badge> : null}
             </NativeTabs.Trigger>
           );
