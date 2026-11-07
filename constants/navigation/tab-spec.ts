@@ -17,8 +17,6 @@ export type MainTabSpec = {
   name: MainTabName;
   label: string;
   icons: TabIconAssetPair;
-  /** Show unread notice badge on this tab when true at runtime */
-  noticeBadge?: boolean;
   /** 탭 전환 대신 createSheetEvent (기록하기) */
   actionOnly?: boolean;
 };
@@ -45,7 +43,6 @@ export const MAIN_TAB_SPECS: readonly MainTabSpec[] = [
     name: 'mypage',
     label: '설정',
     icons: { default: 'tab_setting_line', selected: 'tab_setting_solid' },
-    noticeBadge: true,
   },
 ] as const;
 

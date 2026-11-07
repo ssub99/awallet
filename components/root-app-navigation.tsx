@@ -6,11 +6,13 @@
  * 2) 이후 홈 Stack 마운트 → 글로벌 인디케이터 + 홈 렌더
  */
 
+import { AndroidJsStack } from '@/components/navigation/android-js-stack';
 import { OnboardingScreen } from '@/components/onboarding/onboarding-screen';
 import {
   NOTICE_IMAGE_VIEWER_NAVIGATION_OPTIONS,
   NOTICE_IMAGE_VIEWER_ROUTE_NAME,
 } from '@/constants/notice-image-viewer-navigation-options';
+import { ANDROID_JS_STACK_SCREEN_OPTIONS } from '@/constants/navigation-options';
 import { ONBOARDING_TO_HOME_FADE_MS } from '@/constants/onboarding-motion';
 import {
   ROOT_STACK_MODAL_ROUTE_NAME,
@@ -21,7 +23,7 @@ import { colors } from '@/constants/theme';
 import { useLoading } from '@/contexts/loading-context';
 import { Stack } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
+import { Animated, Platform, StyleSheet, View } from 'react-native';
 
 type GatePhase = 'onboarding' | 'warming' | 'fading' | 'main';
 
@@ -35,6 +37,25 @@ function rootStackScreenOptions(name: (typeof ROOT_STACK_ROUTE_NAMES)[number]) {
 }
 
 function AppStack() {
+  // Android: JS Stack — iOS형 가로 슬라이드 + 스와이프 pop (native Stack에는 없음)
+  if (Platform.OS === 'android') {
+    return (
+      <AndroidJsStack screenOptions={ANDROID_JS_STACK_SCREEN_OPTIONS}>
+        {ROOT_STACK_ROUTE_NAMES.map((name) => (
+          <AndroidJsStack.Screen
+            key={name}
+            name={name}
+            options={rootStackScreenOptions(name)}
+          />
+        ))}
+        <AndroidJsStack.Screen
+          name={ROOT_STACK_MODAL_ROUTE_NAME}
+          options={{ presentation: 'modal', title: 'Modal' }}
+        />
+      </AndroidJsStack>
+    );
+  }
+
   return (
     <Stack screenOptions={ROOT_STACK_SCREEN_OPTIONS}>
       {ROOT_STACK_ROUTE_NAMES.map((name) => (

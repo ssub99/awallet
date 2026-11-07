@@ -63,6 +63,21 @@ index fb16bb0..198aac3 100644
      }.standardOutput.asText.get().trim()
  
      File nodeResolverRnDirFile = null
+diff --git a/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenWindowTraits.kt b/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenWindowTraits.kt
+index 868024d..3b87c62 100644
+--- a/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenWindowTraits.kt
++++ b/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenWindowTraits.kt
+@@ -88,7 +88,9 @@ object ScreenWindowTraits {
+             return
+         }
+         val screenForStyle = findScreenForTrait(screen, WindowTraits.STYLE)
+-        val style = screenForStyle?.statusBarStyle ?: "light"
++        // awallet: upstream default is "light" (white icons). Light-themed app + JS Stack
++        // Screens without statusBarStyle were flipping icons white on every push.
++        val style = screenForStyle?.statusBarStyle ?: "dark"
+ 
+         UiThreadUtil.runOnUiThread {
+             val decorView = activity.window.decorView
 diff --git a/node_modules/react-native-screens/ios/tabs/RNSTabBarAppearanceCoordinator.mm b/node_modules/react-native-screens/ios/tabs/RNSTabBarAppearanceCoordinator.mm
 index b3bc98d..1e03427 100644
 --- a/node_modules/react-native-screens/ios/tabs/RNSTabBarAppearanceCoordinator.mm

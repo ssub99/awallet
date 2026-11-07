@@ -7,6 +7,10 @@
  * 색·타이포 계약 (구현은 NativeTabs):
  * - 아이콘: 활성/비활성 모두 staticBlack — 상태는 line ↔ solid 로만 구분
  * - 라벨: 활성/비활성 모두 text — 상태는 detail.bold ↔ detail.regular 로만 구분
+ * - Android: 배경 staticWhite, 라벨은 labelVisibilityMode=`labeled`로 항상 표시
+ *   (기본 `auto`/`selected`면 비활성 탭 라벨이 숨겨짐), 활성 인디케이터는 disableIndicator
+ * - Android 상단 1px 라인: NativeTabs에 border API가 없어 커스텀 TabBar와 동일하게
+ *   `palette.border` 오버레이 (탭바 교체 아님)
  *
  * 기록하기: 네이티브 탭 `disabled`(preventNativeSelection)만으로는 Liquid Glass가
  * 선택 인디케이터를 한 번 움직였다 되돌리는 것처럼 보인다.
@@ -18,6 +22,9 @@
  *
  * iOS: 캘린더 horizontal ScrollView가 첫 ScrollView라 disableAutomaticContentInsets 유지.
  * Android: 시스템 bottom inset으로 탭바 회피.
+ *
+ * 공지 미읽: 탭바 뱃지 없음 (NativeTabs가 6×6 커스텀 도트를 제공하지 않음).
+ * 설정 본문 공지사항 행 뱃지만 유지.
  */
 
 import { isExpoGo } from '@/constants/api';
@@ -26,14 +33,12 @@ import {
   MAIN_TAB_SPECS,
   type MainTabName,
 } from '@/constants/navigation/tab-spec';
-import { atomicColors } from '@/constants/atomic-colors';
 import {
   TAB_BAR_CONTENT_HEIGHT,
   assertTabBarMetricsConsistent,
 } from '@/constants/navigation/tab-bar-metrics';
 import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useNoticeUnreadCount } from '@/hooks/use-notice-unread-count';
 import { createSheetEvent } from '@/utils/create-sheet-event';
 import { setLastMainTab, type LastMainTabName } from '@/utils/last-main-tab';
 import { tabReselectEvent, type TabReselectName } from '@/utils/tab-reselect-event';
@@ -70,6 +75,13 @@ function isContentTab(name: MainTabName): name is LastMainTabName {
 
 const CREATE_TAB_INDEX = MAIN_TAB_SPECS.findIndex((tab) => tab.name === 'create');
 
+/**
+ * Material3 BottomNavigation `labeled` 콘텐츠 높이.
+ * `TAB_BAR_CONTENT_HEIGHT`(56)는 아이콘 밴드 기준이라, 라벨 상시 표시 시
+ * 상단 디바이더가 바 중간에 붙는 원인이 됨.
+ */
+const ANDROID_LABELED_NATIVE_TAB_BAR_HEIGHT = 80;
+
 function CreateTabHitTarget() {
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
@@ -98,10 +110,32 @@ function CreateTabHitTarget() {
   );
 }
 
+/** 커스텀 TabBar `styles.divider`와 동일 — NativeTabs border API 대체 */
+function NativeTabBarTopDivider({ color }: { color: string }) {
+  const insets = useSafeAreaInsets();
+  // 네이티브 바 전체 높이(콘텐츠 + 시스템 inset)의 상단 가장자리
+  const bottom = Math.max(
+    0,
+    ANDROID_LABELED_NATIVE_TAB_BAR_HEIGHT + insets.bottom - 1,
+  );
+
+  return (
+    <View
+      pointerEvents="none"
+      style={[
+        styles.topDivider,
+        {
+          backgroundColor: color,
+          bottom,
+        },
+      ]}
+    />
+  );
+}
+
 export function AppTabs() {
   const colorScheme = useColorScheme();
   const palette = colors[colorScheme ?? 'light'] as ColorPalette;
-  const hasUnreadNotice = useNoticeUnreadCount() > 0;
   const focusedTabRef = useRef<MainTabName>('home');
   const inExpoGo = isExpoGo();
 
@@ -117,6 +151,10 @@ export function AppTabs() {
       <NativeTabs
         minimizeBehavior="automatic"
         tintColor={palette.text}
+        backgroundColor={palette.staticWhite}
+        labelVisibilityMode="labeled"
+        disableIndicator
+        rippleColor="transparent"
         iconColor={{
           default: palette.staticBlack,
           selected: palette.staticBlack,
@@ -125,11 +163,9 @@ export function AppTabs() {
           default: labelStyleDefault,
           selected: labelStyleSelected,
         }}
-        badgeBackgroundColor={atomicColors.red[600]}
         disableTransparentOnScrollEdge
       >
         {MAIN_TAB_SPECS.map((tab) => {
-          const showBadge = Boolean(tab.noticeBadge && hasUnreadNotice);
           const handlesReselect = isReselectTab(tab.name);
           const isActionOnly = Boolean(tab.actionOnly);
 
@@ -141,13 +177,7 @@ export function AppTabs() {
               disablePopToTop={handlesReselect || isActionOnly}
               disableScrollToTop={handlesReselect || isActionOnly}
               disableAutomaticContentInsets={Platform.OS === 'ios'}
-              accessibilityLabel={
-                isActionOnly
-                  ? undefined
-                  : tab.noticeBadge && hasUnreadNotice
-                    ? `${tab.label}, 새 공지 있음`
-                    : tab.label
-              }
+              accessibilityLabel={isActionOnly ? undefined : tab.label}
               listeners={{
                 focus: () => {
                   if (isActionOnly) {
@@ -198,11 +228,13 @@ export function AppTabs() {
                   }}
                 />
               )}
-              {showBadge ? <NativeTabs.Trigger.Badge> </NativeTabs.Trigger.Badge> : null}
             </NativeTabs.Trigger>
           );
         })}
       </NativeTabs>
+      {Platform.OS === 'android' ? (
+        <NativeTabBarTopDivider color={palette.border} />
+      ) : null}
       {CREATE_TAB_INDEX >= 0 ? <CreateTabHitTarget /> : null}
     </View>
   );
@@ -211,6 +243,13 @@ export function AppTabs() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
+  },
+  topDivider: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 1,
+    zIndex: 99,
   },
   createHitTarget: {
     position: 'absolute',
