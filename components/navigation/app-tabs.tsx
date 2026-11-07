@@ -20,7 +20,12 @@
  * Android: 시스템 bottom inset으로 탭바 회피.
  */
 
-import { MAIN_TAB_SPECS, type MainTabName } from '@/constants/navigation/tab-spec';
+import { isExpoGo } from '@/constants/api';
+import {
+  EXPO_GO_TAB_SYSTEM_ICONS,
+  MAIN_TAB_SPECS,
+  type MainTabName,
+} from '@/constants/navigation/tab-spec';
 import { atomicColors } from '@/constants/atomic-colors';
 import {
   TAB_BAR_CONTENT_HEIGHT,
@@ -32,10 +37,12 @@ import { useNoticeUnreadCount } from '@/hooks/use-notice-unread-count';
 import { createSheetEvent } from '@/utils/create-sheet-event';
 import { setLastMainTab, type LastMainTabName } from '@/utils/last-main-tab';
 import { tabReselectEvent, type TabReselectName } from '@/utils/tab-reselect-event';
+import type { AndroidSymbol } from 'expo-symbols';
 import { NativeTabs } from 'expo-router/native-tabs';
 import { useRef } from 'react';
 import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import type { SFSymbol } from 'sf-symbols-typescript';
 
 /**
  * NativeTabs 라벨: 색·size·weight만 전달 (Pretendard family는 UITabBar에서 무시/실패하기 쉬움).
@@ -96,6 +103,7 @@ export function AppTabs() {
   const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   const hasUnreadNotice = useNoticeUnreadCount() > 0;
   const focusedTabRef = useRef<MainTabName>('home');
+  const inExpoGo = isExpoGo();
 
   const labelStyleDefault = nativeTabLabelStyle(palette.text, typography.detail.regular);
   const labelStyleSelected = nativeTabLabelStyle(palette.text, typography.detail.bold);
@@ -167,16 +175,29 @@ export function AppTabs() {
               <NativeTabs.Trigger.Label selectedStyle={labelStyleSelected}>
                 {tab.label}
               </NativeTabs.Trigger.Label>
-              <NativeTabs.Trigger.Icon
-                xcasset={{
-                  default: tab.icons.default,
-                  selected: tab.icons.selected,
-                }}
-                drawable={{
-                  default: tab.icons.default,
-                  selected: tab.icons.selected,
-                }}
-              />
+              {inExpoGo ? (
+                <NativeTabs.Trigger.Icon
+                  sf={{
+                    default: EXPO_GO_TAB_SYSTEM_ICONS[tab.name].sf.default as SFSymbol,
+                    selected: EXPO_GO_TAB_SYSTEM_ICONS[tab.name].sf.selected as SFSymbol,
+                  }}
+                  md={{
+                    default: EXPO_GO_TAB_SYSTEM_ICONS[tab.name].md.default as AndroidSymbol,
+                    selected: EXPO_GO_TAB_SYSTEM_ICONS[tab.name].md.selected as AndroidSymbol,
+                  }}
+                />
+              ) : (
+                <NativeTabs.Trigger.Icon
+                  xcasset={{
+                    default: tab.icons.default,
+                    selected: tab.icons.selected,
+                  }}
+                  drawable={{
+                    default: tab.icons.default,
+                    selected: tab.icons.selected,
+                  }}
+                />
+              )}
               {showBadge ? <NativeTabs.Trigger.Badge> </NativeTabs.Trigger.Badge> : null}
             </NativeTabs.Trigger>
           );

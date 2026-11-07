@@ -46,12 +46,20 @@ export function isStageBuildProfile(): boolean {
 }
 
 /** Expo Go 클라이언트에서 실행 중 (개발용 스캐너 앱) */
-function isExpoGo(): boolean {
+export function isExpoGo(): boolean {
   return Constants.appOwnership === 'expo';
 }
 
-function shouldUseStageDefaultVercelHost(): boolean {
+/**
+ * 로컬·프리뷰 리소스(스테이지 API / 스테이지 단축어 링크)를 쓸지.
+ * Expo Go는 번들에 `.stage`가 없어도 개발 기본은 스테이지 쪽을 본다.
+ */
+export function usesStageResources(): boolean {
   return isStageBuildProfile() || isExpoGo();
+}
+
+function shouldUseStageDefaultVercelHost(): boolean {
+  return usesStageResources();
 }
 
 export const VERCEL_API_BASE_URL = (() => {

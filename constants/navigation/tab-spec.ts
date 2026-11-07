@@ -49,6 +49,32 @@ export const MAIN_TAB_SPECS: readonly MainTabSpec[] = [
   },
 ] as const;
 
+/**
+ * Expo Go에는 앱 xcasset/drawable이 없으므로 NativeTabs 시스템 아이콘 폴백.
+ * (브랜드 SVG와 1:1은 아님 — 네이티브 빌드에서는 MAIN_TAB_SPECS.icons 사용)
+ */
+export const EXPO_GO_TAB_SYSTEM_ICONS: Record<
+  MainTabName,
+  { sf: { default: string; selected: string }; md: { default: string; selected: string } }
+> = {
+  home: {
+    sf: { default: 'house', selected: 'house.fill' },
+    md: { default: 'home', selected: 'home' },
+  },
+  challenge: {
+    sf: { default: 'chart.bar', selected: 'chart.bar.fill' },
+    md: { default: 'bar_chart', selected: 'bar_chart' },
+  },
+  create: {
+    sf: { default: 'plus.circle', selected: 'plus.circle.fill' },
+    md: { default: 'add_circle', selected: 'add_circle' },
+  },
+  mypage: {
+    sf: { default: 'gearshape', selected: 'gearshape.fill' },
+    md: { default: 'settings', selected: 'settings' },
+  },
+};
+
 /** SVG sources for the config plugin (paths relative to project root). */
 export const MAIN_TAB_ICON_SVG_SOURCES: readonly {
   assetName: string;
