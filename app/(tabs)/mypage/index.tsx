@@ -31,7 +31,7 @@ import { weekStartEvent } from '@/hooks/use-week-start';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Animated, BackHandler, Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Animated, Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { initialWindowMetrics, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function MyPageScreen() {
@@ -55,13 +55,6 @@ export default function MyPageScreen() {
   // Load settings from AsyncStorage on screen focus
   useFocusEffect(
     useCallback(() => {
-      // 탭 루트: 시스템 뒤로가기 → 홈 탭 (`/home`, index Redirect와 동일)
-      const onBackPress = () => {
-        router.navigate('/home');
-        return true;
-      };
-      const backSub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
-
       const loadSettings = async () => {
         try {
           // 최초 1회만 글로벌 인디케이터 + 로드
@@ -95,10 +88,6 @@ export default function MyPageScreen() {
       };
 
       loadSettings();
-
-      return () => {
-        backSub.remove();
-      };
     }, [router, setLoading])
   );
 

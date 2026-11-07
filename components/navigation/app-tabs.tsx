@@ -25,6 +25,10 @@
  *
  * 공지 미읽: 탭바 뱃지 없음 (NativeTabs가 6×6 커스텀 도트를 제공하지 않음).
  * 설정 본문 공지사항 행 뱃지만 유지.
+ *
+ * Android OS 뒤로가기: 탭 스택은 각 탭 첫 화면까지 pop. 탭 루트에서는
+ * `backBehavior="none"`으로 홈(initialRoute) 점프를 막고, Activity 기본
+ * (백그라운드)으로 넘긴다. 설정 탭에서 `/home`으로 navigate 하던 핸들러는 제거.
  */
 
 import { isExpoGo } from '@/constants/api';
@@ -150,6 +154,8 @@ export function AppTabs() {
     <View style={styles.root}>
       <NativeTabs
         minimizeBehavior="automatic"
+        /** Android: 기본 `initialRoute`면 챌린지/설정 루트에서 뒤로가기 시 홈으로 점프 */
+        backBehavior="none"
         tintColor={palette.text}
         backgroundColor={palette.staticWhite}
         labelVisibilityMode="labeled"
