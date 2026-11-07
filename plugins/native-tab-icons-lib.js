@@ -202,7 +202,9 @@ function writeIosTabIcons(projectRoot, iosProjectRoot, sources) {
  */
 function writeAndroidTabIcons(projectRoot, androidProjectRoot, sources) {
   const drawableDir = path.join(androidProjectRoot, 'app', 'src', 'main', 'res', 'drawable');
+  const rawDir = path.join(androidProjectRoot, 'app', 'src', 'main', 'res', 'raw');
   fs.mkdirSync(drawableDir, { recursive: true });
+  fs.mkdirSync(rawDir, { recursive: true });
 
   for (const { assetName, svgPath } of sources) {
     if (!/^[a-z][a-z0-9_]*$/.test(assetName)) {
@@ -216,6 +218,17 @@ function writeAndroidTabIcons(projectRoot, androidProjectRoot, sources) {
     const xml = svgToAndroidVectorXml(svg);
     fs.writeFileSync(path.join(drawableDir, `${assetName}.xml`), xml, 'utf8');
   }
+
+  // JS에서 drawable 이름을 문자열로 넘기므로 shrinkResources가 "미사용"으로 지움.
+  // 공식 keep 위치: res/raw/*.xml (values 아래 tools:keep는 반영되지 않음)
+  const keepList = sources.map(({ assetName }) => `@drawable/${assetName}`).join(',');
+  const keepXml = [
+    '<?xml version="1.0" encoding="utf-8"?>',
+    '<resources xmlns:tools="http://schemas.android.com/tools"',
+    `    tools:keep="${keepList}" />`,
+    '',
+  ].join('\n');
+  fs.writeFileSync(path.join(rawDir, 'keep_awallet_tab_icons.xml'), keepXml, 'utf8');
 
   return { drawableDir, count: sources.length };
 }
