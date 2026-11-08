@@ -4,7 +4,7 @@ import { typography } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { logEvent } from '@/utils/analytics';
 import { createSheetEvent } from '@/utils/create-sheet-event';
-import { useRouter } from 'expo-router';
+import { usePathname, useRouter } from 'expo-router';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -36,18 +36,19 @@ export const CreateSheetProvider = ({ children }: PropsWithChildren) => {
   const [isVisible, setIsVisible] = useState(false);
   const [calendarContext, setCalendarContext] = useState(getTodayContext);
   const router = useRouter();
+  const pathname = usePathname();
   const colorScheme = useColorScheme();
   const palette = colors[colorScheme ?? 'light'] as ColorPalette;
 
   useEffect(() => {
     return createSheetEvent.subscribe(() => {
       void logEvent('sheet_view', {
-        screen_name: '/home',
+        screen_name: pathname,
         target: 'add-record-sheet',
       });
       setIsVisible(true);
     });
-  }, []);
+  }, [pathname]);
 
   const handleClose = useCallback(() => {
     setIsVisible(false);
@@ -68,7 +69,7 @@ export const CreateSheetProvider = ({ children }: PropsWithChildren) => {
 
   const handleIncomePress = useCallback(() => {
     void logEvent('btn', {
-      screen_name: '/home',
+      screen_name: pathname,
       target: 'add-record-income',
       mode: 'income',
       category_type: 'income',
@@ -79,11 +80,11 @@ export const CreateSheetProvider = ({ children }: PropsWithChildren) => {
       calendarYear: calendarContext.calendarYear.toString(),
       calendarMonth: calendarContext.calendarMonth.toString(),
     });
-  }, [navigateWithDelay, calendarContext]);
+  }, [calendarContext, navigateWithDelay, pathname]);
 
   const handleExpensePress = useCallback(() => {
     void logEvent('btn', {
-      screen_name: '/home',
+      screen_name: pathname,
       target: 'add-record-expense',
       mode: 'expense',
       category_type: 'expense',
@@ -93,11 +94,11 @@ export const CreateSheetProvider = ({ children }: PropsWithChildren) => {
       calendarYear: calendarContext.calendarYear.toString(),
       calendarMonth: calendarContext.calendarMonth.toString(),
     });
-  }, [navigateWithDelay, calendarContext]);
+  }, [calendarContext, navigateWithDelay, pathname]);
 
   const handleChallengePress = useCallback(() => {
     void logEvent('btn', {
-      screen_name: '/home',
+      screen_name: pathname,
       target: 'add-record-challenge',
       mode: 'challenge',
       category_type: 'expense',
@@ -109,7 +110,7 @@ export const CreateSheetProvider = ({ children }: PropsWithChildren) => {
       calendarYear: calendarContext.calendarYear.toString(),
       calendarMonth: calendarContext.calendarMonth.toString(),
     });
-  }, [navigateWithDelay, calendarContext]);
+  }, [calendarContext, navigateWithDelay, pathname]);
 
   const value = useMemo<CreateSheetContextValue>(
     () => ({

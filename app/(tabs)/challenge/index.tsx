@@ -1260,11 +1260,11 @@ export function ChallengeReportTabScreen({
 
   const handleTrendPaymentFilterPress = useCallback(() => {
     void logEvent('btn', {
-      screen_name: '/challenge',
+      screen_name: '/report',
       target: 'filter',
     });
     void logEvent('sheet_view', {
-      screen_name: '/challenge',
+      screen_name: '/report',
       target: 'filter',
     });
     setDraftTrendPaymentFilterKeys(trendPaymentFilterKeys);
@@ -1273,7 +1273,7 @@ export function ChallengeReportTabScreen({
 
   const handleTrendPaymentFilterSheetClose = useCallback(() => {
     void logEvent('btn', {
-      screen_name: '/challenge',
+      screen_name: '/report',
       target: 'filter-close',
     });
     setDraftTrendPaymentFilterKeys(trendPaymentFilterKeys);
@@ -1282,7 +1282,7 @@ export function ChallengeReportTabScreen({
 
   const handleTrendPaymentFilterConfirm = useCallback(() => {
     void logEvent('btn', {
-      screen_name: '/challenge',
+      screen_name: '/report',
       target: 'filter-confirm',
     });
     setTrendPaymentFilterKeys(draftTrendPaymentFilterKeys);
@@ -1291,7 +1291,7 @@ export function ChallengeReportTabScreen({
 
   const handleTrendPaymentFilterListPress = useCallback((itemId: string) => {
     void logEvent('list', {
-      screen_name: '/challenge',
+      screen_name: '/report',
       target: 'filter',
     });
     setDraftTrendPaymentFilterKeys((prev) =>
@@ -1856,7 +1856,7 @@ export function ChallengeReportTabScreen({
 
   const handleCheckScore = useCallback(async () => {
     void logEvent('btn', {
-      screen_name: '/challenge',
+      screen_name: '/report',
       target: 'feedback',
     });
 
@@ -2682,7 +2682,7 @@ export function ChallengeReportTabScreen({
                           style={[styles.trendCategoryItem, { backgroundColor: palette.staticWhite }]}
                           onPress={() => {
                             void logEvent('list', {
-                              screen_name: '/challenge',
+                              screen_name: '/report',
                               target:
                                 trendCategoryFilter === 'all'
                                   ? 'expense-monthly-ranking'

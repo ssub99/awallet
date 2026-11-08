@@ -13,7 +13,7 @@ import {
   subscribeRecordReceiveGuideCard,
   type RecordReceiveGuideCardPayload,
 } from '@/utils/record-receive-guide-card-event';
-import { useRouter } from 'expo-router';
+import { usePathname, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Animated, Easing, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -102,6 +102,7 @@ function createCardMotion(
 
 export function RecordReceiveGuideCard() {
   const router = useRouter();
+  const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const palette = colors[useColorScheme() ?? 'light'] as ColorPalette;
   const hiddenY = -(insets.top + TOP_GAP + CARD_HEIGHT + SHADOW_OUTSET);
@@ -128,7 +129,7 @@ export function RecordReceiveGuideCard() {
   }, [motion, visible]);
 
   const handlePress = useCallback(() => {
-    void logEvent('ui', { screen_name: '/home', target: 'record-receive-guide-card' });
+    void logEvent('ui', { screen_name: pathname, target: 'record-receive-guide-card' });
     setVisible(false);
     // pending 먼저 → 홈 이동(replace 금지). 스택에 쌓인 화면은 걷고, 아니면 push.
     setHomePendingOpenRecordInbox();
@@ -137,7 +138,7 @@ export function RecordReceiveGuideCard() {
     } else {
       router.push('/home');
     }
-  }, [router]);
+  }, [pathname, router]);
 
   if (!visible) return null;
 
