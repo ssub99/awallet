@@ -41,6 +41,10 @@ export default function MonthStartDayScreen() {
   const [selectedDay, setSelectedDay] = useState(1);
   const [initialDay, setInitialDay] = useState(1); // 원래 값 저장
   const scrollRef = useRef<ScrollViewInstance>(null);
+  const selectedDayRef = useRef(1);
+  const persistInFlightRef = useRef(false);
+  const pendingPersistDayRef = useRef<number | null>(null);
+  const lastPersistedDayRef = useRef(1);
   const [viewportHeight, setViewportHeight] = useState(0);
 
   // 챌린지 재생성 로직
@@ -258,6 +262,8 @@ export default function MonthStartDayScreen() {
           if (!isNaN(dayNumber) && dayNumber >= 1 && dayNumber <= 31) {
             setSelectedDay(dayNumber);
             setInitialDay(dayNumber); // 초기값도 저장
+            selectedDayRef.current = dayNumber;
+            lastPersistedDayRef.current = dayNumber;
           }
         }
       } catch {
@@ -281,57 +287,64 @@ export default function MonthStartDayScreen() {
     });
   }, [viewportHeight, selectedDay]);
 
-  // Save on screen exit (hardware back button or gesture)
   useEffect(() => {
-    const unsubscribe = (navigation as unknown as {
-      addListener: (
-        event: 'beforeRemove',
-        callback: (event: { preventDefault: () => void }) => Promise<void>,
-      ) => () => void;
-    }).addListener('beforeRemove', async (e) => {
-      // 변경이 있으면 저장
-      if (selectedDay !== initialDay) {
+    selectedDayRef.current = selectedDay;
+  }, [selectedDay]);
+
+  const persistMonthStartChange = async (targetDay: number) => {
+    if (targetDay < 1 || targetDay > 31) {
+      return;
+    }
+
+    pendingPersistDayRef.current = targetDay;
+    if (persistInFlightRef.current) {
+      return;
+    }
+
+    persistInFlightRef.current = true;
+    try {
+      while (pendingPersistDayRef.current !== null) {
+        const nextDay = pendingPersistDayRef.current;
+        pendingPersistDayRef.current = null;
+
+        if (nextDay === lastPersistedDayRef.current) {
+          continue;
+        }
+
         try {
-          await AsyncStorage.setItem('monthStartDay', `${selectedDay}일`);
+          await AsyncStorage.setItem('monthStartDay', `${nextDay}일`);
           await AsyncStorage.setItem(MONTH_START_DAY_UPDATED_AT_KEY, String(Date.now()));
-          
-          // 월 시작일이 변경되었을 때만 챌린지 재생성
-          await regenerateChallengesForNewMonthStart(selectedDay);
-          // Emit month start change
-          monthStartEvent.emit(selectedDay);
-          // 위젯에 새 월 시작일 기준 소비 금액 반영
+          await regenerateChallengesForNewMonthStart(nextDay);
+          lastPersistedDayRef.current = nextDay;
+          setInitialDay(nextDay);
+          monthStartEvent.emit(nextDay);
           await refreshWidgetWithCurrentMonth().catch(() => {});
         } catch (error) {
           console.error('❌ 월 시작일 저장 중 오류:', error);
         }
       }
-    });
+    } finally {
+      persistInFlightRef.current = false;
+    }
+  };
 
-    return unsubscribe;
-  }, [navigation, selectedDay, initialDay]);
+  // beforeRemove는 Expo 58에서 제거됐다. removed는 화면이 닫힌 뒤에 오므로 제스처를 되돌리지 않는다.
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('removed', () => {
+      void persistMonthStartChange(selectedDayRef.current);
+    });
+    return () => {
+      queueMicrotask(unsubscribe);
+    };
+  }, [navigation]);
 
   const handleDaySelect = (day: number) => {
     setSelectedDay(day);
+    void persistMonthStartChange(day);
   };
 
-  const handleBack = async () => {
-    // 변경이 있으면 저장
-    if (selectedDay !== initialDay) {
-      try {
-        await AsyncStorage.setItem('monthStartDay', `${selectedDay}일`);
-        await AsyncStorage.setItem(MONTH_START_DAY_UPDATED_AT_KEY, String(Date.now()));
-        
-        // 월 시작일이 변경되었을 때만 챌린지 재생성
-        await regenerateChallengesForNewMonthStart(selectedDay);
-        // Emit month start change
-        monthStartEvent.emit(selectedDay);
-        // 위젯에 새 월 시작일 기준 소비 금액 반영
-        await refreshWidgetWithCurrentMonth().catch(() => {});
-      } catch (error) {
-        console.error('❌ 월 시작일 저장 중 오류:', error);
-      }
-    }
-    
+  const handleBack = () => {
+    void persistMonthStartChange(selectedDayRef.current);
     router.back();
   };
 
