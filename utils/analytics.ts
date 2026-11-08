@@ -8,6 +8,8 @@ import {
     setOptOut,
     track,
 } from '@amplitude/analytics-react-native';
+import { experimentPlugin, type ExperimentPlugin } from '@amplitude/plugin-experiment-react-native';
+import type { ExperimentUser } from '@amplitude/experiment-react-native-client';
 import Constants from 'expo-constants';
 import * as Updates from 'expo-updates';
 import { Platform } from 'react-native';
@@ -36,6 +38,8 @@ const amplitudeNativePlatformPlugin: BeforePlugin = {
 };
 
 let amplitudeReady = false;
+let experiment: ExperimentPlugin | null = null;
+let experimentReady = false;
 
 function isProductionRuntime(): boolean {
   // Expo Go와 개발 모드에서는 무조건 DEBUG 키 사용
@@ -64,6 +68,17 @@ function resolveAmplitudeApiKey(): string | null {
   return debugKey || legacyKey || null;
 }
 
+function resolveExperimentDeploymentKey(): string | undefined {
+  const prodKey = process.env.EXPO_PUBLIC_AMPLITUDE_EXPERIMENT_DEPLOYMENT_KEY_PROD?.trim();
+  const debugKey = process.env.EXPO_PUBLIC_AMPLITUDE_EXPERIMENT_DEPLOYMENT_KEY_DEBUG?.trim();
+  const legacyKey = process.env.EXPO_PUBLIC_AMPLITUDE_EXPERIMENT_DEPLOYMENT_KEY?.trim();
+
+  if (isProductionRuntime()) {
+    return prodKey || legacyKey || undefined;
+  }
+  return debugKey || legacyKey || undefined;
+}
+
 /**
  * Amplitude + Session Replay 초기화. 앱당 1회 `app/_layout.tsx`에서 호출합니다.
  * 환경별 API 키가 없으면 전송은 생략됩니다.
@@ -85,6 +100,19 @@ export async function initAmplitude(): Promise<void> {
     console.log(
       `[Analytics] key target=${target}, appOwnership=${String(Constants.appOwnership)}, executionEnvironment=${String(Constants.executionEnvironment)}, channel=${String(Updates.channel)}, key=${masked}`,
     );
+  }
+
+  // Experiment plugin: 공식 권장 플러그인 연동 경로.
+  // deploymentKey가 없으면 Analytics 프로젝트 API 키를 fallback으로 사용.
+  try {
+    experiment = experimentPlugin({
+      deploymentKey: resolveExperimentDeploymentKey(),
+      automaticFetchOnAmplitudeIdentityChange: true,
+    });
+    await add(experiment).promise;
+  } catch (error) {
+    experiment = null;
+    console.warn('[Analytics] Experiment 플러그인 등록 실패:', error);
   }
 
   try {
@@ -130,15 +158,26 @@ export async function initAmplitude(): Promise<void> {
     }
   }
 
-  amplitudeReady = true;
-
   // 로그인 없는 서비스: 앱 device_id를 Amplitude User ID로 사용 (API x-device-id와 동일)
   try {
     const deviceId = await getOrCreateDeviceId();
-    await setUserId(deviceId);
+    amplitudeSetUserId(deviceId);
   } catch (error) {
     console.warn('[Analytics] User ID(device_id) 설정 실패:', error);
   }
+
+  if (experiment?.experiment) {
+    try {
+      // 공식 문서 기준: init 후 start()로 변형 fetch(기본 fetchOnStart=true).
+      await experiment.experiment.start();
+      experimentReady = true;
+    } catch (error) {
+      experimentReady = false;
+      console.warn('[Analytics] Experiment start 실패:', error);
+    }
+  }
+
+  amplitudeReady = true;
 
   if (__DEV__) {
     console.log('[Analytics] Amplitude 이벤트 전송 준비 완료');
@@ -619,6 +658,57 @@ export async function setUserId(userId: string | null): Promise<void> {
   } catch (error) {
     console.warn('[Analytics] setUserId 실패:', error);
   }
+}
+
+/**
+ * 실험 변형 갱신. 특정 플래그만 재평가하려면 `flagKeys`를 전달합니다.
+ * 플래그 분기 로직에서 재호출할 수 있도록 별도 노출합니다.
+ */
+export async function refreshExperimentVariants(
+  user?: ExperimentUser,
+  flagKeys?: string[],
+): Promise<void> {
+  if (!experiment?.experiment) return;
+  try {
+    await experiment.experiment.fetch(
+      user,
+      flagKeys && flagKeys.length > 0 ? { flagKeys } : undefined,
+    );
+    experimentReady = true;
+  } catch (error) {
+    console.warn('[Analytics] Experiment fetch 실패:', error);
+  }
+}
+
+/**
+ * 플래그 키의 현재 variant value를 반환합니다. 없으면 null.
+ * 주의: `variant()`는 자동 노출 추적 설정일 때 `$exposure`를 기록할 수 있습니다.
+ */
+export function getExperimentVariantValue(flagKey: string): string | null {
+  if (!experiment?.experiment) return null;
+  try {
+    const variant = experiment.experiment.variant(flagKey);
+    return typeof variant?.value === 'string' ? variant.value : null;
+  } catch (error) {
+    console.warn(`[Analytics] Experiment variant 조회 실패: ${flagKey}`, error);
+    return null;
+  }
+}
+
+/**
+ * 자동 노출 추적을 끈 경우 수동 노출 기록용 헬퍼.
+ */
+export function trackExperimentExposure(flagKey: string): void {
+  if (!experiment?.experiment) return;
+  try {
+    experiment.experiment.exposure(flagKey);
+  } catch (error) {
+    console.warn(`[Analytics] Experiment exposure 실패: ${flagKey}`, error);
+  }
+}
+
+export function isExperimentInitialized(): boolean {
+  return experimentReady;
 }
 
 /**
