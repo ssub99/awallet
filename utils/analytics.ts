@@ -682,12 +682,13 @@ export async function refreshExperimentVariants(
 
 /**
  * 플래그 키의 현재 variant value를 반환합니다. 없으면 null.
- * 주의: `variant()`는 자동 노출 추적 설정일 때 `$exposure`를 기록할 수 있습니다.
+ * 노출 시점은 호출 측에서 통제하기 위해 `all()` 기반으로 읽습니다.
  */
 export function getExperimentVariantValue(flagKey: string): string | null {
   if (!experiment?.experiment) return null;
   try {
-    const variant = experiment.experiment.variant(flagKey);
+    const allVariants = experiment.experiment.all();
+    const variant = allVariants[flagKey];
     return typeof variant?.value === 'string' ? variant.value : null;
   } catch (error) {
     console.warn(`[Analytics] Experiment variant 조회 실패: ${flagKey}`, error);

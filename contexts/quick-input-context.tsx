@@ -57,6 +57,7 @@ import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { useRecordFormMemoKeyboard } from '@/hooks/use-record-form-memo-keyboard';
 import { logEvent } from '@/utils/analytics';
 import { getApiSecurityHeaders } from '@/utils/api-security-headers';
+import { resolveOnboardingTutorialExperimentDecision } from '@/utils/onboarding-tutorial-experiment';
 import { isAtLeastVersion, QUICK_INPUT_MIN_VERSION } from '@/utils/app-version';
 import type { RecordInboxItem } from '@/utils/record-inbox-types';
 import { RECORD_INBOX_ANALYTICS_SCREEN_NAME } from '@/utils/record-inbox-types';
@@ -1328,6 +1329,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const [tutorialEntryExpanded, setTutorialEntryExpanded] = useState(
     QUICK_INPUT_TUTORIAL_ENTRY_EXPANDED_DEFAULT,
   );
+  const [isTutorialExperienceEnabled, setIsTutorialExperienceEnabled] = useState(false);
   /** 이전·체험하기 퇴장 모션 중 — 수신함/계산기/카테고리 설정 전환 시 */
   const [tutorialEntryExiting, setTutorialEntryExiting] = useState(false);
   /** 기록 수신 기능 체험하기 → 기록 수신 안내 카드 */
@@ -1778,10 +1780,18 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
 
   useEffect(() => {
     let cancelled = false;
-    void loadQuickInputTutorialEntryExpanded().then((expanded) => {
-      if (!cancelled) {
-        setTutorialEntryExpanded(expanded);
+    void resolveOnboardingTutorialExperimentDecision().then((decision) => {
+      if (cancelled) return;
+      setIsTutorialExperienceEnabled(decision.shouldEnableExperience);
+      if (!decision.shouldEnableExperience) {
+        setTutorialEntryExpanded(false);
+        return;
       }
+      void loadQuickInputTutorialEntryExpanded().then((expanded) => {
+        if (!cancelled) {
+          setTutorialEntryExpanded(expanded);
+        }
+      });
     });
     return () => {
       cancelled = true;
@@ -5686,6 +5696,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
               !quickInputEditSheetVisible &&
               !isQuickInputEditSheetClosing &&
               confirmCardData == null &&
+              isTutorialExperienceEnabled &&
               (tutorialEntryExiting ||
                 (!isQuickInputCalculatorVisible &&
                   !isQuickInputRecordInboxVisible &&
