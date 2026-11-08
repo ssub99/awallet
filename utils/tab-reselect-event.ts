@@ -1,8 +1,8 @@
 /**
- * Emitted when the user taps an already-selected main tab (home / challenge).
+ * Emitted when the user taps an already-selected main tab (home / challenge / report).
  */
 
-export type TabReselectName = 'home' | 'challenge';
+export type TabReselectName = 'home' | 'challenge' | 'report';
 
 type TabReselectListener = (tabName: TabReselectName) => void;
 

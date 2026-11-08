@@ -12,9 +12,9 @@ import { UiLineText } from '@/components/ui/ui-line-text';
 import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';
 import { useLoading } from '@/contexts/loading-context';
+import { useCategoryEmojiMap } from '@/hooks/use-category-emoji-map';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { logEvent } from '@/utils/analytics';
-import { loadCategories } from '@/utils/categories';
 import { getChallengeById, type ChallengeRecord } from '@/utils/challenges';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
@@ -35,27 +35,6 @@ interface TimelineItem {
   installmentId?: string;
   recurringId?: string;
 }
-
-// 카테고리별 이모지 매핑 (챌린지 카테고리 표시용)
-const useCategoryEmojiMap = () => {
-  const [map, setMap] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    Promise.all([loadCategories('expense'), loadCategories('income')])
-      .then(([expense, income]) => {
-        const next: Record<string, string> = {};
-        [...expense, ...income].forEach((c) => {
-          next[c.label] = c.emoji;
-        });
-        setMap(next);
-      })
-      .catch(() => {
-        // 로드 실패 시 빈 맵 유지
-      });
-  }, []);
-
-  return map;
-};
 
 export default function ChallengeDetailScreen() {
   const colorScheme = useColorScheme();

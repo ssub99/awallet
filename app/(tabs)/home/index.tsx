@@ -8,6 +8,7 @@ import { TopNavigation } from '@/components/navigation/top-navigation';
 import { CalendarMain, type CalendarExternalView } from '@/components/ui/calendar-main';
 import { NoticeCard } from '@/components/ui/notice-card';
 import { HomeMonthStatusCard } from '@/components/ui/home-month-status-card';
+import { Icon } from '@/components/ui/icon';
 import { QuickInputShort } from '@/components/ui/quick-input-short';
 import { MonthData, YearView, YearViewRef } from '@/components/ui/year-view';
 import { colors, typography, type ColorPalette } from '@/constants/theme';
@@ -37,6 +38,7 @@ import {
   buildCalendarMonthTotalsIndex,
   getCalendarMonthTotalsFromIndex,
 } from '@/utils/calendar-month-totals';
+import { createSheetEvent } from '@/utils/create-sheet-event';
 import { tabReselectEvent } from '@/utils/tab-reselect-event';
 import {
   getCustomMonthInfo,
@@ -63,10 +65,13 @@ import {
   PanResponder,
   PanResponderGestureState,
   Platform,
+  Pressable,
   StyleSheet,
   View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+
+const FAB_SIZE = 48;
 
 export default function HomeScreen() {
   const initialPendingTarget = getLatestPendingCalendarTarget();
@@ -175,7 +180,7 @@ export default function HomeScreen() {
       isNavigating.current = true;
 
       router.push({
-        pathname: '/(tabs)/challenge',
+        pathname: '/(tabs)/report',
         params: {
           year: currentYear.toString(),
           month: month.toString(),
@@ -971,7 +976,7 @@ export default function HomeScreen() {
       target: 'report-present',
     });
     router.push({
-      pathname: '/(tabs)/challenge',
+      pathname: '/(tabs)/report',
       params: {
         year: currentYear.toString(),
         month: currentMonth.toString(),
@@ -1123,6 +1128,25 @@ export default function HomeScreen() {
         </View>
       )}
 
+      {/* FAB: 간편입력과 같은 SafeArea 오버레이, 앵커는 분리 */}
+      <View collapsable={false} style={styles.fabAnchor} pointerEvents="box-none">
+        <Pressable
+          style={[
+            styles.fab,
+            styles.fabShadow,
+            {
+              backgroundColor: palette.primary,
+              bottom: quickInputBottom,
+            },
+          ]}
+          onPress={() => createSheetEvent.emit()}
+          accessibilityRole="button"
+          accessibilityLabel="기록 또는 챌린지 선택"
+        >
+          <Icon name="addTaskFab" variant="line" size={24} color={palette.staticWhite} />
+        </Pressable>
+      </View>
+
     </SafeAreaView>
 
       {/* 기록 수신 안내 카드는 root-layout-shell 전역 마운트 */}
@@ -1143,6 +1167,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-end',
     zIndex: 10,
+  },
+  fabAnchor: {
+    ...StyleSheet.absoluteFill,
+    zIndex: 20,
+    elevation: 20,
+  },
+  fab: {
+    position: 'absolute',
+    right: 16,
+    width: FAB_SIZE,
+    height: FAB_SIZE,
+    borderRadius: FAB_SIZE / 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fabShadow: {
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 21,
   },
   quickInputShortHidden: {
     opacity: 0,

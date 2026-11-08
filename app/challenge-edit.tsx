@@ -17,6 +17,7 @@ import { Switch } from '@/components/ui/switch';
 import { UiLineText } from '@/components/ui/ui-line-text';
 import { type Category } from '@/constants/categories';
 import { colors, typography, type ColorPalette } from '@/constants/theme';
+import { useAppData } from '@/contexts/app-data-context';
 import { useLoading } from '@/contexts/loading-context';
 import { useToast } from '@/contexts/toast-context';
 import { useAndroidKeypadBackDismiss } from '@/hooks/use-android-keypad-back-dismiss';
@@ -352,14 +353,15 @@ export default function ChallengeEditScreen() {
   }, [amountSectionY, isKeypadVisible, logChallengeEditEvent]);
 
   const [expenseCategories, setExpenseCategories] = useState<Category[]>([]);
+  const { dataVersion } = useAppData();
 
   useEffect(() => {
-    loadCategories('expense')
+    loadCategories('expense', { forceStorage: true })
       .then(setExpenseCategories)
       .catch(() => {
         // 로드 실패 시 빈 배열 유지
       });
-  }, []);
+  }, [dataVersion]);
 
   // 카테고리명에 이모지 추가하는 함수
   const getCategoryWithEmoji = (categoryName: string) => {

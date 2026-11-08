@@ -40,10 +40,10 @@ import {
 } from '@/hooks/calendar-events';
 import { useAndroidKeypadBackDismiss } from '@/hooks/use-android-keypad-back-dismiss';
 import { useRecordFormMemoKeyboard } from '@/hooks/use-record-form-memo-keyboard';
+import { useCategoryEmojiMap } from '@/hooks/use-category-emoji-map';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { logEvent, logExpenseAdjustment, logExpenseCreateComplete, mapRefundOptionToAnalytics } from '@/utils/analytics';
-import { loadCategories } from '@/utils/categories';
 import { triggerChallengeNotifications } from '@/utils/challenge-utils';
 import { popToTabsRoute } from '@/utils/pop-to-tabs-route';
 import { rebuildCalendarDataFromStores } from '@/utils/rebuild-calendar-data';
@@ -419,8 +419,14 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
         calendarRefreshEvent.emit();
       }
 
+      // 생성 퍼널(expense-category 등)이 스택에 남지 않게 tabs까지 pop.
+      // replace만 하면 중간 화면이 남아 제스처 뒤로가기로 퍼널·시트가 다시 보임.
       if (popToTabsRoute(navigation)) {
         return;
+      }
+
+      if (router.canDismiss()) {
+        router.dismissAll();
       }
 
       router.replace({
@@ -5145,22 +5151,7 @@ export default function ExpenseRecordScreen({ mode = 'create', editData }: Expen
     }
   };
 
-  const [categoryEmojiMap, setCategoryEmojiMap] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    // 통합 카테고리 로드하여 이모지 매핑
-    loadCategories('expense')
-      .then((cats) => {
-        const map: Record<string, string> = {};
-        cats.forEach((cat) => {
-          map[cat.label] = cat.emoji;
-        });
-        setCategoryEmojiMap(map);
-      })
-      .catch(() => {
-        // 로드 실패 시 빈 맵 유지
-      });
-  }, []);
+  const categoryEmojiMap = useCategoryEmojiMap();
 
   const getCategoryEmojiSafe = (label: string): string => {
     return categoryEmojiMap[label] ?? '';

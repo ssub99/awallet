@@ -22,6 +22,7 @@ import {
     CHALLENGE_RECURRING_MONTH_MIN,
 } from '@/constants/challenge-recurring-months';
 import { colors, typography, type ColorPalette } from '@/constants/theme';
+import { useAppData } from '@/contexts/app-data-context';
 import { useLoading } from '@/contexts/loading-context';
 import { useToast } from '@/contexts/toast-context';
 import { useAndroidKeypadBackDismiss } from '@/hooks/use-android-keypad-back-dismiss';
@@ -31,8 +32,9 @@ import { logEvent } from '@/utils/analytics';
 import { loadCategories } from '@/utils/categories';
 import { createChallenges, type ChallengeRecord } from '@/utils/challenges';
 import { generateGroupId, generateRecordId } from '@/utils/id-generator';
+import { popToTabsRoute } from '@/utils/pop-to-tabs-route';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Dimensions, Easing, Keyboard, Pressable, ScrollView, type ScrollViewInstance, StyleSheet, Text, TouchableWithoutFeedback, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -41,6 +43,7 @@ export default function ChallengeCreateScreen() {
   const colorScheme = useColorScheme();
   const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   const router = useRouter();
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
   const KEYPAD_HEIGHT = getKeypadHeight(windowWidth);
@@ -338,13 +341,14 @@ export default function ChallengeCreateScreen() {
   // 카테고리명에 이모지 추가하는 함수
   const [expenseCategories, setExpenseCategories] = useState<Category[]>([]);
 
+  const { dataVersion } = useAppData();
   useEffect(() => {
-    loadCategories('expense')
+    loadCategories('expense', { forceStorage: true })
       .then(setExpenseCategories)
       .catch(() => {
         // 로드 실패 시 빈 배열 유지 (UI에서 기본 문자열만 표시)
       });
-  }, []);
+  }, [dataVersion]);
 
   const getCategoryWithEmoji = (categoryName: string) => {
     const category = expenseCategories.find(cat => cat.label === categoryName);
@@ -433,15 +437,24 @@ export default function ChallengeCreateScreen() {
       const firstChallenge = newChallenges[0];
       const [targetYear, targetMonth] = firstChallenge.startDate.split('.').map(Number);
 
-      // 키패드·언마운트와 reset 타이밍 분리: 키패드 닫고 짧은 지연 후 reset
+      // 키패드·언마운트와 네비 타이밍 분리.
+      // replace만 하면 expense-category 등이 스택에 남아 제스처 뒤로가기로 생성 퍼널이 다시 열림 → tabs까지 pop.
       Keyboard.dismiss();
       setTimeout(() => {
+        const params = {
+          year: targetYear.toString(),
+          month: targetMonth.toString(),
+        };
+        if (popToTabsRoute(navigation)) {
+          router.navigate({
+            pathname: '/(tabs)/challenge',
+            params,
+          });
+          return;
+        }
         router.replace({
           pathname: '/(tabs)/challenge',
-          params: {
-            year: targetYear.toString(),
-            month: targetMonth.toString(),
-          },
+          params,
         });
       }, 50);
     } catch (error) {

@@ -17,12 +17,12 @@ import {
   publishCalendarTargetAsync,
   type PendingCalendarTarget,
 } from '@/hooks/calendar-events';
+import { useCategoryEmojiMap } from '@/hooks/use-category-emoji-map';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 import { buildTimelineItemsFromCalendarData, type TimelineListItem } from '@/utils/timeline-from-calendar';
 import { logEvent } from '@/utils/analytics';
 import { getRouteParamNumber, getRouteParamString } from '@/utils/route-params';
-import { loadCategories } from '@/utils/categories';
 import { getCustomMonthRange } from '@/utils/custom-month';
 import { initializePaymentSubtypes, type PaymentSubtype } from '@/utils/payment-types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -73,27 +73,6 @@ function cancelIdleTask(token: IdleCallbackToken): void {
   }
   clearTimeout(token as ReturnType<typeof setTimeout>);
 }
-
-// 카테고리별 이모지 매핑 (통합 카테고리 로드)
-const useCategoryEmojiMap = () => {
-  const [map, setMap] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    Promise.all([loadCategories('expense'), loadCategories('income')])
-      .then(([expense, income]) => {
-        const next: Record<string, string> = {};
-        [...expense, ...income].forEach((c) => {
-          next[c.label] = c.emoji;
-        });
-        setMap(next);
-      })
-      .catch(() => {
-        // 로드 실패 시 빈 맵 유지
-      });
-  }, []);
-
-  return map;
-};
 
 type TimelineItem = TimelineListItem;
 

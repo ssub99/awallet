@@ -2,7 +2,7 @@
  * Native system tab bar (iOS Liquid Glass on 26+, classic UITabBar below;
  * Android Material Navigation bar) with brand icons from xcasset / drawable.
  *
- * Figma tabBar 순서: 홈 · 챌린지∙통계 · 기록하기 · 설정
+ * Figma tabBar 순서: 홈 · 챌린지 · 리포트 · 설정
  *
  * 색·타이포 계약 (구현은 NativeTabs):
  * - 아이콘: 활성/비활성 모두 staticBlack — 상태는 line ↔ solid 로만 구분
@@ -12,11 +12,7 @@
  * - Android 상단 1px 라인: NativeTabs에 border API가 없어 커스텀 TabBar와 동일하게
  *   `palette.border` 오버레이 (탭바 교체 아님)
  *
- * 기록하기: 네이티브 탭 `disabled`(preventNativeSelection)만으로는 Liquid Glass가
- * 선택 인디케이터를 한 번 움직였다 되돌리는 것처럼 보인다.
- * → 기록하기 슬롯 위에 JS hit target을 올려 네이티브 터치를 가로채고 시트만 연다.
- * → 다른 탭에서 스크럽해 기록하기에서 손을 뗄 때 네이티브가 tabPress를내도
- *    시트는 열지 않는다(시작 탭으로 복귀만). 실제 탭은 hit target onPress만.
+ * 기록하기는 FAB(홈·챌린지) → createSheetEvent. 탭바 슬롯 없음.
  *
  * 간편입력은 홈 화면 absolute + GlassSurface (BottomAccessory 미사용).
  *
@@ -28,7 +24,7 @@
  *
  * Android OS 뒤로가기: 탭 스택은 각 탭 첫 화면까지 pop. 탭 루트에서는
  * `backBehavior="none"`으로 홈(initialRoute) 점프를 막고, Activity 기본
- * (백그라운드)으로 넘긴다. 설정 탭에서 `/home`으로 navigate 하던 핸들러는 제거.
+ * (백그라운드)으로 넘긴다.
  */
 
 import { isExpoGo } from '@/constants/api';
@@ -37,19 +33,15 @@ import {
   MAIN_TAB_SPECS,
   type MainTabName,
 } from '@/constants/navigation/tab-spec';
-import {
-  TAB_BAR_CONTENT_HEIGHT,
-  assertTabBarMetricsConsistent,
-} from '@/constants/navigation/tab-bar-metrics';
+import { assertTabBarMetricsConsistent } from '@/constants/navigation/tab-bar-metrics';
 import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { createSheetEvent } from '@/utils/create-sheet-event';
 import { setLastMainTab, type LastMainTabName } from '@/utils/last-main-tab';
 import { tabReselectEvent, type TabReselectName } from '@/utils/tab-reselect-event';
 import type { AndroidSymbol } from 'expo-symbols';
 import { NativeTabs } from 'expo-router/native-tabs';
 import { useRef } from 'react';
-import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { SFSymbol } from 'sf-symbols-typescript';
 
@@ -70,14 +62,14 @@ function nativeTabLabelStyle(
 }
 
 function isReselectTab(name: MainTabName): name is TabReselectName {
-  return name === 'home' || name === 'challenge';
+  return name === 'home' || name === 'challenge' || name === 'report';
 }
 
 function isContentTab(name: MainTabName): name is LastMainTabName {
-  return name === 'home' || name === 'challenge' || name === 'mypage';
+  return (
+    name === 'home' || name === 'challenge' || name === 'report' || name === 'mypage'
+  );
 }
-
-const CREATE_TAB_INDEX = MAIN_TAB_SPECS.findIndex((tab) => tab.name === 'create');
 
 /**
  * Material3 BottomNavigation `labeled` 콘텐츠 높이.
@@ -85,34 +77,6 @@ const CREATE_TAB_INDEX = MAIN_TAB_SPECS.findIndex((tab) => tab.name === 'create'
  * 상단 디바이더가 바 중간에 붙는 원인이 됨.
  */
 const ANDROID_LABELED_NATIVE_TAB_BAR_HEIGHT = 80;
-
-function CreateTabHitTarget() {
-  const insets = useSafeAreaInsets();
-  const { width: windowWidth } = useWindowDimensions();
-  const tabCount = MAIN_TAB_SPECS.length;
-  const slotWidth = windowWidth / tabCount;
-  const left = slotWidth * Math.max(0, CREATE_TAB_INDEX);
-  const height = TAB_BAR_CONTENT_HEIGHT + Math.max(insets.bottom, 12) + 12;
-
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel="기록하기"
-      onPress={() => {
-        createSheetEvent.emit();
-      }}
-      style={[
-        styles.createHitTarget,
-        {
-          left,
-          width: slotWidth,
-          height,
-          bottom: 0,
-        },
-      ]}
-    />
-  );
-}
 
 /** 커스텀 TabBar `styles.divider`와 동일 — NativeTabs border API 대체 */
 function NativeTabBarTopDivider({ color }: { color: string }) {
@@ -173,31 +137,23 @@ export function AppTabs() {
       >
         {MAIN_TAB_SPECS.map((tab) => {
           const handlesReselect = isReselectTab(tab.name);
-          const isActionOnly = Boolean(tab.actionOnly);
 
           return (
             <NativeTabs.Trigger
               key={tab.name}
               name={tab.name}
-              disabled={isActionOnly}
-              disablePopToTop={handlesReselect || isActionOnly}
-              disableScrollToTop={handlesReselect || isActionOnly}
+              disablePopToTop={handlesReselect}
+              disableScrollToTop={handlesReselect}
               disableAutomaticContentInsets={Platform.OS === 'ios'}
-              accessibilityLabel={isActionOnly ? undefined : tab.label}
+              accessibilityLabel={tab.label}
               listeners={{
                 focus: () => {
-                  if (isActionOnly) {
-                    return;
-                  }
                   focusedTabRef.current = tab.name;
                   if (isContentTab(tab.name)) {
                     setLastMainTab(tab.name);
                   }
                 },
                 tabPress: () => {
-                  if (isActionOnly) {
-                    return;
-                  }
                   if (!isReselectTab(tab.name)) {
                     return;
                   }
@@ -241,7 +197,6 @@ export function AppTabs() {
       {Platform.OS === 'android' ? (
         <NativeTabBarTopDivider color={palette.border} />
       ) : null}
-      {CREATE_TAB_INDEX >= 0 ? <CreateTabHitTarget /> : null}
     </View>
   );
 }
@@ -256,10 +211,5 @@ const styles = StyleSheet.create({
     right: 0,
     height: 1,
     zIndex: 99,
-  },
-  createHitTarget: {
-    position: 'absolute',
-    zIndex: 100,
-    backgroundColor: 'transparent',
   },
 });

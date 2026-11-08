@@ -1,17 +1,16 @@
 /**
- * Tab Bar — Figma `tabBar` COMPONENT_SET (홈 · 챌린지∙통계 · 기록하기 · 설정)
+ * Tab Bar — Figma `tabBar` COMPONENT_SET (홈 · 챌린지 · 리포트 · 설정)
  */
 
 import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { createSheetEvent } from '@/utils/create-sheet-event';
 import { tabReselectEvent, type TabReselectName } from '@/utils/tab-reselect-event';
 import type { BottomTabBarProps } from 'expo-router/js-tabs';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function isReselectTab(name: string): name is TabReselectName {
-  return name === 'home' || name === 'challenge';
+  return name === 'home' || name === 'challenge' || name === 'report';
 }
 
 export function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTabBarProps) {
@@ -20,8 +19,8 @@ export function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTab
   const insets = useSafeAreaInsets();
 
   const allowedRoutes = __DEV__
-    ? ['home', 'challenge', 'create', 'mypage', 'components', 'icons']
-    : ['home', 'challenge', 'create', 'mypage'];
+    ? ['home', 'challenge', 'report', 'mypage', 'components', 'icons']
+    : ['home', 'challenge', 'report', 'mypage'];
 
   const visibleRoutes = state.routes.filter((route) => allowedRoutes.includes(route.name));
 
@@ -44,11 +43,6 @@ export function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTab
           const isFocused = state.index === index;
 
           const onPress = () => {
-            if (route.name === 'create') {
-              createSheetEvent.emit();
-              return;
-            }
-
             if (isFocused && isReselectTab(route.name)) {
               tabReselectEvent.emit(route.name);
               return;

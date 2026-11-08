@@ -243,9 +243,10 @@ function defaultTabIconSources() {
     { assetName: 'tab_home_solid', svgPath: 'assets/images/icons/solid/home.svg' },
     { assetName: 'tab_challenge_line', svgPath: 'assets/images/icons/line/challenge.svg' },
     { assetName: 'tab_challenge_solid', svgPath: 'assets/images/icons/solid/challenge.svg' },
+    { assetName: 'tab_report_line', svgPath: 'assets/images/icons/line/report.svg' },
+    { assetName: 'tab_report_solid', svgPath: 'assets/images/icons/solid/report.svg' },
     { assetName: 'tab_setting_line', svgPath: 'assets/images/icons/line/setting.svg' },
     { assetName: 'tab_setting_solid', svgPath: 'assets/images/icons/solid/setting.svg' },
-    { assetName: 'tab_add_task_line', svgPath: 'assets/images/icons/line/addTask.svg' },
   ];
 }
 

@@ -320,20 +320,7 @@ export default function CategorySettingScreen() {
           return;
         }
 
-        const cached = getOrderedCategoriesFromCache(categoryType);
-        if (cached) {
-          try {
-            resetContentFade();
-            applyLoadedCategories(cached);
-          } finally {
-            if (isCategoryTypeSwitch) {
-              categoryTypeSwitchRef.current = false;
-              setLoading(false);
-            }
-          }
-          return;
-        }
-
+        // 복원 직후 등 Storage가 바뀐 뒤에는 메모리 캐시만 믿지 않고 다시 읽는다.
         resetContentFade();
         setIsListDataReady(false);
         setLoading(true);
@@ -341,8 +328,8 @@ export default function CategorySettingScreen() {
 
         try {
           const [loadedCategories, savedOrder] = await Promise.all([
-            loadCategories(categoryType),
-            loadCategoryOrder(categoryType),
+            loadCategories(categoryType, { forceStorage: true }),
+            loadCategoryOrder(categoryType, { forceStorage: true }),
           ]);
 
           const finalCategories =

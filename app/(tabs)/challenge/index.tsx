@@ -1,8 +1,9 @@
 /**
- * Challenge Tab Screen
+ * Challenge / Report Tab Screen
  *
- * 챌린지 탭: 월 소비 현황의 '챌린지 현황' 탭과 동일한 UI·로직을 단독 화면으로 표시.
- * 공통 컴포넌트 없이 이 파일에만 구현되어 있으며, 월 소비 현황 챌린지 탭 로직은 변경하지 않음.
+ * 하단 탭 분리 전후로 동일 로직을 유지한다.
+ * - mode=`challenge`: 챌린지 목록만 (탑 탭 없음)
+ * - mode=`report`: 소비 리포트·소비 현황만 (탑 탭 없음)
  */
 
 import { TopNavigation } from '@/components/navigation/top-navigation';
@@ -13,24 +14,31 @@ import { Icon } from '@/components/ui/icon';
 import { ModalBottomsheet, ModalBottomsheetBottomInset } from '@/components/ui/modal-bottomsheet';
 import { UiLineText } from '@/components/ui/ui-line-text';
 import { CONSUMPTION_REPORT_API_URL } from '@/constants/api';
-import { CHALLENGE_STACK_PATHS } from '@/constants/navigation/route-ownership';
-import { getTabScreenScrollPaddingBottom } from '@/constants/navigation/tab-bar-metrics';
+import {
+  CHALLENGE_STACK_PATHS,
+  REPORT_STACK_PATHS,
+} from '@/constants/navigation/route-ownership';
+import {
+  getFabBottomAboveTabBar,
+  getTabScreenScrollPaddingBottom,
+} from '@/constants/navigation/tab-bar-metrics';
 import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';
 import { useCreateSheetContext } from '@/contexts/create-sheet-context';
 import { useLoading } from '@/contexts/loading-context';
 import { useToast } from '@/contexts/toast-context';
+import { useCategoryEmojiMap } from '@/hooks/use-category-emoji-map';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { getApiSecurityHeaders } from '@/utils/api-security-headers';
 import { logEvent } from '@/utils/analytics';
-import { loadCategories } from '@/utils/categories';
 import { getChallengesByDateRange } from '@/utils/challenges';
 import {
     computeConsumptionIndex,
     type CalendarData,
     type ConsumptionIndexResult,
 } from '@/utils/consumption-index';
+import { createSheetEvent } from '@/utils/create-sheet-event';
 import { tabReselectEvent } from '@/utils/tab-reselect-event';
 import {
   getCustomMonthInfo,
@@ -55,6 +63,8 @@ import {
     View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+
+const FAB_SIZE = 48;
 
 /** 월 변경 시 페이드 아웃/인 애니메이션 (챌린지·리포트·타임라인 동일) */
 const MONTH_CHANGE_FADE_OUT_DURATION = 150;
@@ -440,24 +450,6 @@ async function computeChallengeAmountsForList(
   return amounts;
 }
 
-const useCategoryEmojiMap = () => {
-  const [map, setMap] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    Promise.all([loadCategories('expense'), loadCategories('income')])
-      .then(([expense, income]) => {
-        const next: Record<string, string> = {};
-        [...expense, ...income].forEach((c) => {
-          next[c.label] = c.emoji;
-        });
-        setMap(next);
-      })
-      .catch(() => {});
-  }, []);
-
-  return map;
-};
-
 interface MonthSwitcherProps {
   year: number;
   month: number;
@@ -526,17 +518,26 @@ const MonthSwitcher: React.FC<MonthSwitcherProps> = ({
 type TopTabId = 'challenge' | 'report';
 type ReportSubTabId = 'score' | 'trend';
 
+export type ChallengeReportScreenMode = TopTabId;
+
 const REPORT_SCORE_CARD_MIN = 280;
 const REPORT_SCORE_CARD_MAX = 454;
 
-export default function ChallengeTabScreen() {
+type ChallengeReportTabScreenProps = {
+  mode?: ChallengeReportScreenMode;
+};
+
+export function ChallengeReportTabScreen({
+  mode = 'challenge',
+}: ChallengeReportTabScreenProps) {
   const { height: windowHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const bottomContentInset = getTabScreenScrollPaddingBottom(insets.bottom);
+  const fabBottom = getFabBottomAboveTabBar(insets.bottom);
   const trendPaymentFilterSheetHeight = windowHeight * 0.8;
   const colorScheme = useColorScheme();
   const palette = colors[colorScheme ?? 'light'] as ColorPalette;
-  const [activeTopTab, setActiveTopTab] = useState<TopTabId>('challenge');
+  const activeTopTab: TopTabId = mode;
   const [reportSubTab, setReportSubTab] = useState<ReportSubTabId>('score');
   const [trendTimelineData, setTrendTimelineData] = useState<TrendTimelineItem[]>([]);
   const [trendCategoryFilter, setTrendCategoryFilter] = useState<'all' | 'recurring'>('all');
@@ -576,7 +577,7 @@ export default function ChallengeTabScreen() {
   const router = useRouter();
   const navigation = useNavigation();
   const isNavigating = useRef(false);
-  const activeTopTabRef = useRef<TopTabId>('challenge');
+  const activeTopTabRef = useRef<TopTabId>(mode);
   const reportSubTabRef = useRef<ReportSubTabId>('score');
   useEffect(() => {
     activeTopTabRef.current = activeTopTab;
@@ -634,35 +635,36 @@ export default function ChallengeTabScreen() {
     });
   }, []);
 
-  // 홈 잔액/년도 월 카드 탭 시 리포트 > 소비 리포트로 열기 + 해당 년/월로 동기화
+  // 홈 잔액/년도 월 카드 → 리포트 탭 진입 시 소비 리포트 서브탭 + 해당 년/월
   const appliedStatusParam = useRef(false);
   useEffect(() => {
+    if (mode !== 'report') return;
     if (params.tab === 'status' && !appliedStatusParam.current) {
-      setActiveTopTab('report');
       setReportSubTab('score');
       appliedStatusParam.current = true;
     }
-  }, [params.tab]);
+  }, [mode, params.tab]);
 
   // 홈에서 넘긴 year/month가 있으면 해당 연·월로 표시 (탭 재진입 시에도 동기화)
   useEffect(() => {
     const paramYear = params.year ? parseInt(params.year, 10) : undefined;
     const paramMonth = params.month ? parseInt(params.month, 10) : undefined;
+    const applyToReport = mode === 'report' || params.tab === 'status';
     if (paramYear != null && !Number.isNaN(paramYear)) {
-      if (params.tab === 'status') {
+      if (applyToReport) {
         setReportScoreYear(paramYear);
       } else {
         setChallengeYear(paramYear);
       }
     }
     if (paramMonth != null && !Number.isNaN(paramMonth) && paramMonth >= 1 && paramMonth <= 12) {
-      if (params.tab === 'status') {
+      if (applyToReport) {
         setReportScoreMonth(paramMonth);
       } else {
         setChallengeMonth(paramMonth);
       }
     }
-  }, [params.year, params.month, params.tab]);
+  }, [mode, params.year, params.month, params.tab]);
 
   const [challenges, setChallenges] = useState<ChallengeData[]>([]);
   const [challengeAmounts, setChallengeAmounts] = useState<Record<string, number>>({});
@@ -1526,20 +1528,22 @@ export default function ChallengeTabScreen() {
     }
   }, []);
 
-  // 챌린지 탭이 이미 선택된 상태에서 다시 탭 → 중첩 화면 닫고 이번 달로 리셋 (NativeTabs 재선택)
+  // 이미 선택된 탭을 다시 탭 → 중첩 화면 닫고 이번 달로 리셋 (NativeTabs 재선택)
   useEffect(() => {
     return tabReselectEvent.subscribe((tabName) => {
-      if (tabName !== 'challenge') {
+      if (tabName !== mode) {
         return;
       }
       if (router.canDismiss()) {
-        router.dismissTo(CHALLENGE_STACK_PATHS.index);
+        router.dismissTo(
+          mode === 'report' ? REPORT_STACK_PATHS.index : CHALLENGE_STACK_PATHS.index,
+        );
       }
       resetToCurrentMonth().catch((error) => {
-        console.error('[challenge-tab] Failed to reset to today:', error);
+        console.error(`[${mode}-tab] Failed to reset to today:`, error);
       });
     });
-  }, [resetToCurrentMonth, router]);
+  }, [mode, resetToCurrentMonth, router]);
 
   const handlePrevMonth = useCallback(() => {
     if (activeTopTabRef.current === 'report') {
@@ -2302,13 +2306,7 @@ export default function ChallengeTabScreen() {
         <Animated.View style={{ opacity: screenOpacity }}>
           <TopNavigation
             type="main"
-            title="챌린지"
-            tabs={[
-              { id: 'challenge', label: '챌린지' },
-              { id: 'report', label: '리포트' },
-            ]}
-            activeTabId={activeTopTab}
-            onTabChange={(id) => setActiveTopTab(id as TopTabId)}
+            title={mode === 'report' ? '리포트' : '챌린지'}
           />
         </Animated.View>
 
@@ -3010,9 +3008,31 @@ export default function ChallengeTabScreen() {
             }
           }}
         />
+
+        <View collapsable={false} style={styles.bottomChromeAnchor} pointerEvents="box-none">
+          <Pressable
+            style={[
+              styles.fab,
+              styles.fabShadow,
+              {
+                backgroundColor: palette.primary,
+                bottom: fabBottom,
+              },
+            ]}
+            onPress={() => createSheetEvent.emit()}
+            accessibilityRole="button"
+            accessibilityLabel="기록 또는 챌린지 선택"
+          >
+            <Icon name="addTaskFab" variant="line" size={24} color={palette.staticWhite} />
+          </Pressable>
+        </View>
       </SafeAreaView>
     </View>
   );
+}
+
+export default function ChallengeTabRoute() {
+  return <ChallengeReportTabScreen mode="challenge" />;
 }
 
 const styles = StyleSheet.create({
@@ -3024,6 +3044,28 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  bottomChromeAnchor: {
+    ...StyleSheet.absoluteFill,
+    zIndex: 20,
+    elevation: 20,
+  },
+  fab: {
+    position: 'absolute',
+    right: 16,
+    width: FAB_SIZE,
+    height: FAB_SIZE,
+    borderRadius: FAB_SIZE / 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 21,
+  },
+  fabShadow: {
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 21,
   },
   periodRow: {
     flexDirection: 'row',

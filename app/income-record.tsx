@@ -25,10 +25,10 @@ import { calendarRefreshEvent, publishCalendarTargetAsync } from '@/hooks/calend
 import { popToTabsRoute } from '@/utils/pop-to-tabs-route';
 import { useAndroidKeypadBackDismiss } from '@/hooks/use-android-keypad-back-dismiss';
 import { useRecordFormMemoKeyboard } from '@/hooks/use-record-form-memo-keyboard';
+import { useCategoryEmojiMap } from '@/hooks/use-category-emoji-map';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { logEvent } from '@/utils/analytics';
-import { loadCategories } from '@/utils/categories';
 import { getCustomMonthInfo } from '@/utils/custom-month';
 import { generateRecordId } from '@/utils/id-generator';
 import { createIncome, type IncomeRecord as IncomeRecordType } from '@/utils/incomes';
@@ -102,6 +102,10 @@ export default function IncomeRecordScreen() {
 
       if (popToTabsRoute(navigation)) {
         return;
+      }
+
+      if (router.canDismiss()) {
+        router.dismissAll();
       }
 
       router.replace({
@@ -573,21 +577,7 @@ export default function IncomeRecordScreen() {
     }, [params.category])
   );
 
-  const [categoryEmojiMap, setCategoryEmojiMap] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    loadCategories('income')
-      .then((cats) => {
-        const map: Record<string, string> = {};
-        cats.forEach((cat) => {
-          map[cat.label] = cat.emoji;
-        });
-        setCategoryEmojiMap(map);
-      })
-      .catch(() => {
-        // ignore
-      });
-  }, []);
+  const categoryEmojiMap = useCategoryEmojiMap();
 
   const getCategoryEmojiSafe = (label: string): string => categoryEmojiMap[label] ?? '';
   const categoryDisplay = category ? `${getCategoryEmojiSafe(category)} ${category}` : '';

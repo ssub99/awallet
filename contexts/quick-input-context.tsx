@@ -1306,7 +1306,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }, [calculatorPanelHeight, editAmountKeypadHeight]);
   const router = useRouter();
   const { showToast } = useToast();
-  const { refresh } = useAppData();
+  const { refresh, dataVersion } = useAppData();
   const { setLoading } = useLoading();
   const [isQuickInputVisible, setIsQuickInputVisible] = useState(false);
   /** 닫을 때 팁·입력만 즉시 숨김(키보드는 이후 dismiss) */
@@ -1542,6 +1542,38 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const incomeCategoriesCacheRef = useRef<{ label: string; emoji: string }[]>([]);
   const [expenseCategoriesCache, setExpenseCategoriesCache] = useState<{ label: string; emoji: string }[]>([]);
   const [incomeCategoriesCache, setIncomeCategoriesCache] = useState<{ label: string; emoji: string }[]>([]);
+
+  // 복원·초기화 후 AppData refresh가 dataVersion을 올리면 간편입력 카테고리/결제유형 캐시를 비운다.
+  // (ref 캐시가 남아 있으면 커스텀 카테고리 이모지가 기타(📝)로 남는 원인)
+  useEffect(() => {
+    expenseCategoriesCacheRef.current = [];
+    incomeCategoriesCacheRef.current = [];
+    paymentSubtypesCacheRef.current = [];
+    let cancelled = false;
+    void Promise.all([
+      loadCategories('expense', { forceStorage: true }),
+      loadCategories('income', { forceStorage: true }),
+      loadPaymentSubtypes({ forceStorage: true }),
+    ])
+      .then(([expense, income, subtypes]) => {
+        if (cancelled) return;
+        expenseCategoriesCacheRef.current = expense;
+        incomeCategoriesCacheRef.current = income;
+        paymentSubtypesCacheRef.current = subtypes;
+        setExpenseCategoriesCache(expense);
+        setIncomeCategoriesCache(income);
+        const orderedExpense = getOrderedCategoriesFromCache('expense');
+        if (orderedExpense) {
+          setQuickInputCategorySettingCategories(orderedExpense);
+          setIsQuickInputCategorySettingListReady(true);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [dataVersion]);
+
   const [quickInputBackdropOpacity] = useState(() => new RNAnimated.Value(0));
   /** 롱·팁: React 커밋 전에도 즉시 숨김 (딤 페이드와 분리) */
   const [quickInputLongOpacity] = useState(() => new RNAnimated.Value(1));

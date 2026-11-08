@@ -19,11 +19,11 @@ import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useLoading } from '@/contexts/loading-context';
 import { useAndroidKeypadBackDismiss } from '@/hooks/use-android-keypad-back-dismiss';
 import { useRecordFormMemoKeyboard } from '@/hooks/use-record-form-memo-keyboard';
+import { useCategoryEmojiMap } from '@/hooks/use-category-emoji-map';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { logEvent } from '@/utils/analytics';
 import { getCustomMonthInfo } from '@/utils/custom-month';
-import { loadCategories } from '@/utils/categories';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { calendarRefreshEvent } from '@/hooks/calendar-events';
 import { updateIncome, softDeleteIncome } from '@/utils/incomes';
@@ -509,21 +509,7 @@ export default function IncomeEditScreen() {
     }, [recordData?.category])
   );
 
-  const [categoryEmojiMap, setCategoryEmojiMap] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    loadCategories('income')
-      .then((cats) => {
-        const map: Record<string, string> = {};
-        cats.forEach((cat) => {
-          map[cat.label] = cat.emoji;
-        });
-        setCategoryEmojiMap(map);
-      })
-      .catch(() => {
-        // ignore
-      });
-  }, []);
+  const categoryEmojiMap = useCategoryEmojiMap();
 
   const getCategoryEmojiSafe = (label: string): string => categoryEmojiMap[label] ?? '';
   const categoryDisplay = category ? `${getCategoryEmojiSafe(category)} ${category}` : '';

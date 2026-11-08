@@ -1,8 +1,8 @@
 /**
- * 기록하기(action) 탭이 잠깐 포커스됐을 때 복귀할 직전 메인 탭.
+ * 직전 메인 콘텐츠 탭 (홈 · 챌린지 · 리포트 · 설정).
  */
 
-export type LastMainTabName = 'home' | 'challenge' | 'mypage';
+export type LastMainTabName = 'home' | 'challenge' | 'report' | 'mypage';
 
 let lastMainTab: LastMainTabName = 'home';
 
