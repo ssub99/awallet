@@ -33,11 +33,10 @@ export const LEGACY_SMS_RECEIVE_SHORTCUT_ICLOUD_URL = IS_STAGE_APP
 /**
  * [신] 문자 수신 단축어 iCloud — 1.2.4+ 정식·번들 폴백.
  * 원격: `RECORD_INBOX_SHORTCUT_CONFIG_URL` → static/record-inbox-shortcut.json
- * 프로덕션: 테스트 후 신 iCloud 링크로 교체.
  */
 export const NEW_SMS_RECEIVE_SHORTCUT_ICLOUD_URL = IS_STAGE_APP
   ? 'https://www.icloud.com/shortcuts/ec849117f8f744e08feb3ff2f9c4feba'
-  : 'https://www.icloud.com/shortcuts/510dcef1f34e42549fc76fd2486c5bf2'; // TODO: 신 프로덕션 링크
+  : 'https://www.icloud.com/shortcuts/4a97abcab6484a99866a9fa8adfe095f';
 
 /**
  * [구] 알림 수신 단축어 iCloud — 미업데이트·레거시용.
@@ -48,11 +47,10 @@ export const LEGACY_APP_NOTIFICATION_RECEIVE_SHORTCUT_ICLOUD_URL = IS_STAGE_APP
 
 /**
  * [신] 알림 수신 단축어 iCloud — 1.2.4+용.
- * 프로덕션: 테스트 후 신 iCloud 링크로 교체.
  */
 export const NEW_APP_NOTIFICATION_RECEIVE_SHORTCUT_ICLOUD_URL = IS_STAGE_APP
   ? 'https://www.icloud.com/shortcuts/d012eef84bed4d14a4b2319c716ad4d8'
-  : 'https://www.icloud.com/shortcuts/1ab2185798264ead9cf9308cd4c5e9a1'; // TODO: 신 프로덕션 링크
+  : 'https://www.icloud.com/shortcuts/e41bf949a86940bcbb18d1d41cd9c64b';
 
 /** @deprecated 이름 호환 — [신] 문자 단축어. 신규 코드는 NEW_SMS_RECEIVE_SHORTCUT_ICLOUD_URL */
 export const SMS_RECEIVE_SHORTCUT_ICLOUD_URL = NEW_SMS_RECEIVE_SHORTCUT_ICLOUD_URL;
