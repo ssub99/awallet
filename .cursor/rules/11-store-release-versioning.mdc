@@ -26,6 +26,18 @@ description: Version bumps, EAS build, store submission, EAS Update (OTA). Produ
 
 Keep in sync: `expo.version`, `expo.ios.buildNumber`, `expo.ios.infoPlist` (`CFBundleShortVersionString`, `CFBundleVersion`), `expo.android.versionCode`, and all three **`runtimeVersion`** fields (`ios`, `android`, `updates`). Optional: `package.json` `version` + lockfile.
 
+## Runtime version (OTA 수신 번호)
+
+설치된 앱은 표시 버전(`CFBundleShortVersionString` / `versionName`)이 아니라 **바이너리에 박힌 런타임**으로 OTA를 요청한다. `eas update`는 배포 시점의 `app.json` `runtimeVersion`으로 올라간다. 두 값이 다르면 그 빌드는 업데이트를 받지 못한다.
+
+스토어 버전을 올릴 때 런타임도 **같은 문자열**로, **같은 변경**에서 아래를 같이 옮긴다.
+
+- `app.json` — `ios.runtimeVersion`, `android.runtimeVersion`, `updates.runtimeVersion` (`expo.version`과 동일)
+- `ios/awallet/Supporting/Expo.plist` — `EXUpdatesRuntimeVersion`
+- `android/app/src/main/AndroidManifest.xml` — `expo.modules.updates.EXPO_RUNTIME_VERSION`
+
+`app.json`만 1.2.4로 올리고 `Expo.plist`를 1.2.3에 두면, 그 빌드는 1.2.3 OTA만 본다. 심사 후에 plist를 고쳐도 이미 나간 바이너리는 바뀌지 않는다. 수신 번호를 바꾸려면 그 런타임이 들어간 빌드를 다시 낸다.
+
 **Android native / Android Studio:** when bumping `expo.android.runtimeVersion`, also update the native Expo Updates runtime embedded in `android/app/src/main/AndroidManifest.xml`:
 
 - `expo.modules.updates.EXPO_RUNTIME_VERSION` must equal the new app/runtime version.
@@ -55,11 +67,11 @@ Files alone do not ship JS — run **`eas update`** with **`runtimeVersion`** an
 ## Order
 
 1. Bump only the **relevant** targets (main app + widgets if policy requires).  
-2. Align **`app.json`** with the binary you will build, including all runtimeVersion fields.  
-3. Align Android native OTA settings in `AndroidManifest.xml` and `build.gradle` when Android Studio / Gradle builds are part of the release.  
+2. Align **`app.json`** with the binary you will build, including all runtimeVersion fields, **and** `Expo.plist` `EXUpdatesRuntimeVersion` to that same string.  
+3. Align Android native OTA settings in `AndroidManifest.xml` (`EXPO_RUNTIME_VERSION` = that runtime) and `build.gradle` when Android Studio / Gradle builds are part of the release.  
 4. Build with the correct **EAS profile** or Android Studio variant.  
 5. For JS-only fixes: **`eas update`** — matching runtime + channel.
 
 ## Do not
 
-Mix **production** and **stage** build numbers or plists; publish OTA with wrong **channel** / **runtimeVersion**; assume version lives in **`eas.json`** (it does not — use **`app.json`** + native + optional **`package.json`**).
+Mix **production** and **stage** build numbers or plists; publish OTA with wrong **channel** / **runtimeVersion**; bump `expo.version` without moving `Expo.plist` and `AndroidManifest.xml` runtime to the same value; assume version lives in **`eas.json`** (it does not — use **`app.json`** + native + optional **`package.json`**).
