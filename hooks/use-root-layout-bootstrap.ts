@@ -53,6 +53,13 @@ import { AppState, AppStateStatus, Platform } from 'react-native';
 /** 첫 화면이 release 못 할 때 스플래시 고착 방지 */
 const FIRST_SCREEN_SPLASH_FALLBACK_MS = 5000;
 
+/**
+ * expo-splash-screen Android exit 기본 400ms.
+ * 이 애니메이션이 끝나기 전에 Alert를 띄우면 시스템 스플래시 뒤에 가려진다.
+ * ponytail: 네이티브 duration이 400을 넘기면 알림이 다시 가릴 수 있다. 그때는 이 대기만 늘린다.
+ */
+const FORCE_UPDATE_ALERT_AFTER_SPLASH_MS = 500;
+
 interface StoreUpdateGateState {
   forceUpdate: boolean;
   message: string;
@@ -160,18 +167,6 @@ export function useRootLayoutBootstrap() {
   }, []);
 
   useEffect(() => {
-    if (!appIsReady || storeUpdateGate == null) {
-      storeAlertPresentedRef.current = false;
-      return;
-    }
-    if (storeAlertPresentedRef.current) return;
-    storeAlertPresentedRef.current = true;
-    showStoreUpdateAlert(storeUpdateGate.forceUpdate, storeUpdateGate.message, () => {
-      setStoreUpdateGate(null);
-    });
-  }, [appIsReady, storeUpdateGate]);
-
-  useEffect(() => {
     if (storeUpdateGate == null) return undefined;
     const sub = AppState.addEventListener('change', async (next: AppStateStatus) => {
       if (next === 'background' || next === 'inactive') {
@@ -222,6 +217,43 @@ export function useRootLayoutBootstrap() {
     }
     await SplashScreen.hideAsync();
   }, []);
+
+  useEffect(() => {
+    if (!appIsReady || storeUpdateGate == null) {
+      storeAlertPresentedRef.current = false;
+      return;
+    }
+    if (storeAlertPresentedRef.current) return;
+    storeAlertPresentedRef.current = true;
+
+    let cancelled = false;
+    const present = () => {
+      if (cancelled) return;
+      showStoreUpdateAlert(storeUpdateGate.forceUpdate, storeUpdateGate.message, () => {
+        setStoreUpdateGate(null);
+      });
+    };
+
+    if (!storeUpdateGate.forceUpdate) {
+      present();
+      return;
+    }
+
+    void (async () => {
+      try {
+        await hideNativeSplash();
+        await new Promise<void>((resolve) => {
+          setTimeout(resolve, FORCE_UPDATE_ALERT_AFTER_SPLASH_MS);
+        });
+      } finally {
+        present();
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [appIsReady, storeUpdateGate, hideNativeSplash]);
 
   // 첫 실화면(온보딩/홈)이 release 할 때까지 네이티브 스플래시 유지 — 중간 스피너 방지
   useEffect(() => {
