@@ -80,6 +80,9 @@ export interface QuickInputFieldProps extends Omit<TextInputProps, 'style'> {
    * 문장 변경·취소만 막고, editable은 유지해 키패드를 내리지 않는다. 보내기는 sendDisabled로 별도 제어.
    */
   inputLocked?: boolean;
+
+  /** 전송 버튼 이벤트 screen_name. 체험 중에는 /tutorial */
+  analyticsScreenName?: string;
 }
 
 /**
@@ -98,6 +101,7 @@ export const QuickInputField = forwardRef<TextInputInstance, QuickInputFieldProp
       sendLoading = false,
       sendDisabled = false,
       inputLocked = false,
+      analyticsScreenName = '/home',
       ...textInputProps
     },
     ref
@@ -198,7 +202,7 @@ export const QuickInputField = forwardRef<TextInputInstance, QuickInputFieldProp
               onPress={() => {
                 if (!hasValue || sendLoading || sendDisabled) return;
                 void logEvent('btn', {
-                  screen_name: '/home',
+                  screen_name: analyticsScreenName,
                   target: 'sentence',
                 });
                 onSend?.();

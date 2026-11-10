@@ -146,6 +146,8 @@ export type QuickInputRecordInboxProps = {
   addLoading?: boolean;
   /** 원문·카드·페이저 등장 모션(RECORD_INBOX_ENTER_DURATION_MS) 완료 */
   onEnterAnimationComplete?: () => void;
+  /** 카드 버튼 이벤트 screen_name. 체험 중에는 /tutorial */
+  analyticsScreenName?: string;
 };
 
 function formatPagerLabel(index: number, total: number): string {
@@ -464,6 +466,7 @@ export function QuickInputRecordInbox({
   onDismiss,
   addLoading = false,
   onEnterAnimationComplete,
+  analyticsScreenName = RECORD_INBOX_ANALYTICS_SCREEN_NAME,
 }: QuickInputRecordInboxProps) {
   const colorScheme = useColorScheme();
   const palette = colors[colorScheme ?? 'light'];
@@ -675,7 +678,7 @@ export function QuickInputRecordInbox({
    */
   const finishNextRoll = useCallback(() => {
     void logEvent('btn', {
-      screen_name: RECORD_INBOX_ANALYTICS_SCREEN_NAME,
+      screen_name: analyticsScreenName,
       target: 'receive-cardadd-order-next',
     });
     if (IS_ANDROID) {
@@ -690,11 +693,11 @@ export function QuickInputRecordInbox({
     });
     progress.set(0);
     revealSettledStack();
-  }, [commitNext, progress, revealSettledStack, safeIndex]);
+  }, [analyticsScreenName, commitNext, progress, revealSettledStack, safeIndex]);
 
   const finishPrevScrub = useCallback(() => {
     void logEvent('btn', {
-      screen_name: RECORD_INBOX_ANALYTICS_SCREEN_NAME,
+      screen_name: analyticsScreenName,
       target: 'receive-cardadd-order-prev',
     });
     if (IS_ANDROID) {
@@ -709,7 +712,7 @@ export function QuickInputRecordInbox({
     });
     progress.set(0);
     revealSettledStack();
-  }, [commitPrev, progress, revealSettledStack, safeIndex]);
+  }, [analyticsScreenName, commitPrev, progress, revealSettledStack, safeIndex]);
 
   const resetConsumeMotion = useCallback(() => {
     progress.set(0);
@@ -856,7 +859,7 @@ export function QuickInputRecordInbox({
         return;
       }
       void logEvent('btn', {
-        screen_name: RECORD_INBOX_ANALYTICS_SCREEN_NAME,
+        screen_name: analyticsScreenName,
         target:
           action === 'confirm' ? 'receive-cardadd-confirm' : 'receive-cardadd-cancel',
       });
@@ -898,6 +901,7 @@ export function QuickInputRecordInbox({
       );
     },
     [
+      analyticsScreenName,
       finishCancelConsume,
       finishConfirmConsume,
       isConsuming,
@@ -1076,11 +1080,11 @@ export function QuickInputRecordInbox({
   // Android: 내비 inset 위에 시안 32를 더해 핸들↔OS 인디케이터 여백을 시안과 동일하게.
   const handleScreenPrev = useCallback(() => {
     void logEvent('btn', {
-      screen_name: RECORD_INBOX_ANALYTICS_SCREEN_NAME,
+      screen_name: analyticsScreenName,
       target: 'receive-cardadd-screen-prev',
     });
     onDismiss?.();
-  }, [onDismiss]);
+  }, [analyticsScreenName, onDismiss]);
 
   // inset이 0이면 edge-to-edge 3-button 폴백(48)+시안 32.
   const pagerBottom =

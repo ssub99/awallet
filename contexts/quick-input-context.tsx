@@ -1477,7 +1477,13 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   /** 기록 수신함 카테고리 단독 시트에서 수정 중인 아이템 */
   const recordInboxCategoryItemIdRef = useRef<string | null>(null);
 
-  /** 가기록 시트 analytics — 기록 수신함이면 screen_name=/record-inbox */
+  /** 체험 세션 중이면 실사용 이벤트의 screen_name을 /tutorial로 덮는다. */
+  const screenNameDuringTutorial = (fallback: string) =>
+    tutorialCreateSessionRef.current || tutorialRecordInboxItemsRef.current != null
+      ? '/tutorial'
+      : fallback;
+
+  /** 가기록 시트 analytics — 기록 수신함이면 screen_name=/record-inbox, 체험 중이면 /tutorial */
   const logRecordSheetEvent = useCallback(
     (eventName: string, target: string, extra?: Record<string, unknown>) => {
       logExpenseRecordSheetEvent(
@@ -1486,7 +1492,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         target,
         extra,
         recordInboxEditingItemIdRef.current != null
-          ? RECORD_INBOX_ANALYTICS_SCREEN_NAME
+          ? screenNameDuringTutorial(RECORD_INBOX_ANALYTICS_SCREEN_NAME)
           : null,
       );
     },
@@ -1993,6 +1999,11 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }, [clearTutorialReceiveFocus]);
 
   const handleTutorialReceivePress = useCallback(() => {
+    // main_tutorial_record-inbox-start_ui (엑셀: tutorial / record-inbox-start / ui)
+    void logEvent('ui', {
+      screen_name: '/tutorial',
+      target: 'record-inbox-start',
+    });
     clearTutorialReceiveFlowTimers();
     clearTutorialCreate();
     tutorialRecordInboxFocusVisibleRef.current = false;
@@ -2031,6 +2042,11 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
    * 3) 잠금 상태에서 샘플 문장 타이핑 연출 (키패드는 유지)
    */
   const handleTutorialCreatePress = useCallback(() => {
+    // main_tutorial_simple-creation-start_ui (엑셀: tutorial / simple-creation-start / ui)
+    void logEvent('ui', {
+      screen_name: '/tutorial',
+      target: 'simple-creation-start',
+    });
     clearTutorialReceiveFlowTimers();
     clearTutorialCreate();
     setTutorialReceiveConfirmVisible(false);
@@ -2547,6 +2563,11 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
 
   /** 체험 완료 CTA → 완료 카드·추가 딤만 걷고 간편입력 유지 */
   const handleTutorialReceiveCompleteStart = useCallback(() => {
+    // main_tutorial_record-inbox-complete_btn (엑셀: tutorial / record-inbox-complete / btn)
+    void logEvent('btn', {
+      screen_name: '/tutorial',
+      target: 'record-inbox-complete',
+    });
     tutorialSuppressAndroidKeyboardHideRef.current = false;
     tutorialCloseInboxWithoutKeyboardRef.current = false;
     setTutorialReceiveCompleteVisible(false);
@@ -2558,6 +2579,11 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
 
   /** 생성 체험 완료 CTA → 완료 카드·딤만 걷고 간편입력 유지 */
   const handleTutorialCreateCompleteStart = useCallback(() => {
+    // main_tutorial_simple-creation-complete_btn (엑셀: tutorial / simple-creation-complete / btn)
+    void logEvent('btn', {
+      screen_name: '/tutorial',
+      target: 'simple-creation-complete',
+    });
     tutorialSuppressAndroidKeyboardHideRef.current = false;
     tutorialCreateCompleteVisibleRef.current = false;
     setTutorialCreateCompleteVisible(false);
@@ -2713,7 +2739,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     }
     // main_quick-input_record-inbox_ui (엑셀: quick-input / record-inbox / ui)
     void logEvent('ui', {
-      screen_name: '/home',
+      screen_name: screenNameDuringTutorial('/home'),
       target: 'record-inbox',
     });
     if (isQuickInputCalculatorMounted || isQuickInputCalculatorVisible) {
@@ -3196,7 +3222,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const handleRecordInboxChange = useCallback(
     (item: RecordInboxItem) => {
       void logEvent('btn', {
-        screen_name: RECORD_INBOX_ANALYTICS_SCREEN_NAME,
+        screen_name: screenNameDuringTutorial(RECORD_INBOX_ANALYTICS_SCREEN_NAME),
         target: 'receive-cardadd-modify',
       });
       openRecordInboxItemEditor(item);
@@ -3225,7 +3251,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       return;
     }
     void logEvent('btn', {
-      screen_name: RECORD_INBOX_ANALYTICS_SCREEN_NAME,
+      screen_name: screenNameDuringTutorial(RECORD_INBOX_ANALYTICS_SCREEN_NAME),
       target: 'receive-cardadd-category-close',
     });
     closeRecordInboxCategorySheet();
@@ -3234,7 +3260,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const handleRecordInboxCategoryPress = useCallback(
     (item: RecordInboxItem) => {
       void logEvent('btn', {
-        screen_name: RECORD_INBOX_ANALYTICS_SCREEN_NAME,
+        screen_name: screenNameDuringTutorial(RECORD_INBOX_ANALYTICS_SCREEN_NAME),
         target: 'receive-cardadd-category',
       });
       const categoryType = item.card.recordType === 'income' ? 'income' : 'expense';
@@ -3272,7 +3298,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         return;
       }
       void logEvent('list', {
-        screen_name: RECORD_INBOX_ANALYTICS_SCREEN_NAME,
+        screen_name: screenNameDuringTutorial(RECORD_INBOX_ANALYTICS_SCREEN_NAME),
         target: 'receive-cardadd-category-option',
         category: category.label,
       });
@@ -4385,7 +4411,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     }
 
     void logEvent('ui', {
-      screen_name: '/home',
+      screen_name: screenNameDuringTutorial('/home'),
       target: 'sentence',
     });
 
@@ -4647,7 +4673,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       return;
     }
     void logEvent('btn', {
-      screen_name: '/home',
+      screen_name: screenNameDuringTutorial('/home'),
       target: 'sentence-cardadd-confirm',
     });
     isConfirmAddInFlightRef.current = true;
@@ -4728,7 +4754,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
 
   const handleConfirmCardCancel = useCallback(() => {
     void logEvent('btn', {
-      screen_name: '/home',
+      screen_name: screenNameDuringTutorial('/home'),
       target: 'sentence-cardadd-cancel',
     });
     pendingRecordRef.current = null;
@@ -4739,7 +4765,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
 
   const handleConfirmCardChange = useCallback(() => {
     void logEvent('btn', {
-      screen_name: '/home',
+      screen_name: screenNameDuringTutorial('/home'),
       target: 'sentence-cardadd-modify',
     });
     const pending = pendingRecordRef.current;
@@ -5205,7 +5231,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       options.fromConfirm === true;
     if (isRecordInboxEdit && !fromConfirm) {
       void logEvent('btn', {
-        screen_name: RECORD_INBOX_ANALYTICS_SCREEN_NAME,
+        screen_name: screenNameDuringTutorial(RECORD_INBOX_ANALYTICS_SCREEN_NAME),
         target: 'cancel',
       });
     }
@@ -5352,7 +5378,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       return;
     }
     void logEvent('component', {
-      screen_name: '/home',
+      screen_name: screenNameDuringTutorial('/home'),
       target: 'sentence-cardadd',
     });
   }, [confirmCardData]);
@@ -5845,6 +5871,11 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                       }
                     >
                       <QuickInputRecordInbox
+                        analyticsScreenName={
+                          tutorialRecordInboxItems != null
+                            ? '/tutorial'
+                            : RECORD_INBOX_ANALYTICS_SCREEN_NAME
+                        }
                         items={displayedRecordInboxItems}
                         index={recordInboxIndex}
                         onIndexChange={handleRecordInboxIndexChange}
@@ -6024,6 +6055,11 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                             starRotate={overlayStarRotate}
                             onFocus={handleQuickInputFieldFocus}
                             showSoftInputOnFocus
+                            analyticsScreenName={
+                              tutorialCreateSession || tutorialRecordInboxItems != null
+                                ? '/tutorial'
+                                : '/home'
+                            }
                             onSend={handleSend}
                             onCancel={handleCancel}
                             sendLoading={isQuickInputSendLoading}
