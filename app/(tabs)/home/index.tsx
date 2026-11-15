@@ -9,7 +9,7 @@ import { CalendarMain, type CalendarExternalView } from '@/components/ui/calenda
 import { NoticeCard } from '@/components/ui/notice-card';
 import { HomeMonthStatusCard } from '@/components/ui/home-month-status-card';
 import { Icon } from '@/components/ui/icon';
-import { QuickInputShort } from '@/components/ui/quick-input-short';
+import { QuickInputShort, type QuickInputShortHandle } from '@/components/ui/quick-input-short';
 import { MonthData, YearView, YearViewRef } from '@/components/ui/year-view';
 import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';
@@ -104,6 +104,7 @@ export default function HomeScreen() {
   const openQuickInputRecordInboxFromGuideRef = useRef(openQuickInputRecordInboxFromGuide);
   openQuickInputRecordInboxFromGuideRef.current = openQuickInputRecordInboxFromGuide;
   const isHomeFocusedRef = useRef(false);
+  const quickInputShortRef = useRef<QuickInputShortHandle>(null);
 
   const isQuickInputShortHidden = isQuickInputContentVisible && !isQuickInputShortVisible;
   const beginLoad = useCallback(() => {
@@ -756,8 +757,16 @@ export default function HomeScreen() {
     if (!consumeHomePendingOpenRecordInbox()) {
       return;
     }
-    openQuickInputRecordInboxFromGuideRef.current(starScale, starRotate);
-  }, [isContentReady, starRotate, starScale]);
+    // 안내 카드/알림으로 들어와도 홈 dim 버튼을 누른 것과 같은 방식으로 간편입력을 연다.
+    // (dim 버튼 위치 측정 → 긴 간편입력 영역 노출 → 키패드 올라오는 모션)
+    openQuickInputRecordInboxFromGuideRef.current(starScale, starRotate, () => {
+      if (quickInputShortRef.current) {
+        quickInputShortRef.current.openWithoutLog();
+      } else {
+        showQuickInput(starScale, starRotate);
+      }
+    });
+  }, [isContentReady, showQuickInput, starRotate, starScale]);
 
   useFocusEffect(
     useCallback(() => {
@@ -1120,6 +1129,7 @@ export default function HomeScreen() {
           pointerEvents={isQuickInputShortHidden ? 'none' : 'box-none'}
         >
           <QuickInputShort
+            controlRef={quickInputShortRef}
             bottom={quickInputBottom}
             onPress={handleQuickInputPress}
             starScale={starScale}

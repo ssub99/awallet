@@ -219,6 +219,8 @@ const TUTORIAL_CREATE_ADD_HINT_AFTER_KEYBOARD_MS = 1000;
 const TUTORIAL_CREATE_ADD_INDICATOR_MS = 1000;
 /** 수신 체험 — 수신함 원문·카드 등장 후 카테고리/추가 딤까지 */
 const TUTORIAL_RECEIVE_DIM_AFTER_ENTER_MS = 1000;
+/** 안내 카드 탭: 간편입력 메인이 보인 뒤 기록 수신함을 열기까지 지연 */
+const GUIDE_RECORD_INBOX_OPEN_DELAY_MS = 450;
 /** 튜토리얼: 수신함 가상 뱃지 등장 */
 const TUTORIAL_VIRTUAL_BADGE_ENTER_MS = 180;
 const TUTORIAL_VIRTUAL_BADGE_ENTER = ZoomIn.duration(TUTORIAL_VIRTUAL_BADGE_ENTER_MS).easing(
@@ -317,11 +319,12 @@ interface QuickInputContextValue {
   hideQuickInput: (options?: HideQuickInputOptions) => void;
   /**
    * 홈 「기록 수신 안내」카드 → 간편입력 표시 직후 기록 수신함 오픈.
-   * (키패드 자동 포커스 없음)
+   * openMain을 주면 홈 dim 버튼을 누른 것과 같은 방식으로 간편입력을 연다.
    */
   openQuickInputRecordInboxFromGuide: (
     starScale: AnimatedValue,
     starRotate: AnimatedValue,
+    openMain?: () => void,
   ) => void;
   quickInputText: string;
   setQuickInputText: (text: string) => void;
@@ -1471,6 +1474,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   const shouldFollowKeyboardRef = useRef(false);
   const lastShortBottomRef = useRef<number>(KEYBOARD_GAP);
   const pendingAutoFocusRef = useRef(false);
+  /** 안내 카드 탭 → 간편입력 오픈 후 수신함을 열 예약. true면 간편입력을 키패드 없이 연다. */
+  const pendingOpenRecordInboxRef = useRef(false);
   const pendingRecordRef = useRef<PendingParseRecord | null>(null);
   /** 기록 수신함 카드 「변경」으로 수정 시트 연 경우 — 확인 시 해당 아이템 갱신 */
   const recordInboxEditingItemIdRef = useRef<string | null>(null);
@@ -2478,7 +2483,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         clearTimeout(hideFinishTimeoutRef.current);
         hideFinishTimeoutRef.current = null;
       }
-      const autoFocus = options?.autoFocus ?? true;
+      // 안내 카드로 수신함을 열 예약이 있으면 키패드 없이 연다. (그 외에는 기본 true)
+      const autoFocus = options?.autoFocus ?? !pendingOpenRecordInboxRef.current;
       pendingAutoFocusRef.current = autoFocus;
       setShouldFollowKeyboard(autoFocus);
       starRefs.current = { starScale, starRotate };
@@ -2846,8 +2852,6 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     shortBottomFromScreen,
   ]);
 
-  const pendingOpenRecordInboxRef = useRef(false);
-
   const openRecordInboxIfReady = useCallback(async () => {
     clearTutorialReceiveFocus();
     const goSettingsRecordInbox = () => {
@@ -2893,35 +2897,71 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     void openRecordInboxIfReady();
   }, [openRecordInboxIfReady]);
 
+  const guideRecordInboxOpenTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   /**
-   * 안내 카드용: 간편입력 연 뒤 기록 수신함까지 한 경로로 연다.
+   * 간편입력 메인이 먼저 보이도록 지연 후 수신함 오픈을 flush.
+   * 타이머는 하나만 유지한다. 지연 중 간편입력이 닫히면 예약을 버려
+   * 다음 일반 진입에서 수신함이 열리는 일이 없게 한다.
+   */
+  const scheduleFlushPendingOpenRecordInbox = useCallback(() => {
+    if (guideRecordInboxOpenTimeoutRef.current != null) {
+      return;
+    }
+    guideRecordInboxOpenTimeoutRef.current = setTimeout(() => {
+      guideRecordInboxOpenTimeoutRef.current = null;
+      if (!isQuickInputVisibleRef.current) {
+        pendingOpenRecordInboxRef.current = false;
+        return;
+      }
+      flushPendingOpenRecordInbox();
+    }, GUIDE_RECORD_INBOX_OPEN_DELAY_MS);
+  }, [flushPendingOpenRecordInbox]);
+
+  useEffect(() => {
+    return () => {
+      if (guideRecordInboxOpenTimeoutRef.current != null) {
+        clearTimeout(guideRecordInboxOpenTimeoutRef.current);
+        guideRecordInboxOpenTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
+  /**
+   * 안내 카드용: 간편입력 메인을 먼저 열고(키패드 없음), 짧은 지연 뒤 기록 수신함을 연다.
+   * 홈 dim 버튼을 거치지 않으므로, 수신함 경로의 진입 기준인 dim 이벤트를 여기서 대신 기록한다.
+   * source로 dim 버튼 탭과 구분한다.
+   *
+   * openMain: 홈 dim 버튼을 누른 것과 같은 방식으로 간편입력을 여는 함수.
+   * (dim 버튼 위치 측정 → 간편입력 긴 영역 노출 → 키패드 올라오는 모션까지 동일)
+   * 없으면 showQuickInput을 직접 호출한다.
    */
   const openQuickInputRecordInboxFromGuide = useCallback(
-    (starScale: AnimatedValue, starRotate: AnimatedValue) => {
-      pendingOpenRecordInboxRef.current = true;
-      showQuickInput(starScale, starRotate, undefined, { autoFocus: false });
-      // 이미 열려 있으면 visible effect가 안 도므로 레이아웃 후 직접 flush
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          flushPendingOpenRecordInbox();
-        });
+    (starScale: AnimatedValue, starRotate: AnimatedValue, openMain?: () => void) => {
+      void logEvent('component', {
+        screen_name: '/home',
+        target: 'dim',
+        source: 'record_card',
       });
+      pendingOpenRecordInboxRef.current = true;
+      if (openMain) {
+        openMain();
+      } else {
+        showQuickInput(starScale, starRotate);
+      }
+      // 이미 열려 있으면 visible effect가 안 도므로 직접 예약 (타이머는 중복 예약되지 않음)
+      scheduleFlushPendingOpenRecordInbox();
     },
-    [flushPendingOpenRecordInbox, showQuickInput],
+    [scheduleFlushPendingOpenRecordInbox, showQuickInput],
   );
 
   useEffect(() => {
     if (!isQuickInputVisible || !pendingOpenRecordInboxRef.current) {
       return;
     }
-    // 간편입력 레이어 커밋 후 수신함 오픈
-    const frame = requestAnimationFrame(() => {
-      flushPendingOpenRecordInbox();
-    });
-    return () => {
-      cancelAnimationFrame(frame);
-    };
-  }, [flushPendingOpenRecordInbox, isQuickInputVisible]);
+    // 간편입력 레이어 커밋 후 지연을 두고 수신함 오픈
+    scheduleFlushPendingOpenRecordInbox();
+  }, [scheduleFlushPendingOpenRecordInbox, isQuickInputVisible]);
 
   const handleQuickInputRecordInboxPress = useCallback(() => {
     const isTutorialReceiveFocus =

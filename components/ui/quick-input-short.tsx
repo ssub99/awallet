@@ -8,8 +8,8 @@ import { useQuickInputContext } from '@/contexts/quick-input-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { shouldApplyReactBlurOverlay } from '@/utils/expo-blur-platform';
 import { logEvent } from '@/utils/analytics';
-import type { ComponentRef } from 'react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import type { ComponentRef, Ref } from 'react';
+import { useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { Animated, Dimensions, LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-native';
 import Reanimated, {
   cancelAnimation,
@@ -153,11 +153,17 @@ function RotatingGradientBorder({ width }: { width: number }) {
   );
 }
 
+/** 홈에서 dim 버튼을 누른 것과 같은 동작을 코드로 실행하기 위한 핸들 (이벤트 로그는 남기지 않는다) */
+export interface QuickInputShortHandle {
+  openWithoutLog: () => void;
+}
+
 interface QuickInputShortProps {
   bottom: number;
   onPress: (shortBottomFromScreen: number) => void;
   starScale: Animated.Value;
   starRotate: Animated.Value;
+  controlRef?: Ref<QuickInputShortHandle>;
 }
 
 export function QuickInputShort({
@@ -165,6 +171,7 @@ export function QuickInputShort({
   onPress,
   starScale,
   starRotate,
+  controlRef,
 }: QuickInputShortProps) {
   const colorScheme = useColorScheme();
   const palette = colors[colorScheme ?? 'light'] as ColorPalette;
@@ -204,6 +211,8 @@ export function QuickInputShort({
     });
   }, [onPress, bottom]);
 
+  useImperativeHandle(controlRef, () => ({ openWithoutLog: handlePress }), [handlePress]);
+
   const fillOverlay = shouldApplyReactBlurOverlay() ? palette.fill : undefined;
   const badgeLabel =
     recordInboxUnreadCount > 99 ? '99+' : String(recordInboxUnreadCount);
@@ -218,6 +227,7 @@ export function QuickInputShort({
         void logEvent('component', {
           screen_name: '/home',
           target: 'dim',
+          source: 'tap',
         });
         handlePress();
       }}
