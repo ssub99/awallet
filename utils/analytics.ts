@@ -288,6 +288,9 @@ export interface ExpenseLifecycleAnalyticsPayload {
  */
 export type ExpenseSimpleCreationValue = boolean | 'unknown';
 
+/** 간편입력 안에서의 생성 경로. record_created / created_complete의 path 속성 값 */
+export type SimpleCreationPath = 'record_inbox' | 'sentence';
+
 export interface ExpenseCreationCompletionPayload {
   repeat_count: number;
   period_unit?: ExpensePeriodUnit;
@@ -300,6 +303,8 @@ export interface ExpenseCreationCompletionPayload {
   simple_creation: ExpenseSimpleCreationValue;
   /** 메모 입력 여부 */
   memo: boolean;
+  /** 간편입력 생성 경로. simple_creation=true인 생성 이벤트에만 붙는다. */
+  path?: SimpleCreationPath;
 }
 
 export interface ChallengeLifecycleAnalyticsPayload {
@@ -382,7 +387,11 @@ export function mapRefundOptionToAnalytics(
 export function logRecordLifecycleCount(
   action: 'create' | 'delete',
   entity: RecordLifecycleEntity,
-  extra?: { memo?: boolean; simple_creation?: ExpenseSimpleCreationValue },
+  extra?: {
+    memo?: boolean;
+    simple_creation?: ExpenseSimpleCreationValue;
+    path?: SimpleCreationPath;
+  },
 ): void {
   const eventName = action === 'create' ? 'record_created' : 'record_deleted';
   const completeEventName = action === 'create' ? 'created_complete' : 'deleted_complete';
@@ -398,6 +407,9 @@ export function logRecordLifecycleCount(
   if (extra?.simple_creation !== undefined) {
     payload.simple_creation = extra.simple_creation;
   }
+  if (extra?.path) {
+    payload.path = extra.path;
+  }
   void logEvent(eventName, payload);
   const completePayload: Record<string, unknown> = {
     record_type: entity,
@@ -409,6 +421,9 @@ export function logRecordLifecycleCount(
   }
   if (extra?.simple_creation !== undefined) {
     completePayload.simple_creation = extra.simple_creation;
+  }
+  if (extra?.path) {
+    completePayload.path = extra.path;
   }
   void logEvent(completeEventName, completePayload);
 }
@@ -471,6 +486,7 @@ export function logExpenseCreateComplete(
     period_unit,
     simple_creation: completion.simple_creation,
     memo: completion.memo,
+    ...(completion.path ? { path: completion.path } : {}),
   });
 }
 

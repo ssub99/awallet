@@ -14,6 +14,7 @@ import {
   type ExpenseSettlementKind,
   type ExpenseSimpleCreationValue,
   type ExpenseWeekendOptionAnalytics,
+  type SimpleCreationPath,
 } from '@/utils/analytics';
 import { registerReviewPromptLifetimeCreations } from '@/utils/app-store-review-lifetime';
 import { scheduleMaybePromptWriteReview } from '@/utils/app-store-review-scheduler';
@@ -331,6 +332,8 @@ export type BuildExpenseCreationCompletionOpts = {
   repeatCountOverride?: number;
   /** 간편입력 경로 여부. 기본은 false (생성 화면 경로) */
   simpleCreation?: boolean;
+  /** 간편입력 생성 경로. simpleCreation=true일 때만 payload에 실린다. */
+  path?: SimpleCreationPath;
 };
 
 function resolveSimpleCreation(
@@ -348,7 +351,7 @@ function resolveSimpleCreation(
   return 'unknown';
 }
 
-export function buildExpenseCreationCompletionPayload(
+function buildExpenseCreationCompletionPayloadBase(
   record: ExpenseRecord,
   opts?: BuildExpenseCreationCompletionOpts,
 ): ExpenseCreationCompletionPayload {
@@ -394,6 +397,18 @@ export function buildExpenseCreationCompletionPayload(
   };
 }
 
+export function buildExpenseCreationCompletionPayload(
+  record: ExpenseRecord,
+  opts?: BuildExpenseCreationCompletionOpts,
+): ExpenseCreationCompletionPayload {
+  const base = buildExpenseCreationCompletionPayloadBase(record, opts);
+  // path는 간편입력 생성(simple_creation=true)에만 붙인다.
+  if (opts?.path && base.simple_creation === true) {
+    return { ...base, path: opts.path };
+  }
+  return base;
+}
+
 export type CreateExpenseOptions = {
   /** expense-record 등에서 한 번에 집계할 때 개별 호출 로그 생략 */
   skipLifecycleLog?: boolean;
@@ -432,6 +447,8 @@ export type CreateExpensesBatchOptions = {
   creationCompletionRepeatCount?: number;
   /** 간편입력 경로 여부. 기본은 false (생성 화면 경로) */
   simpleCreation?: boolean;
+  /** 간편입력 생성 경로 (문장 / 기록 수신함). simpleCreation=true일 때만 쓰인다. */
+  path?: SimpleCreationPath;
 };
 
 export async function createExpensesBatch(
@@ -490,6 +507,7 @@ export async function createExpensesBatch(
       buildExpenseCreationCompletionPayload(record, {
         repeatCountOverride: batchRepeatCount,
         simpleCreation: batchOptions?.simpleCreation === true,
+        path: batchOptions?.path,
       }),
     );
   }
@@ -503,6 +521,7 @@ export async function createExpensesBatch(
       buildExpenseCreationCompletionPayload(anchor, {
         repeatCountOverride: batchRepeatCount,
         simpleCreation: batchOptions?.simpleCreation === true,
+        path: batchOptions?.path,
       }),
     );
   }

@@ -4,6 +4,7 @@ import { scheduleMaybePromptWriteReview } from '@/utils/app-store-review-schedul
 import {
   logRecordLifecycleCount,
   type ExpenseSimpleCreationValue,
+  type SimpleCreationPath,
 } from '@/utils/analytics';
 import { generateRecordId } from './id-generator';
 
@@ -26,6 +27,8 @@ export interface IncomeRecord {
 export type CreateIncomeOptions = {
   /** 간편입력 경로 여부. 기본은 false (생성 화면 경로) */
   simpleCreation?: boolean;
+  /** 간편입력 생성 경로 (문장 / 기록 수신함). simpleCreation=true일 때만 쓰인다. */
+  path?: SimpleCreationPath;
 };
 
 function resolveIncomeSimpleCreation(
@@ -111,6 +114,7 @@ export async function createIncome(
   logRecordLifecycleCount('create', 'income', {
     memo,
     simple_creation: resolveIncomeSimpleCreation(income, options),
+    path: resolveIncomeSimpleCreation(income, options) === true ? options?.path : undefined,
   });
   await registerReviewPromptLifetimeCreations(1);
   scheduleMaybePromptWriteReview();

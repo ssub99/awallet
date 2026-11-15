@@ -55,7 +55,7 @@ import { useToast } from '@/contexts/toast-context';
 import { publishCalendarTarget } from '@/hooks/calendar-events';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { useRecordFormMemoKeyboard } from '@/hooks/use-record-form-memo-keyboard';
-import { QUICK_INPUT_ANALYTICS_SCREEN_NAME, logEvent } from '@/utils/analytics';
+import { QUICK_INPUT_ANALYTICS_SCREEN_NAME, logEvent, type SimpleCreationPath } from '@/utils/analytics';
 import { getApiSecurityHeaders } from '@/utils/api-security-headers';
 import { resolveOnboardingTutorialExperimentDecision } from '@/utils/onboarding-tutorial-experiment';
 import { isAtLeastVersion, QUICK_INPUT_MIN_VERSION } from '@/utils/app-version';
@@ -1042,9 +1042,11 @@ async function persistPendingParseRecord(
     getPaymentSubtypesCached: () => Promise<PaymentSubtype[]>;
     refresh: () => Promise<void>;
     showToast: (message: string) => void;
+    /** 간편입력 생성 경로. record_created / created_complete의 path로 기록된다. */
+    path: SimpleCreationPath;
   },
 ): Promise<boolean> {
-  const { getPaymentSubtypesCached, refresh, showToast } = deps;
+  const { getPaymentSubtypesCached, refresh, showToast, path } = deps;
   try {
     const parsedDate = parsePendingDate(pending.date);
     if (!parsedDate) {
@@ -1107,7 +1109,7 @@ async function persistPendingParseRecord(
         memo: pending.memo,
         createdVia: 'simple',
       };
-      await createIncome(incomeRecord, { simpleCreation: true });
+      await createIncome(incomeRecord, { simpleCreation: true, path });
       await refreshWidgetWithCurrentMonth().catch(() => {});
       const actualDateKey = actualDate.replace(/\./g, '-');
       const savedDate = new Date(
@@ -1266,6 +1268,7 @@ async function persistPendingParseRecord(
     await createExpensesBatch(recordsToSave, {
       creationCompletionRepeatCount: recordsToSave.length,
       simpleCreation: true,
+      path,
     });
     await refreshWidgetWithCurrentMonth().catch(() => {});
 
@@ -3109,6 +3112,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         // 수신함은 자체 스켈레톤을 표시한다. Android 전역 로딩 overlay 교대로 카드가 재합성되지 않게 한다.
         refresh: () => refresh({ showLoading: false }),
         showToast,
+        path: 'record_inbox',
       });
       if (!saved) {
         return 'abort';
@@ -4777,6 +4781,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         getPaymentSubtypesCached,
         refresh,
         showToast,
+        path: 'sentence',
       });
       if (!saved) {
         return;
