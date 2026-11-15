@@ -59,6 +59,7 @@ import { QUICK_INPUT_ANALYTICS_SCREEN_NAME, logEvent } from '@/utils/analytics';
 import { getApiSecurityHeaders } from '@/utils/api-security-headers';
 import { resolveOnboardingTutorialExperimentDecision } from '@/utils/onboarding-tutorial-experiment';
 import { isAtLeastVersion, QUICK_INPUT_MIN_VERSION } from '@/utils/app-version';
+import type { HomeOpenRecordInboxSource } from '@/utils/home-open-record-inbox-pending';
 import type { RecordInboxItem } from '@/utils/record-inbox-types';
 import { RECORD_INBOX_ANALYTICS_SCREEN_NAME } from '@/utils/record-inbox-types';
 import {
@@ -320,11 +321,13 @@ interface QuickInputContextValue {
   /**
    * 홈 「기록 수신 안내」카드 → 간편입력 표시 직후 기록 수신함 오픈.
    * openMain을 주면 홈 dim 버튼을 누른 것과 같은 방식으로 간편입력을 연다.
+   * source는 진입 경로 (안내 카드 record_card / Android 뱃지 알림 notice_badge). 기본 record_card.
    */
   openQuickInputRecordInboxFromGuide: (
     starScale: AnimatedValue,
     starRotate: AnimatedValue,
     openMain?: () => void,
+    source?: HomeOpenRecordInboxSource,
   ) => void;
   quickInputText: string;
   setQuickInputText: (text: string) => void;
@@ -2928,7 +2931,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }, []);
 
   /**
-   * 안내 카드용: 간편입력 메인을 먼저 열고(키패드 없음), 짧은 지연 뒤 기록 수신함을 연다.
+   * 안내 카드(및 Android 뱃지 알림 탭)용: 간편입력 메인을 먼저 열고(키패드 없음), 짧은 지연 뒤 기록 수신함을 연다.
    * 홈 dim 버튼을 거치지 않으므로, 수신함 경로의 진입 기준인 dim 이벤트를 여기서 대신 기록한다.
    * source로 dim 버튼 탭과 구분한다.
    *
@@ -2937,11 +2940,16 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
    * 없으면 showQuickInput을 직접 호출한다.
    */
   const openQuickInputRecordInboxFromGuide = useCallback(
-    (starScale: AnimatedValue, starRotate: AnimatedValue, openMain?: () => void) => {
+    (
+      starScale: AnimatedValue,
+      starRotate: AnimatedValue,
+      openMain?: () => void,
+      source: HomeOpenRecordInboxSource = 'record_card',
+    ) => {
       void logEvent('component', {
         screen_name: '/home',
         target: 'dim',
-        source: 'record_card',
+        source,
       });
       pendingOpenRecordInboxRef.current = true;
       if (openMain) {

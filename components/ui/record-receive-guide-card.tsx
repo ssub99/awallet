@@ -132,7 +132,7 @@ export function RecordReceiveGuideCard() {
     void logEvent('ui', { screen_name: pathname, target: 'record-receive-guide-card' });
     setVisible(false);
     // pending 먼저 → 홈 이동(replace 금지). 스택에 쌓인 화면은 걷고, 아니면 push.
-    setHomePendingOpenRecordInbox();
+    setHomePendingOpenRecordInbox('record_card');
     if (router.canDismiss()) {
       router.dismissTo('/home');
     } else {

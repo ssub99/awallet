@@ -754,18 +754,24 @@ export default function HomeScreen() {
     if (!isContentReady || !isHomeFocusedRef.current) {
       return;
     }
-    if (!consumeHomePendingOpenRecordInbox()) {
+    const openSource = consumeHomePendingOpenRecordInbox();
+    if (!openSource) {
       return;
     }
     // 안내 카드/알림으로 들어와도 홈 dim 버튼을 누른 것과 같은 방식으로 간편입력을 연다.
     // (dim 버튼 위치 측정 → 긴 간편입력 영역 노출 → 키패드 올라오는 모션)
-    openQuickInputRecordInboxFromGuideRef.current(starScale, starRotate, () => {
-      if (quickInputShortRef.current) {
-        quickInputShortRef.current.openWithoutLog();
-      } else {
-        showQuickInput(starScale, starRotate);
-      }
-    });
+    openQuickInputRecordInboxFromGuideRef.current(
+      starScale,
+      starRotate,
+      () => {
+        if (quickInputShortRef.current) {
+          quickInputShortRef.current.openWithoutLog();
+        } else {
+          showQuickInput(starScale, starRotate);
+        }
+      },
+      openSource,
+    );
   }, [isContentReady, showQuickInput, starRotate, starScale]);
 
   useFocusEffect(
