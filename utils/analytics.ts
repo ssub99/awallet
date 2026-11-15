@@ -220,6 +220,9 @@ export async function logEvent(
   }
 }
 
+/** Amplitude screen_name — 홈 딤 탭 이후 간편입력 메인 레이어 (체험 중에는 /tutorial) */
+export const QUICK_INPUT_ANALYTICS_SCREEN_NAME = '/quick-input';
+
 export type RecordLifecycleEntity = 'income' | 'expense';
 
 /** 소비: 일반 / 정기 / 할부. 반복·할부 저장 1회당 1건. */

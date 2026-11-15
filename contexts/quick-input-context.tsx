@@ -55,7 +55,7 @@ import { useToast } from '@/contexts/toast-context';
 import { publishCalendarTarget } from '@/hooks/calendar-events';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { useRecordFormMemoKeyboard } from '@/hooks/use-record-form-memo-keyboard';
-import { logEvent } from '@/utils/analytics';
+import { QUICK_INPUT_ANALYTICS_SCREEN_NAME, logEvent } from '@/utils/analytics';
 import { getApiSecurityHeaders } from '@/utils/api-security-headers';
 import { resolveOnboardingTutorialExperimentDecision } from '@/utils/onboarding-tutorial-experiment';
 import { isAtLeastVersion, QUICK_INPUT_MIN_VERSION } from '@/utils/app-version';
@@ -2739,7 +2739,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     }
     // main_quick-input_record-inbox_ui (엑셀: quick-input / record-inbox / ui)
     void logEvent('ui', {
-      screen_name: screenNameDuringTutorial('/home'),
+      screen_name: screenNameDuringTutorial(QUICK_INPUT_ANALYTICS_SCREEN_NAME),
       target: 'record-inbox',
     });
     if (isQuickInputCalculatorMounted || isQuickInputCalculatorVisible) {
@@ -4411,7 +4411,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     }
 
     void logEvent('ui', {
-      screen_name: screenNameDuringTutorial('/home'),
+      screen_name: screenNameDuringTutorial(QUICK_INPUT_ANALYTICS_SCREEN_NAME),
       target: 'sentence',
     });
 
@@ -4673,7 +4673,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       return;
     }
     void logEvent('btn', {
-      screen_name: screenNameDuringTutorial('/home'),
+      screen_name: screenNameDuringTutorial(QUICK_INPUT_ANALYTICS_SCREEN_NAME),
       target: 'sentence-cardadd-confirm',
     });
     isConfirmAddInFlightRef.current = true;
@@ -4754,7 +4754,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
 
   const handleConfirmCardCancel = useCallback(() => {
     void logEvent('btn', {
-      screen_name: screenNameDuringTutorial('/home'),
+      screen_name: screenNameDuringTutorial(QUICK_INPUT_ANALYTICS_SCREEN_NAME),
       target: 'sentence-cardadd-cancel',
     });
     pendingRecordRef.current = null;
@@ -4765,7 +4765,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
 
   const handleConfirmCardChange = useCallback(() => {
     void logEvent('btn', {
-      screen_name: screenNameDuringTutorial('/home'),
+      screen_name: screenNameDuringTutorial(QUICK_INPUT_ANALYTICS_SCREEN_NAME),
       target: 'sentence-cardadd-modify',
     });
     const pending = pendingRecordRef.current;
@@ -5378,7 +5378,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       return;
     }
     void logEvent('component', {
-      screen_name: screenNameDuringTutorial('/home'),
+      screen_name: screenNameDuringTutorial(QUICK_INPUT_ANALYTICS_SCREEN_NAME),
       target: 'sentence-cardadd',
     });
   }, [confirmCardData]);
@@ -6058,7 +6058,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                             analyticsScreenName={
                               tutorialCreateSession || tutorialRecordInboxItems != null
                                 ? '/tutorial'
-                                : '/home'
+                                : QUICK_INPUT_ANALYTICS_SCREEN_NAME
                             }
                             onSend={handleSend}
                             onCancel={handleCancel}

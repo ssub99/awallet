@@ -10,7 +10,7 @@ import { colors, type ColorPalette } from '@/constants/theme';
 import { typography, typographyLayout } from '@/constants/typography';
 import { pretendardTextStyle } from '@/constants/fonts';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { logEvent } from '@/utils/analytics';
+import { QUICK_INPUT_ANALYTICS_SCREEN_NAME, logEvent } from '@/utils/analytics';
 import { forwardRef, useImperativeHandle, useRef } from 'react';
 import {
   ActivityIndicator,
@@ -101,7 +101,7 @@ export const QuickInputField = forwardRef<TextInputInstance, QuickInputFieldProp
       sendLoading = false,
       sendDisabled = false,
       inputLocked = false,
-      analyticsScreenName = '/home',
+      analyticsScreenName = QUICK_INPUT_ANALYTICS_SCREEN_NAME,
       ...textInputProps
     },
     ref
