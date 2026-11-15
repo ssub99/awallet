@@ -492,6 +492,55 @@ type QuickInputEditDraft = {
   weekendOption: 'weekend' | 'friday' | 'monday';
 };
 
+/** 서버(LLM)가 영어 식별자로 내려보낼 수 있는 정기 주기 → 앱이 쓰는 한글 라벨 */
+const RECURRING_TYPE_ALIASES: Record<string, string> = {
+  daily: '매일',
+  weekly: '매주',
+  monthly: '매월',
+  '2weeks': '2주',
+  '3weeks': '3주',
+  '4weeks': '4주',
+  '2months': '2개월 마다',
+  '3months': '3개월 마다',
+  '4months': '4개월 마다',
+  '5months': '5개월 마다',
+  '6months': '6개월 마다',
+  weekdays: '주중',
+  weekends: '주말',
+};
+
+const RECURRING_TYPE_LABELS = new Set<string>([
+  '매일',
+  '매주',
+  '2주',
+  '3주',
+  '4주',
+  '매월',
+  '2개월 마다',
+  '3개월 마다',
+  '4개월 마다',
+  '5개월 마다',
+  '6개월 마다',
+  '주중',
+  '주말',
+]);
+
+/**
+ * 서버 응답의 recurringType을 앱이 아는 한글 라벨로 맞춘다.
+ * 영어 식별자(monthly 등)는 한글로 바꾸고, 알 수 없는 값은 undefined로 둬서
+ * 이후 기본값(매월)이 적용되게 한다. (알 수 없는 값은 분석 이벤트 생성에서 오류가 난다)
+ */
+function normalizeRecurringTypeLabel(raw: string | undefined): string | undefined {
+  if (raw == null) {
+    return undefined;
+  }
+  const trimmed = raw.trim();
+  if (RECURRING_TYPE_LABELS.has(trimmed)) {
+    return trimmed;
+  }
+  return RECURRING_TYPE_ALIASES[trimmed.toLowerCase()];
+}
+
 function toPendingParseRecord(value: unknown): PendingParseRecord | null {
   if (!value || typeof value !== 'object') {
     return null;
@@ -518,7 +567,8 @@ function toPendingParseRecord(value: unknown): PendingParseRecord | null {
   const memo = typeof rawMemo === 'string' ? rawMemo : undefined;
   const paymentSubtypeLabel =
     typeof rawPaymentSubtypeLabel === 'string' ? rawPaymentSubtypeLabel.trim() : undefined;
-  const recurringType = typeof rawRecurringType === 'string' ? rawRecurringType : undefined;
+  const recurringType =
+    typeof rawRecurringType === 'string' ? normalizeRecurringTypeLabel(rawRecurringType) : undefined;
   const weekendOption =
     rawWeekendOption === 'weekend' || rawWeekendOption === 'friday' || rawWeekendOption === 'monday'
       ? rawWeekendOption

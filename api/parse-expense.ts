@@ -220,10 +220,55 @@ function toNum(v: unknown, def: number): number {
   return def;
 }
 
+/** 앱이 쓰는 정기 주기 한글 라벨 */
+const RECURRING_TYPE_LABELS = new Set<string>([
+  '매일',
+  '매주',
+  '2주',
+  '3주',
+  '4주',
+  '매월',
+  '2개월 마다',
+  '3개월 마다',
+  '4개월 마다',
+  '5개월 마다',
+  '6개월 마다',
+  '주중',
+  '주말',
+]);
+
+/** LLM이 영어 식별자로 내려보낼 수 있는 정기 주기 → 한글 라벨 */
+const RECURRING_TYPE_ALIASES: Record<string, string> = {
+  daily: '매일',
+  weekly: '매주',
+  monthly: '매월',
+  '2weeks': '2주',
+  '3weeks': '3주',
+  '4weeks': '4주',
+  '2months': '2개월 마다',
+  '3months': '3개월 마다',
+  '4months': '4개월 마다',
+  '5months': '5개월 마다',
+  '6months': '6개월 마다',
+  weekdays: '주중',
+  weekends: '주말',
+};
+
+/**
+ * recurringType을 앱이 아는 한글 라벨로 맞춘다.
+ * 허용 목록 밖의 값(영어 식별자 등)은 변환하고, 알 수 없으면 undefined로 둬서 기본값(매월)이 적용되게 한다.
+ */
+function normalizeRecurringType(raw: unknown): string | undefined {
+  if (typeof raw !== 'string') return undefined;
+  const trimmed = raw.trim();
+  if (RECURRING_TYPE_LABELS.has(trimmed)) return trimmed;
+  return RECURRING_TYPE_ALIASES[trimmed.toLowerCase()];
+}
+
 function normalizeRecord(raw: Record<string, unknown>): ExpenseRecordSuggestion {
   const isRecurring = toBool(raw.isRecurring);
   const isInstallment = toBool(raw.isInstallment);
-  const recurringType = typeof raw.recurringType === 'string' ? raw.recurringType : undefined;
+  const recurringType = normalizeRecurringType(raw.recurringType);
   const totalMonths = toNum(raw.totalMonths, isRecurring ? 12 : isInstallment ? 3 : 1);
   const wo = raw.weekendOption;
   const weekendOption =
