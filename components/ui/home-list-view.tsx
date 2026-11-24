@@ -5,9 +5,10 @@
  * 스펙(Figma 토큰):
  * - 본문 배경 Semantic/Fill/Normal, 카드 Semantic/Static/White r16
  * - day strip: 해당 월 전체 일자를 가로 스크롤, 셀 폭 48 고정·gap 8, h61, r12 / 선택 = Atomic/Blue/50 + Primary 텍스트
- * - 기록 카드: 행 padding 16, 이모지 슬롯 48x48 Fill/Normal r8, 구분선 inset 16
+ * - 기록 카드: 행 padding 16, 이모지 슬롯 48x48 Fill/Normal 원형(r24), 구분선 inset 16
  */
 
+import { CountUpText } from '@/components/ui/count-up-text';
 import { Tag } from '@/components/ui/tag';
 import { atomicColors } from '@/constants/atomic-colors';
 import { colors, typography, type ColorPalette } from '@/constants/theme';
@@ -36,6 +37,8 @@ const WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'] as cons
 /** day 셀 폭 고정 48 (한 자리·두 자리 동일), 셀 간 gap 8 */
 const DAY_CELL_WIDTH = 48;
 const DAY_CELL_GAP = 8;
+/** 홈으로 돌아온 뒤 월 소비 금액 카운트업이 시작되기까지의 지연 */
+const SUMMARY_COUNT_UP_DELAY_MS = 1000;
 const DAY_STRIP_PADDING = 16;
 
 export interface HomeListViewProps {
@@ -46,7 +49,10 @@ export interface HomeListViewProps {
   items: TimelineListItem[];
   /** 요약 타이틀 (예: "11월 소비") */
   summaryLabel: string;
-  summaryAmountText: string;
+  /** 이번 달 소비 금액 (원). 값이 바뀌면 카운트업으로 보여준다 */
+  summaryAmount: number;
+  /** 카운트업 허용(홈 포커스 중). 홈이 다시 보일 때 이전 금액에서 새 금액으로 올라간다 */
+  countUpActive: boolean;
   categoryEmojiMap: Record<string, string>;
   bottomInset: number;
   onSelectDate: (dateKey: string) => void;
@@ -84,7 +90,8 @@ function HomeListViewInner({
   selectedDate,
   items,
   summaryLabel,
-  summaryAmountText,
+  summaryAmount,
+  countUpActive,
   categoryEmojiMap,
   bottomInset,
   onSelectDate,
@@ -136,14 +143,15 @@ function HomeListViewInner({
       <View style={[styles.summaryCard, { backgroundColor: palette.staticWhite }]}>
         <View style={styles.summaryTexts}>
           <Text style={[styles.summaryLabel, { color: palette.text }]}>{summaryLabel}</Text>
-          <Text
+          <CountUpText
+            value={summaryAmount}
+            active={countUpActive}
+            startDelayMs={SUMMARY_COUNT_UP_DELAY_MS}
             style={[styles.summaryAmount, { color: palette.text }]}
             numberOfLines={1}
             adjustsFontSizeToFit
             minimumFontScale={0.7}
-          >
-            {summaryAmountText}
-          </Text>
+          />
         </View>
         <Pressable
           onPress={onDetailPress}
@@ -383,7 +391,7 @@ const styles = StyleSheet.create({
   emojiSlot: {
     width: 48,
     height: 48,
-    borderRadius: 8,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },

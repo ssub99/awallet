@@ -58,7 +58,13 @@ import { releaseFirstScreenSplash } from '@/utils/first-screen-splash';
 import { saveMonthlyExpenseToWidget } from '@/utils/widget-data-sync';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
-import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import {
+  useFocusEffect,
+  useIsFocused,
+  useLocalSearchParams,
+  useNavigation,
+  useRouter,
+} from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
@@ -93,6 +99,7 @@ export default function HomeScreen() {
   const navigation = useNavigation();
   const router = useRouter();
   const { calendarData, monthStartDay, refresh, isReady } = useAppData();
+  const isHomeScreenFocused = useIsFocused();
   const { updateCalendarContext } = useCreateSheetContext();
   const { setLoading } = useLoading();
   const pendingOpsRef = useRef(0);
@@ -1177,7 +1184,8 @@ export default function HomeScreen() {
         selectedDate={listSelectedDate}
         items={listSelectedItems}
         summaryLabel={`${currentMonth}월 소비`}
-        summaryAmountText={monthlyExpenseText.replace(/^- /, '')}
+        summaryAmount={Number(financialData.expense) || 0}
+        countUpActive={isHomeScreenFocused && isReady}
         categoryEmojiMap={categoryEmojiMap}
         bottomInset={listCardBottomInset}
         onSelectDate={handleListSelectDate}
@@ -1190,7 +1198,9 @@ export default function HomeScreen() {
       listSelectedDate,
       listSelectedItems,
       currentMonth,
-      monthlyExpenseText,
+      financialData.expense,
+      isHomeScreenFocused,
+      isReady,
       categoryEmojiMap,
       listCardBottomInset,
       handleListSelectDate,
@@ -1205,6 +1215,10 @@ export default function HomeScreen() {
         incomeText={monthlyIncomeText}
         expenseText={monthlyExpenseText}
         balanceText={monthlyBalanceText}
+        incomeAmount={Number(financialData.income) || 0}
+        expenseAmount={Number(financialData.expense) || 0}
+        balanceAmount={Number(financialData.balance) || 0}
+        countUpActive={isHomeScreenFocused && isReady}
         balanceNegative={financialData.balance < 0}
         onIncomePress={handleMonthStatusIncomePress}
         onExpensePress={handleMonthStatusExpensePress}
@@ -1216,6 +1230,10 @@ export default function HomeScreen() {
       monthlyExpenseText,
       monthlyBalanceText,
       financialData.balance,
+      financialData.income,
+      financialData.expense,
+      isHomeScreenFocused,
+      isReady,
       handleMonthStatusIncomePress,
       handleMonthStatusExpensePress,
       handleMonthStatusBalancePress,

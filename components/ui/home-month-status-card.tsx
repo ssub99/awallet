@@ -3,6 +3,7 @@
  */
 
 import { computeUnifiedSingleLineFontSize } from '@/components/ui/auto-shrink-single-line-text';
+import { CountUpText } from '@/components/ui/count-up-text';
 import { atomicColors } from '@/constants/atomic-colors';
 import { colors, type ColorPalette } from '@/constants/theme';
 import { scaleTextStyleFontSize, typographyLayout } from '@/constants/typography';
@@ -20,10 +21,29 @@ const monthStatusCenteredText = {
 
 const monthStatusAmountTextStyle = typographyLayout.monthStatusAmount;
 
+/** 카운트업 중 표시 문자열 (최종 문자열 incomeText/expenseText/balanceText와 같은 규칙) */
+const formatIncome = (amount: number) => (amount > 0 ? `+ ${amount.toLocaleString()}원` : '0원');
+const formatExpense = (amount: number) => (amount > 0 ? `- ${amount.toLocaleString()}원` : '0원');
+const formatBalance = (amount: number) => {
+  if (amount === 0) return '0원';
+  if (amount < 0) return `- ${Math.abs(amount).toLocaleString()}원`;
+  return `${amount.toLocaleString()}원`;
+};
+
+/** 홈으로 돌아온 뒤 카운트업이 시작되기까지의 지연 */
+const COUNT_UP_START_DELAY_MS = 1000;
+
 export interface HomeMonthStatusCardProps {
+  /** 최종 표시 문자열 — 글자 크기 통일 계산 기준 (카운트업 중에도 크기가 흔들리지 않게) */
   incomeText: string;
   expenseText: string;
   balanceText: string;
+  /** 카운트업 대상 금액 (원) */
+  incomeAmount: number;
+  expenseAmount: number;
+  balanceAmount: number;
+  /** 카운트업 허용(홈 포커스 중). 홈이 다시 보이면 1초 뒤 이전 금액에서 새 금액으로 올라간다 */
+  countUpActive: boolean;
   balanceNegative: boolean;
   onIncomePress: () => void;
   onExpensePress: () => void;
@@ -34,6 +54,10 @@ function HomeMonthStatusCardInner({
   incomeText,
   expenseText,
   balanceText,
+  incomeAmount,
+  expenseAmount,
+  balanceAmount,
+  countUpActive,
   balanceNegative,
   onIncomePress,
   onExpensePress,
@@ -80,12 +104,14 @@ function HomeMonthStatusCardInner({
         >
           <View style={styles.monthStatusItem} onLayout={onAmountColumnLayout}>
             <Text style={[styles.monthStatusLabel, { color: palette.textNeutral }]}>수입</Text>
-            <Text
+            <CountUpText
+              value={incomeAmount}
+              active={countUpActive}
+              startDelayMs={COUNT_UP_START_DELAY_MS}
+              format={formatIncome}
               style={[amountTextStyle, monthStatusCenteredText, { color: palette.text }]}
               numberOfLines={1}
-            >
-              {incomeText}
-            </Text>
+            />
           </View>
         </Pressable>
 
@@ -99,12 +125,14 @@ function HomeMonthStatusCardInner({
         >
           <View style={styles.monthStatusItem}>
             <Text style={[styles.monthStatusLabel, { color: palette.textNeutral }]}>소비</Text>
-            <Text
+            <CountUpText
+              value={expenseAmount}
+              active={countUpActive}
+              startDelayMs={COUNT_UP_START_DELAY_MS}
+              format={formatExpense}
               style={[amountTextStyle, monthStatusCenteredText, { color: palette.text }]}
               numberOfLines={1}
-            >
-              {expenseText}
-            </Text>
+            />
           </View>
         </Pressable>
 
@@ -118,7 +146,11 @@ function HomeMonthStatusCardInner({
         >
           <View style={styles.monthStatusItem}>
             <Text style={[styles.monthStatusLabel, { color: palette.textNeutral }]}>잔액</Text>
-            <Text
+            <CountUpText
+              value={balanceAmount}
+              active={countUpActive}
+              startDelayMs={COUNT_UP_START_DELAY_MS}
+              format={formatBalance}
               style={[
                 amountTextStyle,
                 monthStatusCenteredText,
@@ -127,9 +159,7 @@ function HomeMonthStatusCardInner({
                 },
               ]}
               numberOfLines={1}
-            >
-              {balanceText}
-            </Text>
+            />
           </View>
         </Pressable>
       </View>
