@@ -99,7 +99,7 @@ function createCardMotion(translateY: Animated.Value, hiddenY: number, onHidden:
  * 기간 내 하루 한 번, 홈 렌더 2초 후 상단에서 내려와 5초 노출 후 같은 속도로 올라가며 사라지는 홈 상단 안내 카드.
  * 위로 밀면 바로 사라지고, 드래그 중에는 자동 숨김 타이머가 멈춘다.
  */
-export function NoticeCard() {
+export function NoticeCard({ analyticsScreenName }: { analyticsScreenName: string }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const palette = colors[useColorScheme() ?? 'light'] as ColorPalette;
@@ -145,11 +145,11 @@ export function NoticeCard() {
   }, [motion, visible]);
 
   const handlePress = useCallback(() => {
-    void logEvent('ui', { screen_name: '/home', target: 'noticecard' });
+    void logEvent('ui', { screen_name: analyticsScreenName, target: 'noticecard' });
     setVisible(false);
     setSettingsTabPendingPush('/settings-notice');
     router.navigate('/mypage');
-  }, [router]);
+  }, [analyticsScreenName, router]);
 
   if (!notice || !visible) return null;
 

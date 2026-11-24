@@ -14,11 +14,15 @@ import { Tag } from '@/components/ui/tag';
 import { atomicColors } from '@/constants/atomic-colors';
 import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { getEmojiTintBackground } from '@/utils/emoji-tint';
 import { getTimelineItemTags } from '@/utils/timeline-item-tags';
 import type { TimelineListItem } from '@/utils/timeline-from-calendar';
 import LottieView from 'lottie-react-native';
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react';
 import {
+  type GestureResponderEvent,
+  PanResponder,
+  type PanResponderGestureState,
   Pressable,
   ScrollView,
   type ScrollViewInstance,
@@ -54,9 +58,15 @@ export interface HomeListViewProps {
   summaryAmount: number;
   /** 카운트업 허용(홈 포커스 중). 홈이 다시 보일 때 이전 금액에서 새 금액으로 올라간다 */
   countUpActive: boolean;
+  /** 월이 바뀌면 카운트 없이 즉시 새 금액으로 (예: `2026-11`) */
+  countUpResetKey: string;
   categoryEmojiMap: Record<string, string>;
   bottomInset: number;
   onSelectDate: (dateKey: string) => void;
+  /** 좌우 스와이프 월 전환 (타임라인과 동일). 왼쪽으로 밀면 다음 달 */
+  onSwipeNextMonth: () => void;
+  /** 오른쪽으로 밀면 이전 달 */
+  onSwipePrevMonth: () => void;
   onDetailPress: () => void;
   onItemPress: (item: TimelineListItem) => void;
 }
@@ -93,11 +103,14 @@ function HomeListViewInner({
   summaryLabel,
   summaryAmount,
   countUpActive,
+  countUpResetKey,
   categoryEmojiMap,
   bottomInset,
   onSelectDate,
   onDetailPress,
   onItemPress,
+  onSwipeNextMonth,
+  onSwipePrevMonth,
 }: HomeListViewProps) {
   const colorScheme = useColorScheme();
   const palette = colors[colorScheme ?? 'light'] as ColorPalette;
@@ -117,6 +130,35 @@ function HomeListViewInner({
     const d = String(now.getDate()).padStart(2, '0');
     return selectedDate === `${now.getFullYear()}-${m}-${d}`;
   }, [selectedDate]);
+
+  /**
+   * 좌우 스와이프로 월 전환 — monthly-expense-timeline과 같은 기준
+   * (가로 이동 > 10 이고 세로보다 클 때 가로 스와이프로 보고, 손을 뗄 때 50 이상이면 전환).
+   * 가로 스크롤인 요일 스트립의 제스처를 가로채지 않도록 스트립 밖(요약 카드·기록 카드)에만 단다.
+   */
+  // 콜백이 바뀔 때만 다시 만든다 (ref 없이 항상 최신 콜백을 쓴다)
+  const monthSwipeResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (
+          _evt: GestureResponderEvent,
+          gestureState: PanResponderGestureState,
+        ) =>
+          Math.abs(gestureState.dx) > 10 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy),
+        onPanResponderRelease: (
+          _evt: GestureResponderEvent,
+          gestureState: PanResponderGestureState,
+        ) => {
+          const SWIPE_THRESHOLD = 50;
+          if (gestureState.dx <= -SWIPE_THRESHOLD) {
+            onSwipeNextMonth();
+          } else if (gestureState.dx >= SWIPE_THRESHOLD) {
+            onSwipePrevMonth();
+          }
+        },
+      }),
+    [onSwipeNextMonth, onSwipePrevMonth],
+  );
 
   const stripRef = useRef<ScrollViewInstance>(null);
   /** 셀 x/폭 (hug 레이아웃이라 onLayout으로 측정) */
@@ -141,13 +183,17 @@ function HomeListViewInner({
   return (
     <View style={styles.root}>
       {/* 월 소비 요약 */}
-      <View style={[styles.summaryCard, { backgroundColor: palette.staticWhite }]}>
+      <View
+        style={[styles.summaryCard, { backgroundColor: palette.staticWhite }]}
+        {...monthSwipeResponder.panHandlers}
+      >
         <View style={styles.summaryTexts}>
           <Text style={[styles.summaryLabel, { color: palette.text }]}>{summaryLabel}</Text>
           <CountUpText
             value={summaryAmount}
             active={countUpActive}
             startDelayMs={SUMMARY_COUNT_UP_DELAY_MS}
+            resetKey={countUpResetKey}
             format={formatSignedBalanceText}
             style={[styles.summaryAmount, { color: palette.text }]}
             numberOfLines={1}
@@ -226,7 +272,10 @@ function HomeListViewInner({
       </ScrollView>
 
       {/* 기록 리스트 카드: 요일 스트립 아래 ~ 하단 칩 위 12px까지 고정 영역. 행은 카드 안에서만 스크롤 */}
-      <View style={[styles.list, { marginBottom: bottomInset }]}>
+      <View
+        style={[styles.list, { marginBottom: bottomInset }]}
+        {...monthSwipeResponder.panHandlers}
+      >
         <View style={[styles.listCard, { backgroundColor: palette.staticWhite }]}>
           {items.length === 0 ? (
             <View style={styles.empty}>
@@ -245,6 +294,7 @@ function HomeListViewInner({
             <ScrollView showsVerticalScrollIndicator={false}>
               {items.map((item, index) => {
                 const tags = getTimelineItemTags(item);
+                const emoji = resolveEmoji(item, categoryEmojiMap);
                 const isLast = index === items.length - 1;
                 return (
                   <View key={item.id ?? `${item.date}-${item.timestamp ?? index}-${index}`}>
@@ -253,8 +303,14 @@ function HomeListViewInner({
                       onPress={() => onItemPress(item)}
                       accessibilityRole="button"
                     >
-                      <View style={[styles.emojiSlot, { backgroundColor: palette.fill }]}>
-                        <Text style={styles.emoji}>{resolveEmoji(item, categoryEmojiMap)}</Text>
+                      {/* 배경: 이모지 대표색의 옅은 색 (기존 회색 배경과 같은 정도). 대표색이 없으면 기존 회색 */}
+                      <View
+                        style={[
+                          styles.emojiSlot,
+                          { backgroundColor: getEmojiTintBackground(emoji, palette.fill) },
+                        ]}
+                      >
+                        <Text style={styles.emoji}>{emoji}</Text>
                       </View>
                       <View style={styles.rowContent}>
                         <View style={styles.rowLine}>

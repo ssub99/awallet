@@ -14,6 +14,7 @@ import { atomicColors } from '@/constants/atomic-colors';
 import { getRandomQuickInputPlaceholder } from '@/constants/quick-input-placeholders';
 import { type QuickInputChipAction, useQuickInputContext } from '@/contexts/quick-input-context';
 import { logEvent } from '@/utils/analytics';
+import { HOME_MONTH_LIST_SCREEN_NAME } from '@/utils/home-screen-name';
 import type { ComponentRef, Ref } from 'react';
 import { useCallback, useImperativeHandle, useRef, useState } from 'react';
 import { Animated, Dimensions, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -131,7 +132,7 @@ export function HomeListQuickInputDock({
             style={styles.actionChip}
             onPress={() => {
               void logEvent('component', {
-                screen_name: '/home',
+                screen_name: HOME_MONTH_LIST_SCREEN_NAME,
                 target: `list-chip-${chip.logTarget}`,
               });
               measureFieldBottom((shortBottom) => onChipPress(chip.action, shortBottom));
@@ -164,7 +165,7 @@ export function HomeListQuickInputDock({
         pointerEvents={fieldHidden ? 'none' : 'auto'}
         onPress={() => {
           void logEvent('component', {
-            screen_name: '/home',
+            screen_name: HOME_MONTH_LIST_SCREEN_NAME,
             target: 'dim',
             source: 'tap',
           });

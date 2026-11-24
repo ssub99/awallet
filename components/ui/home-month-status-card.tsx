@@ -40,6 +40,8 @@ export interface HomeMonthStatusCardProps {
   balanceAmount: number;
   /** 카운트업 허용(홈 포커스 중). 홈이 다시 보이면 1초 뒤 이전 금액에서 새 금액으로 올라간다 */
   countUpActive: boolean;
+  /** 월이 바뀌면 카운트 없이 즉시 새 금액으로 */
+  countUpResetKey: string | number;
   balanceNegative: boolean;
   onIncomePress: () => void;
   onExpensePress: () => void;
@@ -54,6 +56,7 @@ function HomeMonthStatusCardInner({
   expenseAmount,
   balanceAmount,
   countUpActive,
+  countUpResetKey,
   balanceNegative,
   onIncomePress,
   onExpensePress,
@@ -104,6 +107,7 @@ function HomeMonthStatusCardInner({
               value={incomeAmount}
               active={countUpActive}
               startDelayMs={COUNT_UP_START_DELAY_MS}
+              resetKey={countUpResetKey}
               format={formatIncome}
               style={[amountTextStyle, monthStatusCenteredText, { color: palette.text }]}
               numberOfLines={1}
@@ -125,6 +129,7 @@ function HomeMonthStatusCardInner({
               value={expenseAmount}
               active={countUpActive}
               startDelayMs={COUNT_UP_START_DELAY_MS}
+              resetKey={countUpResetKey}
               format={formatExpense}
               style={[amountTextStyle, monthStatusCenteredText, { color: palette.text }]}
               numberOfLines={1}
@@ -146,6 +151,7 @@ function HomeMonthStatusCardInner({
               value={balanceAmount}
               active={countUpActive}
               startDelayMs={COUNT_UP_START_DELAY_MS}
+              resetKey={countUpResetKey}
               format={formatBalanceText}
               style={[
                 amountTextStyle,

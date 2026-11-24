@@ -34,9 +34,10 @@ import {
 } from '@/hooks/calendar-events';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useCategoryEmojiMap } from '@/hooks/use-category-emoji-map';
+import { getHomeScreenName } from '@/utils/home-screen-name';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { buildTimelineItemsFromCalendarData, type TimelineListItem } from '@/utils/timeline-from-calendar';
-import { logEvent } from '@/utils/analytics';
+import { logEvent, logScreenView } from '@/utils/analytics';
 import { isAtLeastVersion, QUICK_INPUT_MIN_VERSION } from '@/utils/app-version';
 import {
   buildCalendarMonthTotalsIndex,
@@ -83,6 +84,11 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 const FAB_SIZE = 48;
 const HOME_VIEW_TYPE_STORAGE_KEY = 'homeViewType';
+/**
+ * 마지막으로 쓴 홈 뷰 타입(세션 메모리). 기록 저장·삭제 뒤 `dismissAll → replace('/home')`로 홈이 다시 마운트돼도
+ * 저장소(비동기)를 기다리지 않고 곧바로 같은 뷰로 시작해, 리스트뷰 사용자에게 캘린더뷰가 잠깐 보이지 않게 한다.
+ */
+let cachedHomeViewType: 'calendar' | 'list' | null = null;
 /** 리스트뷰 하단 독 높이: 칩 40 + 간격 12 + 입력창 48 */
 const LIST_DOCK_HEIGHT = 100;
 
@@ -179,25 +185,56 @@ export default function HomeScreen() {
   // Top Navigation state
   const [periodType, setPeriodType] = useState<'year' | 'month'>('month');
   // 홈 뷰타입: calendar(기존 캘린더) | list(월 요약 + 날짜 스트립 + 기록 리스트)
-  const [viewType, setViewTypeState] = useState<'calendar' | 'list'>('calendar');
-  const setViewType = useCallback((next: 'calendar' | 'list') => {
-    setViewTypeState(next);
-    void logEvent('ui', {
-      screen_name: '/home',
-      target: 'view_type_toggle',
-      view_type: next,
-    });
-    AsyncStorage.setItem(HOME_VIEW_TYPE_STORAGE_KEY, next).catch(() => {});
-  }, []);
+  const [viewType, setViewTypeState] = useState<'calendar' | 'list'>(
+    cachedHomeViewType ?? 'calendar',
+  );
+  /**
+   * 뷰 타입이 확정됐는지. 처음 한 번 저장소를 읽는 동안은 어느 뷰도 그리지 않고(기본값 calendar가 먼저 보이는 것 방지),
+   * screen_view도 그 뒤에 보낸다. 다시 마운트될 때는 세션 메모리 값으로 바로 확정된다.
+   */
+  const [isViewTypeLoaded, setIsViewTypeLoaded] = useState(cachedHomeViewType !== null);
+  /** 분석용 화면 이름: 연도 /home-year · 월 캘린더 /home-month-calendar · 월 리스트 /home-month-list */
+  const homeScreenName = getHomeScreenName(viewType, periodType);
+  const setViewType = useCallback(
+    (next: 'calendar' | 'list') => {
+      cachedHomeViewType = next;
+      setViewTypeState(next);
+      void logEvent('ui', {
+        screen_name: homeScreenName, // 전환을 누른 시점의 화면
+        target: 'view_type_toggle',
+        view_type: next,
+      });
+      AsyncStorage.setItem(HOME_VIEW_TYPE_STORAGE_KEY, next).catch(() => {});
+    },
+    [homeScreenName],
+  );
   useEffect(() => {
+    if (cachedHomeViewType !== null) {
+      return;
+    }
     AsyncStorage.getItem(HOME_VIEW_TYPE_STORAGE_KEY)
       .then((stored) => {
-        if (stored === 'list') {
-          setViewTypeState('list');
+        const restored = stored === 'list' ? 'list' : 'calendar';
+        // 읽는 사이 사용자가 직접 전환했다면(cache가 채워짐) 그 값을 우선
+        if (cachedHomeViewType === null) {
+          cachedHomeViewType = restored;
+          setViewTypeState(restored);
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        if (cachedHomeViewType === null) {
+          cachedHomeViewType = 'calendar';
+        }
+      })
+      .finally(() => setIsViewTypeLoaded(true));
   }, []);
+  // 홈이 포커스를 얻을 때·뷰(연도/월 캘린더/월 리스트)가 바뀔 때 뷰별 screen_view
+  useEffect(() => {
+    if (!isHomeScreenFocused || !isViewTypeLoaded) {
+      return;
+    }
+    void logScreenView(homeScreenName);
+  }, [homeScreenName, isHomeScreenFocused, isViewTypeLoaded]);
   const categoryEmojiMap = useCategoryEmojiMap();
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
 
@@ -845,8 +882,9 @@ export default function HomeScreen() {
         }
       },
       openSource,
+      homeScreenName,
     );
-  }, [isContentReady, showQuickInput, starRotate, starScale]);
+  }, [homeScreenName, isContentReady, showQuickInput, starRotate, starScale]);
 
   useFocusEffect(
     useCallback(() => {
@@ -1028,7 +1066,7 @@ export default function HomeScreen() {
 
   const handleMonthStatusIncomePress = useCallback(() => {
     void logEvent('ui', {
-      screen_name: '/home',
+      screen_name: homeScreenName,
       target: 'income-present',
     });
     const targetDate = effectiveSelectedDate;
@@ -1041,11 +1079,11 @@ export default function HomeScreen() {
         calendarMonth: currentMonth.toString(),
       },
     });
-  }, [currentMonth, currentYear, effectiveSelectedDate, router]);
+  }, [currentMonth, currentYear, effectiveSelectedDate, homeScreenName, router]);
 
   const handleMonthStatusExpensePress = useCallback(() => {
     void logEvent('ui', {
-      screen_name: '/home',
+      screen_name: homeScreenName,
       target: 'expense-present',
     });
     const targetDate = effectiveSelectedDate;
@@ -1057,11 +1095,11 @@ export default function HomeScreen() {
         calendarMonth: currentMonth.toString(),
       },
     });
-  }, [currentMonth, currentYear, effectiveSelectedDate, router]);
+  }, [currentMonth, currentYear, effectiveSelectedDate, homeScreenName, router]);
 
   const handleMonthStatusBalancePress = useCallback(() => {
     void logEvent('ui', {
-      screen_name: '/home',
+      screen_name: homeScreenName,
       target: 'report-present',
     });
     router.push({
@@ -1072,7 +1110,7 @@ export default function HomeScreen() {
         tab: 'status',
       },
     });
-  }, [currentMonth, currentYear, router]);
+  }, [currentMonth, currentYear, homeScreenName, router]);
 
   // ===== 리스트뷰 데이터 =====
   const listMonthItems = useMemo(
@@ -1128,7 +1166,7 @@ export default function HomeScreen() {
     }
     isNavigating.current = true;
     void logEvent('ui', {
-      screen_name: '/home',
+      screen_name: homeScreenName,
       target: 'report-present',
       entry_point: 'home_list_detail',
     });
@@ -1144,7 +1182,7 @@ export default function HomeScreen() {
     setTimeout(() => {
       isNavigating.current = false;
     }, 500);
-  }, [currentMonth, currentYear, router]);
+  }, [currentMonth, currentYear, homeScreenName, router]);
 
   const handleListItemPress = useCallback(
     (item: TimelineListItem) => {
@@ -1153,7 +1191,7 @@ export default function HomeScreen() {
       }
       isNavigating.current = true;
       void logEvent('ui', {
-        screen_name: '/home',
+        screen_name: homeScreenName,
         target: 'list_record',
         record_type: item.type,
       });
@@ -1171,8 +1209,46 @@ export default function HomeScreen() {
         isNavigating.current = false;
       }, 500);
     },
-    [currentMonth, currentYear, router],
+    [currentMonth, currentYear, homeScreenName, router],
   );
+
+  /**
+   * 리스트뷰 좌우 스와이프 월 전환 (타임라인과 동일: 왼쪽 → 다음 달, 오른쪽 → 이전 달).
+   * 월이 바뀌면 선택일을 새 달의 기록일로 맞춘다: 이전 달 → 마지막 기록일, 다음 달 → 첫 기록일
+   * (기록이 없는 달이면 오늘 또는 첫날).
+   * 선택일이 곧 기록 생성 날짜라서 화면과 어긋나지 않게 한다.
+   */
+  const handleListShiftMonth = useCallback(
+    (delta: -1 | 1) => {
+      const index = currentYearRef.current * 12 + (currentMonthRef.current - 1) + delta;
+      const nextYear = Math.floor(index / 12);
+      const nextMonth = (index % 12) + 1;
+      if (nextYear < yearBounds.min || nextYear > yearBounds.max) {
+        return;
+      }
+      // 이전 달로 가면 그 달의 마지막 기록일, 다음 달로 가면 첫 기록일.
+      // (타임라인 목록은 최신 날짜 순이라 첫 항목이 마지막 날, 마지막 항목이 첫 날)
+      const monthItems = buildTimelineItemsFromCalendarData(
+        calendarData,
+        nextYear,
+        nextMonth,
+        monthStartDay,
+      );
+      const recordDate = (delta < 0 ? monthItems[0] : monthItems[monthItems.length - 1])?.date;
+      if (recordDate) {
+        applyHomeCalendarSelection(nextYear, nextMonth, recordDate);
+        return;
+      }
+      // 기록이 없는 달: 그 달에 오늘이 있으면 오늘, 아니면 첫날
+      const { startDate, endDate } = getCustomMonthRange(nextYear, nextMonth, monthStartDay);
+      const today = new Date();
+      const target = today >= startDate && today <= endDate ? today : startDate;
+      applyHomeCalendarSelection(nextYear, nextMonth, toDateKey(target));
+    },
+    [applyHomeCalendarSelection, calendarData, monthStartDay, yearBounds.max, yearBounds.min],
+  );
+  const handleListSwipeNextMonth = useCallback(() => handleListShiftMonth(1), [handleListShiftMonth]);
+  const handleListSwipePrevMonth = useCallback(() => handleListShiftMonth(-1), [handleListShiftMonth]);
 
   /** 카드 영역 하단 = 하단 칩 위 12px (시안: 카드 끝 1656 ↔ 칩 시작 1668). 콘텐츠 영역은 탭바 inset만큼 이미 위로 올라와 있다 */
   const listCardBottomInset = Math.max(0, quickInputBottom + LIST_DOCK_HEIGHT + 12 - bottomContentInset);
@@ -1186,6 +1262,9 @@ export default function HomeScreen() {
         summaryLabel={`${currentMonth}월 잔액`}
         summaryAmount={Number(financialData.balance) || 0}
         countUpActive={isHomeScreenFocused && isReady}
+        countUpResetKey={`${currentYear}-${currentMonth}`}
+        onSwipeNextMonth={handleListSwipeNextMonth}
+        onSwipePrevMonth={handleListSwipePrevMonth}
         categoryEmojiMap={categoryEmojiMap}
         bottomInset={listCardBottomInset}
         onSelectDate={handleListSelectDate}
@@ -1206,6 +1285,9 @@ export default function HomeScreen() {
       handleListSelectDate,
       handleListDetailPress,
       handleListItemPress,
+      handleListSwipeNextMonth,
+      handleListSwipePrevMonth,
+      currentYear,
     ],
   );
 
@@ -1219,6 +1301,7 @@ export default function HomeScreen() {
         expenseAmount={Number(financialData.expense) || 0}
         balanceAmount={Number(financialData.balance) || 0}
         countUpActive={isHomeScreenFocused && isReady}
+        countUpResetKey={`${currentYear}-${currentMonth}`}
         balanceNegative={financialData.balance < 0}
         onIncomePress={handleMonthStatusIncomePress}
         onExpensePress={handleMonthStatusExpensePress}
@@ -1232,6 +1315,8 @@ export default function HomeScreen() {
       financialData.balance,
       financialData.income,
       financialData.expense,
+      currentYear,
+      currentMonth,
       isHomeScreenFocused,
       isReady,
       handleMonthStatusIncomePress,
@@ -1277,7 +1362,7 @@ export default function HomeScreen() {
           onPeriodChange={setPeriodType}
           viewType={viewType}
           onViewTypeChange={setViewType}
-          periodToggleAnalyticsScreenName="/home"
+          periodToggleAnalyticsScreenName={homeScreenName}
           showDropdownArrow
           yearOptions={yearOptions}
           selectedYear={currentYear}
@@ -1319,7 +1404,7 @@ export default function HomeScreen() {
           <Animated.View
             style={[styles.monthViewInner, { opacity: isContentReady ? contentOpacity : 0 }]}
           >
-            {viewType === 'list' ? (
+            {!isViewTypeLoaded ? null : viewType === 'list' ? (
               homeListViewElement
             ) : (
               <>
@@ -1351,7 +1436,7 @@ export default function HomeScreen() {
             year={currentYear}
             monthsData={yearData}
             onMonthPress={handleYearMonthPress}
-            yearCardAnalyticsScreenName="/home"
+            yearCardAnalyticsScreenName={homeScreenName}
           />
         </View>
       )}
@@ -1366,7 +1451,7 @@ export default function HomeScreen() {
           ]}
           pointerEvents={isQuickInputShortHidden ? 'none' : 'box-none'}
         >
-          {viewType === 'list' ? (
+          {!isViewTypeLoaded ? null : viewType === 'list' ? (
             <HomeListQuickInputDock
               controlRef={quickInputShortRef}
               bottom={quickInputBottom}
@@ -1410,7 +1495,7 @@ export default function HomeScreen() {
     </SafeAreaView>
 
       {/* 기록 수신 안내 카드는 root-layout-shell 전역 마운트 */}
-      {isContentReady && <NoticeCard />}
+      {isContentReady && <NoticeCard analyticsScreenName={homeScreenName} />}
     </View>
   );
 }

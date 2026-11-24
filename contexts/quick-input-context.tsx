@@ -46,6 +46,7 @@ import { useRecordFormMemoKeyboard } from '@/hooks/use-record-form-memo-keyboard
 import { QUICK_INPUT_ANALYTICS_SCREEN_NAME, logEvent, type SimpleCreationPath } from '@/utils/analytics';
 import { getApiSecurityHeaders } from '@/utils/api-security-headers';
 import { isAtLeastVersion, QUICK_INPUT_MIN_VERSION } from '@/utils/app-version';
+import { HOME_MONTH_CALENDAR_SCREEN_NAME } from '@/utils/home-screen-name';
 import type { HomeOpenRecordInboxSource } from '@/utils/home-open-record-inbox-pending';
 import type { RecordInboxItem } from '@/utils/record-inbox-types';
 import { RECORD_INBOX_ANALYTICS_SCREEN_NAME } from '@/utils/record-inbox-types';
@@ -300,6 +301,8 @@ interface QuickInputContextValue {
     starRotate: AnimatedValue,
     openMain?: () => void,
     source?: HomeOpenRecordInboxSource,
+    /** 이벤트 screen_name — 호출한 홈 뷰의 이름. 기본 월 캘린더 */
+    screenName?: string,
   ) => void;
   /**
    * 홈 리스트뷰 하단 칩(기록 수신함·계산기·카테고리 설정) → 간편입력을 키패드 없이 열고 해당 기능 진입.
@@ -2287,9 +2290,10 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       starRotate: AnimatedValue,
       openMain?: () => void,
       source: HomeOpenRecordInboxSource = 'record_card',
+      screenName: string = HOME_MONTH_CALENDAR_SCREEN_NAME,
     ) => {
       void logEvent('component', {
-        screen_name: '/home',
+        screen_name: screenName,
         target: 'dim',
         source,
       });

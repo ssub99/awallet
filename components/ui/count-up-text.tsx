@@ -23,6 +23,11 @@ export interface CountUpTextProps extends Omit<TextProps, 'children'> {
   durationMs?: number;
   /** 활성화(또는 값 변경) 후 카운트를 시작하기까지의 지연. 지연 동안은 이전 값이 그대로 보인다. 기본 0 */
   startDelayMs?: number;
+  /**
+   * 이 값이 바뀌면 카운트 없이 새 값으로 즉시 맞춘다 (예: 월 전환 — 다른 달 금액은 카운트업 대상이 아니다).
+   * 같은 키 안에서 값이 바뀔 때만(기록 추가·삭제 등) 카운트한다.
+   */
+  resetKey?: string | number;
 }
 
 const defaultFormat = (value: number) => `${value.toLocaleString()}원`;
@@ -33,12 +38,14 @@ function CountUpTextInner({
   format = defaultFormat,
   durationMs = DEFAULT_DURATION_MS,
   startDelayMs = 0,
+  resetKey,
   ...textProps
 }: CountUpTextProps) {
   const [shown, setShown] = useState(value);
   const animatedRef = useRef<Animated.Value | null>(null);
   const seenActiveRef = useRef(false);
   const runningRef = useRef<Animated.CompositeAnimation | null>(null);
+  const lastResetKeyRef = useRef(resetKey);
 
   // 지연 생성 (렌더 중 ref 접근 없이 effect에서만 사용)
   useEffect(() => {
@@ -55,7 +62,17 @@ function CountUpTextInner({
 
   useEffect(() => {
     const animated = animatedRef.current;
-    if (!active || !animated) {
+    if (!animated) {
+      return;
+    }
+    // 키가 바뀌었으면(다른 달 등) 진행 중 카운트를 끊고 새 값으로 즉시 맞춘다
+    if (lastResetKeyRef.current !== resetKey) {
+      lastResetKeyRef.current = resetKey;
+      runningRef.current?.stop();
+      animated.setValue(value);
+      return;
+    }
+    if (!active) {
       return;
     }
     runningRef.current?.stop();
@@ -82,7 +99,7 @@ function CountUpTextInner({
     // 지연 중 비활성화·값 변경이 오면 예약을 취소하고 새 값 기준으로 다시 예약한다
     const timer = setTimeout(run, startDelayMs);
     return () => clearTimeout(timer);
-  }, [active, durationMs, startDelayMs, value]);
+  }, [active, durationMs, resetKey, startDelayMs, value]);
 
   return (
     <Text {...textProps} accessibilityLabel={format(value)}>

@@ -8,6 +8,7 @@ import { useQuickInputContext } from '@/contexts/quick-input-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { shouldApplyReactBlurOverlay } from '@/utils/expo-blur-platform';
 import { logEvent } from '@/utils/analytics';
+import { HOME_MONTH_CALENDAR_SCREEN_NAME } from '@/utils/home-screen-name';
 import type { ComponentRef, Ref } from 'react';
 import { useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { Animated, Dimensions, LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -225,7 +226,7 @@ export function QuickInputShort({
       onLayout={handleLayout}
       onPress={() => {
         void logEvent('component', {
-          screen_name: '/home',
+          screen_name: HOME_MONTH_CALENDAR_SCREEN_NAME,
           target: 'dim',
           source: 'tap',
         });
