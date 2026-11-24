@@ -43,25 +43,21 @@ const CHIPS: {
   action: QuickInputChipAction;
   label: string;
   icon: 'message' | 'calculator' | 'categorySetting';
-  logTarget: string;
 }[] = [
   {
     action: 'recordInbox',
     label: '기록 수신함',
     icon: 'message',
-    logTarget: 'record-inbox',
   },
   {
     action: 'calculator',
     label: '계산기',
     icon: 'calculator',
-    logTarget: 'calculator',
   },
   {
     action: 'categorySetting',
     label: '카테고리 설정',
     icon: 'categorySetting',
-    logTarget: 'category-setting',
   },
 ];
 
@@ -131,10 +127,6 @@ export function HomeListQuickInputDock({
             key={chip.action}
             style={styles.actionChip}
             onPress={() => {
-              void logEvent('component', {
-                screen_name: HOME_MONTH_LIST_SCREEN_NAME,
-                target: `list-chip-${chip.logTarget}`,
-              });
               measureFieldBottom((shortBottom) => onChipPress(chip.action, shortBottom));
             }}
             accessibilityRole="button"
@@ -166,6 +158,7 @@ export function HomeListQuickInputDock({
         onPress={() => {
           void logEvent('component', {
             screen_name: HOME_MONTH_LIST_SCREEN_NAME,
+            entry_screen: 'home_month_list',
             target: 'dim',
             source: 'tap',
           });

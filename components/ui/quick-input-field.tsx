@@ -11,6 +11,7 @@ import { typography, typographyLayout } from '@/constants/typography';
 import { pretendardTextStyle } from '@/constants/fonts';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { QUICK_INPUT_ANALYTICS_SCREEN_NAME, logEvent } from '@/utils/analytics';
+import { getQuickInputEntryScreen } from '@/utils/quick-input-entry-screen';
 import { forwardRef, useImperativeHandle, useRef } from 'react';
 import {
   ActivityIndicator,
@@ -199,6 +200,7 @@ export const QuickInputField = forwardRef<TextInputInstance, QuickInputFieldProp
                     if (!hasValue || sendLoading || sendDisabled) return;
                     void logEvent('btn', {
                       screen_name: analyticsScreenName,
+                      entry_screen: getQuickInputEntryScreen(),
                       target: 'sentence',
                     });
                     onSend?.();

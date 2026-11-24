@@ -51,7 +51,8 @@ import {
 } from '@/utils/analytics';
 import { getApiSecurityHeaders } from '@/utils/api-security-headers';
 import { isAtLeastVersion, QUICK_INPUT_MIN_VERSION } from '@/utils/app-version';
-import { HOME_MONTH_CALENDAR_SCREEN_NAME } from '@/utils/home-screen-name';
+import { getQuickInputEntryScreen, setQuickInputEntryScreen } from '@/utils/quick-input-entry-screen';
+import { HOME_MONTH_CALENDAR_SCREEN_NAME, HOME_MONTH_LIST_SCREEN_NAME } from '@/utils/home-screen-name';
 import type { HomeOpenRecordInboxSource } from '@/utils/home-open-record-inbox-pending';
 import type { RecordInboxItem } from '@/utils/record-inbox-types';
 import { RECORD_INBOX_ANALYTICS_SCREEN_NAME } from '@/utils/record-inbox-types';
@@ -1562,11 +1563,6 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }, [dataVersion]);
 
   const [quickInputBackdropOpacity] = useState(() => new RNAnimated.Value(0));
-  /**
-   * 이번 간편입력을 연 시점의 홈 뷰. 생성 이벤트의 entry_screen이 된다.
-   * 열 때 정해 두므로, 생성 도중 다른 화면을 오가도 값이 바뀌지 않는다.
-   */
-  const quickInputEntryScreenRef = useRef<SimpleCreationEntryScreen>('home_month_calendar');
   /** 홈 리스트뷰에서 연 간편입력인지 (칩은 홈 독에 남기고 입력창만 올리는 모드) */
   const [isHomeListOverlay, setIsHomeListOverlay] = useState(false);
   /** 리스트뷰 칩으로 패널을 직접 연 흐름: 패널을 닫으면 간편입력 전체를 닫고 홈으로 복귀 */
@@ -1915,8 +1911,11 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       setRecordInboxCategorySheetSelected('');
       quickInputLongOpacity.setValue(1);
       setIsHomeListOverlay(options?.homeList === true);
-      quickInputEntryScreenRef.current =
-        options?.entryScreen ?? (options?.homeList === true ? 'home_month_list' : 'home_month_calendar');
+      // 이번 간편입력을 연 시점의 홈 뷰 — 간편입력 이벤트 전체의 entry_screen
+      setQuickInputEntryScreen(
+        options?.entryScreen ??
+          (options?.homeList === true ? 'home_month_list' : 'home_month_calendar'),
+      );
       homeListPanelFlowRef.current = false;
       setIsHomeListPanelFlow(false);
       setIsQuickInputShortVisible(false);
@@ -1971,6 +1970,11 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }, []);
 
   const handleQuickInputCalculatorPress = useCallback(() => {
+    void logEvent('ui', {
+      screen_name: QUICK_INPUT_ANALYTICS_SCREEN_NAME,
+      target: 'calculator',
+      entry_screen: getQuickInputEntryScreen(),
+    });
     if (isQuickInputRecordInboxVisible) {
       setIsQuickInputRecordInboxVisible(false);
     }
@@ -2112,6 +2116,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     void logEvent('ui', {
       screen_name: QUICK_INPUT_ANALYTICS_SCREEN_NAME,
       target: 'record-inbox',
+      entry_screen: getQuickInputEntryScreen(),
     });
     if (isQuickInputCalculatorMounted || isQuickInputCalculatorVisible) {
       calculatorAnimationRef.current?.stop();
@@ -2315,6 +2320,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         screen_name: screenName,
         target: 'dim',
         source,
+        entry_screen:
+          screenName === HOME_MONTH_LIST_SCREEN_NAME ? 'home_month_list' : 'home_month_calendar',
       });
       pendingOpenRecordInboxRef.current = true;
       if (openMain) {
@@ -2401,7 +2408,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         refresh: () => refresh({ showLoading: false }),
         showToast,
         path: 'record_inbox',
-        entryScreen: quickInputEntryScreenRef.current,
+        entryScreen: getQuickInputEntryScreen(),
       });
       if (!saved) {
         return 'abort';
@@ -2565,6 +2572,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       void logEvent('btn', {
         screen_name: RECORD_INBOX_ANALYTICS_SCREEN_NAME,
         target: 'receive-cardadd-modify',
+        entry_screen: getQuickInputEntryScreen(),
       });
       openRecordInboxItemEditor(item);
     },
@@ -2594,6 +2602,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     void logEvent('btn', {
       screen_name: RECORD_INBOX_ANALYTICS_SCREEN_NAME,
       target: 'receive-cardadd-category-close',
+      entry_screen: getQuickInputEntryScreen(),
     });
     closeRecordInboxCategorySheet();
   }, [closeRecordInboxCategorySheet, recordInboxCategorySheetMounted, recordInboxCategorySheetVisible]);
@@ -2603,6 +2612,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       void logEvent('btn', {
         screen_name: RECORD_INBOX_ANALYTICS_SCREEN_NAME,
         target: 'receive-cardadd-category',
+        entry_screen: getQuickInputEntryScreen(),
       });
       const categoryType = item.card.recordType === 'income' ? 'income' : 'expense';
       const categoryLabel = item.card.category.trim();
@@ -2641,6 +2651,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       void logEvent('list', {
         screen_name: RECORD_INBOX_ANALYTICS_SCREEN_NAME,
         target: 'receive-cardadd-category-option',
+        entry_screen: getQuickInputEntryScreen(),
         category: category.label,
       });
       const patchItem = (item: RecordInboxItem): RecordInboxItem =>
@@ -3280,6 +3291,11 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     ) {
       return;
     }
+    void logEvent('ui', {
+      screen_name: QUICK_INPUT_ANALYTICS_SCREEN_NAME,
+      target: 'category-setting',
+      entry_screen: getQuickInputEntryScreen(),
+    });
     if (categorySettingSheetUnmountTimeoutRef.current) {
       clearTimeout(categorySettingSheetUnmountTimeoutRef.current);
       categorySettingSheetUnmountTimeoutRef.current = null;
@@ -3737,6 +3753,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     void logEvent('ui', {
       screen_name: QUICK_INPUT_ANALYTICS_SCREEN_NAME,
       target: 'sentence',
+      entry_screen: getQuickInputEntryScreen(),
     });
 
     const message = quickInputText.trim();
@@ -3938,6 +3955,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     void logEvent('btn', {
       screen_name: QUICK_INPUT_ANALYTICS_SCREEN_NAME,
       target: 'sentence-cardadd-confirm',
+      entry_screen: getQuickInputEntryScreen(),
     });
     isConfirmAddInFlightRef.current = true;
     setIsQuickInputConfirmAdding(true);
@@ -3948,7 +3966,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         refresh,
         showToast,
         path: 'sentence',
-        entryScreen: quickInputEntryScreenRef.current,
+        entryScreen: getQuickInputEntryScreen(),
       });
       if (!saved) {
         return;
@@ -3967,6 +3985,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     void logEvent('btn', {
       screen_name: QUICK_INPUT_ANALYTICS_SCREEN_NAME,
       target: 'sentence-cardadd-cancel',
+      entry_screen: getQuickInputEntryScreen(),
     });
     pendingRecordRef.current = null;
     setConfirmCardData(null);
@@ -3977,6 +3996,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     void logEvent('btn', {
       screen_name: QUICK_INPUT_ANALYTICS_SCREEN_NAME,
       target: 'sentence-cardadd-modify',
+      entry_screen: getQuickInputEntryScreen(),
     });
     const pending = pendingRecordRef.current;
     if (!pending) {
@@ -4441,6 +4461,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       void logEvent('btn', {
         screen_name: RECORD_INBOX_ANALYTICS_SCREEN_NAME,
         target: 'cancel',
+        entry_screen: getQuickInputEntryScreen(),
       });
     }
     setIsQuickInputConfirmCardRevealPaused(true);
@@ -4575,6 +4596,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     void logEvent('component', {
       screen_name: QUICK_INPUT_ANALYTICS_SCREEN_NAME,
       target: 'sentence-cardadd',
+      entry_screen: getQuickInputEntryScreen(),
     });
   }, [confirmCardData]);
 

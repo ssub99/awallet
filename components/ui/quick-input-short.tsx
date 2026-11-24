@@ -227,6 +227,7 @@ export function QuickInputShort({
       onPress={() => {
         void logEvent('component', {
           screen_name: HOME_MONTH_CALENDAR_SCREEN_NAME,
+          entry_screen: 'home_month_calendar',
           target: 'dim',
           source: 'tap',
         });

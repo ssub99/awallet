@@ -23,6 +23,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import type { RecordInboxItem } from '@/utils/record-inbox-mock';
 import { RECORD_INBOX_ANALYTICS_SCREEN_NAME } from '@/utils/record-inbox-types';
 import { logEvent } from '@/utils/analytics';
+import { getQuickInputEntryScreen } from '@/utils/quick-input-entry-screen';
 import { normalizeRecordInboxOriginalBody } from '@/utils/record-inbox-store';
 import { formatSmsSenderDisplay } from '@/utils/record-inbox-parse';
 import {
@@ -633,6 +634,7 @@ export function QuickInputRecordInbox({
   const finishNextRoll = useCallback(() => {
     void logEvent('btn', {
       screen_name: analyticsScreenName,
+      entry_screen: getQuickInputEntryScreen(),
       target: 'receive-cardadd-order-next',
     });
     if (IS_ANDROID) {
@@ -652,6 +654,7 @@ export function QuickInputRecordInbox({
   const finishPrevScrub = useCallback(() => {
     void logEvent('btn', {
       screen_name: analyticsScreenName,
+      entry_screen: getQuickInputEntryScreen(),
       target: 'receive-cardadd-order-prev',
     });
     if (IS_ANDROID) {
@@ -814,6 +817,7 @@ export function QuickInputRecordInbox({
       }
       void logEvent('btn', {
         screen_name: analyticsScreenName,
+        entry_screen: getQuickInputEntryScreen(),
         target:
           action === 'confirm' ? 'receive-cardadd-confirm' : 'receive-cardadd-cancel',
       });
@@ -1035,6 +1039,7 @@ export function QuickInputRecordInbox({
   const handleScreenPrev = useCallback(() => {
     void logEvent('btn', {
       screen_name: analyticsScreenName,
+      entry_screen: getQuickInputEntryScreen(),
       target: 'receive-cardadd-screen-prev',
     });
     onDismiss?.();
