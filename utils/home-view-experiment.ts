@@ -57,6 +57,12 @@ function isStoredGroup(value: string | null): value is HomeViewExperimentGroup {
   return value === 'control' || value === 'treatment' || value === 'excluded';
 }
 
+function logDev(message: string): void {
+  if (__DEV__) {
+    console.log(`[HomeViewExperiment] ${message}`);
+  }
+}
+
 async function refreshWithTimeout(timeoutMs: number): Promise<void> {
   await Promise.race([
     refreshExperimentVariants(undefined, [HOME_VIEW_EXPERIMENT_FLAG_KEY]),
@@ -104,11 +110,20 @@ export function resolveHomeViewExperiment(options?: {
       let group: HomeViewExperimentGroup;
       try {
         const stored = await AsyncStorage.getItem(STORAGE_KEY);
-        if (isStoredGroup(stored)) {
+        // 개발 중에는 저장된 그룹을 무시하고 매번 서버 값을 다시 조회한다
+        // (콘솔에서 그룹을 바꿔 가며 테스트할 수 있게). 운영 빌드는 저장된 그룹을 그대로 쓴다.
+        if (isStoredGroup(stored) && !__DEV__) {
           group = stored;
+          logDev(`저장된 그룹 사용: ${group}`);
         } else {
           group = await fetchGroup(options?.timeoutMs ?? DEFAULT_TIMEOUT_MS);
-          await AsyncStorage.setItem(STORAGE_KEY, group);
+          logDev(
+            `조회 결과: ${group} (ready=${isExperimentInitialized()}, server=${getExperimentVariantValue(HOME_VIEW_EXPERIMENT_FLAG_KEY) ?? 'none'}, stored=${stored ?? 'none'})`,
+          );
+          // 개발 중에는 '제외'를 저장하지 않아 다음 실행에서 다시 조회한다
+          if (!(__DEV__ && group === 'excluded')) {
+            await AsyncStorage.setItem(STORAGE_KEY, group);
+          }
         }
       } catch {
         // 저장소를 읽거나 쓰지 못하면 이번 실행만 실험 제외로 보고 저장은 하지 않는다
@@ -137,7 +152,11 @@ export function trackHomeViewExposureOnce(group: HomeViewExperimentGroup | null)
   if (exposureTracked) return;
   if (group !== 'control' && group !== 'treatment') return;
   const current = normalizeVariant(getExperimentVariantValue(HOME_VIEW_EXPERIMENT_FLAG_KEY));
-  if (current !== group) return;
+  if (current !== group) {
+    logDev(`노출 생략: 저장된 그룹(${group})과 이번 실행의 서버 값(${current ?? 'none'})이 다름`);
+    return;
+  }
   trackExperimentExposure(HOME_VIEW_EXPERIMENT_FLAG_KEY);
   exposureTracked = true;
+  logDev(`노출 기록: ${group}`);
 }

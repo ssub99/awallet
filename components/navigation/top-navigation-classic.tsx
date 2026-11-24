@@ -1,0 +1,623 @@
+/**
+ * Top Navigation (Classic) — 홈 리스트뷰 A/B 대조군·실험 제외 사용자용.
+ *
+ * 리스트뷰 추가 이전(7c18cbe^)의 상단 네비게이션을 그대로 복제한 것이다.
+ * 년·월(연도 화면은 년)이 좌측에 큰 글씨(headline04)로 배치되고 우측에 년/월 토글이 있다.
+ * 실험군용 `top-navigation.tsx`(가운데 년월 + 좌측 뷰 전환 아이콘)와 독립적이다 — 한쪽을 고쳐도 다른 쪽에 영향이 없다.
+ */
+
+import { DatePicker } from '@/components/ui/date-picker';
+import { Icon, type IconName, type IconVariant } from '@/components/ui/icon';
+import { colors, typography, type ColorPalette } from '@/constants/theme';
+import { typographyLayout } from '@/constants/typography';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { logEvent } from '@/utils/analytics';
+import { useEffect, useState } from 'react';
+import { Animated, Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
+
+/** Figma icon-double Frame 7: 32×32 icon slots, 12px gap (76px row) */
+const LEFT_ICON_DOUBLE_GAP = 12;
+
+interface TopNavigationLeftIconAction {
+  name: IconName;
+  variant?: IconVariant;
+  onPress?: () => void;
+  accessibilityLabel: string;
+}
+
+interface TopNavigationClassicProps {
+  /**
+   * Navigation type
+   * - main: Large title with period selector
+   * - sub: Small centered title; left icons per showLeftIcon / iconDouble
+   */
+  type?: 'main' | 'sub';
+  
+  /**
+   * Title text
+   * - main: Used as single menu label when tabs not provided; or sub title
+   * - sub: Title (center aligned, Bold 16)
+   */
+  title: string;
+  
+  /**
+   * Main type only. Menu items as tabs (same structure for 1 or 2+).
+   * When length is 1, pressing the menu does nothing.
+   * When length >= 2, pressing switches tab and calls onTabChange.
+   */
+  tabs?: { id: string; label: string }[];
+  
+  /**
+   * Main type only. Active tab id when using tabs. Defaults to first tab id.
+   */
+  activeTabId?: string;
+  
+  /**
+   * Main type only. Called when user selects another tab (tabs.length >= 2).
+   */
+  onTabChange?: (id: string) => void;
+  
+  /**
+   * Show date display
+   */
+  showDay?: boolean;
+  
+  /**
+   * Date text (e.g., "2025/10" for main, "2025년 09월" for sub)
+   */
+  dateText?: string;
+  
+  /**
+   * Show left icon (sub type, icon-double=false). Renders single back arrow.
+   */
+  showLeftIcon?: boolean;
+
+  /**
+   * Figma icon-double. Sub type only — true: up to 2 left icons via leftIcons (32×32 slots, 12px gap).
+   */
+  iconDouble?: boolean;
+  
+  /**
+   * Left icon press handler (sub + showLeftIcon + iconDouble=false)
+   */
+  onLeftIconPress?: () => void;
+
+  /**
+   * Sub + iconDouble. Left icon buttons (1–2). Icons spaced 16px apart.
+   */
+  leftIcons?: TopNavigationLeftIconAction[];
+  
+  /**
+   * Show right button (small button for sub type)
+   */
+  showRightButton?: boolean;
+  
+  /**
+   * Right button text
+   */
+  rightButtonText?: string;
+  
+  /**
+   * Right button press handler
+   */
+  onRightButtonPress?: () => void;
+
+  /**
+   * Show right icon button (sub type)
+   */
+  showRightIcon?: boolean;
+
+  /**
+   * Right icon name
+   */
+  rightIconName?: IconName;
+
+  /**
+   * Right icon press handler
+   */
+  onRightIconPress?: () => void;
+  
+  /**
+   * Period type for main type (year/month toggle)
+   */
+  periodType?: 'year' | 'month';
+  
+  /**
+   * Period type change handler
+   */
+  onPeriodChange?: (type: 'year' | 'month') => void;
+
+  /**
+   * 설정 시 년도/월 토글 탭에 `ui` 이벤트(`target: ym-switch`, `label`) 전송
+   */
+  periodToggleAnalyticsScreenName?: string;
+  
+  /**
+   * Show dropdown arrow next to title/date
+   */
+  showDropdownArrow?: boolean;
+  
+  /**
+   * Dropdown arrow press handler (for main type with day)
+   * If monthOptions provided, opens month picker
+   */
+  onDropdownPress?: () => void;
+  
+  /**
+   * Year options for picker (main type with day)
+   */
+  yearOptions?: { label: string; value: number }[];
+  
+  /**
+   * Selected year value
+   */
+  selectedYear?: number;
+  
+  /**
+   * Year change handler
+   */
+  onYearChange?: (year: number) => void;
+
+  /**
+   * Year + month apply in one callback (fewer home re-renders on confirm)
+   */
+  onYearMonthChange?: (year: number, month: number | undefined) => void;
+  
+  /**
+   * Month options for picker (main type with day)
+   */
+  monthOptions?: { label: string; value: number }[];
+  
+  /**
+   * Selected month value
+   */
+  selectedMonth?: number;
+  
+  /**
+   * Month change handler
+   */
+  onMonthChange?: (month: number) => void;
+  
+  /**
+   * Container style
+   */
+  style?: ViewStyle;
+}
+
+/**
+ * Top Navigation Component
+ */
+export function TopNavigationClassic({
+  type = 'main',
+  title,
+  tabs: tabsProp,
+  activeTabId,
+  onTabChange,
+  showDay = false,
+  dateText,
+  showLeftIcon = false,
+  iconDouble = false,
+  onLeftIconPress,
+  leftIcons,
+  showRightButton = false,
+  rightButtonText = '확인',
+  onRightButtonPress,
+  showRightIcon = false,
+  rightIconName = 'filter',
+  onRightIconPress,
+  periodType = 'month',
+  onPeriodChange,
+  periodToggleAnalyticsScreenName,
+  showDropdownArrow = false,
+  onDropdownPress,
+  yearOptions,
+  selectedYear,
+  onYearChange,
+  onYearMonthChange,
+  monthOptions,
+  selectedMonth,
+  onMonthChange,
+  style,
+}: TopNavigationClassicProps) {
+  const colorScheme = useColorScheme();
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
+  
+  // Main type: unified tab structure (1 or 2+ items)
+  const effectiveTabs = tabsProp ?? [{ id: 'default', label: title }];
+  const activeId = activeTabId ?? effectiveTabs[0]?.id ?? 'default';
+  const isSingleTab = effectiveTabs.length <= 1;
+  
+  // Year/Month Picker state
+  const [showMonthPicker, setShowMonthPicker] = useState(false);
+  
+  // Animation values for Period Toggle
+  const [periodSlideX] = useState(() => new Animated.Value(periodType === 'year' ? 0 : 46));
+
+  const handleLeftIconPress = () => {
+    onLeftIconPress?.();
+  };
+
+  const dualLeftIcons =
+    type === 'sub' && iconDouble ? leftIcons?.slice(0, 2) ?? [] : [];
+
+  const handleRightButtonPress = () => {
+    if (onRightButtonPress) {
+      onRightButtonPress();
+    }
+  };
+
+  const handleRightIconPress = () => {
+    if (onRightIconPress) {
+      onRightIconPress();
+    }
+  };
+
+  const handlePeriodChange = (newType: 'year' | 'month') => {
+    if (onPeriodChange && newType !== periodType) {
+      onPeriodChange(newType);
+    }
+  };
+
+  // Animate period toggle slide (switch-like animation)
+  useEffect(() => {
+    Animated.spring(periodSlideX, {
+      toValue: periodType === 'year' ? 0 : 46, // 42px width + 4px gap
+      useNativeDriver: true,
+      tension: 100,
+      friction: 10,
+    }).start();
+  }, [periodType, periodSlideX]);
+
+  const handleDropdownPress = () => {
+    if (yearOptions && yearOptions.length > 0) {
+      setShowMonthPicker(true);
+    } else if (onDropdownPress) {
+      onDropdownPress();
+    }
+  };
+
+  const handleMainTabPress = (id: string) => {
+    if (isSingleTab) {
+      // 메뉴 1개: 탭 텍스트 누름 → 아무 동작 없음 (드롭다운만 별도 처리)
+      return;
+    }
+    if (id !== activeId) {
+      onTabChange?.(id);
+    }
+  };
+
+  const handleMainTabOrDropdownPress = (id: string) => {
+    if (id === activeId && showDropdownArrow) {
+      handleDropdownPress();
+      return;
+    }
+    handleMainTabPress(id);
+  };
+
+  return (
+    <View style={[styles.container, { backgroundColor: palette.staticWhite }, style]}>
+      {/* Content */}
+      <View style={styles.content}>
+        {/* Left Section */}
+        <View style={styles.leftSection}>
+          {/* Sub icon-double: 32×32 slots, 12px gap (Figma Frame 7) */}
+          {type === 'sub' && iconDouble && dualLeftIcons.length > 0 ? (
+            <View style={styles.leftIconGroup}>
+              {dualLeftIcons.map((iconAction, index) => (
+                <Pressable
+                  key={`${iconAction.name}-${index}`}
+                  onPress={() => iconAction.onPress?.()}
+                  style={styles.iconButton}
+                  accessibilityRole="button"
+                  accessibilityLabel={iconAction.accessibilityLabel}
+                >
+                  <Icon
+                    name={iconAction.name}
+                    variant={iconAction.variant ?? 'line'}
+                    size={24}
+                    color={palette.text}
+                  />
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+
+          {/* Sub Type: Back Icon */}
+          {type === 'sub' && !iconDouble && showLeftIcon && (
+            <Pressable
+              onPress={handleLeftIconPress}
+              style={styles.iconButton}
+              accessibilityRole="button"
+              accessibilityLabel="뒤로 가기"
+            >
+              <Icon name="arrowLeft" size={24} color={palette.text} />
+            </Pressable>
+          )}
+
+          {/* Main Type: Tabs (1 or 2+), same structure. 1 tab + no dropdown → no press. */}
+          {type === 'main' && (
+            <View style={styles.mainTabsRow}>
+              {effectiveTabs.map((tab) => {
+                const isActive = tab.id === activeId;
+                const displayLabel = showDay && dateText && isActive ? dateText : tab.label;
+                const canPressDropdown = isActive && showDropdownArrow;
+                const hasPress = !isSingleTab || canPressDropdown;
+                const content = (
+                  <>
+                    <Text
+                      style={[
+                        styles.mainTitle,
+                        { color: isActive ? palette.text : palette.textAssistive },
+                      ]}
+                    >
+                      {displayLabel}
+                    </Text>
+                    {showDropdownArrow && isActive && (
+                      <Icon name="arrowDown" variant="solid" size={24} color={palette.textAssistive} />
+                    )}
+                  </>
+                );
+                return hasPress ? (
+                  <Pressable
+                    key={tab.id}
+                    onPress={() => handleMainTabOrDropdownPress(tab.id)}
+                    style={styles.mainTitleContainer}
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected: isActive }}
+                    accessibilityLabel={displayLabel}
+                  >
+                    {content}
+                  </Pressable>
+                ) : (
+                  <View key={tab.id} style={styles.mainTitleContainer} accessibilityLabel={displayLabel}>
+                    {content}
+                  </View>
+                );
+              })}
+            </View>
+          )}
+        </View>
+
+        {/* Center Section (Sub / SubDualIcon) */}
+        {type === 'sub' && !showDay && (
+          <View style={styles.centerSection}>
+            <Text style={[styles.subTitle, { color: palette.text }]}>
+              {title}
+            </Text>
+          </View>
+        )}
+
+        {/* Center Section with Day (Sub Type Only) */}
+        {type === 'sub' && showDay && dateText && (
+          <Pressable
+            onPress={showDropdownArrow ? handleDropdownPress : undefined}
+            disabled={!showDropdownArrow}
+            style={styles.centerDateContainer}
+          >
+            <Text style={[styles.subTitle, { color: palette.text }]}>
+              {dateText}
+            </Text>
+            {showDropdownArrow && (
+              <Icon name="arrowDown" variant="solid" size={24} color={palette.textAssistive} />
+            )}
+          </Pressable>
+        )}
+
+        {/* Right Section */}
+        <View style={styles.rightSection}>
+          {/* Main Type: Period Toggle with Switch Animation */}
+          {type === 'main' && onPeriodChange && (
+            <View style={[styles.periodToggle, { backgroundColor: palette.fill }]}>
+              {/* Animated Background (Switch Effect) */}
+              <Animated.View
+                style={[
+                  styles.periodBackground,
+                  { 
+                    backgroundColor: palette.staticWhite,
+                    transform: [{ translateX: periodSlideX }]
+                  },
+                ]}
+              />
+              
+              {/* Buttons */}
+              <Pressable
+                onPress={() => {
+                  if (periodToggleAnalyticsScreenName) {
+                    void logEvent('ui', {
+                      screen_name: periodToggleAnalyticsScreenName,
+                      target: 'ym-switch',
+                      label: '년도',
+                    });
+                  }
+                  handlePeriodChange('year');
+                }}
+                style={styles.periodButton}
+              >
+                <Text
+                  style={[
+                    styles.periodText,
+                    { color: periodType === 'year' ? palette.text : palette.textAssistive },
+                  ]}
+                >
+                  년도
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  if (periodToggleAnalyticsScreenName) {
+                    void logEvent('ui', {
+                      screen_name: periodToggleAnalyticsScreenName,
+                      target: 'ym-switch',
+                      label: '월',
+                    });
+                  }
+                  handlePeriodChange('month');
+                }}
+                style={styles.periodButton}
+              >
+                <Text
+                  style={[
+                    styles.periodText,
+                    { color: periodType === 'month' ? palette.text : palette.textAssistive },
+                  ]}
+                >
+                  월
+                </Text>
+              </Pressable>
+            </View>
+          )}
+
+          {/* Sub Type: Right Button */}
+          {type === 'sub' && showRightButton && (
+            <Pressable
+              onPress={handleRightButtonPress}
+              style={[styles.rightButton, { backgroundColor: palette.primary }]}
+              accessibilityRole="button"
+              accessibilityLabel={rightButtonText}
+            >
+              <Text style={[styles.rightButtonText, { color: palette.staticWhite }]}>
+                {rightButtonText}
+              </Text>
+            </Pressable>
+          )}
+
+          {type === 'sub' && showRightIcon && (
+            <Pressable
+              onPress={handleRightIconPress}
+              style={styles.iconButton}
+              accessibilityRole="button"
+              accessibilityLabel={`${rightIconName} 아이콘 버튼`}
+            >
+              <Icon name={rightIconName} size={24} color={palette.text} />
+            </Pressable>
+          )}
+        </View>
+      </View>
+
+      {/* Bottom Divider */}
+      <View style={[styles.divider, { backgroundColor: palette.border }]} />
+
+      {/* Year/Month Picker */}
+      {yearOptions && yearOptions.length > 0 && showMonthPicker ? (
+        <DatePicker
+          visible={showMonthPicker}
+          onClose={() => setShowMonthPicker(false)}
+          title={monthOptions && monthOptions.length > 0 ? '년/월 선택' : '년도 선택'}
+          yearOptions={yearOptions}
+          selectedYear={selectedYear}
+          onYearChange={onYearChange}
+          onYearMonthChange={onYearMonthChange}
+          monthOptions={monthOptions}
+          selectedMonth={selectedMonth}
+          onMonthChange={onMonthChange}
+        />
+      ) : null}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    // Background color set dynamically
+  },
+  content: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 56,
+    paddingHorizontal: 16,
+    // Figma spec height 56: remove vertical padding to keep total height at 56
+  },
+  leftSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  leftIconGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: LEFT_ICON_DOUBLE_GAP,
+  },
+  mainTabsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  iconButton: {
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  mainTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  mainTitle: {
+    ...typography.headline04.bold,
+  },
+  centerSection: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    pointerEvents: 'none',
+  },
+  centerDateContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  subTitle: {
+    ...typographyLayout.uiLineBody01Bold,
+  },
+  rightSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  periodToggle: {
+    flexDirection: 'row',
+    borderRadius: 12,
+    padding: 4,
+    gap: 4,
+    position: 'relative',
+  },
+  periodBackground: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    width: 42,
+    height: 32,
+    borderRadius: 12,
+  },
+  periodButton: {
+    width: 42,
+    height: 32,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  periodButtonActive: {
+    // Removed - using animated background instead
+  },
+  periodText: {
+    ...typographyLayout.uiLineBody02Bold,
+  },
+  rightButton: {
+    paddingHorizontal: 16,
+    height: 32,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  rightButtonText: {
+    ...typographyLayout.uiLineBody02Medium,
+  },
+  divider: {
+    height: 1,
+    width: '100%',
+  },
+});
+

@@ -5,6 +5,7 @@
  */
 
 import { TopNavigation } from '@/components/navigation/top-navigation';
+import { TopNavigationClassic } from '@/components/navigation/top-navigation-classic';
 import { CalendarMain, type CalendarExternalView } from '@/components/ui/calendar-main';
 import { NoticeCard } from '@/components/ui/notice-card';
 import { HomeListQuickInputDock } from '@/components/ui/home-list-quick-input-dock';
@@ -1390,48 +1391,70 @@ export default function HomeScreen() {
     });
   }, [financialData, monthStartDay, isReady]);
 
+  const handleTopNavigationYearMonthChange = (year: number, month?: number) => {
+    const minYear = yearOptions[0]?.value ?? year;
+    const maxYear = yearOptions[yearOptions.length - 1]?.value ?? year;
+    const clampedYear = Math.min(maxYear, Math.max(minYear, year));
+    if (clampedYear !== currentYearRef.current) {
+      setCurrentYear(clampedYear);
+    }
+    if (
+      month !== undefined &&
+      periodType === 'month' &&
+      month !== currentMonthRef.current
+    ) {
+      setCurrentMonth(month);
+    }
+    if (periodType === 'month') {
+      const nextMonth = month ?? currentMonthRef.current;
+      syncCalendarExternalView(clampedYear, nextMonth);
+    }
+  };
+
   return (
     <View style={styles.screenWrapper}>
     <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]} edges={['top']}>
       
       {/* Top Navigation */}
-      <Animated.View style={{ opacity: isContentReady ? contentOpacity : 0 }}>
-        <TopNavigation
-          type="main"
-          title=""
-          showDay
-          dateText={dateText}
-          periodType={periodType}
-          onPeriodChange={setPeriodType}
-          viewType={viewType}
-          // 리스트뷰는 실험군에만 있다. 그 밖의 그룹은 전환 아이콘을 숨긴다 (TopNavigation은 핸들러가 있을 때만 아이콘을 그린다)
-          onViewTypeChange={isListViewEnabled ? setViewType : undefined}
-          periodToggleAnalyticsScreenName={homeScreenName}
-          showDropdownArrow
-          yearOptions={yearOptions}
-          selectedYear={currentYear}
-          onYearMonthChange={(year, month) => {
-            const minYear = yearOptions[0]?.value ?? year;
-            const maxYear = yearOptions[yearOptions.length - 1]?.value ?? year;
-            const clampedYear = Math.min(maxYear, Math.max(minYear, year));
-            if (clampedYear !== currentYearRef.current) {
-              setCurrentYear(clampedYear);
-            }
-            if (
-              month !== undefined &&
-              periodType === 'month' &&
-              month !== currentMonthRef.current
-            ) {
-              setCurrentMonth(month);
-            }
-            if (periodType === 'month') {
-              const nextMonth = month ?? currentMonthRef.current;
-              syncCalendarExternalView(clampedYear, nextMonth);
-            }
-          }}
-          monthOptions={periodType === 'month' ? monthOptions : undefined}
-          selectedMonth={periodType === 'month' ? currentMonth : undefined}
-        />
+      {/* 그룹이 확정되기 전에는 숨겨 다른 디자인이 먼저 보이는 깜빡임을 막는다 */}
+      <Animated.View style={{ opacity: isContentReady && isViewTypeLoaded ? contentOpacity : 0 }}>
+        {/* 상단 네비게이션: 실험군은 가운데 년월 + 좌측 뷰 전환 아이콘, 그 밖의 그룹(대조군·제외)은 년월이 좌측인 기존 디자인.
+            두 컴포넌트는 서로 독립이다 (top-navigation-classic = 리스트뷰 추가 이전 복제) */}
+        {isListViewEnabled ? (
+          <TopNavigation
+            type="main"
+            title=""
+            showDay
+            dateText={dateText}
+            periodType={periodType}
+            onPeriodChange={setPeriodType}
+            viewType={viewType}
+            onViewTypeChange={setViewType}
+            periodToggleAnalyticsScreenName={homeScreenName}
+            showDropdownArrow
+            yearOptions={yearOptions}
+            selectedYear={currentYear}
+            onYearMonthChange={handleTopNavigationYearMonthChange}
+            monthOptions={periodType === 'month' ? monthOptions : undefined}
+            selectedMonth={periodType === 'month' ? currentMonth : undefined}
+          />
+        ) : (
+          <TopNavigationClassic
+            type="main"
+            title=""
+            showDay
+            dateText={dateText}
+            periodType={periodType}
+            onPeriodChange={setPeriodType}
+            periodToggleAnalyticsScreenName={homeScreenName}
+            showDropdownArrow
+            yearOptions={yearOptions}
+            selectedYear={currentYear}
+            onYearMonthChange={handleTopNavigationYearMonthChange}
+            monthOptions={periodType === 'month' ? monthOptions : undefined}
+            selectedMonth={periodType === 'month' ? currentMonth : undefined}
+          />
+        )}
       </Animated.View>
 
       {/* Conditional Content: Month View or Year View */}
