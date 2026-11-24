@@ -291,6 +291,12 @@ export type ExpenseSimpleCreationValue = boolean | 'unknown';
 /** 간편입력 안에서의 생성 경로. record_created / created_complete의 path 속성 값 */
 export type SimpleCreationPath = 'record_inbox' | 'sentence';
 
+/**
+ * 간편입력에 들어온 홈 뷰. record_created / created_complete의 entry_screen 속성 값.
+ * path(어떤 방식으로 만들었나)와 함께 보면 어느 뷰에서 어떤 간편 생성을 했는지 알 수 있다.
+ */
+export type SimpleCreationEntryScreen = 'home_month_calendar' | 'home_month_list';
+
 export interface ExpenseCreationCompletionPayload {
   repeat_count: number;
   period_unit?: ExpensePeriodUnit;
@@ -305,6 +311,8 @@ export interface ExpenseCreationCompletionPayload {
   memo: boolean;
   /** 간편입력 생성 경로. simple_creation=true인 생성 이벤트에만 붙는다. */
   path?: SimpleCreationPath;
+  /** 간편입력에 들어온 홈 뷰. path와 같은 조건(simple_creation=true인 생성 이벤트)에만 붙는다. */
+  entry_screen?: SimpleCreationEntryScreen;
 }
 
 export interface ChallengeLifecycleAnalyticsPayload {
@@ -391,6 +399,7 @@ export function logRecordLifecycleCount(
     memo?: boolean;
     simple_creation?: ExpenseSimpleCreationValue;
     path?: SimpleCreationPath;
+    entry_screen?: SimpleCreationEntryScreen;
   },
 ): void {
   const eventName = action === 'create' ? 'record_created' : 'record_deleted';
@@ -410,6 +419,9 @@ export function logRecordLifecycleCount(
   if (extra?.path) {
     payload.path = extra.path;
   }
+  if (extra?.entry_screen) {
+    payload.entry_screen = extra.entry_screen;
+  }
   void logEvent(eventName, payload);
   const completePayload: Record<string, unknown> = {
     record_type: entity,
@@ -424,6 +436,9 @@ export function logRecordLifecycleCount(
   }
   if (extra?.path) {
     completePayload.path = extra.path;
+  }
+  if (extra?.entry_screen) {
+    completePayload.entry_screen = extra.entry_screen;
   }
   void logEvent(completeEventName, completePayload);
 }
@@ -487,6 +502,7 @@ export function logExpenseCreateComplete(
     simple_creation: completion.simple_creation,
     memo: completion.memo,
     ...(completion.path ? { path: completion.path } : {}),
+    ...(completion.entry_screen ? { entry_screen: completion.entry_screen } : {}),
   });
 }
 

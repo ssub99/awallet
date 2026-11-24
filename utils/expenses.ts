@@ -14,6 +14,7 @@ import {
   type ExpenseSettlementKind,
   type ExpenseSimpleCreationValue,
   type ExpenseWeekendOptionAnalytics,
+  type SimpleCreationEntryScreen,
   type SimpleCreationPath,
 } from '@/utils/analytics';
 import { registerReviewPromptLifetimeCreations } from '@/utils/app-store-review-lifetime';
@@ -334,6 +335,8 @@ export type BuildExpenseCreationCompletionOpts = {
   simpleCreation?: boolean;
   /** 간편입력 생성 경로. simpleCreation=true일 때만 payload에 실린다. */
   path?: SimpleCreationPath;
+  /** 간편입력에 들어온 홈 뷰. simpleCreation=true일 때만 payload에 실린다. */
+  entryScreen?: SimpleCreationEntryScreen;
 };
 
 function resolveSimpleCreation(
@@ -402,11 +405,15 @@ export function buildExpenseCreationCompletionPayload(
   opts?: BuildExpenseCreationCompletionOpts,
 ): ExpenseCreationCompletionPayload {
   const base = buildExpenseCreationCompletionPayloadBase(record, opts);
-  // path는 간편입력 생성(simple_creation=true)에만 붙인다.
-  if (opts?.path && base.simple_creation === true) {
-    return { ...base, path: opts.path };
+  // path·entry_screen은 간편입력 생성(simple_creation=true)에만 붙인다.
+  if (base.simple_creation !== true) {
+    return base;
   }
-  return base;
+  return {
+    ...base,
+    ...(opts?.path ? { path: opts.path } : {}),
+    ...(opts?.entryScreen ? { entry_screen: opts.entryScreen } : {}),
+  };
 }
 
 export type CreateExpenseOptions = {
@@ -449,6 +456,8 @@ export type CreateExpensesBatchOptions = {
   simpleCreation?: boolean;
   /** 간편입력 생성 경로 (문장 / 기록 수신함). simpleCreation=true일 때만 쓰인다. */
   path?: SimpleCreationPath;
+  /** 간편입력에 들어온 홈 뷰. simpleCreation=true일 때만 쓰인다. */
+  entryScreen?: SimpleCreationEntryScreen;
 };
 
 export async function createExpensesBatch(
@@ -508,6 +517,7 @@ export async function createExpensesBatch(
         repeatCountOverride: batchRepeatCount,
         simpleCreation: batchOptions?.simpleCreation === true,
         path: batchOptions?.path,
+        entryScreen: batchOptions?.entryScreen,
       }),
     );
   }
@@ -522,6 +532,7 @@ export async function createExpensesBatch(
         repeatCountOverride: batchRepeatCount,
         simpleCreation: batchOptions?.simpleCreation === true,
         path: batchOptions?.path,
+        entryScreen: batchOptions?.entryScreen,
       }),
     );
   }

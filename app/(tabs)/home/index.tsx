@@ -845,15 +845,22 @@ export default function HomeScreen() {
     };
   }, [handleAppStateChange]);
 
+  /** 캘린더뷰 간편입력 알약 → 간편입력 열기. 생성 이벤트의 entry_screen은 home_month_calendar */
   const handleQuickInputPress = useCallback(
-    (shortBottomFromScreen: number) => showQuickInput(starScale, starRotate, shortBottomFromScreen),
+    (shortBottomFromScreen: number) =>
+      showQuickInput(starScale, starRotate, shortBottomFromScreen, {
+        entryScreen: 'home_month_calendar',
+      }),
     [showQuickInput, starScale, starRotate]
   );
 
-  /** 리스트뷰 입력창 → 딤 없이 간편입력 입력 UI만 올린다 */
+  /** 리스트뷰 입력창 → 간편입력 입력 UI만 올린다. 생성 이벤트의 entry_screen은 home_month_list */
   const handleListInputPress = useCallback(
     (shortBottomFromScreen: number) =>
-      showQuickInput(starScale, starRotate, shortBottomFromScreen, { homeList: true }),
+      showQuickInput(starScale, starRotate, shortBottomFromScreen, {
+        homeList: true,
+        entryScreen: 'home_month_list',
+      }),
     [showQuickInput, starScale, starRotate],
   );
 
@@ -885,13 +892,16 @@ export default function HomeScreen() {
         if (quickInputShortRef.current) {
           quickInputShortRef.current.openWithoutLog();
         } else {
-          showQuickInput(starScale, starRotate);
+          // 뷰 설정을 읽기 전에 열리는 드문 경우: 현재 뷰 기준으로 entry_screen을 정한다
+          showQuickInput(starScale, starRotate, undefined, {
+            entryScreen: viewType === 'list' ? 'home_month_list' : 'home_month_calendar',
+          });
         }
       },
       openSource,
       homeScreenName,
     );
-  }, [homeScreenName, isContentReady, showQuickInput, starRotate, starScale]);
+  }, [homeScreenName, isContentReady, showQuickInput, starRotate, starScale, viewType]);
 
   useFocusEffect(
     useCallback(() => {

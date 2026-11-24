@@ -4,6 +4,7 @@ import { scheduleMaybePromptWriteReview } from '@/utils/app-store-review-schedul
 import {
   logRecordLifecycleCount,
   type ExpenseSimpleCreationValue,
+  type SimpleCreationEntryScreen,
   type SimpleCreationPath,
 } from '@/utils/analytics';
 import { generateRecordId } from './id-generator';
@@ -29,6 +30,8 @@ export type CreateIncomeOptions = {
   simpleCreation?: boolean;
   /** 간편입력 생성 경로 (문장 / 기록 수신함). simpleCreation=true일 때만 쓰인다. */
   path?: SimpleCreationPath;
+  /** 간편입력에 들어온 홈 뷰. simpleCreation=true일 때만 쓰인다. */
+  entryScreen?: SimpleCreationEntryScreen;
 };
 
 function resolveIncomeSimpleCreation(
@@ -115,6 +118,8 @@ export async function createIncome(
     memo,
     simple_creation: resolveIncomeSimpleCreation(income, options),
     path: resolveIncomeSimpleCreation(income, options) === true ? options?.path : undefined,
+    entry_screen:
+      resolveIncomeSimpleCreation(income, options) === true ? options?.entryScreen : undefined,
   });
   await registerReviewPromptLifetimeCreations(1);
   scheduleMaybePromptWriteReview();

@@ -43,7 +43,12 @@ import { useToast } from '@/contexts/toast-context';
 import { publishCalendarTarget } from '@/hooks/calendar-events';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { useRecordFormMemoKeyboard } from '@/hooks/use-record-form-memo-keyboard';
-import { QUICK_INPUT_ANALYTICS_SCREEN_NAME, logEvent, type SimpleCreationPath } from '@/utils/analytics';
+import {
+  QUICK_INPUT_ANALYTICS_SCREEN_NAME,
+  logEvent,
+  type SimpleCreationEntryScreen,
+  type SimpleCreationPath,
+} from '@/utils/analytics';
 import { getApiSecurityHeaders } from '@/utils/api-security-headers';
 import { isAtLeastVersion, QUICK_INPUT_MIN_VERSION } from '@/utils/app-version';
 import { HOME_MONTH_CALENDAR_SCREEN_NAME } from '@/utils/home-screen-name';
@@ -254,11 +259,15 @@ export type ShowQuickInputOptions = {
   /** 기본 true. false면 롱 입력·키패드 자동 오픈 없음 */
   autoFocus?: boolean;
   /**
-   * 홈 리스트뷰 전용. true면 간편입력 입력 UI만 딤 없이 올린다
-   * (수신함·계산기·카테고리 설정 등 패널이 열릴 때만 딤).
-   * 기본 false — 캘린더뷰 간편입력은 기존대로 딤과 함께 연다.
+   * 홈 리스트뷰 전용. true면 칩은 홈 독에 남기고 입력창만 올린다(딤은 기존과 동일).
+   * 기본 false — 캘린더뷰 간편입력은 기존대로 연다.
    */
   homeList?: boolean;
+  /**
+   * 간편입력에 들어온 홈 뷰. record_created / created_complete의 entry_screen으로 기록된다.
+   * 미지정 시 homeList면 리스트뷰, 아니면 캘린더뷰.
+   */
+  entryScreen?: SimpleCreationEntryScreen;
 };
 
 /** 하단 칩에서 간편입력을 키패드 없이 열고 해당 기능으로 바로 진입 */
@@ -1079,9 +1088,11 @@ async function persistPendingParseRecord(
     showToast: (message: string) => void;
     /** 간편입력 생성 경로. record_created / created_complete의 path로 기록된다. */
     path: SimpleCreationPath;
+    /** 간편입력에 들어온 홈 뷰. record_created / created_complete의 entry_screen으로 기록된다. */
+    entryScreen: SimpleCreationEntryScreen;
   },
 ): Promise<boolean> {
-  const { getPaymentSubtypesCached, refresh, showToast, path } = deps;
+  const { getPaymentSubtypesCached, refresh, showToast, path, entryScreen } = deps;
   try {
     const parsedDate = parsePendingDate(pending.date);
     if (!parsedDate) {
@@ -1144,7 +1155,7 @@ async function persistPendingParseRecord(
         memo: pending.memo,
         createdVia: 'simple',
       };
-      await createIncome(incomeRecord, { simpleCreation: true, path });
+      await createIncome(incomeRecord, { simpleCreation: true, path, entryScreen });
       await refreshWidgetWithCurrentMonth().catch(() => {});
       const actualDateKey = actualDate.replace(/\./g, '-');
       const savedDate = new Date(
@@ -1304,6 +1315,7 @@ async function persistPendingParseRecord(
       creationCompletionRepeatCount: recordsToSave.length,
       simpleCreation: true,
       path,
+      entryScreen,
     });
     await refreshWidgetWithCurrentMonth().catch(() => {});
 
@@ -1550,7 +1562,12 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }, [dataVersion]);
 
   const [quickInputBackdropOpacity] = useState(() => new RNAnimated.Value(0));
-  /** 홈 리스트뷰에서 연 간편입력인지 (딤 없는 입력 UI) */
+  /**
+   * 이번 간편입력을 연 시점의 홈 뷰. 생성 이벤트의 entry_screen이 된다.
+   * 열 때 정해 두므로, 생성 도중 다른 화면을 오가도 값이 바뀌지 않는다.
+   */
+  const quickInputEntryScreenRef = useRef<SimpleCreationEntryScreen>('home_month_calendar');
+  /** 홈 리스트뷰에서 연 간편입력인지 (칩은 홈 독에 남기고 입력창만 올리는 모드) */
   const [isHomeListOverlay, setIsHomeListOverlay] = useState(false);
   /** 리스트뷰 칩으로 패널을 직접 연 흐름: 패널을 닫으면 간편입력 전체를 닫고 홈으로 복귀 */
   const homeListPanelFlowRef = useRef(false);
@@ -1898,6 +1915,8 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       setRecordInboxCategorySheetSelected('');
       quickInputLongOpacity.setValue(1);
       setIsHomeListOverlay(options?.homeList === true);
+      quickInputEntryScreenRef.current =
+        options?.entryScreen ?? (options?.homeList === true ? 'home_month_list' : 'home_month_calendar');
       homeListPanelFlowRef.current = false;
       setIsHomeListPanelFlow(false);
       setIsQuickInputShortVisible(false);
@@ -2382,6 +2401,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         refresh: () => refresh({ showLoading: false }),
         showToast,
         path: 'record_inbox',
+        entryScreen: quickInputEntryScreenRef.current,
       });
       if (!saved) {
         return 'abort';
@@ -3928,6 +3948,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
         refresh,
         showToast,
         path: 'sentence',
+        entryScreen: quickInputEntryScreenRef.current,
       });
       if (!saved) {
         return;
@@ -4782,7 +4803,11 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       // 패널을 바로 열기 위해 입력 스택(칩·입력창)은 잠시도 보이지 않게 숨기고,
       // 패널을 닫으면 간편입력 입력 UI가 아니라 홈으로 복귀한다.
       const openOverlay = () => {
-        showQuickInput(starScale, starRotate, shortBottom, { autoFocus: false, homeList: true });
+        showQuickInput(starScale, starRotate, shortBottom, {
+          autoFocus: false,
+          homeList: true,
+          entryScreen: 'home_month_list',
+        });
         homeListPanelFlowRef.current = true;
         setIsHomeListPanelFlow(true);
       };
