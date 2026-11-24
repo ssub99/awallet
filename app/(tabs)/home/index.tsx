@@ -89,6 +89,11 @@ const HOME_VIEW_TYPE_STORAGE_KEY = 'homeViewType';
  * 저장소(비동기)를 기다리지 않고 곧바로 같은 뷰로 시작해, 리스트뷰 사용자에게 캘린더뷰가 잠깐 보이지 않게 한다.
  */
 let cachedHomeViewType: 'calendar' | 'list' | null = null;
+/**
+ * 처음 쓰는 사용자(저장된 값 없음)의 기본 뷰. 이후에는 사용자가 마지막으로 선택한 뷰를
+ * HOME_VIEW_TYPE_STORAGE_KEY에 저장해 계속 그 뷰로 시작한다.
+ */
+const DEFAULT_HOME_VIEW_TYPE: 'calendar' | 'list' = 'list';
 /** 리스트뷰 하단 독 높이: 칩 40 + 간격 12 + 입력창 48 */
 const LIST_DOCK_HEIGHT = 100;
 
@@ -186,10 +191,10 @@ export default function HomeScreen() {
   const [periodType, setPeriodType] = useState<'year' | 'month'>('month');
   // 홈 뷰타입: calendar(기존 캘린더) | list(월 요약 + 날짜 스트립 + 기록 리스트)
   const [viewType, setViewTypeState] = useState<'calendar' | 'list'>(
-    cachedHomeViewType ?? 'calendar',
+    cachedHomeViewType ?? DEFAULT_HOME_VIEW_TYPE,
   );
   /**
-   * 뷰 타입이 확정됐는지. 처음 한 번 저장소를 읽는 동안은 어느 뷰도 그리지 않고(기본값 calendar가 먼저 보이는 것 방지),
+   * 뷰 타입이 확정됐는지. 처음 한 번 저장소를 읽는 동안은 어느 뷰도 그리지 않고(기본값이 먼저 보이는 것 방지),
    * screen_view도 그 뒤에 보낸다. 다시 마운트될 때는 세션 메모리 값으로 바로 확정된다.
    */
   const [isViewTypeLoaded, setIsViewTypeLoaded] = useState(cachedHomeViewType !== null);
@@ -214,7 +219,9 @@ export default function HomeScreen() {
     }
     AsyncStorage.getItem(HOME_VIEW_TYPE_STORAGE_KEY)
       .then((stored) => {
-        const restored = stored === 'list' ? 'list' : 'calendar';
+        // 저장된 선택이 있으면 그 뷰, 없으면(처음 사용) 기본 뷰
+        const restored =
+          stored === 'calendar' || stored === 'list' ? stored : DEFAULT_HOME_VIEW_TYPE;
         // 읽는 사이 사용자가 직접 전환했다면(cache가 채워짐) 그 값을 우선
         if (cachedHomeViewType === null) {
           cachedHomeViewType = restored;
@@ -223,7 +230,7 @@ export default function HomeScreen() {
       })
       .catch(() => {
         if (cachedHomeViewType === null) {
-          cachedHomeViewType = 'calendar';
+          cachedHomeViewType = DEFAULT_HOME_VIEW_TYPE;
         }
       })
       .finally(() => setIsViewTypeLoaded(true));
