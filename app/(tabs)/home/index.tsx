@@ -1194,6 +1194,12 @@ export default function HomeScreen() {
     return listDateKeys.includes(todayKey) ? todayKey : listDateKeys[0];
   }, [listDateKeys, selectedDate, effectiveSelectedDate]);
 
+  /** 월 안에서 기록이 있는 날짜 — 요일 스트립 dot 표시용 */
+  const listRecordedDates = useMemo(
+    () => Array.from(new Set(listMonthItems.map((item) => item.date))),
+    [listMonthItems],
+  );
+
   const listSelectedItems = useMemo(
     () => listMonthItems.filter((item) => item.date === listSelectedDate),
     [listMonthItems, listSelectedDate],
@@ -1313,6 +1319,7 @@ export default function HomeScreen() {
         onSwipeNextMonth={handleListSwipeNextMonth}
         onSwipePrevMonth={handleListSwipePrevMonth}
         reselectTick={homeReselectTick}
+        recordedDates={listRecordedDates}
         categoryEmojiMap={categoryEmojiMap}
         bottomInset={listCardBottomInset}
         onSelectDate={handleListSelectDate}
@@ -1336,6 +1343,7 @@ export default function HomeScreen() {
       handleListSwipeNextMonth,
       handleListSwipePrevMonth,
       homeReselectTick,
+      listRecordedDates,
       currentYear,
     ],
   );

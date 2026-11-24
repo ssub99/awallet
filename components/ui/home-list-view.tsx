@@ -4,7 +4,7 @@
  *
  * 스펙(Figma 토큰):
  * - 본문 배경 Semantic/Fill/Normal, 카드 Semantic/Static/White r16
- * - day strip: 해당 월 전체 일자를 가로 스크롤, 셀 폭 48 고정·gap 8, h61, r12 / 선택 = Atomic/Blue/50 + Primary 텍스트
+ * - day strip: 해당 월 전체 일자를 가로 스크롤, 셀 40×70 고정·gap 8, r12 / 선택 = Label/Neutral 테두리. 기록 있는 날은 숫자 아래 dot
  * - 기록 카드: 행 padding 16, 이모지 슬롯 48x48 Fill/Normal 원형(r24), 구분선 inset 16
  */
 
@@ -38,9 +38,13 @@ const EMPTY_FACE_SMILE_BLINK = require('../../assets/lottie/face-smile-blink.jso
 const EMPTY_FACE_FLAT_BLINK = require('../../assets/lottie/face-flat-blink.json');
 
 const WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'] as const;
-/** day 셀 폭 고정 48 (한 자리·두 자리 동일), 셀 간 gap 8 */
-const DAY_CELL_WIDTH = 48;
+/** day 셀 크기 고정 40×70 (한 자리·두 자리 동일), 셀 간 gap 8 */
+const DAY_CELL_WIDTH = 40;
+const DAY_CELL_HEIGHT = 70;
 const DAY_CELL_GAP = 8;
+/** 기록 있는 날 표시 dot: 시안은 8×8 영역 안에 6×6 원 */
+const DAY_DOT_AREA = 8;
+const DAY_DOT_SIZE = 6;
 /** 홈으로 돌아온 뒤 월 소비 금액 카운트업이 시작되기까지의 지연 */
 const SUMMARY_COUNT_UP_DELAY_MS = 1000;
 const DAY_STRIP_PADDING = 16;
@@ -59,6 +63,8 @@ export interface HomeListViewProps {
   countUpActive: boolean;
   /** 월이 바뀌면 카운트 없이 즉시 새 금액으로 (예: `2026-11`) */
   countUpResetKey: string;
+  /** 기록이 있는 날짜(YYYY-MM-DD). 해당 일자 셀에 dot을 표시한다 */
+  recordedDates: string[];
   categoryEmojiMap: Record<string, string>;
   bottomInset: number;
   onSelectDate: (dateKey: string) => void;
@@ -105,6 +111,7 @@ function HomeListViewInner({
   summaryAmount,
   countUpActive,
   countUpResetKey,
+  recordedDates,
   categoryEmojiMap,
   bottomInset,
   onSelectDate,
@@ -132,6 +139,8 @@ function HomeListViewInner({
     const d = String(now.getDate()).padStart(2, '0');
     return selectedDate === `${now.getFullYear()}-${m}-${d}`;
   }, [selectedDate]);
+
+  const recordedDateSet = useMemo(() => new Set(recordedDates), [recordedDates]);
 
   /**
    * 좌우 스와이프로 월 전환 — monthly-expense-timeline과 같은 기준
@@ -253,7 +262,9 @@ function HomeListViewInner({
               ]}
               accessibilityRole="button"
               accessibilityState={{ selected: isSelected }}
-              accessibilityLabel={`${cell.day}일 ${WEEKDAY_LABELS[cell.weekday]}요일`}
+              accessibilityLabel={`${cell.day}일 ${WEEKDAY_LABELS[cell.weekday]}요일${
+                recordedDateSet.has(cell.key) ? ', 기록 있음' : ''
+              }`}
             >
               <Text
                 style={[
@@ -276,6 +287,17 @@ function HomeListViewInner({
                   {cell.day}
                 </Text>
               </View>
+              {/* 기록 있는 날 dot (시안: 선택일 Label/Normal, 그 외 Label/Assistive). 없는 날은 표시하지 않는다 */}
+              {recordedDateSet.has(cell.key) ? (
+                <View style={styles.dayDotArea}>
+                  <View
+                    style={[
+                      styles.dayDot,
+                      { backgroundColor: isSelected ? palette.text : palette.textAssistive },
+                    ]}
+                  />
+                </View>
+              ) : null}
             </Pressable>
           );
         })}
@@ -416,24 +438,39 @@ const styles = StyleSheet.create({
   },
   dayCell: {
     width: DAY_CELL_WIDTH,
-    height: 61,
+    height: DAY_CELL_HEIGHT,
     borderWidth: 1,
+    // 시안 패딩은 위아래 8·좌우 4이고 테두리는 레이아웃을 차지하지 않는다. RN은 테두리 1px이 안쪽을 차지하므로 1씩 뺀다
     paddingHorizontal: 3,
+    paddingVertical: 7,
     borderRadius: 12,
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 3,
+    // 위쪽부터 쌓는다 (dot이 없는 날도 요일·숫자 위치가 같다)
+    justifyContent: 'flex-start',
+    gap: 2,
   },
   dayWeekday: {
-    ...typography.body02.medium,
+    ...typography.detail.medium,
   },
   dayNumberWrap: {
-    height: 32,
+    height: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
   dayNumber: {
-    ...typography.headline04.bold,
+    ...typography.body01.bold,
+  },
+  /** 기록 표시 dot: 8×8 영역 가운데 6×6 원 */
+  dayDotArea: {
+    width: DAY_DOT_AREA,
+    height: DAY_DOT_AREA,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dayDot: {
+    width: DAY_DOT_SIZE,
+    height: DAY_DOT_SIZE,
+    borderRadius: DAY_DOT_SIZE / 2,
   },
   list: {
     flex: 1,
@@ -506,8 +543,8 @@ const styles = StyleSheet.create({
     minHeight: 200,
   },
   emptyFace: {
-    width: 72,
-    height: 72,
+    width: 64,
+    height: 64,
   },
   emptyText: {
     ...typography.body01.regular,
