@@ -600,12 +600,15 @@ export default function HomeScreen() {
     }
   }, [periodType, syncCalendarDatesToToday, setPeriodType]);
   
+  /** 홈 탭 재선택 횟수 — 리스트뷰 요일 스트립이 선택일(오늘) 위치로 되돌아가게 한다 */
+  const [homeReselectTick, setHomeReselectTick] = useState(0);
   // 홈 탭이 이미 선택된 상태에서 다시 탭 → 중첩 화면 닫고 오늘로 리셋 (NativeTabs 재선택)
   useEffect(() => {
     return tabReselectEvent.subscribe((tabName) => {
       if (tabName !== 'home') {
         return;
       }
+      setHomeReselectTick((tick) => tick + 1);
       if (router.canDismiss()) {
         router.dismissTo(HOME_STACK_PATHS.index);
       }
@@ -1309,6 +1312,7 @@ export default function HomeScreen() {
         countUpResetKey={`${currentYear}-${currentMonth}`}
         onSwipeNextMonth={handleListSwipeNextMonth}
         onSwipePrevMonth={handleListSwipePrevMonth}
+        reselectTick={homeReselectTick}
         categoryEmojiMap={categoryEmojiMap}
         bottomInset={listCardBottomInset}
         onSelectDate={handleListSelectDate}
@@ -1331,6 +1335,7 @@ export default function HomeScreen() {
       handleListItemPress,
       handleListSwipeNextMonth,
       handleListSwipePrevMonth,
+      homeReselectTick,
       currentYear,
     ],
   );

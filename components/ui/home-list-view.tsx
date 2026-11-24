@@ -67,6 +67,8 @@ export interface HomeListViewProps {
   onSwipeNextMonth: () => void;
   /** 오른쪽으로 밀면 이전 달 */
   onSwipePrevMonth: () => void;
+  /** 홈 탭 재선택 횟수. 바뀌면 요일 스트립을 선택일 위치로 다시 스크롤한다 */
+  reselectTick?: number;
   onDetailPress: () => void;
   onItemPress: (item: TimelineListItem) => void;
 }
@@ -111,6 +113,7 @@ function HomeListViewInner({
   onItemPress,
   onSwipeNextMonth,
   onSwipePrevMonth,
+  reselectTick = 0,
 }: HomeListViewProps) {
   const colorScheme = useColorScheme();
   const palette = colors[colorScheme ?? 'light'] as ColorPalette;
@@ -175,10 +178,11 @@ function HomeListViewInner({
   }, [selectedDate]);
 
   // 선택일이 가운데 오도록 스크롤 (월 전환·외부 선택 변경 시)
+  // reselectTick: 홈 탭을 다시 눌렀을 때 — 선택일이 그대로 오늘이어도 스트립을 선택일로 되돌린다
   useEffect(() => {
     const id = requestAnimationFrame(scrollToSelected);
     return () => cancelAnimationFrame(id);
-  }, [dayCells, scrollToSelected]);
+  }, [dayCells, scrollToSelected, reselectTick]);
 
   return (
     <View style={styles.root}>
@@ -234,6 +238,11 @@ function HomeListViewInner({
                   x: e.nativeEvent.layout.x,
                   width: e.nativeEvent.layout.width,
                 };
+                // 앱을 새로 켠 직후에는 선택일 셀이 아직 측정되기 전에 스크롤이 시도돼 건너뛰어진다.
+                // 선택일 셀의 위치가 잡히는 시점에 다시 스크롤한다.
+                if (isSelected) {
+                  scrollToSelected();
+                }
               }}
               style={[
                 styles.dayCell,
@@ -482,7 +491,7 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   divider: {
-    height: StyleSheet.hairlineWidth,
+    height: 1, // 타임라인(monthly-expense-timeline)의 항목 구분선과 같은 두께·색
     marginHorizontal: 16,
   },
   /** 얼굴 72 + 8 간격 + 문구 24, 카드 가운데 (시안 96 → 72로 축소) */

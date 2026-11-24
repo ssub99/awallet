@@ -11,8 +11,10 @@ import { Icon } from '@/components/ui/icon';
 import { QuickInputField } from '@/components/ui/quick-input-field';
 import type { QuickInputShortHandle } from '@/components/ui/quick-input-short';
 import { atomicColors } from '@/constants/atomic-colors';
+import { colors, type ColorPalette } from '@/constants/theme';
 import { getRandomQuickInputPlaceholder } from '@/constants/quick-input-placeholders';
 import { type QuickInputChipAction, useQuickInputContext } from '@/contexts/quick-input-context';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { logEvent } from '@/utils/analytics';
 import { HOME_MONTH_LIST_SCREEN_NAME } from '@/utils/home-screen-name';
 import type { ComponentRef, Ref } from 'react';
@@ -71,6 +73,8 @@ export function HomeListQuickInputDock({
   fieldHidden = false,
 }: HomeListQuickInputDockProps) {
   const { recordInboxUnreadCount } = useQuickInputContext();
+  const colorScheme = useColorScheme();
+  const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   const fieldAnchorRef = useRef<ComponentRef<typeof View>>(null);
   const lastBottomRef = useRef<number | null>(null);
   const [placeholder] = useState(() => getRandomQuickInputPlaceholder());
@@ -177,6 +181,8 @@ export function HomeListQuickInputDock({
             hideSendButton
           />
         </View>
+        {/* 입력창 테두리: semantic/primary/normal(palette.primary), 두께 3 (입력창과 함께 숨겨진다) */}
+        <View style={[styles.fieldBorder, { borderColor: palette.primary }]} pointerEvents="none" />
       </Pressable>
     </View>
   );
@@ -244,6 +250,15 @@ const styles = StyleSheet.create({
   fieldWrap: {
     marginLeft: 16,
     marginRight: FAB_AREA_WIDTH,
+  },
+  fieldBorder: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: FIELD_HEIGHT / 2,
+    borderWidth: 3,
   },
   fieldWrapHidden: {
     opacity: 0,
