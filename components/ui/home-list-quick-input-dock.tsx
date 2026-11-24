@@ -181,7 +181,7 @@ export function HomeListQuickInputDock({
             hideSendButton
           />
         </View>
-        {/* 입력창 테두리: semantic/primary/normal(palette.primary), 두께 3 (입력창과 함께 숨겨진다) */}
+        {/* 입력창 테두리: semantic/primary/normal(palette.primary), 두께 2 (입력창과 함께 숨겨진다) */}
         <View style={[styles.fieldBorder, { borderColor: palette.primary }]} pointerEvents="none" />
       </Pressable>
     </View>
@@ -258,7 +258,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     borderRadius: FIELD_HEIGHT / 2,
-    borderWidth: 3,
+    borderWidth: 2,
   },
   fieldWrapHidden: {
     opacity: 0,
