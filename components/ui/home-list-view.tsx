@@ -11,7 +11,6 @@
 import { CountUpText } from '@/components/ui/count-up-text';
 import { formatSignedBalanceText } from '@/utils/format-balance-text';
 import { Tag } from '@/components/ui/tag';
-import { atomicColors } from '@/constants/atomic-colors';
 import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getEmojiTintBackground } from '@/utils/emoji-tint';
@@ -247,8 +246,9 @@ function HomeListViewInner({
               style={[
                 styles.dayCell,
                 {
-                  backgroundColor: isSelected ? atomicColors.blue[50] : palette.staticWhite,
-                  borderColor: isSelected ? palette.primary : 'transparent',
+                  // 시안: 모든 셀 흰 배경. 선택된 셀만 Label/Neutral 1px 테두리 (글자는 Label/Normal)
+                  backgroundColor: palette.staticWhite,
+                  borderColor: isSelected ? palette.textNeutral : 'transparent',
                 },
               ]}
               accessibilityRole="button"
@@ -258,7 +258,8 @@ function HomeListViewInner({
               <Text
                 style={[
                   styles.dayWeekday,
-                  { color: isSelected ? palette.primary : palette.textAssistive },
+                  // 시안: 선택 Label/Normal, 그 외 Label/Assistive
+                  { color: isSelected ? palette.text : palette.textAssistive },
                 ]}
               >
                 {WEEKDAY_LABELS[cell.weekday]}
@@ -268,7 +269,7 @@ function HomeListViewInner({
                   style={[
                     styles.dayNumber,
                     {
-                      color: isSelected ? palette.primary : palette.textAssistive,
+                      color: isSelected ? palette.text : palette.textAssistive,
                     },
                   ]}
                 >
