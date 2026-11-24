@@ -206,12 +206,12 @@ export function QuickInputRecordInboxFocusDim({
 const styles = StyleSheet.create({
   /** 형제 overlay와 zIndex를 맞추는 스택 셸 — opacity/native-drive 금지 */
   root: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 5,
     elevation: 5,
   },
   fadeFill: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   block: {
     position: 'absolute',

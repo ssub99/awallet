@@ -231,7 +231,7 @@ export function QuickInputTutorialCategoryHintDim({
 
 const styles = StyleSheet.create({
   root: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 6,
     elevation: 6,
   },

@@ -252,15 +252,15 @@ export function QuickInputTutorialCreateSendHintDim({
 const styles = StyleSheet.create({
   /** plain View 루트 — Reanimated opacity를 루트에 두면 형제 zIndex가 깨짐 */
   root: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 5,
     elevation: 5,
   },
   fadeFill: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   fullBlock: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'transparent',
   },
   block: {
