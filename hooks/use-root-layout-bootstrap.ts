@@ -39,7 +39,7 @@ import {
   onFirstScreenSplashRelease,
   releaseFirstScreenSplash,
 } from '@/utils/first-screen-splash';
-import { shouldShowOnboarding } from '@/utils/onboarding-settings';
+import { markExistingUserOnboardingCompleted, shouldShowOnboarding } from '@/utils/onboarding-settings';
 import Constants from 'expo-constants';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Updates from 'expo-updates';
@@ -80,6 +80,13 @@ export function useRootLayoutBootstrap() {
       try {
         // 엔트리(`utils/prevent-splash-autohide`)에서 이미 선제 호출. 여기서는 확인만.
         await SplashScreen.preventAutoHideAsync();
+
+        // 기존 사용자는 온보딩 대상에서 제외. 이번 실행이 저장소에 쓰기 전(기기 ID·공지 기준 시각 생성 전)에 판정한다.
+        try {
+          await markExistingUserOnboardingCompleted();
+        } catch {
+          // 판정 실패는 무시 — 이후 shouldShowOnboarding이 저장된 값대로 동작
+        }
 
         const isExpoGo = Constants.appOwnership === 'expo';
         if (!isExpoGo && Updates.isEnabled) {
