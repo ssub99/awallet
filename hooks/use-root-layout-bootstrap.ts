@@ -40,10 +40,6 @@ import {
   releaseFirstScreenSplash,
 } from '@/utils/first-screen-splash';
 import { shouldShowOnboarding } from '@/utils/onboarding-settings';
-import {
-  resolveOnboardingTutorialExperimentDecision,
-  trackOnboardingTutorialExposureOnce,
-} from '@/utils/onboarding-tutorial-experiment';
 import Constants from 'expo-constants';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Updates from 'expo-updates';
@@ -131,30 +127,14 @@ export function useRootLayoutBootstrap() {
         });
 
         // 스플래시 유지한 채 온보딩 여부만 확정 — 홈 깜빡임 없이 게이트 분기
-        const shouldShow = await shouldShowOnboarding();
-        if (!shouldShow) {
-          setInitialNeedsOnboarding(false);
-        } else {
-          const decision = await resolveOnboardingTutorialExperimentDecision({
-            forceRefresh: true,
-          });
-          trackOnboardingTutorialExposureOnce(decision);
-          setInitialNeedsOnboarding(decision.shouldEnableExperience);
-        }
+        setInitialNeedsOnboarding(await shouldShowOnboarding());
 
         setSplashFinished(true);
         setAppIsReady(true);
       } catch (e) {
         console.warn('스플래시 처리 중 오류:', e);
         try {
-          const shouldShow = await shouldShowOnboarding();
-          if (!shouldShow) {
-            setInitialNeedsOnboarding(false);
-          } else {
-            const decision = await resolveOnboardingTutorialExperimentDecision();
-            trackOnboardingTutorialExposureOnce(decision);
-            setInitialNeedsOnboarding(decision.shouldEnableExperience);
-          }
+          setInitialNeedsOnboarding(await shouldShowOnboarding());
         } catch {
           // ignore
         }

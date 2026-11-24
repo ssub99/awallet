@@ -21,9 +21,7 @@ import {
   StyleSheet,
   Text,
   View,
-  type ViewInstance,
 } from 'react-native';
-import type { Ref } from 'react';
 import Animated, {
   Easing,
   runOnJS,
@@ -55,13 +53,6 @@ export interface QuickInputConfirmCardProps {
   onChange?: () => void;
   /** 카테고리 미선택 플레이스홀더 탭 (기록 수신함 등) */
   onCategoryPress?: () => void;
-  /** 카테고리 value 앵커 (체험 힌트 딤 measureInWindow용) */
-  categoryValueAnchorRef?: Ref<ViewInstance | null>;
-  /** 카테고리 value 레이아웃 확정 시 (텍스트 너비 측정용) */
-  onCategoryValueAnchorLayout?: () => void;
-  /** 추가 버튼 앵커 (체험 추가 포커스 딤 measureInWindow용) */
-  confirmAddButtonAnchorRef?: Ref<ViewInstance | null>;
-  onConfirmAddButtonLayout?: () => void;
   /** 추가 버튼 로딩 여부. true면 추가 버튼에 인디케이터, 취소 버튼 비활성화 */
   addLoading?: boolean;
   /** false면 등장 슬라이드/페이드 생략 (기록 수신함 스택 등) */
@@ -106,8 +97,6 @@ function ConfirmRow({
   valueUnderline,
   onValuePress,
   valueAccessibilityLabel,
-  valueAnchorRef,
-  onValueAnchorLayout,
 }: {
   label: string;
   value: string;
@@ -119,9 +108,6 @@ function ConfirmRow({
   valueUnderline?: boolean;
   onValuePress?: () => void;
   valueAccessibilityLabel?: string;
-  /** 텍스트 콘텐츠 hug bounds (flex:1 Pressable가 아님) */
-  valueAnchorRef?: Ref<ViewInstance | null>;
-  onValueAnchorLayout?: () => void;
 }) {
   const valueColorStyle = { color: valueColor ?? colors.text };
   const textNode = (
@@ -156,12 +142,7 @@ function ConfirmRow({
           hitSlop={8}
           style={styles.valuePressable}
         >
-          <View
-            ref={valueAnchorRef}
-            collapsable={false}
-            onLayout={onValueAnchorLayout}
-            style={styles.valueAnchor}
-          >
+          <View style={styles.valueAnchor}>
             {valueContent}
           </View>
         </Pressable>
@@ -288,10 +269,6 @@ export function QuickInputConfirmCard({
   onCancel,
   onChange,
   onCategoryPress,
-  categoryValueAnchorRef,
-  onCategoryValueAnchorLayout,
-  confirmAddButtonAnchorRef,
-  onConfirmAddButtonLayout,
   addLoading = false,
   animateEntrance = true,
   actionButtonHeight = 40,
@@ -510,8 +487,6 @@ export function QuickInputConfirmCard({
               onCategoryPress && !buttonsDisabled ? handleCategoryPress : undefined
             }
             valueAccessibilityLabel={isCategoryEmpty ? '카테고리 선택' : '카테고리 변경'}
-            valueAnchorRef={categoryValueAnchorRef}
-            onValueAnchorLayout={onCategoryValueAnchorLayout}
           />
           <ConfirmRow label={ROW_LABELS.date} value={data.date} colors={palette} />
           <ConfirmRow label={ROW_LABELS.amount} value={data.amount} colors={palette} />
@@ -536,9 +511,6 @@ export function QuickInputConfirmCard({
         </View>
         <View style={styles.buttonRow}>
           <Pressable
-            ref={confirmAddButtonAnchorRef}
-            collapsable={false}
-            onLayout={onConfirmAddButtonLayout}
             style={[styles.button, { height: actionButtonHeight, backgroundColor: palette.fillStrong }]}
             onPress={handleConfirmPress}
             disabled={buttonsDisabled}
@@ -727,7 +699,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
     alignItems: 'flex-start',
   },
-  /** 텍스트 hug — 체험 딤 컷아웃 measureInWindow 대상 */
+  /** 텍스트 hug */
   valueAnchor: {
     alignSelf: 'flex-start',
     maxWidth: '100%',

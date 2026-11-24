@@ -75,13 +75,7 @@ export interface QuickInputFieldProps extends Omit<TextInputProps, 'style'> {
    */
   sendDisabled?: boolean;
 
-  /**
-   * 입력 잠금 (체험 고정 문장 등).
-   * 문장 변경·취소만 막고, editable은 유지해 키패드를 내리지 않는다. 보내기는 sendDisabled로 별도 제어.
-   */
-  inputLocked?: boolean;
-
-  /** 전송 버튼 이벤트 screen_name. 체험 중에는 /tutorial */
+  /** 전송 버튼 이벤트 screen_name */
   analyticsScreenName?: string;
 
   /**
@@ -106,7 +100,6 @@ export const QuickInputField = forwardRef<TextInputInstance, QuickInputFieldProp
       starRotate,
       sendLoading = false,
       sendDisabled = false,
-      inputLocked = false,
       analyticsScreenName = QUICK_INPUT_ANALYTICS_SCREEN_NAME,
       hideSendButton = false,
       ...textInputProps
@@ -139,13 +132,7 @@ export const QuickInputField = forwardRef<TextInputInstance, QuickInputFieldProp
                 ref={inputRef}
                 style={[styles.input, { color: palette.text }, textInputStyle]}
                 value={value}
-                onChangeText={(next) => {
-                  // 잠금 시에도 editable 유지 → 키패드 유지. 값만 반영하지 않음.
-                  if (inputLocked) {
-                    return;
-                  }
-                  onChangeText?.(next);
-                }}
+                onChangeText={onChangeText}
                 placeholder=""
                 placeholderTextColor={palette.textAssistive}
                 keyboardType="default"
@@ -175,7 +162,7 @@ export const QuickInputField = forwardRef<TextInputInstance, QuickInputFieldProp
           </View>
           
           {/* 오른쪽: Cancel 버튼 */}
-          {hasValue && !inputLocked && (
+          {hasValue && (
             <Pressable
               style={styles.cancelButton}
               onPress={() => {

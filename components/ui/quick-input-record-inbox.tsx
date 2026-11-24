@@ -32,7 +32,7 @@ import {
   type SlotMotionValue,
   type StackTransition,
 } from '@/utils/record-inbox-stack-frame';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type Ref } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import {
   Animated as RNAnimated,
@@ -44,7 +44,6 @@ import {
   View,
   useWindowDimensions,
   type StyleProp,
-  type ViewInstance,
   type ViewStyle,
 } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -130,12 +129,6 @@ export type QuickInputRecordInboxProps = {
   onChange?: (item: RecordInboxItem) => void;
   /** 카테고리 미선택 플레이스홀더 탭 */
   onCategoryPress?: (item: RecordInboxItem) => void;
-  /** 최상단 카드 카테고리 value 앵커 (체험 힌트 딤) */
-  categoryValueAnchorRef?: Ref<ViewInstance | null>;
-  onCategoryValueAnchorLayout?: () => void;
-  /** 최상단 카드 추가 버튼 앵커 (체험 추가 포커스 딤) */
-  confirmAddButtonAnchorRef?: Ref<ViewInstance | null>;
-  onConfirmAddButtonLayout?: () => void;
   /**
    * 추가 직전 동기 검증. false면 퇴장 모션 없이 중단.
    * 토스트 등은 호출측에서 처리.
@@ -144,9 +137,7 @@ export type QuickInputRecordInboxProps = {
   /** 딤 영역 탭 → 간편입력 롱뷰로 복귀 */
   onDismiss?: () => void;
   addLoading?: boolean;
-  /** 원문·카드·페이저 등장 모션(RECORD_INBOX_ENTER_DURATION_MS) 완료 */
-  onEnterAnimationComplete?: () => void;
-  /** 카드 버튼 이벤트 screen_name. 체험 중에는 /tutorial */
+  /** 카드 버튼 이벤트 screen_name */
   analyticsScreenName?: string;
 };
 
@@ -369,10 +360,6 @@ type StackCardProps = {
   onCancel?: (item: RecordInboxItem) => void;
   onChange?: (item: RecordInboxItem) => void;
   onCategoryPress?: (item: RecordInboxItem) => void;
-  categoryValueAnchorRef?: Ref<ViewInstance | null>;
-  onCategoryValueAnchorLayout?: () => void;
-  confirmAddButtonAnchorRef?: Ref<ViewInstance | null>;
-  onConfirmAddButtonLayout?: () => void;
   addLoading?: boolean;
   /** 순서 전환 중 카드 콘텐츠 숨김 + 인디케이터 (원문 로딩과 동일 타이밍) */
   contentLoading?: boolean;
@@ -386,10 +373,6 @@ function StackCard({
   onCancel,
   onChange,
   onCategoryPress,
-  categoryValueAnchorRef,
-  onCategoryValueAnchorLayout,
-  confirmAddButtonAnchorRef,
-  onConfirmAddButtonLayout,
   addLoading,
   contentLoading,
   style,
@@ -411,16 +394,6 @@ function StackCard({
         onCancel={() => onCancel?.(item)}
         onChange={onChange ? () => onChange(item) : undefined}
         onCategoryPress={onCategoryPress ? () => onCategoryPress(item) : undefined}
-        categoryValueAnchorRef={interactive ? categoryValueAnchorRef : undefined}
-        onCategoryValueAnchorLayout={
-          interactive ? onCategoryValueAnchorLayout : undefined
-        }
-        confirmAddButtonAnchorRef={
-          interactive ? confirmAddButtonAnchorRef : undefined
-        }
-        onConfirmAddButtonLayout={
-          interactive ? onConfirmAddButtonLayout : undefined
-        }
         addLoading={interactive ? addLoading : false}
         contentLoading={contentLoading}
         deferExitAnimation={interactive}
@@ -458,20 +431,13 @@ export function QuickInputRecordInbox({
   onCancel,
   onChange,
   onCategoryPress,
-  categoryValueAnchorRef,
-  onCategoryValueAnchorLayout,
-  confirmAddButtonAnchorRef,
-  onConfirmAddButtonLayout,
   onBeforeConfirm,
   onDismiss,
   addLoading = false,
-  onEnterAnimationComplete,
   analyticsScreenName = RECORD_INBOX_ANALYTICS_SCREEN_NAME,
 }: QuickInputRecordInboxProps) {
   const colorScheme = useColorScheme();
   const palette = colors[colorScheme ?? 'light'];
-  const onEnterAnimationCompleteRef = useRef(onEnterAnimationComplete);
-  onEnterAnimationCompleteRef.current = onEnterAnimationComplete;
   const insets = useSafeAreaInsets();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
 
@@ -564,26 +530,14 @@ export function QuickInputRecordInbox({
     bottomEnterTranslateY.value = ENTER_SLIDE_OFFSET;
     bottomEnterOpacity.value = 0;
 
-    const notifyEnterComplete = () => {
-      onEnterAnimationCompleteRef.current?.();
-    };
-
     cardEnterTranslateY.value = withTiming(0, {
       duration: ENTER_DURATION_MS,
       easing: ENTER_EASING,
     });
-    cardEnterOpacity.value = withTiming(
-      1,
-      {
-        duration: ENTER_DURATION_MS,
-        easing: ENTER_EASING,
-      },
-      (finished) => {
-        if (finished) {
-          runOnJS(notifyEnterComplete)();
-        }
-      },
-    );
+    cardEnterOpacity.value = withTiming(1, {
+      duration: ENTER_DURATION_MS,
+      easing: ENTER_EASING,
+    });
     bottomEnterTranslateY.value = withTiming(0, {
       duration: ENTER_DURATION_MS,
       easing: ENTER_EASING,
@@ -1268,18 +1222,6 @@ export function QuickInputRecordInbox({
                   }
                   onChange={isTopInteractive ? onChange : undefined}
                   onCategoryPress={isTopInteractive ? onCategoryPress : undefined}
-                  categoryValueAnchorRef={
-                    isTopInteractive ? categoryValueAnchorRef : undefined
-                  }
-                  onCategoryValueAnchorLayout={
-                    isTopInteractive ? onCategoryValueAnchorLayout : undefined
-                  }
-                  confirmAddButtonAnchorRef={
-                    isTopInteractive ? confirmAddButtonAnchorRef : undefined
-                  }
-                  onConfirmAddButtonLayout={
-                    isTopInteractive ? onConfirmAddButtonLayout : undefined
-                  }
                   addLoading={isTopInteractive ? addLoading : false}
                   contentLoading={!showsContent || originalLoading}
                 />

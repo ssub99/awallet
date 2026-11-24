@@ -220,7 +220,7 @@ export async function logEvent(
   }
 }
 
-/** Amplitude screen_name — 홈 딤 탭 이후 간편입력 메인 레이어 (체험 중에는 /tutorial) */
+/** Amplitude screen_name — 홈 딤 탭 이후 간편입력 메인 레이어 */
 export const QUICK_INPUT_ANALYTICS_SCREEN_NAME = '/quick-input';
 
 export type RecordLifecycleEntity = 'income' | 'expense';
