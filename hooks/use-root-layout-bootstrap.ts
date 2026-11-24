@@ -39,6 +39,7 @@ import {
   onFirstScreenSplashRelease,
   releaseFirstScreenSplash,
 } from '@/utils/first-screen-splash';
+import { resolveHomeViewExperiment } from '@/utils/home-view-experiment';
 import { markExistingUserOnboardingCompleted, shouldShowOnboarding } from '@/utils/onboarding-settings';
 import Constants from 'expo-constants';
 import * as SplashScreen from 'expo-splash-screen';
@@ -124,6 +125,13 @@ export function useRootLayoutBootstrap() {
         }
 
         await initAmplitude();
+        // 홈 리스트뷰 A/B: 스플래시가 떠 있는 동안 그룹을 정해 두어 홈이 그려질 때 기다리지 않게 한다.
+        // 이미 정해진 기기는 저장된 값을 쓰고 조회하지 않는다. 실패해도 홈이 다시 시도한다(실패 시 실험 제외).
+        try {
+          await resolveHomeViewExperiment();
+        } catch {
+          // 무시
+        }
         await initializePaymentSubtypes();
         await ensureNoticeInstallBaseline();
         await logEvent('app_started', {

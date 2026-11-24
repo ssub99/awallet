@@ -35,6 +35,13 @@ import {
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useCategoryEmojiMap } from '@/hooks/use-category-emoji-map';
 import { getHomeScreenName } from '@/utils/home-screen-name';
+import {
+  getResolvedHomeViewExperimentGroup,
+  isHomeListViewEnabled,
+  resolveHomeViewExperiment,
+  trackHomeViewExposureOnce,
+  type HomeViewExperimentGroup,
+} from '@/utils/home-view-experiment';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { buildTimelineItemsFromCalendarData, type TimelineListItem } from '@/utils/timeline-from-calendar';
 import { logEvent, logScreenView } from '@/utils/analytics';
@@ -90,10 +97,12 @@ const HOME_VIEW_TYPE_STORAGE_KEY = 'homeViewType';
  */
 let cachedHomeViewType: 'calendar' | 'list' | null = null;
 /**
- * 처음 쓰는 사용자(저장된 값 없음)의 기본 뷰. 이후에는 사용자가 마지막으로 선택한 뷰를
- * HOME_VIEW_TYPE_STORAGE_KEY에 저장해 계속 그 뷰로 시작한다.
+ * 리스트뷰는 A/B 플래그(ensure_simple_creation)로 연다 (utils/home-view-experiment).
+ * - treatment: 리스트뷰가 있다. 저장된 선택이 없으면(처음) 리스트로 시작하고, 이후에는 사용자가 마지막으로 선택한 뷰
+ *   (HOME_VIEW_TYPE_STORAGE_KEY)로 시작한다.
+ * - control·실험 제외: 리스트뷰가 없다. 저장된 값과 상관없이 캘린더뷰로 고정하고 전환 아이콘도 숨긴다.
  */
-const DEFAULT_HOME_VIEW_TYPE: 'calendar' | 'list' = 'list';
+const TREATMENT_DEFAULT_VIEW_TYPE: 'calendar' | 'list' = 'list';
 /** 리스트뷰 하단 독 높이: 칩 40 + 간격 12 + 입력창 48 */
 const LIST_DOCK_HEIGHT = 100;
 
@@ -190,9 +199,13 @@ export default function HomeScreen() {
   // Top Navigation state
   const [periodType, setPeriodType] = useState<'year' | 'month'>('month');
   // 홈 뷰타입: calendar(기존 캘린더) | list(월 요약 + 날짜 스트립 + 기록 리스트)
-  const [viewType, setViewTypeState] = useState<'calendar' | 'list'>(
-    cachedHomeViewType ?? DEFAULT_HOME_VIEW_TYPE,
+  const [viewType, setViewTypeState] = useState<'calendar' | 'list'>(cachedHomeViewType ?? 'calendar');
+  /** 이 기기의 A/B 그룹. 다시 마운트될 때는 이미 정해진 값으로 바로 시작한다 */
+  const [homeExperimentGroup, setHomeExperimentGroup] = useState<HomeViewExperimentGroup | null>(
+    getResolvedHomeViewExperimentGroup(),
   );
+  /** 리스트뷰가 열려 있는지(실험군). 아니면 캘린더뷰만 쓰고 전환 아이콘이 없다 */
+  const isListViewEnabled = isHomeListViewEnabled(homeExperimentGroup);
   /**
    * 뷰 타입이 확정됐는지. 처음 한 번 저장소를 읽는 동안은 어느 뷰도 그리지 않고(기본값이 먼저 보이는 것 방지),
    * screen_view도 그 뒤에 보낸다. 다시 마운트될 때는 세션 메모리 값으로 바로 확정된다.
@@ -217,11 +230,16 @@ export default function HomeScreen() {
     if (cachedHomeViewType !== null) {
       return;
     }
-    AsyncStorage.getItem(HOME_VIEW_TYPE_STORAGE_KEY)
-      .then((stored) => {
-        // 저장된 선택이 있으면 그 뷰, 없으면(처음 사용) 기본 뷰
-        const restored =
-          stored === 'calendar' || stored === 'list' ? stored : DEFAULT_HOME_VIEW_TYPE;
+    // A/B 그룹(부트스트랩에서 이미 정해 둠)과 저장된 뷰 선택을 함께 읽어 시작 뷰를 정한다
+    Promise.all([resolveHomeViewExperiment(), AsyncStorage.getItem(HOME_VIEW_TYPE_STORAGE_KEY)])
+      .then(([group, stored]) => {
+        setHomeExperimentGroup(group);
+        // 실험군이 아니면 리스트뷰가 없다 → 저장된 값과 상관없이 캘린더. 실험군은 저장된 선택, 없으면 리스트
+        const restored: 'calendar' | 'list' = !isHomeListViewEnabled(group)
+          ? 'calendar'
+          : stored === 'calendar' || stored === 'list'
+            ? stored
+            : TREATMENT_DEFAULT_VIEW_TYPE;
         // 읽는 사이 사용자가 직접 전환했다면(cache가 채워짐) 그 값을 우선
         if (cachedHomeViewType === null) {
           cachedHomeViewType = restored;
@@ -229,12 +247,20 @@ export default function HomeScreen() {
         }
       })
       .catch(() => {
+        // 읽기 실패 → 실험 제외와 같이 캘린더뷰
         if (cachedHomeViewType === null) {
-          cachedHomeViewType = DEFAULT_HOME_VIEW_TYPE;
+          cachedHomeViewType = 'calendar';
         }
       })
       .finally(() => setIsViewTypeLoaded(true));
   }, []);
+  // 배정된 뷰가 처음 그려진 뒤 노출 기록 (control·treatment 모두, 실행당 한 번. 실험 제외는 기록하지 않음)
+  useEffect(() => {
+    if (!isHomeScreenFocused || !isViewTypeLoaded) {
+      return;
+    }
+    trackHomeViewExposureOnce(homeExperimentGroup);
+  }, [homeExperimentGroup, isHomeScreenFocused, isViewTypeLoaded]);
   // 홈이 포커스를 얻을 때·뷰(연도/월 캘린더/월 리스트)가 바뀔 때 뷰별 screen_view
   useEffect(() => {
     if (!isHomeScreenFocused || !isViewTypeLoaded) {
@@ -1378,7 +1404,8 @@ export default function HomeScreen() {
           periodType={periodType}
           onPeriodChange={setPeriodType}
           viewType={viewType}
-          onViewTypeChange={setViewType}
+          // 리스트뷰는 실험군에만 있다. 그 밖의 그룹은 전환 아이콘을 숨긴다 (TopNavigation은 핸들러가 있을 때만 아이콘을 그린다)
+          onViewTypeChange={isListViewEnabled ? setViewType : undefined}
           periodToggleAnalyticsScreenName={homeScreenName}
           showDropdownArrow
           yearOptions={yearOptions}
