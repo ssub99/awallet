@@ -25,9 +25,10 @@ import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { logEvent } from '@/utils/analytics';
 import { getCustomMonthInfo } from '@/utils/custom-month';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { calendarRefreshEvent } from '@/hooks/calendar-events';
+import { calendarRefreshEvent, publishCalendarTargetAsync } from '@/hooks/calendar-events';
+import { popToTabsRoute } from '@/utils/pop-to-tabs-route';
 import { updateIncome, softDeleteIncome } from '@/utils/incomes';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
@@ -82,6 +83,7 @@ export default function IncomeEditScreen() {
   const colorScheme = useColorScheme();
   const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   const router = useRouter();
+  const navigation = useNavigation();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const KEYPAD_HEIGHT = getKeypadHeight(windowWidth);
   interface GoHomeOptions {
@@ -91,12 +93,25 @@ export default function IncomeEditScreen() {
     refresh?: boolean;
   }
 
+  /**
+   * 수정·삭제 저장 후: 스택 pop으로 기존 홈 복귀 (지출·수입 생성과 동일).
+   * replace로 (tabs)를 새로 만들면 기존 홈 위에 홈이 하나 더 쌓이고 다시 마운트되어 뷰가 깜빡인다.
+   */
   const goHomeWithFocus = useCallback(
     async ({ year, month, targetDate, refresh = true }: GoHomeOptions) => {
       try {
         await AsyncStorage.setItem('pendingCalendarTarget', JSON.stringify({ year, month, targetDate }));
       } catch (error) {
         console.warn('[income-edit] Failed to store pending target:', error);
+      }
+      // 이미 떠 있는 홈이 pending 타깃을 바로 적용하도록 알린다 (replace의 마운트 시 적용을 대체)
+      await publishCalendarTargetAsync({ year, month, targetDate });
+
+      if (popToTabsRoute(navigation)) {
+        if (refresh) {
+          emitCalendarRefreshWhenIdle();
+        }
+        return;
       }
 
       router.replace({
@@ -113,7 +128,7 @@ export default function IncomeEditScreen() {
         emitCalendarRefreshWhenIdle();
       }
     },
-    [router]
+    [navigation, router]
   );
   const insets = useSafeAreaInsets();
   const { setLoading } = useLoading();
