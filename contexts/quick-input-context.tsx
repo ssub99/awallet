@@ -1756,13 +1756,10 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
           iosKeyboardPeakHeight.value = 0;
           return;
         }
-        applyIosQuickInputKeyboardFollow(
-          animatedBottom,
-          shortBottomFromScreen,
-          iosKeyboardHeightPrev,
-          iosKeyboardPeakHeight,
-          keyboardHeight,
-        );
+        // iOS onStart의 height는 키보드가 올라갈 "최종" 높이다(keyboardWillShow 시점의 프레임 높이).
+        // 여기서 bottom을 확정하면 간편입력이 키보드보다 먼저 최종 위치로 순간이동한다.
+        // 열릴 때의 위치는 프레임별 높이를 주는 onMove로만 따라가고(키보드와 함께 올라감),
+        // onMove가 오지 않는 경우(애니메이션 없는 표시)는 onEnd가 최종 위치를 확정한다.
       },
       onMove: (event) => {
         'worklet';
