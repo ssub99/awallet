@@ -11,7 +11,7 @@ import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { typographyLayout } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { logEvent } from '@/utils/analytics';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
 
 /** Figma icon-double Frame 7: 32×32 icon slots, 12px gap (76px row) */
@@ -132,6 +132,17 @@ export interface TopNavigationProps {
   periodToggleAnalyticsScreenName?: string;
   
   /**
+   * Main + showDay + month 전용. 좌측 뷰타입 선택 아이콘.
+   * 현재 뷰: 'calendar'(홈 캘린더) | 'list'(리스트). onViewTypeChange가 있을 때만 노출.
+   */
+  viewType?: 'calendar' | 'list';
+
+  /**
+   * 뷰타입 변경 핸들러 (아이콘 탭 시 반대 뷰로 전환 요청)
+   */
+  onViewTypeChange?: (type: 'calendar' | 'list') => void;
+
+  /**
    * Show dropdown arrow next to title/date
    */
   showDropdownArrow?: boolean;
@@ -207,6 +218,8 @@ export function TopNavigation({
   periodType = 'month',
   onPeriodChange,
   periodToggleAnalyticsScreenName,
+  viewType = 'calendar',
+  onViewTypeChange,
   showDropdownArrow = false,
   onDropdownPress,
   yearOptions,
@@ -230,7 +243,7 @@ export function TopNavigation({
   const [showMonthPicker, setShowMonthPicker] = useState(false);
   
   // Animation values for Period Toggle
-  const periodSlideX = useRef(new Animated.Value(periodType === 'year' ? 0 : 46)).current;
+  const [periodSlideX] = useState(() => new Animated.Value(periodType === 'year' ? 0 : 46));
 
   const handleLeftIconPress = () => {
     onLeftIconPress?.();
@@ -293,6 +306,11 @@ export function TopNavigation({
     handleMainTabPress(id);
   };
 
+  // Main + day: 날짜는 가운데, 좌측은 뷰타입 아이콘, 우측은 기간 토글
+  const isMainDay = type === 'main' && showDay && !!dateText;
+  const showViewTypeIcon = isMainDay && periodType === 'month' && !!onViewTypeChange;
+  const nextViewType = viewType === 'calendar' ? 'list' : 'calendar';
+
   return (
     <View style={[styles.container, { backgroundColor: palette.staticWhite }, style]}>
       {/* Content */}
@@ -333,8 +351,25 @@ export function TopNavigation({
             </Pressable>
           )}
 
+          {/* Main + day: 뷰타입 선택 아이콘 (현재 뷰의 반대 뷰 아이콘을 노출) */}
+          {showViewTypeIcon && (
+            <Pressable
+              onPress={() => onViewTypeChange?.(nextViewType)}
+              style={styles.iconButton}
+              accessibilityRole="button"
+              accessibilityLabel={nextViewType === 'list' ? '리스트 보기로 전환' : '캘린더 보기로 전환'}
+            >
+              <Icon
+                name={nextViewType === 'list' ? 'list' : 'calendarYear'}
+                variant="line"
+                size={24}
+                color={palette.text}
+              />
+            </Pressable>
+          )}
+
           {/* Main Type: Tabs (1 or 2+), same structure. 1 tab + no dropdown → no press. */}
-          {type === 'main' && (
+          {type === 'main' && !isMainDay && (
             <View style={styles.mainTabsRow}>
               {effectiveTabs.map((tab) => {
                 const isActive = tab.id === activeId;
@@ -379,10 +414,28 @@ export function TopNavigation({
 
         {/* Center Section (Sub / SubDualIcon) */}
         {type === 'sub' && !showDay && (
-          <View style={styles.centerSection}>
+          <View style={styles.centerSection} pointerEvents="none">
             <Text style={[styles.subTitle, { color: palette.text }]}>
               {title}
             </Text>
+          </View>
+        )}
+
+        {/* Center Section with Day (Main) */}
+        {isMainDay && (
+          <View style={styles.centerSection} pointerEvents="box-none">
+            <Pressable
+              onPress={showDropdownArrow ? handleDropdownPress : undefined}
+              disabled={!showDropdownArrow}
+              style={styles.centerDateContainer}
+              accessibilityRole="button"
+              accessibilityLabel={dateText}
+            >
+              <Text style={[styles.subTitle, { color: palette.text }]}>{dateText}</Text>
+              {showDropdownArrow && (
+                <Icon name="arrowDown" variant="solid" size={24} color={palette.textAssistive} />
+              )}
+            </Pressable>
           </View>
         )}
 
@@ -561,7 +614,6 @@ const styles = StyleSheet.create({
     right: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    pointerEvents: 'none',
   },
   centerDateContainer: {
     flexDirection: 'row',

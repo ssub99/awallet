@@ -62,7 +62,7 @@ export const IconCategories = {
   /**
    * Challenge / list icons
    */
-  challenge: ['challenge'] as const,
+  challenge: ['challenge', 'list'] as const,
 
   /**
    * Etc (star, etc.)
@@ -125,6 +125,7 @@ export const IconDescriptions: Record<IconName, string> = {
   cancel: 'Cancel or dismiss',
   categorySetting: 'Category settings',
   challenge: 'Challenge or list',
+  list: 'List view',
   check: 'Checkmark',
   checkboxIcon: 'Checkbox checkmark icon',
   close: 'Close or dismiss',

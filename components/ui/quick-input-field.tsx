@@ -83,6 +83,12 @@ export interface QuickInputFieldProps extends Omit<TextInputProps, 'style'> {
 
   /** 전송 버튼 이벤트 screen_name. 체험 중에는 /tutorial */
   analyticsScreenName?: string;
+
+  /**
+   * true면 보내기 버튼 자리를 그리지 않는다 (홈 리스트뷰 독: 그 자리는 FAB).
+   * 기본 false — 기존 간편입력 롱버전은 그대로.
+   */
+  hideSendButton?: boolean;
 }
 
 /**
@@ -102,6 +108,7 @@ export const QuickInputField = forwardRef<TextInputInstance, QuickInputFieldProp
       sendDisabled = false,
       inputLocked = false,
       analyticsScreenName = QUICK_INPUT_ANALYTICS_SCREEN_NAME,
+      hideSendButton = false,
       ...textInputProps
     },
     ref
@@ -187,47 +194,51 @@ export const QuickInputField = forwardRef<TextInputInstance, QuickInputFieldProp
           )}
         </View>
         
-        {/* Send Button - 입력 여부/로딩/확인 카드 표시 시 disabled */}
-        <View style={[styles.sendButtonWrapper, { backgroundColor: palette.staticWhite }]}>
-          <View
-            style={[
-              styles.sendButton,
-              {
-                backgroundColor: hasValue && !sendDisabled ? palette.primary : palette.fillDisabled,
-              },
-            ]}
-          >
-            <Pressable
-              style={styles.sendButtonContent}
-              onPress={() => {
-                if (!hasValue || sendLoading || sendDisabled) return;
-                void logEvent('btn', {
-                  screen_name: analyticsScreenName,
-                  target: 'sentence',
-                });
-                onSend?.();
-              }}
-              disabled={!hasValue || sendLoading || sendDisabled}
-              accessibilityRole="button"
-              accessibilityLabel={sendLoading ? '전송 중' : '전송'}
-              accessibilityState={{ disabled: !hasValue || sendLoading || sendDisabled }}
-            >
-              {sendLoading ? (
-                <ActivityIndicator
-                  size={Platform.OS === 'android' ? 20 : 'small'}
-                  color={palette.staticWhite}
-                />
-              ) : (
-                <Icon
-                  name="send"
-                  variant="line"
-                  size={24}
-                  color={hasValue && !sendDisabled ? palette.staticWhite : palette.textDisabled}
-                />
-              )}
-            </Pressable>
-          </View>
-        </View>
+        {!hideSendButton && (
+          <>
+            {/* Send Button - 입력 여부/로딩/확인 카드 표시 시 disabled */}
+            <View style={[styles.sendButtonWrapper, { backgroundColor: palette.staticWhite }]}>
+              <View
+                style={[
+                  styles.sendButton,
+                  {
+                    backgroundColor: hasValue && !sendDisabled ? palette.primary : palette.fillDisabled,
+                  },
+                ]}
+              >
+                <Pressable
+                  style={styles.sendButtonContent}
+                  onPress={() => {
+                    if (!hasValue || sendLoading || sendDisabled) return;
+                    void logEvent('btn', {
+                      screen_name: analyticsScreenName,
+                      target: 'sentence',
+                    });
+                    onSend?.();
+                  }}
+                  disabled={!hasValue || sendLoading || sendDisabled}
+                  accessibilityRole="button"
+                  accessibilityLabel={sendLoading ? '전송 중' : '전송'}
+                  accessibilityState={{ disabled: !hasValue || sendLoading || sendDisabled }}
+                >
+                  {sendLoading ? (
+                    <ActivityIndicator
+                      size={Platform.OS === 'android' ? 20 : 'small'}
+                      color={palette.staticWhite}
+                    />
+                  ) : (
+                    <Icon
+                      name="send"
+                      variant="line"
+                      size={24}
+                      color={hasValue && !sendDisabled ? palette.staticWhite : palette.textDisabled}
+                    />
+                  )}
+                </Pressable>
+              </View>
+            </View>
+          </>
+        )}
       </View>
     );
   }

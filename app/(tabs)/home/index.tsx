@@ -7,6 +7,8 @@
 import { TopNavigation } from '@/components/navigation/top-navigation';
 import { CalendarMain, type CalendarExternalView } from '@/components/ui/calendar-main';
 import { NoticeCard } from '@/components/ui/notice-card';
+import { HomeListQuickInputDock } from '@/components/ui/home-list-quick-input-dock';
+import { HomeListView } from '@/components/ui/home-list-view';
 import { HomeMonthStatusCard } from '@/components/ui/home-month-status-card';
 import { Icon } from '@/components/ui/icon';
 import { QuickInputShort, type QuickInputShortHandle } from '@/components/ui/quick-input-short';
@@ -15,7 +17,7 @@ import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';
 import { useCreateSheetContext } from '@/contexts/create-sheet-context';
 import { useLoading } from '@/contexts/loading-context';
-import { useQuickInputContext } from '@/contexts/quick-input-context';
+import { type QuickInputChipAction, useQuickInputContext } from '@/contexts/quick-input-context';
 import { HOME_STACK_PATHS } from '@/constants/navigation/route-ownership';
 import {
   getHomeBottomContentInset,
@@ -31,7 +33,9 @@ import {
   setLatestPendingCalendarTarget,
 } from '@/hooks/calendar-events';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useCategoryEmojiMap } from '@/hooks/use-category-emoji-map';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
+import { buildTimelineItemsFromCalendarData, type TimelineListItem } from '@/utils/timeline-from-calendar';
 import { logEvent } from '@/utils/analytics';
 import { isAtLeastVersion, QUICK_INPUT_MIN_VERSION } from '@/utils/app-version';
 import {
@@ -72,6 +76,15 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const FAB_SIZE = 48;
+const HOME_VIEW_TYPE_STORAGE_KEY = 'homeViewType';
+/** 리스트뷰 하단 독 높이: 칩 40 + 간격 12 + 입력창 48 */
+const LIST_DOCK_HEIGHT = 100;
+
+function toDateKey(date: Date): string {
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${m}-${d}`;
+}
 
 export default function HomeScreen() {
   const initialPendingTarget = getLatestPendingCalendarTarget();
@@ -100,13 +113,24 @@ export default function HomeScreen() {
     isQuickInputShortVisible,
     showQuickInput,
     openQuickInputRecordInboxFromGuide,
+    openQuickInputChipAction,
+    isQuickInputHomeListPanelFlow,
+    isQuickInputHomeListOverlay,
   } = useQuickInputContext();
   const openQuickInputRecordInboxFromGuideRef = useRef(openQuickInputRecordInboxFromGuide);
-  openQuickInputRecordInboxFromGuideRef.current = openQuickInputRecordInboxFromGuide;
+  useEffect(() => {
+    openQuickInputRecordInboxFromGuideRef.current = openQuickInputRecordInboxFromGuide;
+  }, [openQuickInputRecordInboxFromGuide]);
   const isHomeFocusedRef = useRef(false);
   const quickInputShortRef = useRef<QuickInputShortHandle>(null);
 
-  const isQuickInputShortHidden = isQuickInputContentVisible && !isQuickInputShortVisible;
+  // 리스트뷰 칩 → 패널 흐름(리스트뷰에서만 true)에서는 하단 독(칩·입력창)이 그 자리에 그대로 남는다 (딤 아래)
+  const isQuickInputOverlayActive = isQuickInputContentVisible && !isQuickInputShortVisible;
+  // 리스트뷰: 하단 독은 통째로 숨기지 않는다. 입력 UI가 올라오면 입력창만 숨기고 칩은 제자리에 둔다.
+  const isQuickInputShortHidden = isQuickInputOverlayActive && !isQuickInputHomeListOverlay;
+  // 리스트뷰에서 간편입력 입력 UI만 올라와 있는 상태 (패널 흐름은 제외)
+  const isHomeListInputRaised =
+    isQuickInputOverlayActive && isQuickInputHomeListOverlay && !isQuickInputHomeListPanelFlow;
   const beginLoad = useCallback(() => {
     pendingOpsRef.current += 1;
     setLoading(true);
@@ -116,13 +140,13 @@ export default function HomeScreen() {
     if (pendingOpsRef.current === 0) setLoading(false);
   }, [setLoading]);
   const [isContentReady, setIsContentReady] = useState(false);
-  const contentOpacity = useRef(new Animated.Value(0)).current;
+  const [contentOpacity] = useState(() => new Animated.Value(0));
   const hasAnimatedRef = useRef(false);
   const hasContentFadedInRef = useRef(false);
 
   // Star 아이콘 애니메이션 (포커스 중에만 — 블러 시 정지해 pop 제스처 부담 제거)
-  const starScale = useRef(new Animated.Value(1)).current;
-  const starRotate = useRef(new Animated.Value(0)).current;
+  const [starScale] = useState(() => new Animated.Value(1));
+  const [starRotate] = useState(() => new Animated.Value(0));
   const starAnimRef = useRef<Animated.CompositeAnimation | null>(null);
 
   /** flex 캘린더 영역 실측 → dayCellHeight. 자체 onLayout만 쓰면 inset 변경 후 높이가 굳을 수 있음 */
@@ -147,6 +171,27 @@ export default function HomeScreen() {
 
   // Top Navigation state
   const [periodType, setPeriodType] = useState<'year' | 'month'>('month');
+  // 홈 뷰타입: calendar(기존 캘린더) | list(월 요약 + 날짜 스트립 + 기록 리스트)
+  const [viewType, setViewTypeState] = useState<'calendar' | 'list'>('calendar');
+  const setViewType = useCallback((next: 'calendar' | 'list') => {
+    setViewTypeState(next);
+    void logEvent('ui', {
+      screen_name: '/home',
+      target: 'view_type_toggle',
+      view_type: next,
+    });
+    AsyncStorage.setItem(HOME_VIEW_TYPE_STORAGE_KEY, next).catch(() => {});
+  }, []);
+  useEffect(() => {
+    AsyncStorage.getItem(HOME_VIEW_TYPE_STORAGE_KEY)
+      .then((stored) => {
+        if (stored === 'list') {
+          setViewTypeState('list');
+        }
+      })
+      .catch(() => {});
+  }, []);
+  const categoryEmojiMap = useCategoryEmojiMap();
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
 
   // Shared year/month state for both TopNavigation and Calendar
@@ -157,10 +202,10 @@ export default function HomeScreen() {
     initialPendingTarget?.month ?? (new Date().getMonth() + 1),
   ); // 1-12
   /** CalendarMain 마운트 초기 월 — 스와이프마다 prop으로 넘기지 않음 */
-  const calendarBootRef = useRef({
+  const [calendarBoot] = useState(() => ({
     year: initialPendingTarget?.year ?? new Date().getFullYear(),
     month: initialPendingTarget?.month ?? new Date().getMonth() + 1,
-  });
+  }));
   const [calendarExternalView, setCalendarExternalView] = useState<CalendarExternalView | null>(
     null,
   );
@@ -300,8 +345,8 @@ export default function HomeScreen() {
         onDayPress={handleCalendarDayPress}
         dayData={calendarData}
         showTitle={false}
-        initialYear={calendarBootRef.current.year}
-        initialMonth={calendarBootRef.current.month}
+        initialYear={calendarBoot.year}
+        initialMonth={calendarBoot.month}
         externalView={calendarExternalView}
         onExternalViewApplied={handleCalendarExternalViewApplied}
         monthStartDay={monthStartDay}
@@ -319,6 +364,8 @@ export default function HomeScreen() {
       monthStartDay,
       handleCalendarMonthChange,
       calendarContainerHeight,
+      calendarBoot.year,
+      calendarBoot.month,
     ],
   );
 
@@ -604,7 +651,7 @@ export default function HomeScreen() {
     setCurrentYear((year) => (year >= yearBounds.max ? year : year + 1));
   }, [yearBounds.max]);
 
-  const yearPanResponder = useRef(
+  const [yearPanResponder] = useState(() =>
     PanResponder.create({
       onMoveShouldSetPanResponder: (
         _evt: GestureResponderEvent,
@@ -635,7 +682,7 @@ export default function HomeScreen() {
         }
       },
     }),
-  ).current;
+  );
   
   // Month picker options
   const monthOptions = useMemo(
@@ -651,20 +698,26 @@ export default function HomeScreen() {
 
   // 모든 필요한 데이터가 준비된 이후(초기/갱신) 한 번만 페이드 트리거
   const animatingRef = useRef(false);
+
+  // 기록 저장 후 복귀(targetDate params 또는 pending) 시 초기 페이드 생략.
+  // isContentReady는 false→true로만 바뀌는 래치이므로 effect가 아닌 렌더 중 상태 조정으로 처리한다.
+  const skipInitialFade = !!params.targetDate || !!peekLatestPendingCalendarTarget();
+  if (isReady && skipInitialFade && !isContentReady) {
+    setIsContentReady(true);
+  }
+
   useEffect(() => {
     if (!isReady) {
       return;
     }
 
-    // 기록 저장 후 복귀(targetDate params 또는 pending) 시 초기 페이드 생략
-    if (params.targetDate || peekLatestPendingCalendarTarget()) {
+    // 위 래치로 이미 준비된 경우: 초기 로직(날짜 보정·페이드 대기) 재실행 방지
+    if (isContentReady) {
       hasAnimatedRef.current = true;
-      setIsContentReady(true);
-      return;
     }
 
+    // hasAnimatedRef가 true면 isContentReady도 항상 true(모든 설정 지점이 함께 세팅) → 추가 전환 불필요
     if (hasAnimatedRef.current) {
-      setIsContentReady(true);
       return;
     }
 
@@ -744,6 +797,20 @@ export default function HomeScreen() {
   const handleQuickInputPress = useCallback(
     (shortBottomFromScreen: number) => showQuickInput(starScale, starRotate, shortBottomFromScreen),
     [showQuickInput, starScale, starRotate]
+  );
+
+  /** 리스트뷰 입력창 → 딤 없이 간편입력 입력 UI만 올린다 */
+  const handleListInputPress = useCallback(
+    (shortBottomFromScreen: number) =>
+      showQuickInput(starScale, starRotate, shortBottomFromScreen, { homeList: true }),
+    [showQuickInput, starScale, starRotate],
+  );
+
+  /** 리스트뷰 하단 칩 → 해당 패널을 바로 열고, 닫으면 홈으로 복귀 */
+  const handleListChipPress = useCallback(
+    (action: QuickInputChipAction, shortBottomFromScreen: number) =>
+      openQuickInputChipAction(starScale, starRotate, shortBottomFromScreen, action),
+    [openQuickInputChipAction, starScale, starRotate],
   );
 
   /**
@@ -1000,6 +1067,138 @@ export default function HomeScreen() {
     });
   }, [currentMonth, currentYear, router]);
 
+  // ===== 리스트뷰 데이터 =====
+  const listMonthItems = useMemo(
+    () =>
+      viewType === 'list'
+        ? buildTimelineItemsFromCalendarData(calendarData, currentYear, currentMonth, monthStartDay)
+        : [],
+    [viewType, calendarData, currentYear, currentMonth, monthStartDay],
+  );
+
+  const listDateKeys = useMemo(() => {
+    if (viewType !== 'list') {
+      return [];
+    }
+    const { startDate, endDate } = getCustomMonthRange(currentYear, currentMonth, monthStartDay);
+    const keys: string[] = [];
+    const cursor = new Date(startDate);
+    while (cursor.getTime() <= endDate.getTime()) {
+      keys.push(toDateKey(cursor));
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return keys;
+  }, [viewType, currentYear, currentMonth, monthStartDay]);
+
+  /** 선택일이 현재 월 밖이면(또는 비어 있으면) 오늘 → 월 첫날 순으로 보정 */
+  const listSelectedDate = useMemo(() => {
+    if (listDateKeys.length === 0) {
+      return effectiveSelectedDate;
+    }
+    if (selectedDate && listDateKeys.includes(selectedDate)) {
+      return selectedDate;
+    }
+    const todayKey = toDateKey(new Date());
+    return listDateKeys.includes(todayKey) ? todayKey : listDateKeys[0];
+  }, [listDateKeys, selectedDate, effectiveSelectedDate]);
+
+  const listSelectedItems = useMemo(
+    () => listMonthItems.filter((item) => item.date === listSelectedDate),
+    [listMonthItems, listSelectedDate],
+  );
+
+  const handleListSelectDate = useCallback(
+    (dateKey: string) => {
+      applyHomeCalendarSelection(currentYearRef.current, currentMonthRef.current, dateKey);
+    },
+    [applyHomeCalendarSelection],
+  );
+
+  /** 내역 → 리포트 탭의 소비 현황 서브탭 (tab: 'trend'. 'status'는 소비 리포트로 가는 기존 홈 잔액 카드 전용) */
+  const handleListDetailPress = useCallback(() => {
+    if (isNavigating.current) {
+      return;
+    }
+    isNavigating.current = true;
+    void logEvent('ui', {
+      screen_name: '/home',
+      target: 'report-present',
+      entry_point: 'home_list_detail',
+    });
+    router.push({
+      pathname: '/(tabs)/report',
+      params: {
+        year: currentYear.toString(),
+        month: currentMonth.toString(),
+        tab: 'trend',
+        ts: Date.now().toString(),
+      },
+    });
+    setTimeout(() => {
+      isNavigating.current = false;
+    }, 500);
+  }, [currentMonth, currentYear, router]);
+
+  const handleListItemPress = useCallback(
+    (item: TimelineListItem) => {
+      if (isNavigating.current) {
+        return;
+      }
+      isNavigating.current = true;
+      void logEvent('ui', {
+        screen_name: '/home',
+        target: 'list_record',
+        record_type: item.type,
+      });
+      router.push({
+        pathname: item.type === 'income' ? '/income-edit' : '/expense-edit',
+        params: {
+          recordData: JSON.stringify(item),
+          dateKey: item.date,
+          recordIndex: String(item.actualRecordIndex ?? 0),
+          calendarYear: currentYear.toString(),
+          calendarMonth: currentMonth.toString(),
+        },
+      });
+      setTimeout(() => {
+        isNavigating.current = false;
+      }, 500);
+    },
+    [currentMonth, currentYear, router],
+  );
+
+  /** 카드 영역 하단 = 하단 칩 위 12px (시안: 카드 끝 1656 ↔ 칩 시작 1668). 콘텐츠 영역은 탭바 inset만큼 이미 위로 올라와 있다 */
+  const listCardBottomInset = Math.max(0, quickInputBottom + LIST_DOCK_HEIGHT + 12 - bottomContentInset);
+
+  const homeListViewElement = useMemo(
+    () => (
+      <HomeListView
+        dateKeys={listDateKeys}
+        selectedDate={listSelectedDate}
+        items={listSelectedItems}
+        summaryLabel={`${currentMonth}월 소비`}
+        summaryAmountText={monthlyExpenseText.replace(/^- /, '')}
+        categoryEmojiMap={categoryEmojiMap}
+        bottomInset={listCardBottomInset}
+        onSelectDate={handleListSelectDate}
+        onDetailPress={handleListDetailPress}
+        onItemPress={handleListItemPress}
+      />
+    ),
+    [
+      listDateKeys,
+      listSelectedDate,
+      listSelectedItems,
+      currentMonth,
+      monthlyExpenseText,
+      categoryEmojiMap,
+      listCardBottomInset,
+      handleListSelectDate,
+      handleListDetailPress,
+      handleListItemPress,
+    ],
+  );
+
   const homeMonthStatusElement = useMemo(
     () => (
       <HomeMonthStatusCard
@@ -1058,6 +1257,8 @@ export default function HomeScreen() {
           dateText={dateText}
           periodType={periodType}
           onPeriodChange={setPeriodType}
+          viewType={viewType}
+          onViewTypeChange={setViewType}
           periodToggleAnalyticsScreenName="/home"
           showDropdownArrow
           yearOptions={yearOptions}
@@ -1089,24 +1290,37 @@ export default function HomeScreen() {
       {/* Conditional Content: Month View or Year View */}
       {periodType === 'month' ? (
         // inset은 Animated 바깥 — padding/opacity가 flex 높이를 삼키지 않게 분리
-        <View style={[styles.monthViewContent, { paddingBottom: bottomContentInset }]}>
+        <View
+          style={[
+            styles.monthViewContent,
+            { paddingBottom: bottomContentInset },
+            // 리스트뷰: 시안처럼 회색 배경이 하단 독 뒤(탭바 위)까지 이어진다
+            viewType === 'list' && { backgroundColor: palette.fill },
+          ]}
+        >
           <Animated.View
             style={[styles.monthViewInner, { opacity: isContentReady ? contentOpacity : 0 }]}
           >
-            {homeMonthStatusElement}
+            {viewType === 'list' ? (
+              homeListViewElement
+            ) : (
+              <>
+                {homeMonthStatusElement}
 
-            {/* flex 남은 높이 측정 → containerHeight로 dayCell 확장 (숏·탭바와 겹치지 않게) */}
-            <View
-              style={styles.calendarContainer}
-              onLayout={(e) => {
-                const height = e.nativeEvent.layout.height;
-                setCalendarContainerHeight((prev) =>
-                  prev != null && Math.abs(prev - height) < 2 ? prev : height,
-                );
-              }}
-            >
-              {homeCalendarElement}
-            </View>
+                {/* flex 남은 높이 측정 → containerHeight로 dayCell 확장 (숏·탭바와 겹치지 않게) */}
+                <View
+                  style={styles.calendarContainer}
+                  onLayout={(e) => {
+                    const height = e.nativeEvent.layout.height;
+                    setCalendarContainerHeight((prev) =>
+                      prev != null && Math.abs(prev - height) < 2 ? prev : height,
+                    );
+                  }}
+                >
+                  {homeCalendarElement}
+                </View>
+              </>
+            )}
           </Animated.View>
         </View>
       ) : (
@@ -1134,13 +1348,25 @@ export default function HomeScreen() {
           ]}
           pointerEvents={isQuickInputShortHidden ? 'none' : 'box-none'}
         >
-          <QuickInputShort
-            controlRef={quickInputShortRef}
-            bottom={quickInputBottom}
-            onPress={handleQuickInputPress}
-            starScale={starScale}
-            starRotate={starRotate}
-          />
+          {viewType === 'list' ? (
+            <HomeListQuickInputDock
+              controlRef={quickInputShortRef}
+              bottom={quickInputBottom}
+              onInputPress={handleListInputPress}
+              onChipPress={handleListChipPress}
+              starScale={starScale}
+              starRotate={starRotate}
+              fieldHidden={isHomeListInputRaised}
+            />
+          ) : (
+            <QuickInputShort
+              controlRef={quickInputShortRef}
+              bottom={quickInputBottom}
+              onPress={handleQuickInputPress}
+              starScale={starScale}
+              starRotate={starRotate}
+            />
+          )}
         </View>
       )}
 

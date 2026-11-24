@@ -296,7 +296,16 @@ function QuickInputCategorySettingListItem({
 export type ShowQuickInputOptions = {
   /** 기본 true. false면 롱 입력·키패드 자동 오픈 없음 */
   autoFocus?: boolean;
+  /**
+   * 홈 리스트뷰 전용. true면 간편입력 입력 UI만 딤 없이 올린다
+   * (수신함·계산기·카테고리 설정 등 패널이 열릴 때만 딤).
+   * 기본 false — 캘린더뷰 간편입력은 기존대로 딤과 함께 연다.
+   */
+  homeList?: boolean;
 };
+
+/** 하단 칩에서 간편입력을 키패드 없이 열고 해당 기능으로 바로 진입 */
+export type QuickInputChipAction = 'recordInbox' | 'calculator' | 'categorySetting';
 
 export type HideQuickInputOptions = {
   /** true: 숏 전환·키보드 대기 없이 키보드 dismiss와 오버레이를 동시에 제거 (Android 백 등) */
@@ -311,6 +320,13 @@ interface QuickInputContextValue {
   isQuickInputShortVisible: boolean;
   /** 기록 수신함 미처리 건수 (숏/칩 뱃지) */
   recordInboxUnreadCount: number;
+  /**
+   * 리스트뷰 칩으로 패널(수신함·계산기·카테고리 설정)을 직접 연 상태.
+   * 이 동안 홈은 하단 독(칩·입력창)을 숨기지 않고 그 자리에 유지한다.
+   */
+  isQuickInputHomeListPanelFlow: boolean;
+  /** 리스트뷰에서 연 간편입력이 열려 있음 (홈 독은 입력창만 숨기고 칩은 유지) */
+  isQuickInputHomeListOverlay: boolean;
   showQuickInput: (
     starScale: AnimatedValue,
     starRotate: AnimatedValue,
@@ -328,6 +344,16 @@ interface QuickInputContextValue {
     starRotate: AnimatedValue,
     openMain?: () => void,
     source?: HomeOpenRecordInboxSource,
+  ) => void;
+  /**
+   * 홈 리스트뷰 하단 칩(기록 수신함·계산기·카테고리 설정) → 간편입력을 키패드 없이 열고 해당 기능 진입.
+   * 간편입력을 연 뒤 오버레이 칩을 누른 것과 같은 핸들러를 실행한다.
+   */
+  openQuickInputChipAction: (
+    starScale: AnimatedValue,
+    starRotate: AnimatedValue,
+    shortBottomFromScreen: number,
+    action: QuickInputChipAction,
   ) => void;
   quickInputText: string;
   setQuickInputText: (text: string) => void;
@@ -1644,6 +1670,12 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
   }, [dataVersion]);
 
   const [quickInputBackdropOpacity] = useState(() => new RNAnimated.Value(0));
+  /** 홈 리스트뷰에서 연 간편입력인지 (딤 없는 입력 UI) */
+  const [isHomeListOverlay, setIsHomeListOverlay] = useState(false);
+  /** 리스트뷰 칩으로 패널을 직접 연 흐름: 패널을 닫으면 간편입력 전체를 닫고 홈으로 복귀 */
+  const homeListPanelFlowRef = useRef(false);
+  /** homeListPanelFlowRef의 렌더용 미러 — 패널이 열리는 동안 입력 스택(칩·입력창)을 숨긴다 */
+  const [isHomeListPanelFlow, setIsHomeListPanelFlow] = useState(false);
   /** 롱·팁: React 커밋 전에도 즉시 숨김 (딤 페이드와 분리) */
   const [quickInputLongOpacity] = useState(() => new RNAnimated.Value(1));
   /** 숏/롱 동일 애니메이션: 부모 starScale/starRotate 공유. 새로고침 시 크래시 방지를 위해 fallback 보유 */
@@ -2572,6 +2604,9 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       setRecordInboxCategorySheetMounted(false);
       setRecordInboxCategorySheetSelected('');
       quickInputLongOpacity.setValue(1);
+      setIsHomeListOverlay(options?.homeList === true);
+      homeListPanelFlowRef.current = false;
+      setIsHomeListPanelFlow(false);
       setIsQuickInputShortVisible(false);
       setIsQuickInputContentVisible(true);
       setIsQuickInputVisible(true);
@@ -2696,6 +2731,17 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     shortBottomFromScreen,
   ]);
 
+  /** 리스트뷰 칩 흐름: 패널을 닫으면 간편입력 입력 UI로 돌아가지 않고 간편입력 전체를 닫아 홈으로 복귀 */
+  const exitHomeListPanelFlow = useCallback(() => {
+    // 입력 스택은 오버레이가 완전히 닫힐 때(finishHideQuickInput)까지 숨긴 채 유지 — 닫히는 동안 비치지 않게
+    homeListPanelFlowRef.current = false;
+    // 딤이 자연스럽게 페이드아웃되도록 일반 닫기 사용
+    hideQuickInputRef.current();
+    // 다음 진입을 위해 입력 스택 표시값 복원
+    editSheetOpenInputTranslateY.setValue(0);
+    editSheetOpenInputOpacity.setValue(1);
+  }, [editSheetOpenInputOpacity, editSheetOpenInputTranslateY]);
+
   const closeQuickInputRecordInbox = useCallback(() => {
     if (!isQuickInputRecordInboxVisibleRef.current || isQuickInputRecordInboxClosingRef.current) {
       return;
@@ -2739,6 +2785,12 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     const restoreWithoutKeyboard = tutorialCloseInboxWithoutKeyboardRef.current;
     tutorialCloseInboxWithoutKeyboardRef.current = false;
 
+    if (homeListPanelFlowRef.current) {
+      isQuickInputRecordInboxClosingRef.current = false;
+      exitHomeListPanelFlow();
+      return;
+    }
+
     if (restoreWithoutKeyboard) {
       pendingRecordInboxMainRevealRef.current = false;
       requestAnimationFrame(() => {
@@ -2761,6 +2813,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     editSheetOpenCardTranslateY,
     editSheetOpenInputOpacity,
     editSheetOpenInputTranslateY,
+    exitHomeListPanelFlow,
     iosKeyboardHeightPrev,
     iosKeyboardPeakHeight,
     resetAndroidKeyboardFollowPeak,
@@ -2908,8 +2961,11 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     shortBottomFromScreen,
   ]);
 
-  const openRecordInboxIfReady = useCallback(async () => {
-    clearTutorialReceiveFocus();
+  /**
+   * 기록 수신함을 열 수 있는지 확인하고, 못 열면 사유 토스트를 띄운다 (단축어 재설정 필요 · 수신 꺼짐 · 수신 기록 없음).
+   * 오버레이를 열기 전에 호출하면 딤 없이 토스트만 보여줄 수 있다.
+   */
+  const ensureRecordInboxReadyOrToast = useCallback(async (): Promise<boolean> => {
     const goSettingsRecordInbox = () => {
       hideQuickInputRef.current({ simultaneous: true });
       setSettingsTabPendingPush('/settings-record-inbox');
@@ -2933,14 +2989,16 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       showToast('수신된 기록이 존재하지 않습니다.');
       return false;
     }
+    return true;
+  }, [recordInboxReceiveEnabled, router, showToast]);
+
+  const openRecordInboxIfReady = useCallback(async () => {
+    clearTutorialReceiveFocus();
+    if (!(await ensureRecordInboxReadyOrToast())) {
+      return false;
+    }
     return beginOpenQuickInputRecordInbox();
-  }, [
-    beginOpenQuickInputRecordInbox,
-    clearTutorialReceiveFocus,
-    recordInboxReceiveEnabled,
-    router,
-    showToast,
-  ]);
+  }, [beginOpenQuickInputRecordInbox, clearTutorialReceiveFocus, ensureRecordInboxReadyOrToast]);
 
   const flushPendingOpenRecordInbox = useCallback(() => {
     if (!pendingOpenRecordInboxRef.current) {
@@ -3487,13 +3545,17 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       setIsQuickInputCalculatorVisible(false);
       setQuickInputCalculatorAmount('');
       setQuickInputCalculatorExpression([]);
+      if (homeListPanelFlowRef.current) {
+        exitHomeListPanelFlow();
+        return;
+      }
       shortBottomFromScreen.value = lastShortBottomRef.current;
       animatedBottom.value = lastShortBottomRef.current;
       resetAndroidKeyboardFollowPeak();
       setShouldFollowKeyboard(true);
       focusQuickInputField();
     });
-  }, [animatedBottom, calculatorTranslateY, focusQuickInputField, resetAndroidKeyboardFollowPeak, setShouldFollowKeyboard, shortBottomFromScreen]);
+  }, [animatedBottom, calculatorTranslateY, exitHomeListPanelFlow, focusQuickInputField, resetAndroidKeyboardFollowPeak, setShouldFollowKeyboard, shortBottomFromScreen]);
 
   const handleQuickInputCalculatorCopy = useCallback(() => {
     const amountText = `${quickInputCalculatorAmount.trim() || '0'}원`;
@@ -3542,6 +3604,9 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     setIsQuickInputVisible(false);
     setIsQuickInputContentVisible(false);
     setIsQuickInputShortVisible(false);
+    setIsHomeListOverlay(false);
+    homeListPanelFlowRef.current = false;
+    setIsHomeListPanelFlow(false);
     calculatorAnimationRef.current?.stop();
     calculatorTranslateY.setValue(calculatorPanelHeightRef.current);
     setIsQuickInputCalculatorVisible(false);
@@ -4168,6 +4233,10 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       if (!isQuickInputVisibleRef.current || isClosingRef.current) {
         return;
       }
+      if (homeListPanelFlowRef.current) {
+        exitHomeListPanelFlow();
+        return;
+      }
       shortBottomFromScreen.value = lastShortBottomRef.current;
       animatedBottom.value = lastShortBottomRef.current;
       resetAndroidKeyboardFollowPeak();
@@ -4180,6 +4249,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     editSheetOpenCardTranslateY,
     editSheetOpenInputOpacity,
     editSheetOpenInputTranslateY,
+    exitHomeListPanelFlow,
     focusQuickInputField,
     isQuickInputCategorySettingClosing,
     isQuickInputCategorySettingOpening,
@@ -5717,15 +5787,81 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
     };
   }, [overlayStarScale, overlayStarRotate]);
 
+  const openQuickInputChipAction = useCallback(
+    (
+      starScale: AnimatedValue,
+      starRotate: AnimatedValue,
+      shortBottom: number,
+      action: QuickInputChipAction,
+    ) => {
+      // 패널을 바로 열기 위해 입력 스택(칩·입력창)은 잠시도 보이지 않게 숨기고,
+      // 패널을 닫으면 간편입력 입력 UI가 아니라 홈으로 복귀한다.
+      const openOverlay = () => {
+        showQuickInput(starScale, starRotate, shortBottom, { autoFocus: false, homeList: true });
+        homeListPanelFlowRef.current = true;
+        setIsHomeListPanelFlow(true);
+      };
+
+      if (action === 'recordInbox') {
+        clearTutorialReceiveFocus();
+        // 수신함을 열 수 없으면(수신 꺼짐·기록 없음·단축어 재설정) 오버레이/딤 없이 토스트만 보여준다
+        void ensureRecordInboxReadyOrToast().then((ready) => {
+          if (!ready) {
+            return;
+          }
+          openOverlay();
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              if (!homeListPanelFlowRef.current) {
+                return;
+              }
+              if (!beginOpenQuickInputRecordInbox()) {
+                exitHomeListPanelFlow();
+              }
+            });
+          });
+        });
+        return;
+      }
+
+      openOverlay();
+      // 오버레이가 마운트된 다음 프레임에 오버레이 칩과 동일한 핸들러 실행
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (!homeListPanelFlowRef.current) {
+            return;
+          }
+          if (action === 'calculator') {
+            handleQuickInputCalculatorPress();
+          } else {
+            handleQuickInputCategorySettingPress();
+          }
+        });
+      });
+    },
+    [
+      beginOpenQuickInputRecordInbox,
+      clearTutorialReceiveFocus,
+      ensureRecordInboxReadyOrToast,
+      exitHomeListPanelFlow,
+      handleQuickInputCalculatorPress,
+      handleQuickInputCategorySettingPress,
+      showQuickInput,
+    ],
+  );
+
   const value = useMemo<QuickInputContextValue>(
     () => ({
       isQuickInputVisible,
       isQuickInputContentVisible,
       isQuickInputShortVisible,
       recordInboxUnreadCount: recordInboxReceiveEnabled ? recordInboxItems.length : 0,
+      isQuickInputHomeListPanelFlow: isHomeListPanelFlow,
+      isQuickInputHomeListOverlay: isHomeListOverlay,
       showQuickInput,
       hideQuickInput,
       openQuickInputRecordInboxFromGuide,
+      openQuickInputChipAction,
       quickInputText,
       setQuickInputText: setQuickInputTextTruncated,
     }),
@@ -5733,9 +5869,12 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
       isQuickInputContentVisible,
       isQuickInputShortVisible,
       isQuickInputVisible,
+      isHomeListOverlay,
+      isHomeListPanelFlow,
       showQuickInput,
       hideQuickInput,
       openQuickInputRecordInboxFromGuide,
+      openQuickInputChipAction,
       quickInputText,
       setQuickInputTextTruncated,
       recordInboxItems.length,
@@ -6032,14 +6171,17 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                           styles.normalInputStack,
                           {
                             opacity:
-                              isQuickInputRecordInboxVisible && !isQuickInputRecordInboxOpening
+                              isHomeListPanelFlow ||
+                              (isQuickInputRecordInboxVisible && !isQuickInputRecordInboxOpening)
                                 ? 0
                                 : editSheetOpenInputOpacity,
                             transform: [{ translateY: editSheetOpenInputTranslateY }],
                           },
                         ]}
                         pointerEvents={
-                          isQuickInputRecordInboxVisible || isQuickInputRecordInboxOpening
+                          isHomeListPanelFlow ||
+                          isQuickInputRecordInboxVisible ||
+                          isQuickInputRecordInboxOpening
                             ? 'none'
                             : 'box-none'
                         }
@@ -6055,7 +6197,7 @@ export const QuickInputProvider = ({ children }: PropsWithChildren) => {
                         <ScrollView
                           horizontal
                           showsHorizontalScrollIndicator={false}
-                          style={styles.actionRowScroll}
+                          style={[styles.actionRowScroll, isHomeListOverlay && styles.homeListHidden]}
                           contentContainerStyle={styles.actionRow}
                           keyboardShouldPersistTaps="handled"
                           scrollEnabled={!tutorialRecordInboxFocusVisible && !tutorialCreateActive}
@@ -7222,6 +7364,10 @@ const styles = StyleSheet.create({
   },
   normalInputStack: {
     gap: 12,
+  },
+  /** 홈 리스트뷰 간편입력: 칩은 홈 독에 남기고 입력창만 올린다 */
+  homeListHidden: {
+    display: 'none',
   },
   calculatorPanel: {
     gap: CALCULATOR_PANEL_GAP,

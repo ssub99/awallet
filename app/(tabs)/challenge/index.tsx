@@ -586,7 +586,7 @@ export function ChallengeReportTabScreen({
     reportSubTabRef.current = reportSubTab;
   }, [reportSubTab]);
 
-  const params = useLocalSearchParams<{ year?: string; month?: string; tab?: string }>();
+  const params = useLocalSearchParams<{ year?: string; month?: string; tab?: string; ts?: string }>();
 
   const [monthStartDay, setMonthStartDay] = useState(1);
   const [monthStartUpdatedAt, setMonthStartUpdatedAt] = useState(0);
@@ -644,6 +644,27 @@ export function ChallengeReportTabScreen({
       appliedStatusParam.current = true;
     }
   }, [mode, params.tab]);
+
+  // 홈 리스트뷰 「내역」 → 소비 현황 서브탭 + 해당 년/월.
+  // ts(호출 시각)가 포함된 키가 바뀔 때마다 한 번 적용한다 — 같은 연·월로 다시 들어와도(그 사이 서브탭을
+  // 바꿨어도) 매번 적용. effect가 아니라 렌더 중 상태 조정(키 비교)으로 처리한다.
+  const [appliedTrendEntryKey, setAppliedTrendEntryKey] = useState<string | null>(null);
+  const trendEntryKey =
+    mode === 'report' && params.tab === 'trend'
+      ? `${params.ts ?? ''}|${params.year ?? ''}|${params.month ?? ''}`
+      : null;
+  if (trendEntryKey !== null && trendEntryKey !== appliedTrendEntryKey) {
+    setAppliedTrendEntryKey(trendEntryKey);
+    setReportSubTab('trend');
+    const paramYear = params.year ? parseInt(params.year, 10) : undefined;
+    const paramMonth = params.month ? parseInt(params.month, 10) : undefined;
+    if (paramYear != null && !Number.isNaN(paramYear)) {
+      setReportTrendYear(paramYear);
+    }
+    if (paramMonth != null && !Number.isNaN(paramMonth) && paramMonth >= 1 && paramMonth <= 12) {
+      setReportTrendMonth(paramMonth);
+    }
+  }
 
   // 홈에서 넘긴 year/month가 있으면 해당 연·월로 표시 (탭 재진입 시에도 동기화)
   useEffect(() => {

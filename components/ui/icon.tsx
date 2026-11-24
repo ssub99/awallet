@@ -33,6 +33,7 @@ import FilterLine from '@/assets/images/icons/line/filter.svg';
 import HandleLine from '@/assets/images/icons/line/handle.svg';
 import HomeLine from '@/assets/images/icons/line/home.svg';
 import InfoLine from '@/assets/images/icons/line/info.svg';
+import ListLine from '@/assets/images/icons/line/list.svg';
 import LockLine from '@/assets/images/icons/line/lock.svg';
 import MemoLine from '@/assets/images/icons/line/memo.svg';
 import MypageLine from '@/assets/images/icons/line/mypage.svg';
@@ -141,6 +142,7 @@ const iconComponents = {
     home: HomeLine,
     info: InfoLine,
     keypadDelete: KeypadDeleteLine,
+    list: ListLine,
     lock: LockLine,
     memo: MemoLine,
     mypage: MypageLine,
