@@ -9,6 +9,7 @@
  */
 
 import { CountUpText } from '@/components/ui/count-up-text';
+import { formatSignedBalanceText } from '@/utils/format-balance-text';
 import { Tag } from '@/components/ui/tag';
 import { atomicColors } from '@/constants/atomic-colors';
 import { colors, typography, type ColorPalette } from '@/constants/theme';
@@ -49,7 +50,7 @@ export interface HomeListViewProps {
   items: TimelineListItem[];
   /** 요약 타이틀 (예: "11월 소비") */
   summaryLabel: string;
-  /** 이번 달 소비 금액 (원). 값이 바뀌면 카운트업으로 보여준다 */
+  /** 이번 달 잔액 (원). 값이 바뀌면 카운트업으로 보여준다. 양수 `+`·음수 `-` 부호로 표기 */
   summaryAmount: number;
   /** 카운트업 허용(홈 포커스 중). 홈이 다시 보일 때 이전 금액에서 새 금액으로 올라간다 */
   countUpActive: boolean;
@@ -147,6 +148,7 @@ function HomeListViewInner({
             value={summaryAmount}
             active={countUpActive}
             startDelayMs={SUMMARY_COUNT_UP_DELAY_MS}
+            format={formatSignedBalanceText}
             style={[styles.summaryAmount, { color: palette.text }]}
             numberOfLines={1}
             adjustsFontSizeToFit
@@ -427,7 +429,7 @@ const styles = StyleSheet.create({
     height: StyleSheet.hairlineWidth,
     marginHorizontal: 16,
   },
-  /** 시안: 96 얼굴 + 8 간격 + 문구 24, 카드 가운데 */
+  /** 얼굴 72 + 8 간격 + 문구 24, 카드 가운데 (시안 96 → 72로 축소) */
   empty: {
     flex: 1,
     alignItems: 'center',
@@ -438,8 +440,8 @@ const styles = StyleSheet.create({
     minHeight: 200,
   },
   emptyFace: {
-    width: 96,
-    height: 96,
+    width: 72,
+    height: 72,
   },
   emptyText: {
     ...typography.body01.regular,

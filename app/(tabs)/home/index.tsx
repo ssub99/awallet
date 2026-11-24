@@ -1183,8 +1183,8 @@ export default function HomeScreen() {
         dateKeys={listDateKeys}
         selectedDate={listSelectedDate}
         items={listSelectedItems}
-        summaryLabel={`${currentMonth}월 소비`}
-        summaryAmount={Number(financialData.expense) || 0}
+        summaryLabel={`${currentMonth}월 잔액`}
+        summaryAmount={Number(financialData.balance) || 0}
         countUpActive={isHomeScreenFocused && isReady}
         categoryEmojiMap={categoryEmojiMap}
         bottomInset={listCardBottomInset}
@@ -1198,7 +1198,7 @@ export default function HomeScreen() {
       listSelectedDate,
       listSelectedItems,
       currentMonth,
-      financialData.expense,
+      financialData.balance,
       isHomeScreenFocused,
       isReady,
       categoryEmojiMap,

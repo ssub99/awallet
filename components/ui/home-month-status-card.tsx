@@ -4,6 +4,7 @@
 
 import { computeUnifiedSingleLineFontSize } from '@/components/ui/auto-shrink-single-line-text';
 import { CountUpText } from '@/components/ui/count-up-text';
+import { formatBalanceText } from '@/utils/format-balance-text';
 import { atomicColors } from '@/constants/atomic-colors';
 import { colors, type ColorPalette } from '@/constants/theme';
 import { scaleTextStyleFontSize, typographyLayout } from '@/constants/typography';
@@ -24,11 +25,6 @@ const monthStatusAmountTextStyle = typographyLayout.monthStatusAmount;
 /** 카운트업 중 표시 문자열 (최종 문자열 incomeText/expenseText/balanceText와 같은 규칙) */
 const formatIncome = (amount: number) => (amount > 0 ? `+ ${amount.toLocaleString()}원` : '0원');
 const formatExpense = (amount: number) => (amount > 0 ? `- ${amount.toLocaleString()}원` : '0원');
-const formatBalance = (amount: number) => {
-  if (amount === 0) return '0원';
-  if (amount < 0) return `- ${Math.abs(amount).toLocaleString()}원`;
-  return `${amount.toLocaleString()}원`;
-};
 
 /** 홈으로 돌아온 뒤 카운트업이 시작되기까지의 지연 */
 const COUNT_UP_START_DELAY_MS = 1000;
@@ -150,7 +146,7 @@ function HomeMonthStatusCardInner({
               value={balanceAmount}
               active={countUpActive}
               startDelayMs={COUNT_UP_START_DELAY_MS}
-              format={formatBalance}
+              format={formatBalanceText}
               style={[
                 amountTextStyle,
                 monthStatusCenteredText,
