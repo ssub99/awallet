@@ -87,8 +87,8 @@ const KEYS_TO_REMOVE = [
  * - 컨텍스트 해시 캐시: consumptionReportCtx_${hash}
  *
  * 전체 초기화 시에는 위 패턴에 해당하는 모든 키를 찾아 삭제하고,
- * 챌린지 탭이 읽는 `consumptionReportResetAt`을 갱신해 리포트 UI를 비우도록 합니다.
- * (`consumptionReportResetHandledAt`는 저장소에서 제거 — app/(tabs)/challenge/index.tsx 와 동일 키)
+ * 리포트 화면이 읽는 `consumptionReportResetAt`을 갱신해 리포트 UI를 비우도록 합니다.
+ * (`consumptionReportResetHandledAt`는 저장소에서 제거 — components/report/report-screen.tsx 와 동일 키)
  */
 const CONSUMPTION_REPORT_PREFIXES = ['consumptionReport_', 'consumptionReportCtx_'] as const;
 const CONSUMPTION_REPORT_RESET_AT_KEY = 'consumptionReportResetAt';

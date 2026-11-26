@@ -10,7 +10,7 @@ function hashString(input) {
   return Math.abs(hash >>> 0).toString(36);
 }
 
-/** challenge.tsx buildReportCacheKey 와 동일 공식 */
+/** components/report/report-screen.tsx buildReportCacheKey 와 동일 공식 */
 function buildReportCacheKey(context) {
   const source = [
     context.year,
