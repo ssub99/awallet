@@ -35,23 +35,23 @@ export interface TrendBar {
 interface TrendBarChartProps {
   /** 오래된 달 → 최신 달 */
   bars: TrendBar[];
-  /** 이 달이 화면 밖이면 오른쪽 끝에 오도록 스크롤 */
-  anchorIndex: number;
+  /** 선택 범위의 마지막 달 — 화면 밖이면 보이도록 스크롤 */
+  revealIndex: number;
   palette: ColorPalette;
   onPressBar: (monthIndex: number) => void;
 }
 
-export function TrendBarChart({ bars, anchorIndex, palette, onPressBar }: TrendBarChartProps) {
+export function TrendBarChart({ bars, revealIndex, palette, onPressBar }: TrendBarChartProps) {
   const scrollRef = useRef<ScrollViewInstance>(null);
   const widthRef = useRef(0);
   const offsetRef = useRef<number | null>(null);
-  const firstMonthIndex = bars[0]?.monthIndex ?? anchorIndex;
+  const firstMonthIndex = bars[0]?.monthIndex ?? revealIndex;
   const maxAmount = bars.reduce((max, bar) => Math.max(max, bar.amount), 0);
 
-  const revealAnchor = useCallback(() => {
+  const revealMonth = useCallback(() => {
     const width = widthRef.current;
     if (width <= 0) return;
-    const right = (anchorIndex - firstMonthIndex + 1) * COLUMN_WIDTH;
+    const right = (revealIndex - firstMonthIndex + 1) * COLUMN_WIDTH;
     const left = right - COLUMN_WIDTH;
     const offset = offsetRef.current;
     if (offset !== null && left >= offset && right <= offset + width) return;
@@ -59,11 +59,11 @@ export function TrendBarChart({ bars, anchorIndex, palette, onPressBar }: TrendB
     const nextOffset = Math.max(0, offset !== null && left < offset ? left : right - width);
     offsetRef.current = nextOffset;
     scrollRef.current?.scrollTo({ x: nextOffset, animated: false });
-  }, [anchorIndex, firstMonthIndex]);
+  }, [revealIndex, firstMonthIndex]);
 
   useEffect(() => {
-    revealAnchor();
-  }, [revealAnchor]);
+    revealMonth();
+  }, [revealMonth]);
 
   return (
     <View style={[styles.card, { backgroundColor: palette.staticWhite }]}>
@@ -79,9 +79,9 @@ export function TrendBarChart({ bars, anchorIndex, palette, onPressBar }: TrendB
         }}
         onLayout={(event) => {
           widthRef.current = event.nativeEvent.layout.width;
-          revealAnchor();
+          revealMonth();
         }}
-        onContentSizeChange={revealAnchor}
+        onContentSizeChange={revealMonth}
       >
         {bars.map((bar) => (
           <Pressable

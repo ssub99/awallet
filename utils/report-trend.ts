@@ -97,6 +97,14 @@ export function sumItems(items: TrendItem[] | undefined): MonthTotal {
 }
 
 /**
+ * 선택한 달을 가운데 두는 구간의 마지막 달. 짝수 개월은 과거 쪽에 한 달을 더 둔다.
+ * 당월을 넘을 수 없고, 넘는 만큼은 구간이 과거 쪽으로 밀린다.
+ */
+export function getWindowEndIndex(anchorIndex: number, length: number, currentIndex: number): number {
+  return Math.min(anchorIndex + Math.floor((length - 1) / 2), currentIndex);
+}
+
+/**
  * `endIndex`에서 거꾸로 `length`개월. 첫 기록이 있는 달보다 앞선 달은 제외한다.
  * 반환 순서는 최신 달 먼저.
  */

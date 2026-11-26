@@ -22,6 +22,7 @@ import { logEvent } from '@/utils/analytics';
 import { getCustomMonthInfo } from '@/utils/custom-month';
 import {
   fromMonthIndex,
+  getWindowEndIndex,
   getWindowMonths,
   groupByMonth,
   parseTrendItems,
@@ -68,7 +69,7 @@ function formatPeriodLabel(monthIndex: number): string {
 
 interface ReportTrendTabProps {
   visible: boolean;
-  /** 선택한 달 (범위의 마지막 달) */
+  /** 선택한 달 (3개월 이상에서는 범위의 가운데 기준) */
   year: number;
   month: number;
   onSelectMonth: (year: number, month: number) => void;
@@ -100,6 +101,12 @@ export function ReportTrendTab({
   const [data, setData] = useState<{ items: TrendItem[]; monthStartDay: number } | null>(null);
   const [range, setRange] = useState<TrendRange>(3);
   const [isAverage, setIsAverage] = useState(true);
+  /** `‹ ›`로 구간을 통째로 옮긴 결과. 선택한 달이나 범위가 달라지면 버린다 */
+  const [movedWindow, setMovedWindow] = useState<{
+    anchorIndex: number;
+    range: TrendRange;
+    endIndex: number;
+  } | null>(null);
   const [rankingFilter, setRankingFilter] = useState<TrendRankingFilter>('all');
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
@@ -148,7 +155,14 @@ export function ReportTrendTab({
   const firstRecordIndex = recordIndexes.length > 0 ? Math.min(...recordIndexes) : null;
 
   const isSingleMonth = range === 1;
-  const windowMonths = getWindowMonths(anchorIndex, range, firstRecordIndex);
+  if (movedWindow !== null && movedWindow.anchorIndex !== anchorIndex) {
+    setMovedWindow(null);
+  }
+  const windowEndIndex =
+    movedWindow?.anchorIndex === anchorIndex && movedWindow.range === range
+      ? movedWindow.endIndex
+      : getWindowEndIndex(anchorIndex, range, currentIndex);
+  const windowMonths = getWindowMonths(windowEndIndex, range, firstRecordIndex);
   const summary = summarizeWindow(byMonth, windowMonths);
 
   // 시작 달은 선택에 따라 움직이지 않아야 막대를 눌렀을 때 그래프가 밀리지 않는다
@@ -178,18 +192,24 @@ export function ReportTrendTab({
 
   const showAverage = !isSingleMonth && isAverage;
   const representativeAmount = Math.round(showAverage ? summary.average : summary.total);
-  const displayedAmount = useCountUp(representativeAmount, `${range}|${showAverage}`);
+  // 범위·평균 전환뿐 아니라 보고 있는 달이 바뀔 때도 숫자를 굴린다
+  const displayedAmount = useCountUp(
+    representativeAmount,
+    `${range}|${showAverage}|${anchorIndex}|${windowEndIndex}`,
+  );
   const representativeTitle = isSingleMonth
     ? `${month}월 소비금액`
-    : `최근 ${range}개월 ${showAverage ? '평균' : '총'} 소비금액`;
+    : `${windowEndIndex === currentIndex ? '최근 ' : ''}${range}개월 ${showAverage ? '평균' : '총'} 소비금액`;
   const periodLabel = isSingleMonth
     ? formatPeriodLabel(anchorIndex)
-    : `${formatPeriodLabel(anchorIndex - range + 1)} - ${formatPeriodLabel(anchorIndex)}`;
+    : `${formatPeriodLabel(windowEndIndex - range + 1)} - ${formatPeriodLabel(windowEndIndex)}`;
 
   const categories = rankCategories(byMonth, windowMonths, rankingFilter);
 
+  // 범위는 유지하고 누른 달만 바꾼다 — 당월이면 그 달 하나, 3개월 이상이면 그 달 중심
   const handlePressBar = (monthIndex: number) => {
-    setRange(1);
+    // `‹ ›`로 옮겨 둔 구간은 버리고 누른 달 기준으로 다시 잡는다
+    setMovedWindow(null);
     const target = fromMonthIndex(monthIndex);
     onSelectMonth(target.year, target.month);
   };
@@ -211,9 +231,14 @@ export function ReportTrendTab({
     });
   };
 
-  const isAtCurrentMonth = anchorIndex >= currentIndex;
+  // 당월에서는 선택한 달이, 3개월 이상에서는 구간 전체가 한 달씩 움직인다
+  const isAtCurrentMonth = windowEndIndex >= currentIndex;
   const handleStepMonth = (step: 1 | -1) => {
-    const target = fromMonthIndex(anchorIndex + step);
+    const nextAnchorIndex = anchorIndex + step;
+    if (!isSingleMonth) {
+      setMovedWindow({ anchorIndex: nextAnchorIndex, range, endIndex: windowEndIndex + step });
+    }
+    const target = fromMonthIndex(nextAnchorIndex);
     onSelectMonth(target.year, target.month);
   };
 
@@ -338,7 +363,7 @@ export function ReportTrendTab({
 
               <TrendBarChart
                 bars={bars}
-                anchorIndex={anchorIndex}
+                revealIndex={windowEndIndex}
                 palette={palette}
                 onPressBar={handlePressBar}
               />
