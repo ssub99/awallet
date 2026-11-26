@@ -30,7 +30,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GlassSurface } from '@/components/ui/glass-surface';
 import { BlurRuntime } from '@/constants/blur-runtime';
 import { Stack, useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -79,6 +79,29 @@ type TimelineItem = TimelineListItem;
 
 
 const STANDARD_PAYMENT_FILTER_KEYS = ['cash', 'income'] as const;
+
+/** 날짜별 묶음 — 스크롤 위치 계산에 쓰는 레이아웃을 날짜와 함께 알린다 */
+function DateSection({
+  date,
+  onSectionLayout,
+  children,
+}: {
+  date: string;
+  onSectionLayout: (date: string, top: number, height: number) => void;
+  children: ReactNode;
+}) {
+  return (
+    <View
+      style={styles.dateGroup}
+      onLayout={(e) => {
+        const { y, height } = e.nativeEvent.layout;
+        onSectionLayout(date, y, height);
+      }}
+    >
+      {children}
+    </View>
+  );
+}
 
 export default function MonthlyExpenseTimelineScreen() {
   const { height: windowHeight } = useWindowDimensions();
@@ -227,14 +250,16 @@ export default function MonthlyExpenseTimelineScreen() {
   /** 진입/월 전환 시 false(애니메이션 없음), 날짜 탭 시 true(애니메이션) */
   const scrollAnimatedRef = useRef(false);
   const [isContentReady, setIsContentReady] = useState(false);
-  const contentOpacity = useRef(new Animated.Value(0)).current;
+  const [contentOpacity] = useState(() => new Animated.Value(0));
   const hasAnimatedRef = useRef(false);
   /** 월 전환 페이드 중에는 이전 월 데이터를 유지 (합계·리스트 즉시 갱신 방지) */
   const [visibleTimelineItems, setVisibleTimelineItems] = useState<TimelineItem[]>([]);
   const visibleTimelineItemsRef = useRef(visibleTimelineItems);
-  visibleTimelineItemsRef.current = visibleTimelineItems;
+  useLayoutEffect(() => {
+    visibleTimelineItemsRef.current = visibleTimelineItems;
+  }, [visibleTimelineItems]);
   /** 월 전환 중 합계·날짜 스트립용 이전 월 스냅샷 (리스트는 비움) */
-  const frozenDisplayItemsRef = useRef<TimelineItem[]>([]);
+  const [frozenDisplayItems, setFrozenDisplayItems] = useState<TimelineItem[]>([]);
   /** 월 전환 페이드인은 finishMonthTransition만 담당 */
   const monthTransitionFadeInRef = useRef(false);
   /** 합계·날짜 스트립 chrome 고정 (ref만으로는 첫 페인트에 새 월이 잠깐 노출됨) */
@@ -243,6 +268,8 @@ export default function MonthlyExpenseTimelineScreen() {
   const dateStripScrollXRef = useRef(0);
   /** 월 전환 직후 contentSize 확정 시 스트립 스냅 (말일 레이아웃 지연 대비) */
   const shouldSnapDateStripRef = useRef(false);
+  /** 날짜 탭/초기 진입 시 타임라인 스크롤 필요 */
+  const shouldScrollTimelineToDateRef = useRef(false);
 
   // 월 변경 감지: paint 전에 pending·chrome 잠금 (targetDateFromSelection보다 먼저)
   useLayoutEffect(() => {
@@ -262,7 +289,7 @@ export default function MonthlyExpenseTimelineScreen() {
       shouldScrollTimelineToDateRef.current = false;
       // 이전 월 말일 스크롤 위치가 남으면 새 월(특히 31일)에서 scroll 생략되는 경우 방지
       dateStripScrollXRef.current = 0;
-      frozenDisplayItemsRef.current = visibleTimelineItemsRef.current;
+      setFrozenDisplayItems(visibleTimelineItemsRef.current);
       setVisibleTimelineItems([]);
       setIsContentReady(false);
       // 투명 스피너 아래 이전 월 리스트가 보이지 않도록 즉시 숨김
@@ -323,8 +350,6 @@ export default function MonthlyExpenseTimelineScreen() {
   const DATE_STRIP_SCROLL_DURATION_MS = 400;
   /** 타임라인 날짜 섹션별 레이아웃 (스크롤 기반 포커스용) */
   const dateSectionLayoutsRef = useRef<Map<string, { top: number; height: number }>>(new Map());
-  /** 날짜 탭/초기 진입 시 타임라인 스크롤 필요 */
-  const shouldScrollTimelineToDateRef = useRef(false);
 
   // 소비 수정 저장 후 복귀: 날짜·월 포커스 (navigation.reset 대신 router.back)
   useFocusEffect(
@@ -345,7 +370,7 @@ export default function MonthlyExpenseTimelineScreen() {
       shouldScrollTimelineToDateRef.current = true;
       shouldSnapDateStripRef.current = true;
       setPickedDateForWeek(targetDate);
-    }, [month, year])
+    }, [month, setCurrentMonth, setCurrentYear, year])
   );
 
   // 선택일이 해당 월 범위에 없으면 첫날로 보정 (월 변경 직후는 refreshData에서 한 번만 설정하므로 제외)
@@ -356,7 +381,7 @@ export default function MonthlyExpenseTimelineScreen() {
   }, [monthDates, pickedDateForWeek]);
 
   // 선택일 변경 시 해당 날짜가 가운데로 오도록 가로 스크롤
-  const dateStripScrollAnimRef = useRef(new Animated.Value(0)).current;
+  const [dateStripScrollAnimRef] = useState(() => new Animated.Value(0));
   const scrollDateStripToPicked = useCallback(() => {
     const idx = monthDates.indexOf(pickedDateForWeek);
     if (idx < 0 || !dateStripScrollRef.current) {
@@ -514,7 +539,9 @@ export default function MonthlyExpenseTimelineScreen() {
     [calendarData, month, monthStartDay, year],
   );
   const timelineItemsRef = useRef(timelineItems);
-  timelineItemsRef.current = timelineItems;
+  useLayoutEffect(() => {
+    timelineItemsRef.current = timelineItems;
+  }, [timelineItems]);
 
   const paymentFilterSheetHeight = useMemo(() => windowHeight * 0.8, [windowHeight]);
 
@@ -685,8 +712,8 @@ export default function MonthlyExpenseTimelineScreen() {
   );
 
   const summaryTimelineItems = useMemo(
-    () => (monthTransitionActive ? frozenDisplayItemsRef.current : visibleTimelineItems),
-    [monthTransitionActive, visibleTimelineItems],
+    () => (monthTransitionActive ? frozenDisplayItems : visibleTimelineItems),
+    [frozenDisplayItems, monthTransitionActive, visibleTimelineItems],
   );
   const listTimelineItems = useMemo(
     () => (monthTransitionActive ? [] : visibleTimelineItems),
@@ -804,6 +831,16 @@ export default function MonthlyExpenseTimelineScreen() {
     };
   }, [groupedTimeline, isContentReady, pickedDateForWeek, scrollTimelineToPickedDate]);
 
+  const handleDateSectionLayout = useCallback(
+    (date: string, top: number, height: number) => {
+      dateSectionLayoutsRef.current.set(date, { top, height });
+      if (date === pickedDateForWeek && shouldScrollTimelineToDateRef.current && isContentReady) {
+        scrollTimelineToPickedDate(scrollAnimatedRef.current);
+      }
+    },
+    [isContentReady, pickedDateForWeek, scrollTimelineToPickedDate],
+  );
+
   // Format date for display
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -821,7 +858,7 @@ export default function MonthlyExpenseTimelineScreen() {
       }
       return prevMonth - 1;
     });
-  }, []);
+  }, [setCurrentMonth, setCurrentYear]);
 
   const handleNextMonth = useCallback(() => {
     setCurrentMonth((prevMonth) => {
@@ -831,10 +868,10 @@ export default function MonthlyExpenseTimelineScreen() {
       }
       return prevMonth + 1;
     });
-  }, []);
+  }, [setCurrentMonth, setCurrentYear]);
 
-  const timelinePanResponder = useRef(
-    PanResponder.create({
+  const timelinePanResponder = useMemo(
+    () => PanResponder.create({
       onMoveShouldSetPanResponder: (
         _evt: GestureResponderEvent,
         gestureState: PanResponderGestureState,
@@ -854,8 +891,9 @@ export default function MonthlyExpenseTimelineScreen() {
           else handlePrevMonth();
         }
       },
-    })
-  ).current;
+    }),
+    [handleNextMonth, handlePrevMonth],
+  );
 
   const handleBackPress = useCallback(() => {
     void (async () => {
@@ -1097,21 +1135,7 @@ export default function MonthlyExpenseTimelineScreen() {
             const isLastGroup = groupIndex === totalGroups - 1;
             
             return (
-              <View
-                key={date}
-                style={styles.dateGroup}
-                onLayout={(e) => {
-                  const { y, height } = e.nativeEvent.layout;
-                  dateSectionLayoutsRef.current.set(date, { top: y, height });
-                  if (
-                    date === pickedDateForWeek &&
-                    shouldScrollTimelineToDateRef.current &&
-                    isContentReady
-                  ) {
-                    scrollTimelineToPickedDate(scrollAnimatedRef.current);
-                  }
-                }}
-              >
+              <DateSection key={date} date={date} onSectionLayout={handleDateSectionLayout}>
                 {items.map((item, itemIndex) => {
                   const isFirstInGroup = itemIndex === 0;
                   const isLastInGroup = itemIndex === items.length - 1;
@@ -1381,7 +1405,7 @@ export default function MonthlyExpenseTimelineScreen() {
                     </View>
                   );
                 })}
-              </View>
+              </DateSection>
             );
           })
         )}
