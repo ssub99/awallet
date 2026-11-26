@@ -8,6 +8,7 @@ import { Icon } from '@/components/ui/icon';
 import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { logEvent } from '@/utils/analytics';
+import { resolveAnalyticsScreenName } from '@/utils/home-screen-name';
 import { setHomePendingOpenRecordInbox } from '@/utils/home-open-record-inbox-pending';
 import {
   subscribeRecordReceiveGuideCard,
@@ -129,7 +130,10 @@ export function RecordReceiveGuideCard() {
   }, [motion, visible]);
 
   const handlePress = useCallback(() => {
-    void logEvent('ui', { screen_name: pathname, target: 'record-receive-guide-card' });
+    void logEvent('ui', {
+      screen_name: resolveAnalyticsScreenName(pathname),
+      target: 'record-receive-guide-card',
+    });
     setVisible(false);
     // pending 먼저 → 홈 이동(replace 금지). 스택에 쌓인 화면은 걷고, 아니면 push.
     setHomePendingOpenRecordInbox('record_card');

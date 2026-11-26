@@ -15,6 +15,25 @@ export const HOME_MONTH_LIST_SCREEN_NAME = '/home-month-list';
 
 export type HomeViewType = 'calendar' | 'list';
 
+const HOME_PATHNAME = '/home';
+
+/** 홈이 지금 보여 주는 뷰의 화면 이름. 홈 밖의 전역 UI가 이벤트를 남길 때 쓴다 */
+let currentHomeScreenName: string | null = null;
+
+export function setCurrentHomeScreenName(screenName: string): void {
+  currentHomeScreenName = screenName;
+}
+
+/**
+ * 어느 화면에서나 뜨는 UI(기록/챌린지 시트, 기록 수신 안내 카드)의 `screen_name`.
+ * 홈이면 지금 보고 있는 뷰의 이름, 그 외에는 경로 그대로.
+ */
+export function resolveAnalyticsScreenName(pathname: string): string {
+  return pathname === HOME_PATHNAME && currentHomeScreenName !== null
+    ? currentHomeScreenName
+    : pathname;
+}
+
 export function getHomeScreenName(viewType: HomeViewType, periodType: 'year' | 'month'): string {
   if (periodType === 'year') {
     return HOME_YEAR_SCREEN_NAME;

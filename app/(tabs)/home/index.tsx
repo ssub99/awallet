@@ -35,7 +35,7 @@ import {
 } from '@/hooks/calendar-events';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useCategoryEmojiMap } from '@/hooks/use-category-emoji-map';
-import { getHomeScreenName } from '@/utils/home-screen-name';
+import { getHomeScreenName, setCurrentHomeScreenName } from '@/utils/home-screen-name';
 import {
   getResolvedHomeViewExperimentGroup,
   isHomeListViewEnabled,
@@ -262,6 +262,12 @@ export default function HomeScreen() {
     }
     trackHomeViewExposureOnce(homeExperimentGroup);
   }, [homeExperimentGroup, isHomeScreenFocused, isViewTypeLoaded]);
+  // 전역 UI(기록/챌린지 시트·안내 카드)의 이벤트가 같은 화면 이름을 쓰도록 공유
+  useEffect(() => {
+    if (isViewTypeLoaded) {
+      setCurrentHomeScreenName(homeScreenName);
+    }
+  }, [homeScreenName, isViewTypeLoaded]);
   // 홈이 포커스를 얻을 때·뷰(연도/월 캘린더/월 리스트)가 바뀔 때 뷰별 screen_view
   useEffect(() => {
     if (!isHomeScreenFocused || !isViewTypeLoaded) {

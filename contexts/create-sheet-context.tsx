@@ -4,6 +4,7 @@ import { typography } from '@/constants/typography';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { logEvent } from '@/utils/analytics';
 import { createSheetEvent } from '@/utils/create-sheet-event';
+import { resolveAnalyticsScreenName } from '@/utils/home-screen-name';
 import { usePathname, useRouter } from 'expo-router';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -43,7 +44,7 @@ export const CreateSheetProvider = ({ children }: PropsWithChildren) => {
   useEffect(() => {
     return createSheetEvent.subscribe(() => {
       void logEvent('sheet_view', {
-        screen_name: pathname,
+        screen_name: resolveAnalyticsScreenName(pathname),
         target: 'add-record-sheet',
       });
       setIsVisible(true);
@@ -69,7 +70,7 @@ export const CreateSheetProvider = ({ children }: PropsWithChildren) => {
 
   const handleIncomePress = useCallback(() => {
     void logEvent('btn', {
-      screen_name: pathname,
+      screen_name: resolveAnalyticsScreenName(pathname),
       target: 'add-record-income',
       mode: 'income',
       category_type: 'income',
@@ -84,7 +85,7 @@ export const CreateSheetProvider = ({ children }: PropsWithChildren) => {
 
   const handleExpensePress = useCallback(() => {
     void logEvent('btn', {
-      screen_name: pathname,
+      screen_name: resolveAnalyticsScreenName(pathname),
       target: 'add-record-expense',
       mode: 'expense',
       category_type: 'expense',
@@ -98,7 +99,7 @@ export const CreateSheetProvider = ({ children }: PropsWithChildren) => {
 
   const handleChallengePress = useCallback(() => {
     void logEvent('btn', {
-      screen_name: pathname,
+      screen_name: resolveAnalyticsScreenName(pathname),
       target: 'add-record-challenge',
       mode: 'challenge',
       category_type: 'expense',
