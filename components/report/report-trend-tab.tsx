@@ -485,7 +485,7 @@ export function ReportTrendTab({
                         },
                       ]}
                     >
-                      월 평균 {formatWon(displayedDifference)}{' '}
+                      월 평균보다 {formatWon(displayedDifference)}{' '}
                       {averageDifference.direction === 'over' ? '더' : '덜'} 사용했어요.
                     </Text>
                   </>
