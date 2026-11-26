@@ -24,7 +24,8 @@ import { buildTimelineItemsFromCalendarData, type TimelineListItem } from '@/uti
 import { logEvent } from '@/utils/analytics';
 import { getRouteParamNumber, getRouteParamString } from '@/utils/route-params';
 import { getCustomMonthRange } from '@/utils/custom-month';
-import { initializePaymentSubtypes, type PaymentSubtype } from '@/utils/payment-types';
+import { usePaymentFilterSelection } from '@/hooks/use-payment-filter-selection';
+import { TIMELINE_PAYMENT_FILTER_STORAGE_KEY } from '@/utils/payment-filter-selection';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GlassSurface } from '@/components/ui/glass-surface';
 import { BlurRuntime } from '@/constants/blur-runtime';
@@ -77,22 +78,7 @@ function cancelIdleTask(token: IdleCallbackToken): void {
 type TimelineItem = TimelineListItem;
 
 
-const TIMELINE_PAYMENT_FILTER_STORAGE_KEY = 'monthlyTimelinePaymentFilter';
 const STANDARD_PAYMENT_FILTER_KEYS = ['cash', 'income'] as const;
-
-function buildAllPaymentFilterKeyIds(subtypes: PaymentSubtype[]): string[] {
-  return [...subtypes.map((item) => item.id), ...STANDARD_PAYMENT_FILTER_KEYS];
-}
-
-function mergePaymentFilterKeys(current: string[], idsToAdd: string[]): string[] {
-  const next = [...current];
-  for (const id of idsToAdd) {
-    if (!next.includes(id)) {
-      next.push(id);
-    }
-  }
-  return next;
-}
 
 export default function MonthlyExpenseTimelineScreen() {
   const { height: windowHeight } = useWindowDimensions();
@@ -106,13 +92,17 @@ export default function MonthlyExpenseTimelineScreen() {
   const router = useRouter();
   const navigation = useNavigation();
   const [showPaymentFilterSheet, setShowPaymentFilterSheet] = useState(false);
-  const [paymentSubtypes, setPaymentSubtypes] = useState<PaymentSubtype[]>([]);
-  const [paymentFilterKeys, setPaymentFilterKeys] = useState<string[]>([]);
-  const [draftPaymentFilterKeys, setDraftPaymentFilterKeys] = useState<string[]>([]);
-  const [shouldInitPaymentFilterDefaults, setShouldInitPaymentFilterDefaults] = useState(false);
-  const [shouldBackfillMissingFilterOptions, setShouldBackfillMissingFilterOptions] = useState(false);
-  const [isPaymentFilterLoaded, setIsPaymentFilterLoaded] = useState(false);
-  const prevPaymentSubtypeIdsRef = useRef<string[] | null>(null);
+  const {
+    paymentSubtypes,
+    filterKeys: paymentFilterKeys,
+    setFilterKeys: setPaymentFilterKeys,
+    draftKeys: draftPaymentFilterKeys,
+    setDraftKeys: setDraftPaymentFilterKeys,
+  } = usePaymentFilterSelection({
+    storageKey: TIMELINE_PAYMENT_FILTER_STORAGE_KEY,
+    standardKeys: STANDARD_PAYMENT_FILTER_KEYS,
+    legacyStorageKey: 'monthlyTimelinePaymentFilter_v1',
+  });
   const handleFilterPress = useCallback(() => {
     void logEvent('ui', {
       screen_name: '/monthly-expense-timeline',
@@ -124,83 +114,7 @@ export default function MonthlyExpenseTimelineScreen() {
     });
     setDraftPaymentFilterKeys(paymentFilterKeys);
     setShowPaymentFilterSheet(true);
-  }, [paymentFilterKeys]);
-
-  useEffect(() => {
-    let active = true;
-    const loadFilterState = async () => {
-      try {
-        let stored = await AsyncStorage.getItem(TIMELINE_PAYMENT_FILTER_STORAGE_KEY);
-        if (!stored) {
-          const outdatedStored = await AsyncStorage.getItem('monthlyTimelinePaymentFilter_v1');
-          if (outdatedStored) {
-            stored = outdatedStored;
-            await AsyncStorage.setItem(TIMELINE_PAYMENT_FILTER_STORAGE_KEY, outdatedStored);
-            await AsyncStorage.removeItem('monthlyTimelinePaymentFilter_v1');
-          }
-        }
-        if (!active) return;
-        if (!stored) {
-          setShouldInitPaymentFilterDefaults(true);
-          return;
-        }
-        const parsed = JSON.parse(stored) as unknown;
-        if (Array.isArray(parsed) && parsed.every((key) => typeof key === 'string')) {
-          const storedKeys = parsed as string[];
-          if (storedKeys.length === 0) {
-            setPaymentFilterKeys([]);
-            setShouldInitPaymentFilterDefaults(false);
-          } else {
-            setPaymentFilterKeys(storedKeys);
-            setShouldInitPaymentFilterDefaults(false);
-            setShouldBackfillMissingFilterOptions(true);
-          }
-          return;
-        }
-        // legacy 단일 선택 포맷 → 전체 선택 기본값
-        setShouldInitPaymentFilterDefaults(true);
-      } catch {
-        if (active) {
-          setShouldInitPaymentFilterDefaults(true);
-        }
-      } finally {
-        if (active) {
-          setIsPaymentFilterLoaded(true);
-        }
-      }
-    };
-    void loadFilterState();
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!isPaymentFilterLoaded) return;
-    if (shouldInitPaymentFilterDefaults) return;
-    void AsyncStorage.setItem(TIMELINE_PAYMENT_FILTER_STORAGE_KEY, JSON.stringify(paymentFilterKeys)).catch(() => {
-      // ignore
-    });
-  }, [isPaymentFilterLoaded, paymentFilterKeys, shouldInitPaymentFilterDefaults]);
-
-  useFocusEffect(
-    useCallback(() => {
-      let active = true;
-      const loadSubtypes = async () => {
-        try {
-          const subtypes = await initializePaymentSubtypes();
-          if (!active) return;
-          setPaymentSubtypes(subtypes);
-        } catch {
-          // ignore
-        }
-      };
-      void loadSubtypes();
-      return () => {
-        active = false;
-      };
-    }, [])
-  );
+  }, [paymentFilterKeys, setDraftPaymentFilterKeys]);
 
   const creditSubtypes = useMemo(
     () => paymentSubtypes.filter((item) => item.type === 'credit'),
@@ -231,72 +145,6 @@ export default function MonthlyExpenseTimelineScreen() {
     ],
     [creditSubtypes, debitSubtypes]
   );
-
-  const allPaymentFilterKeyIds = useMemo(
-    () => buildAllPaymentFilterKeyIds(paymentSubtypes),
-    [paymentSubtypes],
-  );
-
-  const paymentFilterValidKeySet = useMemo(() => new Set(allPaymentFilterKeyIds), [allPaymentFilterKeyIds]);
-
-  useEffect(() => {
-    if (!shouldInitPaymentFilterDefaults) return;
-    if (paymentSubtypes.length === 0) return;
-
-    const allKeys = buildAllPaymentFilterKeyIds(paymentSubtypes);
-    setPaymentFilterKeys(allKeys);
-    setDraftPaymentFilterKeys(allKeys);
-    setShouldInitPaymentFilterDefaults(false);
-    setShouldBackfillMissingFilterOptions(false);
-    prevPaymentSubtypeIdsRef.current = paymentSubtypes.map((item) => item.id);
-  }, [paymentSubtypes, shouldInitPaymentFilterDefaults]);
-
-  useEffect(() => {
-    if (!isPaymentFilterLoaded || shouldInitPaymentFilterDefaults) return;
-    if (!shouldBackfillMissingFilterOptions) return;
-    if (paymentSubtypes.length === 0) return;
-
-    const allKeys = buildAllPaymentFilterKeyIds(paymentSubtypes);
-    setPaymentFilterKeys((prev) => {
-      const missingIds = allKeys.filter((id) => !prev.includes(id));
-      return missingIds.length > 0 ? mergePaymentFilterKeys(prev, missingIds) : prev;
-    });
-    setDraftPaymentFilterKeys((prev) => {
-      const missingIds = allKeys.filter((id) => !prev.includes(id));
-      return missingIds.length > 0 ? mergePaymentFilterKeys(prev, missingIds) : prev;
-    });
-    setShouldBackfillMissingFilterOptions(false);
-    prevPaymentSubtypeIdsRef.current = paymentSubtypes.map((item) => item.id);
-  }, [
-    isPaymentFilterLoaded,
-    paymentSubtypes,
-    shouldBackfillMissingFilterOptions,
-    shouldInitPaymentFilterDefaults,
-  ]);
-
-  useEffect(() => {
-    if (!isPaymentFilterLoaded) return;
-    if (paymentSubtypes.length === 0) return;
-
-    setPaymentFilterKeys((prev) => prev.filter((key) => paymentFilterValidKeySet.has(key)));
-    setDraftPaymentFilterKeys((prev) => prev.filter((key) => paymentFilterValidKeySet.has(key)));
-  }, [isPaymentFilterLoaded, paymentFilterValidKeySet, paymentSubtypes.length]);
-
-  useEffect(() => {
-    if (!isPaymentFilterLoaded || shouldInitPaymentFilterDefaults) return;
-
-    const subtypeIds = paymentSubtypes.map((item) => item.id);
-    const prevSubtypeIds = prevPaymentSubtypeIdsRef.current;
-    prevPaymentSubtypeIdsRef.current = subtypeIds;
-
-    if (prevSubtypeIds === null) return;
-
-    const addedSubtypeIds = subtypeIds.filter((id) => !prevSubtypeIds.includes(id));
-    if (addedSubtypeIds.length === 0) return;
-
-    setPaymentFilterKeys((prev) => mergePaymentFilterKeys(prev, addedSubtypeIds));
-    setDraftPaymentFilterKeys((prev) => mergePaymentFilterKeys(prev, addedSubtypeIds));
-  }, [isPaymentFilterLoaded, paymentSubtypes, shouldInitPaymentFilterDefaults]);
 
   // Year/Month options for picker (홈 화면과 동일하게 ±10년)
   const yearOptions = useMemo(() => {

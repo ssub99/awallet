@@ -40,6 +40,7 @@ import {
 } from '@/utils/record-inbox-receive-settings';
 import { RECORD_INBOX_SHORTCUT_RESYNC_DONE_KEY } from '@/utils/record-inbox-shortcut-resync';
 import { ONBOARDING_COMPLETED_KEY } from '@/utils/onboarding-settings';
+import { PAYMENT_FILTER_STORAGE_KEYS } from '@/utils/payment-filter-selection';
 
 /** 전체 초기화 시 제거할 AsyncStorage 키 (데이터·설정·캐시) */
 const KEYS_TO_REMOVE = [
@@ -78,6 +79,8 @@ const KEYS_TO_REMOVE = [
   APP_NOTIFICATION_RECEIVE_ENABLED_KEY,
   APP_NOTIFICATION_RECEIVE_TARGETS_KEY,
   RECORD_INBOX_SHORTCUT_RESYNC_DONE_KEY,
+  ...PAYMENT_FILTER_STORAGE_KEYS,
+  'monthlyTimelinePaymentFilter_v1',
 ];
 
 /**
