@@ -75,6 +75,13 @@ const SEARCH_RANGE_VALUES: Record<TrendRange, string> = {
   12: '12months',
 };
 
+/** `expense-type` 이벤트의 `expense_type` 값 — 누른 칩 */
+const EXPENSE_TYPE_VALUES: Record<TrendRankingFilter, string> = {
+  all: 'expense-ranking',
+  recurring: 'recurring-ranking',
+  installment: 'installment-ranking',
+};
+
 const RANKING_TYPES = {
   all: { listTarget: 'expense-monthly-ranking', rankingType: 'monthly' },
   recurring: { listTarget: 'expense-recurring-ranking', rankingType: 'recurring' },
@@ -303,6 +310,15 @@ export function ReportTrendTab({
     onSelectMonth(target.year, target.month);
   };
 
+  const handlePressRankingFilter = (value: TrendRankingFilter) => {
+    void logEvent('ui', {
+      screen_name: REPORT_TREND_SCREEN_NAME,
+      target: 'expense-type',
+      expense_type: EXPENSE_TYPE_VALUES[value],
+    });
+    setRankingFilter(value);
+  };
+
   const handlePressRange = (value: TrendRange) => {
     void logEvent('ui', {
       screen_name: REPORT_TREND_SCREEN_NAME,
@@ -490,17 +506,17 @@ export function ReportTrendTab({
                   <Chip
                     label="지출 순위"
                     active={rankingFilter === 'all'}
-                    onPress={() => setRankingFilter('all')}
+                    onPress={() => handlePressRankingFilter('all')}
                   />
                   <Chip
                     label="정기 지출"
                     active={rankingFilter === 'recurring'}
-                    onPress={() => setRankingFilter('recurring')}
+                    onPress={() => handlePressRankingFilter('recurring')}
                   />
                   <Chip
                     label="할부 지출"
                     active={rankingFilter === 'installment'}
-                    onPress={() => setRankingFilter('installment')}
+                    onPress={() => handlePressRankingFilter('installment')}
                   />
                 </View>
                 <Pressable
