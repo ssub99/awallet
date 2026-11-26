@@ -26,6 +26,8 @@ const MIN_BOTTOM = 16;
 const FALLBACK_ESTIMATE = 64;
 /** FAB 48 + 입력창과의 간격 8 + 우측 여백 16 */
 const FAB_AREA_WIDTH = 48 + 8 + 16;
+/** 입력창 드롭 섀도 — Y 2, blur 20, primary(#3664CE) 35% (진하기는 시안 20%에서 올림) */
+const FIELD_SHADOW = '0px 2px 20px 0px rgba(54, 100, 206, 0.35)';
 
 export interface HomeListQuickInputDockProps {
   /** 입력창 하단 ↔ 화면 하단 (FAB·숏과 동일 기준) */
@@ -250,6 +252,8 @@ const styles = StyleSheet.create({
   fieldWrap: {
     marginLeft: 16,
     marginRight: FAB_AREA_WIDTH,
+    borderRadius: FIELD_HEIGHT / 2,
+    boxShadow: FIELD_SHADOW,
   },
   fieldBorder: {
     position: 'absolute',
