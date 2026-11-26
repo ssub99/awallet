@@ -1,12 +1,14 @@
 /**
- * 월별 지출 막대그래프 — 좌우 스크롤. 보이는 막대 수는 화면 너비에 따라 달라진다.
+ * 월별 지출 막대그래프(추세) — 좌우 스크롤. 보이는 막대 수는 화면 너비에 따라 달라진다.
  * Figma `[Awallet]Home_report_default` (3016:33718)
  */
 
 import { atomicColors } from '@/constants/atomic-colors';
 import { typography, type ColorPalette } from '@/constants/theme';
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
+  Animated,
+  Easing,
   Pressable,
   ScrollView,
   type ScrollViewInstance,
@@ -16,8 +18,9 @@ import {
 } from 'react-native';
 
 const COLUMN_WIDTH = 44;
-const MAX_BAR_HEIGHT = 108;
+const MAX_BAR_HEIGHT = 100;
 const MIN_BAR_HEIGHT = 4;
+const GROW_DURATION = 900;
 /** 시안 채움색 — Figma에서 토큰에 묶이지 않은 값 */
 const BAR_FILL_WITHIN = '#22CD64';
 const BAR_FILL_OUTSIDE = '#C8C8C8';
@@ -37,11 +40,37 @@ interface TrendBarChartProps {
   bars: TrendBar[];
   /** 선택 범위의 마지막 달 — 화면 밖이면 보이도록 스크롤 */
   revealIndex: number;
+  /** 선택 범위에서 소비 금액이 0원인 날 수 */
+  noSpendDays: number;
+  /** 값이 바뀌면 막대가 아래에서부터 다시 올라온다 */
+  growKey: string;
   palette: ColorPalette;
   onPressBar: (monthIndex: number) => void;
 }
 
-export function TrendBarChart({ bars, revealIndex, palette, onPressBar }: TrendBarChartProps) {
+export function TrendBarChart({
+  bars,
+  revealIndex,
+  noSpendDays,
+  growKey,
+  palette,
+  onPressBar,
+}: TrendBarChartProps) {
+  /** 0 = 바닥, 1 = 실제 높이 */
+  const [grow] = useState(() => new Animated.Value(1));
+  const growKeyRef = useRef(growKey);
+  // 새 높이가 화면에 먼저 보이지 않도록 그리기 전에 바닥으로 내린다
+  useLayoutEffect(() => {
+    if (growKeyRef.current === growKey) return;
+    growKeyRef.current = growKey;
+    grow.setValue(0);
+    Animated.timing(grow, {
+      toValue: 1,
+      duration: GROW_DURATION,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [grow, growKey]);
   const scrollRef = useRef<ScrollViewInstance>(null);
   const widthRef = useRef(0);
   const offsetRef = useRef<number | null>(null);
@@ -67,6 +96,15 @@ export function TrendBarChart({ bars, revealIndex, palette, onPressBar }: TrendB
 
   return (
     <View style={[styles.card, { backgroundColor: palette.staticWhite }]}>
+      <View style={styles.header}>
+        <Text style={[styles.title, { color: palette.text }]}>추세</Text>
+        <View style={styles.noSpend}>
+          <Text style={[styles.noSpendLabel, { color: palette.textNeutral }]}>소비 없는날</Text>
+          <Text style={[styles.title, { color: palette.textNeutral }]}>
+            {noSpendDays.toLocaleString()}일
+          </Text>
+        </View>
+      </View>
       <View style={[styles.baseline, { backgroundColor: palette.border }]} />
       <ScrollView
         ref={scrollRef}
@@ -92,14 +130,19 @@ export function TrendBarChart({ bars, revealIndex, palette, onPressBar }: TrendB
             accessibilityLabel={bar.accessibilityLabel}
           >
             <View style={styles.barArea}>
-              <View
+              <Animated.View
                 style={[
                   styles.bar,
                   {
-                    height:
-                      bar.amount > 0
-                        ? Math.max(MIN_BAR_HEIGHT, (bar.amount / maxAmount) * MAX_BAR_HEIGHT)
-                        : MIN_BAR_HEIGHT,
+                    height: grow.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [
+                        MIN_BAR_HEIGHT,
+                        bar.amount > 0
+                          ? Math.max(MIN_BAR_HEIGHT, (bar.amount / maxAmount) * MAX_BAR_HEIGHT)
+                          : MIN_BAR_HEIGHT,
+                      ],
+                    }),
                     backgroundColor:
                       bar.tone === 'over'
                         ? palette.statusNegative
@@ -132,7 +175,7 @@ export function TrendBarChart({ bars, revealIndex, palette, onPressBar }: TrendB
 
 const styles = StyleSheet.create({
   card: {
-    height: 169,
+    height: 206,
     borderRadius: 12,
     overflow: 'hidden',
   },
@@ -140,8 +183,26 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    top: 123,
+    top: 160,
     height: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  title: {
+    ...typography.body02.bold,
+  },
+  noSpend: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  noSpendLabel: {
+    ...typography.body02.regular,
   },
   content: {
     flexGrow: 1,

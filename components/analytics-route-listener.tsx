@@ -14,8 +14,12 @@ export function AnalyticsRouteListener() {
   useEffect(() => {
     // Expo Router 부트 시 잠깐 `/`만 잡히는 중간 상태 — 실제 화면이 아니므로 screen_view 생략
     if (!pathname || pathname === '/') return;
-    // 홈은 한 라우트 안에서 연도/월(캘린더·리스트) 뷰가 갈려, 홈 화면이 뷰별 screen_view를 직접 보낸다
-    if (pathname === '/home') return;
+    // 홈·리포트는 한 라우트 안에서 뷰(서브 탭)가 갈려, 해당 화면이 screen_view를 직접 보낸다
+    if (pathname === '/home' || pathname === '/report') {
+      // 여기서 직전 경로를 비워야, 같은 화면을 다시 열었을 때 중복으로 보고 빠뜨리지 않는다
+      prevRef.current = null;
+      return;
+    }
 
     const screenName = pathname;
     let mode: 'income' | 'expense' | 'challenge' | undefined;

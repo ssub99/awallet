@@ -14,10 +14,12 @@ import { useCategoryEmojiMap } from '@/hooks/use-category-emoji-map';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { logEvent } from '@/utils/analytics';
+import { REPORT_TREND_SCREEN_NAME } from '@/utils/report-screen-name';
+import { matchesTrendType, type TrendRankingFilter } from '@/utils/report-trend';
 import { getCustomMonthRange, isDateInCustomMonth } from '@/utils/custom-month';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -48,6 +50,11 @@ export default function ExpenseCategoryDetailScreen() {
   }>();
 
   const category = params.category || '';
+  // 리포트의 정기·할부 칩에서 들어오면 그 유형만 보여 준다
+  const detailType: TrendRankingFilter =
+    params.rankingType === 'recurring' || params.rankingType === 'installment'
+      ? params.rankingType
+      : 'all';
   const year = params.year ? parseInt(params.year) : new Date().getFullYear();
   const month = params.month ? parseInt(params.month) : new Date().getMonth() + 1;
 
@@ -101,7 +108,8 @@ export default function ExpenseCategoryDetailScreen() {
               if (
                 record.isDeleted ||
                 record.type !== 'expense' ||
-                record.category !== category
+                record.category !== category ||
+                !matchesTrendType(record, detailType)
               ) {
                 return;
               }
@@ -139,17 +147,15 @@ export default function ExpenseCategoryDetailScreen() {
     } finally {
       setLoading(false);
     }
-  }, [year, month, category, setLoading]);
+  }, [year, month, category, detailType, setLoading]);
 
+  // 화면에 들어올 때와, 보고 있는 동안 데이터가 바뀔 때 다시 읽는다
   useFocusEffect(
     useCallback(() => {
+      void dataVersion;
       refreshData();
-    }, [refreshData])
+    }, [dataVersion, refreshData])
   );
-
-  useEffect(() => {
-    refreshData();
-  }, [dataVersion, refreshData]);
 
   // 카테고리 상세 통계 계산
   const categoryStats = useMemo(() => {
@@ -189,13 +195,14 @@ export default function ExpenseCategoryDetailScreen() {
   }, [groupedByDate]);
 
   const handleBack = () => {
-    const target =
-      params.rankingType === 'recurring'
-        ? 'expense-recurring-ranking-prev'
-        : 'expense-monthly-ranking-prev';
+    const target = {
+      all: 'expense-monthly-ranking-prev',
+      recurring: 'expense-recurring-ranking-prev',
+      installment: 'expense-installment-ranking-prev',
+    }[detailType];
 
     void logEvent('btn', {
-      screen_name: '/expense-category-detail',
+      screen_name: REPORT_TREND_SCREEN_NAME,
       target,
     });
     router.back();

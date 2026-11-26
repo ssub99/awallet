@@ -11,6 +11,7 @@ export interface TrendItem {
   category: string;
   amount: number;
   isRecurring?: boolean;
+  isInstallment?: boolean;
   paymentMethod?: 'credit' | 'debit' | 'cash';
   paymentSubtypeId?: string;
 }
@@ -20,7 +21,17 @@ export interface MonthTotal {
   amount: number;
 }
 
-export type TrendRankingFilter = 'all' | 'recurring';
+/** 지출 순위(전체) / 정기 지출 / 할부 지출 */
+export type TrendRankingFilter = 'all' | 'recurring' | 'installment';
+
+export function matchesTrendType(
+  item: { isRecurring?: boolean; isInstallment?: boolean },
+  filter: TrendRankingFilter,
+): boolean {
+  if (filter === 'recurring') return item.isRecurring === true;
+  if (filter === 'installment') return item.isInstallment === true;
+  return true;
+}
 
 /** 년·월을 연속된 정수로 변환 (구간 계산용) */
 export function toMonthIndex(year: number, month: number): number {
@@ -40,6 +51,7 @@ export function parseTrendItems(storedData: string): TrendItem[] {
         category?: string;
         amount?: number;
         isRecurring?: boolean;
+        isInstallment?: boolean;
         isDeleted?: boolean;
         paymentMethod?: 'credit' | 'debit' | 'cash';
         paymentSubtypeId?: string;
@@ -55,6 +67,7 @@ export function parseTrendItems(storedData: string): TrendItem[] {
         category: record.category || '기타',
         amount: record.amount || 0,
         isRecurring: record.isRecurring,
+        isInstallment: record.isInstallment,
         paymentMethod: record.paymentMethod ?? 'credit',
         paymentSubtypeId: record.paymentSubtypeId,
       });
@@ -136,16 +149,14 @@ export interface CategoryTrend {
   monthly: (MonthTotal & { monthIndex: number })[];
 }
 
-/** 지출 순위(정기 지출 제외) / 정기 지출 — 금액 큰 순 */
+/** 카테고리별 합계 — 금액 큰 순. 지출 유형은 `byMonth`를 만들기 전에 거른다 */
 export function rankCategories(
   byMonth: Map<number, TrendItem[]>,
   months: number[],
-  filter: TrendRankingFilter,
 ): CategoryTrend[] {
   const categories = new Map<string, Map<number, MonthTotal>>();
   months.forEach((monthIndex) => {
     byMonth.get(monthIndex)?.forEach((item) => {
-      if (filter === 'recurring' ? !item.isRecurring : item.isRecurring) return;
       const monthly = categories.get(item.category) ?? new Map<number, MonthTotal>();
       const current = monthly.get(monthIndex) ?? { count: 0, amount: 0 };
       monthly.set(monthIndex, { count: current.count + 1, amount: current.amount + item.amount });
@@ -167,4 +178,49 @@ export function rankCategories(
       };
     })
     .sort((a, b) => b.amount - a.amount);
+}
+
+export interface AverageDifference {
+  direction: 'over' | 'under';
+  /** 월 평균과의 차이(원) — 1 이상 */
+  amount: number;
+}
+
+/** 월 평균보다 더/덜 쓴 금액. 평균이 없거나 반올림해 0원이면 null */
+export function getAverageDifference(amount: number, average: number): AverageDifference | null {
+  if (average <= 0) return null;
+  const rounded = Math.round(amount - average);
+  if (rounded === 0) return null;
+  return { direction: rounded > 0 ? 'over' : 'under', amount: Math.abs(rounded) };
+}
+
+function toDateKey(date: Date): string {
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+/**
+ * `start`~`end` 중 소비 금액이 0원인 날 수. 오늘 이후와 첫 기록 이전의 날은 세지 않는다.
+ * `firstRecordDate`는 calendarData 날짜 키(YYYY-MM-DD).
+ */
+export function countNoSpendDays(
+  items: TrendItem[],
+  start: Date,
+  end: Date,
+  firstRecordDate: string | null,
+  today: Date,
+): number {
+  if (firstRecordDate === null) return 0;
+  const spentDates = new Set(items.filter((item) => item.amount > 0).map((item) => item.date));
+  const todayKey = toDateKey(today);
+  const endKey = toDateKey(end);
+  const lastKey = endKey < todayKey ? endKey : todayKey;
+  let count = 0;
+  const cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+  for (let key = toDateKey(cursor); key <= lastKey; key = toDateKey(cursor)) {
+    if (key >= firstRecordDate && !spentDates.has(key)) count += 1;
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return count;
 }

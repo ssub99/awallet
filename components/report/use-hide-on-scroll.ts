@@ -1,5 +1,10 @@
 import { useCallback, useRef, useState } from 'react';
-import { Animated, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import {
+  Animated,
+  Easing,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+} from 'react-native';
 
 const DURATION = 200;
 /** 손가락의 미세한 떨림에는 반응하지 않는 최소 이동 거리 */
@@ -24,6 +29,8 @@ export function useHideOnScroll() {
       Animated.timing(progress, {
         toValue: hidden ? 1 : 0,
         duration: DURATION,
+        // 진행값은 일정하게 — 곡선은 쓰는 쪽에서 속성별로 입힌다
+        easing: Easing.linear,
         useNativeDriver: true,
       }).start();
     },

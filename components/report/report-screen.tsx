@@ -6,8 +6,7 @@
  */
 
 import { TopNavigation } from '@/components/navigation/top-navigation';
-import { ReportTrendTab, TREND_CONTROL_BAR_HEIGHT } from '@/components/report/report-trend-tab';
-import { useHideOnScroll } from '@/components/report/use-hide-on-scroll';
+import { ReportTrendTab } from '@/components/report/report-trend-tab';
 import { Button } from '@/components/ui/button';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Icon } from '@/components/ui/icon';
@@ -20,13 +19,17 @@ import {
 } from '@/constants/navigation/tab-bar-metrics';
 import { colors, typography, type ColorPalette } from '@/constants/theme';
 import { useAppData } from '@/contexts/app-data-context';
-import { useCreateSheetContext } from '@/contexts/create-sheet-context';
 import { useLoading } from '@/contexts/loading-context';
 import { useToast } from '@/contexts/toast-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { getApiSecurityHeaders } from '@/utils/api-security-headers';
-import { logEvent } from '@/utils/analytics';
+import { logEvent, logScreenView } from '@/utils/analytics';
+import {
+  REPORT_CONSUMPTION_SCREEN_NAME,
+  REPORT_TREND_SCREEN_NAME,
+  setCurrentReportScreenName,
+} from '@/utils/report-screen-name';
 import { toMonthIndex } from '@/utils/report-trend';
 import { getChallengesByDateRange } from '@/utils/challenges';
 import {
@@ -34,7 +37,6 @@ import {
   type CalendarData,
   type ConsumptionIndexResult,
 } from '@/utils/consumption-index';
-import { createSheetEvent } from '@/utils/create-sheet-event';
 import { tabReselectEvent } from '@/utils/tab-reselect-event';
 import {
   getCustomMonthInfo,
@@ -42,7 +44,7 @@ import {
   isDateInCustomMonth,
   parseCalendarDateKeyLocal,
 } from '@/utils/custom-month';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter, useIsFocused } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -54,12 +56,10 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  useWindowDimensions,
   View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const FAB_SIZE = 48;
 
 /** 월 변경 시 페이드 아웃/인 애니메이션 (챌린지·리포트·타임라인 동일) */
 const MONTH_CHANGE_FADE_OUT_DURATION = 150;
@@ -352,12 +352,8 @@ function computeReportSnapshot(
 
 type ReportSubTabId = 'score' | 'trend';
 
+/** 점수 확인 전 카드의 최소 높이 — 화면이 이보다 작으면 스크롤 */
 const REPORT_SCORE_CARD_MIN = 280;
-const REPORT_SCORE_CARD_MAX = 454;
-/** 소비 현황에서 FAB와 하단 플로팅 바 사이 간격 */
-const FAB_GAP_ABOVE_CONTROL_BAR = 12;
-/** FAB가 플로팅 바 위에 떠 있는 만큼 — 바가 숨으면 이만큼 함께 내려간다 */
-const FAB_TREND_LIFT = TREND_CONTROL_BAR_HEIGHT + FAB_GAP_ABOVE_CONTROL_BAR;
 
 function splitLines(text: string): string[] {
   return text
@@ -367,11 +363,9 @@ function splitLines(text: string): string[] {
 }
 
 export function ReportScreen() {
-  const { height: windowHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const bottomContentInset = getTabScreenScrollPaddingBottom(insets.bottom);
-  const fabBottom = getFabBottomAboveTabBar(insets.bottom);
-  const trendControlBar = useHideOnScroll();
+  const controlBarBottom = getFabBottomAboveTabBar(insets.bottom);
   const colorScheme = useColorScheme();
   const palette = colors[colorScheme ?? 'light'] as ColorPalette;
   const [reportSubTab, setReportSubTab] = useState<ReportSubTabId>('score');
@@ -388,7 +382,6 @@ export function ReportScreen() {
   const [confirmedReportMeta, setConfirmedReportMeta] = useState<ConfirmedReportMeta | null>(null);
   const { setLoading } = useLoading();
   const { showToast } = useToast();
-  const { updateCalendarContext } = useCreateSheetContext();
   const pendingOpsRef = useRef(0);
   const beginLoad = useCallback(() => {
     pendingOpsRef.current += 1;
@@ -502,6 +495,20 @@ export function ReportScreen() {
       setReportScoreMonth(paramMonth);
     }
   }
+
+  // 화면에 들어올 때와 서브 탭을 바꿀 때 서브 탭 이름으로 screen_view를 보낸다
+  const isReportFocused = useIsFocused();
+  const reportScreenName =
+    reportSubTab === 'trend' ? REPORT_TREND_SCREEN_NAME : REPORT_CONSUMPTION_SCREEN_NAME;
+  useEffect(() => {
+    // 전역 UI(안내 카드 등)의 이벤트가 같은 화면 이름을 쓰도록 공유
+    setCurrentReportScreenName(reportScreenName);
+  }, [reportScreenName]);
+  useEffect(() => {
+    if (isReportFocused) {
+      void logScreenView(reportScreenName);
+    }
+  }, [isReportFocused, reportScreenName]);
 
   const [isContentReady, setIsContentReady] = useState(false);
   const hasResolvedTrendMonthRef = useRef(false);
@@ -806,18 +813,6 @@ export function ReportScreen() {
     };
   }, [reportSubTab, reportScoreYear, reportScoreMonth, monthStartDay, dataVersion]);
 
-  // 리포트 탭에서 FAB를 열 때도, 홈과 동일하게 현재 보고 있는 년/월 정보를 공유
-  useEffect(() => {
-    const paddedMonth = String(activeMonth).padStart(2, '0');
-    const syntheticDate = `${activeYear}-${paddedMonth}-01`;
-
-    updateCalendarContext({
-      selectedDate: syntheticDate,
-      calendarYear: activeYear,
-      calendarMonth: activeMonth,
-    });
-  }, [activeYear, activeMonth, updateCalendarContext]);
-
   // 탭 진입 시: 탑 네비 + 날짜 박스 페이드인 (최초 1회만, 이후 screenOpacity는 1 유지)
   useEffect(() => {
     if (!isContentReady || hasInitiallyFadedInRef.current) return;
@@ -902,11 +897,6 @@ export function ReportScreen() {
     });
   }, []);
 
-  // 점수 박스 높이: 디바이스 높이의 52% 기준, min/max로 범위 제한
-  const reportScoreCardHeight = useMemo(() => {
-    const height = windowHeight * 0.52;
-    return Math.round(Math.max(REPORT_SCORE_CARD_MIN, Math.min(REPORT_SCORE_CARD_MAX, height)));
-  }, [windowHeight]);
   const shouldHideNoSpendInEarlyMonth = useMemo(() => {
     if (reportScoreContext == null) return false;
     return !reportScoreContext.isMonthClosed && reportScoreContext.elapsedDaysInMonth <= 28;
@@ -945,6 +935,8 @@ export function ReportScreen() {
     };
   }, [consumptionIndex]);
   const displayedFqScore = hasCheckedScore ? (confirmedReportMeta?.fqScore ?? fqScore) : fqScore;
+  // 점수를 확인하기 전에는 점수 카드가 남은 화면 높이를 채운다. 확인한 뒤에는 내용 높이.
+  const isBeforeScoreCheck = !(hasCheckedScore && displayedFqScore != null);
   const displayedTopCategoryInfo =
     hasCheckedScore ? (confirmedReportMeta?.topCategoryInfo ?? topCategoryInfo) : topCategoryInfo;
   const displayedTotalExpense =
@@ -1146,7 +1138,7 @@ export function ReportScreen() {
 
   const handleCheckScore = useCallback(async () => {
     void logEvent('btn', {
-      screen_name: '/report',
+      screen_name: REPORT_CONSUMPTION_SCREEN_NAME,
       target: 'feedback',
     });
 
@@ -1699,16 +1691,19 @@ export function ReportScreen() {
                   </View>
 
                   {/* 점수 카드 + AI 리포트 (Frame 226/227/228) - 월 변경 시 페이드 아웃/인 */}
-                  <Animated.View style={{ opacity: reportContentOpacity }}>
+                  <Animated.View
+                    style={[
+                      { opacity: reportContentOpacity },
+                      isBeforeScoreCheck && styles.reportScoreFill,
+                    ]}
+                  >
                     <View
                       style={[
                         styles.reportScoreCard,
                         {
                           backgroundColor: palette.staticWhite,
-                          // 버튼을 눌러 점수를 확인하기 전까지는 피그마 시안처럼 큰 높이 유지
-                          // 한 번 점수를 확인하면 콘텐츠 높이에 맞게 축소
-                          minHeight: hasCheckedScore && displayedFqScore != null ? undefined : reportScoreCardHeight,
                         },
+                        isBeforeScoreCheck && styles.reportScoreCardFill,
                       ]}
                     >
                       <Text style={[styles.reportScoreLabel, { color: palette.textAssistive }]}>
@@ -1882,8 +1877,7 @@ export function ReportScreen() {
                 singleMonthEntryKey={trendEntryKey}
                 onPressPeriod={() => setShowYearMonthPicker(true)}
                 palette={palette}
-                controlBarBottom={fabBottom}
-                controlBar={trendControlBar}
+                controlBarBottom={controlBarBottom}
               />
             </View>
         </Animated.View>
@@ -1915,43 +1909,6 @@ export function ReportScreen() {
           }}
         />
 
-        <View collapsable={false} style={styles.bottomChromeAnchor} pointerEvents="box-none">
-          <Animated.View
-            // 네이티브 드라이버의 이동값이 다른 서브 탭에 남지 않도록 탭마다 새로 그린다
-            key={reportSubTab}
-            pointerEvents="box-none"
-            style={[
-              StyleSheet.absoluteFill,
-              reportSubTab === 'trend' && {
-                transform: [
-                  {
-                    translateY: trendControlBar.progress.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0, FAB_TREND_LIFT],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          >
-            <Pressable
-              style={[
-                styles.fab,
-                styles.fabShadow,
-                {
-                  backgroundColor: palette.primary,
-                  // 소비 현황은 하단 플로팅 바 위로 올린다
-                  bottom: reportSubTab === 'trend' ? fabBottom + FAB_TREND_LIFT : fabBottom,
-                },
-              ]}
-              onPress={() => createSheetEvent.emit()}
-              accessibilityRole="button"
-              accessibilityLabel="기록 또는 챌린지 선택"
-            >
-              <Icon name="addTaskFab" variant="line" size={24} color={palette.staticWhite} />
-            </Pressable>
-          </Animated.View>
-        </View>
       </SafeAreaView>
     </View>
   );
@@ -1967,28 +1924,6 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-  },
-  bottomChromeAnchor: {
-    ...StyleSheet.absoluteFill,
-    zIndex: 20,
-    elevation: 20,
-  },
-  fab: {
-    position: 'absolute',
-    right: 16,
-    width: FAB_SIZE,
-    height: FAB_SIZE,
-    borderRadius: FAB_SIZE / 2,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 21,
-  },
-  fabShadow: {
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 21,
   },
   reportContent: {
     flex: 1,
@@ -2054,11 +1989,17 @@ const styles = StyleSheet.create({
   },
   reportScoreCard: {
     width: '100%',
-    // minHeight는 디바이스 높이에 따라 동적으로 적용 (reportScoreCardHeight)
     borderRadius: 16,
     padding: 24,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  reportScoreFill: {
+    flexGrow: 1,
+  },
+  reportScoreCardFill: {
+    flexGrow: 1,
+    minHeight: REPORT_SCORE_CARD_MIN,
   },
   reportScoreLabel: {
     ...typography.body02.medium,

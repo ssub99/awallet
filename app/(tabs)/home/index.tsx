@@ -1213,9 +1213,13 @@ export default function HomeScreen() {
 
   const handleListSelectDate = useCallback(
     (dateKey: string) => {
+      void logEvent('ui', {
+        screen_name: homeScreenName,
+        target: 'monthly-day-strip',
+      });
       applyHomeCalendarSelection(currentYearRef.current, currentMonthRef.current, dateKey);
     },
-    [applyHomeCalendarSelection],
+    [applyHomeCalendarSelection, homeScreenName],
   );
 
   /** 내역 → 리포트 탭의 소비 현황 서브탭 (tab: 'trend'. 'status'는 소비 리포트로 가는 기존 홈 잔액 카드 전용) */
@@ -1224,10 +1228,9 @@ export default function HomeScreen() {
       return;
     }
     isNavigating.current = true;
-    void logEvent('ui', {
+    void logEvent('btn', {
       screen_name: homeScreenName,
       target: 'report-present',
-      entry_point: 'home_list_detail',
     });
     router.push({
       pathname: '/(tabs)/report',
@@ -1249,9 +1252,9 @@ export default function HomeScreen() {
         return;
       }
       isNavigating.current = true;
-      void logEvent('ui', {
+      void logEvent('list', {
         screen_name: homeScreenName,
-        target: 'list_record',
+        target: 'expense-record',
         record_type: item.type,
       });
       router.push({

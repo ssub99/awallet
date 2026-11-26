@@ -9,6 +9,7 @@ import { UiLineText } from '@/components/ui/ui-line-text';
 import { typography, type ColorPalette } from '@/constants/theme';
 import { usePaymentFilterSelection } from '@/hooks/use-payment-filter-selection';
 import { logEvent } from '@/utils/analytics';
+import { REPORT_TREND_SCREEN_NAME } from '@/utils/report-screen-name';
 import { REPORT_PAYMENT_FILTER_STORAGE_KEY } from '@/utils/payment-filter-selection';
 import type { TrendItem } from '@/utils/report-trend';
 import { useCallback, useMemo, useState } from 'react';
@@ -76,11 +77,11 @@ export function useTrendPaymentFilter(items: TrendItem[]) {
 
   const open = useCallback(() => {
     void logEvent('btn', {
-      screen_name: '/report',
+      screen_name: REPORT_TREND_SCREEN_NAME,
       target: 'filter',
     });
     void logEvent('sheet_view', {
-      screen_name: '/report',
+      screen_name: REPORT_TREND_SCREEN_NAME,
       target: 'filter',
     });
     setDraftKeys(filterKeys);
@@ -89,7 +90,7 @@ export function useTrendPaymentFilter(items: TrendItem[]) {
 
   const close = useCallback(() => {
     void logEvent('btn', {
-      screen_name: '/report',
+      screen_name: REPORT_TREND_SCREEN_NAME,
       target: 'filter-close',
     });
     setDraftKeys(filterKeys);
@@ -98,7 +99,7 @@ export function useTrendPaymentFilter(items: TrendItem[]) {
 
   const confirm = useCallback(() => {
     void logEvent('btn', {
-      screen_name: '/report',
+      screen_name: REPORT_TREND_SCREEN_NAME,
       target: 'filter-confirm',
     });
     setFilterKeys(draftKeys);
@@ -107,7 +108,7 @@ export function useTrendPaymentFilter(items: TrendItem[]) {
 
   const toggle = useCallback((itemId: string) => {
     void logEvent('list', {
-      screen_name: '/report',
+      screen_name: REPORT_TREND_SCREEN_NAME,
       target: 'filter',
     });
     setDraftKeys((prev) =>
