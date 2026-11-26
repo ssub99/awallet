@@ -359,6 +359,13 @@ const FAB_GAP_ABOVE_CONTROL_BAR = 12;
 /** FAB가 플로팅 바 위에 떠 있는 만큼 — 바가 숨으면 이만큼 함께 내려간다 */
 const FAB_TREND_LIFT = TREND_CONTROL_BAR_HEIGHT + FAB_GAP_ABOVE_CONTROL_BAR;
 
+function splitLines(text: string): string[] {
+  return text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+}
+
 export function ReportScreen() {
   const { height: windowHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -482,7 +489,10 @@ export function ReportScreen() {
   }
 
   // 홈에서 넘긴 year/month가 있으면 해당 연·월로 표시 (탭 재진입 시에도 동기화)
-  useEffect(() => {
+  const [appliedScoreParamKey, setAppliedScoreParamKey] = useState<string | null>(null);
+  const scoreParamKey = `${params.year ?? ''}|${params.month ?? ''}|${params.tab ?? ''}`;
+  if (scoreParamKey !== appliedScoreParamKey) {
+    setAppliedScoreParamKey(scoreParamKey);
     const paramYear = params.year ? parseInt(params.year, 10) : undefined;
     const paramMonth = params.month ? parseInt(params.month, 10) : undefined;
     if (paramYear != null && !Number.isNaN(paramYear)) {
@@ -491,21 +501,20 @@ export function ReportScreen() {
     if (paramMonth != null && !Number.isNaN(paramMonth) && paramMonth >= 1 && paramMonth <= 12) {
       setReportScoreMonth(paramMonth);
     }
-  }, [params.year, params.month, params.tab]);
+  }
 
   const [isContentReady, setIsContentReady] = useState(false);
-  const hasAnimatedRef = useRef(false);
   const hasResolvedTrendMonthRef = useRef(false);
   // 챌린지 제안 카드 중복 방지용 — 화면에 처음 들어온 년·월의 챌린지 (분리 전과 동일)
   const [challengeScope] = useState({ year: initialYear, month: initialMonth });
   const [challenges, setChallenges] = useState<{ category: string }[]>([]);
 
   // 탭 진입 시 탑 네비 + 본문 페이드인용 (월 변경 시에는 사용 안 함, 1로 유지)
-  const screenOpacity = useRef(new Animated.Value(0)).current;
+  const [screenOpacity] = useState(() => new Animated.Value(0));
   const hasInitiallyFadedInRef = useRef(false);
 
   // 소비 리포트 월 변경 시 페이드 아웃/인 (타임라인과 동일) - 점수 박스는 항상 표시, 애니메이션만 적용
-  const reportContentOpacity = useRef(new Animated.Value(1)).current;
+  const [reportContentOpacity] = useState(() => new Animated.Value(1));
   const prevReportScoreMonthRef = useRef<{ year: number; month: number } | null>(null);
   const prevReportSyncKeyRef = useRef<string | null>(null);
   const handledReportResetAtRef = useRef<number>(0);
@@ -513,10 +522,6 @@ export function ReportScreen() {
   const refreshData = useCallback(async () => {
     beginLoad();
     try {
-      if (!hasAnimatedRef.current) {
-        setIsContentReady(false);
-      }
-
       const monthStart = await loadMonthStartDay();
       setMonthStartDay(monthStart);
       // 진입 년·월 지정이 없으면 소비 현황은 월 시작일을 반영한 이번 달에서 시작
@@ -560,21 +565,18 @@ export function ReportScreen() {
       setChallenges([]);
     } finally {
       setIsContentReady(true);
-      hasAnimatedRef.current = true;
       endLoad();
     }
   }, [beginLoad, endLoad, challengeScope, params.year, params.month]);
 
+  const { dataVersion } = useAppData();
+  // 화면에 들어올 때와, 보고 있는 동안 데이터가 바뀔 때 다시 읽는다
   useFocusEffect(
     useCallback(() => {
+      void dataVersion;
       refreshData();
-    }, [refreshData])
+    }, [dataVersion, refreshData])
   );
-
-  const { dataVersion } = useAppData();
-  useEffect(() => {
-    refreshData();
-  }, [dataVersion, refreshData]);
 
   // 년·월 컨텍스트 변경/외부 reset 신호(복원 등)가 있을 때만 리포트를 초기화하고,
   // 일반 데이터 변경(dataVersion 증가)에서는 기존 리포트를 유지한다.
@@ -744,7 +746,6 @@ export function ReportScreen() {
     return () => {
       cancelled = true;
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     reportScoreYear,
     reportScoreMonth,
@@ -959,13 +960,6 @@ export function ReportScreen() {
       ? confirmedReportMeta.totalDays
       : (consumptionIndex?.stats.totalDays ?? 0);
 
-  const splitLines = useCallback((text: string): string[] => {
-    return text
-      .split('\n')
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0);
-  }, []);
-
   const reportSummaryLines = useMemo(() => {
     if (aiSummaryText && aiSummaryText.length > 0) {
       return aiSummaryText;
@@ -1003,7 +997,7 @@ export function ReportScreen() {
     }
 
     return splitLines(fallback);
-  }, [aiSummaryText, consumptionIndex, displayedFqScore, displayedTopCategoryInfo, splitLines]);
+  }, [aiSummaryText, consumptionIndex, displayedFqScore, displayedTopCategoryInfo]);
 
   const reportNextGoalLines = useMemo(() => {
     if (aiNextWeekGoalText && aiNextWeekGoalText.length > 0) {
@@ -1040,7 +1034,7 @@ export function ReportScreen() {
     }
 
     return splitLines(fallback);
-  }, [aiNextWeekGoalText, consumptionIndex, displayedFqScore, displayedTopCategoryInfo, splitLines]);
+  }, [aiNextWeekGoalText, consumptionIndex, displayedFqScore, displayedTopCategoryInfo]);
 
   const shouldShowChallengeCard = useMemo(() => {
     if (!consumptionIndex || displayedFqScore == null || !aiChallengeText || !displayedTopCategoryInfo) return false;
@@ -1088,7 +1082,7 @@ export function ReportScreen() {
     return splitLines(
       '이번 달 소비 패턴을 바탕으로 계산된 결과예요.\n아래 리포트를 함께 보면서 이번 달 소비를 한 번 정리해 보셔도 좋겠습니다.',
     );
-  }, [hasCheckedScore, isCollectingIndex, displayedFqScore, remainingRecordsForIndex, scoreFeedbackText, splitLines]);
+  }, [hasCheckedScore, isCollectingIndex, displayedFqScore, remainingRecordsForIndex, scoreFeedbackText]);
 
   const scoreEmoji = useMemo(() => {
     if (!hasCheckedScore || displayedFqScore == null) {
@@ -1557,7 +1551,6 @@ export function ReportScreen() {
         });
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     consumptionIndex,
     fqScore,
@@ -1573,12 +1566,12 @@ export function ReportScreen() {
   ]);
 
   // 소비 리포트: 좌우 스와이프로 월 변경 (소비 현황은 그래프가 좌우 스크롤이라 제외)
-  const panResponder = useRef(
-    PanResponder.create({
+  const panResponder = useMemo(
+    () => PanResponder.create({
       onMoveShouldSetPanResponder: (_evt: GestureResponderEvent, gestureState: PanResponderGestureState) => {
         const { dx, dy } = gestureState;
         // 가로 스와이프가 세로보다 크고, 일정 거리 이상일 때만 처리
-        if (reportSubTabRef.current !== 'score') return false;
+        if (reportSubTab !== 'score') return false;
         return Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy);
       },
       onPanResponderRelease: (_evt: GestureResponderEvent, gestureState: PanResponderGestureState) => {
@@ -1593,8 +1586,9 @@ export function ReportScreen() {
           handlePrevMonth();
         }
       },
-    })
-  ).current;
+    }),
+    [reportSubTab, handleNextMonth, handlePrevMonth],
+  );
 
   return (
     <View style={styles.screenWrapper}>

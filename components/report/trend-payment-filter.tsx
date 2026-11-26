@@ -12,7 +12,7 @@ import { initializePaymentSubtypes, type PaymentSubtype } from '@/utils/payment-
 import type { TrendItem } from '@/utils/report-trend';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -45,7 +45,8 @@ export function useTrendPaymentFilter(items: TrendItem[]) {
   const [shouldInitDefaults, setShouldInitDefaults] = useState(false);
   const [shouldBackfillMissingOptions, setShouldBackfillMissingOptions] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
-  const prevSubtypeIdsRef = useRef<string[] | null>(null);
+  const [knownSubtypeIds, setKnownSubtypeIds] = useState<string[] | null>(null);
+  const [reconciledSubtypes, setReconciledSubtypes] = useState<PaymentSubtype[] | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -143,64 +144,41 @@ export function useTrendPaymentFilter(items: TrendItem[]) {
     [creditSubtypes, debitSubtypes]
   );
 
-  const validKeySet = useMemo(
-    () => new Set(buildAllTrendPaymentFilterKeyIds(paymentSubtypes)),
-    [paymentSubtypes],
-  );
-
-  useEffect(() => {
-    if (!shouldInitDefaults) return;
-    if (paymentSubtypes.length === 0) return;
-
+  // 저장된 선택값을 현재 결제 유형 목록에 맞춘다 (effect가 아니라 렌더 중 상태 조정)
+  if (shouldInitDefaults && paymentSubtypes.length > 0) {
+    // 저장값이 없으면 전체 선택
     const allKeys = buildAllTrendPaymentFilterKeyIds(paymentSubtypes);
     setFilterKeys(allKeys);
     setDraftKeys(allKeys);
     setShouldInitDefaults(false);
     setShouldBackfillMissingOptions(false);
-    prevSubtypeIdsRef.current = paymentSubtypes.map((item) => item.id);
-  }, [paymentSubtypes, shouldInitDefaults]);
-
-  useEffect(() => {
-    if (!isLoaded || shouldInitDefaults) return;
-    if (!shouldBackfillMissingOptions) return;
-    if (paymentSubtypes.length === 0) return;
-
-    const allKeys = buildAllTrendPaymentFilterKeyIds(paymentSubtypes);
-    setFilterKeys((prev) => {
-      const missingIds = allKeys.filter((id) => !prev.includes(id));
-      return missingIds.length > 0 ? mergeTrendPaymentFilterKeys(prev, missingIds) : prev;
-    });
-    setDraftKeys((prev) => {
-      const missingIds = allKeys.filter((id) => !prev.includes(id));
-      return missingIds.length > 0 ? mergeTrendPaymentFilterKeys(prev, missingIds) : prev;
-    });
-    setShouldBackfillMissingOptions(false);
-    prevSubtypeIdsRef.current = paymentSubtypes.map((item) => item.id);
-  }, [isLoaded, paymentSubtypes, shouldBackfillMissingOptions, shouldInitDefaults]);
-
-  useEffect(() => {
-    if (!isLoaded) return;
-    if (paymentSubtypes.length === 0) return;
-
-    setFilterKeys((prev) => prev.filter((key) => validKeySet.has(key)));
-    setDraftKeys((prev) => prev.filter((key) => validKeySet.has(key)));
-  }, [isLoaded, paymentSubtypes.length, validKeySet]);
-
-  useEffect(() => {
-    if (!isLoaded || shouldInitDefaults) return;
-
-    const subtypeIds = paymentSubtypes.map((item) => item.id);
-    const prevSubtypeIds = prevSubtypeIdsRef.current;
-    prevSubtypeIdsRef.current = subtypeIds;
-
-    if (prevSubtypeIds === null) return;
-
-    const addedSubtypeIds = subtypeIds.filter((id) => !prevSubtypeIds.includes(id));
-    if (addedSubtypeIds.length === 0) return;
-
-    setFilterKeys((prev) => mergeTrendPaymentFilterKeys(prev, addedSubtypeIds));
-    setDraftKeys((prev) => mergeTrendPaymentFilterKeys(prev, addedSubtypeIds));
-  }, [isLoaded, paymentSubtypes, shouldInitDefaults]);
+    setKnownSubtypeIds(paymentSubtypes.map((item) => item.id));
+  } else if (isLoaded && !shouldInitDefaults) {
+    const isBackfillDue = shouldBackfillMissingOptions && paymentSubtypes.length > 0;
+    const isListChanged = reconciledSubtypes !== paymentSubtypes;
+    if (isBackfillDue || isListChanged) {
+      const subtypeIds = paymentSubtypes.map((item) => item.id);
+      const addedSubtypeIds =
+        knownSubtypeIds === null ? [] : subtypeIds.filter((id) => !knownSubtypeIds.includes(id));
+      const idsToAdd = isBackfillDue
+        ? buildAllTrendPaymentFilterKeyIds(paymentSubtypes)
+        : addedSubtypeIds;
+      const validKeys = new Set(buildAllTrendPaymentFilterKeyIds(paymentSubtypes));
+      const reconcile = (prev: string[]) => {
+        const missingIds = idsToAdd.filter((id) => !prev.includes(id));
+        const merged = missingIds.length > 0 ? mergeTrendPaymentFilterKeys(prev, missingIds) : prev;
+        // 목록을 아직 못 읽었으면 저장값을 지우지 않는다
+        if (paymentSubtypes.length === 0) return merged;
+        const kept = merged.filter((key) => validKeys.has(key));
+        return kept.length === merged.length ? merged : kept;
+      };
+      setFilterKeys(reconcile);
+      setDraftKeys(reconcile);
+      if (isBackfillDue) setShouldBackfillMissingOptions(false);
+      setReconciledSubtypes(paymentSubtypes);
+      setKnownSubtypeIds(subtypeIds);
+    }
+  }
 
   const defaultCreditSubtypeId = creditSubtypes[0]?.id;
   const defaultDebitSubtypeId = debitSubtypes[0]?.id;

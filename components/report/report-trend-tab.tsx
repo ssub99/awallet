@@ -34,7 +34,7 @@ import {
 } from '@/utils/report-trend';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 /** 플로팅 바 높이 — 부모가 FAB를 이만큼 위로 올린다 */
@@ -122,14 +122,13 @@ export function ReportTrendTab({
     }
   }, []);
 
+  // 화면에 들어올 때와, 보고 있는 동안 데이터가 바뀔 때 다시 읽는다
   useFocusEffect(
     useCallback(() => {
+      void dataVersion;
       void loadData();
-    }, [loadData]),
+    }, [dataVersion, loadData]),
   );
-  useEffect(() => {
-    void loadData();
-  }, [dataVersion, loadData]);
 
   const items = useMemo(() => data?.items ?? [], [data]);
   const monthStartDay = data?.monthStartDay ?? 1;
