@@ -112,7 +112,15 @@ export function TrendBarChart({ bars, anchorIndex, palette, onPressBar }: TrendB
                 ]}
               />
             </View>
-            <Text style={[styles.label, { color: palette.text }]} numberOfLines={1}>
+            {/* 선택(활성)된 달만 굵게 */}
+            <Text
+              style={
+                bar.tone === 'outside'
+                  ? [styles.label, { color: palette.textAssistive }]
+                  : [styles.labelActive, { color: palette.textNeutral }]
+              }
+              numberOfLines={1}
+            >
               {bar.label}
             </Text>
           </Pressable>
@@ -156,6 +164,9 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 8,
   },
   label: {
+    ...typography.body02.regular,
+  },
+  labelActive: {
     ...typography.body02.bold,
   },
 });

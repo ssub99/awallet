@@ -188,13 +188,6 @@ export function ReportTrendTab({
     : `${formatPeriodLabel(anchorIndex - range + 1)} - ${formatPeriodLabel(anchorIndex)}`;
 
   const categories = rankCategories(byMonth, windowMonths, rankingFilter);
-  const emptyMessage = !filter.isApplied
-    ? '소비내역이 존재하지 않습니다.'
-    : rankingFilter === 'recurring'
-      ? '정기 지출 내역이 없습니다.'
-      : isSingleMonth && anchorIndex === currentIndex
-        ? '이번달 지출 내역이 없습니다.'
-        : '지출 내역이 없습니다.';
 
   const handlePressBar = (monthIndex: number) => {
     setRange(1);
@@ -231,10 +224,14 @@ export function ReportTrendTab({
     );
   };
 
+  // 내역이 없으면 빈 카드가 남은 화면 높이를 채운다
+  const isEmpty = categories.length === 0;
+
   // 하단 여백에는 플로팅 바 높이를 넣지 않는다(스크롤하면 바가 숨는다). 단, 스크롤이 안 되는 길이인데
   // 마지막 항목이 바에 가리면 바를 숨길 방법이 없으므로 그때만 여백을 더해 스크롤되게 한다.
   const baseContentHeight = SCROLL_PADDING + bodyHeight + controlBarBottom;
   const isStuckUnderControlBar =
+    !isEmpty &&
     baseContentHeight > viewHeight - TREND_CONTROL_BAR_HEIGHT &&
     baseContentHeight <= viewHeight + SCROLL_PADDING;
   const scrollPaddingBottom = isStuckUnderControlBar
@@ -246,7 +243,11 @@ export function ReportTrendTab({
       {visible && data ? (
         <View style={[styles.container, { backgroundColor: palette.fill }]}>
           <ScrollView
-            contentContainerStyle={[styles.scrollContent, { paddingBottom: scrollPaddingBottom }]}
+            contentContainerStyle={[
+              styles.scrollContent,
+              isEmpty && styles.fill,
+              { paddingBottom: scrollPaddingBottom },
+            ]}
             bounces={false}
             overScrollMode="never"
             scrollEventThrottle={16}
@@ -258,7 +259,7 @@ export function ReportTrendTab({
             onContentSizeChange={(_width, height) => controlBar.onContentSizeChange(height)}
           >
             <View
-              style={styles.body}
+              style={[styles.body, isEmpty && styles.fill]}
               onLayout={(event) => setBodyHeight(event.nativeEvent.layout.height)}
             >
               <View style={[styles.periodCard, { backgroundColor: palette.staticWhite }]}>
@@ -292,13 +293,6 @@ export function ReportTrendTab({
                   <Icon name="arrowRight" variant="solid" size={24} />
                 </Pressable>
               </View>
-
-              <TrendBarChart
-                bars={bars}
-                anchorIndex={anchorIndex}
-                palette={palette}
-                onPressBar={handlePressBar}
-              />
 
               <View style={[styles.summaryCard, { backgroundColor: palette.staticWhite }]}>
                 <Pressable
@@ -343,6 +337,13 @@ export function ReportTrendTab({
                 ) : null}
               </View>
 
+              <TrendBarChart
+                bars={bars}
+                anchorIndex={anchorIndex}
+                palette={palette}
+                onPressBar={handlePressBar}
+              />
+
               <View style={styles.filterBar}>
                 <View style={styles.chips}>
                   <Chip
@@ -383,10 +384,12 @@ export function ReportTrendTab({
                 </Pressable>
               </View>
 
-              {categories.length === 0 ? (
-                <View style={styles.empty}>
-                  <Icon name="info" variant="line" size={24} color={palette.textAssistive} />
-                  <Text style={[styles.emptyText, { color: palette.textAssistive }]}>{emptyMessage}</Text>
+              {isEmpty ? (
+                <View style={[styles.empty, { backgroundColor: palette.staticWhite }]}>
+                  <Icon name="info" variant="line" size={24} color={palette.staticBlack} />
+                  <Text style={[styles.emptyText, { color: palette.textAssistive }]}>
+                    소비내역이 존재하지 않습니다.
+                  </Text>
                 </View>
               ) : (
                 <View style={styles.categoryList}>
@@ -535,6 +538,9 @@ const styles = StyleSheet.create({
   body: {
     gap: 8,
   },
+  fill: {
+    flexGrow: 1,
+  },
   periodCard: {
     height: 56,
     borderRadius: 16,
@@ -605,12 +611,17 @@ const styles = StyleSheet.create({
     borderRadius: 2.5,
   },
   empty: {
+    flexGrow: 1,
+    minHeight: 240,
+    borderRadius: 16,
+    padding: 16,
     alignItems: 'center',
-    paddingVertical: 48,
-    gap: 8,
+    justifyContent: 'center',
+    gap: 12,
   },
   emptyText: {
-    ...typography.body02.regular,
+    ...typography.body01.regular,
+    textAlign: 'center',
   },
   categoryList: {
     gap: 8,
