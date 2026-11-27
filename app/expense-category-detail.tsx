@@ -15,12 +15,9 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { logEvent } from '@/utils/analytics';
 import { REPORT_TREND_SCREEN_NAME } from '@/utils/report-screen-name';
+import { getTimelineItemTags } from '@/utils/timeline-item-tags';
 import { useTrendPaymentFilter } from '@/components/report/trend-payment-filter';
-import {
-  hasSpentAmount,
-  matchesTrendType,
-  type TrendRankingFilter,
-} from '@/utils/report-trend';
+import { matchesTrendType, type TrendRankingFilter } from '@/utils/report-trend';
 import { getCustomMonthRange, isDateInCustomMonth } from '@/utils/custom-month';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
@@ -39,6 +36,7 @@ interface TimelineItem {
   isInstallment?: boolean;
   isPrepaid?: boolean;
   isRefunded?: boolean;
+  isSettled?: boolean;
   installmentId?: string;
   recurringId?: string;
   paymentMethod?: 'credit' | 'debit' | 'cash';
@@ -132,6 +130,7 @@ export default function ExpenseCategoryDetailScreen() {
                 isInstallment: record.isInstallment,
                 isPrepaid: record.isPrepaid,
                 isRefunded: record.isRefunded,
+                isSettled: record.isSettled,
                 installmentId: record.installmentId,
                 recurringId: record.recurringId,
                 paymentMethod: record.paymentMethod ?? 'credit',
@@ -177,8 +176,8 @@ export default function ExpenseCategoryDetailScreen() {
       if (item.isRefunded) return sum;
       return sum + item.amount;
     }, 0);
-    // 0원이 된 기록(환불·결산 등)은 목록에는 보이되 건수에는 넣지 않는다 (소비 현황과 동일)
-    const count = visibleData.filter((item) => !item.isRefunded && hasSpentAmount(item)).length;
+    // 환불·결산으로 0원이 된 기록도 건수에 넣는다 (소비 현황과 동일)
+    const count = visibleData.length;
 
     // 소비 기간 계산
     const { startDate, endDate } = getCustomMonthRange(year, month, monthStartDay);
@@ -334,7 +333,8 @@ export default function ExpenseCategoryDetailScreen() {
                                   numberOfLines={1}
                                   minimumFontScale={0.7}
                                 >
-                                  {item.isInstallment && item.isRefunded
+                                  {/* 결산·할부 환불 기록은 부호 없이 표기 (타임라인과 동일) */}
+                                  {item.isSettled || (item.isInstallment && item.isRefunded)
                                     ? `${item.amount.toLocaleString()}원`
                                     : `- ${item.amount.toLocaleString()}원`}
                                 </Text>
@@ -347,22 +347,10 @@ export default function ExpenseCategoryDetailScreen() {
                                 <Text style={[styles.memoText, { color: palette.textAssistive }]}>
                                   {item.memo ? item.memo.replace(/\n/g, ' ') : ' '}
                                 </Text>
-                                {/* 태그 표시 */}
-                                {item.isInstallment && item.isPrepaid && (
-                                  <Tag label="할부·선결제" status="positive" />
-                                )}
-                                {item.isInstallment && !item.isPrepaid && (
-                                  <Tag
-                                    label={item.isRefunded ? '할부·환불' : '할부'}
-                                    status="negative"
-                                  />
-                                )}
-                                {!item.isInstallment && item.isPrepaid && (
-                                  <Tag label="선납" status="positive" />
-                                )}
-                                {!item.isInstallment && item.isRecurring && !item.isPrepaid && (
-                                  <Tag label="정기" status="normal" />
-                                )}
+                                {/* 태그 표시 — 타임라인과 같은 규칙 */}
+                                {getTimelineItemTags(item).map((tag) => (
+                                  <Tag key={tag.label} label={tag.label} status={tag.status} />
+                                ))}
                               </View>
                             </View>
                           </View>

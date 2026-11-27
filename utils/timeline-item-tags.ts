@@ -9,7 +9,12 @@ export interface TimelineItemTag {
 /**
  * 기록 행 태그 (할부·결산·선납·환불·정기). monthly-expense-timeline 행과 동일 규칙.
  */
-export function getTimelineItemTags(item: TimelineListItem): TimelineItemTag[] {
+export function getTimelineItemTags(
+  item: Pick<
+    TimelineListItem,
+    'isInstallment' | 'isRecurring' | 'isPrepaid' | 'isRefunded' | 'isSettled'
+  >,
+): TimelineItemTag[] {
   const tags: TimelineItemTag[] = [];
 
   if (item.isInstallment && item.isSettled) {

@@ -24,7 +24,10 @@ export interface MonthTotal {
 /** 지출 순위(전체) / 정기 지출 / 할부 지출 */
 export type TrendRankingFilter = 'all' | 'recurring' | 'installment';
 
-/** 취합(건수·평균·목록)에 넣는 기록인지 — 환불·결산 처리 등으로 0원이 된 기록은 뺀다 */
+/**
+ * 평균을 낼 때 쓰는 「지출이 있는」 기록인지. 환불·결산으로 0원이 된 기록은 건수와 목록에는 남지만
+ * 그것만 있는 달은 평균의 분모에 넣지 않는다.
+ */
 export function hasSpentAmount(item: { amount?: number }): boolean {
   return (item.amount ?? 0) > 0;
 }
@@ -168,13 +171,13 @@ export function isRecentRun(months: number[], currentIndex: number): boolean {
   return newest === currentIndex && newest - Math.min(...months) + 1 === months.length;
 }
 
-/** 구간의 합계와 월 평균. 평균은 `byMonth`에 내역이 있는 달만으로 나눈다 (빈 달 제외) */
+/** 구간의 합계와 월 평균. 평균은 금액이 있는 달만으로 나눈다 (빈 달·0원뿐인 달 제외) */
 export function summarizeWindow(
   byMonth: Map<number, TrendItem[]>,
   months: number[],
 ): { total: number; average: number; recordedMonthCount: number } {
   const total = months.reduce((sum, index) => sum + sumItems(byMonth.get(index)).amount, 0);
-  const recordedMonthCount = months.filter((index) => sumItems(byMonth.get(index)).count > 0).length;
+  const recordedMonthCount = months.filter((index) => byMonth.get(index)?.some(hasSpentAmount)).length;
   return {
     total,
     average: recordedMonthCount > 0 ? total / recordedMonthCount : 0,

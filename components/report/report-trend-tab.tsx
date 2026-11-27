@@ -31,7 +31,6 @@ import {
   getWindowMonths,
   isRecentRun,
   groupByMonth,
-  hasSpentAmount,
   matchesTrendType,
   parseTrendItems,
   PICKABLE_MONTH_LENGTH,
@@ -208,13 +207,11 @@ export function ReportTrendTab({
 
   // 첫 기록 달은 필터와 무관하게 정한다 (필터를 바꿔도 구간과 그래프의 시작 달이 흔들리지 않도록)
   const allByMonth = useMemo(() => groupByMonth(items, monthStartDay), [items, monthStartDay]);
-  // 금액 카드·그래프·목록은 선택한 칩의 지출 유형 중 금액이 있는 기록만 쓴다
+  // 금액 카드·그래프·목록은 선택한 칩의 지출 유형만 쓴다 (환불·결산 0원 기록도 건수에 포함)
   const byMonth = useMemo(
     () =>
       groupByMonth(
-        filter.filteredItems.filter(
-          (item) => hasSpentAmount(item) && matchesTrendType(item, rankingFilter),
-        ),
+        filter.filteredItems.filter((item) => matchesTrendType(item, rankingFilter)),
         monthStartDay,
       ),
     [filter.filteredItems, monthStartDay, rankingFilter],
