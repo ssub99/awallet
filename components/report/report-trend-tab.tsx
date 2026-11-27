@@ -31,6 +31,7 @@ import {
   getWindowMonths,
   isRecentRun,
   groupByMonth,
+  hasSpentAmount,
   matchesTrendType,
   parseTrendItems,
   PICKABLE_MONTH_LENGTH,
@@ -207,11 +208,13 @@ export function ReportTrendTab({
 
   // 첫 기록 달은 필터와 무관하게 정한다 (필터를 바꿔도 구간과 그래프의 시작 달이 흔들리지 않도록)
   const allByMonth = useMemo(() => groupByMonth(items, monthStartDay), [items, monthStartDay]);
-  // 금액 카드·그래프·목록은 선택한 칩의 지출 유형만 쓴다
+  // 금액 카드·그래프·목록은 선택한 칩의 지출 유형 중 금액이 있는 기록만 쓴다
   const byMonth = useMemo(
     () =>
       groupByMonth(
-        filter.filteredItems.filter((item) => matchesTrendType(item, rankingFilter)),
+        filter.filteredItems.filter(
+          (item) => hasSpentAmount(item) && matchesTrendType(item, rankingFilter),
+        ),
         monthStartDay,
       ),
     [filter.filteredItems, monthStartDay, rankingFilter],
@@ -295,7 +298,7 @@ export function ReportTrendTab({
       // 범위에서는 (선택한 칩의) 월 평균 초과면 빨강. 「당월」은 비교 없이 초록.
       tone: !isInRange
         ? 'outside'
-        : !isSingleMonth && amount > summary.average
+        : !isSingleMonth && getAverageDifference(amount, summary.average).direction === 'over'
           ? 'over'
           : 'within',
     };
@@ -307,9 +310,16 @@ export function ReportTrendTab({
   const displayedAmount = useCountUp(representativeAmount, data !== null);
   // 제목의 개월 수는 지금 취합하는 달의 수
   const isRecent = isRecentRun(includedMonths, currentIndex);
+  // 평균은 기록 있는 달로만 나누므로, 빈 달이 섞이면 제목에 나누는 달 수를 밝힌다
+  const hasEmptyMonthInAverage =
+    showAverage &&
+    summary.recordedMonthCount > 0 &&
+    summary.recordedMonthCount < includedMonths.length;
   const representativeTitle = isSingleMonth
     ? `${month}월 소비금액`
-    : `${isRecent ? '최근 ' : ''}${includedMonths.length}개월 ${showAverage ? '평균' : '총'} 소비금액`;
+    : hasEmptyMonthInAverage
+      ? `기록 있는 ${summary.recordedMonthCount}개월 평균 소비금액`
+      : `${isRecent ? '최근 ' : ''}${includedMonths.length}개월 ${showAverage ? '평균' : '총'} 소비금액`;
   // 기본 구간을 보여 주되, 구간 밖의 달을 담았으면 그 달까지 넓힌다
   const periodLabel = isSingleMonth
     ? formatPeriodLabel(anchorIndex)
@@ -325,12 +335,25 @@ export function ReportTrendTab({
   const selectedMonthTotal = sumItems(byMonth.get(anchorIndex));
   // 선택한 달에 (선택한 칩의) 내역이 없으면 평균 비교 대신 기록을 권한다
   const hasNoSpending = selectedMonthTotal.count === 0;
-  const averageDifference = hasNoSpending
-    ? null
-    : getAverageDifference(
-        selectedMonthTotal.amount,
-        summarizeWindow(byMonth, baselineMonths).average,
-      );
+  // 평균에는 선택한 달도 들어가므로, 기록 있는 다른 달이 없으면 비교가 성립하지 않는다
+  const hasNothingToCompare =
+    !hasNoSpending &&
+    summarizeWindow(
+      byMonth,
+      baselineMonths.filter((monthIndex) => monthIndex !== anchorIndex),
+    ).recordedMonthCount === 0;
+  const averageDifference =
+    hasNoSpending || hasNothingToCompare
+      ? null
+      : getAverageDifference(
+          selectedMonthTotal.amount,
+          summarizeWindow(byMonth, baselineMonths).average,
+        );
+  const emptyInsight = hasNoSpending
+    ? '내역이 없습니다. 소비를 기록해 주세요.'
+    : hasNothingToCompare
+      ? '비교할 다른 달의 내역이 없어요.'
+      : null;
   // 문구의 금액도 대표 금액처럼 굴린다 (문구가 새로 나타나면 0원부터)
   const displayedDifference = useCountUp(averageDifference?.amount ?? 0, data !== null);
   // 소비 없는 날은 칩과 상관없이 전체 지출 기준 (결제수단 필터는 반영)
@@ -401,13 +424,23 @@ export function ReportTrendTab({
       monthIndex === anchorIndex && !months.includes(monthIndex)
         ? getNextSelectedMonth(months, monthIndex)
         : anchorIndex;
-    setCustomPick({
-      anchorIndex: nextAnchorIndex,
-      originAnchorIndex: activePick?.originAnchorIndex ?? anchorIndex,
-      range,
-      endIndex: windowEndIndex,
-      months,
-    });
+    const originAnchorIndex = activePick?.originAnchorIndex ?? anchorIndex;
+    // 담은 달과 선택이 처음과 같아졌으면 평소 상태로 돌린다 (구간은 그대로)
+    const isBackToDefault =
+      nextAnchorIndex === originAnchorIndex &&
+      months.join() === getWindowMonths(windowEndIndex, range).join();
+    if (isBackToDefault) {
+      setCustomPick(null);
+      setMovedWindow({ anchorIndex: nextAnchorIndex, range, endIndex: windowEndIndex });
+    } else {
+      setCustomPick({
+        anchorIndex: nextAnchorIndex,
+        originAnchorIndex,
+        range,
+        endIndex: windowEndIndex,
+        months,
+      });
+    }
     if (nextAnchorIndex !== anchorIndex) {
       const target = fromMonthIndex(nextAnchorIndex);
       onSelectMonth(target.year, target.month);
@@ -587,12 +620,12 @@ export function ReportTrendTab({
                     </View>
                   </>
                 ) : null}
-                {hasNoSpending || averageDifference !== null ? (
+                {emptyInsight !== null || averageDifference !== null ? (
                   <>
                     <View style={[styles.divider, { backgroundColor: palette.border }]} />
                     {averageDifference === null ? (
                       <Text style={[styles.insightText, { color: palette.textAssistive }]}>
-                        내역이 없습니다. 소비를 기록해 주세요.
+                        {emptyInsight}
                       </Text>
                     ) : (
                       <Text

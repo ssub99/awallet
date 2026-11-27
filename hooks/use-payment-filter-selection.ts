@@ -113,6 +113,8 @@ export function usePaymentFilterSelection({
   return {
     paymentSubtypes,
     filterKeys: selection?.selected ?? EMPTY_KEYS,
+    /** 저장된 선택을 읽어 `filterKeys`가 확정됐는지 */
+    isReady: selection?.selected != null,
     setFilterKeys,
     draftKeys,
     setDraftKeys,

@@ -24,9 +24,11 @@ import {
 
 const STANDARD_TREND_PAYMENT_FILTER_KEYS = ['cash'] as const;
 
-export function useTrendPaymentFilter(items: TrendItem[]) {
+export function useTrendPaymentFilter<
+  T extends Pick<TrendItem, 'paymentMethod' | 'paymentSubtypeId'>,
+>(items: T[]) {
   const [showSheet, setShowSheet] = useState(false);
-  const { paymentSubtypes, filterKeys, setFilterKeys, draftKeys, setDraftKeys } =
+  const { paymentSubtypes, filterKeys, isReady, setFilterKeys, draftKeys, setDraftKeys } =
     usePaymentFilterSelection({
       storageKey: REPORT_PAYMENT_FILTER_STORAGE_KEY,
       standardKeys: STANDARD_TREND_PAYMENT_FILTER_KEYS,
@@ -118,6 +120,7 @@ export function useTrendPaymentFilter(items: TrendItem[]) {
 
   return {
     filteredItems,
+    isReady,
     isApplied: filterKeys.length > 0,
     open,
     sheetProps: { visible: showSheet, options, draftKeys, onClose: close, onConfirm: confirm, onToggle: toggle },

@@ -15,7 +15,12 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { loadMonthStartDay } from '@/hooks/use-month-start';
 import { logEvent } from '@/utils/analytics';
 import { REPORT_TREND_SCREEN_NAME } from '@/utils/report-screen-name';
-import { matchesTrendType, type TrendRankingFilter } from '@/utils/report-trend';
+import { useTrendPaymentFilter } from '@/components/report/trend-payment-filter';
+import {
+  hasSpentAmount,
+  matchesTrendType,
+  type TrendRankingFilter,
+} from '@/utils/report-trend';
 import { getCustomMonthRange, isDateInCustomMonth } from '@/utils/custom-month';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
@@ -36,6 +41,8 @@ interface TimelineItem {
   isRefunded?: boolean;
   installmentId?: string;
   recurringId?: string;
+  paymentMethod?: 'credit' | 'debit' | 'cash';
+  paymentSubtypeId?: string;
 }
 
 export default function ExpenseCategoryDetailScreen() {
@@ -127,6 +134,8 @@ export default function ExpenseCategoryDetailScreen() {
                 isRefunded: record.isRefunded,
                 installmentId: record.installmentId,
                 recurringId: record.recurringId,
+                paymentMethod: record.paymentMethod ?? 'credit',
+                paymentSubtypeId: record.paymentSubtypeId,
               });
             });
           }
@@ -157,14 +166,19 @@ export default function ExpenseCategoryDetailScreen() {
     }, [dataVersion, refreshData])
   );
 
+  // 소비 현황에서 고른 결제 유형만 보여 준다 (목록에서 본 금액과 같아야 한다)
+  const { filteredItems: visibleData, isReady: isFilterReady } =
+    useTrendPaymentFilter(timelineData);
+
   // 카테고리 상세 통계 계산
   const categoryStats = useMemo(() => {
-    const totalAmount = timelineData.reduce((sum, item) => {
+    const totalAmount = visibleData.reduce((sum, item) => {
       // 환불된 기록은 제외
       if (item.isRefunded) return sum;
       return sum + item.amount;
     }, 0);
-    const count = timelineData.filter((item) => !item.isRefunded).length;
+    // 0원이 된 기록(환불·결산 등)은 목록에는 보이되 건수에는 넣지 않는다 (소비 현황과 동일)
+    const count = visibleData.filter((item) => !item.isRefunded && hasSpentAmount(item)).length;
 
     // 소비 기간 계산
     const { startDate, endDate } = getCustomMonthRange(year, month, monthStartDay);
@@ -174,19 +188,19 @@ export default function ExpenseCategoryDetailScreen() {
       count,
       period: formatPeriod(startDate, endDate),
     };
-  }, [timelineData, year, month, monthStartDay]);
+  }, [visibleData, year, month, monthStartDay]);
 
   // 날짜별로 그룹화
   const groupedByDate = useMemo(() => {
     const groups: Record<string, TimelineItem[]> = {};
-    timelineData.forEach((item) => {
+    visibleData.forEach((item) => {
       if (!groups[item.date]) {
         groups[item.date] = [];
       }
       groups[item.date].push(item);
     });
     return groups;
-  }, [timelineData]);
+  }, [visibleData]);
 
   const sortedDates = useMemo(() => {
     return Object.keys(groupedByDate).sort((a, b) => {
@@ -271,7 +285,7 @@ export default function ExpenseCategoryDetailScreen() {
         contentContainerStyle={styles.listScrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {timelineData.length === 0 ? (
+        {!isFilterReady ? null : visibleData.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Text style={[styles.emptyText, { color: palette.textAssistive }]}>
               해당 카테고리의 소비 내역이 없습니다.
