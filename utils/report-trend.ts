@@ -130,31 +130,30 @@ export function getWindowMonths(endIndex: number, length: number): number[] {
   return Array.from({ length }, (_, offset) => endIndex - offset);
 }
 
-/** 달을 직접 골라 담을 수 있는 폭 — 보고 있는 구간의 마지막 달까지 */
-export const PICKABLE_MONTH_LENGTH = 12;
-
 export interface MonthPickRule {
   /** 담을 수 있는 최대 개월 수 (조회 범위) */
   maxCount: number;
-  /** 보고 있는 기본 구간의 마지막 달 */
-  endIndex: number;
+  /** 그래프에 보이는 가장 오래된 달 */
+  oldestIndex: number;
+  /** 이번 달 */
+  currentIndex: number;
 }
 
 /**
  * 막대를 길게 눌렀을 때의 새 선택 목록(최신 달 먼저). 반응하지 않아야 하면 null —
- * 하나 남은 달 빼기, 꽉 찬 상태에서 담기, 12개월 밖의 달 담기.
+ * 하나 남은 달 빼기, 꽉 찬 상태에서 담기, 고를 수 없는 달 담기.
+ * 그래프에 보이는 달(`oldestIndex`~이번 달)은 모두 고를 수 있다.
  */
 export function togglePickedMonth(
   pickedMonths: number[],
   monthIndex: number,
-  { maxCount, endIndex }: MonthPickRule,
+  { maxCount, oldestIndex, currentIndex }: MonthPickRule,
 ): number[] | null {
   if (pickedMonths.includes(monthIndex)) {
     return pickedMonths.length > 1 ? pickedMonths.filter((index) => index !== monthIndex) : null;
   }
   if (pickedMonths.length >= maxCount) return null;
-  const pickable = getWindowMonths(endIndex, PICKABLE_MONTH_LENGTH);
-  if (!pickable.includes(monthIndex)) return null;
+  if (monthIndex < oldestIndex || monthIndex > currentIndex) return null;
   return [...pickedMonths, monthIndex].sort((a, b) => b - a);
 }
 

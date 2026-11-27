@@ -119,7 +119,8 @@ export function TrendBarChart({
     const added = (offsetBaseRef.current - firstMonthIndex) * COLUMN_WIDTH;
     offsetBaseRef.current = firstMonthIndex;
     if (offsetRef.current !== null) offsetRef.current += added;
-    const offset = offsetRef.current;
+    // 왼쪽 달이 줄면 보던 위치를 이어 갈 수 없으므로 구간을 오른쪽 끝에 다시 맞춘다
+    const offset = added < 0 ? null : offsetRef.current;
     if (offset !== null && left >= offset && right <= offset + width) return;
     // 처음에는 오른쪽 끝에 맞추고, 이후에는 가려진 만큼만 움직인다
     const nextOffset = Math.max(0, offset !== null && left < offset ? left : right - width);

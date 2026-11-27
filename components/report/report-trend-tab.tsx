@@ -33,7 +33,6 @@ import {
   groupByMonth,
   matchesTrendType,
   parseTrendItems,
-  PICKABLE_MONTH_LENGTH,
   rankCategories,
   summarizeWindow,
   sumItems,
@@ -266,12 +265,21 @@ export function ReportTrendTab({
     activePick?.months ?? getWindowMonths(windowEndIndex, range);
   const summary = summarizeWindow(byMonth, includedMonths);
 
-  // 보고 있는 구간의 마지막 달까지 12개월(고를 수 있는 달)은 기록이 없어도 그린다.
-  // 한 번 그린 달은 남겨 둔다 — 왼쪽 달이 사라지면 보던 위치가 흔들린다.
+  // `‹ ›`·년월 선택으로 옮기면 그 구간의 마지막 달까지 12개월을 그린다. 막대를 눌러 옮길 때는
+  // 그래프를 늘리지 않는다(구간에 필요한 달만 더한다). `knownAnchor`와 다른 선택 월은 밖에서 바뀐 것.
+  const [navigation, setNavigation] = useState({ knownAnchor: anchorIndex, endIndex: currentIndex });
+  if (navigation.knownAnchor !== anchorIndex) {
+    setNavigation({
+      knownAnchor: anchorIndex,
+      endIndex: Math.min(navigation.endIndex, windowEndIndex),
+    });
+  }
+  // 한 번 그린 달은 남겨 둔다 — 왼쪽 달이 사라지면 보던 위치가 흔들린다. 범위 버튼을 누를 때만 정리한다.
   const neededChartStart = Math.min(
     firstRecordIndex ?? anchorIndex,
     currentIndex - (MIN_CHART_MONTHS - 1),
-    windowEndIndex - (PICKABLE_MONTH_LENGTH - 1),
+    navigation.endIndex - (MIN_CHART_MONTHS - 1),
+    windowEndIndex - (range - 1),
     anchorIndex,
   );
   const [shownChartStart, setShownChartStart] = useState(neededChartStart);
@@ -363,6 +371,13 @@ export function ReportTrendTab({
     );
   }, 0);
 
+  /** 그래프를 늘리지 않고 선택 월을 바꾼다 (막대·범위 버튼에서) */
+  const selectWithoutNavigating = (monthIndex: number) => {
+    setNavigation((prev) => ({ ...prev, knownAnchor: monthIndex }));
+    const target = fromMonthIndex(monthIndex);
+    onSelectMonth(target.year, target.month);
+  };
+
   // 범위는 유지하고 누른 달만 바꾼다 — 당월이면 그 달 하나, 3개월 이상이면 그 달 중심
   const handlePressBar = (monthIndex: number) => {
     void logEvent('ui', { screen_name: REPORT_TREND_SCREEN_NAME, target: 'bargraph' });
@@ -374,8 +389,7 @@ export function ReportTrendTab({
         ? { ...activePick, anchorIndex: monthIndex }
         : null,
     );
-    const target = fromMonthIndex(monthIndex);
-    onSelectMonth(target.year, target.month);
+    selectWithoutNavigating(monthIndex);
   };
 
   const openCategoryDetail = (category: string, monthIndex: number) => {
@@ -404,6 +418,10 @@ export function ReportTrendTab({
     if (!isSingleMonth) {
       setMovedWindow({ anchorIndex: nextAnchorIndex, range, endIndex: nextEndIndex });
     }
+    setNavigation((prev) => ({
+      knownAnchor: nextAnchorIndex,
+      endIndex: Math.min(prev.endIndex, nextEndIndex),
+    }));
     const target = fromMonthIndex(nextAnchorIndex);
     onSelectMonth(target.year, target.month);
   };
@@ -412,7 +430,8 @@ export function ReportTrendTab({
     if (isSingleMonth) return;
     const months = togglePickedMonth(includedMonths, monthIndex, {
       maxCount: range,
-      endIndex: windowEndIndex,
+      oldestIndex: chartStart,
+      currentIndex,
     });
     if (months === null) return;
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -439,8 +458,7 @@ export function ReportTrendTab({
       });
     }
     if (nextAnchorIndex !== anchorIndex) {
-      const target = fromMonthIndex(nextAnchorIndex);
-      onSelectMonth(target.year, target.month);
+      selectWithoutNavigating(nextAnchorIndex);
     }
   };
 
@@ -467,11 +485,13 @@ export function ReportTrendTab({
       const { originAnchorIndex, endIndex } = activePick;
       setCustomPick(null);
       setMovedWindow({ anchorIndex: originAnchorIndex, range, endIndex });
-      const target = fromMonthIndex(originAnchorIndex);
-      onSelectMonth(target.year, target.month);
-      return;
+      selectWithoutNavigating(originAnchorIndex);
+    } else {
+      setRange(value);
     }
-    setRange(value);
+    // 범위 버튼을 누르면 옮겨 다니며 늘린 달을 지운다. 선택 월과 보는 구간에 필요한 달은 남는다
+    setNavigation((prev) => ({ ...prev, endIndex: currentIndex }));
+    setShownChartStart(Number.POSITIVE_INFINITY);
   };
 
   const handleToggleSummary = () => {
