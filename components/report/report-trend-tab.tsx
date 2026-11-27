@@ -26,21 +26,26 @@ import {
   countNoSpendDays,
   fromMonthIndex,
   getAverageDifference,
+  getNextSelectedMonth,
   getWindowEndIndex,
   getWindowMonths,
+  isRecentRun,
   groupByMonth,
   matchesTrendType,
   parseTrendItems,
+  PICKABLE_MONTH_LENGTH,
   rankCategories,
   summarizeWindow,
   sumItems,
+  togglePickedMonth,
   toMonthIndex,
   type TrendItem,
   type TrendRankingFilter,
 } from '@/utils/report-trend';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Haptics from 'expo-haptics';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 /** 플로팅 바 높이 */
@@ -142,6 +147,21 @@ export function ReportTrendTab({
     endIndex: number;
   } | null>(null);
   const [rankingFilter, setRankingFilter] = useState<TrendRankingFilter>('all');
+  /**
+   * 막대를 길게 눌러 직접 고른 달. 고르는 동안에는 기본 구간(`endIndex`)을 고정한다.
+   * 칩·범위·구간을 바꾸거나 소비 현황을 벗어나면 버린다 (상세 화면에 다녀오는 것은 유지).
+   */
+  const [customPick, setCustomPick] = useState<{
+    anchorIndex: number;
+    /** 직접 고르기 전에 선택돼 있던 달 — 같은 범위를 다시 누르면 여기로 돌아간다 */
+    originAnchorIndex: number;
+    range: TrendRange;
+    endIndex: number;
+    months: number[];
+  } | null>(null);
+  const keepPickOnBlurRef = useRef(false);
+  /** 다른 화면으로 벗어난 상태 (상세 화면은 제외) */
+  const [isAway, setIsAway] = useState(false);
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
   const [viewHeight, setViewHeight] = useState(0);
@@ -171,11 +191,21 @@ export function ReportTrendTab({
     }, [dataVersion, loadData]),
   );
 
+  useFocusEffect(
+    useCallback(() => {
+      keepPickOnBlurRef.current = false;
+      setIsAway(false);
+      return () => {
+        if (!keepPickOnBlurRef.current) setIsAway(true);
+      };
+    }, []),
+  );
+
   const items = useMemo(() => data?.items ?? [], [data]);
   const monthStartDay = data?.monthStartDay ?? 1;
   const filter = useTrendPaymentFilter(items);
 
-  // 첫 기록 달은 필터와 무관하게 정한다 (필터를 바꿔도 평균의 분모가 흔들리지 않도록)
+  // 첫 기록 달은 필터와 무관하게 정한다 (필터를 바꿔도 구간과 그래프의 시작 달이 흔들리지 않도록)
   const allByMonth = useMemo(() => groupByMonth(items, monthStartDay), [items, monthStartDay]);
   // 금액 카드·그래프·목록은 선택한 칩의 지출 유형만 쓴다
   const byMonth = useMemo(
@@ -194,9 +224,6 @@ export function ReportTrendTab({
       ),
     [items],
   );
-  /** 평균 비교는 전체 지출(`지출 순위`)에서만 */
-  const isAllSpending = rankingFilter === 'all';
-
   const anchorIndex = toMonthIndex(year, month);
   const currentMonth = getCustomMonthInfo(new Date(), monthStartDay);
   const currentIndex = toMonthIndex(currentMonth.year, currentMonth.month);
@@ -207,87 +234,133 @@ export function ReportTrendTab({
   if (movedWindow !== null && movedWindow.anchorIndex !== anchorIndex) {
     setMovedWindow(null);
   }
+  /** 직접 고른 달만 되돌린다. 선택 월이 보던 기본 구간 안이면 구간도 그대로 둔다 */
+  const discardPick = () => {
+    if (
+      customPick !== null &&
+      customPick.anchorIndex <= customPick.endIndex &&
+      customPick.anchorIndex > customPick.endIndex - customPick.range
+    ) {
+      const { anchorIndex: pickAnchor, range: pickRange, endIndex } = customPick;
+      setMovedWindow({ anchorIndex: pickAnchor, range: pickRange, endIndex });
+    }
+    setCustomPick(null);
+  };
+  if (customPick !== null) {
+    // 선택 월이 밖에서 바뀌거나(년월 선택 등) 범위가 달라지면 그 값의 기본 구간으로 간다
+    if (customPick.anchorIndex !== anchorIndex || customPick.range !== range) {
+      setCustomPick(null);
+    } else if (!visible || isAway) {
+      discardPick();
+    }
+  }
+  const activePick =
+    customPick?.anchorIndex === anchorIndex && customPick.range === range ? customPick : null;
   const windowEndIndex =
-    movedWindow?.anchorIndex === anchorIndex && movedWindow.range === range
+    activePick?.endIndex ??
+    (movedWindow?.anchorIndex === anchorIndex && movedWindow.range === range
       ? movedWindow.endIndex
-      : getWindowEndIndex(anchorIndex, range, currentIndex);
-  const windowMonths = getWindowMonths(windowEndIndex, range, firstRecordIndex);
-  const summary = summarizeWindow(byMonth, windowMonths);
+      : getWindowEndIndex(anchorIndex, range, currentIndex));
+  /** 취합하는 달(최신 달 먼저) — 직접 고른 달이 없으면 기본 구간. `당월`에는 직접 고르기가 없다 */
+  const includedMonths =
+    activePick?.months ?? getWindowMonths(windowEndIndex, range);
+  const summary = summarizeWindow(byMonth, includedMonths);
 
-  // 시작 달은 선택에 따라 움직이지 않아야 막대를 눌렀을 때 그래프가 밀리지 않는다
-  const chartStart = Math.min(
+  // 보고 있는 구간의 마지막 달까지 12개월(고를 수 있는 달)은 기록이 없어도 그린다.
+  // 한 번 그린 달은 남겨 둔다 — 왼쪽 달이 사라지면 보던 위치가 흔들린다.
+  const neededChartStart = Math.min(
     firstRecordIndex ?? anchorIndex,
     currentIndex - (MIN_CHART_MONTHS - 1),
+    windowEndIndex - (PICKABLE_MONTH_LENGTH - 1),
     anchorIndex,
   );
+  const [shownChartStart, setShownChartStart] = useState(neededChartStart);
+  if (neededChartStart < shownChartStart) {
+    setShownChartStart(neededChartStart);
+  }
+  const chartStart = Math.min(neededChartStart, shownChartStart);
   // 그래프는 당월에서 끝난다 (미래 달은 조회하지 않음)
   const bars: TrendBar[] = Array.from({ length: currentIndex - chartStart + 1 }, (_, offset) => {
     const monthIndex = chartStart + offset;
     const amount = sumItems(byMonth.get(monthIndex)).amount;
-    const isSelected = isSingleMonth ? monthIndex === anchorIndex : windowMonths.includes(monthIndex);
+    const isInRange = isSingleMonth
+      ? monthIndex === anchorIndex
+      : includedMonths.includes(monthIndex);
     return {
       monthIndex,
       amount,
       label: `${fromMonthIndex(monthIndex).month}월`,
       accessibilityLabel: `${formatMonthLabel(monthIndex)} ${formatWon(amount)}`,
-      // 범위에서는 월 평균 초과면 빨강. 「당월」과 정기·할부는 비교 없이 초록.
-      tone: !isSelected
+      isSelected: monthIndex === anchorIndex,
+      // 범위에서는 (선택한 칩의) 월 평균 초과면 빨강. 「당월」은 비교 없이 초록.
+      tone: !isInRange
         ? 'outside'
-        : !isSingleMonth && isAllSpending && amount > summary.average
+        : !isSingleMonth && amount > summary.average
           ? 'over'
           : 'within',
     };
   });
 
-  const canAverage = !isSingleMonth && isAllSpending;
+  const canAverage = !isSingleMonth;
   const showAverage = canAverage && isAverage;
   const representativeAmount = Math.round(showAverage ? summary.average : summary.total);
   const displayedAmount = useCountUp(representativeAmount, data !== null);
+  // 제목의 개월 수는 지금 취합하는 달의 수
+  const isRecent = isRecentRun(includedMonths, currentIndex);
   const representativeTitle = isSingleMonth
     ? `${month}월 소비금액`
-    : `${windowEndIndex === currentIndex ? '최근 ' : ''}${range}개월 ${showAverage ? '평균' : '총'} 소비금액`;
+    : `${isRecent ? '최근 ' : ''}${includedMonths.length}개월 ${showAverage ? '평균' : '총'} 소비금액`;
+  // 기본 구간을 보여 주되, 구간 밖의 달을 담았으면 그 달까지 넓힌다
   const periodLabel = isSingleMonth
     ? formatPeriodLabel(anchorIndex)
-    : `${formatPeriodLabel(windowEndIndex - range + 1)} - ${formatPeriodLabel(windowEndIndex)}`;
+    : `${formatPeriodLabel(Math.min(windowEndIndex - range + 1, ...includedMonths))} - ${formatPeriodLabel(Math.max(windowEndIndex, ...includedMonths))}`;
 
-  const categories = rankCategories(byMonth, windowMonths);
+  const categories = rankCategories(byMonth, includedMonths);
 
-  // 선택한 달이 월 평균(`당월`은 선택한 달까지 12개월 평균)보다 많거나 적은 금액을 알린다
+  // 선택한 달이 월 평균(`당월`은 선택한 달까지 12개월 평균)보다 많거나 적은 금액을 알린다.
+  // 금액과 평균 모두 선택한 칩의 지출 유형 기준
   const baselineMonths = isSingleMonth
-    ? getWindowMonths(anchorIndex, SINGLE_MONTH_BASELINE_LENGTH, firstRecordIndex)
-    : windowMonths;
-  const hasRecordBySelectedMonth = firstRecordIndex !== null && anchorIndex >= firstRecordIndex;
-  const averageDifference =
-    isAllSpending && hasRecordBySelectedMonth
-      ? getAverageDifference(
-          sumItems(byMonth.get(anchorIndex)).amount,
-          summarizeWindow(byMonth, baselineMonths).average,
-        )
-      : null;
+    ? getWindowMonths(anchorIndex, SINGLE_MONTH_BASELINE_LENGTH)
+    : includedMonths;
+  const selectedMonthTotal = sumItems(byMonth.get(anchorIndex));
+  // 선택한 달에 (선택한 칩의) 내역이 없으면 평균 비교 대신 기록을 권한다
+  const hasNoSpending = selectedMonthTotal.count === 0;
+  const averageDifference = hasNoSpending
+    ? null
+    : getAverageDifference(
+        selectedMonthTotal.amount,
+        summarizeWindow(byMonth, baselineMonths).average,
+      );
   // 문구의 금액도 대표 금액처럼 굴린다 (문구가 새로 나타나면 0원부터)
   const displayedDifference = useCountUp(averageDifference?.amount ?? 0, data !== null);
   // 소비 없는 날은 칩과 상관없이 전체 지출 기준 (결제수단 필터는 반영)
-  const windowStart = fromMonthIndex(windowEndIndex - range + 1);
-  const windowEnd = fromMonthIndex(windowEndIndex);
-  const noSpendDays = countNoSpendDays(
-    filter.filteredItems,
-    getCustomMonthRange(windowStart.year, windowStart.month, monthStartDay).startDate,
-    getCustomMonthRange(windowEnd.year, windowEnd.month, monthStartDay).endDate,
-    firstRecordDate,
-    new Date(),
-  );
+  const noSpendDays = includedMonths.reduce((count, monthIndex) => {
+    const target = fromMonthIndex(monthIndex);
+    const { startDate, endDate } = getCustomMonthRange(target.year, target.month, monthStartDay);
+    return (
+      count +
+      countNoSpendDays(filter.filteredItems, startDate, endDate, firstRecordDate, new Date())
+    );
+  }, 0);
 
   // 범위는 유지하고 누른 달만 바꾼다 — 당월이면 그 달 하나, 3개월 이상이면 그 달 중심
   const handlePressBar = (monthIndex: number) => {
     void logEvent('ui', { screen_name: REPORT_TREND_SCREEN_NAME, target: 'bargraph' });
     // `‹ ›`로 옮겨 둔 구간은 버리고 누른 달 기준으로 다시 잡는다
     setMovedWindow(null);
+    // 직접 고르는 중에 담긴 달을 누르면 선택만 옮긴다. 담기지 않은 달을 누르면 기본 구간으로 돌아간다
+    setCustomPick(
+      activePick?.months.includes(monthIndex)
+        ? { ...activePick, anchorIndex: monthIndex }
+        : null,
+    );
     const target = fromMonthIndex(monthIndex);
     onSelectMonth(target.year, target.month);
   };
 
   const openCategoryDetail = (category: string, monthIndex: number) => {
     const target = fromMonthIndex(monthIndex);
+    keepPickOnBlurRef.current = true;
     router.push({
       pathname: '/expense-category-detail',
       params: {
@@ -302,12 +375,43 @@ export function ReportTrendTab({
   // 당월에서는 선택한 달이, 3개월 이상에서는 구간 전체가 한 달씩 움직인다
   const isAtCurrentMonth = windowEndIndex >= currentIndex;
   const handleStepMonth = (step: 1 | -1) => {
-    const nextAnchorIndex = anchorIndex + step;
+    // 직접 고른 달은 버리고 보던 기본 구간을 옮긴다. 선택 월은 옮긴 구간 안에 둔다
+    const nextEndIndex = windowEndIndex + step;
+    const nextAnchorIndex = activePick
+      ? Math.min(nextEndIndex, Math.max(nextEndIndex - range + 1, anchorIndex + step))
+      : anchorIndex + step;
+    setCustomPick(null);
     if (!isSingleMonth) {
-      setMovedWindow({ anchorIndex: nextAnchorIndex, range, endIndex: windowEndIndex + step });
+      setMovedWindow({ anchorIndex: nextAnchorIndex, range, endIndex: nextEndIndex });
     }
     const target = fromMonthIndex(nextAnchorIndex);
     onSelectMonth(target.year, target.month);
+  };
+
+  const handleLongPressBar = (monthIndex: number) => {
+    if (isSingleMonth) return;
+    const months = togglePickedMonth(includedMonths, monthIndex, {
+      maxCount: range,
+      endIndex: windowEndIndex,
+    });
+    if (months === null) return;
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    // 선택한 달을 뺐으면 선택을 옮긴다. 기본 구간은 그대로 둔다
+    const nextAnchorIndex =
+      monthIndex === anchorIndex && !months.includes(monthIndex)
+        ? getNextSelectedMonth(months, monthIndex)
+        : anchorIndex;
+    setCustomPick({
+      anchorIndex: nextAnchorIndex,
+      originAnchorIndex: activePick?.originAnchorIndex ?? anchorIndex,
+      range,
+      endIndex: windowEndIndex,
+      months,
+    });
+    if (nextAnchorIndex !== anchorIndex) {
+      const target = fromMonthIndex(nextAnchorIndex);
+      onSelectMonth(target.year, target.month);
+    }
   };
 
   const handlePressRankingFilter = (value: TrendRankingFilter) => {
@@ -316,6 +420,9 @@ export function ReportTrendTab({
       target: 'expense-type',
       expense_type: EXPENSE_TYPE_VALUES[value],
     });
+    if (value !== rankingFilter && customPick !== null) {
+      discardPick();
+    }
     setRankingFilter(value);
   };
 
@@ -325,6 +432,15 @@ export function ReportTrendTab({
       target: 'search-range',
       search_range: SEARCH_RANGE_VALUES[value],
     });
+    // 직접 고른 상태에서 같은 범위를 다시 누르면 처음 조회한 구간과 선택 월로 되돌린다
+    if (value === range && activePick !== null) {
+      const { originAnchorIndex, endIndex } = activePick;
+      setCustomPick(null);
+      setMovedWindow({ anchorIndex: originAnchorIndex, range, endIndex });
+      const target = fromMonthIndex(originAnchorIndex);
+      onSelectMonth(target.year, target.month);
+      return;
+    }
     setRange(value);
   };
 
@@ -433,7 +549,7 @@ export function ReportTrendTab({
               <View style={[styles.summaryCard, { backgroundColor: palette.staticWhite }]}>
                 <Pressable
                   style={styles.summaryHeader}
-                  disabled={isSingleMonth || windowMonths.length === 0}
+                  disabled={isSingleMonth}
                   onPress={handleToggleSummary}
                   accessibilityRole={isSingleMonth ? undefined : 'button'}
                   accessibilityState={isSingleMonth ? undefined : { expanded: isSummaryExpanded }}
@@ -445,7 +561,7 @@ export function ReportTrendTab({
                     <Text style={[styles.summaryAmount, { color: palette.text }]}>
                       {formatWon(displayedAmount)}
                     </Text>
-                    {!isSingleMonth && windowMonths.length > 0 ? (
+                    {!isSingleMonth ? (
                       <Icon
                         name={isSummaryExpanded ? 'arrowUp' : 'arrowDown'}
                         variant="solid"
@@ -454,11 +570,11 @@ export function ReportTrendTab({
                     ) : null}
                   </View>
                 </Pressable>
-                {!isSingleMonth && isSummaryExpanded && windowMonths.length > 0 ? (
+                {!isSingleMonth && isSummaryExpanded ? (
                   <>
                     <View style={[styles.divider, { backgroundColor: palette.border }]} />
                     <View style={styles.monthList}>
-                      {windowMonths.map((monthIndex) => (
+                      {includedMonths.map((monthIndex) => (
                         <View key={monthIndex} style={styles.row}>
                           <Text style={[styles.monthLabel, { color: palette.textNeutral }]}>
                             {formatMonthLabel(monthIndex)}
@@ -471,23 +587,31 @@ export function ReportTrendTab({
                     </View>
                   </>
                 ) : null}
-                {averageDifference !== null ? (
+                {hasNoSpending || averageDifference !== null ? (
                   <>
                     <View style={[styles.divider, { backgroundColor: palette.border }]} />
-                    <Text
-                      style={[
-                        styles.insightText,
-                        {
-                          color:
-                            averageDifference.direction === 'over'
-                              ? palette.statusNegative
-                              : atomicColors.green[500],
-                        },
-                      ]}
-                    >
-                      월 평균보다 {formatWon(displayedDifference)}{' '}
-                      {averageDifference.direction === 'over' ? '더' : '덜'} 사용했어요.
-                    </Text>
+                    {averageDifference === null ? (
+                      <Text style={[styles.insightText, { color: palette.textAssistive }]}>
+                        내역이 없습니다. 소비를 기록해 주세요.
+                      </Text>
+                    ) : (
+                      <Text
+                        style={[
+                          styles.insightText,
+                          {
+                            color:
+                              averageDifference.direction === 'over'
+                                ? palette.statusNegative
+                                : averageDifference.direction === 'under'
+                                  ? atomicColors.green[500]
+                                  : palette.textAssistive,
+                          },
+                        ]}
+                      >
+                        월 평균보다 {formatWon(displayedDifference)}{' '}
+                        {averageDifference.direction === 'under' ? '덜' : '더'} 사용했어요.
+                      </Text>
+                    )}
                   </>
                 ) : null}
               </View>
@@ -498,6 +622,7 @@ export function ReportTrendTab({
                 noSpendDays={noSpendDays}
                 palette={palette}
                 onPressBar={handlePressBar}
+                onLongPressBar={handleLongPressBar}
               />
 
               <View style={styles.filterBar}>

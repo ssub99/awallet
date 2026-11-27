@@ -117,28 +117,60 @@ export function getWindowEndIndex(anchorIndex: number, length: number, currentIn
   return Math.min(anchorIndex + Math.floor((length - 1) / 2), currentIndex);
 }
 
-/**
- * `endIndex`에서 거꾸로 `length`개월. 첫 기록이 있는 달보다 앞선 달은 제외한다.
- * 반환 순서는 최신 달 먼저.
- */
-export function getWindowMonths(
-  endIndex: number,
-  length: number,
-  firstRecordIndex: number | null,
-): number[] {
-  if (firstRecordIndex == null) return [];
-  return Array.from({ length }, (_, offset) => endIndex - offset).filter(
-    (index) => index >= firstRecordIndex,
-  );
+/** `endIndex`에서 거꾸로 `length`개월. 기록이 없는 달도 포함한다. 반환 순서는 최신 달 먼저. */
+export function getWindowMonths(endIndex: number, length: number): number[] {
+  return Array.from({ length }, (_, offset) => endIndex - offset);
 }
 
-/** 구간의 합계와 월 평균. 기록 시작 이후의 빈 달은 0원으로 평균에 포함된다. */
+/** 달을 직접 골라 담을 수 있는 폭 — 보고 있는 구간의 마지막 달까지 */
+export const PICKABLE_MONTH_LENGTH = 12;
+
+export interface MonthPickRule {
+  /** 담을 수 있는 최대 개월 수 (조회 범위) */
+  maxCount: number;
+  /** 보고 있는 기본 구간의 마지막 달 */
+  endIndex: number;
+}
+
+/**
+ * 막대를 길게 눌렀을 때의 새 선택 목록(최신 달 먼저). 반응하지 않아야 하면 null —
+ * 하나 남은 달 빼기, 꽉 찬 상태에서 담기, 12개월 밖의 달 담기.
+ */
+export function togglePickedMonth(
+  pickedMonths: number[],
+  monthIndex: number,
+  { maxCount, endIndex }: MonthPickRule,
+): number[] | null {
+  if (pickedMonths.includes(monthIndex)) {
+    return pickedMonths.length > 1 ? pickedMonths.filter((index) => index !== monthIndex) : null;
+  }
+  if (pickedMonths.length >= maxCount) return null;
+  const pickable = getWindowMonths(endIndex, PICKABLE_MONTH_LENGTH);
+  if (!pickable.includes(monthIndex)) return null;
+  return [...pickedMonths, monthIndex].sort((a, b) => b - a);
+}
+
+/** 선택한 달을 뺐을 때 옮겨 갈 달 — 바로 다음의 최근 달, 없으면 바로 이전 달 */
+export function getNextSelectedMonth(pickedMonths: number[], removedIndex: number): number {
+  const newer = pickedMonths.filter((index) => index > removedIndex);
+  return newer.length > 0 ? Math.min(...newer) : Math.max(...pickedMonths);
+}
+
+/** 달이 빠짐없이 이어지며 `currentIndex`에서 끝나는지 (제목의 「최근」) */
+export function isRecentRun(months: number[], currentIndex: number): boolean {
+  if (months.length === 0) return false;
+  const newest = Math.max(...months);
+  return newest === currentIndex && newest - Math.min(...months) + 1 === months.length;
+}
+
+/** 구간의 합계와 월 평균. 평균은 `byMonth`에 내역이 있는 달만으로 나눈다 (빈 달 제외) */
 export function summarizeWindow(
   byMonth: Map<number, TrendItem[]>,
   months: number[],
 ): { total: number; average: number } {
   const total = months.reduce((sum, index) => sum + sumItems(byMonth.get(index)).amount, 0);
-  return { total, average: months.length > 0 ? total / months.length : 0 };
+  const recordedMonthCount = months.filter((index) => sumItems(byMonth.get(index)).count > 0).length;
+  return { total, average: recordedMonthCount > 0 ? total / recordedMonthCount : 0 };
 }
 
 export interface CategoryTrend {
@@ -181,16 +213,16 @@ export function rankCategories(
 }
 
 export interface AverageDifference {
-  direction: 'over' | 'under';
-  /** 월 평균과의 차이(원) — 1 이상 */
+  /** `same`은 반올림한 차이가 0원 */
+  direction: 'over' | 'under' | 'same';
+  /** 월 평균과의 차이(원) */
   amount: number;
 }
 
-/** 월 평균보다 더/덜 쓴 금액. 평균이 없거나 반올림해 0원이면 null */
-export function getAverageDifference(amount: number, average: number): AverageDifference | null {
-  if (average <= 0) return null;
+/** 월 평균보다 더/덜 쓴 금액. 비교하는 달에 내역이 있을 때 부른다 */
+export function getAverageDifference(amount: number, average: number): AverageDifference {
   const rounded = Math.round(amount - average);
-  if (rounded === 0) return null;
+  if (rounded === 0) return { direction: 'same', amount: 0 };
   return { direction: rounded > 0 ? 'over' : 'under', amount: Math.abs(rounded) };
 }
 
