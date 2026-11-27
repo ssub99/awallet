@@ -68,7 +68,7 @@ const RANGE_OPTIONS: { value: TrendRange; label: string }[] = [
 /** 기록이 적어도 그래프에 최소한 이만큼의 달을 둔다 */
 const MIN_CHART_MONTHS = 12;
 const SCROLL_PADDING = 16;
-/** `당월` 범위의 월 평균 — 선택한 달을 포함해 과거로 이만큼 */
+/** `당월` 범위의 비교 평균 — 이번 달까지 최근 이만큼. 더 과거의 달을 골라도 이 평균과 비교한다 */
 const SINGLE_MONTH_BASELINE_LENGTH = 12;
 /** 칩별 분석 이벤트 target과 상세 화면 유형 */
 /** `search-range` 이벤트의 `search_range` 값 — 고른 조회 범위 */
@@ -332,15 +332,15 @@ export function ReportTrendTab({
 
   const categories = rankCategories(byMonth, includedMonths);
 
-  // 선택한 달이 월 평균(`당월`은 선택한 달까지 12개월 평균)보다 많거나 적은 금액을 알린다.
+  // 선택한 달이 월 평균(`당월`은 최근 12개월 평균)보다 많거나 적은 금액을 알린다.
   // 금액과 평균 모두 선택한 칩의 지출 유형 기준
   const baselineMonths = isSingleMonth
-    ? getWindowMonths(anchorIndex, SINGLE_MONTH_BASELINE_LENGTH)
+    ? getWindowMonths(currentIndex, SINGLE_MONTH_BASELINE_LENGTH)
     : includedMonths;
   const selectedMonthTotal = sumItems(byMonth.get(anchorIndex));
   // 선택한 달에 (선택한 칩의) 내역이 없으면 평균 비교 대신 기록을 권한다
   const hasNoSpending = selectedMonthTotal.count === 0;
-  // 평균에는 선택한 달도 들어가므로, 기록 있는 다른 달이 없으면 비교가 성립하지 않는다
+  // 선택한 달만으로 낸 평균과는 비교가 성립하지 않으므로, 기록 있는 다른 달이 있어야 한다
   const hasNothingToCompare =
     !hasNoSpending &&
     summarizeWindow(
