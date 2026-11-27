@@ -496,7 +496,6 @@ export function ReportTrendTab({
                 bars={bars}
                 revealIndex={windowEndIndex}
                 noSpendDays={noSpendDays}
-                growKey={rankingFilter}
                 palette={palette}
                 onPressBar={handlePressBar}
               />

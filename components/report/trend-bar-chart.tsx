@@ -5,7 +5,7 @@
 
 import { atomicColors } from '@/constants/atomic-colors';
 import { typography, type ColorPalette } from '@/constants/theme';
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
@@ -20,7 +20,8 @@ import {
 const COLUMN_WIDTH = 44;
 const MAX_BAR_HEIGHT = 100;
 const MIN_BAR_HEIGHT = 4;
-const GROW_DURATION = 900;
+/** 금액이 바뀔 때 막대가 새 높이로 옮겨 가는 시간 */
+const RESIZE_DURATION = 900;
 /** 시안 채움색 — Figma에서 토큰에 묶이지 않은 값 */
 const BAR_FILL_WITHIN = '#22CD64';
 const BAR_FILL_OUTSIDE = '#C8C8C8';
@@ -42,35 +43,45 @@ interface TrendBarChartProps {
   revealIndex: number;
   /** 선택 범위에서 소비 금액이 0원인 날 수 */
   noSpendDays: number;
-  /** 값이 바뀌면 막대가 아래에서부터 다시 올라온다 */
-  growKey: string;
   palette: ColorPalette;
   onPressBar: (monthIndex: number) => void;
+}
+
+interface TrendBarShapeProps {
+  height: number;
+  fillColor: string;
+  borderColor: string;
+}
+
+/** 막대 하나 — 처음에는 바로 그리고, 높이가 바뀌면 지금 높이에서 새 높이로 움직인다 */
+function TrendBarShape({ height, fillColor, borderColor }: TrendBarShapeProps) {
+  const [animatedHeight] = useState(() => new Animated.Value(height));
+  useEffect(() => {
+    const animation = Animated.timing(animatedHeight, {
+      toValue: height,
+      duration: RESIZE_DURATION,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    });
+    animation.start();
+    // 움직이는 중에 값이 또 바뀌면 멈춘 높이에서 이어 간다
+    return () => animation.stop();
+  }, [animatedHeight, height]);
+
+  return (
+    <Animated.View
+      style={[styles.bar, { height: animatedHeight, backgroundColor: fillColor, borderColor }]}
+    />
+  );
 }
 
 export function TrendBarChart({
   bars,
   revealIndex,
   noSpendDays,
-  growKey,
   palette,
   onPressBar,
 }: TrendBarChartProps) {
-  /** 0 = 바닥, 1 = 실제 높이 */
-  const [grow] = useState(() => new Animated.Value(1));
-  const growKeyRef = useRef(growKey);
-  // 새 높이가 화면에 먼저 보이지 않도록 그리기 전에 바닥으로 내린다
-  useLayoutEffect(() => {
-    if (growKeyRef.current === growKey) return;
-    growKeyRef.current = growKey;
-    grow.setValue(0);
-    Animated.timing(grow, {
-      toValue: 1,
-      duration: GROW_DURATION,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    }).start();
-  }, [grow, growKey]);
   const scrollRef = useRef<ScrollViewInstance>(null);
   const widthRef = useRef(0);
   const offsetRef = useRef<number | null>(null);
@@ -130,29 +141,22 @@ export function TrendBarChart({
             accessibilityLabel={bar.accessibilityLabel}
           >
             <View style={styles.barArea}>
-              <Animated.View
-                style={[
-                  styles.bar,
-                  {
-                    height: grow.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [
-                        MIN_BAR_HEIGHT,
-                        bar.amount > 0
-                          ? Math.max(MIN_BAR_HEIGHT, (bar.amount / maxAmount) * MAX_BAR_HEIGHT)
-                          : MIN_BAR_HEIGHT,
-                      ],
-                    }),
-                    backgroundColor:
-                      bar.tone === 'over'
-                        ? palette.statusNegative
-                        : bar.tone === 'within'
-                          ? BAR_FILL_WITHIN
-                          : BAR_FILL_OUTSIDE,
-                    borderColor:
-                      bar.tone === 'outside' ? atomicColors.neutral[400] : atomicColors.neutral[800],
-                  },
-                ]}
+              <TrendBarShape
+                height={
+                  bar.amount > 0
+                    ? Math.max(MIN_BAR_HEIGHT, (bar.amount / maxAmount) * MAX_BAR_HEIGHT)
+                    : MIN_BAR_HEIGHT
+                }
+                fillColor={
+                  bar.tone === 'over'
+                    ? palette.statusNegative
+                    : bar.tone === 'within'
+                      ? BAR_FILL_WITHIN
+                      : BAR_FILL_OUTSIDE
+                }
+                borderColor={
+                  bar.tone === 'outside' ? atomicColors.neutral[400] : atomicColors.neutral[800]
+                }
               />
             </View>
             {/* 선택(활성)된 달만 굵게 */}
