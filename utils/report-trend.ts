@@ -188,14 +188,17 @@ export interface CategoryTrend {
   category: string;
   count: number;
   amount: number;
+  /** 이 카테고리의 금액이 있는 달만으로 나눈 월 평균 (0원인 달 제외, 모두 0원이면 0) */
+  average: number;
   /** `months` 순서 그대로 */
   monthly: (MonthTotal & { monthIndex: number })[];
 }
 
-/** 카테고리별 합계 — 금액 큰 순. 지출 유형은 `byMonth`를 만들기 전에 거른다 */
+/** 카테고리별 합계와 월 평균 — `sortBy` 금액 큰 순. 지출 유형은 `byMonth`를 만들기 전에 거른다 */
 export function rankCategories(
   byMonth: Map<number, TrendItem[]>,
   months: number[],
+  sortBy: 'amount' | 'average' = 'amount',
 ): CategoryTrend[] {
   const categories = new Map<string, Map<number, MonthTotal>>();
   months.forEach((monthIndex) => {
@@ -213,14 +216,17 @@ export function rankCategories(
         monthIndex,
         ...(totals.get(monthIndex) ?? { count: 0, amount: 0 }),
       }));
+      const amount = monthly.reduce((sum, month) => sum + month.amount, 0);
+      const spentMonthCount = monthly.filter((month) => month.amount > 0).length;
       return {
         category,
         count: monthly.reduce((sum, month) => sum + month.count, 0),
-        amount: monthly.reduce((sum, month) => sum + month.amount, 0),
+        amount,
+        average: spentMonthCount > 0 ? amount / spentMonthCount : 0,
         monthly,
       };
     })
-    .sort((a, b) => b.amount - a.amount);
+    .sort((a, b) => b[sortBy] - a[sortBy]);
 }
 
 export interface AverageDifference {

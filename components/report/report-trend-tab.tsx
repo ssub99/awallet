@@ -330,7 +330,8 @@ export function ReportTrendTab({
     ? formatPeriodLabel(anchorIndex)
     : `${formatPeriodLabel(Math.min(windowEndIndex - range + 1, ...includedMonths))} - ${formatPeriodLabel(Math.max(windowEndIndex, ...includedMonths))}`;
 
-  const categories = rankCategories(byMonth, includedMonths);
+  // 목록의 금액과 순위도 평균 토글을 따른다
+  const categories = rankCategories(byMonth, includedMonths, showAverage ? 'average' : 'amount');
 
   // 선택한 달이 월 평균(`당월`은 최근 12개월 평균)보다 많거나 적은 금액을 알린다.
   // 금액과 평균 모두 선택한 칩의 지출 유형 기준
@@ -752,7 +753,10 @@ export function ReportTrendTab({
                           </UiLineText>
                           <View style={styles.categoryTrailing}>
                             <UiLineText variant="body01Bold" style={{ color: palette.text }}>
-                              {formatCountAndAmount(item.count, item.amount)}
+                              {formatCountAndAmount(
+                                item.count,
+                                showAverage ? Math.round(item.average) : item.amount,
+                              )}
                             </UiLineText>
                             {!isSingleMonth ? (
                               <Icon
@@ -847,7 +851,7 @@ export function ReportTrendTab({
             <View style={styles.averageToggle}>
               <Text style={[styles.segmentText, { color: palette.text }]}>평균</Text>
               {/* 공용 스위치(56×32)를 시안 크기 40×24로 축소 */}
-              {/* 당월·정기·할부는 합계/평균을 바꿀 수 없다 — 눌렀을 때 알려 준다 */}
+              {/* 당월은 합계/평균을 바꿀 수 없다 — 눌렀을 때 알려 준다 */}
               <Pressable
                 style={styles.switchBox}
                 onPress={canAverage ? undefined : () => showToast('변경할 수 없습니다.')}
