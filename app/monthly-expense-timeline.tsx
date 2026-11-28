@@ -876,9 +876,10 @@ export default function MonthlyExpenseTimelineScreen() {
         _evt: GestureResponderEvent,
         gestureState: PanResponderGestureState,
       ) => {
-        const { dx, dy, x0 } = gestureState;
-        // 좌측 엣지에서 시작하는 우→ 스와이프는 iOS interactive pop에 양보
-        if (x0 < 40 && dx > 0) {
+        const { dx, dy, moveX } = gestureState;
+        // 좌측 엣지에서 시작하는 우→ 스와이프는 iOS interactive pop에 양보.
+        // 넘겨받기 전에는 x0가 비어 있어 시작 위치를 이동량으로 구한다
+        if (dx > 0 && moveX - dx < 40) {
           return false;
         }
         return Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy);

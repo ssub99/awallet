@@ -22,6 +22,7 @@ import { scheduleMaybePromptWriteReview } from '@/utils/app-store-review-schedul
 import { calculateRecurringIterations } from '@/utils/expense-calculations';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { generateRecordId } from './id-generator';
+import { keepSeriesOriginals } from '@/utils/recurring-record-series';
 
 export type PaymentMethod = 'credit' | 'debit' | 'cash';
 
@@ -59,6 +60,10 @@ export interface ExpenseRecord {
   originalAmount?: number; // 원본 금액
   originalAmountBeforeRefund?: number; // 환불 직전 금액
   originalCategory?: string; // 원본 카테고리
+  /** 반복 기록의 원본 메모·결제 유형 (없으면 아직 개별 수정 전) */
+  originalMemo?: string;
+  originalPaymentMethod?: PaymentMethod;
+  originalPaymentSubtypeId?: string;
   originalDate?: string; // 원본 날짜 (YYYY.MM.DD 형식) - 일반 기록: 처음 생성일, 선결제 기록: 원래 예정일
   /** 최초 생성 시각. 로컬 `YYYY-MM-DD HH:mm:ss` (없으면 로드 시 timestamp으로 백필) */
   createdAt?: string;
@@ -430,11 +435,11 @@ export async function createExpense(
   const expense = normalizeExpense(record);
   
   const existing = await loadLocalExpenses();
-  const filtered = existing.filter(
-    (item) =>
-      !(item.id && expense.id && item.id === expense.id) && item.timestamp !== expense.timestamp,
-  );
-  filtered.push(expense);
+  const isSame = (item: ExpenseRecord) =>
+    (!!item.id && !!expense.id && item.id === expense.id) || item.timestamp === expense.timestamp;
+  const previous = existing.find(isSame);
+  const filtered = existing.filter((item) => !isSame(item));
+  filtered.push(previous ? keepSeriesOriginals(previous, expense) : expense);
   await persistExpenses(filtered);
   if (!options?.skipLifecycleLog) {
     logExpenseCreate(
@@ -553,13 +558,15 @@ export async function updateExpense(
 
   const next = expenses.map((expense) => {
     if (expense.id === id || expense.timestamp.toString() === id) {
-      updated = normalizeExpense({
-        ...expense,
-        ...restUpdates,
-        id: expense.id ?? id,
-        createdAt: expense.createdAt,
-        updatedAt: formatLocalDateTime(Date.now()),
-      });
+      updated = normalizeExpense(
+        keepSeriesOriginals(expense, {
+          ...expense,
+          ...restUpdates,
+          id: expense.id ?? id,
+          createdAt: expense.createdAt,
+          updatedAt: formatLocalDateTime(Date.now()),
+        }),
+      );
       return updated;
     }
     return expense;
@@ -654,11 +661,13 @@ export async function renameExpenseCategory(
   let changed = false;
   const nowLocal = formatLocalDateTime(Date.now());
   const updated = expenses.map((expense) => {
-    if (expense.category === oldLabel) {
+    if (expense.category === oldLabel || expense.originalCategory === oldLabel) {
       changed = true;
       return normalizeExpense({
         ...expense,
-        category: newLabel,
+        category: expense.category === oldLabel ? newLabel : expense.category,
+        originalCategory:
+          expense.originalCategory === oldLabel ? newLabel : expense.originalCategory,
         updatedAt: nowLocal,
       });
     }

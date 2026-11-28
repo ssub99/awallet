@@ -24,7 +24,7 @@ import {
   listRecurringInstallmentGroups,
   type RecurringInstallmentGroupSummary,
 } from '@/utils/recurring-record-management';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
@@ -44,6 +44,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 const DELETE_SUCCESS_TOAST_MESSAGE = '반복 기록이 성공적으로 삭제 되었습니다.';
 const GLOBAL_EMPTY_MESSAGE = '생성된 반복 기록이 존재하지 않습니다.';
 const SWIPE_THRESHOLD = 50;
+/** 이 폭 안에서 시작한 오른쪽 스와이프는 뒤로가기에 양보한다 */
+const BACK_EDGE_WIDTH = 40;
 const YEAR_CARD_HEIGHT = 56;
 const YEAR_CARD_MARGIN_BOTTOM = 16;
 const EMPTY_STATE_VERTICAL_OFFSET = -((YEAR_CARD_HEIGHT + YEAR_CARD_MARGIN_BOTTOM) / 2);
@@ -59,10 +61,14 @@ function RecurringGroupCard({
   item,
   colors,
   onDeletePress,
+  onEditPress,
+  onCopyPress,
 }: {
   item: RecurringInstallmentGroupSummary;
   colors: typeof themeColors.light;
   onDeletePress: (item: RecurringInstallmentGroupSummary) => void;
+  onEditPress: (item: RecurringInstallmentGroupSummary) => void;
+  onCopyPress: (item: RecurringInstallmentGroupSummary) => void;
 }) {
   const hasMemo = item.memo.trim().length > 0;
 
@@ -98,6 +104,26 @@ function RecurringGroupCard({
           <DetailRow label="반복설정" value={item.repeatSettingLabel} colors={colors} />
           <DetailRow label="시작일" value={item.startDate} colors={colors} />
           <DetailRow label="종료일" value={item.endDate} colors={colors} />
+        </View>
+        <View style={[styles.infoDivider, { backgroundColor: colors.border }]} />
+
+        <View style={styles.actionRow}>
+          <Pressable
+            onPress={() => onEditPress(item)}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={`${item.categoryDisplay} 반복 기록 편집`}
+          >
+            <Text style={[styles.actionText, { color: colors.textAssistive }]}>편집</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => onCopyPress(item)}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={`${item.categoryDisplay} 반복 기록 복사하기`}
+          >
+            <Text style={[styles.actionText, { color: colors.textAssistive }]}>복사하기</Text>
+          </Pressable>
         </View>
       </View>
     </View>
@@ -266,7 +292,11 @@ export default function RecurringRecordManagementScreen() {
         _evt: GestureResponderEvent,
         gestureState: PanResponderGestureState,
       ) => {
-        const { dx, dy } = gestureState;
+        const { dx, dy, moveX } = gestureState;
+        // 넘겨받기 전에는 x0가 비어 있어 시작 위치를 이동량으로 구한다
+        if (dx > 0 && moveX - dx < BACK_EDGE_WIDTH) {
+          return false;
+        }
         return Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy);
       },
       onPanResponderRelease: (_evt: GestureResponderEvent, gestureState: PanResponderGestureState) => {
@@ -312,11 +342,23 @@ export default function RecurringRecordManagementScreen() {
     }
   }, [isDeleting, loadGroupsForYear, pendingDelete, refresh, selectedYear, setLoading, showToast]);
 
+  const openForm = useCallback(
+    (
+      pathname: '/recurring-record-edit' | '/recurring-record-copy',
+      { kind, groupId }: RecurringInstallmentGroupSummary,
+    ) => {
+      router.push({ pathname, params: { kind, groupId } });
+    },
+    [router],
+  );
+
   const showYearList = isDataReady && hasAnyGroups && groups.length > 0;
   const showEmptyState = isDataReady && groups.length === 0;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
+      {/* iOS 26+ 기본 fullScreenGesture가 연도 스와이프를 덮어쓰므로 엣지 pop만 유지 */}
+      <Stack.Screen options={{ fullScreenGestureEnabled: false }} />
 
       <TopNavigation
         type="sub"
@@ -385,7 +427,13 @@ export default function RecurringRecordManagementScreen() {
               data={groups}
               keyExtractor={(item) => `${item.kind}:${item.groupId}`}
               renderItem={({ item }) => (
-                <RecurringGroupCard item={item} colors={colors} onDeletePress={setPendingDelete} />
+                <RecurringGroupCard
+                  item={item}
+                  colors={colors}
+                  onDeletePress={setPendingDelete}
+                  onEditPress={(group) => openForm('/recurring-record-edit', group)}
+                  onCopyPress={(group) => openForm('/recurring-record-copy', group)}
+                />
               )}
               contentContainerStyle={styles.listContent}
               ItemSeparatorComponent={() => <View style={styles.listSeparator} />}
@@ -471,7 +519,7 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   listSeparator: {
-    height: 8,
+    height: 16,
   },
   cardRow: {
     flexDirection: 'row',
@@ -489,7 +537,14 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     paddingHorizontal: 16,
     paddingVertical: 16,
-    minHeight: 151,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  actionText: {
+    ...typography.body02.regular,
+    textDecorationLine: 'underline',
   },
   infoHeader: {
     flexDirection: 'row',
